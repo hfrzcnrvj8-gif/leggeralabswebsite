@@ -8,16 +8,14 @@ import { Showcase } from "@/components/Showcase";
 import { CTA } from "@/components/CTA";
 import { Footer } from "@/components/Footer";
 
-export default async function Home({
-  params,
-}: {
-  params: { lang: Locale };
-}) {
-  const dict = await getDictionary(params.lang);
+export default async function Home({ params }: PageProps<"/[lang]">) {
+  const { lang: rawLang } = await params;
+  const lang = rawLang as Locale;
+  const dict = await getDictionary(lang);
 
   return (
     <>
-      <Header lang={params.lang} dict={dict.nav} />
+      <Header lang={lang} dict={dict.nav} />
       <main className="relative overflow-x-clip">
         <Hero dict={dict.hero} />
         <ProblemVision dict={dict.problem} />
@@ -25,7 +23,7 @@ export default async function Home({
         <Showcase dict={dict.showcase} />
         <CTA dict={dict.cta} />
       </main>
-      <Footer lang={params.lang} dict={dict.footer} />
+      <Footer lang={lang} dict={dict.footer} />
     </>
   );
 }

@@ -10,19 +10,17 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({
   params,
-}: {
-  params: { lang: Locale };
-}): Promise<Metadata> {
-  const dict = await getDictionary(params.lang);
+}: PageProps<"/[lang]/privacy">): Promise<Metadata> {
+  const { lang } = await params;
+  const dict = await getDictionary(lang as Locale);
   return { title: `${dict.privacy.title} — poltechnickx` };
 }
 
 export default async function PrivacyPage({
   params,
-}: {
-  params: { lang: Locale };
-}) {
-  const dict = await getDictionary(params.lang);
+}: PageProps<"/[lang]/privacy">) {
+  const { lang } = await params;
+  const dict = await getDictionary(lang as Locale);
   const p = dict.privacy;
 
   return (
@@ -33,7 +31,7 @@ export default async function PrivacyPage({
       />
       <Reveal>
         <Link
-          href={`/${params.lang}`}
+          href={`/${lang}`}
           className="text-sm text-muted transition-colors hover:text-[var(--fg)]"
         >
           ← {p.back}

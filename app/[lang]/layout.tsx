@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import type { ReactNode } from "react";
 import "../globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { i18n, type Locale } from "@/i18n/config";
@@ -18,10 +17,9 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({
   params,
-}: {
-  params: { lang: Locale };
-}): Promise<Metadata> {
-  const dict = await getDictionary(params.lang);
+}: LayoutProps<"/[lang]">): Promise<Metadata> {
+  const { lang } = await params;
+  const dict = await getDictionary(lang as Locale);
   return {
     title: dict.meta.title,
     description: dict.meta.description,
@@ -31,15 +29,13 @@ export async function generateMetadata({
   };
 }
 
-export default function LangLayout({
+export default async function LangLayout({
   children,
   params,
-}: {
-  children: ReactNode;
-  params: { lang: Locale };
-}) {
+}: LayoutProps<"/[lang]">) {
+  const { lang } = await params;
   return (
-    <html lang={params.lang} suppressHydrationWarning className={inter.variable}>
+    <html lang={lang} suppressHydrationWarning className={inter.variable}>
       <body className="font-sans antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
