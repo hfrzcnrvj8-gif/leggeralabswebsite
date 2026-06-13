@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "title": "poltechnickx — Private Local AI & Automation for SMEs",
+    "description": "We deploy private, on-premise LLMs and engineer process automation for small and medium businesses. Your data never leaves your walls."
+  },
+  "nav": {
+    "vision": "Vision",
+    "services": "Expertise",
+    "work": "Showcase",
+    "contact": "Contact"
+  },
+  "hero": {
+    "badge": "Private AI · On-Premise · Zero Cloud Lock-in",
+    "titleLines": ["Reclaim your data.", "Accelerate your business."],
+    "subtitle": "We build private, locally-hosted AI and automation systems for ambitious SMEs — the intelligence of a frontier model, without ever sending a single byte to the cloud.",
+    "ctaPrimary": "Start a conversation",
+    "ctaSecondary": "See how it works",
+    "stats": [
+      { "value": "100%", "label": "On-premise data" },
+      { "value": "0", "label": "Per-token cloud bills" },
+      { "value": "24/7", "label": "Always-on automation" }
+    ]
+  },
+  "problem": {
+    "label": "The Vision",
+    "title": "The cloud was never built for your secrets.",
+    "subtitle": "Every prompt sent to a public API is a copy of your business leaving the building. We bring the model to your data — not the other way around.",
+    "cloud": {
+      "title": "Public Cloud AI",
+      "points": [
+        "Confidential data leaves your infrastructure",
+        "Unpredictable per-token billing at scale",
+        "Vendor lock-in and silent model changes",
+        "Compliance grey zones under GDPR"
+      ]
+    },
+    "local": {
+      "title": "Local LLMs by poltechnickx",
+      "points": [
+        "Data stays fully inside your walls",
+        "Fixed, predictable infrastructure cost",
+        "You own the weights and the workflow",
+        "GDPR-ready by architecture, not promise"
+      ]
+    }
+  },
+  "services": {
+    "label": "Expertise",
+    "title": "Two disciplines. One outcome: leverage.",
+    "subtitle": "We pair private model deployment with deep automation engineering to turn your operations into a quiet, compounding advantage.",
+    "items": [
+      {
+        "title": "Local LLM Deployments",
+        "description": "Production-grade private language models running on your hardware or private cloud. Tuned for privacy, cost-efficiency and the exact tasks your team performs every day.",
+        "tags": ["Qwen", "DeepSeek", "Llama", "On-prem", "Fine-tuning"]
+      },
+      {
+        "title": "Advanced Process Automation",
+        "description": "End-to-end orchestration of the work nobody should do by hand. We connect your tools, data and AI into reliable, observable pipelines that simply run.",
+        "tags": ["n8n", "Python", "Orchestration", "Integrations", "RAG"]
+      }
+    ]
+  },
+  "showcase": {
+    "label": "Showcase",
+    "title": "Real workflows. Real screens.",
+    "subtitle": "A look inside the systems we ship — from orchestration canvases to the code that holds it all together.",
+    "items": [
+      { "title": "automation-demo.mp4", "caption": "Live workflow walkthrough" },
+      { "title": "n8n — orchestration", "caption": "Visual pipeline build" },
+      { "title": "local-llm.py", "caption": "Private inference layer" }
+    ]
+  },
+  "cta": {
+    "title": "Let's make your data work for you.",
+    "subtitle": "Tell us where the friction is. We'll show you what private AI can quietly remove.",
+    "button": "Contact poltechnickx"
+  },
+  "footer": {
+    "tagline": "Private AI & automation for the businesses that can't afford to leak.",
+    "privacy": "Privacy Policy",
+    "rights": "All rights reserved.",
+    "madeIn": "Engineered in the EU"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "updated": "Last updated: 13 June 2026",
+    "intro": "This Privacy Policy explains how poltechnickx (\"we\", \"us\") processes personal data in accordance with Regulation (EU) 2016/679 (GDPR). This document is a placeholder template and should be reviewed by qualified legal counsel before publication.",
+    "sections": [
+      {
+        "heading": "1. Data Controller",
+        "body": "poltechnickx is the controller of personal data collected through this website. For any privacy-related request, contact us at the address listed in the footer."
+      },
+      {
+        "heading": "2. What data we collect",
+        "body": "We process contact details you voluntarily provide (such as your name, email and message) and limited technical data (such as anonymised analytics and server logs) required to operate and secure the site."
+      },
+      {
+        "heading": "3. Purpose and legal basis",
+        "body": "We process your data to respond to enquiries (Art. 6(1)(b) GDPR), to operate and improve the website (Art. 6(1)(f) GDPR — legitimate interest), and where you have given consent (Art. 6(1)(a) GDPR)."
+      },
+      {
+        "heading": "4. Data retention",
+        "body": "We retain personal data only for as long as necessary for the purposes described above or as required by applicable law, after which it is securely deleted."
+      },
+      {
+        "heading": "5. Your rights",
+        "body": "Under the GDPR you have the right to access, rectify, erase, restrict and port your data, and to object to processing. You may also lodge a complaint with your supervisory authority."
+      },
+      {
+        "heading": "6. Contact",
+        "body": "To exercise any of these rights, please contact poltechnickx using the contact details provided on this website."
+      }
+    ],
+    "back": "Back to home"
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "title": "poltechnickx — Prywatne, lokalne AI i automatyzacja dla MŚP",
+    "description": "Wdrażamy prywatne, lokalne modele LLM i projektujemy automatyzację procesów dla małych i średnich firm. Twoje dane nigdy nie opuszczają Twojej firmy."
+  },
+  "nav": {
+    "vision": "Wizja",
+    "services": "Kompetencje",
+    "work": "Realizacje",
+    "contact": "Kontakt"
+  },
+  "hero": {
+    "badge": "Prywatne AI · Lokalnie · Zero uzależnienia od chmury",
+    "titleLines": ["Odzyskaj swoje dane.", "Przyspiesz swój biznes."],
+    "subtitle": "Budujemy prywatne, lokalnie hostowane systemy AI i automatyzacji dla ambitnych MŚP — inteligencja modelu klasy premium, bez wysyłania choćby jednego bajtu do chmury.",
+    "ctaPrimary": "Rozpocznij rozmowę",
+    "ctaSecondary": "Zobacz, jak to działa",
+    "stats": [
+      { "value": "100%", "label": "Dane na miejscu" },
+      { "value": "0", "label": "Rachunków za tokeny" },
+      { "value": "24/7", "label": "Automatyzacja non-stop" }
+    ]
+  },
+  "problem": {
+    "label": "Wizja",
+    "title": "Chmura nigdy nie powstała dla Twoich tajemnic.",
+    "subtitle": "Każde zapytanie wysłane do publicznego API to kopia Twojej firmy opuszczająca jej mury. My przenosimy model do Twoich danych — a nie odwrotnie.",
+    "cloud": {
+      "title": "Publiczne AI w chmurze",
+      "points": [
+        "Poufne dane opuszczają Twoją infrastrukturę",
+        "Nieprzewidywalne koszty rozliczane za token",
+        "Uzależnienie od dostawcy i ciche zmiany modelu",
+        "Szare strefy zgodności z RODO"
+      ]
+    },
+    "local": {
+      "title": "Lokalne LLM od poltechnickx",
+      "points": [
+        "Dane pozostają w całości w Twojej firmie",
+        "Stały, przewidywalny koszt infrastruktury",
+        "Jesteś właścicielem modelu i całego procesu",
+        "Zgodność z RODO wynikająca z architektury"
+      ]
+    }
+  },
+  "services": {
+    "label": "Kompetencje",
+    "title": "Dwie dyscypliny. Jeden efekt: przewaga.",
+    "subtitle": "Łączymy wdrożenia prywatnych modeli z inżynierią automatyzacji, by zamienić Twoje operacje w cichą, kumulującą się przewagę.",
+    "items": [
+      {
+        "title": "Wdrożenia lokalnych LLM",
+        "description": "Prywatne modele językowe klasy produkcyjnej działające na Twoim sprzęcie lub w prywatnej chmurze. Dostrojone pod prywatność, efektywność kosztową i dokładnie te zadania, które wykonuje Twój zespół.",
+        "tags": ["Qwen", "DeepSeek", "Llama", "On-prem", "Fine-tuning"]
+      },
+      {
+        "title": "Zaawansowana automatyzacja procesów",
+        "description": "Kompleksowa orkiestracja pracy, której nikt nie powinien wykonywać ręcznie. Łączymy Twoje narzędzia, dane i AI w niezawodne, monitorowane przepływy, które po prostu działają.",
+        "tags": ["n8n", "Python", "Orkiestracja", "Integracje", "RAG"]
+      }
+    ]
+  },
+  "showcase": {
+    "label": "Realizacje",
+    "title": "Prawdziwe procesy. Prawdziwe ekrany.",
+    "subtitle": "Spojrzenie do wnętrza systemów, które wdrażamy — od kanw orkiestracji po kod, który spina to wszystko w całość.",
+    "items": [
+      { "title": "demo-automatyzacji.mp4", "caption": "Przegląd działającego procesu" },
+      { "title": "n8n — orkiestracja", "caption": "Wizualna budowa przepływu" },
+      { "title": "local-llm.py", "caption": "Warstwa prywatnej inferencji" }
+    ]
+  },
+  "cta": {
+    "title": "Sprawmy, by Twoje dane pracowały dla Ciebie.",
+    "subtitle": "Powiedz nam, gdzie pojawia się tarcie. Pokażemy, co prywatne AI może po cichu wyeliminować.",
+    "button": "Skontaktuj się z poltechnickx"
+  },
+  "footer": {
+    "tagline": "Prywatne AI i automatyzacja dla firm, których nie stać na wyciek.",
+    "privacy": "Polityka Prywatności",
+    "rights": "Wszelkie prawa zastrzeżone.",
+    "madeIn": "Tworzone w UE"
+  },
+  "privacy": {
+    "title": "Polityka Prywatności",
+    "updated": "Ostatnia aktualizacja: 13 czerwca 2026",
+    "intro": "Niniejsza Polityka Prywatności wyjaśnia, w jaki sposób poltechnickx („my”) przetwarza dane osobowe zgodnie z Rozporządzeniem (UE) 2016/679 (RODO). Dokument ten stanowi szablon poglądowy i przed publikacją powinien zostać zweryfikowany przez wykwalifikowanego prawnika.",
+    "sections": [
+      {
+        "heading": "1. Administrator danych",
+        "body": "poltechnickx jest administratorem danych osobowych zbieranych za pośrednictwem tej strony. We wszelkich sprawach dotyczących prywatności prosimy o kontakt pod adresem wskazanym w stopce."
+      },
+      {
+        "heading": "2. Jakie dane zbieramy",
+        "body": "Przetwarzamy dane kontaktowe podane dobrowolnie (takie jak imię, adres e-mail i treść wiadomości) oraz ograniczone dane techniczne (jak zanonimizowana analityka i logi serwera) niezbędne do działania i zabezpieczenia strony."
+      },
+      {
+        "heading": "3. Cel i podstawa prawna",
+        "body": "Przetwarzamy dane w celu odpowiedzi na zapytania (art. 6 ust. 1 lit. b RODO), obsługi i ulepszania strony (art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes) oraz na podstawie udzielonej zgody (art. 6 ust. 1 lit. a RODO)."
+      },
+      {
+        "heading": "4. Okres przechowywania",
+        "body": "Przechowujemy dane osobowe wyłącznie tak długo, jak jest to niezbędne do realizacji powyższych celów lub wymagane przepisami prawa, po czym są one bezpiecznie usuwane."
+      },
+      {
+        "heading": "5. Twoje prawa",
+        "body": "Na mocy RODO masz prawo dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania oraz przenoszenia, a także prawo sprzeciwu. Możesz również wnieść skargę do organu nadzorczego (PUODO)."
+      },
+      {
+        "heading": "6. Kontakt",
+        "body": "Aby skorzystać z któregokolwiek z tych praw, prosimy o kontakt z poltechnickx z wykorzystaniem danych kontaktowych podanych na tej stronie."
+      }
+    ],
+    "back": "Powrót na stronę główną"
+  }
+}
