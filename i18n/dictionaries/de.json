@@ -74,7 +74,25 @@
   "cta": {
     "title": "Lassen Sie Ihre Daten für Sie arbeiten.",
     "subtitle": "Sagen Sie uns, wo es hakt. Wir zeigen Ihnen, was private KI leise beseitigen kann.",
-    "button": "poltechnickx kontaktieren"
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "Ihr Name",
+      "email": "E-Mail",
+      "emailPlaceholder": "sie@firma.de",
+      "company": "Unternehmen",
+      "companyPlaceholder": "Firmenname (optional)",
+      "message": "Nachricht",
+      "messagePlaceholder": "Beschreiben Sie den Prozess, den Sie automatisieren oder absichern möchten.",
+      "submit": "Nachricht senden",
+      "sending": "Wird gesendet…",
+      "success": "Vielen Dank — Ihre Nachricht ist unterwegs. Wir melden uns in Kürze.",
+      "error": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut oder schreiben Sie uns direkt.",
+      "errors": {
+        "name": "Bitte geben Sie Ihren Namen ein.",
+        "email": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+        "message": "Bitte schreiben Sie etwas mehr (mindestens 10 Zeichen)."
+      }
+    }
   },
   "footer": {
     "tagline": "Private KI & Automatisierung für Unternehmen, die sich kein Leck leisten können.",

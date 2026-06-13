@@ -4,11 +4,12 @@ Ultra-premium, minimalist marketing site for **poltechnickx** — an AI automati
 
 ## Stack
 
-- **Next.js 14** (App Router, React 18) — kept on the latest patched 14.2.x line for React 18 compatibility.
+- **Next.js 16** (App Router, React 19, Turbopack) — `npm audit` reports 0 vulnerabilities.
 - **Tailwind CSS** — design tokens + glassmorphism / liquid-glass utilities in `app/globals.css`.
 - **Framer Motion** — staggered reveals, parallax orbs, 3D-tilt Mac windows.
 - **next-themes** — native dark mode with a seamless light toggle (`class` strategy).
-- **i18n** — Polish (default), English, German via `[lang]` routing, middleware locale detection, and JSON dictionaries.
+- **i18n** — Polish (default), English, German via `[lang]` routing, `proxy.ts` locale detection, and JSON dictionaries.
+- **Contact form** — client-validated form posting to a `/api/contact` route handler (Resend-ready).
 
 ## Getting started
 
@@ -34,8 +35,21 @@ i18n/
   get-dictionary.ts   # server-only dictionary loader
   types.ts            # Dictionary type (derived from en.json)
   dictionaries/       # pl.json · en.json · de.json
-middleware.ts         # locale detection + redirect
+  api/contact/route.ts  # contact form submission handler
+proxy.ts              # locale detection + redirect (Next 16 proxy convention)
 ```
+
+## Contact form
+
+The form in the contact section is client-validated (name, email, message —
+company optional) and posts JSON to `app/api/contact/route.ts`, which
+re-validates server-side and includes a hidden honeypot field for spam.
+
+- **Out of the box:** with no env vars set, valid submissions are logged to the
+  server console and return success — so the form is fully functional in dev.
+- **To deliver real email:** copy `.env.example` to `.env.local` and set
+  `RESEND_API_KEY` (plus optional `CONTACT_TO_EMAIL` / `CONTACT_FROM_EMAIL`).
+  The handler then sends via the Resend API — no extra dependency required.
 
 ## Content & customization
 
@@ -55,4 +69,4 @@ middleware.ts         # locale detection + redirect
 ## Notes
 
 - The privacy pages are GDPR/RODO/DSGVO **placeholder templates** — have them reviewed by legal counsel before publishing.
-- `npm audit` flags advisories that only resolve by upgrading to Next 16 (a major, React-19 breaking change). This project intentionally targets React 18 / Next 14.2.x as specified.
+- A `postcss` override (`>=8.5.10`) is pinned in `package.json` to keep `npm audit` clean across transitive deps.

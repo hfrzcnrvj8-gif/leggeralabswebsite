@@ -74,7 +74,25 @@
   "cta": {
     "title": "Sprawmy, by Twoje dane pracowały dla Ciebie.",
     "subtitle": "Powiedz nam, gdzie pojawia się tarcie. Pokażemy, co prywatne AI może po cichu wyeliminować.",
-    "button": "Skontaktuj się z poltechnickx"
+    "form": {
+      "name": "Imię i nazwisko",
+      "namePlaceholder": "Twoje imię",
+      "email": "E-mail",
+      "emailPlaceholder": "ty@firma.pl",
+      "company": "Firma",
+      "companyPlaceholder": "Nazwa firmy (opcjonalnie)",
+      "message": "Wiadomość",
+      "messagePlaceholder": "Opisz proces, który chcesz zautomatyzować lub zabezpieczyć.",
+      "submit": "Wyślij wiadomość",
+      "sending": "Wysyłanie…",
+      "success": "Dziękujemy — Twoja wiadomość jest w drodze. Odezwiemy się wkrótce.",
+      "error": "Coś poszło nie tak. Spróbuj ponownie lub napisz do nas bezpośrednio.",
+      "errors": {
+        "name": "Podaj swoje imię i nazwisko.",
+        "email": "Podaj prawidłowy adres e-mail.",
+        "message": "Napisz nieco więcej (co najmniej 10 znaków)."
+      }
+    }
   },
   "footer": {
     "tagline": "Prywatne AI i automatyzacja dla firm, których nie stać na wyciek.",

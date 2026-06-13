@@ -1,6 +1,7 @@
 "use client";
 
 import { Reveal } from "./Reveal";
+import { ContactForm } from "./ContactForm";
 import type { Dictionary } from "@/i18n/types";
 
 export function CTA({ dict }: { dict: Dictionary["cta"] }) {
@@ -20,12 +21,9 @@ export function CTA({ dict }: { dict: Dictionary["cta"] }) {
               <p className="mx-auto mt-6 max-w-xl text-lg text-muted">
                 {dict.subtitle}
               </p>
-              <a
-                href="mailto:hello@poltechnickx.com"
-                className="btn-primary mt-10 inline-block rounded-full px-10 py-4 text-base font-semibold"
-              >
-                {dict.button}
-              </a>
+              <div className="mx-auto mt-12 max-w-xl">
+                <ContactForm dict={dict.form} />
+              </div>
             </div>
           </div>
         </div>
