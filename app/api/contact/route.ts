@@ -9,6 +9,8 @@ type ContactPayload = {
   email?: unknown;
   company?: unknown;
   message?: unknown;
+  // GDPR consent — must be truthy.
+  consent?: unknown;
   // Honeypot — must stay empty for real humans.
   website?: unknown;
 };
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
   if (name.length < 2) errors.name = true;
   if (!EMAIL_RE.test(email)) errors.email = true;
   if (message.length < 10) errors.message = true;
+  if (!body.consent) errors.consent = true;
 
   if (Object.keys(errors).length > 0) {
     return NextResponse.json({ error: "validation", errors }, { status: 422 });

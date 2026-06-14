@@ -61,14 +61,110 @@
       }
     ]
   },
+  "useCases": {
+    "label": "Use cases",
+    "title": "Where private AI quietly pays off.",
+    "subtitle": "Concrete starting points we can build on your infrastructure — each one keeps your data in-house.",
+    "items": [
+      {
+        "title": "Chat with your documents",
+        "description": "A private assistant that answers questions from your contracts, offers and internal knowledge base — with sources, never leaving your server.",
+        "impact": "From hours of searching to instant answers"
+      },
+      {
+        "title": "Invoice & document processing",
+        "description": "Automatically read, classify and route incoming documents into your systems, with a human checkpoint where it matters.",
+        "impact": "Manual data entry → automated pipeline"
+      },
+      {
+        "title": "Customer enquiry triage",
+        "description": "Draft replies, categorise and prioritise inbound messages so your team starts every morning ahead instead of behind.",
+        "impact": "Faster responses, zero copy-paste"
+      },
+      {
+        "title": "Your private internal copilot",
+        "description": "A company-wide assistant that knows how you actually work — onboarding, procedures, FAQs — running entirely on-premise.",
+        "impact": "Institutional knowledge, always on"
+      }
+    ]
+  },
+  "approach": {
+    "label": "How we work",
+    "title": "A clear path from idea to running system.",
+    "subtitle": "No black boxes. You see working software early and own everything at the end.",
+    "steps": [
+      {
+        "step": "01",
+        "title": "Discovery",
+        "description": "We map the process, the data and the goal — and agree on what success looks like before any code is written."
+      },
+      {
+        "step": "02",
+        "title": "Proof of concept",
+        "description": "We build a working prototype on your real data, on your infrastructure, so you judge results — not slides."
+      },
+      {
+        "step": "03",
+        "title": "Deployment",
+        "description": "We harden, integrate and roll out the solution into your daily tools, with your team trained to use it."
+      },
+      {
+        "step": "04",
+        "title": "Ownership & support",
+        "description": "You own the weights and the workflow. We stay on for monitoring, iteration and a clean handover."
+      }
+    ]
+  },
   "showcase": {
-    "label": "Showcase",
-    "title": "Real workflows. Real screens.",
-    "subtitle": "A look inside the systems we ship — from orchestration canvases to the code that holds it all together.",
+    "label": "From our lab",
+    "title": "Built in the open. Real screens, real systems.",
+    "subtitle": "While we onboard our first partners, here's what we're building in our own workshop — the same engineering we bring to your processes.",
     "items": [
       { "title": "automation-demo.mp4", "caption": "Live workflow walkthrough" },
       { "title": "n8n — orchestration", "caption": "Visual pipeline build" },
       { "title": "local-llm.py", "caption": "Private inference layer" }
+    ]
+  },
+  "founding": {
+    "label": "Founding partners",
+    "title": "We're selecting our first partners.",
+    "description": "As a new, founder-led studio we're taking on a small number of flagship projects at preferential terms — in exchange for honest feedback and, if you're happy, a reference case study. You get senior attention and lower risk; together we build the proof.",
+    "points": [
+      "Preferential founding pricing",
+      "Direct access to the founder, not account managers",
+      "A proof of concept before you commit",
+      "Co-create a case study you'll be proud of"
+    ],
+    "cta": "Become a founding partner"
+  },
+  "faq": {
+    "label": "FAQ",
+    "title": "Questions, answered.",
+    "items": [
+      {
+        "q": "Can a local model really match the big cloud ones?",
+        "a": "For most business tasks — document Q&A, drafting, classification, extraction — modern open models like Qwen, Llama and DeepSeek are more than capable. We pick and tune the right model for your specific job, not a one-size-fits-all chatbot."
+      },
+      {
+        "q": "Is my data genuinely safe?",
+        "a": "Yes — that's the whole point. The model runs on your hardware or private cloud, so prompts and documents never leave your control. Nothing is sent to a third-party API."
+      },
+      {
+        "q": "What hardware do I need?",
+        "a": "Less than most people expect. Many use cases run on a single workstation-class GPU or a modest private server. We size the setup to your workload during discovery."
+      },
+      {
+        "q": "How long does a project take?",
+        "a": "A focused proof of concept usually takes a couple of weeks. Full deployment depends on scope, but you'll see working results early rather than waiting months."
+      },
+      {
+        "q": "You're new — why should I trust you?",
+        "a": "Fair question. We're a founder-led studio, so you work directly with the person building your system. We prove value with a working proof of concept before you commit, and our founding-partner terms are designed to lower your risk while we build our track record together."
+      },
+      {
+        "q": "What if my team isn't technical?",
+        "a": "That's normal — and our job. We handle the engineering, integrate into the tools you already use, and train your team so the solution feels effortless."
+      }
     ]
   },
   "cta": {
@@ -87,6 +183,9 @@
       "sending": "Sending…",
       "success": "Thank you — your message is on its way. We'll be in touch shortly.",
       "error": "Something went wrong. Please try again or email us directly.",
+      "consent": "I agree to my data being processed to respond to my enquiry, in line with the",
+      "consentLink": "Privacy Policy",
+      "consentError": "Please accept the privacy policy to continue.",
       "errors": {
         "name": "Please enter your name.",
         "email": "Please enter a valid email address.",

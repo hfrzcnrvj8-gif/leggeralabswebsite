@@ -2,9 +2,16 @@
 
 import { Reveal } from "./Reveal";
 import { ContactForm } from "./ContactForm";
+import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 
-export function CTA({ dict }: { dict: Dictionary["cta"] }) {
+export function CTA({
+  dict,
+  lang,
+}: {
+  dict: Dictionary["cta"];
+  lang: Locale;
+}) {
   return (
     <section id="contact" className="relative px-6 py-32 md:py-44">
       <Reveal className="mx-auto max-w-4xl">
@@ -22,7 +29,7 @@ export function CTA({ dict }: { dict: Dictionary["cta"] }) {
                 {dict.subtitle}
               </p>
               <div className="mx-auto mt-12 max-w-xl">
-                <ContactForm dict={dict.form} />
+                <ContactForm dict={dict.form} lang={lang} />
               </div>
             </div>
           </div>

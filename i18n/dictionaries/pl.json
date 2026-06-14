@@ -61,14 +61,110 @@
       }
     ]
   },
+  "useCases": {
+    "label": "Zastosowania",
+    "title": "Tam, gdzie prywatne AI po cichu się zwraca.",
+    "subtitle": "Konkretne punkty startowe, które zbudujemy na Twojej infrastrukturze — każdy z nich trzyma dane u Ciebie.",
+    "items": [
+      {
+        "title": "Rozmawiaj ze swoimi dokumentami",
+        "description": "Prywatny asystent, który odpowiada na pytania z Twoich umów, ofert i bazy wiedzy — ze źródłami i bez opuszczania Twojego serwera.",
+        "impact": "Z godzin szukania do natychmiastowych odpowiedzi"
+      },
+      {
+        "title": "Obsługa faktur i dokumentów",
+        "description": "Automatyczne odczytywanie, klasyfikowanie i kierowanie dokumentów do Twoich systemów, z kontrolą człowieka tam, gdzie to ważne.",
+        "impact": "Ręczne przepisywanie → zautomatyzowany proces"
+      },
+      {
+        "title": "Segregacja zapytań klientów",
+        "description": "Wstępne odpowiedzi, kategoryzacja i priorytetyzacja wiadomości, by zespół zaczynał dzień z przewagą, a nie z zaległościami.",
+        "impact": "Szybsze odpowiedzi, zero kopiuj-wklej"
+      },
+      {
+        "title": "Twój prywatny copilot wewnętrzny",
+        "description": "Firmowy asystent znający sposób, w jaki naprawdę pracujecie — wdrożenia, procedury, FAQ — działający w pełni lokalnie.",
+        "impact": "Wiedza firmy zawsze pod ręką"
+      }
+    ]
+  },
+  "approach": {
+    "label": "Jak pracujemy",
+    "title": "Jasna droga od pomysłu do działającego systemu.",
+    "subtitle": "Żadnych czarnych skrzynek. Wcześnie widzisz działające oprogramowanie, a na końcu wszystko należy do Ciebie.",
+    "steps": [
+      {
+        "step": "01",
+        "title": "Rozpoznanie",
+        "description": "Mapujemy proces, dane i cel — i ustalamy, jak wygląda sukces, zanim powstanie pierwsza linijka kodu."
+      },
+      {
+        "step": "02",
+        "title": "Proof of concept",
+        "description": "Budujemy działający prototyp na Twoich realnych danych i Twojej infrastrukturze, byś oceniał efekty, a nie slajdy."
+      },
+      {
+        "step": "03",
+        "title": "Wdrożenie",
+        "description": "Utwardzamy, integrujemy i wdrażamy rozwiązanie w Twoje codzienne narzędzia, szkoląc zespół z jego obsługi."
+      },
+      {
+        "step": "04",
+        "title": "Własność i wsparcie",
+        "description": "Jesteś właścicielem modelu i procesu. Zostajemy na pokładzie: monitoring, iteracje i czyste przekazanie."
+      }
+    ]
+  },
   "showcase": {
-    "label": "Realizacje",
-    "title": "Prawdziwe procesy. Prawdziwe ekrany.",
-    "subtitle": "Spojrzenie do wnętrza systemów, które wdrażamy — od kanw orkiestracji po kod, który spina to wszystko w całość.",
+    "label": "Z naszego warsztatu",
+    "title": "Tworzone otwarcie. Prawdziwe ekrany, realne systemy.",
+    "subtitle": "Zanim przyjmiemy pierwszych partnerów, oto co budujemy we własnym warsztacie — ta sama inżynieria, którą wniesiemy do Twoich procesów.",
     "items": [
       { "title": "demo-automatyzacji.mp4", "caption": "Przegląd działającego procesu" },
       { "title": "n8n — orkiestracja", "caption": "Wizualna budowa przepływu" },
       { "title": "local-llm.py", "caption": "Warstwa prywatnej inferencji" }
+    ]
+  },
+  "founding": {
+    "label": "Partnerzy założyciele",
+    "title": "Wybieramy naszych pierwszych partnerów.",
+    "description": "Jako nowe studio prowadzone przez założyciela realizujemy niewielką liczbę flagowych projektów na preferencyjnych warunkach — w zamian za szczery feedback i, jeśli będziesz zadowolony, referencyjne case study. Ty zyskujesz uwagę seniora i niższe ryzyko; razem budujemy dowód skuteczności.",
+    "points": [
+      "Preferencyjne ceny dla pierwszych klientów",
+      "Bezpośredni kontakt z założycielem, nie z opiekunem konta",
+      "Proof of concept, zanim się zdecydujesz",
+      "Wspólnie tworzymy case study, z którego będziesz dumny"
+    ],
+    "cta": "Zostań partnerem założycielem"
+  },
+  "faq": {
+    "label": "FAQ",
+    "title": "Odpowiadamy na pytania.",
+    "items": [
+      {
+        "q": "Czy lokalny model naprawdę dorówna tym z chmury?",
+        "a": "Do większości zadań biznesowych — pytań o dokumenty, redakcji, klasyfikacji, ekstrakcji — nowoczesne otwarte modele jak Qwen, Llama czy DeepSeek w zupełności wystarczają. Dobieramy i dostrajamy właściwy model do Twojego konkretnego zadania, a nie uniwersalny czat."
+      },
+      {
+        "q": "Czy moje dane są naprawdę bezpieczne?",
+        "a": "Tak — to cały sens. Model działa na Twoim sprzęcie lub w prywatnej chmurze, więc zapytania i dokumenty nigdy nie opuszczają Twojej kontroli. Nic nie trafia do zewnętrznego API."
+      },
+      {
+        "q": "Jakiego sprzętu potrzebuję?",
+        "a": "Mniej, niż się wydaje. Wiele zastosowań działa na pojedynczej karcie GPU klasy stacji roboczej lub skromnym prywatnym serwerze. Konfigurację dobieramy do obciążenia podczas rozpoznania."
+      },
+      {
+        "q": "Ile trwa projekt?",
+        "a": "Skupiony proof of concept to zwykle kilka tygodni. Pełne wdrożenie zależy od zakresu, ale działające efekty zobaczysz wcześnie, a nie po miesiącach."
+      },
+      {
+        "q": "Dopiero zaczynacie — dlaczego mam zaufać?",
+        "a": "Słuszne pytanie. Jesteśmy studiem prowadzonym przez założyciela, więc pracujesz bezpośrednio z osobą, która buduje Twój system. Wartość udowadniamy działającym proof of concept, zanim się zwiążesz, a warunki dla partnerów założycieli obniżają Twoje ryzyko, gdy wspólnie budujemy nasze portfolio."
+      },
+      {
+        "q": "Co, jeśli mój zespół nie jest techniczny?",
+        "a": "To normalne — i nasze zadanie. Bierzemy na siebie inżynierię, integrujemy się z narzędziami, których już używacie, i szkolimy zespół, by rozwiązanie było bezwysiłkowe."
+      }
     ]
   },
   "cta": {
@@ -87,6 +183,9 @@
       "sending": "Wysyłanie…",
       "success": "Dziękujemy — Twoja wiadomość jest w drodze. Odezwiemy się wkrótce.",
       "error": "Coś poszło nie tak. Spróbuj ponownie lub napisz do nas bezpośrednio.",
+      "consent": "Wyrażam zgodę na przetwarzanie moich danych w celu odpowiedzi na zapytanie, zgodnie z",
+      "consentLink": "Polityką Prywatności",
+      "consentError": "Zaakceptuj politykę prywatności, aby kontynuować.",
       "errors": {
         "name": "Podaj swoje imię i nazwisko.",
         "email": "Podaj prawidłowy adres e-mail.",

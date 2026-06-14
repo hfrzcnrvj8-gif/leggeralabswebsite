@@ -1,16 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 
 type FormDict = Dictionary["cta"]["form"];
 type Status = "idle" | "sending" | "success" | "error";
-type FieldErrors = Partial<Record<"name" | "email" | "message", boolean>>;
+type FieldErrors = Partial<
+  Record<"name" | "email" | "message" | "consent", boolean>
+>;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function ContactForm({ dict }: { dict: FormDict }) {
+export function ContactForm({
+  dict,
+  lang,
+}: {
+  dict: FormDict;
+  lang: Locale;
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -20,6 +30,7 @@ export function ContactForm({ dict }: { dict: FormDict }) {
     if ((data.get("name") as string).trim().length < 2) next.name = true;
     if (!EMAIL_RE.test((data.get("email") as string).trim())) next.email = true;
     if ((data.get("message") as string).trim().length < 10) next.message = true;
+    if (!data.get("consent")) next.consent = true;
     return next;
   };
 
@@ -161,6 +172,31 @@ export function ContactForm({ dict }: { dict: FormDict }) {
         </div>
         {errors.message && (
           <p className="mt-1.5 text-xs text-red-400">{dict.errors.message}</p>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <label className="flex items-start gap-3 text-left text-sm text-muted">
+          <input
+            type="checkbox"
+            name="consent"
+            value="yes"
+            className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[#7C3AED]"
+          />
+          <span>
+            {dict.consent}{" "}
+            <Link
+              href={`/${lang}/privacy`}
+              target="_blank"
+              className="text-liquid underline-offset-2 hover:underline"
+            >
+              {dict.consentLink}
+            </Link>
+            .
+          </span>
+        </label>
+        {errors.consent && (
+          <p className="mt-1.5 text-xs text-red-400">{dict.consentError}</p>
         )}
       </div>
 

@@ -61,14 +61,110 @@
       }
     ]
   },
+  "useCases": {
+    "label": "Anwendungsfälle",
+    "title": "Wo private KI sich leise auszahlt.",
+    "subtitle": "Konkrete Ausgangspunkte, die wir auf Ihrer Infrastruktur aufbauen — jeder hält Ihre Daten im Haus.",
+    "items": [
+      {
+        "title": "Sprechen Sie mit Ihren Dokumenten",
+        "description": "Ein privater Assistent, der Fragen aus Ihren Verträgen, Angeboten und der internen Wissensbasis beantwortet — mit Quellen und ohne Ihren Server zu verlassen.",
+        "impact": "Von Stunden des Suchens zu sofortigen Antworten"
+      },
+      {
+        "title": "Rechnungs- und Dokumentenverarbeitung",
+        "description": "Eingehende Dokumente automatisch lesen, klassifizieren und in Ihre Systeme leiten — mit menschlicher Kontrolle, wo es zählt.",
+        "impact": "Manuelle Eingabe → automatisierter Prozess"
+      },
+      {
+        "title": "Triage von Kundenanfragen",
+        "description": "Antwortentwürfe, Kategorisierung und Priorisierung eingehender Nachrichten, damit Ihr Team jeden Morgen im Vorsprung statt im Rückstand startet.",
+        "impact": "Schnellere Antworten, kein Copy-Paste"
+      },
+      {
+        "title": "Ihr privater interner Copilot",
+        "description": "Ein unternehmensweiter Assistent, der weiß, wie Sie wirklich arbeiten — Onboarding, Abläufe, FAQs — vollständig on-premise.",
+        "impact": "Firmenwissen, immer verfügbar"
+      }
+    ]
+  },
+  "approach": {
+    "label": "So arbeiten wir",
+    "title": "Ein klarer Weg von der Idee zum laufenden System.",
+    "subtitle": "Keine Blackboxes. Sie sehen früh funktionierende Software und besitzen am Ende alles.",
+    "steps": [
+      {
+        "step": "01",
+        "title": "Analyse",
+        "description": "Wir erfassen Prozess, Daten und Ziel — und definieren Erfolg, bevor eine Zeile Code entsteht."
+      },
+      {
+        "step": "02",
+        "title": "Proof of Concept",
+        "description": "Wir bauen einen funktionierenden Prototyp auf Ihren echten Daten und Ihrer Infrastruktur, damit Sie Ergebnisse beurteilen — keine Folien."
+      },
+      {
+        "step": "03",
+        "title": "Einführung",
+        "description": "Wir härten, integrieren und führen die Lösung in Ihre täglichen Tools ein und schulen Ihr Team."
+      },
+      {
+        "step": "04",
+        "title": "Eigentum & Support",
+        "description": "Sie besitzen Modell und Workflow. Wir bleiben für Monitoring, Iteration und eine saubere Übergabe an Bord."
+      }
+    ]
+  },
   "showcase": {
-    "label": "Showcase",
-    "title": "Echte Workflows. Echte Bildschirme.",
-    "subtitle": "Ein Blick in die Systeme, die wir ausliefern — von Orchestrierungs-Canvas bis zum Code, der alles zusammenhält.",
+    "label": "Aus unserer Werkstatt",
+    "title": "Offen gebaut. Echte Screens, echte Systeme.",
+    "subtitle": "Während wir unsere ersten Partner aufnehmen, sehen Sie hier, was wir in unserer eigenen Werkstatt bauen — dieselbe Technik, die wir in Ihre Prozesse einbringen.",
     "items": [
       { "title": "automatisierung-demo.mp4", "caption": "Live-Workflow im Überblick" },
       { "title": "n8n — Orchestrierung", "caption": "Visueller Pipeline-Aufbau" },
       { "title": "local-llm.py", "caption": "Private Inferenzschicht" }
+    ]
+  },
+  "founding": {
+    "label": "Gründungspartner",
+    "title": "Wir wählen unsere ersten Partner aus.",
+    "description": "Als neues, gründergeführtes Studio übernehmen wir eine kleine Zahl von Vorzeigeprojekten zu Vorzugskonditionen — im Austausch für ehrliches Feedback und, wenn Sie zufrieden sind, eine Referenz-Fallstudie. Sie erhalten Senior-Aufmerksamkeit und geringeres Risiko; gemeinsam schaffen wir den Beweis.",
+    "points": [
+      "Vorzugskonditionen für die ersten Kunden",
+      "Direkter Draht zum Gründer, keine Account-Manager",
+      "Ein Proof of Concept, bevor Sie sich festlegen",
+      "Gemeinsam eine Fallstudie, auf die Sie stolz sind"
+    ],
+    "cta": "Gründungspartner werden"
+  },
+  "faq": {
+    "label": "FAQ",
+    "title": "Fragen, beantwortet.",
+    "items": [
+      {
+        "q": "Kann ein lokales Modell wirklich mit den großen Cloud-Modellen mithalten?",
+        "a": "Für die meisten Geschäftsaufgaben — Dokumenten-Q&A, Entwürfe, Klassifizierung, Extraktion — sind moderne offene Modelle wie Qwen, Llama und DeepSeek mehr als ausreichend. Wir wählen und optimieren das passende Modell für Ihre konkrete Aufgabe, keinen Universal-Chatbot."
+      },
+      {
+        "q": "Sind meine Daten wirklich sicher?",
+        "a": "Ja — das ist der ganze Sinn. Das Modell läuft auf Ihrer Hardware oder privaten Cloud, sodass Anfragen und Dokumente nie Ihre Kontrolle verlassen. Nichts geht an eine Drittanbieter-API."
+      },
+      {
+        "q": "Welche Hardware brauche ich?",
+        "a": "Weniger, als die meisten denken. Viele Anwendungsfälle laufen auf einer einzelnen Workstation-GPU oder einem bescheidenen privaten Server. Wir dimensionieren das Setup während der Analyse."
+      },
+      {
+        "q": "Wie lange dauert ein Projekt?",
+        "a": "Ein fokussierter Proof of Concept dauert meist wenige Wochen. Die vollständige Einführung hängt vom Umfang ab, aber Sie sehen früh Ergebnisse, statt monatelang zu warten."
+      },
+      {
+        "q": "Sie sind neu — warum sollte ich Ihnen vertrauen?",
+        "a": "Berechtigte Frage. Wir sind ein gründergeführtes Studio, Sie arbeiten also direkt mit der Person, die Ihr System baut. Wir beweisen den Wert mit einem funktionierenden Proof of Concept, bevor Sie sich festlegen, und unsere Gründungspartner-Konditionen senken Ihr Risiko, während wir gemeinsam unsere Erfolgsbilanz aufbauen."
+      },
+      {
+        "q": "Was, wenn mein Team nicht technisch ist?",
+        "a": "Das ist normal — und unsere Aufgabe. Wir übernehmen die Technik, integrieren in Ihre bestehenden Tools und schulen Ihr Team, damit sich die Lösung mühelos anfühlt."
+      }
     ]
   },
   "cta": {
@@ -87,6 +183,9 @@
       "sending": "Wird gesendet…",
       "success": "Vielen Dank — Ihre Nachricht ist unterwegs. Wir melden uns in Kürze.",
       "error": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut oder schreiben Sie uns direkt.",
+      "consent": "Ich stimme zu, dass meine Daten zur Beantwortung meiner Anfrage verarbeitet werden, gemäß der",
+      "consentLink": "Datenschutzerklärung",
+      "consentError": "Bitte akzeptieren Sie die Datenschutzerklärung, um fortzufahren.",
       "errors": {
         "name": "Bitte geben Sie Ihren Namen ein.",
         "email": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
