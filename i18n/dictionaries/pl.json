@@ -137,6 +137,14 @@
     ],
     "cta": "Zostań partnerem założycielem"
   },
+  "founder": {
+    "label": "Z kim będziesz pracować",
+    "title": "Tworzone przez osobę, która zbuduje Twój system.",
+    "body": "poltechnickx z założenia prowadzi założyciel. Rozmawiasz bezpośrednio z inżynierem, który projektuje, buduje i wdraża Twoje rozwiązanie — bez pośredników, bez przekazywania zadań, bez opiekunów konta czytających ze skryptu. Trafniejsze decyzje, szybsze iteracje i ktoś, komu naprawdę zależy, by efekt działał.",
+    "quote": "Firmy nie powinny wymieniać swojej prywatności na inteligencję. To cały powód, dla którego istnieje poltechnickx.",
+    "name": "[Twoje imię i nazwisko]",
+    "role": "Założyciel i główny inżynier"
+  },
   "faq": {
     "label": "FAQ",
     "title": "Odpowiadamy na pytania.",
@@ -170,6 +178,8 @@
   "cta": {
     "title": "Sprawmy, by Twoje dane pracowały dla Ciebie.",
     "subtitle": "Powiedz nam, gdzie pojawia się tarcie. Pokażemy, co prywatne AI może po cichu wyeliminować.",
+    "bookingText": "Wolisz najpierw porozmawiać?",
+    "bookingCta": "Umów 20-min rozmowę",
     "form": {
       "name": "Imię i nazwisko",
       "namePlaceholder": "Twoje imię",

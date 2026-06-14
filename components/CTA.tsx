@@ -2,6 +2,7 @@
 
 import { Reveal } from "./Reveal";
 import { ContactForm } from "./ContactForm";
+import { bookingUrl } from "@/lib/site";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 
@@ -27,6 +28,18 @@ export function CTA({
               </h2>
               <p className="mx-auto mt-6 max-w-xl text-lg text-muted">
                 {dict.subtitle}
+              </p>
+              <p className="mt-5 text-sm text-muted">
+                {dict.bookingText}{" "}
+                <a
+                  href={bookingUrl}
+                  className="text-liquid font-medium underline-offset-2 hover:underline"
+                  {...(bookingUrl.startsWith("http")
+                    ? { target: "_blank", rel: "noopener noreferrer" }
+                    : {})}
+                >
+                  {dict.bookingCta} →
+                </a>
               </p>
               <div className="mx-auto mt-12 max-w-xl">
                 <ContactForm dict={dict.form} lang={lang} />

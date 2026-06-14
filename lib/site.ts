@@ -7,6 +7,11 @@ export const siteUrl = (
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://poltechnickx.com"
 ).replace(/\/$/, "");
 
+// Booking link for the "book a call" CTAs. Set NEXT_PUBLIC_BOOKING_URL to your
+// Calendly / Cal.com link; falls back to scrolling to the contact form.
+export const bookingUrl =
+  process.env.NEXT_PUBLIC_BOOKING_URL ?? "#contact";
+
 // Maps our locale codes to Open Graph locale identifiers.
 export const ogLocale: Record<Locale, string> = {
   pl: "pl_PL",

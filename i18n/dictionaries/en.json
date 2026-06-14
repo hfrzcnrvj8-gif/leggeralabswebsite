@@ -137,6 +137,14 @@
     ],
     "cta": "Become a founding partner"
   },
+  "founder": {
+    "label": "Who you'll work with",
+    "title": "Built by the person who'll build your system.",
+    "body": "poltechnickx is founder-led by design. You talk directly to the engineer who designs, builds and ships your solution — no layers, no handoffs, no account managers reading from a script. Sharper decisions, faster iterations, and someone who genuinely cares that the result works.",
+    "quote": "Businesses shouldn't have to trade their privacy for intelligence. That's the whole reason poltechnickx exists.",
+    "name": "[Your name]",
+    "role": "Founder & Lead Engineer"
+  },
   "faq": {
     "label": "FAQ",
     "title": "Questions, answered.",
@@ -170,6 +178,8 @@
   "cta": {
     "title": "Let's make your data work for you.",
     "subtitle": "Tell us where the friction is. We'll show you what private AI can quietly remove.",
+    "bookingText": "Prefer to talk first?",
+    "bookingCta": "Book a 20-min call",
     "form": {
       "name": "Name",
       "namePlaceholder": "Your name",

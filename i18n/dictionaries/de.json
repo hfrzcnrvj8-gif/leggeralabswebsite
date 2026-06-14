@@ -137,6 +137,14 @@
     ],
     "cta": "Gründungspartner werden"
   },
+  "founder": {
+    "label": "Mit wem Sie arbeiten",
+    "title": "Gebaut von der Person, die Ihr System baut.",
+    "body": "poltechnickx ist bewusst gründergeführt. Sie sprechen direkt mit dem Ingenieur, der Ihre Lösung entwirft, baut und ausliefert — keine Zwischenebenen, keine Übergaben, keine Account-Manager, die ein Skript ablesen. Schärfere Entscheidungen, schnellere Iterationen und jemand, dem das Ergebnis wirklich am Herzen liegt.",
+    "quote": "Unternehmen sollten ihre Privatsphäre nicht gegen Intelligenz eintauschen müssen. Genau dafür gibt es poltechnickx.",
+    "name": "[Ihr Name]",
+    "role": "Gründer & Lead Engineer"
+  },
   "faq": {
     "label": "FAQ",
     "title": "Fragen, beantwortet.",
@@ -170,6 +178,8 @@
   "cta": {
     "title": "Lassen Sie Ihre Daten für Sie arbeiten.",
     "subtitle": "Sagen Sie uns, wo es hakt. Wir zeigen Ihnen, was private KI leise beseitigen kann.",
+    "bookingText": "Lieber erst sprechen?",
+    "bookingCta": "20-Min-Gespräch buchen",
     "form": {
       "name": "Name",
       "namePlaceholder": "Ihr Name",

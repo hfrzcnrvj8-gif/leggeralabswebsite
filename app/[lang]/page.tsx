@@ -6,6 +6,7 @@ import { ProblemVision } from "@/components/ProblemVision";
 import { Services } from "@/components/Services";
 import { UseCases } from "@/components/UseCases";
 import { Approach } from "@/components/Approach";
+import { Founder } from "@/components/Founder";
 import { Showcase } from "@/components/Showcase";
 import { Faq } from "@/components/Faq";
 import { FoundingOffer } from "@/components/FoundingOffer";
@@ -28,6 +29,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         <Services dict={dict.services} />
         <UseCases dict={dict.useCases} />
         <Approach dict={dict.approach} />
+        <Founder dict={dict.founder} />
         <Showcase dict={dict.showcase} />
         <Faq dict={dict.faq} />
         <FoundingOffer dict={dict.founding} />
