@@ -30,6 +30,12 @@ export function Footer({
           >
             {dict.privacy}
           </Link>
+          <Link
+            href={`/${lang}/impressum`}
+            className="text-muted transition-colors hover:text-[var(--fg)]"
+          >
+            {dict.impressum}
+          </Link>
           <p className="text-xs text-muted">{dict.madeIn}</p>
         </div>
       </div>

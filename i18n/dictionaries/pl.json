@@ -97,6 +97,7 @@
   "footer": {
     "tagline": "Prywatne AI i automatyzacja dla firm, których nie stać na wyciek.",
     "privacy": "Polityka Prywatności",
+    "impressum": "Nota prawna",
     "rights": "Wszelkie prawa zastrzeżone.",
     "madeIn": "Tworzone w UE"
   },
@@ -131,5 +132,21 @@
       }
     ],
     "back": "Powrót na stronę główną"
+  },
+  "impressum": {
+    "title": "Nota prawna",
+    "back": "Powrót na stronę główną",
+    "intro": "Informacje zgodnie z § 5 niemieckiej ustawy DDG (Digitale-Dienste-Gesetz).",
+    "labels": {
+      "provider": "Usługodawca",
+      "represented": "Reprezentowany przez",
+      "contact": "Kontakt",
+      "register": "Wpis do rejestru",
+      "vat": "Numer identyfikacji podatkowej (NIP / VAT)",
+      "responsible": "Odpowiedzialny za treść"
+    },
+    "responsibleNote": "Odpowiedzialny za treść zgodnie z § 18 ust. 2 MStV.",
+    "disclaimerTitle": "Odpowiedzialność za treść",
+    "disclaimer": "Treści na naszych stronach zostały przygotowane z najwyższą starannością. Nie możemy jednak zagwarantować ich poprawności, kompletności ani aktualności. Jako usługodawca odpowiadamy za własne treści na tych stronach zgodnie z ogólnymi przepisami prawa."
   }
 }

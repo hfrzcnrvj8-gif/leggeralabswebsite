@@ -4,6 +4,7 @@ import "../globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { i18n, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/get-dictionary";
+import { siteUrl, ogLocale } from "@/lib/site";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -19,12 +20,34 @@ export async function generateMetadata({
   params,
 }: LayoutProps<"/[lang]">): Promise<Metadata> {
   const { lang } = await params;
-  const dict = await getDictionary(lang as Locale);
+  const locale = lang as Locale;
+  const dict = await getDictionary(locale);
+
+  const languages = Object.fromEntries(
+    i18n.locales.map((l) => [l, `/${l}`])
+  ) as Record<string, string>;
+
   return {
+    metadataBase: new URL(siteUrl),
     title: dict.meta.title,
     description: dict.meta.description,
-    icons: {
-      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◇</text></svg>",
+    applicationName: "poltechnickx",
+    alternates: {
+      canonical: `/${locale}`,
+      languages: { ...languages, "x-default": `/${i18n.defaultLocale}` },
+    },
+    openGraph: {
+      type: "website",
+      siteName: "poltechnickx",
+      title: dict.meta.title,
+      description: dict.meta.description,
+      url: `/${locale}`,
+      locale: ogLocale[locale],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: dict.meta.title,
+      description: dict.meta.description,
     },
   };
 }

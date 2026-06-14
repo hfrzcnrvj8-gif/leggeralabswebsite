@@ -97,6 +97,7 @@
   "footer": {
     "tagline": "Private KI & Automatisierung für Unternehmen, die sich kein Leck leisten können.",
     "privacy": "Datenschutzerklärung",
+    "impressum": "Impressum",
     "rights": "Alle Rechte vorbehalten.",
     "madeIn": "Entwickelt in der EU"
   },
@@ -131,5 +132,21 @@
       }
     ],
     "back": "Zurück zur Startseite"
+  },
+  "impressum": {
+    "title": "Impressum",
+    "back": "Zurück zur Startseite",
+    "intro": "Angaben gemäß § 5 DDG (Digitale-Dienste-Gesetz).",
+    "labels": {
+      "provider": "Diensteanbieter",
+      "represented": "Vertreten durch",
+      "contact": "Kontakt",
+      "register": "Registereintrag",
+      "vat": "Umsatzsteuer-Identifikationsnummer",
+      "responsible": "Verantwortlich für den Inhalt"
+    },
+    "responsibleNote": "Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV.",
+    "disclaimerTitle": "Haftung für Inhalte",
+    "disclaimer": "Die Inhalte unserer Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich."
   }
 }

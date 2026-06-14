@@ -97,6 +97,7 @@
   "footer": {
     "tagline": "Private AI & automation for the businesses that can't afford to leak.",
     "privacy": "Privacy Policy",
+    "impressum": "Legal Notice",
     "rights": "All rights reserved.",
     "madeIn": "Engineered in the EU"
   },
@@ -131,5 +132,21 @@
       }
     ],
     "back": "Back to home"
+  },
+  "impressum": {
+    "title": "Legal Notice",
+    "back": "Back to home",
+    "intro": "Information pursuant to § 5 DDG (German Digital Services Act).",
+    "labels": {
+      "provider": "Service provider",
+      "represented": "Represented by",
+      "contact": "Contact",
+      "register": "Register entry",
+      "vat": "VAT identification number",
+      "responsible": "Responsible for content"
+    },
+    "responsibleNote": "Responsible for content pursuant to § 18 (2) MStV.",
+    "disclaimerTitle": "Liability for content",
+    "disclaimer": "The contents of our pages were created with the greatest care. However, we cannot guarantee the accuracy, completeness or timeliness of the content. As a service provider we are responsible for our own content on these pages under general law."
   }
 }

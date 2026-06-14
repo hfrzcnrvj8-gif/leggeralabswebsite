@@ -36,8 +36,33 @@ i18n/
   types.ts            # Dictionary type (derived from en.json)
   dictionaries/       # pl.json · en.json · de.json
   api/contact/route.ts  # contact form submission handler
+  icon.svg              # favicon / app icon (brand mark)
+  robots.ts             # robots.txt
+  sitemap.ts            # sitemap.xml (all locales, with hreflang alternates)
+  [lang]/opengraph-image.tsx  # per-locale OG/social share image (next/og)
+  [lang]/impressum/     # legal notice (DE Impressum) — fill in COMPANY block
+  [lang]/not-found.tsx  # branded trilingual 404
+lib/site.ts           # canonical site URL + OG locale map
 proxy.ts              # locale detection + redirect (Next 16 proxy convention)
 ```
+
+## SEO & metadata
+
+- Per-locale `<title>`/`description`, canonical URLs and **hreflang** alternates
+  (pl/en/de + `x-default`) are generated in `app/[lang]/layout.tsx`.
+- **Open Graph / Twitter** tags plus a dynamic 1200×630 share image rendered
+  per language via `next/og` (`app/[lang]/opengraph-image.tsx`).
+- `sitemap.xml` and `robots.txt` are generated automatically.
+- Set `NEXT_PUBLIC_SITE_URL` on the host so all absolute URLs (canonical, OG
+  image, sitemap) point at your real domain.
+
+## Legal: Impressum
+
+`app/[lang]/impressum/page.tsx` is a skeleton legal-notice page (German
+*Impressum* per § 5 DDG, also linked in PL/EN). Edit the single `COMPANY`
+constant at the top of the file with your real details; delete the `register` /
+`vat` lines if they don't apply. Have it (and the privacy pages) reviewed by
+legal counsel before publishing.
 
 ## Contact form
 
