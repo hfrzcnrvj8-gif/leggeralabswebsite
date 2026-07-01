@@ -8,6 +8,8 @@ import {
 } from "framer-motion";
 import type { ReactNode } from "react";
 
+const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
+
 export function MacWindow({
   title,
   caption,
@@ -42,49 +44,56 @@ export function MacWindow({
 
   return (
     <motion.div
-      onMouseMove={handleMove}
-      onMouseLeave={reset}
-      style={{ rotateX, rotateY, transformPerspective: 1000 }}
-      className="group relative rounded-2xl"
+      initial={{ scale: 0.86, opacity: 0 }}
+      whileInView={{ scale: 1, opacity: 1 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.9, ease }}
     >
-      <div className="card-paper overflow-hidden rounded-2xl">
-        {/* Title bar */}
-        <div className="flex items-center gap-2 border-b px-4 py-3 hairline">
-          <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-          <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-          <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-          <span className="ml-3 truncate font-mono text-xs text-muted">
-            {title}
-          </span>
-        </div>
+      <motion.div
+        onMouseMove={handleMove}
+        onMouseLeave={reset}
+        style={{ rotateX, rotateY, transformPerspective: 1000 }}
+        className="group relative rounded-2xl"
+      >
+        <div className="card-paper overflow-hidden rounded-2xl">
+          {/* Title bar */}
+          <div className="flex items-center gap-2 border-b px-4 py-3 hairline">
+            <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+            <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+            <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+            <span className="ml-3 truncate font-mono text-xs text-muted">
+              {title}
+            </span>
+          </div>
 
-        {/* Viewport / placeholder */}
-        <div className="relative aspect-video overflow-hidden">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage:
-                "linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px)",
-              backgroundSize: "28px 28px",
-            }}
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple via-brand-pink to-brand-gold"
-            aria-hidden
-          />
-          {children ?? (
-            <div className="relative flex h-full flex-col items-center justify-center gap-3 text-center">
-              <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300 group-hover:scale-110">
-                ▶
-              </span>
-              {caption && (
-                <p className="px-6 text-sm text-muted">{caption}</p>
-              )}
-            </div>
-          )}
+          {/* Viewport / placeholder */}
+          <div className="relative aspect-video overflow-hidden">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  "linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px)",
+                backgroundSize: "28px 28px",
+              }}
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple via-brand-pink to-brand-gold"
+              aria-hidden
+            />
+            {children ?? (
+              <div className="relative flex h-full flex-col items-center justify-center gap-3 text-center">
+                <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300 group-hover:scale-110">
+                  ▶
+                </span>
+                {caption && (
+                  <p className="px-6 text-sm text-muted">{caption}</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }
