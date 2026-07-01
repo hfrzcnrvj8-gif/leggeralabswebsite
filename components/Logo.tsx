@@ -45,10 +45,19 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  *
  * The whole phrase shares ONE gradient/background-clip:text on the outer
  * span so the color reads as a single continuous sweep rather than each
- * word re-starting its own gradient. The second "L"'s offset is done with
- * `marginLeft`/`top` (layout properties), not a CSS `transform` — a
- * `transform` on a child breaks an inherited background-clip:text in this
- * browser (that's what made it disappear earlier).
+ * word re-starting its own gradient. The second "L"'s offset uses
+ * `marginLeft` + `verticalAlign` only (plain layout, safe).
+ *
+ * The first "L" (the faded echo) can NOT fade via `opacity`: any
+ * descendant of a background-clip:text element that gets `opacity < 1`
+ * is promoted to its own compositing layer, and since that descendant has
+ * no background-image of its own, the isolated layer paints empty — the
+ * letter silently disappears even though every computed style looks
+ * correct. Confirmed by isolating it in an overlay: two plain sibling
+ * spans both render, but the moment either one gets `opacity`, that one
+ * (and only that one) vanishes. Fix: give the echo letter its own
+ * gradient, blended toward `var(--bg)` via `color-mix()` instead of
+ * faded with `opacity`.
  */
 export function Logo({
   lang,
@@ -67,9 +76,12 @@ export function Logo({
   useEffect(() => setMounted(true), []);
   const echoOpacityTarget = mounted && resolvedTheme === "dark" ? 0.55 : 0.35;
 
-  const firstOpacity = useTransform(p, [0, 1], [1, echoOpacityTarget]);
+  const firstMixPercent = useTransform(p, [0, 1], [100, echoOpacityTarget * 100]);
+  const firstGradient = useTransform(firstMixPercent, (m) =>
+    `linear-gradient(100deg, color-mix(in srgb, #7C3AED ${m}%, var(--bg)) 0%, color-mix(in srgb, #E0A93B ${m}%, var(--bg)) 60%, color-mix(in srgb, #FFF7E8 ${m}%, var(--bg)) 100%)`
+  );
   const secondMarginLeft = useTransform(p, [0, 1], [0, -9]);
-  const secondTop = useTransform(p, [0, 1], [0, 3]);
+  const secondVerticalAlign = useTransform(p, [0, 1], [0, -3]);
   const restOpacity = useTransform(p, [0, 0.6], [1, 0]);
   const restWidth = useTransform(p, [0, 0.6], [190, 0]);
   const dotWidth = useTransform(p, [0, 0.6], [16, 0]);
@@ -81,14 +93,19 @@ export function Logo({
         className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
       >
         <motion.span
-          style={{ opacity: firstOpacity, display: "inline-block" }}
+          style={{
+            backgroundImage: firstGradient,
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            color: "transparent",
+            display: "inline-block",
+          }}
         >
           L
         </motion.span>
         <motion.span
           style={{
             maxWidth: restWidth,
-            opacity: restOpacity,
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
@@ -98,10 +115,9 @@ export function Logo({
         </motion.span>
         <motion.span
           style={{
-            position: "relative",
             display: "inline-block",
             marginLeft: secondMarginLeft,
-            top: secondTop,
+            verticalAlign: secondVerticalAlign,
           }}
         >
           L
@@ -109,7 +125,6 @@ export function Logo({
         <motion.span
           style={{
             maxWidth: restWidth,
-            opacity: restOpacity,
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
