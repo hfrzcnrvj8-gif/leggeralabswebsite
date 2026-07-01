@@ -6,11 +6,31 @@ import { useTheme } from "next-themes";
 import { motion, useMotionValue, useTransform, type MotionValue } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 
+// A faint dark rim keeps light letters (the gradient ends near-white)
+// readable when they land on a light/cream background — most visibly the
+// "S" in "LABS" against the footer's inverted-light surface.
+const textStroke = { WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)" };
+
 const wordmarkGradient = {
   backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 60%, #FFF7E8 100%)",
   WebkitBackgroundClip: "text" as const,
   backgroundClip: "text" as const,
   color: "transparent",
+  ...textStroke,
+};
+
+// The second "L" (the solid foreground letter, and literally the "L" of
+// "LABS" when the wordmark is fully expanded) always reads gold — fixed
+// and independent of the outer shared gradient, so it stays reliably
+// distinct from the purple echo behind it once the two overlap into the
+// collapsed mark, instead of depending on how wide the surrounding box
+// happens to be at that moment.
+const secondLGradient = {
+  backgroundImage: "linear-gradient(100deg, #E0A93B 0%, #FFF7E8 100%)",
+  WebkitBackgroundClip: "text" as const,
+  backgroundClip: "text" as const,
+  color: "transparent",
+  ...textStroke,
 };
 
 /** Static mark for contexts that can't run React/framer-motion (favicon, OG image). */
@@ -43,10 +63,13 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  * while the second "L" slides into a tight offset behind the first,
  * forming the same mark as LogoMark.
  *
- * The whole phrase shares ONE gradient/background-clip:text on the outer
- * span so the color reads as a single continuous sweep rather than each
- * word re-starting its own gradient. The second "L"'s offset uses
- * `marginLeft` + `verticalAlign` only (plain layout, safe).
+ * "EGGERA"/"ABS"/"." share ONE gradient/background-clip:text on the outer
+ * span so the color reads as a single continuous sweep. The second "L"
+ * gets its own fixed gold gradient instead (see `secondLGradient`) so it
+ * stays reliably distinct from the purple echo once collapsed — it sits
+ * at the gold end of the shared sweep anyway, so this doesn't create a
+ * visible seam in the expanded phrase. Its offset uses `marginLeft` +
+ * `verticalAlign` only (plain layout, safe).
  *
  * The first "L" (the faded echo) can NOT fade via `opacity`: any
  * descendant of a background-clip:text element that gets `opacity < 1`
@@ -74,7 +97,7 @@ export function Logo({
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const echoOpacityTarget = mounted && resolvedTheme === "dark" ? 0.55 : 0.35;
+  const echoOpacityTarget = mounted && resolvedTheme === "dark" ? 0.7 : 0.55;
 
   const firstMixPercent = useTransform(p, [0, 1], [100, echoOpacityTarget * 100]);
   const firstGradient = useTransform(firstMixPercent, (m) =>
@@ -99,6 +122,7 @@ export function Logo({
             backgroundClip: "text",
             color: "transparent",
             display: "inline-block",
+            ...textStroke,
           }}
         >
           L
@@ -118,6 +142,7 @@ export function Logo({
             display: "inline-block",
             marginLeft: secondMarginLeft,
             verticalAlign: secondVerticalAlign,
+            ...secondLGradient,
           }}
         >
           L

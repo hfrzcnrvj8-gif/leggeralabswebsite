@@ -14,7 +14,7 @@ export function Showcase({ dict }: { dict: Dictionary["showcase"] }) {
     target: sectionRef,
     offset: ["start end", "end start"],
   });
-  const width = useTransform(scrollYProgress, [0, 0.5, 1], ["55vw", "94vw", "94vw"]);
+  const width = useTransform(scrollYProgress, [0, 0.25], ["55vw", "94vw"]);
 
   const items = dict.items;
   const go = (delta: number) =>

@@ -103,7 +103,7 @@
 
   .btn-primary {
     position: relative;
-    background: linear-gradient(120deg, #7c3aed, #e85d9e 45%, #e0a93b);
+    background: linear-gradient(120deg, #7c3aed 0%, #e0a93b 50%, #7c3aed 100%);
     background-size: 200% 200%;
     color: #fff;
     transition: background-position 0.6s ease, transform 0.3s ease,
