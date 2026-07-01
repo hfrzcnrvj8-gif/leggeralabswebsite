@@ -148,7 +148,7 @@
     inset: -1px;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(120deg, #7c3aed, #e0a93b, #e85d9e);
+    background: linear-gradient(120deg, #7c3aed, #e0a93b);
     -webkit-mask: linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -159,6 +159,27 @@
   }
   .glow-border:hover::before {
     opacity: 1;
+  }
+
+  /* Same gradient-ring technique as .glow-border, but always on and with
+     no fill — for small controls (footer language/theme switches) that
+     should read as a quiet outline rather than a solid chip. */
+  .chip-outline {
+    position: relative;
+    background: transparent;
+  }
+  .chip-outline::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(120deg, #7c3aed, #e0a93b);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 }
 

@@ -25,7 +25,7 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
       <button
         onClick={() => setOpen((v) => !v)}
         onMouseEnter={() => setOpen(true)}
-        className="glass flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium uppercase tracking-wide transition-transform hover:scale-105"
+        className="chip-outline flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium uppercase tracking-wide transition-transform hover:scale-105"
         style={{ color: "var(--fg)" }}
         aria-haspopup="listbox"
         aria-expanded={open}

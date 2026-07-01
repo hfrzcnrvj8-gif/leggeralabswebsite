@@ -56,7 +56,7 @@ export function Header({
         >
           <Logo lang={lang} progress={collapseProgress} />
 
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center gap-2">
             <button
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Menu"
@@ -97,48 +97,48 @@ export function Header({
             >
               {nav.contact}
             </a>
+
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.2, ease }}
+                  className="glass absolute right-0 top-[calc(100%+0.5rem)] w-64 overflow-hidden rounded-3xl p-2 shadow-2xl"
+                >
+                  <ul className="flex flex-col">
+                    {links.map((l) => (
+                      <li key={l.href}>
+                        <a
+                          href={l.href}
+                          onClick={() => setMenuOpen(false)}
+                          className="block rounded-2xl px-4 py-3 text-base font-medium transition-colors hover:bg-[var(--hairline)]"
+                        >
+                          {l.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mx-3 my-1 border-t hairline" />
+                  <ul className="flex flex-col">
+                    {pages.map((p) => (
+                      <li key={p.href}>
+                        <Link
+                          href={p.href}
+                          onClick={() => setMenuOpen(false)}
+                          className="block rounded-2xl px-4 py-2.5 text-sm text-muted transition-colors hover:bg-[var(--hairline)]"
+                        >
+                          {p.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </nav>
-
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.98 }}
-              transition={{ duration: 0.2, ease }}
-              className="glass mt-2 overflow-hidden rounded-3xl p-2 shadow-2xl"
-            >
-              <ul className="flex flex-col">
-                {links.map((l) => (
-                  <li key={l.href}>
-                    <a
-                      href={l.href}
-                      onClick={() => setMenuOpen(false)}
-                      className="block rounded-2xl px-4 py-3 text-base font-medium transition-colors hover:bg-[var(--hairline)]"
-                    >
-                      {l.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              <div className="mx-3 my-1 border-t hairline" />
-              <ul className="flex flex-col">
-                {pages.map((p) => (
-                  <li key={p.href}>
-                    <Link
-                      href={p.href}
-                      onClick={() => setMenuOpen(false)}
-                      className="block rounded-2xl px-4 py-2.5 text-sm text-muted transition-colors hover:bg-[var(--hairline)]"
-                    >
-                      {p.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </motion.header>
   );
