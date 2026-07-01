@@ -4,7 +4,7 @@ import type { Locale } from "@/i18n/config";
 // (e.g. on the host) so sitemap, robots and canonical/OG tags point at the
 // real domain. Falls back to the production domain.
 export const siteUrl = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://poltechnickx.com"
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://leggeralabs.com"
 ).replace(/\/$/, "");
 
 // Booking link for the "book a call" CTAs. Set NEXT_PUBLIC_BOOKING_URL to your

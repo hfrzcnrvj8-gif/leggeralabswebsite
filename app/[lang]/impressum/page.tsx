@@ -11,7 +11,7 @@ import { Reveal } from "@/components/Reveal";
 // (e.g. `register` / `vat` if you are not registered / not VAT-registered).
 // ────────────────────────────────────────────────────────────────────────────
 const COMPANY = {
-  // Legal name + legal form, e.g. "poltechnickx sp. z o.o." or sole trader name
+  // Legal name + legal form, e.g. "Leggera Labs sp. z o.o." or sole trader name
   name: "[Pełna nazwa firmy / Firmenname + Rechtsform]",
   // Street, postal code, city, country
   address: ["[Ulica i numer]", "[Kod pocztowy, Miasto]", "[Kraj]"],
@@ -36,7 +36,7 @@ export async function generateMetadata({
 }: PageProps<"/[lang]/impressum">): Promise<Metadata> {
   const { lang } = await params;
   const dict = await getDictionary(lang as Locale);
-  return { title: `${dict.impressum.title} — poltechnickx` };
+  return { title: `${dict.impressum.title} — Leggera Labs` };
 }
 
 export default async function ImpressumPage({

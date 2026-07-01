@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "poltechnickx — Private lokale KI & Automatisierung für KMU",
+    "title": "Leggera Labs — Private lokale KI & Automatisierung für KMU",
     "description": "Wir implementieren private, lokale LLMs und entwickeln Prozessautomatisierung für kleine und mittlere Unternehmen. Ihre Daten verlassen niemals Ihr Haus."
   },
   "nav": {
@@ -35,7 +35,7 @@
       ]
     },
     "local": {
-      "title": "Lokale LLMs von poltechnickx",
+      "title": "Lokale LLMs von Leggera Labs",
       "points": [
         "Daten bleiben vollständig in Ihrem Haus",
         "Feste, planbare Infrastrukturkosten",
@@ -140,8 +140,8 @@
   "founder": {
     "label": "Mit wem Sie arbeiten",
     "title": "Gebaut von der Person, die Ihr System baut.",
-    "body": "poltechnickx ist bewusst gründergeführt. Sie sprechen direkt mit dem Ingenieur, der Ihre Lösung entwirft, baut und ausliefert — keine Zwischenebenen, keine Übergaben, keine Account-Manager, die ein Skript ablesen. Schärfere Entscheidungen, schnellere Iterationen und jemand, dem das Ergebnis wirklich am Herzen liegt.",
-    "quote": "Unternehmen sollten ihre Privatsphäre nicht gegen Intelligenz eintauschen müssen. Genau dafür gibt es poltechnickx.",
+    "body": "Leggera Labs ist bewusst gründergeführt. Sie sprechen direkt mit dem Ingenieur, der Ihre Lösung entwirft, baut und ausliefert — keine Zwischenebenen, keine Übergaben, keine Account-Manager, die ein Skript ablesen. Schärfere Entscheidungen, schnellere Iterationen und jemand, dem das Ergebnis wirklich am Herzen liegt.",
+    "quote": "Unternehmen sollten ihre Privatsphäre nicht gegen Intelligenz eintauschen müssen. Genau dafür gibt es Leggera Labs.",
     "name": "[Ihr Name]",
     "role": "Gründer & Lead Engineer"
   },
@@ -213,11 +213,11 @@
   "privacy": {
     "title": "Datenschutzerklärung",
     "updated": "Zuletzt aktualisiert: 13. Juni 2026",
-    "intro": "Diese Datenschutzerklärung erläutert, wie poltechnickx („wir“) personenbezogene Daten gemäß der Verordnung (EU) 2016/679 (DSGVO) verarbeitet. Dieses Dokument ist eine Mustervorlage und sollte vor der Veröffentlichung von qualifizierten Rechtsberatern geprüft werden.",
+    "intro": "Diese Datenschutzerklärung erläutert, wie Leggera Labs („wir“) personenbezogene Daten gemäß der Verordnung (EU) 2016/679 (DSGVO) verarbeitet. Dieses Dokument ist eine Mustervorlage und sollte vor der Veröffentlichung von qualifizierten Rechtsberatern geprüft werden.",
     "sections": [
       {
         "heading": "1. Verantwortlicher",
-        "body": "poltechnickx ist der Verantwortliche für die über diese Website erhobenen personenbezogenen Daten. Für datenschutzbezogene Anfragen kontaktieren Sie uns bitte über die in der Fußzeile genannte Adresse."
+        "body": "Leggera Labs ist der Verantwortliche für die über diese Website erhobenen personenbezogenen Daten. Für datenschutzbezogene Anfragen kontaktieren Sie uns bitte über die in der Fußzeile genannte Adresse."
       },
       {
         "heading": "2. Welche Daten wir erheben",
@@ -237,7 +237,7 @@
       },
       {
         "heading": "6. Kontakt",
-        "body": "Um eines dieser Rechte auszuüben, kontaktieren Sie poltechnickx bitte über die auf dieser Website angegebenen Kontaktdaten."
+        "body": "Um eines dieser Rechte auszuüben, kontaktieren Sie Leggera Labs bitte über die auf dieser Website angegebenen Kontaktdaten."
       }
     ],
     "back": "Zurück zur Startseite"

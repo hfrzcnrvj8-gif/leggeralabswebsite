@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "./Logo";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 
@@ -14,12 +15,7 @@ export function Footer({
     <footer className="relative border-t px-6 py-16 hairline">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 md:flex-row md:items-end md:justify-between">
         <div className="max-w-sm">
-          <Link
-            href={`/${lang}`}
-            className="font-serif text-xl font-semibold tracking-tight"
-          >
-            poltechnickx<span className="text-liquid">.</span>
-          </Link>
+          <Logo lang={lang} size={28} />
           <p className="mt-4 text-sm text-muted">{dict.tagline}</p>
         </div>
 
@@ -41,7 +37,7 @@ export function Footer({
       </div>
 
       <div className="mx-auto mt-12 max-w-6xl border-t pt-6 text-xs text-muted hairline">
-        © {year} poltechnickx. {dict.rights}
+        © {year} Leggera Labs. {dict.rights}
       </div>
     </footer>
   );

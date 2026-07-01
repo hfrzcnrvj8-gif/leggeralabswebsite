@@ -1,6 +1,6 @@
-# poltechnickx
+# Leggera Labs
 
-Ultra-premium, minimalist marketing site for **poltechnickx** — an AI automation agency that deploys private, local LLMs and process automation for SMEs.
+Ultra-premium, minimalist marketing site for **Leggera Labs** — an AI automation agency that deploys private, local LLMs and process automation for SMEs.
 
 ## Stack
 

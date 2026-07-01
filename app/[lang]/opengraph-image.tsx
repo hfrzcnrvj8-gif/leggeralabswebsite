@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { i18n, type Locale } from "@/i18n/config";
 
-export const alt = "poltechnickx — Private Local AI & Automation";
+export const alt = "Leggera Labs — Private Local AI & Automation";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -52,10 +52,25 @@ export default async function OpengraphImage({
 
         {/* Wordmark */}
         <div style={{ display: "flex", alignItems: "center", fontSize: 40 }}>
-          <span style={{ fontWeight: 700, letterSpacing: "-0.03em" }}>
-            poltechnickx
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ marginRight: 18 }}>
+            <defs>
+              <linearGradient id="og-g" x1="0" y1="0" x2="48" y2="48">
+                <stop offset="0%" stopColor="#a78bfa" />
+                <stop offset="35%" stopColor="#e85d9e" />
+                <stop offset="70%" stopColor="#f5c563" />
+                <stop offset="100%" stopColor="#fff7e8" />
+              </linearGradient>
+            </defs>
+            <rect x="8" y="8" width="8" height="32" rx="2" fill="url(#og-g)" />
+            <rect x="8" y="33" width="24" height="7" rx="2" fill="url(#og-g)" />
+            <rect x="27" y="8" width="8" height="32" rx="2" fill="url(#og-g)" />
+            <rect x="27" y="33" width="15" height="7" rx="2" fill="url(#og-g)" />
+          </svg>
+          <span
+            style={{ fontWeight: 700, letterSpacing: "-0.03em" }}
+          >
+            Leggera Labs
           </span>
-          <span style={{ color: "#22D3EE", marginLeft: 2 }}>.</span>
         </div>
 
         {/* Headline */}

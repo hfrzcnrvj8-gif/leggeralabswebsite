@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "poltechnickx — Private Local AI & Automation for SMEs",
+    "title": "Leggera Labs — Private Local AI & Automation for SMEs",
     "description": "We deploy private, on-premise LLMs and engineer process automation for small and medium businesses. Your data never leaves your walls."
   },
   "nav": {
@@ -35,7 +35,7 @@
       ]
     },
     "local": {
-      "title": "Local LLMs by poltechnickx",
+      "title": "Local LLMs by Leggera Labs",
       "points": [
         "Data stays fully inside your walls",
         "Fixed, predictable infrastructure cost",
@@ -140,8 +140,8 @@
   "founder": {
     "label": "Who you'll work with",
     "title": "Built by the person who'll build your system.",
-    "body": "poltechnickx is founder-led by design. You talk directly to the engineer who designs, builds and ships your solution — no layers, no handoffs, no account managers reading from a script. Sharper decisions, faster iterations, and someone who genuinely cares that the result works.",
-    "quote": "Businesses shouldn't have to trade their privacy for intelligence. That's the whole reason poltechnickx exists.",
+    "body": "Leggera Labs is founder-led by design. You talk directly to the engineer who designs, builds and ships your solution — no layers, no handoffs, no account managers reading from a script. Sharper decisions, faster iterations, and someone who genuinely cares that the result works.",
+    "quote": "Businesses shouldn't have to trade their privacy for intelligence. That's the whole reason Leggera Labs exists.",
     "name": "[Your name]",
     "role": "Founder & Lead Engineer"
   },
@@ -213,11 +213,11 @@
   "privacy": {
     "title": "Privacy Policy",
     "updated": "Last updated: 13 June 2026",
-    "intro": "This Privacy Policy explains how poltechnickx (\"we\", \"us\") processes personal data in accordance with Regulation (EU) 2016/679 (GDPR). This document is a placeholder template and should be reviewed by qualified legal counsel before publication.",
+    "intro": "This Privacy Policy explains how Leggera Labs (\"we\", \"us\") processes personal data in accordance with Regulation (EU) 2016/679 (GDPR). This document is a placeholder template and should be reviewed by qualified legal counsel before publication.",
     "sections": [
       {
         "heading": "1. Data Controller",
-        "body": "poltechnickx is the controller of personal data collected through this website. For any privacy-related request, contact us at the address listed in the footer."
+        "body": "Leggera Labs is the controller of personal data collected through this website. For any privacy-related request, contact us at the address listed in the footer."
       },
       {
         "heading": "2. What data we collect",
@@ -237,7 +237,7 @@
       },
       {
         "heading": "6. Contact",
-        "body": "To exercise any of these rights, please contact poltechnickx using the contact details provided on this website."
+        "body": "To exercise any of these rights, please contact Leggera Labs using the contact details provided on this website."
       }
     ],
     "back": "Back to home"

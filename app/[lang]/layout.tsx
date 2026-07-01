@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import "../globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import { i18n, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { siteUrl, ogLocale } from "@/lib/site";
@@ -37,14 +38,14 @@ export async function generateMetadata({
     metadataBase: new URL(siteUrl),
     title: dict.meta.title,
     description: dict.meta.description,
-    applicationName: "poltechnickx",
+    applicationName: "Leggera Labs",
     alternates: {
       canonical: `/${locale}`,
       languages: { ...languages, "x-default": `/${i18n.defaultLocale}` },
     },
     openGraph: {
       type: "website",
-      siteName: "poltechnickx",
+      siteName: "Leggera Labs",
       title: dict.meta.title,
       description: dict.meta.description,
       url: `/${locale}`,
@@ -70,7 +71,10 @@ export default async function LangLayout({
       className={`${inter.variable} ${sourceSerif.variable}`}
     >
       <body className="font-sans antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <ScrollToTop />
+        </ThemeProvider>
       </body>
     </html>
   );

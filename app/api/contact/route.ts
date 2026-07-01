@@ -48,8 +48,8 @@ export async function POST(request: Request) {
   }
 
   const apiKey = process.env.RESEND_API_KEY;
-  const to = process.env.CONTACT_TO_EMAIL ?? "hello@poltechnickx.com";
-  const from = process.env.CONTACT_FROM_EMAIL ?? "poltechnickx <onboarding@resend.dev>";
+  const to = process.env.CONTACT_TO_EMAIL ?? "hello@leggeralabs.com";
+  const from = process.env.CONTACT_FROM_EMAIL ?? "Leggera Labs <onboarding@resend.dev>";
 
   const subject = `New enquiry from ${name}${company ? ` (${company})` : ""}`;
   const text = [

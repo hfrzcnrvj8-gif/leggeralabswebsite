@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { Logo } from "./Logo";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 
@@ -45,12 +45,7 @@ export function Header({
           scrolled ? "glass shadow-xl" : "border border-transparent"
         }`}
       >
-        <Link
-          href={`/${lang}`}
-          className="font-serif text-lg font-semibold tracking-tight"
-        >
-          poltechnickx<span className="text-liquid">.</span>
-        </Link>
+        <Logo lang={lang} showWordmark={!scrolled} />
 
         <ul className="hidden items-center gap-8 text-sm text-muted md:flex">
           {links.map((l) => (

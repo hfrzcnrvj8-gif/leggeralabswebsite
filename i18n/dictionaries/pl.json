@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "poltechnickx — Prywatne, lokalne AI i automatyzacja dla MŚP",
+    "title": "Leggera Labs — Prywatne, lokalne AI i automatyzacja dla MŚP",
     "description": "Wdrażamy prywatne, lokalne modele LLM i projektujemy automatyzację procesów dla małych i średnich firm. Twoje dane nigdy nie opuszczają Twojej firmy."
   },
   "nav": {
@@ -35,7 +35,7 @@
       ]
     },
     "local": {
-      "title": "Lokalne LLM od poltechnickx",
+      "title": "Lokalne LLM od Leggera Labs",
       "points": [
         "Dane pozostają w całości w Twojej firmie",
         "Stały, przewidywalny koszt infrastruktury",
@@ -140,8 +140,8 @@
   "founder": {
     "label": "Z kim będziesz pracować",
     "title": "Tworzone przez osobę, która zbuduje Twój system.",
-    "body": "poltechnickx z założenia prowadzi założyciel. Rozmawiasz bezpośrednio z inżynierem, który projektuje, buduje i wdraża Twoje rozwiązanie — bez pośredników, bez przekazywania zadań, bez opiekunów konta czytających ze skryptu. Trafniejsze decyzje, szybsze iteracje i ktoś, komu naprawdę zależy, by efekt działał.",
-    "quote": "Firmy nie powinny wymieniać swojej prywatności na inteligencję. To cały powód, dla którego istnieje poltechnickx.",
+    "body": "Leggera Labs z założenia prowadzi założyciel. Rozmawiasz bezpośrednio z inżynierem, który projektuje, buduje i wdraża Twoje rozwiązanie — bez pośredników, bez przekazywania zadań, bez opiekunów konta czytających ze skryptu. Trafniejsze decyzje, szybsze iteracje i ktoś, komu naprawdę zależy, by efekt działał.",
+    "quote": "Firmy nie powinny wymieniać swojej prywatności na inteligencję. To cały powód, dla którego istnieje Leggera Labs.",
     "name": "[Twoje imię i nazwisko]",
     "role": "Założyciel i główny inżynier"
   },
@@ -213,11 +213,11 @@
   "privacy": {
     "title": "Polityka Prywatności",
     "updated": "Ostatnia aktualizacja: 13 czerwca 2026",
-    "intro": "Niniejsza Polityka Prywatności wyjaśnia, w jaki sposób poltechnickx („my”) przetwarza dane osobowe zgodnie z Rozporządzeniem (UE) 2016/679 (RODO). Dokument ten stanowi szablon poglądowy i przed publikacją powinien zostać zweryfikowany przez wykwalifikowanego prawnika.",
+    "intro": "Niniejsza Polityka Prywatności wyjaśnia, w jaki sposób Leggera Labs („my”) przetwarza dane osobowe zgodnie z Rozporządzeniem (UE) 2016/679 (RODO). Dokument ten stanowi szablon poglądowy i przed publikacją powinien zostać zweryfikowany przez wykwalifikowanego prawnika.",
     "sections": [
       {
         "heading": "1. Administrator danych",
-        "body": "poltechnickx jest administratorem danych osobowych zbieranych za pośrednictwem tej strony. We wszelkich sprawach dotyczących prywatności prosimy o kontakt pod adresem wskazanym w stopce."
+        "body": "Leggera Labs jest administratorem danych osobowych zbieranych za pośrednictwem tej strony. We wszelkich sprawach dotyczących prywatności prosimy o kontakt pod adresem wskazanym w stopce."
       },
       {
         "heading": "2. Jakie dane zbieramy",
@@ -237,7 +237,7 @@
       },
       {
         "heading": "6. Kontakt",
-        "body": "Aby skorzystać z któregokolwiek z tych praw, prosimy o kontakt z poltechnickx z wykorzystaniem danych kontaktowych podanych na tej stronie."
+        "body": "Aby skorzystać z któregokolwiek z tych praw, prosimy o kontakt z Leggera Labs z wykorzystaniem danych kontaktowych podanych na tej stronie."
       }
     ],
     "back": "Powrót na stronę główną"

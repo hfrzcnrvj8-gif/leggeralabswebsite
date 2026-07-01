@@ -13,7 +13,7 @@ export async function generateMetadata({
 }: PageProps<"/[lang]/privacy">): Promise<Metadata> {
   const { lang } = await params;
   const dict = await getDictionary(lang as Locale);
-  return { title: `${dict.privacy.title} — poltechnickx` };
+  return { title: `${dict.privacy.title} — Leggera Labs` };
 }
 
 export default async function PrivacyPage({
