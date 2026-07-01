@@ -18,31 +18,28 @@ const wordmarkGradient = {
 export function LogoMark({ size = 32 }: { size?: number }) {
   const gradientId = `ll-gradient-${useId()}`;
   return (
-    <svg width={size} height={(size * 90) / 100} viewBox="0 0 100 90" aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 90 90" aria-hidden>
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="100" y2="90" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="90" y2="90" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#7C3AED" />
           <stop offset="100%" stopColor="#E0A93B" />
         </linearGradient>
       </defs>
-      <text x="18" y="70" fontFamily="var(--font-inter)" fontWeight="700" fontSize="70" fill={`url(#${gradientId})`}>
+      <text x="18" y="55" fontFamily="var(--font-inter)" fontWeight="800" fontSize="62" fill={`url(#${gradientId})`} opacity={0.35}>
         L
       </text>
-      <g transform="translate(82,70) scale(-1,1)">
-        <text x="0" y="0" fontFamily="var(--font-inter)" fontWeight="700" fontSize="70" fill={`url(#${gradientId})`}>
-          L
-        </text>
-      </g>
+      <text x="30" y="67" fontFamily="var(--font-inter)" fontWeight="800" fontSize="62" fill={`url(#${gradientId})`}>
+        L
+      </text>
     </svg>
   );
 }
 
 /**
  * The two "L"s in LEGGERA and LABS are real motion.span elements with
- * `layout` enabled. Collapsing just removes their sibling text (AnimatePresence)
- * and mirrors + overlaps the second L — framer-motion's layout engine animates
- * the resulting reflow, so the letters visibly slide together into an
- * RR-style overlap instead of crossfading to a separate icon.
+ * `layout` enabled. Collapsing removes the sibling text (AnimatePresence)
+ * and turns the first "L" into a faded echo behind the second, offset
+ * down-right — the PayPal double-letter formula, not a mirrored overlap.
  */
 export function Logo({
   lang,
@@ -65,6 +62,7 @@ export function Logo({
         >
           <motion.span
             layout
+            animate={{ opacity: collapsed ? 0.35 : 1 }}
             transition={{ duration: 0.45, ease }}
             style={{ display: "inline-block" }}
           >
@@ -102,13 +100,12 @@ export function Logo({
           </AnimatePresence>
           <motion.span
             layout
-            animate={{ scaleX: collapsed ? -1 : 1, y: collapsed ? 3 : 0 }}
-            transition={{ duration: 0.45, ease }}
-            style={{
-              display: "inline-block",
-              marginLeft: collapsed ? "-0.32em" : "0px",
-              transition: "margin-left 0.45s",
+            animate={{
+              x: collapsed ? "-0.55em" : "0em",
+              y: collapsed ? "0.15em" : "0em",
             }}
+            transition={{ duration: 0.45, ease }}
+            style={{ display: "inline-block" }}
           >
             L
           </motion.span>

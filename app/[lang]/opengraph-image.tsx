@@ -52,18 +52,39 @@ export default async function OpengraphImage({
 
         {/* Wordmark */}
         <div style={{ display: "flex", alignItems: "center", fontSize: 40 }}>
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ marginRight: 18 }}>
-            <defs>
-              <linearGradient id="og-g" x1="0" y1="0" x2="48" y2="48">
-                <stop offset="0%" stopColor="#7C3AED" />
-                <stop offset="100%" stopColor="#E0A93B" />
-              </linearGradient>
-            </defs>
-            <rect x="8" y="8" width="8" height="32" rx="2" fill="url(#og-g)" />
-            <rect x="8" y="33" width="24" height="7" rx="2" fill="url(#og-g)" />
-            <rect x="27" y="8" width="8" height="32" rx="2" fill="url(#og-g)" />
-            <rect x="27" y="33" width="15" height="7" rx="2" fill="url(#og-g)" />
-          </svg>
+          <div style={{ position: "relative", display: "flex", width: 46, height: 46, marginRight: 18 }}>
+            <span
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                display: "flex",
+                fontWeight: 800,
+                fontSize: 46,
+                opacity: 0.35,
+                backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              L
+            </span>
+            <span
+              style={{
+                position: "absolute",
+                top: 7,
+                left: 7,
+                display: "flex",
+                fontWeight: 800,
+                fontSize: 46,
+                backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              L
+            </span>
+          </div>
           <span
             style={{
               fontWeight: 700,
