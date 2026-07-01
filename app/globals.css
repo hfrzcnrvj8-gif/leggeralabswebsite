@@ -10,7 +10,7 @@
   --fg: #1a1815;
   --fg-muted: #6b665f;
   --hairline: rgba(26, 24, 21, 0.1);
-  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-bg: rgba(255, 255, 255, 0.92);
   --glass-border: rgba(26, 24, 21, 0.08);
   --orb-opacity: 0.45;
   /* Inverted-section tokens: opposite of the current theme, for a
@@ -29,7 +29,7 @@
   --fg: #f5f1e8;
   --fg-muted: #a8a29a;
   --hairline: rgba(245, 241, 232, 0.08);
-  --glass-bg: rgba(28, 26, 23, 0.55);
+  --glass-bg: rgba(28, 26, 23, 0.92);
   --glass-border: rgba(245, 241, 232, 0.1);
   --orb-opacity: 0.55;
   --bg-invert: #f7f5f0;

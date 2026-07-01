@@ -36,12 +36,12 @@ export function LogoMark({ size = 32 }: { size?: number }) {
 }
 
 /**
- * The two "L"s in LEGGERA and LABS are plain spans whose transform/opacity
- * are driven by a CSS transition on the `collapsed` boolean — deliberately
- * NOT framer-motion's `layout` animation, which fought with the manual
- * transform here and could render the mark invisible in production.
- * AnimatePresence (no `layout`) only handles the simple opacity fade of the
- * text that disappears on scroll.
+ * Every text segment carries its OWN background-clip:text gradient rather
+ * than inheriting one from a shared parent. A shared parent gradient +
+ * a `transform` on one descendant (needed for the offset "echo" letter)
+ * made that descendant render invisible in production — background-clip
+ * text and a transformed child don't compose reliably. Self-contained
+ * gradients per span side-steps that entirely.
  */
 export function Logo({
   lang,
@@ -56,15 +56,16 @@ export function Logo({
     <Link href={`/${lang}`} className={`flex items-center ${className}`}>
       <span
         style={{
-          ...wordmarkGradient,
+          display: "flex",
           transform: collapsed ? "scale(1.8)" : "scale(1)",
           transformOrigin: "left center",
           transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
         }}
-        className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
+        className="items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
       >
         <span
           style={{
+            ...wordmarkGradient,
             display: "inline-block",
             opacity: collapsed ? 0.35 : 1,
             transition: "opacity 0.45s ease",
@@ -80,7 +81,7 @@ export function Logo({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={fadeTransition}
-              style={{ display: "inline-block" }}
+              style={{ ...wordmarkGradient, display: "inline-block" }}
             >
               EGGERA
             </motion.span>
@@ -102,6 +103,7 @@ export function Logo({
         </AnimatePresence>
         <span
           style={{
+            ...wordmarkGradient,
             display: "inline-block",
             transform: collapsed ? "translate(-0.55em, 0.15em)" : "translate(0em, 0em)",
             transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
@@ -117,7 +119,7 @@ export function Logo({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={fadeTransition}
-              style={{ display: "inline-block" }}
+              style={{ ...wordmarkGradient, display: "inline-block" }}
             >
               ABS
             </motion.span>

@@ -32,7 +32,8 @@ export function ScrollToTop() {
           <motion.span
             animate={{ y: [0, -3, 0] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-            className="text-liquid text-xl"
+            className="text-xl font-bold"
+            style={{ color: "var(--fg)" }}
             aria-hidden
           >
             ↑
