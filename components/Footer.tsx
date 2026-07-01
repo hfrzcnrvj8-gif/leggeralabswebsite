@@ -15,7 +15,7 @@ export function Footer({
     <footer className="relative border-t px-6 py-16 hairline">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 md:flex-row md:items-end md:justify-between">
         <div className="max-w-sm">
-          <Logo lang={lang} size={28} />
+          <Logo lang={lang} />
           <p className="mt-4 text-sm text-muted">{dict.tagline}</p>
         </div>
 

@@ -45,7 +45,7 @@ export function Header({
           scrolled ? "glass shadow-xl" : "border border-transparent"
         }`}
       >
-        <Logo lang={lang} showWordmark={!scrolled} />
+        <Logo lang={lang} collapsed={scrolled} />
 
         <ul className="hidden items-center gap-8 text-sm text-muted md:flex">
           {links.map((l) => (
