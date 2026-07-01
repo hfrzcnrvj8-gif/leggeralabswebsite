@@ -8,8 +8,7 @@ import type { Locale } from "@/i18n/config";
 const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
 const wordmarkGradient = {
-  backgroundImage:
-    "linear-gradient(100deg, #a78bfa 0%, #d959a8 40%, #ec9a6a 70%, #f5c563 100%)",
+  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
   WebkitBackgroundClip: "text" as const,
   backgroundClip: "text" as const,
   color: "transparent",
@@ -22,16 +21,15 @@ export function LogoMark({ size = 32 }: { size?: number }) {
     <svg width={size} height={(size * 90) / 100} viewBox="0 0 100 90" aria-hidden>
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="100" y2="90" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#a78bfa" />
-          <stop offset="45%" stopColor="#d959a8" />
-          <stop offset="100%" stopColor="#f5c563" />
+          <stop offset="0%" stopColor="#7C3AED" />
+          <stop offset="100%" stopColor="#E0A93B" />
         </linearGradient>
       </defs>
-      <text x="18" y="70" fontFamily="var(--font-serif)" fontWeight="700" fontSize="70" fill={`url(#${gradientId})`}>
+      <text x="18" y="70" fontFamily="var(--font-inter)" fontWeight="700" fontSize="70" fill={`url(#${gradientId})`}>
         L
       </text>
       <g transform="translate(82,70) scale(-1,1)">
-        <text x="0" y="0" fontFamily="var(--font-serif)" fontWeight="700" fontSize="70" fill={`url(#${gradientId})`}>
+        <text x="0" y="0" fontFamily="var(--font-inter)" fontWeight="700" fontSize="70" fill={`url(#${gradientId})`}>
           L
         </text>
       </g>
@@ -68,7 +66,7 @@ export function Logo({
           <motion.span
             layout
             transition={{ duration: 0.45, ease }}
-            style={{ display: "inline-block", fontFamily: "var(--font-serif)" }}
+            style={{ display: "inline-block" }}
           >
             L
           </motion.span>
@@ -108,7 +106,6 @@ export function Logo({
             transition={{ duration: 0.45, ease }}
             style={{
               display: "inline-block",
-              fontFamily: "var(--font-serif)",
               marginLeft: collapsed ? "-0.32em" : "0px",
               transition: "margin-left 0.45s",
             }}
