@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { useId } from "react";
-import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-
-const ease = [0.22, 1, 0.36, 1] as [number, number, number, number];
 
 const wordmarkGradient = {
   backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
@@ -13,6 +11,8 @@ const wordmarkGradient = {
   backgroundClip: "text" as const,
   color: "transparent",
 };
+
+const fadeTransition = { duration: 0.3 };
 
 /** Static mark for contexts that can't run React/framer-motion (favicon, OG image). */
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -36,10 +36,12 @@ export function LogoMark({ size = 32 }: { size?: number }) {
 }
 
 /**
- * The two "L"s in LEGGERA and LABS are real motion.span elements with
- * `layout` enabled. Collapsing removes the sibling text (AnimatePresence)
- * and turns the first "L" into a faded echo behind the second, offset
- * down-right — the PayPal double-letter formula, not a mirrored overlap.
+ * The two "L"s in LEGGERA and LABS are plain spans whose transform/opacity
+ * are driven by a CSS transition on the `collapsed` boolean — deliberately
+ * NOT framer-motion's `layout` animation, which fought with the manual
+ * transform here and could render the mark invisible in production.
+ * AnimatePresence (no `layout`) only handles the simple opacity fade of the
+ * text that disappears on scroll.
  */
 export function Logo({
   lang,
@@ -52,96 +54,91 @@ export function Logo({
 }) {
   return (
     <Link href={`/${lang}`} className={`flex items-center ${className}`}>
-      <LayoutGroup>
-        <motion.span
-          layout
-          animate={{ scale: collapsed ? 1.8 : 1 }}
-          transition={{ duration: 0.45, ease }}
-          style={{ ...wordmarkGradient, transformOrigin: "left center" }}
-          className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
+      <span
+        style={{
+          ...wordmarkGradient,
+          transform: collapsed ? "scale(1.8)" : "scale(1)",
+          transformOrigin: "left center",
+          transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
+        }}
+        className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
+      >
+        <span
+          style={{
+            display: "inline-block",
+            opacity: collapsed ? 0.35 : 1,
+            transition: "opacity 0.45s ease",
+          }}
         >
-          <motion.span
-            layout
-            animate={{ opacity: collapsed ? 0.35 : 1 }}
-            transition={{ duration: 0.45, ease }}
-            style={{ display: "inline-block" }}
-          >
-            L
-          </motion.span>
-          <AnimatePresence initial={false}>
-            {!collapsed && (
-              <motion.span
-                key="eggera"
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease }}
-                style={{ display: "inline-block" }}
-              >
-                EGGERA
-              </motion.span>
-            )}
-          </AnimatePresence>
-          <AnimatePresence initial={false}>
-            {!collapsed && (
-              <motion.span
-                key="space"
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease }}
-                style={{ display: "inline-block" }}
-              >
-                &nbsp;
-              </motion.span>
-            )}
-          </AnimatePresence>
-          <motion.span
-            layout
-            animate={{
-              x: collapsed ? "-0.55em" : "0em",
-              y: collapsed ? "0.15em" : "0em",
-            }}
-            transition={{ duration: 0.45, ease }}
-            style={{ display: "inline-block" }}
-          >
-            L
-          </motion.span>
-          <AnimatePresence initial={false}>
-            {!collapsed && (
-              <motion.span
-                key="abs"
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease }}
-                style={{ display: "inline-block" }}
-              >
-                ABS
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </motion.span>
+          L
+        </span>
         <AnimatePresence initial={false}>
           {!collapsed && (
             <motion.span
-              key="dot"
-              layout
+              key="eggera"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3, ease }}
-              className="text-brand-cyan text-lg font-bold"
+              transition={fadeTransition}
               style={{ display: "inline-block" }}
             >
-              .
+              EGGERA
             </motion.span>
           )}
         </AnimatePresence>
-      </LayoutGroup>
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.span
+              key="space"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={fadeTransition}
+              style={{ display: "inline-block" }}
+            >
+              &nbsp;
+            </motion.span>
+          )}
+        </AnimatePresence>
+        <span
+          style={{
+            display: "inline-block",
+            transform: collapsed ? "translate(-0.55em, 0.15em)" : "translate(0em, 0em)",
+            transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
+          }}
+        >
+          L
+        </span>
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.span
+              key="abs"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={fadeTransition}
+              style={{ display: "inline-block" }}
+            >
+              ABS
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </span>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.span
+            key="dot"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={fadeTransition}
+            className="text-brand-cyan text-lg font-bold"
+            style={{ display: "inline-block" }}
+          >
+            .
+          </motion.span>
+        )}
+      </AnimatePresence>
     </Link>
   );
 }
