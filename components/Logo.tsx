@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
+import { useTheme } from "next-themes";
 import { motion, useMotionValue, useTransform, type MotionValue } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 
 const wordmarkGradient = {
-  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
+  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 60%, #FFF7E8 100%)",
   WebkitBackgroundClip: "text" as const,
   backgroundClip: "text" as const,
   color: "transparent",
@@ -20,10 +21,11 @@ export function LogoMark({ size = 32 }: { size?: number }) {
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="90" y2="90" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#7C3AED" />
-          <stop offset="100%" stopColor="#E0A93B" />
+          <stop offset="60%" stopColor="#E0A93B" />
+          <stop offset="100%" stopColor="#FFF7E8" />
         </linearGradient>
       </defs>
-      <text x="18" y="55" fontFamily="var(--font-inter)" fontWeight="800" fontSize="62" fill={`url(#${gradientId})`} opacity={0.35}>
+      <text x="18" y="55" fontFamily="var(--font-inter)" fontWeight="800" fontSize="62" fill={`url(#${gradientId})`} opacity={0.5}>
         L
       </text>
       <text x="30" y="67" fontFamily="var(--font-inter)" fontWeight="800" fontSize="62" fill={`url(#${gradientId})`}>
@@ -39,10 +41,14 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  * NOT a boolean toggle. The wordmark shrinks in place continuously as you
  * scroll: "EGGERA"/" "/"ABS"/"." collapse their own width+opacity together,
  * while the second "L" slides into a tight offset behind the first,
- * forming the same mark as LogoMark. Reversing scroll reverses it exactly.
- * Every text-bearing span keeps its own self-contained gradient (see the
- * "disappearing L" fix) rather than inheriting one from a shared parent —
- * a `transform`/`x`/`y` on a child breaks an inherited background-clip:text.
+ * forming the same mark as LogoMark.
+ *
+ * The whole phrase shares ONE gradient/background-clip:text on the outer
+ * span so the color reads as a single continuous sweep rather than each
+ * word re-starting its own gradient. The second "L"'s offset is done with
+ * `marginLeft`/`top` (layout properties), not a CSS `transform` — a
+ * `transform` on a child breaks an inherited background-clip:text in this
+ * browser (that's what made it disappear earlier).
  */
 export function Logo({
   lang,
@@ -56,18 +62,26 @@ export function Logo({
   const fallback = useMotionValue(0);
   const p = progress ?? fallback;
 
-  const firstOpacity = useTransform(p, [0, 1], [1, 0.35]);
-  const secondX = useTransform(p, [0, 1], [0, -9]);
-  const secondY = useTransform(p, [0, 1], [0, 3]);
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const echoOpacityTarget = mounted && resolvedTheme === "dark" ? 0.55 : 0.35;
+
+  const firstOpacity = useTransform(p, [0, 1], [1, echoOpacityTarget]);
+  const secondMarginLeft = useTransform(p, [0, 1], [0, -9]);
+  const secondTop = useTransform(p, [0, 1], [0, 3]);
   const restOpacity = useTransform(p, [0, 0.6], [1, 0]);
   const restWidth = useTransform(p, [0, 0.6], [190, 0]);
   const dotWidth = useTransform(p, [0, 0.6], [16, 0]);
 
   return (
     <Link href={`/${lang}`} className={`flex items-center ${className}`}>
-      <span className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]">
+      <span
+        style={wordmarkGradient}
+        className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
+      >
         <motion.span
-          style={{ ...wordmarkGradient, opacity: firstOpacity, display: "inline-block" }}
+          style={{ opacity: firstOpacity, display: "inline-block" }}
         >
           L
         </motion.span>
@@ -80,11 +94,15 @@ export function Logo({
             whiteSpace: "nowrap",
           }}
         >
-          <span style={{ ...wordmarkGradient, display: "inline-block" }}>EGGERA</span>
-          <span style={{ display: "inline-block" }}>&nbsp;</span>
+          EGGERA&nbsp;
         </motion.span>
         <motion.span
-          style={{ ...wordmarkGradient, display: "inline-block", x: secondX, y: secondY }}
+          style={{
+            position: "relative",
+            display: "inline-block",
+            marginLeft: secondMarginLeft,
+            top: secondTop,
+          }}
         >
           L
         </motion.span>
@@ -97,7 +115,7 @@ export function Logo({
             whiteSpace: "nowrap",
           }}
         >
-          <span style={{ ...wordmarkGradient, display: "inline-block" }}>ABS</span>
+          ABS
         </motion.span>
       </span>
       <motion.span

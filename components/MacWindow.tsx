@@ -51,7 +51,7 @@ export function MacWindow({
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.6}
           onDragEnd={handleDragEnd}
-          className={`relative aspect-video overflow-hidden ${onSwipe ? "cursor-grab active:cursor-grabbing" : ""}`}
+          className={`relative h-[46vh] max-h-[440px] min-h-[240px] overflow-hidden ${onSwipe ? "cursor-grab active:cursor-grabbing" : ""}`}
         >
           <div
             className="absolute inset-0"
