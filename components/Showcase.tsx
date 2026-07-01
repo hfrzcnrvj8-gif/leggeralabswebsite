@@ -48,16 +48,16 @@ export function Showcase({ dict }: { dict: Dictionary["showcase"] }) {
             >
               ←
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               {items.map((item, i) => (
                 <button
                   key={item.title}
                   onClick={() => setIndex(i)}
                   aria-label={item.title}
-                  className="h-2 rounded-full transition-all duration-300"
+                  className="h-2.5 w-2.5 rounded-full border-2 transition-colors duration-300"
                   style={{
-                    width: i === index ? 18 : 8,
-                    background: i === index ? "var(--fg)" : "var(--hairline)",
+                    borderColor: "var(--fg)",
+                    background: i === index ? "var(--fg)" : "transparent",
                   }}
                 />
               ))}

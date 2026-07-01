@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  motion,
-  useMotionValue,
-  useSpring,
-  useTransform,
-  AnimatePresence,
-  type PanInfo,
-} from "framer-motion";
+import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import type { ReactNode } from "react";
 
 export function MacWindow({
@@ -21,29 +14,6 @@ export function MacWindow({
   onSwipe?: (direction: 1 | -1) => void;
   children?: ReactNode;
 }) {
-  const mx = useMotionValue(0.5);
-  const my = useMotionValue(0.5);
-
-  const rotateX = useSpring(useTransform(my, [0, 1], [8, -8]), {
-    stiffness: 180,
-    damping: 18,
-  });
-  const rotateY = useSpring(useTransform(mx, [0, 1], [-8, 8]), {
-    stiffness: 180,
-    damping: 18,
-  });
-
-  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    mx.set((e.clientX - rect.left) / rect.width);
-    my.set((e.clientY - rect.top) / rect.height);
-  };
-
-  const reset = () => {
-    mx.set(0.5);
-    my.set(0.5);
-  };
-
   const handleDragEnd = (
     _: MouseEvent | TouchEvent | PointerEvent,
     info: PanInfo
@@ -54,12 +24,7 @@ export function MacWindow({
   };
 
   return (
-    <motion.div
-      onMouseMove={handleMove}
-      onMouseLeave={reset}
-      style={{ rotateX, rotateY, transformPerspective: 1000 }}
-      className="group relative rounded-2xl"
-    >
+    <div className="relative rounded-2xl">
       <div className="card-paper overflow-hidden rounded-2xl">
         {/* Title bar */}
         <div className="flex items-center gap-2 border-b px-4 py-3 hairline">
@@ -112,7 +77,7 @@ export function MacWindow({
             >
               {children ?? (
                 <>
-                  <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300 group-hover:scale-110">
+                  <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300">
                     ▶
                   </span>
                   {caption && (
@@ -124,6 +89,6 @@ export function MacWindow({
           </AnimatePresence>
         </motion.div>
       </div>
-    </motion.div>
+    </div>
   );
 }
