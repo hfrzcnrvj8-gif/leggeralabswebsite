@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { ThemeToggle } from "./ThemeToggle";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 
@@ -29,6 +31,10 @@ export function Footer({
         </div>
 
         <div className="flex flex-col gap-4 text-sm md:items-end">
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher current={lang} />
+            <ThemeToggle />
+          </div>
           <Link
             href={`/${lang}/privacy`}
             className="transition-opacity hover:opacity-70"

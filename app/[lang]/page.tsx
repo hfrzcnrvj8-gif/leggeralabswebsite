@@ -22,7 +22,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
   return (
     <>
       <StructuredData lang={lang} dict={dict} />
-      <Header lang={lang} dict={dict.nav} />
+      <Header lang={lang} nav={dict.nav} footer={dict.footer} />
       <main className="relative overflow-x-clip">
         <Hero dict={dict.hero} />
         <ProblemVision dict={dict.problem} />

@@ -23,14 +23,12 @@ const wordmarkGradient = {
 // and independent of the outer shared gradient, so it stays reliably
 // distinct from the purple echo behind it once the two overlap into the
 // collapsed mark, instead of depending on how wide the surrounding box
-// happens to be at that moment.
-const secondLGradient = {
-  backgroundImage: "linear-gradient(100deg, #E0A93B 0%, #FFF7E8 100%)",
-  WebkitBackgroundClip: "text" as const,
-  backgroundClip: "text" as const,
-  color: "transparent",
-  ...textStroke,
-};
+// happens to be at that moment. A flat color, not a gradient: a 0%→100%
+// gradient painted across one narrow glyph shows internal banding (part
+// purple, part gold within the same letter) instead of reading as a
+// single clean hue — same reason the echo "L" below uses a flat
+// `color-mix()` result instead of its own little gradient.
+const secondLStyle = { color: "#E0A93B", ...textStroke };
 
 /** Static mark for contexts that can't run React/framer-motion (favicon, OG image). */
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -64,7 +62,7 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  *
  * "EGGERA"/"ABS"/"." share ONE gradient/background-clip:text on the outer
  * span so the color reads as a single continuous sweep. The second "L"
- * gets its own fixed gold gradient instead (see `secondLGradient`) so it
+ * gets its own fixed flat gold color instead (see `secondLStyle`) so it
  * stays reliably distinct from the purple echo once collapsed — it sits
  * at the gold end of the shared sweep anyway, so this doesn't create a
  * visible seam in the expanded phrase. Its offset uses `marginLeft` +
@@ -77,12 +75,12 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  * letter silently disappears even though every computed style looks
  * correct. Confirmed by isolating it in an overlay: two plain sibling
  * spans both render, but the moment either one gets `opacity`, that one
- * (and only that one) vanishes. Fix: give the echo letter its own
- * gradient, blended toward a fixed dark neutral via `color-mix()` instead
- * of faded with `opacity`. Blending toward `var(--bg)` (tried first) reads
- * fine in dark mode but washes out to a pale pink in light mode, since
- * mixing purple with a light warm cream shifts the perceived hue —
- * blending toward a constant dark tone keeps the result recognizably
+ * (and only that one) vanishes. Fix: fade it with a flat `color-mix()`
+ * result on the plain `color` property instead — no gradient, no
+ * background-clip, so there's nothing for an isolated layer to lose.
+ * Blended toward a fixed dark neutral rather than `var(--bg)`: mixing
+ * purple with the light theme's warm cream shifts the perceived hue
+ * toward pale pink, while blending toward a constant dark tone reads as
  * purple in both themes.
  */
 export function Logo({
@@ -98,8 +96,9 @@ export function Logo({
   const p = progress ?? fallback;
 
   const firstMixPercent = useTransform(p, [0, 1], [100, 80]);
-  const firstGradient = useTransform(firstMixPercent, (m) =>
-    `linear-gradient(100deg, color-mix(in srgb, #7C3AED ${m}%, #14120f) 0%, color-mix(in srgb, #E0A93B ${m}%, #14120f) 60%, color-mix(in srgb, #FFF7E8 ${m}%, #14120f) 100%)`
+  const firstColor = useTransform(
+    firstMixPercent,
+    (m) => `color-mix(in srgb, #7C3AED ${m}%, #14120f)`
   );
   const secondMarginLeft = useTransform(p, [0, 1], [0, -9]);
   const secondVerticalAlign = useTransform(p, [0, 1], [0, -3]);
@@ -115,10 +114,7 @@ export function Logo({
       >
         <motion.span
           style={{
-            backgroundImage: firstGradient,
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
+            color: firstColor,
             display: "inline-block",
             ...textStroke,
           }}
@@ -140,7 +136,7 @@ export function Logo({
             display: "inline-block",
             marginLeft: secondMarginLeft,
             verticalAlign: secondVerticalAlign,
-            ...secondLGradient,
+            ...secondLStyle,
           }}
         >
           L

@@ -26,6 +26,7 @@ export function ThemeToggle() {
           exit={{ opacity: 0, rotate: 40, scale: 0.5 }}
           transition={{ duration: 0.25 }}
           className="text-base"
+          style={{ color: "var(--fg)" }}
         >
           {!mounted ? "" : isDark ? "☾" : "☀"}
         </motion.span>

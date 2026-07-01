@@ -26,6 +26,7 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
         onClick={() => setOpen((v) => !v)}
         onMouseEnter={() => setOpen(true)}
         className="glass flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium uppercase tracking-wide transition-transform hover:scale-105"
+        style={{ color: "var(--fg)" }}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -41,6 +42,7 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.18 }}
             className="glass absolute right-0 top-12 w-40 overflow-hidden rounded-2xl p-1.5 shadow-2xl"
+            style={{ color: "var(--fg)" }}
             role="listbox"
           >
             {i18n.locales.map((locale) => (
