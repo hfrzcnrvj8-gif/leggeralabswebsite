@@ -37,6 +37,7 @@ export function ThemeToggle() {
           width="20"
           height="20"
           viewBox="0 0 20 20"
+          className="block"
           fill="none"
           stroke={`url(#${gradientId})`}
           strokeWidth="1.4"

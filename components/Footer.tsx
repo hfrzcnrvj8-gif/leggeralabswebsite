@@ -31,10 +31,6 @@ export function Footer({
         </div>
 
         <div className="flex flex-col gap-4 text-sm md:items-end">
-          <div className="flex items-center gap-2">
-            <LanguageSwitcher current={lang} />
-            <ThemeToggle />
-          </div>
           <Link
             href={`/${lang}/privacy`}
             className="transition-opacity hover:opacity-70"
@@ -56,10 +52,14 @@ export function Footer({
       </div>
 
       <div
-        className="mx-auto mt-12 max-w-6xl border-t pt-6 text-xs"
+        className="mx-auto mt-12 flex max-w-6xl flex-col-reverse items-start gap-4 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between"
         style={{ color: "var(--fg-invert-muted)", borderColor: "var(--hairline-invert)" }}
       >
-        © {year} Leggera Labs. {dict.rights}
+        <p>© {year} Leggera Labs. {dict.rights}</p>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher current={lang} />
+          <ThemeToggle />
+        </div>
       </div>
     </footer>
   );

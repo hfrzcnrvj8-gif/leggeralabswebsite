@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { i18n, localeNames, type Locale } from "@/i18n/config";
 
@@ -10,6 +10,18 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const gradientId = `lang-switch-grad-${useId()}`;
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
 
   const redirectedPath = (locale: Locale) => {
     if (!pathname) return `/${locale}`;
@@ -19,17 +31,13 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
   };
 
   return (
-    <div
-      className="relative"
-      onMouseLeave={() => setOpen(false)}
-    >
+    <div className="relative" ref={rootRef}>
       <button
         onClick={() => setOpen((v) => !v)}
-        onMouseEnter={() => setOpen(true)}
         className="flex h-10 items-center gap-1 rounded-full px-3 transition-transform hover:scale-105"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`${current.toUpperCase()}`}
+        aria-label={current.toUpperCase()}
       >
         <svg width="0" height="0" aria-hidden>
           <defs>
@@ -39,10 +47,10 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
             </linearGradient>
           </defs>
         </svg>
-        <svg width="30" height="16" viewBox="0 0 30 16" aria-hidden>
+        <svg width="30" height="16" viewBox="0 0 30 16" className="block" aria-hidden>
           <text
             x="0"
-            y="12.5"
+            y="12"
             fontSize="13"
             fontWeight="700"
             letterSpacing="0.5"
@@ -53,7 +61,18 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
             {current.toUpperCase()}
           </text>
         </svg>
-        <svg width="8" height="6" viewBox="0 0 8 6" fill="none" stroke={`url(#${gradientId})`} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg
+          width="8"
+          height="6"
+          viewBox="0 0 8 6"
+          className="block"
+          fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth="1"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
           <path d="M1 1.5 4 4.5 7 1.5" />
         </svg>
       </button>
