@@ -11,7 +11,7 @@ export function ProblemVision({ dict }: { dict: Dictionary["problem"] }) {
       <div className="mx-auto max-w-6xl">
         <Reveal className="max-w-3xl">
           <SectionLabel>{dict.label}</SectionLabel>
-          <h2 className="mt-6 text-balance text-4xl font-semibold leading-tight tracking-tightest sm:text-5xl md:text-6xl">
+          <h2 className="mt-6 text-balance font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl md:text-6xl">
             {dict.title}
           </h2>
           <p className="mt-6 text-lg text-muted">{dict.subtitle}</p>
@@ -20,7 +20,7 @@ export function ProblemVision({ dict }: { dict: Dictionary["problem"] }) {
         <div className="mt-16 grid gap-6 md:grid-cols-2">
           {/* Cloud — the risk */}
           <Reveal>
-            <div className="card-surface h-full rounded-3xl p-8 md:p-10">
+            <div className="card-paper h-full rounded-3xl p-8 md:p-10">
               <div className="mb-6 flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-red-500/10 text-red-400">
                   ⚠
@@ -50,21 +50,13 @@ export function ProblemVision({ dict }: { dict: Dictionary["problem"] }) {
 
           {/* Local — the vision */}
           <Reveal delay={0.1}>
-            <div className="glow-border relative h-full overflow-hidden rounded-3xl p-8 md:p-10">
+            <div className="card-paper relative h-full overflow-hidden rounded-3xl p-8 md:p-10">
               <div
-                className="card-surface absolute inset-0 -z-10 rounded-3xl"
-                aria-hidden
-              />
-              <div
-                className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full opacity-40 blur-3xl"
-                style={{
-                  background:
-                    "radial-gradient(circle, rgba(124,58,237,0.6), transparent 70%)",
-                }}
+                className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple via-brand-pink to-brand-gold"
                 aria-hidden
               />
               <div className="mb-6 flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-cyan/10 text-brand-cyan">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-gold/10 text-brand-gold">
                   ◇
                 </span>
                 <h3 className="text-xl font-semibold">{dict.local.title}</h3>
@@ -82,7 +74,7 @@ export function ProblemVision({ dict }: { dict: Dictionary["problem"] }) {
                     variants={staggerItem}
                     className="flex items-start gap-3"
                   >
-                    <span className="mt-1 text-brand-cyan">✓</span>
+                    <span className="mt-1 text-brand-gold">✓</span>
                     <span>{p}</span>
                   </motion.li>
                 ))}

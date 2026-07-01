@@ -11,18 +11,16 @@ export function Founder({ dict }: { dict: Dictionary["founder"] }) {
         {/* Portrait — replace the placeholder block with a real <img> when ready:
             <img src="/founder.jpg" alt="..." className="h-full w-full object-cover" /> */}
         <Reveal>
-          <div className="glow-border relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-[2rem]">
-            <div className="card-surface relative h-full w-full">
-              <div
-                className="orb pointer-events-none absolute inset-0 animate-orb-float opacity-50"
-                aria-hidden
-              />
-              <div className="relative flex h-full flex-col items-center justify-center">
-                <span className="text-liquid text-8xl font-semibold tracking-tightest">
-                  ◇
-                </span>
-                <p className="mt-6 text-sm text-muted">{dict.role}</p>
-              </div>
+          <div className="card-paper relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-[2rem]">
+            <div
+              className="absolute inset-0 bg-gradient-to-br from-brand-purple/15 via-brand-pink/10 to-brand-gold/15"
+              aria-hidden
+            />
+            <div className="relative flex h-full flex-col items-center justify-center">
+              <span className="text-liquid text-8xl font-semibold tracking-tight">
+                ◇
+              </span>
+              <p className="mt-6 text-sm text-muted">{dict.role}</p>
             </div>
           </div>
         </Reveal>
@@ -30,7 +28,7 @@ export function Founder({ dict }: { dict: Dictionary["founder"] }) {
         <Reveal delay={0.1}>
           <div>
             <SectionLabel>{dict.label}</SectionLabel>
-            <h2 className="mt-6 text-balance text-3xl font-semibold leading-tight tracking-tightest sm:text-4xl md:text-5xl">
+            <h2 className="mt-6 text-balance font-serif text-3xl font-semibold leading-tight tracking-tight sm:text-4xl md:text-5xl">
               {dict.title}
             </h2>
             <p className="mt-6 text-lg text-muted">{dict.body}</p>

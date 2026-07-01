@@ -16,7 +16,7 @@ export function Footer({
         <div className="max-w-sm">
           <Link
             href={`/${lang}`}
-            className="text-xl font-semibold tracking-tightest"
+            className="font-serif text-xl font-semibold tracking-tight"
           >
             poltechnickx<span className="text-liquid">.</span>
           </Link>

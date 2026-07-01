@@ -47,7 +47,7 @@ export function Header({
       >
         <Link
           href={`/${lang}`}
-          className="text-lg font-semibold tracking-tightest"
+          className="font-serif text-lg font-semibold tracking-tight"
         >
           poltechnickx<span className="text-liquid">.</span>
         </Link>

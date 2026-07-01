@@ -17,7 +17,7 @@ export function FoundingOffer({ dict }: { dict: Dictionary["founding"] }) {
             />
             <div className="relative">
               <SectionLabel>{dict.label}</SectionLabel>
-              <h2 className="mt-6 text-balance text-3xl font-semibold leading-tight tracking-tightest sm:text-4xl">
+              <h2 className="mt-6 text-balance font-serif text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
                 {dict.title}
               </h2>
               <p className="mt-6 text-muted">{dict.description}</p>
@@ -42,7 +42,7 @@ export function FoundingOffer({ dict }: { dict: Dictionary["founding"] }) {
                   variants={staggerItem}
                   className="glass flex items-start gap-3 rounded-2xl px-5 py-4"
                 >
-                  <span className="mt-0.5 text-brand-cyan">✓</span>
+                  <span className="mt-0.5 text-brand-gold">✓</span>
                   <span className="text-sm sm:text-base">{point}</span>
                 </motion.li>
               ))}

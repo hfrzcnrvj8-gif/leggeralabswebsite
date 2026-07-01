@@ -45,9 +45,9 @@ export function MacWindow({
       onMouseMove={handleMove}
       onMouseLeave={reset}
       style={{ rotateX, rotateY, transformPerspective: 1000 }}
-      className="glow-border group relative rounded-2xl"
+      className="group relative rounded-2xl"
     >
-      <div className="card-surface overflow-hidden rounded-2xl shadow-2xl">
+      <div className="card-paper overflow-hidden rounded-2xl">
         {/* Title bar */}
         <div className="flex items-center gap-2 border-b px-4 py-3 hairline">
           <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
@@ -70,16 +70,12 @@ export function MacWindow({
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-0 opacity-60"
-            style={{
-              background:
-                "radial-gradient(circle at 30% 30%, rgba(124,58,237,0.28), transparent 60%), radial-gradient(circle at 75% 70%, rgba(34,211,238,0.22), transparent 60%)",
-            }}
+            className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple via-brand-pink to-brand-gold"
             aria-hidden
           />
           {children ?? (
             <div className="relative flex h-full flex-col items-center justify-center gap-3 text-center">
-              <span className="grid h-14 w-14 place-items-center rounded-full glass text-xl transition-transform duration-300 group-hover:scale-110">
+              <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300 group-hover:scale-110">
                 ▶
               </span>
               {caption && (

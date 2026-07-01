@@ -45,7 +45,7 @@ export default async function OpengraphImage({
             height: "640px",
             borderRadius: "9999px",
             background:
-              "radial-gradient(circle at 30% 30%, rgba(124,58,237,0.85), rgba(192,38,211,0.5) 40%, rgba(224,169,59,0.4) 65%, rgba(34,211,238,0.35) 85%, transparent 100%)",
+              "radial-gradient(circle at 30% 30%, rgba(124,58,237,0.85), rgba(232,93,158,0.5) 45%, rgba(224,169,59,0.4) 75%, transparent 100%)",
             filter: "blur(40px)",
           }}
         />
@@ -79,7 +79,7 @@ export default async function OpengraphImage({
               lineHeight: 1.05,
               letterSpacing: "-0.04em",
               backgroundImage:
-                "linear-gradient(120deg, #a78bfa, #d946ef 35%, #f5c563 65%, #67e8f9)",
+                "linear-gradient(120deg, #a78bfa, #e85d9e 40%, #f5c563 75%, #fff7e8)",
               backgroundClip: "text",
               color: "transparent",
             }}

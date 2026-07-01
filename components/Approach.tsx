@@ -11,7 +11,7 @@ export function Approach({ dict }: { dict: Dictionary["approach"] }) {
       <div className="mx-auto max-w-6xl">
         <Reveal className="max-w-3xl">
           <SectionLabel>{dict.label}</SectionLabel>
-          <h2 className="mt-6 text-balance text-4xl font-semibold leading-tight tracking-tightest sm:text-5xl md:text-6xl">
+          <h2 className="mt-6 text-balance font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl md:text-6xl">
             {dict.title}
           </h2>
           <p className="mt-6 text-lg text-muted">{dict.subtitle}</p>
@@ -30,7 +30,7 @@ export function Approach({ dict }: { dict: Dictionary["approach"] }) {
               variants={staggerItem}
               className="relative"
             >
-              <div className="card-surface h-full rounded-3xl p-7">
+              <div className="card-paper h-full rounded-3xl p-7">
                 <div className="flex items-baseline gap-3">
                   <span className="text-liquid text-4xl font-semibold tracking-tightest">
                     {step.step}

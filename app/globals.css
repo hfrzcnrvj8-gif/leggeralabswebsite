@@ -3,28 +3,28 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f6f6f7;
+  --bg: #f7f5f0;
   --bg-soft: #ffffff;
   --surface: 255 255 255;
   --surface-border: 10 10 10;
-  --fg: #0a0a0a;
-  --fg-muted: #5b5b62;
-  --hairline: rgba(10, 10, 10, 0.08);
+  --fg: #1a1815;
+  --fg-muted: #6b665f;
+  --hairline: rgba(26, 24, 21, 0.1);
   --glass-bg: rgba(255, 255, 255, 0.6);
-  --glass-border: rgba(10, 10, 10, 0.08);
+  --glass-border: rgba(26, 24, 21, 0.08);
   --orb-opacity: 0.45;
 }
 
 .dark {
-  --bg: #0a0a0a;
-  --bg-soft: #101012;
-  --surface: 20 20 22;
-  --surface-border: 255 255 255;
-  --fg: #f5f5f7;
-  --fg-muted: #9a9aa3;
-  --hairline: rgba(255, 255, 255, 0.08);
-  --glass-bg: rgba(20, 20, 22, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --bg: #14120f;
+  --bg-soft: #1c1a17;
+  --surface: 28 26 23;
+  --surface-border: 245 241 232;
+  --fg: #f5f1e8;
+  --fg-muted: #a8a29a;
+  --hairline: rgba(245, 241, 232, 0.08);
+  --glass-bg: rgba(28, 26, 23, 0.55);
+  --glass-border: rgba(245, 241, 232, 0.1);
   --orb-opacity: 0.55;
 }
 
@@ -67,9 +67,9 @@
     background: linear-gradient(
       120deg,
       #a78bfa 0%,
-      #d946ef 30%,
-      #f5c563 60%,
-      #67e8f9 100%
+      #e85d9e 35%,
+      #f5c563 70%,
+      #fff7e8 100%
     );
     background-size: 200% 200%;
     -webkit-background-clip: text;
@@ -83,9 +83,8 @@
     background: radial-gradient(
       circle at 30% 30%,
       rgba(124, 58, 237, 0.9),
-      rgba(192, 38, 211, 0.55) 35%,
-      rgba(224, 169, 59, 0.45) 60%,
-      rgba(34, 211, 238, 0.4) 80%,
+      rgba(232, 93, 158, 0.55) 40%,
+      rgba(224, 169, 59, 0.45) 70%,
       transparent 100%
     );
     filter: blur(60px);
@@ -94,7 +93,7 @@
 
   .btn-primary {
     position: relative;
-    background: linear-gradient(120deg, #7c3aed, #c026d3 45%, #22d3ee);
+    background: linear-gradient(120deg, #7c3aed, #e85d9e 45%, #e0a93b);
     background-size: 200% 200%;
     color: #fff;
     transition: background-position 0.6s ease, transform 0.3s ease,
@@ -114,6 +113,19 @@
     -webkit-backdrop-filter: blur(14px);
   }
 
+  /* Calm, opaque "paper" surface for non-hero content sections */
+  .card-paper {
+    background: var(--bg-soft);
+    border: 1px solid var(--hairline);
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+  .card-paper:hover {
+    box-shadow: 0 8px 28px rgba(10, 10, 10, 0.06);
+  }
+  .dark .card-paper:hover {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+
   /* Animated gradient ring border */
   .glow-border {
     position: relative;
@@ -124,7 +136,7 @@
     inset: -1px;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(120deg, #7c3aed, #e0a93b, #22d3ee);
+    background: linear-gradient(120deg, #7c3aed, #e0a93b, #e85d9e);
     -webkit-mask: linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;

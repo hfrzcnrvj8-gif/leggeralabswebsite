@@ -12,7 +12,7 @@ export function UseCases({ dict }: { dict: Dictionary["useCases"] }) {
       <div className="mx-auto max-w-6xl">
         <Reveal className="max-w-3xl">
           <SectionLabel>{dict.label}</SectionLabel>
-          <h2 className="mt-6 text-balance text-4xl font-semibold leading-tight tracking-tightest sm:text-5xl md:text-6xl">
+          <h2 className="mt-6 text-balance font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl md:text-6xl">
             {dict.title}
           </h2>
           <p className="mt-6 text-lg text-muted">{dict.subtitle}</p>
@@ -21,7 +21,7 @@ export function UseCases({ dict }: { dict: Dictionary["useCases"] }) {
         <div className="mt-16 grid gap-6 sm:grid-cols-2">
           {dict.items.map((item, i) => (
             <Reveal key={item.title} delay={(i % 2) * 0.1}>
-              <article className="card-surface group h-full rounded-3xl p-8 transition-colors hover:border-brand-cyan/40">
+              <article className="card-paper group h-full rounded-3xl p-8 transition-colors hover:border-brand-purple/40">
                 <span className="text-liquid text-3xl">{icons[i] ?? "◆"}</span>
                 <h3 className="mt-5 text-xl font-semibold tracking-tight">
                   {item.title}

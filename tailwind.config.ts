@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
       },
       colors: {
         ink: {
@@ -19,6 +20,7 @@ const config: Config = {
         },
         brand: {
           purple: "#7C3AED",
+          pink: "#E85D9E",
           gold: "#E0A93B",
           cyan: "#22D3EE",
         },
@@ -28,7 +30,7 @@ const config: Config = {
       },
       backgroundImage: {
         "liquid-glass":
-          "linear-gradient(120deg, #7C3AED 0%, #C026D3 35%, #E0A93B 65%, #22D3EE 100%)",
+          "linear-gradient(120deg, #7C3AED 0%, #E85D9E 35%, #E0A93B 65%, #FFF7E8 100%)",
       },
       keyframes: {
         "orb-float": {

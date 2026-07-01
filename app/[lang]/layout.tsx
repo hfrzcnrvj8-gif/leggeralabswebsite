@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import "../globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { i18n, type Locale } from "@/i18n/config";
@@ -9,6 +9,12 @@ import { siteUrl, ogLocale } from "@/lib/site";
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-serif",
   display: "swap",
 });
 
@@ -58,7 +64,11 @@ export default async function LangLayout({
 }: LayoutProps<"/[lang]">) {
   const { lang } = await params;
   return (
-    <html lang={lang} suppressHydrationWarning className={inter.variable}>
+    <html
+      lang={lang}
+      suppressHydrationWarning
+      className={`${inter.variable} ${sourceSerif.variable}`}
+    >
       <body className="font-sans antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

@@ -14,7 +14,7 @@ export function Faq({ dict }: { dict: Dictionary["faq"] }) {
       <div className="mx-auto max-w-3xl">
         <Reveal>
           <SectionLabel>{dict.label}</SectionLabel>
-          <h2 className="mt-6 text-balance text-4xl font-semibold leading-tight tracking-tightest sm:text-5xl">
+          <h2 className="mt-6 text-balance font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
             {dict.title}
           </h2>
         </Reveal>
@@ -24,7 +24,7 @@ export function Faq({ dict }: { dict: Dictionary["faq"] }) {
             const isOpen = open === i;
             return (
               <Reveal key={item.q} delay={i * 0.04}>
-                <div className="card-surface overflow-hidden rounded-2xl">
+                <div className="card-paper overflow-hidden rounded-2xl">
                   <button
                     onClick={() => setOpen(isOpen ? null : i)}
                     aria-expanded={isOpen}

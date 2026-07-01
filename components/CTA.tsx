@@ -23,7 +23,7 @@ export function CTA({
               aria-hidden
             />
             <div className="relative">
-              <h2 className="text-balance text-4xl font-semibold leading-tight tracking-tightest sm:text-5xl md:text-6xl">
+              <h2 className="text-balance font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl md:text-6xl">
                 {dict.title}
               </h2>
               <p className="mx-auto mt-6 max-w-xl text-lg text-muted">

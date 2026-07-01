@@ -79,7 +79,7 @@ export function Hero({ dict }: { dict: Dictionary["hero"] }) {
           {dict.badge}
         </motion.div>
 
-        <h1 className="text-balance text-5xl font-semibold leading-[0.95] tracking-tightest sm:text-7xl md:text-8xl">
+        <h1 className="text-balance font-serif text-5xl font-semibold leading-[0.95] tracking-tight sm:text-7xl md:text-8xl">
           {dict.titleLines.map((line, i) => (
             <motion.span key={i} variants={item} className="block">
               {i === dict.titleLines.length - 1 ? (

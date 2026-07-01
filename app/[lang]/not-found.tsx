@@ -3,11 +3,7 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
-      <div
-        className="orb pointer-events-none absolute left-1/2 top-1/3 -z-10 h-[60vw] w-[60vw] max-h-[600px] max-w-[600px] -translate-x-1/2 -translate-y-1/2 animate-orb-float rounded-full"
-        aria-hidden
-      />
-      <p className="text-liquid text-7xl font-semibold tracking-tightest sm:text-8xl">
+      <p className="text-liquid font-serif text-7xl font-semibold tracking-tight sm:text-8xl">
         404
       </p>
       <h1 className="mt-6 text-2xl font-semibold tracking-tight sm:text-3xl">
