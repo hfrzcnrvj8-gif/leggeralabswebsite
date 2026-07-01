@@ -13,6 +13,12 @@
   --glass-bg: rgba(255, 255, 255, 0.6);
   --glass-border: rgba(26, 24, 21, 0.08);
   --orb-opacity: 0.45;
+  /* Inverted-section tokens: opposite of the current theme, for a
+     high-contrast band like Anthropic's dark footer. */
+  --bg-invert: #14120f;
+  --fg-invert: #f5f1e8;
+  --fg-invert-muted: #a8a29a;
+  --hairline-invert: rgba(245, 241, 232, 0.12);
 }
 
 .dark {
@@ -26,6 +32,10 @@
   --glass-bg: rgba(28, 26, 23, 0.55);
   --glass-border: rgba(245, 241, 232, 0.1);
   --orb-opacity: 0.55;
+  --bg-invert: #f7f5f0;
+  --fg-invert: #1a1815;
+  --fg-invert-muted: #6b665f;
+  --hairline-invert: rgba(26, 24, 21, 0.12);
 }
 
 @layer base {
