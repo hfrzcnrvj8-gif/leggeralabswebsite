@@ -19,7 +19,11 @@ export function ThemeToggle() {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className="grid h-10 w-10 place-items-center rounded-full transition-transform hover:scale-105 active:scale-95"
     >
-      <svg width="0" height="0" aria-hidden>
+      {/* absolute: a 0x0 sibling would otherwise become its own implicit
+          grid row (place-items-center centers the *content*, not the
+          container, so an empty second row shifts the visible icon's
+          centering by a few px) */}
+      <svg width="0" height="0" className="absolute" aria-hidden>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="20" y2="20" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#7C3AED" />

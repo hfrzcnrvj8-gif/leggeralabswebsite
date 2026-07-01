@@ -39,18 +39,22 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
         aria-expanded={open}
         aria-label={current.toUpperCase()}
       >
-        <svg width="0" height="0" aria-hidden>
+        <svg width="0" height="0" className="absolute" aria-hidden>
           <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="30" y2="16" gradientUnits="userSpaceOnUse">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="30" y2="20" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#7C3AED" />
               <stop offset="100%" stopColor="#E0A93B" />
             </linearGradient>
           </defs>
         </svg>
-        <svg width="30" height="16" viewBox="0 0 30 16" className="block" aria-hidden>
+        {/* All three glyphs share a 20-tall viewBox (matching ThemeToggle's
+            icon) and are centered within it, so flex's cross-axis centering
+            has identical boxes to align rather than fighting mismatched
+            intrinsic sizes + font baseline metrics. */}
+        <svg width="30" height="20" viewBox="0 0 30 20" className="block" aria-hidden>
           <text
             x="0"
-            y="12"
+            y="14.5"
             fontSize="13"
             fontWeight="700"
             letterSpacing="0.5"
@@ -63,8 +67,8 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
         </svg>
         <svg
           width="8"
-          height="6"
-          viewBox="0 0 8 6"
+          height="20"
+          viewBox="0 0 8 20"
           className="block"
           fill="none"
           stroke={`url(#${gradientId})`}
@@ -73,18 +77,18 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
           strokeLinejoin="round"
           aria-hidden
         >
-          <path d="M1 1.5 4 4.5 7 1.5" />
+          <path d="M1 8.5 4 11.5 7 8.5" />
         </svg>
       </button>
 
       <AnimatePresence>
         {open && (
           <motion.ul
-            initial={{ opacity: 0, y: -8, scale: 0.96 }}
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="glass absolute right-0 top-12 w-40 overflow-hidden rounded-2xl p-1.5 shadow-2xl"
+            className="glass absolute right-0 bottom-[calc(100%+0.5rem)] w-40 overflow-hidden rounded-2xl p-1.5 shadow-2xl"
             style={{ color: "var(--fg)" }}
             role="listbox"
           >
