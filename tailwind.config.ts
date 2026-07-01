@@ -30,7 +30,7 @@ const config: Config = {
       },
       backgroundImage: {
         "liquid-glass":
-          "linear-gradient(120deg, #7C3AED 0%, #E85D9E 35%, #E0A93B 65%, #FFF7E8 100%)",
+          "linear-gradient(120deg, #7C3AED 0%, #E0A93B 60%, #FFF7E8 100%)",
       },
       keyframes: {
         "orb-float": {

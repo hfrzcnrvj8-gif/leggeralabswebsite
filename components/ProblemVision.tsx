@@ -52,7 +52,7 @@ export function ProblemVision({ dict }: { dict: Dictionary["problem"] }) {
           <Reveal delay={0.1}>
             <div className="card-paper relative h-full overflow-hidden rounded-3xl p-8 md:p-10">
               <div
-                className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple via-brand-pink to-brand-gold"
+                className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple to-brand-gold"
                 aria-hidden
               />
               <div className="mb-6 flex items-center gap-3">

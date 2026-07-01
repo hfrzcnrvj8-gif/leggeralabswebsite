@@ -72,19 +72,21 @@
     color: var(--fg-muted);
   }
 
-  /* Liquid glass gradient text */
+  /* Liquid glass gradient text — purple to gold, no pink, so it stays on
+     brand everywhere it's used (headings, icons, links). A faint dark
+     stroke keeps the near-white tail end legible on light backgrounds. */
   .text-liquid {
     background: linear-gradient(
       120deg,
       #a78bfa 0%,
-      #e85d9e 35%,
-      #f5c563 70%,
+      #e0a93b 60%,
       #fff7e8 100%
     );
     background-size: 200% 200%;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    -webkit-text-stroke: 0.4px rgba(20, 18, 15, 0.3);
     animation: gradient-pan 8s ease infinite;
   }
 

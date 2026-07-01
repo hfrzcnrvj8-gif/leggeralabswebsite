@@ -119,7 +119,7 @@ export default async function OpengraphImage({
               lineHeight: 1.05,
               letterSpacing: "-0.04em",
               backgroundImage:
-                "linear-gradient(120deg, #a78bfa, #e85d9e 40%, #f5c563 75%, #fff7e8)",
+                "linear-gradient(120deg, #a78bfa, #e0a93b 65%, #fff7e8)",
               backgroundClip: "text",
               color: "transparent",
             }}

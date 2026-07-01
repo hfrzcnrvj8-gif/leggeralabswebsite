@@ -51,7 +51,7 @@ export function MacWindow({
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.6}
           onDragEnd={handleDragEnd}
-          className={`relative h-[52vh] max-h-[500px] min-h-[280px] overflow-hidden ${onSwipe ? "cursor-grab active:cursor-grabbing" : ""}`}
+          className={`relative h-[74vh] max-h-[760px] min-h-[340px] overflow-hidden ${onSwipe ? "cursor-grab active:cursor-grabbing" : ""}`}
         >
           <div
             className="absolute inset-0"
@@ -63,7 +63,7 @@ export function MacWindow({
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple via-brand-pink to-brand-gold"
+            className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple to-brand-gold"
             aria-hidden
           />
           <AnimatePresence mode="wait" initial={false}>

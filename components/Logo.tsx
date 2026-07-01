@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
-import { useTheme } from "next-themes";
+import { useId } from "react";
 import { motion, useMotionValue, useTransform, type MotionValue } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 
@@ -79,8 +78,12 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  * correct. Confirmed by isolating it in an overlay: two plain sibling
  * spans both render, but the moment either one gets `opacity`, that one
  * (and only that one) vanishes. Fix: give the echo letter its own
- * gradient, blended toward `var(--bg)` via `color-mix()` instead of
- * faded with `opacity`.
+ * gradient, blended toward a fixed dark neutral via `color-mix()` instead
+ * of faded with `opacity`. Blending toward `var(--bg)` (tried first) reads
+ * fine in dark mode but washes out to a pale pink in light mode, since
+ * mixing purple with a light warm cream shifts the perceived hue —
+ * blending toward a constant dark tone keeps the result recognizably
+ * purple in both themes.
  */
 export function Logo({
   lang,
@@ -94,14 +97,9 @@ export function Logo({
   const fallback = useMotionValue(0);
   const p = progress ?? fallback;
 
-  const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const echoOpacityTarget = mounted && resolvedTheme === "dark" ? 0.7 : 0.55;
-
-  const firstMixPercent = useTransform(p, [0, 1], [100, echoOpacityTarget * 100]);
+  const firstMixPercent = useTransform(p, [0, 1], [100, 80]);
   const firstGradient = useTransform(firstMixPercent, (m) =>
-    `linear-gradient(100deg, color-mix(in srgb, #7C3AED ${m}%, var(--bg)) 0%, color-mix(in srgb, #E0A93B ${m}%, var(--bg)) 60%, color-mix(in srgb, #FFF7E8 ${m}%, var(--bg)) 100%)`
+    `linear-gradient(100deg, color-mix(in srgb, #7C3AED ${m}%, #14120f) 0%, color-mix(in srgb, #E0A93B ${m}%, #14120f) 60%, color-mix(in srgb, #FFF7E8 ${m}%, #14120f) 100%)`
   );
   const secondMarginLeft = useTransform(p, [0, 1], [0, -9]);
   const secondVerticalAlign = useTransform(p, [0, 1], [0, -3]);

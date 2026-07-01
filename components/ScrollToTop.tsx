@@ -33,7 +33,13 @@ export function ScrollToTop() {
             animate={{ y: [0, -3, 0] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             className="text-xl font-bold"
-            style={{ color: "var(--fg)" }}
+            style={{
+              backgroundImage: "linear-gradient(120deg, #7C3AED 0%, #E0A93B 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)",
+            }}
             aria-hidden
           >
             ↑
