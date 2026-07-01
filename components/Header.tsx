@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Logo } from "./Logo";
@@ -16,6 +16,8 @@ export function Header({
   dict: Dictionary["nav"];
 }) {
   const [scrolled, setScrolled] = useState(false);
+  const { scrollY } = useScroll();
+  const collapseProgress = useTransform(scrollY, [0, 160], [0, 1]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -45,7 +47,7 @@ export function Header({
           scrolled ? "glass shadow-xl" : "border border-transparent"
         }`}
       >
-        <Logo lang={lang} collapsed={scrolled} />
+        <Logo lang={lang} progress={collapseProgress} />
 
         <ul className="hidden items-center gap-8 text-sm text-muted md:flex">
           {links.map((l) => (

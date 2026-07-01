@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, useMotionValue, useTransform, type MotionValue } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 
 const wordmarkGradient = {
@@ -11,8 +11,6 @@ const wordmarkGradient = {
   backgroundClip: "text" as const,
   color: "transparent",
 };
-
-const fadeTransition = { duration: 0.3 };
 
 /** Static mark for contexts that can't run React/framer-motion (favicon, OG image). */
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -36,111 +34,83 @@ export function LogoMark({ size = 32 }: { size?: number }) {
 }
 
 /**
- * Every text segment carries its OWN background-clip:text gradient rather
- * than inheriting one from a shared parent. A shared parent gradient +
- * a `transform` on one descendant (needed for the offset "echo" letter)
- * made that descendant render invisible in production — background-clip
- * text and a transformed child don't compose reliably. Self-contained
- * gradients per span side-steps that entirely.
+ * `progress` is a 0→1 scroll-linked MotionValue (see Header.tsx), the same
+ * pattern as the Hero orb parallax and the Showcase window's width grow —
+ * NOT a boolean toggle. The wordmark shrinks in place continuously as you
+ * scroll: "EGGERA"/" "/"ABS"/"." collapse their own width+opacity together,
+ * while the second "L" slides into a tight offset behind the first,
+ * forming the same mark as LogoMark. Reversing scroll reverses it exactly.
+ * Every text-bearing span keeps its own self-contained gradient (see the
+ * "disappearing L" fix) rather than inheriting one from a shared parent —
+ * a `transform`/`x`/`y` on a child breaks an inherited background-clip:text.
  */
 export function Logo({
   lang,
-  collapsed = false,
+  progress,
   className = "",
 }: {
   lang: Locale;
-  collapsed?: boolean;
+  progress?: MotionValue<number>;
   className?: string;
 }) {
+  const fallback = useMotionValue(0);
+  const p = progress ?? fallback;
+
+  const firstOpacity = useTransform(p, [0, 1], [1, 0.35]);
+  const secondX = useTransform(p, [0, 1], [0, -9]);
+  const secondY = useTransform(p, [0, 1], [0, 3]);
+  const restOpacity = useTransform(p, [0, 0.6], [1, 0]);
+  const restWidth = useTransform(p, [0, 0.6], [190, 0]);
+  const dotWidth = useTransform(p, [0, 0.6], [16, 0]);
+
   return (
     <Link href={`/${lang}`} className={`flex items-center ${className}`}>
-      <span
-        style={{
-          display: "flex",
-          transform: collapsed ? "scale(1.8)" : "scale(1)",
-          transformOrigin: "left center",
-          transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
-        }}
-        className="items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
-      >
-        <span
-          style={{
-            ...wordmarkGradient,
-            display: "inline-block",
-            opacity: collapsed ? 0.35 : 1,
-            transition: "opacity 0.45s ease",
-          }}
+      <span className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]">
+        <motion.span
+          style={{ ...wordmarkGradient, opacity: firstOpacity, display: "inline-block" }}
         >
           L
-        </span>
-        <AnimatePresence initial={false}>
-          {!collapsed && (
-            <motion.span
-              key="eggera"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={fadeTransition}
-              style={{ ...wordmarkGradient, display: "inline-block" }}
-            >
-              EGGERA
-            </motion.span>
-          )}
-        </AnimatePresence>
-        <AnimatePresence initial={false}>
-          {!collapsed && (
-            <motion.span
-              key="space"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={fadeTransition}
-              style={{ display: "inline-block" }}
-            >
-              &nbsp;
-            </motion.span>
-          )}
-        </AnimatePresence>
-        <span
+        </motion.span>
+        <motion.span
           style={{
-            ...wordmarkGradient,
+            maxWidth: restWidth,
+            opacity: restOpacity,
+            overflow: "hidden",
             display: "inline-block",
-            transform: collapsed ? "translate(-0.55em, 0.15em)" : "translate(0em, 0em)",
-            transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
+            whiteSpace: "nowrap",
           }}
         >
+          <span style={{ ...wordmarkGradient, display: "inline-block" }}>EGGERA</span>
+          <span style={{ display: "inline-block" }}>&nbsp;</span>
+        </motion.span>
+        <motion.span
+          style={{ ...wordmarkGradient, display: "inline-block", x: secondX, y: secondY }}
+        >
           L
-        </span>
-        <AnimatePresence initial={false}>
-          {!collapsed && (
-            <motion.span
-              key="abs"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={fadeTransition}
-              style={{ ...wordmarkGradient, display: "inline-block" }}
-            >
-              ABS
-            </motion.span>
-          )}
-        </AnimatePresence>
+        </motion.span>
+        <motion.span
+          style={{
+            maxWidth: restWidth,
+            opacity: restOpacity,
+            overflow: "hidden",
+            display: "inline-block",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <span style={{ ...wordmarkGradient, display: "inline-block" }}>ABS</span>
+        </motion.span>
       </span>
-      <AnimatePresence initial={false}>
-        {!collapsed && (
-          <motion.span
-            key="dot"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={fadeTransition}
-            className="text-brand-cyan text-lg font-bold"
-            style={{ display: "inline-block" }}
-          >
-            .
-          </motion.span>
-        )}
-      </AnimatePresence>
+      <motion.span
+        style={{
+          maxWidth: dotWidth,
+          opacity: restOpacity,
+          overflow: "hidden",
+          display: "inline-block",
+        }}
+        className="text-brand-cyan text-lg font-bold"
+      >
+        .
+      </motion.span>
     </Link>
   );
 }
