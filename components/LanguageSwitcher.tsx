@@ -2,13 +2,14 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { i18n, localeNames, type Locale } from "@/i18n/config";
 
 export function LanguageSwitcher({ current }: { current: Locale }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const gradientId = `lang-switch-grad-${useId()}`;
 
   const redirectedPath = (locale: Locale) => {
     if (!pathname) return `/${locale}`;
@@ -25,13 +26,36 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
       <button
         onClick={() => setOpen((v) => !v)}
         onMouseEnter={() => setOpen(true)}
-        className="chip-outline flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium uppercase tracking-wide transition-transform hover:scale-105"
-        style={{ color: "var(--fg)" }}
+        className="flex h-10 items-center gap-1 rounded-full px-3 transition-transform hover:scale-105"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={`${current.toUpperCase()}`}
       >
-        {current}
-        <span className="text-[10px] opacity-60">▾</span>
+        <svg width="0" height="0" aria-hidden>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="30" y2="16" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#7C3AED" />
+              <stop offset="100%" stopColor="#E0A93B" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <svg width="30" height="16" viewBox="0 0 30 16" aria-hidden>
+          <text
+            x="0"
+            y="12.5"
+            fontSize="13"
+            fontWeight="700"
+            letterSpacing="0.5"
+            fill="none"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="0.7"
+          >
+            {current.toUpperCase()}
+          </text>
+        </svg>
+        <svg width="8" height="6" viewBox="0 0 8 6" fill="none" stroke={`url(#${gradientId})`} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M1 1.5 4 4.5 7 1.5" />
+        </svg>
       </button>
 
       <AnimatePresence>
