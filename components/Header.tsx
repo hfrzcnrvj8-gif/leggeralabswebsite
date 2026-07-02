@@ -61,7 +61,7 @@ export function Header({
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Menu"
               aria-expanded={menuOpen}
-              className="glass grid h-10 w-10 place-items-center rounded-full transition-transform hover:scale-105"
+              className="grid h-10 w-10 place-items-center rounded-full transition-transform hover:scale-105 sm:glass"
             >
               <span className="relative block h-4 w-[18px]">
                 <motion.span
@@ -93,7 +93,7 @@ export function Header({
 
             <a
               href="#contact"
-              className="btn-primary rounded-full px-5 py-2 text-sm font-semibold"
+              className="btn-primary hidden rounded-full px-5 py-2 text-sm font-semibold sm:inline-block"
             >
               {nav.contact}
             </a>
@@ -134,6 +134,13 @@ export function Header({
                       </li>
                     ))}
                   </ul>
+                  <a
+                    href="#contact"
+                    onClick={() => setMenuOpen(false)}
+                    className="btn-primary mt-2 block rounded-2xl px-4 py-3 text-center text-sm font-semibold sm:hidden"
+                  >
+                    {nav.contact}
+                  </a>
                 </motion.div>
               )}
             </AnimatePresence>

@@ -10,39 +10,23 @@ import type { Locale } from "@/i18n/config";
 // "S" in "LABS" against the footer's inverted-light surface.
 const textStroke = { WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)" };
 
-// Purple stop matches .text-liquid's #A78BFA, not the more saturated
-// brand.purple #7C3AED. Plateaued rather than a straight 0%->60%->100%
-// ramp: "EGGERA" sits roughly 8%-65% along this gradient and "ABS" sits
-// roughly 73%-100%, so a straight ramp put most of "EGGERA" in the
-// purple/gold transition zone, where direct RGB interpolation between
-// two near-complementary hues desaturates into a muddy tan — measured
-// ~rgb(202,157,134) versus the L's pure, saturated flat colors right
-// next to it. That mismatch (crisp L vs. muddy word) is what read as
-// "the L's are way stronger for no reason." Holding each hue flat
-// across most of its letters' span, with the actual transition
-// compressed into a short stretch that falls between letters rather
-// than through them, keeps "EGGERA" reading as the same purple as the
-// first L and "ABS" as the same gold as the second L.
-const wordmarkGradient = {
-  backgroundImage:
-    "linear-gradient(100deg, #A78BFA 0%, #A78BFA 65%, #E0A93B 73%, #E0A93B 90%, #FFF7E8 100%)",
-  WebkitBackgroundClip: "text" as const,
-  backgroundClip: "text" as const,
-  color: "transparent",
-  ...textStroke,
-};
-
-// The second "L" (the solid foreground letter, and literally the "L" of
-// "LABS" when the wordmark is fully expanded) always reads gold — fixed
-// and independent of the outer shared gradient, so it stays reliably
-// distinct from the purple echo behind it once the two overlap into the
-// collapsed mark, instead of depending on how wide the surrounding box
-// happens to be at that moment. A flat color, not a gradient: a 0%→100%
-// gradient painted across one narrow glyph shows internal banding (part
-// purple, part gold within the same letter) instead of reading as a
-// single clean hue — same reason the echo "L" below uses a flat
-// `color-mix()` result instead of its own little gradient.
-const secondLStyle = { color: "#E0A93B", ...textStroke };
+// The wordmark used to share ONE linear-gradient across the whole
+// phrase via background-clip:text. Two attempts at that (a straight
+// ramp, then a "plateaued" version with flat color stretches joined by
+// short transitions) both had problems: a straight ramp put "EGGERA" in
+// the purple/gold transition zone, where direct RGB interpolation
+// between two near-complementary hues desaturates into a muddy tan
+// (measured ~rgb(202,157,134)) right next to the L's pure flat colors —
+// read as "the L's are way stronger for no reason," when really the
+// rest of the word was muddy. The plateaued version fixed that in this
+// (Chromium-based) testing setup, but broke into a wrong color entirely
+// on an iOS WebKit browser that couldn't be tested directly here.
+// Simplest fix that removes the risk instead of chasing it further: no
+// engine-dependent gradient interpolation at all. Each letter group
+// gets a flat color matching its neighboring "L" directly — "EGGERA"
+// the same purple as the first L, "ABS" the same gold as the second.
+const purpleStyle = { color: "#A78BFA", ...textStroke };
+const goldStyle = { color: "#E0A93B", ...textStroke };
 
 /** Static mark for contexts that can't run React/framer-motion (favicon, OG image). */
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -74,12 +58,9 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  * while the second "L" slides into a tight offset behind the first,
  * forming the same mark as LogoMark.
  *
- * "EGGERA"/"ABS"/"." share ONE gradient/background-clip:text on the outer
- * span so the color reads as a single continuous sweep. The second "L"
- * gets its own fixed flat gold color instead (see `secondLStyle`) so it
- * stays reliably distinct from the purple echo once collapsed — it sits
- * at the gold end of the shared sweep anyway, so this doesn't create a
- * visible seam in the expanded phrase. Its offset uses `marginLeft` +
+ * "EGGERA" and "ABS" are flat-colored (`purpleStyle`/`goldStyle`, see
+ * above) rather than sharing a gradient with the two L's — see the note
+ * on `purpleStyle` for why. The second "L"'s offset uses `marginLeft` +
  * `verticalAlign` only (plain layout, safe).
  *
  * The first "L" (the faded echo) can NOT fade via `opacity`: any
@@ -122,10 +103,7 @@ export function Logo({
 
   return (
     <Link href={`/${lang}`} className={`flex items-center ${className}`}>
-      <span
-        style={wordmarkGradient}
-        className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
-      >
+      <span className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]">
         <motion.span
           style={{
             color: firstColor,
@@ -141,6 +119,7 @@ export function Logo({
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
+            ...purpleStyle,
           }}
         >
           EGGERA&nbsp;
@@ -150,7 +129,7 @@ export function Logo({
             display: "inline-block",
             marginLeft: secondMarginLeft,
             verticalAlign: secondVerticalAlign,
-            ...secondLStyle,
+            ...goldStyle,
           }}
         >
           L
@@ -161,6 +140,7 @@ export function Logo({
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
+            ...goldStyle,
           }}
         >
           ABS
