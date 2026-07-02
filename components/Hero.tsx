@@ -71,14 +71,6 @@ export function Hero({ dict }: { dict: Dictionary["hero"] }) {
         animate="visible"
         className="mx-auto max-w-5xl text-center"
       >
-        <motion.div
-          variants={item}
-          className="glass mx-auto mb-8 inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-cyan shadow-[0_0_12px_2px_rgba(34,211,238,0.7)]" />
-          {dict.badge}
-        </motion.div>
-
         <h1 className="text-balance font-serif text-5xl font-semibold leading-[0.95] tracking-tight sm:text-7xl md:text-8xl">
           {dict.titleLines.map((line, i) => (
             <motion.span key={i} variants={item} className="block">
@@ -115,20 +107,6 @@ export function Hero({ dict }: { dict: Dictionary["hero"] }) {
             {dict.ctaSecondary}
           </a>
         </motion.div>
-
-        <motion.dl
-          variants={item}
-          className="mx-auto mt-20 grid max-w-2xl grid-cols-3 gap-6"
-        >
-          {dict.stats.map((s) => (
-            <div key={s.label} className="text-center">
-              <dt className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                {s.value}
-              </dt>
-              <dd className="mt-1 text-xs text-muted sm:text-sm">{s.label}</dd>
-            </div>
-          ))}
-        </motion.dl>
       </motion.div>
     </section>
   );

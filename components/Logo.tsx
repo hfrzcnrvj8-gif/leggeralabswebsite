@@ -11,11 +11,21 @@ import type { Locale } from "@/i18n/config";
 const textStroke = { WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)" };
 
 // Purple stop matches .text-liquid's #A78BFA, not the more saturated
-// brand.purple #7C3AED — using the same softer tone as every other
-// gradient-text element on the site so the wordmark doesn't read as an
-// oddly more intense color for no apparent reason.
+// brand.purple #7C3AED. Plateaued rather than a straight 0%->60%->100%
+// ramp: "EGGERA" sits roughly 8%-65% along this gradient and "ABS" sits
+// roughly 73%-100%, so a straight ramp put most of "EGGERA" in the
+// purple/gold transition zone, where direct RGB interpolation between
+// two near-complementary hues desaturates into a muddy tan — measured
+// ~rgb(202,157,134) versus the L's pure, saturated flat colors right
+// next to it. That mismatch (crisp L vs. muddy word) is what read as
+// "the L's are way stronger for no reason." Holding each hue flat
+// across most of its letters' span, with the actual transition
+// compressed into a short stretch that falls between letters rather
+// than through them, keeps "EGGERA" reading as the same purple as the
+// first L and "ABS" as the same gold as the second L.
 const wordmarkGradient = {
-  backgroundImage: "linear-gradient(100deg, #A78BFA 0%, #E0A93B 60%, #FFF7E8 100%)",
+  backgroundImage:
+    "linear-gradient(100deg, #A78BFA 0%, #A78BFA 65%, #E0A93B 73%, #E0A93B 90%, #FFF7E8 100%)",
   WebkitBackgroundClip: "text" as const,
   backgroundClip: "text" as const,
   color: "transparent",
