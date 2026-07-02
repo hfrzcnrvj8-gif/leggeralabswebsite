@@ -32,8 +32,13 @@ const textStroke = { WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)" };
 // Interpolating within one hue family can't desaturate into mud, so
 // this should be robust across engines without needing to verify
 // WebKit directly.
+//
+// The strongest purple (brand.purple #7C3AED) sits at the very start
+// (the first "L" and the left edge of "EGGERA"), fading to the softer
+// #A78BFA used elsewhere on the site as it moves right — not the other
+// way around, so the mark reads as "most intense at the left edge."
 const purpleSweep = {
-  backgroundImage: "linear-gradient(100deg, #A78BFA 0%, #7C3AED 100%)",
+  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #A78BFA 100%)",
   WebkitBackgroundClip: "text" as const,
   backgroundClip: "text" as const,
   color: "transparent",
@@ -114,7 +119,7 @@ export function Logo({
   const firstMixPercent = useTransform(p, [0, 1], [100, 80]);
   const firstColor = useTransform(
     firstMixPercent,
-    (m) => `color-mix(in srgb, #A78BFA ${m}%, #14120f)`
+    (m) => `color-mix(in srgb, #7C3AED ${m}%, #14120f)`
   );
   const secondMarginLeft = useTransform(p, [0, 1], [0, -9]);
   const secondVerticalAlign = useTransform(p, [0, 1], [0, -3]);
