@@ -140,10 +140,10 @@
   "founder": {
     "label": "Who you'll work with",
     "title": "Built by the person who'll build your system.",
-    "body": "Leggera Labs is founder-led by design. You talk directly to the engineer who designs, builds and ships your solution — no layers, no handoffs, no account managers reading from a script. Sharper decisions, faster iterations, and someone who genuinely cares that the result works.",
+    "body": "Leggera Labs is founder-led by design. You talk directly to the person who designs, builds and ships your solution — no layers, no handoffs, no account managers reading from a script. Sharper decisions, faster iterations, and someone who genuinely cares that the result works.",
     "quote": "Businesses shouldn't have to trade their privacy for intelligence. That's the whole reason Leggera Labs exists.",
-    "name": "[Your name]",
-    "role": "Founder & Lead Engineer"
+    "name": "Patryk Piecyk",
+    "role": "Founder"
   },
   "faq": {
     "label": "FAQ",

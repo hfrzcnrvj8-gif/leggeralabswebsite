@@ -13,6 +13,8 @@ type FieldErrors = Partial<
 >;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Formspree handles delivery + spam filtering, no custom backend needed.
+const FORMSPREE_ENDPOINT = "https://formspree.io/f/xdarpnzg";
 
 export function ContactForm({
   dict,
@@ -49,17 +51,15 @@ export function ContactForm({
     const payload = Object.fromEntries(new FormData(form).entries());
 
     try {
-      const res = await fetch("/api/contact", {
+      const res = await fetch(FORMSPREE_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
         setStatus("success");
         form.reset();
       } else {
-        const data = await res.json().catch(() => null);
-        if (data?.errors) setErrors(data.errors as FieldErrors);
         setStatus("error");
       }
     } catch {
@@ -93,11 +93,11 @@ export function ContactForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate className="text-left">
-      {/* Honeypot — hidden from humans, catches bots */}
+      {/* Honeypot — Formspree's recognized field name for its built-in spam filter */}
       <div className="absolute left-[-9999px]" aria-hidden>
         <label>
           Website
-          <input name="website" tabIndex={-1} autoComplete="off" />
+          <input name="_gotcha" tabIndex={-1} autoComplete="off" />
         </label>
       </div>
 

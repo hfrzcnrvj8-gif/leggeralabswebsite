@@ -8,20 +8,13 @@ export function Founder({ dict }: { dict: Dictionary["founder"] }) {
   return (
     <section id="founder" className="relative px-6 py-32 md:py-40">
       <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-[0.9fr_1.1fr]">
-        {/* Portrait — replace the placeholder block with a real <img> when ready:
-            <img src="/founder.jpg" alt="..." className="h-full w-full object-cover" /> */}
         <Reveal>
           <div className="card-paper relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-[2rem]">
-            <div
-              className="absolute inset-0 bg-gradient-to-br from-brand-purple/15 via-brand-pink/10 to-brand-gold/15"
-              aria-hidden
+            <img
+              src="/founder.jpg"
+              alt={dict.name}
+              className="h-full w-full object-cover object-top"
             />
-            <div className="relative flex h-full flex-col items-center justify-center">
-              <span className="text-liquid text-8xl font-semibold tracking-tight">
-                ◇
-              </span>
-              <p className="mt-6 text-sm text-muted">{dict.role}</p>
-            </div>
           </div>
         </Reveal>
 

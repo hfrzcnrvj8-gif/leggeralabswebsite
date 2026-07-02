@@ -140,10 +140,10 @@
   "founder": {
     "label": "Mit wem Sie arbeiten",
     "title": "Gebaut von der Person, die Ihr System baut.",
-    "body": "Leggera Labs ist bewusst gründergeführt. Sie sprechen direkt mit dem Ingenieur, der Ihre Lösung entwirft, baut und ausliefert — keine Zwischenebenen, keine Übergaben, keine Account-Manager, die ein Skript ablesen. Schärfere Entscheidungen, schnellere Iterationen und jemand, dem das Ergebnis wirklich am Herzen liegt.",
+    "body": "Leggera Labs ist bewusst gründergeführt. Sie sprechen direkt mit der Person, die Ihre Lösung entwirft, baut und ausliefert — keine Zwischenebenen, keine Übergaben, keine Account-Manager, die ein Skript ablesen. Schärfere Entscheidungen, schnellere Iterationen und jemand, dem das Ergebnis wirklich am Herzen liegt.",
     "quote": "Unternehmen sollten ihre Privatsphäre nicht gegen Intelligenz eintauschen müssen. Genau dafür gibt es Leggera Labs.",
-    "name": "[Ihr Name]",
-    "role": "Gründer & Lead Engineer"
+    "name": "Patryk Piecyk",
+    "role": "Gründer"
   },
   "faq": {
     "label": "FAQ",

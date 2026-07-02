@@ -140,10 +140,10 @@
   "founder": {
     "label": "Z kim będziesz pracować",
     "title": "Tworzone przez osobę, która zbuduje Twój system.",
-    "body": "Leggera Labs z założenia prowadzi założyciel. Rozmawiasz bezpośrednio z inżynierem, który projektuje, buduje i wdraża Twoje rozwiązanie — bez pośredników, bez przekazywania zadań, bez opiekunów konta czytających ze skryptu. Trafniejsze decyzje, szybsze iteracje i ktoś, komu naprawdę zależy, by efekt działał.",
+    "body": "Leggera Labs z założenia prowadzi założyciel. Rozmawiasz bezpośrednio z osobą, która projektuje, buduje i wdraża Twoje rozwiązanie — bez pośredników, bez przekazywania zadań, bez opiekunów konta czytających ze skryptu. Trafniejsze decyzje, szybsze iteracje i ktoś, komu naprawdę zależy, by efekt działał.",
     "quote": "Firmy nie powinny wymieniać swojej prywatności na inteligencję. To cały powód, dla którego istnieje Leggera Labs.",
-    "name": "[Twoje imię i nazwisko]",
-    "role": "Założyciel i główny inżynier"
+    "name": "Patryk Piecyk",
+    "role": "Założyciel"
   },
   "faq": {
     "label": "FAQ",
