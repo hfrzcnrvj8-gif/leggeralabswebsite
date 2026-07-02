@@ -9,11 +9,13 @@ export function Founder({ dict }: { dict: Dictionary["founder"] }) {
     <section id="founder" className="relative px-6 py-32 md:py-40">
       <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-[0.9fr_1.1fr]">
         <Reveal>
-          <div className="card-paper relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-[2rem]">
+          {/* No card/frame — the cutout is meant to float directly on the
+              page, not sit boxed inside a bordered tile. */}
+          <div className="relative mx-auto w-full max-w-sm">
             <img
               src="/founder.webp"
               alt={dict.name}
-              className="h-full w-full object-cover object-top"
+              className="w-full h-auto drop-shadow-[0_30px_50px_rgba(0,0,0,0.35)]"
             />
           </div>
         </Reveal>

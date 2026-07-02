@@ -21,14 +21,12 @@ export function Header({
   const [menuOpen, setMenuOpen] = useState(false);
   const { scrollY } = useScroll();
   const collapseProgress = useTransform(scrollY, [0, 160], [0, 1]);
-  // Blended into the page at the very top (invisible, not just borderless)
-  // and fades in fast as soon as you start scrolling — the hero already has
-  // its own CTAs, so the header doesn't need to be reachable before then.
-  // Forced visible while the menu is open so it can't fade out mid-interaction.
-  const headerOpacity = useTransform(scrollY, [0, 60], [0, 1]);
-  const headerPointerEvents = useTransform(headerOpacity, (v) =>
-    v < 0.05 ? "none" : "auto"
-  );
+  // Only the glass *frame* behind the nav is blended into the page at the
+  // very top — logo, hamburger and Kontakt stay fully visible/clickable the
+  // whole time. The frame fades in fast as soon as you start scrolling.
+  // Forced visible while the menu is open so its own backing panel can't
+  // fade out mid-interaction.
+  const frameOpacity = useTransform(scrollY, [0, 60], [0, 1]);
 
   const links = [
     { href: "#vision", label: nav.vision },
@@ -43,14 +41,18 @@ export function Header({
 
   return (
     <motion.header
-      style={{
-        opacity: menuOpen ? 1 : headerOpacity,
-        pointerEvents: menuOpen ? "auto" : headerPointerEvents,
-      }}
+      initial={{ y: -80 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.8, ease }}
       className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4"
     >
       <div className="w-full max-w-6xl">
-        <nav className="glass flex w-full items-center justify-between rounded-full px-5 py-2.5">
+        <nav className="relative flex w-full items-center justify-between rounded-full px-5 py-2.5">
+          <motion.div
+            aria-hidden
+            style={{ opacity: menuOpen ? 1 : frameOpacity }}
+            className="glass pointer-events-none absolute inset-0 -z-10 rounded-full"
+          />
           <Logo lang={lang} progress={collapseProgress} />
 
           <div className="relative flex items-center gap-2">
