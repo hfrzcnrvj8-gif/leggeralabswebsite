@@ -11,22 +11,42 @@ import type { Locale } from "@/i18n/config";
 const textStroke = { WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)" };
 
 // The wordmark used to share ONE linear-gradient across the whole
-// phrase via background-clip:text. Two attempts at that (a straight
-// ramp, then a "plateaued" version with flat color stretches joined by
-// short transitions) both had problems: a straight ramp put "EGGERA" in
-// the purple/gold transition zone, where direct RGB interpolation
-// between two near-complementary hues desaturates into a muddy tan
-// (measured ~rgb(202,157,134)) right next to the L's pure flat colors —
-// read as "the L's are way stronger for no reason," when really the
-// rest of the word was muddy. The plateaued version fixed that in this
-// (Chromium-based) testing setup, but broke into a wrong color entirely
-// on an iOS WebKit browser that couldn't be tested directly here.
-// Simplest fix that removes the risk instead of chasing it further: no
-// engine-dependent gradient interpolation at all. Each letter group
-// gets a flat color matching its neighboring "L" directly — "EGGERA"
-// the same purple as the first L, "ABS" the same gold as the second.
-const purpleStyle = { color: "#A78BFA", ...textStroke };
-const goldStyle = { color: "#E0A93B", ...textStroke };
+// phrase (purple through gold through cream) via background-clip:text.
+// That's where the trouble started: direct RGB interpolation between
+// two near-complementary hues (purple, gold) desaturates into a muddy
+// tan wherever the gradient crosses between them — "EGGERA" sits right
+// in that crossing and measured ~rgb(202,157,134), visibly duller than
+// the L's pure flat colors next to it. A flat-color version (no
+// gradient at all) fixed the mud but read as flat/lifeless, and a
+// "plateaued" gradient (flat stretches joined by short transitions)
+// fixed it here but reportedly broke into a wrong color on an iOS
+// WebKit browser this setup can't test directly.
+//
+// This version keeps a real, visible gradient sweep on each word but
+// never crosses the purple/gold boundary *within* a single gradient:
+// "EGGERA" sweeps between two purples, "ABS" sweeps from gold to cream.
+// The actual purple->gold jump happens at the second "L", which is
+// already a flat, independent color (see `goldFlat` below) rather than
+// part of any gradient — so no gradient here ever needs to blend two
+// complementary hues, which is what caused the mud in the first place.
+// Interpolating within one hue family can't desaturate into mud, so
+// this should be robust across engines without needing to verify
+// WebKit directly.
+const purpleSweep = {
+  backgroundImage: "linear-gradient(100deg, #A78BFA 0%, #7C3AED 100%)",
+  WebkitBackgroundClip: "text" as const,
+  backgroundClip: "text" as const,
+  color: "transparent",
+  ...textStroke,
+};
+const goldSweep = {
+  backgroundImage: "linear-gradient(100deg, #E0A93B 0%, #FFF7E8 100%)",
+  WebkitBackgroundClip: "text" as const,
+  backgroundClip: "text" as const,
+  color: "transparent",
+  ...textStroke,
+};
+const goldFlat = { color: "#E0A93B", ...textStroke };
 
 /** Static mark for contexts that can't run React/framer-motion (favicon, OG image). */
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -58,9 +78,10 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  * while the second "L" slides into a tight offset behind the first,
  * forming the same mark as LogoMark.
  *
- * "EGGERA" and "ABS" are flat-colored (`purpleStyle`/`goldStyle`, see
- * above) rather than sharing a gradient with the two L's — see the note
- * on `purpleStyle` for why. The second "L"'s offset uses `marginLeft` +
+ * "EGGERA" and "ABS" each get their own intra-hue gradient
+ * (`purpleSweep`/`goldSweep`, see above) instead of sharing one gradient
+ * with the two L's across the purple/gold boundary. The second "L" is a
+ * flat color (`goldFlat`) same as before. Its offset uses `marginLeft` +
  * `verticalAlign` only (plain layout, safe).
  *
  * The first "L" (the faded echo) can NOT fade via `opacity`: any
@@ -119,7 +140,7 @@ export function Logo({
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
-            ...purpleStyle,
+            ...purpleSweep,
           }}
         >
           EGGERA&nbsp;
@@ -129,7 +150,7 @@ export function Logo({
             display: "inline-block",
             marginLeft: secondMarginLeft,
             verticalAlign: secondVerticalAlign,
-            ...goldStyle,
+            ...goldFlat,
           }}
         >
           L
@@ -140,7 +161,7 @@ export function Logo({
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
-            ...goldStyle,
+            ...goldSweep,
           }}
         >
           ABS
