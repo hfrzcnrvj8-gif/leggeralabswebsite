@@ -139,7 +139,7 @@
   },
   "founder": {
     "label": "Mit wem Sie arbeiten",
-    "title": "Gebaut von der Person, die Ihr System baut.",
+    "title": "Entworfen von der Person, die Ihr System baut.",
     "body": "Leggera Labs ist bewusst gründergeführt. Sie sprechen direkt mit der Person, die Ihre Lösung entwirft, baut und ausliefert — keine Zwischenebenen, keine Übergaben, keine Account-Manager, die ein Skript ablesen. Schärfere Entscheidungen, schnellere Iterationen und jemand, dem das Ergebnis wirklich am Herzen liegt.",
     "quote": "Unternehmen sollten ihre Privatsphäre nicht gegen Intelligenz eintauschen müssen. Genau dafür gibt es Leggera Labs.",
     "name": "Patryk Piecyk",
@@ -167,7 +167,7 @@
       },
       {
         "q": "Sie sind neu — warum sollte ich Ihnen vertrauen?",
-        "a": "Berechtigte Frage. Wir sind ein gründergeführtes Studio, Sie arbeiten also direkt mit der Person, die Ihr System baut. Wir beweisen den Wert mit einem funktionierenden Proof of Concept, bevor Sie sich festlegen, und unsere Gründungspartner-Konditionen senken Ihr Risiko, während wir gemeinsam unsere Erfolgsbilanz aufbauen."
+        "a": "Berechtigte Frage. Wir sind ein gründergeführtes Studio, Sie arbeiten also direkt mit der Person, die Ihr System baut. Wir beweisen den Wert mit einem funktionierenden Proof of Concept, bevor Sie sich festlegen, und unsere Gründungspartner-Konditionen senken Ihr Risiko, während wir gemeinsam unsere Erfolgsbilanz schreiben."
       },
       {
         "q": "Was, wenn mein Team nicht technisch ist?",
