@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { Logo } from "./Logo";
@@ -18,17 +18,9 @@ export function Header({
   nav: Dictionary["nav"];
   footer: Dictionary["footer"];
 }) {
-  const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { scrollY } = useScroll();
   const collapseProgress = useTransform(scrollY, [0, 160], [0, 1]);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   const links = [
     { href: "#vision", label: nav.vision },
@@ -49,11 +41,7 @@ export function Header({
       className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4"
     >
       <div className="w-full max-w-6xl">
-        <nav
-          className={`flex w-full items-center justify-between rounded-full px-5 py-2.5 transition-all duration-500 ${
-            scrolled || menuOpen ? "glass shadow-xl" : "border border-transparent"
-          }`}
-        >
+        <nav className="glass flex w-full items-center justify-between rounded-full px-5 py-2.5">
           <Logo lang={lang} progress={collapseProgress} />
 
           <div className="relative flex items-center gap-2">
@@ -105,7 +93,7 @@ export function Header({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.98 }}
                   transition={{ duration: 0.2, ease }}
-                  className="glass absolute right-0 top-[calc(100%+0.5rem)] w-64 overflow-hidden rounded-3xl p-2 shadow-2xl"
+                  className="glass absolute right-0 top-[calc(100%+0.5rem)] w-64 overflow-hidden rounded-3xl p-2"
                 >
                   <ul className="flex flex-col">
                     {links.map((l) => (

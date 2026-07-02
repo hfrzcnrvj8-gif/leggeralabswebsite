@@ -88,7 +88,7 @@ export function LanguageSwitcher({ current }: { current: Locale }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="glass absolute right-0 bottom-[calc(100%+0.5rem)] w-40 overflow-hidden rounded-2xl p-1.5 shadow-2xl"
+            className="glass absolute right-0 bottom-[calc(100%+0.5rem)] w-40 overflow-hidden rounded-2xl p-1.5"
             style={{ color: "var(--fg)" }}
             role="listbox"
           >

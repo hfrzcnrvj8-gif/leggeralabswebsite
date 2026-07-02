@@ -27,7 +27,7 @@ export function ScrollToTop() {
           transition={{ duration: 0.3, ease }}
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.92 }}
-          className="glass fixed bottom-6 right-6 z-40 grid h-12 w-12 place-items-center rounded-full shadow-xl"
+          className="glass fixed bottom-6 right-6 z-40 grid h-12 w-12 place-items-center rounded-full"
         >
           <motion.span
             animate={{ y: [0, -3, 0] }}
