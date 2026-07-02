@@ -10,42 +10,29 @@ import type { Locale } from "@/i18n/config";
 // "S" in "LABS" against the footer's inverted-light surface.
 const textStroke = { WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)" };
 
-// The wordmark used to share ONE linear-gradient across the whole
-// phrase (purple through gold through cream) via background-clip:text.
-// That's where the trouble started: direct RGB interpolation between
-// two near-complementary hues (purple, gold) desaturates into a muddy
-// tan wherever the gradient crosses between them — "EGGERA" sits right
-// in that crossing and measured ~rgb(202,157,134), visibly duller than
-// the L's pure flat colors next to it. A flat-color version (no
-// gradient at all) fixed the mud but read as flat/lifeless, and a
-// "plateaued" gradient (flat stretches joined by short transitions)
-// fixed it here but reportedly broke into a wrong color on an iOS
-// WebKit browser this setup can't test directly.
+// ONE continuous gradient across the whole phrase, applied to the outer
+// wrapping span — "EGGERA" and "ABS" just inherit `color: transparent`
+// from it and let the shared background-clip:text show through, so gold
+// is already visibly creeping in by the end of "LEGGERA" rather than the
+// word reading as purely purple until the second "L". The 65% stop sits
+// right around where "EGGERA" ends / the second "L" begins, so the
+// crossover itself mostly happens in the gap between words rather than
+// smack in the middle of "EGGERA" — some blend is unavoidable (and
+// wanted, per the brief: the whole point is that it "spills over" mid-
+// word), it's just kept from dominating the word.
 //
-// This version keeps a real, visible gradient sweep on each word but
-// never crosses the purple/gold boundary *within* a single gradient:
-// "EGGERA" sweeps between two purples, "ABS" sweeps from gold to cream.
-// The actual purple->gold jump happens at the second "L", which is
-// already a flat, independent color (see `goldFlat` below) rather than
-// part of any gradient — so no gradient here ever needs to blend two
-// complementary hues, which is what caused the mud in the first place.
-// Interpolating within one hue family can't desaturate into mud, so
-// this should be robust across engines without needing to verify
-// WebKit directly.
-//
-// The strongest purple (brand.purple #7C3AED) sits at the very start
-// (the first "L" and the left edge of "EGGERA"), fading to the softer
-// #A78BFA used elsewhere on the site as it moves right — not the other
-// way around, so the mark reads as "most intense at the left edge."
-const purpleSweep = {
-  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #A78BFA 100%)",
-  WebkitBackgroundClip: "text" as const,
-  backgroundClip: "text" as const,
-  color: "transparent",
-  ...textStroke,
-};
-const goldSweep = {
-  backgroundImage: "linear-gradient(100deg, #E0A93B 0%, #FFF7E8 100%)",
+// The two L's are NOT part of this shared gradient — they're independent
+// flat colors that happen to numerically match the gradient's own colors
+// at their position (0% -> #7C3AED, ~65-70% -> ~#E0A93B), so at full
+// expansion they're visually indistinguishable from "just inheriting the
+// gradient," but they can independently animate to the muted-echo-purple
+// / solid-gold pair needed once collapsed into the RR-style mark (see
+// `firstColor` below). An element with opacity < 1 and no background of
+// its own paints empty once promoted to its own compositing layer, which
+// killed the very first version of the echo letter — flat `color`
+// animated via `color-mix()` sidesteps that entirely.
+const wordmarkGradient = {
+  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 65%, #FFF7E8 100%)",
   WebkitBackgroundClip: "text" as const,
   backgroundClip: "text" as const,
   color: "transparent",
@@ -83,10 +70,9 @@ export function LogoMark({ size = 32 }: { size?: number }) {
  * while the second "L" slides into a tight offset behind the first,
  * forming the same mark as LogoMark.
  *
- * "EGGERA" and "ABS" each get their own intra-hue gradient
- * (`purpleSweep`/`goldSweep`, see above) instead of sharing one gradient
- * with the two L's across the purple/gold boundary. The second "L" is a
- * flat color (`goldFlat`) same as before. Its offset uses `marginLeft` +
+ * "EGGERA" and "ABS" inherit the shared `wordmarkGradient` from the
+ * outer span (see above for why the two L's don't). The second "L" is
+ * a flat color (`goldFlat`); its offset uses `marginLeft` +
  * `verticalAlign` only (plain layout, safe).
  *
  * The first "L" (the faded echo) can NOT fade via `opacity`: any
@@ -129,7 +115,10 @@ export function Logo({
 
   return (
     <Link href={`/${lang}`} className={`flex items-center ${className}`}>
-      <span className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]">
+      <span
+        style={wordmarkGradient}
+        className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
+      >
         <motion.span
           style={{
             color: firstColor,
@@ -145,7 +134,6 @@ export function Logo({
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
-            ...purpleSweep,
           }}
         >
           EGGERA&nbsp;
@@ -166,7 +154,6 @@ export function Logo({
             overflow: "hidden",
             display: "inline-block",
             whiteSpace: "nowrap",
-            ...goldSweep,
           }}
         >
           ABS
