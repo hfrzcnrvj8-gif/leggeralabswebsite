@@ -34,7 +34,7 @@ export function Hero({ dict }: { dict: Dictionary["hero"] }) {
   return (
     <section
       ref={ref}
-      className="relative flex min-h-[100svh] items-center justify-center overflow-hidden px-6"
+      className="relative flex min-h-[100svh] items-center justify-center overflow-hidden px-6 pt-28 pb-12 md:pt-24"
     >
       {/* Liquid glass orbs */}
       <motion.div

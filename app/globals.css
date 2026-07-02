@@ -95,8 +95,7 @@
     background: radial-gradient(
       circle at 30% 30%,
       rgba(124, 58, 237, 0.9),
-      rgba(232, 93, 158, 0.55) 40%,
-      rgba(224, 169, 59, 0.45) 70%,
+      rgba(224, 169, 59, 0.5) 65%,
       transparent 100%
     );
     filter: blur(60px);

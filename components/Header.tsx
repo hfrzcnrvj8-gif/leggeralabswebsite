@@ -63,29 +63,29 @@ export function Header({
               aria-expanded={menuOpen}
               className="glass grid h-10 w-10 place-items-center rounded-full transition-transform hover:scale-105"
             >
-              <span className="relative block h-3.5 w-4">
+              <span className="relative block h-4 w-[18px]">
                 <motion.span
                   animate={{
                     rotate: menuOpen ? 45 : 0,
-                    y: menuOpen ? 6 : 0,
+                    y: menuOpen ? 7 : 0,
                   }}
                   transition={{ duration: 0.25, ease }}
-                  className="absolute inset-x-0 top-0 h-[1.5px] rounded-full"
+                  className="absolute inset-x-0 top-0 h-[2px] rounded-full"
                   style={{ background: "var(--fg)" }}
                 />
                 <motion.span
                   animate={{ opacity: menuOpen ? 0 : 1 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute inset-x-0 top-1/2 -mt-[0.75px] h-[1.5px] rounded-full"
+                  className="absolute inset-x-0 top-1/2 -mt-px h-[2px] rounded-full"
                   style={{ background: "var(--fg)" }}
                 />
                 <motion.span
                   animate={{
                     rotate: menuOpen ? -45 : 0,
-                    y: menuOpen ? -6 : 0,
+                    y: menuOpen ? -7 : 0,
                   }}
                   transition={{ duration: 0.25, ease }}
-                  className="absolute inset-x-0 bottom-0 h-[1.5px] rounded-full"
+                  className="absolute inset-x-0 bottom-0 h-[2px] rounded-full"
                   style={{ background: "var(--fg)" }}
                 />
               </span>

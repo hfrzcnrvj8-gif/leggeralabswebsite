@@ -10,8 +10,12 @@ import type { Locale } from "@/i18n/config";
 // "S" in "LABS" against the footer's inverted-light surface.
 const textStroke = { WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)" };
 
+// Purple stop matches .text-liquid's #A78BFA, not the more saturated
+// brand.purple #7C3AED — using the same softer tone as every other
+// gradient-text element on the site so the wordmark doesn't read as an
+// oddly more intense color for no apparent reason.
 const wordmarkGradient = {
-  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 60%, #FFF7E8 100%)",
+  backgroundImage: "linear-gradient(100deg, #A78BFA 0%, #E0A93B 60%, #FFF7E8 100%)",
   WebkitBackgroundClip: "text" as const,
   backgroundClip: "text" as const,
   color: "transparent",
@@ -37,7 +41,7 @@ export function LogoMark({ size = 32 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 90 90" aria-hidden>
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="90" y2="90" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#7C3AED" />
+          <stop offset="0%" stopColor="#A78BFA" />
           <stop offset="60%" stopColor="#E0A93B" />
           <stop offset="100%" stopColor="#FFF7E8" />
         </linearGradient>
@@ -98,7 +102,7 @@ export function Logo({
   const firstMixPercent = useTransform(p, [0, 1], [100, 80]);
   const firstColor = useTransform(
     firstMixPercent,
-    (m) => `color-mix(in srgb, #7C3AED ${m}%, #14120f)`
+    (m) => `color-mix(in srgb, #A78BFA ${m}%, #14120f)`
   );
   const secondMarginLeft = useTransform(p, [0, 1], [0, -9]);
   const secondVerticalAlign = useTransform(p, [0, 1], [0, -3]);
