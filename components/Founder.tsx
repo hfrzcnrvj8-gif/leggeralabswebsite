@@ -11,7 +11,7 @@ export function Founder({ dict }: { dict: Dictionary["founder"] }) {
         <Reveal>
           <div className="card-paper relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-[2rem]">
             <img
-              src="/founder.jpg"
+              src="/founder.webp"
               alt={dict.name}
               className="h-full w-full object-cover object-top"
             />

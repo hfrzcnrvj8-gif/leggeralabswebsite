@@ -21,6 +21,14 @@ export function Header({
   const [menuOpen, setMenuOpen] = useState(false);
   const { scrollY } = useScroll();
   const collapseProgress = useTransform(scrollY, [0, 160], [0, 1]);
+  // Blended into the page at the very top (invisible, not just borderless)
+  // and fades in fast as soon as you start scrolling — the hero already has
+  // its own CTAs, so the header doesn't need to be reachable before then.
+  // Forced visible while the menu is open so it can't fade out mid-interaction.
+  const headerOpacity = useTransform(scrollY, [0, 60], [0, 1]);
+  const headerPointerEvents = useTransform(headerOpacity, (v) =>
+    v < 0.05 ? "none" : "auto"
+  );
 
   const links = [
     { href: "#vision", label: nav.vision },
@@ -35,9 +43,10 @@ export function Header({
 
   return (
     <motion.header
-      initial={{ y: -80, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.8, ease }}
+      style={{
+        opacity: menuOpen ? 1 : headerOpacity,
+        pointerEvents: menuOpen ? "auto" : headerPointerEvents,
+      }}
       className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4"
     >
       <div className="w-full max-w-6xl">
