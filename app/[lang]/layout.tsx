@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Inter, Fraunces } from "next/font/google";
 import "../globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ScrollToTop } from "@/components/ScrollToTop";
@@ -13,10 +13,11 @@ const inter = Inter({
   display: "swap",
 });
 
-const sourceSerif = Source_Serif_4({
+const fraunces = Fraunces({
   subsets: ["latin", "latin-ext"],
   variable: "--font-serif",
   display: "swap",
+  axes: ["opsz", "SOFT", "WONK"],
 });
 
 export async function generateStaticParams() {
@@ -68,7 +69,7 @@ export default async function LangLayout({
     <html
       lang={lang}
       suppressHydrationWarning
-      className={`${inter.variable} ${sourceSerif.variable}`}
+      className={`${inter.variable} ${fraunces.variable}`}
     >
       <body className="font-sans antialiased">
         <ThemeProvider>

@@ -116,9 +116,9 @@
     ]
   },
   "showcase": {
-    "label": "Aus unserer Werkstatt",
+    "label": "Aus unserem Labor",
     "title": "Offen gebaut. Echte Screens, echte Systeme.",
-    "subtitle": "Während wir unsere ersten Partner aufnehmen, sehen Sie hier, was wir in unserer eigenen Werkstatt bauen — dieselbe Technik, die wir in Ihre Prozesse einbringen.",
+    "subtitle": "Während wir unsere ersten Partner aufnehmen, sehen Sie hier, was wir in unserem eigenen Labor bauen — dieselbe Technik, die wir in Ihre Prozesse einbringen.",
     "items": [
       { "title": "automatisierung-demo.mp4", "caption": "Live-Workflow im Überblick" },
       { "title": "n8n — Orchestrierung", "caption": "Visueller Pipeline-Aufbau" },
@@ -178,8 +178,8 @@
   "cta": {
     "title": "Lassen Sie Ihre Daten für Sie arbeiten.",
     "subtitle": "Sagen Sie uns, wo es hakt. Wir zeigen Ihnen, was private KI leise beseitigen kann.",
-    "bookingText": "Lieber erst sprechen?",
-    "bookingCta": "20-Min-Gespräch buchen",
+    "bookingText": "Lieber unverbindlich starten?",
+    "bookingCta": "Kostenlosen Reifegrad-Check buchen (20 Min.)",
     "form": {
       "name": "Name",
       "namePlaceholder": "Ihr Name",

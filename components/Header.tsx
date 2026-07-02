@@ -55,12 +55,25 @@ export function Header({
           />
           <Logo lang={lang} progress={collapseProgress} />
 
+          <ul className="hidden items-center gap-8 text-sm text-muted md:flex">
+            {links.map((l) => (
+              <li key={l.href}>
+                <a
+                  href={l.href}
+                  className="transition-colors hover:text-[var(--fg)]"
+                >
+                  {l.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+
           <div className="relative flex items-center gap-2">
             <button
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Menu"
               aria-expanded={menuOpen}
-              className="grid h-10 w-10 place-items-center rounded-full transition-transform hover:scale-105 sm:glass"
+              className="grid h-10 w-10 place-items-center rounded-full transition-transform hover:scale-105 md:hidden"
             >
               <span className="relative block h-4 w-[18px]">
                 <motion.span
@@ -92,7 +105,7 @@ export function Header({
 
             <a
               href="#contact"
-              className="btn-primary hidden rounded-full px-5 py-2 text-sm font-semibold sm:inline-block"
+              className="btn-primary hidden rounded-full px-5 py-2 text-sm font-semibold md:inline-block"
             >
               {nav.contact}
             </a>
@@ -136,7 +149,7 @@ export function Header({
                   <a
                     href="#contact"
                     onClick={() => setMenuOpen(false)}
-                    className="btn-primary mt-2 block rounded-2xl px-4 py-3 text-center text-sm font-semibold sm:hidden"
+                    className="btn-primary mt-2 block rounded-2xl px-4 py-3 text-center text-sm font-semibold md:hidden"
                   >
                     {nav.contact}
                   </a>

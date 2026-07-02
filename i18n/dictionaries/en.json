@@ -118,7 +118,7 @@
   "showcase": {
     "label": "From our lab",
     "title": "Built in the open. Real screens, real systems.",
-    "subtitle": "While we onboard our first partners, here's what we're building in our own workshop — the same engineering we bring to your processes.",
+    "subtitle": "While we onboard our first partners, here's what we're building in our own lab — the same engineering we bring to your processes.",
     "items": [
       { "title": "automation-demo.mp4", "caption": "Live workflow walkthrough" },
       { "title": "n8n — orchestration", "caption": "Visual pipeline build" },
@@ -178,8 +178,8 @@
   "cta": {
     "title": "Let's make your data work for you.",
     "subtitle": "Tell us where the friction is. We'll show you what private AI can quietly remove.",
-    "bookingText": "Prefer to talk first?",
-    "bookingCta": "Book a 20-min call",
+    "bookingText": "Prefer to start with zero commitment?",
+    "bookingCta": "Book a free readiness audit (20 min)",
     "form": {
       "name": "Name",
       "namePlaceholder": "Your name",

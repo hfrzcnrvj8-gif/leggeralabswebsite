@@ -116,9 +116,9 @@
     ]
   },
   "showcase": {
-    "label": "Z naszego warsztatu",
+    "label": "Z laboratorium",
     "title": "Tworzone otwarcie. Prawdziwe ekrany, realne systemy.",
-    "subtitle": "Zanim przyjmiemy pierwszych partnerów, oto co budujemy we własnym warsztacie — ta sama inżynieria, którą wniesiemy do Twoich procesów.",
+    "subtitle": "Zanim przyjmiemy pierwszych partnerów, oto co budujemy w naszym laboratorium — ta sama inżynieria, którą wniesiemy do Twoich procesów.",
     "items": [
       { "title": "demo-automatyzacji.mp4", "caption": "Przegląd działającego procesu" },
       { "title": "n8n — orkiestracja", "caption": "Wizualna budowa przepływu" },
@@ -178,8 +178,8 @@
   "cta": {
     "title": "Sprawmy, by Twoje dane pracowały dla Ciebie.",
     "subtitle": "Powiedz nam, gdzie pojawia się tarcie. Pokażemy, co prywatne AI może po cichu wyeliminować.",
-    "bookingText": "Wolisz najpierw porozmawiać?",
-    "bookingCta": "Umów 20-min rozmowę",
+    "bookingText": "Wolisz zacząć bez zobowiązań?",
+    "bookingCta": "Umów bezpłatny audyt gotowości (20 min)",
     "form": {
       "name": "Imię i nazwisko",
       "namePlaceholder": "Twoje imię",
