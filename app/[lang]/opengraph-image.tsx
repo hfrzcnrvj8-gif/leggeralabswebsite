@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { i18n, type Locale } from "@/i18n/config";
 
@@ -19,6 +21,12 @@ export default async function OpengraphImage({
   const dict = await getDictionary(lang as Locale);
   const [line1, line2] = dict.hero.titleLines;
 
+  const fontsDir = join(process.cwd(), "app", "[lang]", "opengraph-fonts");
+  const [interBold, frauncesSemiBold] = await Promise.all([
+    readFile(join(fontsDir, "Inter-Bold.ttf")),
+    readFile(join(fontsDir, "Fraunces-SemiBold.ttf")),
+  ]);
+
   return new ImageResponse(
     (
       <div
@@ -31,7 +39,7 @@ export default async function OpengraphImage({
           padding: "80px",
           background: "#0A0A0A",
           color: "#F5F5F7",
-          fontFamily: "sans-serif",
+          fontFamily: "Inter",
           position: "relative",
         }}
       >
@@ -50,63 +58,64 @@ export default async function OpengraphImage({
           }}
         />
 
-        {/* Wordmark */}
-        <div style={{ display: "flex", alignItems: "center", fontSize: 40 }}>
-          <div style={{ position: "relative", display: "flex", width: 46, height: 46, marginRight: 18 }}>
-            <span
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                display: "flex",
-                fontWeight: 800,
-                fontSize: 46,
-                opacity: 0.35,
-                backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
-                backgroundClip: "text",
-                color: "transparent",
-              }}
-            >
-              L
-            </span>
-            <span
-              style={{
-                position: "absolute",
-                top: 7,
-                left: 7,
-                display: "flex",
-                fontWeight: 800,
-                fontSize: 46,
-                backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
-                backgroundClip: "text",
-                color: "transparent",
-              }}
-            >
-              L
-            </span>
-          </div>
-          <span
+        {/* Wordmark — same treatment as the on-site Logo component: ONE
+            continuous gradient shared across the whole "L EGGERA L ABS"
+            phrase (applied once, on the wrapping element below, not
+            per-word — a per-word gradient would restart 0%→100% inside
+            each word instead of continuing where the previous one left
+            off). "EGGERA" and "ABS" have no color of their own, so they
+            inherit the parent's clipped gradient; the two L's override
+            it with their own flat color. Trailing "." is cyan. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            fontFamily: "Inter",
+            fontSize: 40,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "6px",
+          }}
+        >
+          <div
             style={{
+              display: "flex",
+              fontFamily: "Inter",
               fontWeight: 700,
-              letterSpacing: "-0.03em",
-              backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 100%)",
+              backgroundImage:
+                "linear-gradient(100deg, #7C3AED 0%, #E0A93B 65%, #FFF7E8 100%)",
               backgroundClip: "text",
               color: "transparent",
             }}
           >
-            Leggera Labs
+            <span style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, color: "#7C3AED" }}>
+              L
+            </span>
+            <span style={{ display: "flex", fontFamily: "Inter", fontWeight: 700 }}>
+              EGGERA&nbsp;
+            </span>
+            <span style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, color: "#E0A93B" }}>
+              L
+            </span>
+            <span style={{ display: "flex", fontFamily: "Inter", fontWeight: 700 }}>
+              ABS
+            </span>
+          </div>
+          <span style={{ display: "flex", fontFamily: "Inter", fontWeight: 700, color: "#22D3EE" }}>
+            .
           </span>
         </div>
 
-        {/* Headline */}
+        {/* Headline — same serif (Fraunces) used for the on-site H1 */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div
             style={{
               display: "flex",
+              fontFamily: "Fraunces",
               fontSize: 84,
               fontWeight: 600,
               lineHeight: 1.0,
-              letterSpacing: "-0.04em",
+              letterSpacing: "-0.02em",
             }}
           >
             {line1}
@@ -114,10 +123,11 @@ export default async function OpengraphImage({
           <div
             style={{
               display: "flex",
+              fontFamily: "Fraunces",
               fontSize: 84,
               fontWeight: 600,
               lineHeight: 1.05,
-              letterSpacing: "-0.04em",
+              letterSpacing: "-0.02em",
               backgroundImage:
                 "linear-gradient(120deg, #a78bfa, #e0a93b 65%, #fff7e8)",
               backgroundClip: "text",
@@ -134,6 +144,17 @@ export default async function OpengraphImage({
         </div>
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+      fonts: [
+        { name: "Inter", data: interBold, weight: 700, style: "normal" },
+        {
+          name: "Fraunces",
+          data: frauncesSemiBold,
+          weight: 600,
+          style: "normal",
+        },
+      ],
+    }
   );
 }

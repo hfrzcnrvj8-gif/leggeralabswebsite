@@ -16,6 +16,9 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  outputFileTracingIncludes: {
+    "/[lang]/opengraph-image": ["./app/[lang]/opengraph-fonts/*.ttf"],
+  },
   async headers() {
     return [
       {
