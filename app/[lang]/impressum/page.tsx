@@ -17,7 +17,7 @@ const COMPANY = {
   address: ["[Ulica i numer]", "[Kod pocztowy, Miasto]", "[Kraj]"],
   // Person legally representing the company (managing director / owner)
   represented: "[Imię i nazwisko osoby reprezentującej]",
-  email: "kontakt@patrykpiecyk.pl",
+  email: "kontakt@leggeralabs.pl",
   phone: "[+48 ...]",
   // Commercial register (leave empty string "" to hide). DE: Handelsregister.
   register: "[np. KRS 0000000000 / Handelsregister: Amtsgericht ..., HRB ...]",
