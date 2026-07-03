@@ -12,6 +12,10 @@ export const siteUrl = (
 export const bookingUrl =
   process.env.NEXT_PUBLIC_BOOKING_URL ?? "#contact";
 
+// LinkedIn company/profile URL. Set NEXT_PUBLIC_LINKEDIN_URL once the account
+// exists; the link is hidden everywhere until then.
+export const linkedinUrl = process.env.NEXT_PUBLIC_LINKEDIN_URL ?? "";
+
 // Maps our locale codes to Open Graph locale identifiers.
 export const ogLocale: Record<Locale, string> = {
   pl: "pl_PL",

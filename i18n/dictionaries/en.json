@@ -7,6 +7,7 @@
     "vision": "Vision",
     "services": "Expertise",
     "work": "Showcase",
+    "blog": "Blog",
     "contact": "Contact"
   },
   "hero": {
@@ -202,6 +203,22 @@
         "message": "Please tell us a little more (at least 10 characters)."
       }
     }
+  },
+  "blog": {
+    "meta": {
+      "title": "Blog — Leggera Labs",
+      "description": "Practical notes on private AI, local LLMs, and process automation for small and medium businesses."
+    },
+    "label": "Blog",
+    "title": "Notes from the lab.",
+    "subtitle": "Practical notes on private AI, local LLMs, and automation — no marketing fog.",
+    "empty": "The first posts are on their way. Check back soon.",
+    "readMore": "Read more",
+    "minRead": "min read",
+    "back": "Back to blog",
+    "publishedOn": "Published on",
+    "ctaText": "Want to apply this to your business?",
+    "ctaLink": "Book a free readiness audit (20 min)"
   },
   "footer": {
     "tagline": "No cloud. No compromise.",

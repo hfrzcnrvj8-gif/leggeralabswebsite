@@ -1,6 +1,6 @@
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
-import { siteUrl } from "@/lib/site";
+import { siteUrl, linkedinUrl } from "@/lib/site";
 
 // Emits JSON-LD for richer search results (Organization + WebSite).
 export function StructuredData({
@@ -21,7 +21,7 @@ export function StructuredData({
         description: dict.meta.description,
         logo: `${siteUrl}/icon.svg`,
         // Add your real profiles here once live:
-        sameAs: [],
+        sameAs: linkedinUrl ? [linkedinUrl] : [],
       },
       {
         "@type": "WebSite",

@@ -7,6 +7,7 @@
     "vision": "Vision",
     "services": "Kompetenz",
     "work": "Showcase",
+    "blog": "Blog",
     "contact": "Kontakt"
   },
   "hero": {
@@ -202,6 +203,22 @@
         "message": "Bitte schreiben Sie etwas mehr (mindestens 10 Zeichen)."
       }
     }
+  },
+  "blog": {
+    "meta": {
+      "title": "Blog — Leggera Labs",
+      "description": "Praktische Beiträge zu privater KI, lokalen LLMs und Prozessautomatisierung für kleine und mittlere Unternehmen."
+    },
+    "label": "Blog",
+    "title": "Notizen aus dem Labor.",
+    "subtitle": "Praktische Beiträge zu privater KI, lokalen LLMs und Automatisierung — ohne Marketing-Nebel.",
+    "empty": "Die ersten Beiträge sind unterwegs. Schauen Sie bald wieder vorbei.",
+    "readMore": "Weiterlesen",
+    "minRead": "Min. Lesezeit",
+    "back": "Zurück zum Blog",
+    "publishedOn": "Veröffentlicht am",
+    "ctaText": "Möchten Sie das auf Ihr Unternehmen übertragen?",
+    "ctaLink": "Kostenloses Readiness-Audit buchen (20 Min.)"
   },
   "footer": {
     "tagline": "Keine Cloud. Keine Kompromisse.",

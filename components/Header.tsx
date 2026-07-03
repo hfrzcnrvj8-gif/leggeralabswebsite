@@ -29,12 +29,13 @@ export function Header({
   const frameOpacity = useTransform(scrollY, [0, 60], [0, 1]);
 
   const links = [
-    { href: "#vision", label: nav.vision },
-    { href: "#services", label: nav.services },
-    { href: "#showcase", label: nav.work },
+    { href: `/${lang}#vision`, label: nav.vision },
+    { href: `/${lang}#services`, label: nav.services },
+    { href: `/${lang}#showcase`, label: nav.work },
   ];
 
   const pages = [
+    { href: `/${lang}/blog`, label: nav.blog },
     { href: `/${lang}/privacy`, label: footer.privacy },
     { href: `/${lang}/impressum`, label: footer.impressum },
   ];
@@ -66,6 +67,14 @@ export function Header({
                 </a>
               </li>
             ))}
+            <li>
+              <Link
+                href={`/${lang}/blog`}
+                className="transition-colors hover:text-[var(--fg)]"
+              >
+                {nav.blog}
+              </Link>
+            </li>
           </ul>
 
           <div className="relative flex items-center gap-2">
@@ -104,7 +113,7 @@ export function Header({
             </button>
 
             <a
-              href="#contact"
+              href={`/${lang}#contact`}
               className="btn-primary hidden rounded-full px-5 py-2 text-sm font-semibold md:inline-block"
             >
               {nav.contact}
@@ -147,7 +156,7 @@ export function Header({
                     ))}
                   </ul>
                   <a
-                    href="#contact"
+                    href={`/${lang}#contact`}
                     onClick={() => setMenuOpen(false)}
                     className="btn-primary mt-2 block rounded-2xl px-4 py-3 text-center text-sm font-semibold md:hidden"
                   >

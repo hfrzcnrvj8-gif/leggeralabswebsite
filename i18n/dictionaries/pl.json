@@ -7,6 +7,7 @@
     "vision": "Wizja",
     "services": "Kompetencje",
     "work": "Realizacje",
+    "blog": "Blog",
     "contact": "Kontakt"
   },
   "hero": {
@@ -202,6 +203,22 @@
         "message": "Napisz nieco więcej (co najmniej 10 znaków)."
       }
     }
+  },
+  "blog": {
+    "meta": {
+      "title": "Blog — Leggera Labs",
+      "description": "Praktyczne teksty o prywatnym AI, lokalnych LLM i automatyzacji procesów dla małych i średnich firm."
+    },
+    "label": "Blog",
+    "title": "Zapiski z laboratorium.",
+    "subtitle": "Praktyczne teksty o prywatnym AI, lokalnych LLM i automatyzacji — bez marketingowego szumu.",
+    "empty": "Pierwsze wpisy już w drodze. Zajrzyj wkrótce.",
+    "readMore": "Czytaj dalej",
+    "minRead": "min czytania",
+    "back": "Powrót do bloga",
+    "publishedOn": "Opublikowano",
+    "ctaText": "Chcesz przełożyć to na Twoją firmę?",
+    "ctaLink": "Umów bezpłatny audyt gotowości (20 min)"
   },
   "footer": {
     "tagline": "Bez chmury. Bez kompromisów.",
