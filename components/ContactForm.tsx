@@ -14,7 +14,7 @@ type FieldErrors = Partial<
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Formspree handles delivery + spam filtering, no custom backend needed.
-const FORMSPREE_ENDPOINT = "https://formspree.io/f/xdarpnzg";
+const FORMSPREE_ENDPOINT = "https://formspree.io/f/xdarydza";
 
 export function ContactForm({
   dict,
