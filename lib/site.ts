@@ -7,10 +7,21 @@ export const siteUrl = (
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://leggeralabs.pl"
 ).replace(/\/$/, "");
 
-// Booking link for the "book a call" CTAs. Set NEXT_PUBLIC_BOOKING_URL to your
-// Calendly / Cal.com link; falls back to scrolling to the contact form.
-export const bookingUrl =
-  process.env.NEXT_PUBLIC_BOOKING_URL ?? "#contact";
+// Booking link for the "book a call" CTAs, per language. Set
+// NEXT_PUBLIC_BOOKING_URL_PL / _EN / _DE to per-language Calendly event
+// links; each falls back to the shared NEXT_PUBLIC_BOOKING_URL, then to
+// scrolling to the contact form.
+const bookingUrlByLocale: Record<Locale, string | undefined> = {
+  pl: process.env.NEXT_PUBLIC_BOOKING_URL_PL,
+  en: process.env.NEXT_PUBLIC_BOOKING_URL_EN,
+  de: process.env.NEXT_PUBLIC_BOOKING_URL_DE,
+};
+
+export function getBookingUrl(lang: Locale): string {
+  return (
+    bookingUrlByLocale[lang] ?? process.env.NEXT_PUBLIC_BOOKING_URL ?? "#contact"
+  );
+}
 
 // LinkedIn company/profile URL. Set NEXT_PUBLIC_LINKEDIN_URL once the account
 // exists; the link is hidden everywhere until then.

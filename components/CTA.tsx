@@ -2,7 +2,7 @@
 
 import { Reveal } from "./Reveal";
 import { ContactForm } from "./ContactForm";
-import { bookingUrl } from "@/lib/site";
+import { getBookingUrl } from "@/lib/site";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/types";
 
@@ -13,6 +13,7 @@ export function CTA({
   dict: Dictionary["cta"];
   lang: Locale;
 }) {
+  const bookingUrl = getBookingUrl(lang);
   return (
     <section id="contact" className="relative px-6 py-32 md:py-44">
       <Reveal className="mx-auto max-w-4xl">

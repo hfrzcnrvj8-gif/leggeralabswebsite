@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { i18n, type Locale } from "@/i18n/config";
 import { getAllSlugs, getPost } from "@/lib/blog";
-import { siteUrl, ogLocale, bookingUrl } from "@/lib/site";
+import { siteUrl, ogLocale, getBookingUrl } from "@/lib/site";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -69,6 +69,8 @@ export default async function BlogPostPage({
   const post = await getPost(slug, lang);
 
   if (!post) notFound();
+
+  const bookingUrl = getBookingUrl(lang);
 
   const jsonLd = {
     "@context": "https://schema.org",
