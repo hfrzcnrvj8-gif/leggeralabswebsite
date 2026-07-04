@@ -7,11 +7,13 @@ export function MacWindow({
   title,
   caption,
   onSwipe,
+  compact = false,
   children,
 }: {
   title: string;
   caption?: string;
   onSwipe?: (direction: 1 | -1) => void;
+  compact?: boolean;
   children?: ReactNode;
 }) {
   const handleDragEnd = (
@@ -51,7 +53,7 @@ export function MacWindow({
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.6}
           onDragEnd={handleDragEnd}
-          className={`relative h-[74vh] max-h-[760px] min-h-[340px] overflow-hidden ${onSwipe ? "cursor-grab active:cursor-grabbing" : ""}`}
+          className={`relative overflow-hidden ${compact ? "h-auto" : "h-[74vh] max-h-[760px] min-h-[340px]"} ${onSwipe ? "cursor-grab active:cursor-grabbing" : ""}`}
         >
           <div
             className="absolute inset-0"
@@ -73,7 +75,7 @@ export function MacWindow({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="pointer-events-none relative flex h-full flex-col items-center justify-center gap-3 text-center"
+              className={`relative flex flex-col items-center justify-center gap-3 text-center ${compact ? "py-8" : "pointer-events-none h-full"}`}
             >
               {children ?? (
                 <>

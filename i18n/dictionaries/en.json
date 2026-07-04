@@ -126,6 +126,31 @@
       { "title": "local-llm.py", "caption": "Private inference layer" }
     ]
   },
+  "costProof": {
+    "label": "Proof, not a promise",
+    "title": "This isn't a case study. It's a counter from production.",
+    "subtitle": "17 live AI automations — market analysis, tax compliance, security monitoring — running today on our own local language models instead of a paid cloud AI chat (like ChatGPT). Below is real data from that system, not estimates.",
+    "statRequests": "Questions asked to our AI",
+    "statVolume": "That's how much it processed",
+    "statVolumeUnit": "pages of text",
+    "statCloudCost": "The same chat in the cloud (e.g. ChatGPT) would cost",
+    "statLocalCost": "Here: practically free",
+    "footnote": "API pricing used for conversion: GPT-4o-mini / GPT-4o / Claude Sonnet 4.6, as of"
+  },
+  "reliability": {
+    "label": "It heals itself. Really.",
+    "title": "A real incident. A real queue. Zero panic.",
+    "subtitle": "On July 1, 2026 my system actually got stuck. I found the root cause, fixed it in code, and added self-healing with an automatic alert. Below is a log from that week — not a simulation.",
+    "statEvents": "Self-healing events",
+    "statWindow": "Observation window",
+    "statWindowUnit": "days",
+    "statHuman": "Human interventions",
+    "statHumanCaption": "in any of the 22 self-healing events",
+    "logIntro": "Night of July 2/3 — the queue backed up under unusually heavy load:",
+    "logWaited": "waited",
+    "logRecovered": "→ queue released automatically",
+    "footnote": "This isn't a demo. It's an excerpt from a real log from a system that today runs 17 daily analytical processes. The failure layer responds automatically, before I'd ever need to pick up a 3am phone call — which means my time goes into building your system, not firefighting it."
+  },
   "founding": {
     "label": "Founding partners",
     "title": "We're selecting our first partners.",

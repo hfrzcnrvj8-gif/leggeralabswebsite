@@ -126,6 +126,31 @@
       { "title": "local-llm.py", "caption": "Private Inferenzschicht" }
     ]
   },
+  "costProof": {
+    "label": "Beweis, kein Versprechen",
+    "title": "Das ist keine Case Study. Das ist ein Zähler aus dem Betrieb.",
+    "subtitle": "17 laufende KI-Automatisierungen — Marktanalyse, Steuer-Compliance, Sicherheitsüberwachung — arbeiten heute mit eigenen, lokalen Sprachmodellen statt einem kostenpflichtigen KI-Chat in der Cloud (wie ChatGPT). Unten sehen Sie reale Daten aus diesem System, keine Schätzungen.",
+    "statRequests": "Anfragen an unsere KI",
+    "statVolume": "So viel wurde verarbeitet",
+    "statVolumeUnit": "Buchseiten Text",
+    "statCloudCost": "Derselbe Chat in der Cloud (z. B. ChatGPT) würde kosten",
+    "statLocalCost": "Bei uns: praktisch kostenlos",
+    "footnote": "Für die Umrechnung verwendete API-Preise: GPT-4o-mini / GPT-4o / Claude Sonnet 4.6, Stand"
+  },
+  "reliability": {
+    "label": "Es repariert sich selbst. Wirklich.",
+    "title": "Ein echter Vorfall. Eine echte Warteschlange. Null Panik.",
+    "subtitle": "Am 1. Juli 2026 ist mein System tatsächlich hängen geblieben. Ich habe die Ursache gefunden, sie im Code behoben und eine Selbstheilung mit automatischem Alarm ergänzt. Unten ein Log aus dieser Woche — keine Simulation.",
+    "statEvents": "Selbstheilungs-Ereignisse",
+    "statWindow": "Beobachtungsfenster",
+    "statWindowUnit": "Tage",
+    "statHuman": "Menschliche Eingriffe",
+    "statHumanCaption": "bei keinem der 22 Selbstheilungs-Ereignisse",
+    "logIntro": "Nacht vom 2. auf den 3. Juli — die Warteschlange staute sich unter ungewöhnlich hoher Last:",
+    "logWaited": "wartete",
+    "logRecovered": "→ Warteschlange automatisch freigegeben",
+    "footnote": "Das ist keine Demo. Das ist ein Ausschnitt aus einem echten Log eines Systems, das heute 17 tägliche Analyseprozesse betreibt. Die Notfall-Ebene reagiert automatisch, bevor ich um 3 Uhr nachts ans Telefon müsste — dadurch fließt meine Zeit in die Weiterentwicklung Ihres Systems, nicht ins Löschen von Bränden."
+  },
   "founding": {
     "label": "Gründungspartner",
     "title": "Wir wählen unsere ersten Partner aus.",

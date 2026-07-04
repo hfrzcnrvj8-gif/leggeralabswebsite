@@ -126,6 +126,31 @@
       { "title": "local-llm.py", "caption": "Warstwa prywatnej inferencji" }
     ]
   },
+  "costProof": {
+    "label": "Dowód, nie obietnica",
+    "title": "To nie case study. To licznik z produkcji.",
+    "subtitle": "17 działających automatyzacji AI — analiza rynków, zgodność podatkowa, monitoring bezpieczeństwa — pracuje dziś na własnych, lokalnych modelach językowych zamiast płatnego czatu AI w chmurze (jak ChatGPT). Poniżej realne dane z tego systemu, nie szacunki.",
+    "statRequests": "Zapytań zadanych naszemu AI",
+    "statVolume": "Tyle przetworzył materiału",
+    "statVolumeUnit": "stron tekstu",
+    "statCloudCost": "Ten sam czat w chmurze (np. ChatGPT) kosztowałby",
+    "statLocalCost": "U nas: praktycznie za darmo",
+    "footnote": "Ceny API użyte do przeliczenia: GPT-4o-mini / GPT-4o / Claude Sonnet 4.6, stan na"
+  },
+  "reliability": {
+    "label": "Sam się naprawia. Naprawdę.",
+    "title": "Realny incydent. Realna kolejka. Zero paniki.",
+    "subtitle": "1 lipca 2026 mój system zawiesił się naprawdę. Znalazłem przyczynę, naprawiłem ją w kodzie i dodałem samo-naprawę z automatycznym alertem. Poniżej log z tamtego tygodnia — nie symulacja.",
+    "statEvents": "Zdarzeń samo-naprawy",
+    "statWindow": "Okno obserwacji",
+    "statWindowUnit": "dni",
+    "statHuman": "Interwencji człowieka",
+    "statHumanCaption": "w żadnym z 22 zdarzeń samo-naprawy",
+    "logIntro": "Noc 2/3 lipca — kolejka spiętrzyła się pod nietypowym obciążeniem:",
+    "logWaited": "czekało",
+    "logRecovered": "→ kolejka zwolniona automatycznie",
+    "footnote": "To nie jest demo. To wycinek prawdziwego logu z systemu, który dziś obsługuje 17 codziennych procesów analitycznych. Warstwa awaryjna reaguje automatycznie, zanim musiałbym odebrać telefon o 3 w nocy — dzięki temu mój czas idzie w rozwój Twojego systemu, a nie w gaszenie pożarów."
+  },
   "founding": {
     "label": "Partnerzy założyciele",
     "title": "Wybieramy naszych pierwszych partnerów.",

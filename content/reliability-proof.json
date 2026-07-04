@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-07-04T20:00:00.000Z",
+  "originIncident": {
+    "date": "2026-07-01",
+    "summary": "Proces proxy zawiesił się wewnętrznie po serii długich zapytań — nasłuchiwał, ale przestał przetwarzać nowe żądania. Zdiagnozowano: martwe, osierocone połączenie sieciowe, brak jakiegokolwiek timeoutu na krytycznej ścieżce.",
+    "resolution": "Root-cause fix w kodzie: gwarantowane zwolnienie kolejki w KAŻDEJ ścieżce (sukces/błąd/timeout), twarde timeouty na każdym kroku, automatyczny alert e-mail przy każdym auto-recovery."
+  },
+  "selfHealingEvents": {
+    "windowDays": 4,
+    "windowStart": "2026-07-01",
+    "windowEnd": "2026-07-04",
+    "totalEvents": 22,
+    "flagshipIncident": {
+      "date": "2026-07-02/2026-07-03 (noc)",
+      "description": "Kolejka spiętrzyła się pod nietypowo ciężkim obciążeniem — trzy kolejne zapytania czekały coraz dłużej, system za każdym razem zwolnił kolejkę automatycznie, bez interwencji człowieka.",
+      "timeline": [
+        { "timestamp": "2026-07-02T23:28:47Z", "waitedMinutes": 51, "outcome": "auto-recovered" },
+        { "timestamp": "2026-07-02T23:48:48Z", "waitedMinutes": 65, "outcome": "auto-recovered" },
+        { "timestamp": "2026-07-03T00:08:49Z", "waitedMinutes": 78, "outcome": "auto-recovered" }
+      ]
+    }
+  },
+  "monitoringExample": {
+    "system": "Dzienny raport zdrowia infrastruktury (dysk, pamięć, kontenery, wiek backupu)",
+    "realFinding": "Wykrył nieaktualny backup (169 dni od ostatniej zmiany) — alert dotarł mailem tego samego dnia, zanim stał się realnym problemem."
+  }
+}
