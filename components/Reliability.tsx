@@ -44,7 +44,11 @@ export function Reliability({ dict }: { dict: Dictionary["reliability"] }) {
           </Reveal>
         </div>
 
-        <div className="mt-16">
+        <Reveal className="mx-auto mt-12 max-w-3xl">
+          <p className="text-lg text-muted">{dict.stakes}</p>
+        </Reveal>
+
+        <div className="mt-10">
           <Reveal>
             <MacWindow title="proxy-watchdog-alert.log" compact>
               <div className="w-full select-text px-8 py-6 text-left font-mono text-sm leading-relaxed">

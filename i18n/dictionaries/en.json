@@ -146,6 +146,7 @@
     "statWindowUnit": "days",
     "statHuman": "Human interventions",
     "statHumanCaption": "in any of the 22 self-healing events",
+    "stakes": "This queue is the heart of the system — every request to the local AI passes through it: market analysis, compliance checks, security monitoring. If it hadn't released itself, all of these processes would have stalled in place — no report, no alert — until someone manually noticed and restarted the system.",
     "logIntro": "Night of July 2/3 — the queue backed up under unusually heavy load:",
     "logWaited": "waited",
     "logRecovered": "→ queue released automatically",
