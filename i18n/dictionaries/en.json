@@ -265,7 +265,7 @@
       },
       {
         "heading": "2. What data we collect",
-        "body": "We process contact details you voluntarily provide (such as your name, email and message) and limited technical data (such as server logs) required to operate and secure the site. We do not use cookies or analytics tools to track visitors."
+        "body": "We process contact details you voluntarily provide (such as your name, email and message) and limited technical data (such as server logs) required to operate and secure the site. We use Cloudflare Web Analytics — a tool that doesn't use cookies or other tracking identifiers and doesn't profile individual visitors; it only collects aggregated, anonymous visit statistics."
       },
       {
         "heading": "3. Purpose and legal basis",

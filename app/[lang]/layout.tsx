@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter, Fraunces } from "next/font/google";
 import "../globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -76,6 +77,14 @@ export default async function LangLayout({
           {children}
           <ScrollToTop />
         </ThemeProvider>
+        {/* Cloudflare Web Analytics — cookieless, no personal data, no
+            individual visitor tracking. See privacy.sections for disclosure. */}
+        <Script
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "77866d9a6c3b41ecb7e68ff47bddeddf"}'
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

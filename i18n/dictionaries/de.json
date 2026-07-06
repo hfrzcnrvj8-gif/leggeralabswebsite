@@ -265,7 +265,7 @@
       },
       {
         "heading": "2. Welche Daten wir erheben",
-        "body": "Wir verarbeiten freiwillig angegebene Kontaktdaten (wie Name, E-Mail und Nachricht) sowie begrenzte technische Daten (wie Server-Logs), die für den Betrieb und die Sicherheit der Website erforderlich sind. Wir verwenden keine Cookies oder Analysetools zur Nachverfolgung von Besuchern."
+        "body": "Wir verarbeiten freiwillig angegebene Kontaktdaten (wie Name, E-Mail und Nachricht) sowie begrenzte technische Daten (wie Server-Logs), die für den Betrieb und die Sicherheit der Website erforderlich sind. Wir nutzen Cloudflare Web Analytics — ein Tool, das keine Cookies oder andere Tracking-Kennungen verwendet und einzelne Besucher nicht profiliert; es erfasst ausschließlich aggregierte, anonyme Besuchsstatistiken."
       },
       {
         "heading": "3. Zweck und Rechtsgrundlage",
