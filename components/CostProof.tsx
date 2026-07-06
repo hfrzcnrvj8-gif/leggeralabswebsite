@@ -65,6 +65,12 @@ export function CostProof({ dict, lang }: { dict: Dictionary["costProof"]; lang:
           </Reveal>
         </div>
 
+        <Reveal delay={0.25}>
+          <p className="mt-10 max-w-2xl text-lg font-medium">
+            {dict.predictability}
+          </p>
+        </Reveal>
+
         <Reveal delay={0.3}>
           <Link
             href={`/${lang}/calculator`}

@@ -135,6 +135,7 @@
     "statVolumeUnit": "stron tekstu",
     "statCloudCost": "Tyle oszczędzasz miesięcznie, korzystając z lokalnego AI zamiast czatu w chmurze (np. ChatGPT)",
     "statLocalCost": "$0 marginalnie za kolejne zapytanie",
+    "predictability": "Płacisz raz za infrastrukturę — nie za każde zapytanie. Koszt w chmurze rośnie z każdym zapytaniem; Twój — nie.",
     "calculatorCta": "Sprawdź swoje własne oszczędności",
     "footnote": "Ceny API użyte do przeliczenia: GPT-4o-mini / GPT-4o / Claude Sonnet 4.6, stan na"
   },
