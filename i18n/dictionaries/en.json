@@ -300,5 +300,30 @@
     "responsibleNote": "Responsible for content pursuant to § 18 (2) MStV.",
     "disclaimerTitle": "Liability for content",
     "disclaimer": "The contents of our pages were created with the greatest care. However, we cannot guarantee the accuracy, completeness or timeliness of the content. As a service provider we are responsible for our own content on these pages under general law."
+  },
+  "calculator": {
+    "label": "Savings calculator",
+    "title": "See how much you could save.",
+    "subtitle": "A few questions, an instant estimate — no login, no commitment.",
+    "volumeQuestion": "How many AI queries or documents do you process daily (e.g. ChatGPT, Copilot)?",
+    "volumeOptions": ["fewer than 10", "10–50", "50–200", "over 200"],
+    "sensitivityQuestion": "How sensitive is this data?",
+    "sensitivityOptions": ["Client data", "Internal company documents", "Public data"],
+    "resultsLabel": "Your estimate",
+    "cloudCostLabel": "This would cost in the cloud, per month",
+    "localCostLabel": "Local cost",
+    "localCostDescription": "Fixed, predictable cost regardless of volume",
+    "localCostMarginal": "$0 marginal per additional query",
+    "riskCloudTitle": "Risk with a cloud solution",
+    "riskLocalTitle": "Risk with a local solution",
+    "riskLocalPoint": "Zero — your data never leaves your infrastructure",
+    "riskByLevel": {
+      "clients": "High — client data reaches an external cloud provider's servers",
+      "internal": "Medium — company documents leave your infrastructure",
+      "public": "Low — the data processed isn't confidential"
+    },
+    "leadIntro": "Want a more detailed report, or just want to talk?",
+    "submit": "Send me the details",
+    "footnote": "This is a ballpark estimate, not an invoice. Assumes an average document-analysis query (~3,400 input tokens, ~3,000 output) and public API pricing for GPT-4o-mini / GPT-4o / Claude Sonnet, as of July 2026."
   }
 }

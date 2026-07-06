@@ -300,5 +300,30 @@
     "responsibleNote": "Odpowiedzialny za treść zgodnie z § 18 ust. 2 MStV.",
     "disclaimerTitle": "Odpowiedzialność za treść",
     "disclaimer": "Treści na naszych stronach zostały przygotowane z najwyższą starannością. Nie możemy jednak zagwarantować ich poprawności, kompletności ani aktualności. Jako usługodawca odpowiadamy za własne treści na tych stronach zgodnie z ogólnymi przepisami prawa."
+  },
+  "calculator": {
+    "label": "Kalkulator oszczędności",
+    "title": "Sprawdź, ile możesz zaoszczędzić.",
+    "subtitle": "Kilka pytań, natychmiastowy szacunek — bez logowania, bez zobowiązań.",
+    "volumeQuestion": "Ile zapytań lub dokumentów dziennie przetwarzacie przez AI (np. ChatGPT, Copilot)?",
+    "volumeOptions": ["mniej niż 10", "10–50", "50–200", "ponad 200"],
+    "sensitivityQuestion": "Jak wrażliwe są te dane?",
+    "sensitivityOptions": ["Dane klientów", "Dokumenty wewnętrzne firmy", "Dane publiczne"],
+    "resultsLabel": "Twój szacunek",
+    "cloudCostLabel": "Tyle kosztowałoby to w chmurze, co miesiąc",
+    "localCostLabel": "Koszt lokalnie",
+    "localCostDescription": "Stały, przewidywalny koszt niezależny od wolumenu",
+    "localCostMarginal": "$0 marginalnie za kolejne zapytanie",
+    "riskCloudTitle": "Ryzyko przy rozwiązaniu chmurowym",
+    "riskLocalTitle": "Ryzyko przy rozwiązaniu lokalnym",
+    "riskLocalPoint": "Zero — dane nigdy nie opuszczają Twojej infrastruktury",
+    "riskByLevel": {
+      "clients": "Wysokie — dane klientów trafiają na serwery zewnętrznego dostawcy w chmurze",
+      "internal": "Średnie — dokumenty firmowe opuszczają Twoją infrastrukturę",
+      "public": "Niskie — przetwarzane dane nie są poufne"
+    },
+    "leadIntro": "Chcesz dokładniejszy raport albo po prostu porozmawiać?",
+    "submit": "Wyślij mi szczegóły",
+    "footnote": "To orientacyjny szacunek, nie faktura. Zakłada uśrednione zapytanie typu analiza dokumentu (ok. 3400 tokenów wejścia, 3000 wyjścia) i publiczne ceny API GPT-4o-mini / GPT-4o / Claude Sonnet, stan na lipiec 2026."
   }
 }

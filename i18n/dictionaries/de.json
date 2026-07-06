@@ -300,5 +300,30 @@
     "responsibleNote": "Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV.",
     "disclaimerTitle": "Haftung für Inhalte",
     "disclaimer": "Die Inhalte unserer Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich."
+  },
+  "calculator": {
+    "label": "Ersparnisrechner",
+    "title": "Finden Sie heraus, wie viel Sie sparen könnten.",
+    "subtitle": "Ein paar Fragen, eine sofortige Schätzung — ohne Login, ohne Verpflichtung.",
+    "volumeQuestion": "Wie viele KI-Anfragen oder Dokumente verarbeiten Sie täglich (z. B. ChatGPT, Copilot)?",
+    "volumeOptions": ["weniger als 10", "10–50", "50–200", "über 200"],
+    "sensitivityQuestion": "Wie sensibel sind diese Daten?",
+    "sensitivityOptions": ["Mandanten-/Kundendaten", "Interne Unternehmensdokumente", "Öffentliche Daten"],
+    "resultsLabel": "Ihre Schätzung",
+    "cloudCostLabel": "Das würde in der Cloud pro Monat kosten",
+    "localCostLabel": "Lokale Kosten",
+    "localCostDescription": "Fester, planbarer Preis unabhängig vom Volumen",
+    "localCostMarginal": "$0 Grenzkosten pro weiterer Anfrage",
+    "riskCloudTitle": "Risiko bei einer Cloud-Lösung",
+    "riskLocalTitle": "Risiko bei einer lokalen Lösung",
+    "riskLocalPoint": "Null — Ihre Daten verlassen nie Ihre Infrastruktur",
+    "riskByLevel": {
+      "clients": "Hoch — Mandantendaten gelangen auf die Server eines externen Cloud-Anbieters",
+      "internal": "Mittel — Unternehmensdokumente verlassen Ihre Infrastruktur",
+      "public": "Niedrig — die verarbeiteten Daten sind nicht vertraulich"
+    },
+    "leadIntro": "Möchten Sie einen detaillierteren Bericht oder einfach reden?",
+    "submit": "Details zusenden",
+    "footnote": "Das ist eine grobe Schätzung, keine Rechnung. Ausgegangen wird von einer durchschnittlichen Dokumentenanalyse-Anfrage (~3.400 Eingabe-Tokens, ~3.000 Ausgabe) und öffentlichen API-Preisen für GPT-4o-mini / GPT-4o / Claude Sonnet, Stand Juli 2026."
   }
 }
