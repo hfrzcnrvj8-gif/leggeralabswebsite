@@ -1,39 +1,14 @@
-"use client";
-
-import { useRef, useState } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
 import { Reveal } from "./Reveal";
 import { SectionLabel } from "./SectionLabel";
-import { MacWindow } from "./MacWindow";
 import type { Dictionary } from "@/i18n/types";
 
-// Real footage wired to the "local-llm.py" tab (index 2) only — the other
-// two tabs don't have footage yet and keep the plain placeholder.
-const VIDEO_SOURCES: Record<number, string> = {
-  2: "/videos/local-llm-demo.mp4",
-};
+// Only "local-llm.py" (index 2) has real footage so far — shown full-bleed
+// as an ambient, looping background instead of a small windowed carousel.
+// Bring back a multi-item carousel once the other two have footage too.
+const VIDEO_SRC = "/videos/local-llm-demo.mp4";
 
 export function Showcase({ dict }: { dict: Dictionary["showcase"] }) {
-  const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
-  const width = useTransform(scrollYProgress, [0, 0.25], ["55vw", "94vw"]);
-
-  const items = dict.items;
-  const go = (delta: number) => {
-    setPlaying(false);
-    setIndex((index + delta + items.length) % items.length);
-  };
-  const selectIndex = (i: number) => {
-    setPlaying(false);
-    setIndex(i);
-  };
-
-  const videoSrc = VIDEO_SOURCES[index];
+  const item = dict.items[2];
 
   return (
     <section id="showcase" className="relative py-32 md:py-40">
@@ -47,69 +22,27 @@ export function Showcase({ dict }: { dict: Dictionary["showcase"] }) {
         </Reveal>
       </div>
 
-      <div ref={sectionRef} className="mt-20 flex justify-center px-6">
-        <motion.div style={{ width, minWidth: 280, maxWidth: "100%" }}>
-          <MacWindow
-            title={items[index].title}
-            caption={videoSrc ? undefined : items[index].caption}
-            onSwipe={playing ? undefined : go}
-          >
-            {videoSrc &&
-              (playing ? (
-                <video
-                  src={videoSrc}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setPlaying(true)}
-                  aria-label={items[index].caption}
-                  className="pointer-events-auto flex h-full w-full flex-col items-center justify-center gap-3 text-center"
-                >
-                  <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300 hover:scale-105">
-                    ▶
-                  </span>
-                  <p className="px-6 text-sm text-muted">{items[index].caption}</p>
-                </button>
-              ))}
-          </MacWindow>
-
-          <div className="mt-6 flex items-center justify-center gap-4">
-            <button
-              onClick={() => go(-1)}
-              aria-label="Poprzednie"
-              className="glass grid h-9 w-9 place-items-center rounded-full transition-transform hover:scale-105"
-            >
-              ←
-            </button>
-            <div className="flex items-center gap-2.5">
-              {items.map((item, i) => (
-                <button
-                  key={item.title}
-                  onClick={() => selectIndex(i)}
-                  aria-label={item.title}
-                  className="h-2.5 w-2.5 rounded-full border-2 transition-colors duration-300"
-                  style={{
-                    borderColor: "var(--fg)",
-                    background: i === index ? "var(--fg)" : "transparent",
-                  }}
-                />
-              ))}
-            </div>
-            <button
-              onClick={() => go(1)}
-              aria-label="Następne"
-              className="glass grid h-9 w-9 place-items-center rounded-full transition-transform hover:scale-105"
-            >
-              →
-            </button>
+      <Reveal delay={0.1}>
+        <div className="relative left-1/2 right-1/2 mt-16 w-screen -mx-[50vw]">
+          <div className="relative aspect-video w-full overflow-hidden bg-black">
+            <video
+              src={VIDEO_SRC}
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="h-full w-full object-cover"
+            />
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent"
+              aria-hidden
+            />
+            <p className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 text-center text-sm text-white/80">
+              {item.caption}
+            </p>
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </Reveal>
     </section>
   );
 }
