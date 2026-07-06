@@ -39,7 +39,9 @@ export function Reliability({ dict }: { dict: Dictionary["reliability"] }) {
             <article className="card-paper h-full rounded-3xl p-8">
               <p className="text-sm text-muted">{dict.statHuman}</p>
               <p className="mt-3 text-4xl font-semibold tracking-tight">0</p>
-              <p className="mt-1 text-sm text-muted">{dict.statHumanCaption}</p>
+              <p className="mt-1 text-sm text-muted">
+                {dict.statHumanCaptionPrefix} {total} {dict.statHumanCaptionSuffix}
+              </p>
             </article>
           </Reveal>
         </div>
