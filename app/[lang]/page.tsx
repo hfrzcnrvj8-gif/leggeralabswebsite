@@ -8,6 +8,7 @@ import { UseCases } from "@/components/UseCases";
 import { Approach } from "@/components/Approach";
 import { Founder } from "@/components/Founder";
 import { Showcase } from "@/components/Showcase";
+import { CostProof } from "@/components/CostProof";
 import { Reliability } from "@/components/Reliability";
 import { Faq } from "@/components/Faq";
 import { FoundingOffer } from "@/components/FoundingOffer";
@@ -32,6 +33,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         <Approach dict={dict.approach} />
         <Founder dict={dict.founder} />
         <Showcase dict={dict.showcase} />
+        <CostProof dict={dict.costProof} lang={lang} />
         <Reliability dict={dict.reliability} />
         <Faq dict={dict.faq} />
         <FoundingOffer dict={dict.founding} />

@@ -133,8 +133,9 @@
     "statRequests": "Zapytań zadanych naszemu AI",
     "statVolume": "Tyle przetworzył materiału",
     "statVolumeUnit": "stron tekstu",
-    "statCloudCost": "Ten sam czat w chmurze (np. ChatGPT) kosztowałby",
-    "statLocalCost": "U nas: praktycznie za darmo",
+    "statCloudCost": "Tyle oszczędzasz miesięcznie, korzystając z lokalnego AI zamiast czatu w chmurze (np. ChatGPT)",
+    "statLocalCost": "= 100% oszczędności względem chmury",
+    "calculatorCta": "Sprawdź swoje własne oszczędności",
     "footnote": "Ceny API użyte do przeliczenia: GPT-4o-mini / GPT-4o / Claude Sonnet 4.6, stan na"
   },
   "reliability": {
