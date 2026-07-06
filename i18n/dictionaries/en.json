@@ -124,7 +124,9 @@
       { "title": "automation-demo.mp4", "caption": "Live workflow walkthrough" },
       { "title": "n8n — orchestration", "caption": "Visual pipeline build" },
       { "title": "local-llm.py", "caption": "Private inference layer" }
-    ]
+    ],
+    "play": "Play video",
+    "pause": "Pause video"
   },
   "costProof": {
     "label": "Proof, not a promise",

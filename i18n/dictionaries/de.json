@@ -124,7 +124,9 @@
       { "title": "automatisierung-demo.mp4", "caption": "Live-Workflow im Überblick" },
       { "title": "n8n — Orchestrierung", "caption": "Visueller Pipeline-Aufbau" },
       { "title": "local-llm.py", "caption": "Private Inferenzschicht" }
-    ]
+    ],
+    "play": "Video abspielen",
+    "pause": "Video pausieren"
   },
   "costProof": {
     "label": "Beweis, kein Versprechen",

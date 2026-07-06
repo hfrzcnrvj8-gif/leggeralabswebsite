@@ -124,7 +124,9 @@
       { "title": "demo-automatyzacji.mp4", "caption": "Przegląd działającego procesu" },
       { "title": "n8n — orkiestracja", "caption": "Wizualna budowa przepływu" },
       { "title": "local-llm.py", "caption": "Warstwa prywatnej inferencji" }
-    ]
+    ],
+    "play": "Odtwórz wideo",
+    "pause": "Wstrzymaj wideo"
   },
   "costProof": {
     "label": "Dowód, nie obietnica",
