@@ -31,15 +31,9 @@ export function Showcase({ dict }: { dict: Dictionary["showcase"] }) {
               muted
               loop
               playsInline
+              aria-label={item.caption}
               className="h-full w-full object-cover"
             />
-            <div
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent"
-              aria-hidden
-            />
-            <p className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 text-center text-sm text-white/80">
-              {item.caption}
-            </p>
           </div>
         </div>
       </Reveal>
