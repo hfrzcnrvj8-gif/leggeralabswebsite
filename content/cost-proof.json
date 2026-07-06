@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-07-06T10:39:53.939Z",
+  "generatedAt": "2026-07-06T17:40:22.563Z",
   "pricingSourceDate": "2026-07-04",
   "daysCovered": 3,
   "grandTotal": {
-    "requests": 358,
-    "tokensTotal": 1774589,
+    "requests": 418,
+    "tokensTotal": 2126189,
     "costUsdByTier": {
-      "mini": 0.17,
-      "gpt4o": 8.06,
-      "sonnet": 11.61
+      "mini": 0.19,
+      "gpt4o": 10,
+      "sonnet": 14.42
     }
   },
   "byDomain": [
@@ -37,6 +37,12 @@
       "costUsd": 0.71
     },
     {
+      "label": "Bezpieczeństwo / CVE",
+      "requests": 8,
+      "tokensTotal": 73370,
+      "costUsd": 0.68
+    },
+    {
       "label": "ERP",
       "requests": 8,
       "tokensTotal": 65678,
@@ -49,10 +55,34 @@
       "costUsd": 0.63
     },
     {
-      "label": "Bezpieczeństwo / CVE",
+      "label": "Sieci",
+      "requests": 8,
+      "tokensTotal": 74532,
+      "costUsd": 0.62
+    },
+    {
+      "label": "Homelab",
+      "requests": 8,
+      "tokensTotal": 61580,
+      "costUsd": 0.57
+    },
+    {
+      "label": "Produkcja muzyczna",
+      "requests": 8,
+      "tokensTotal": 60266,
+      "costUsd": 0.57
+    },
+    {
+      "label": "Self-hosted LLM / RAG",
+      "requests": 8,
+      "tokensTotal": 55658,
+      "costUsd": 0.53
+    },
+    {
+      "label": "Kalendarz makro",
       "requests": 4,
-      "tokensTotal": 39229,
-      "costUsd": 0.38
+      "tokensTotal": 45263,
+      "costUsd": 0.45
     },
     {
       "label": "Smart Money (13F)",
@@ -67,34 +97,10 @@
       "costUsd": 0.36
     },
     {
-      "label": "Sieci",
-      "requests": 4,
-      "tokensTotal": 39043,
-      "costUsd": 0.33
-    },
-    {
       "label": "BI / Analityka",
       "requests": 4,
       "tokensTotal": 31726,
       "costUsd": 0.29
-    },
-    {
-      "label": "Self-hosted LLM / RAG",
-      "requests": 4,
-      "tokensTotal": 30454,
-      "costUsd": 0.29
-    },
-    {
-      "label": "Homelab",
-      "requests": 4,
-      "tokensTotal": 27088,
-      "costUsd": 0.25
-    },
-    {
-      "label": "Produkcja muzyczna",
-      "requests": 4,
-      "tokensTotal": 26547,
-      "costUsd": 0.25
     }
   ]
 }
