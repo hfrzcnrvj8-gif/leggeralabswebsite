@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence, type PanInfo } from "framer-motion";
+import { motion, type PanInfo } from "framer-motion";
 import type { ReactNode } from "react";
 
 export function MacWindow({
@@ -33,18 +33,9 @@ export function MacWindow({
           <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
           <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
           <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={title}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.2 }}
-              className="ml-3 truncate font-mono text-xs text-muted"
-            >
-              {title}
-            </motion.span>
-          </AnimatePresence>
+          <span className="ml-3 truncate font-mono text-xs text-muted transition-opacity duration-200">
+            {title}
+          </span>
         </div>
 
         {/* Viewport / placeholder — draggable to swipe between items */}
@@ -68,27 +59,20 @@ export function MacWindow({
             className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-purple to-brand-gold"
             aria-hidden
           />
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={caption ?? "content"}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className={`relative flex flex-col items-center justify-center gap-3 text-center ${compact ? "py-8" : "pointer-events-none h-full"}`}
-            >
-              {children ?? (
-                <>
-                  <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300">
-                    ▶
-                  </span>
-                  {caption && (
-                    <p className="px-6 text-sm text-muted">{caption}</p>
-                  )}
-                </>
-              )}
-            </motion.div>
-          </AnimatePresence>
+          <div
+            className={`relative flex flex-col items-center justify-center gap-3 text-center ${compact ? "py-8" : "pointer-events-none h-full"}`}
+          >
+            {children ?? (
+              <>
+                <span className="glass grid h-14 w-14 place-items-center rounded-full text-xl transition-transform duration-300">
+                  ▶
+                </span>
+                {caption && (
+                  <p className="px-6 text-sm text-muted">{caption}</p>
+                )}
+              </>
+            )}
+          </div>
         </motion.div>
       </div>
     </div>
