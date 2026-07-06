@@ -134,7 +134,7 @@
     "statVolume": "That's how much it processed",
     "statVolumeUnit": "pages of text",
     "statCloudCost": "This much you save every month by running local AI instead of a cloud chat (e.g. ChatGPT)",
-    "statLocalCost": "= 100% savings versus the cloud",
+    "statLocalCost": "$0 marginal per additional query",
     "calculatorCta": "Check your own savings",
     "footnote": "API pricing used for conversion: GPT-4o-mini / GPT-4o / Claude Sonnet 4.6, as of"
   },

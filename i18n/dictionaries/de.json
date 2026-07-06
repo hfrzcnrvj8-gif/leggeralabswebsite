@@ -134,7 +134,7 @@
     "statVolume": "So viel wurde verarbeitet",
     "statVolumeUnit": "Buchseiten Text",
     "statCloudCost": "So viel sparen Sie monatlich mit lokaler KI statt einem Cloud-Chat (z. B. ChatGPT)",
-    "statLocalCost": "= 100 % Ersparnis gegenüber der Cloud",
+    "statLocalCost": "$0 Grenzkosten pro weiterer Anfrage",
     "calculatorCta": "Berechnen Sie Ihre eigene Ersparnis",
     "footnote": "Für die Umrechnung verwendete API-Preise: GPT-4o-mini / GPT-4o / Claude Sonnet 4.6, Stand"
   },
