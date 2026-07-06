@@ -19,8 +19,11 @@ const COMPANY = {
   represented: "[Imię i nazwisko osoby reprezentującej]",
   email: "kontakt@leggeralabs.pl",
   phone: "[+48 ...]",
-  // Commercial register (leave empty string "" to hide). DE: Handelsregister.
-  register: "[np. KRS 0000000000 / Handelsregister: Amtsgericht ..., HRB ...]",
+  // Commercial register (leave empty string "" to hide).
+  // JDG (sole proprietorship, PL): "Wpis do CEIDG" — no register number, just
+  // the CEIDG entry itself; NIP below already identifies the business.
+  // sp. z o.o. (PL): "KRS 0000000000". DE entity: "Handelsregister: Amtsgericht ..., HRB ...".
+  register: "Wpis do Centralnej Ewidencji i Informacji o Działalności Gospodarczej (CEIDG)",
   // VAT / tax ID (leave empty string "" to hide)
   vat: "[NIP / USt-IdNr: ...]",
   // Person responsible for content per § 18 (2) MStV (often same as represented)
