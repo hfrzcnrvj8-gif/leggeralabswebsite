@@ -53,7 +53,9 @@ export function CostProof({ dict, lang }: { dict: Dictionary["costProof"]; lang:
           </Reveal>
           <Reveal delay={0.2}>
             <article className="card-paper group h-full rounded-3xl p-8 transition-colors hover:border-brand-purple/40">
-              <p className="text-sm text-muted">{dict.statCloudCost}</p>
+              <p className="text-sm text-muted">
+                {dict.statCloudCostPrefix} {costProofData.daysCovered} {dict.statCloudCostSuffix}
+              </p>
               <p className="text-liquid mt-3 text-4xl font-semibold tracking-tight">
                 ${headline.toFixed(2)}
               </p>
