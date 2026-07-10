@@ -8,6 +8,7 @@ import { type Project, formatPlDate } from "@/lib/projects";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { overdueReason } from "@/lib/leads";
+import { useUI } from "./ui";
 
 type TodayData = {
   overdueLeads: Lead[];
@@ -21,6 +22,7 @@ type TodayData = {
  * działania (leady, projekty), co jest w kalendarzu, i ostatnie notatki.
  * To jest strona, od której zaczynasz każdy dzień pracy. */
 export function DashboardHome({ lang }: { lang: Locale }) {
+  const { toast, confirm } = useUI();
   const [data, setData] = useState<TodayData | null>(null);
 
   useEffect(() => {
@@ -34,6 +36,45 @@ export function DashboardHome({ lang }: { lang: Locale }) {
       })
       .then((d) => d && setData(d));
   }, []);
+
+  const markLeadHandled = async (id: string) => {
+    const res = await fetch(`/api/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "Przypomnienie wysłane", ostatni_kontakt: new Date().toISOString().slice(0, 10) }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, overdueLeads: prev.overdueLeads.filter((l) => l.id !== id) } : prev));
+    toast("Lead oznaczony jako obsłużony.");
+  };
+
+  const markProjectDone = async (id: string, tytul: string) => {
+    const ok = await confirm(`Oznaczyć "${tytul}" jako wdrożone?`);
+    if (!ok) return;
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "Wdrożone" }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, dueProjects: prev.dueProjects.filter((p) => p.id !== id) } : prev));
+    toast("Projekt oznaczony jako wdrożony.");
+  };
+
+  const removeEvent = async (id: string) => {
+    const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast("Nie udało się usunąć wydarzenia.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, todayEvents: prev.todayEvents.filter((e) => e.id !== id) } : prev));
+  };
 
   if (!data) {
     return (
@@ -76,11 +117,19 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           ) : (
             <ul className="space-y-2">
               {data.overdueLeads.slice(0, 6).map((l) => (
-                <li key={l.id} className="text-sm">
-                  <Link href={`/${lang}/admin/leads/${l.id}`} className="font-medium hover:underline">
-                    {l.firma}
-                  </Link>
-                  <span className="text-muted"> — {overdueReason(l)}</span>
+                <li key={l.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={`/${lang}/admin/leads/${l.id}`} className="font-medium hover:underline">
+                      {l.firma}
+                    </Link>
+                    <span className="text-muted"> — {overdueReason(l)}</span>
+                  </span>
+                  <button
+                    onClick={() => markLeadHandled(l.id)}
+                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                  >
+                    Obsłużone
+                  </button>
                 </li>
               ))}
             </ul>
@@ -99,11 +148,19 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           ) : (
             <ul className="space-y-2">
               {data.dueProjects.slice(0, 6).map((p) => (
-                <li key={p.id} className="text-sm">
-                  <Link href={`/${lang}/admin/projects/${p.id}`} className="font-medium hover:underline">
-                    {p.tytul}
-                  </Link>
-                  <span className="text-muted"> — termin {formatPlDate(p.termin)}</span>
+                <li key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={`/${lang}/admin/projects/${p.id}`} className="font-medium hover:underline">
+                      {p.tytul}
+                    </Link>
+                    <span className="text-muted"> — termin {formatPlDate(p.termin)}</span>
+                  </span>
+                  <button
+                    onClick={() => markProjectDone(p.id, p.tytul)}
+                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                  >
+                    Wdrożone
+                  </button>
                 </li>
               ))}
             </ul>
@@ -122,9 +179,19 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           ) : (
             <ul className="space-y-2">
               {data.todayEvents.map((e) => (
-                <li key={e.id} className="text-sm">
-                  {e.godzina && <span className="mr-1.5 text-muted">{e.godzina}</span>}
-                  {e.tytul}
+                <li key={e.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    {e.godzina && <span className="mr-1.5 text-muted">{e.godzina}</span>}
+                    {e.tytul}
+                  </span>
+                  <button
+                    onClick={() => removeEvent(e.id)}
+                    className="shrink-0 text-muted hover:text-red-400"
+                    aria-label={`Usuń ${e.tytul}`}
+                    title="Usuń"
+                  >
+                    ✕
+                  </button>
                 </li>
               ))}
             </ul>

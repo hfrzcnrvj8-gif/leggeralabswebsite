@@ -166,6 +166,15 @@ async function createHubSchema(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS notes_activity (
+      id TEXT PRIMARY KEY,
+      note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS notes_activity_note_id_idx ON notes_activity(note_id);`;
 
   // Kalendarz — pojedyncze wydarzenia, opcjonalnie powiązane z leadem lub
   // projektem, żeby dashboard mógł je pokazać w kontekście.

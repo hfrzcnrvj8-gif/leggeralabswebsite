@@ -8,6 +8,13 @@ export type Note = {
   updated_at: string;
 };
 
+export type NoteActivity = {
+  id: string;
+  note_id: string;
+  text: string;
+  created_at: string;
+};
+
 export function parseTags(tagi: string): string[] {
   return tagi
     .split(",")

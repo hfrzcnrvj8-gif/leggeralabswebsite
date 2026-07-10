@@ -6,7 +6,8 @@ Bez dodatkowej konfiguracji: te same zmienne środowiskowe co dla leadów
 (`DATABASE_URL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`) obsługują cały
 panel. Wszystkie tabele (`leads`, `projects`, `project_tasks`,
 `project_milestones`, `project_resources`, `project_activity`, `notes`,
-`events`) tworzą się i aktualizują same przy pierwszym użyciu API.
+`notes_activity`, `events`) tworzą się i aktualizują same przy pierwszym
+użyciu API.
 
 ## Nawigacja
 
@@ -14,7 +15,9 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
 
 - **Pulpit** (`/admin`) — widok "co dziś": leady wymagające działania,
   projekty z minionym terminem, dzisiejsze wydarzenia z kalendarza,
-  ostatnie notatki. Punkt startowy każdego dnia pracy.
+  ostatnie notatki. Punkt startowy każdego dnia pracy. Interaktywny — bez
+  przechodzenia do modułu można leada oznaczyć jako obsłużony, projekt jako
+  wdrożone, albo usunąć dzisiejsze wydarzenie prosto z listy.
 - **Projekty** (`/admin/projects`) — Twoje własne projekty/wdrożenia,
   z dwoma widokami do przełączania (jak Kanban/Tabela przy leadach):
   - **Tablica** — kanban po statusie (Pomysł → Planowanie → W trakcie →
@@ -32,7 +35,10 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
     dokumentów itp.).
 - **Notatnik** (`/admin/notes`) — szybkie zapisywanie pomysłów, z tagami
   i zapamiętanym filtrem. Przycisk „→ Przekuj w projekt” tworzy z notatki
-  nowy projekt jednym kliknięciem.
+  nowy projekt jednym kliknięciem. Każda notatka ma zwijany „Log” (jak
+  aktywność przy leadach/projektach, ale lżejszy — bez osobnej podstrony,
+  bo notatki nie mają peek panelu/detail page) do zapisywania kolejnych
+  ustaleń bez nadpisywania treści notatki.
 - **Kalendarz** (`/admin/calendar`) — widok miesiąca, klik w dzień pokazuje
   listę wydarzeń i formularz dodawania nowego (tytuł + opcjonalna godzina,
   opcjonalne powiązanie z leadem lub projektem).
@@ -49,7 +55,10 @@ element, `j`/`k` — nawigacja po liście, `Esc` — zamknij panel) działają
 spójnie we wszystkich modułach, nie tylko w Leadach. `Cmd/Ctrl+Enter` zapisuje
 formularz z aktywnego pola tekstowego (notatka w logu aktywności leada/
 projektu, nowa notatka w Notatniku, nowe wydarzenie w Kalendarzu) — bez
-sięgania po myszkę.
+sięgania po myszkę. Gdy panel szczegółów leada lub projektu jest otwarty,
+cyfry `1`-`9` zmieniają status na n-tą pozycję z listy statusów (kolejność
+jak w `STATUSES`/`PROJECT_STATUSES`) — szybka zmiana bez sięgania po
+pigułkę statusu myszką, tak jak w Linear.
 
 ## Zaznaczanie wielu elementów naraz (bulk actions)
 

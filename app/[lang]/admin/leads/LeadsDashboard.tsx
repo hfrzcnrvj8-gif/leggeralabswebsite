@@ -214,6 +214,15 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         searchRef.current?.focus();
         return;
       }
+      if (/^[1-9]$/.test(e.key)) {
+        const targetId = openLeadId ?? (view === "table" ? filtered[selectedIndex]?.id : undefined);
+        const status = STATUSES[Number(e.key) - 1];
+        if (targetId && status) {
+          e.preventDefault();
+          updateLead(targetId, "status", status);
+        }
+        return;
+      }
       if (view === "table" && (e.key === "j" || e.key === "k")) {
         e.preventDefault();
         setSelectedIndex((i) => {
@@ -229,7 +238,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openLeadId, view, filtered, selectedIndex]);
+  }, [openLeadId, view, filtered, selectedIndex, updateLead]);
 
   // Akcje zgłoszone do globalnej palety poleceń (Cmd+K) w AppShell.
   useRegisterActions(

@@ -12,6 +12,12 @@ import { useUI, useRegisterActions } from "../ui";
 
 type ViewMode = "kanban" | "timeline";
 
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+
 export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -159,6 +165,27 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
     [{ id: "add", label: "+ Dodaj projekt", hint: "N", run: addProject }],
     [addProject]
   );
+
+  // Gdy panel szczegółów projektu jest otwarty, cyfry 1-6 zmieniają status
+  // (kolejność jak w PROJECT_STATUSES) — ten sam duch co skrót w Leadach.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (openId) setOpenId(null);
+        return;
+      }
+      if (isTypingTarget(e.target)) return;
+      if (/^[1-9]$/.test(e.key) && openId) {
+        const status = PROJECT_STATUSES[Number(e.key) - 1];
+        if (status) {
+          e.preventDefault();
+          updateProject(openId, "status", status);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openId, updateProject]);
 
   if (!projects) {
     return (
