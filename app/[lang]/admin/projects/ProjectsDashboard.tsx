@@ -28,6 +28,13 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const [view, setView] = useState<ViewMode>("kanban");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Oś czasu pobiera dane niezależnie od listy Kanban (osobny, lżejszy
+  // endpoint) — bez tego licznika edycje zrobione w panelu szczegółów, gdy
+  // jesteśmy w widoku "Oś czasu", nie były tam widoczne bez przeładowania
+  // strony. Zmiana wartości wymusza remount <ProjectTimeline> (key={...}),
+  // czyli świeży fetch.
+  const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
+  const bumpTimelineRefresh = useCallback(() => setTimelineRefreshKey((k) => k + 1), []);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/projects");
@@ -77,11 +84,13 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
       body: JSON.stringify({ [field]: value }),
     });
     if (!res.ok) toast("Nie udało się zapisać zmiany.", "error");
-  }, [toast]);
+    bumpTimelineRefresh();
+  }, [toast, bumpTimelineRefresh]);
 
   const reflectFieldChange = useCallback((id: string, field: string, value: string) => {
     setProjects((prev) => prev?.map((p) => (p.id === id ? { ...p, [field]: value } : p)) ?? prev);
-  }, []);
+    bumpTimelineRefresh();
+  }, [bumpTimelineRefresh]);
 
   const addProject = useCallback(async () => {
     const tytul = await prompt("Nazwa nowego projektu / wdrożenia:", { placeholder: "np. Wdrożenie automatyzacji u klienta X" });
@@ -94,10 +103,11 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
     if (res.ok) {
       toast("Dodano projekt.");
       load();
+      bumpTimelineRefresh();
     } else {
       toast("Nie udało się dodać projektu.", "error");
     }
-  }, [prompt, toast, load]);
+  }, [prompt, toast, load, bumpTimelineRefresh]);
 
   const deleteProject = useCallback(async (id: string, tytul: string) => {
     const ok = await confirm(`Usunąć "${tytul}"?`, { danger: true });
@@ -373,7 +383,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenId}
         />
       ) : (
-        <ProjectTimeline lang={lang} onOpen={setOpenId} />
+        <ProjectTimeline key={timelineRefreshKey} lang={lang} onOpen={setOpenId} />
       )}
 
       <AnimatePresence>
@@ -395,11 +405,15 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             >
               <ProjectDetailPanel
                 id={openId}
-                onClose={() => setOpenId(null)}
+                onClose={() => {
+                  setOpenId(null);
+                  bumpTimelineRefresh();
+                }}
                 onFieldChange={reflectFieldChange}
                 onDeleted={(id) => {
                   setProjects((prev) => prev?.filter((p) => p.id !== id) ?? prev);
                   setOpenId(null);
+                  bumpTimelineRefresh();
                 }}
               />
             </motion.div>
