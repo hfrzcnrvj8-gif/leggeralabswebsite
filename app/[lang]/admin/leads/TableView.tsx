@@ -27,16 +27,16 @@ export function TableView({
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b hairline bg-[var(--hairline)] text-left uppercase tracking-wide text-muted">
-            <th className="p-2">Firma</th>
-            <th className="p-2">Branża</th>
-            <th className="p-2">Telefon</th>
-            <th className="p-2">Email</th>
-            <th className="p-2">WWW</th>
-            <th className="p-2">Źródło</th>
-            <th className="p-2">Status</th>
-            <th className="p-2">Ostatni kontakt</th>
+            <th className="min-w-[140px] p-2">Firma</th>
+            <th className="min-w-[110px] p-2">Branża</th>
+            <th className="min-w-[110px] p-2">Telefon</th>
+            <th className="min-w-[150px] p-2">Email</th>
+            <th className="min-w-[130px] p-2">WWW</th>
+            <th className="min-w-[110px] p-2">Źródło</th>
+            <th className="min-w-[100px] p-2">Status</th>
+            <th className="min-w-[110px] p-2">Ostatni kontakt</th>
             <th className="p-2">Dni</th>
-            <th className="p-2">Notatki</th>
+            <th className="min-w-[220px] p-2">Notatki</th>
             <th className="p-2"></th>
           </tr>
         </thead>

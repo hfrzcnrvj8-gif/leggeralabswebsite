@@ -90,9 +90,9 @@ export function KanbanBoard({
                   {lead.branza && <div className="text-[11px] text-muted">{lead.branza}</div>}
                   {(lead.telefon || lead.email || lead.www) && (
                     <div className="mt-1 space-y-0.5 text-[11px] text-muted opacity-80">
-                      {lead.telefon && <div className="truncate">{lead.telefon}</div>}
-                      {lead.email && <div className="truncate">{lead.email}</div>}
-                      {lead.www && <div className="truncate">{lead.www}</div>}
+                      {lead.telefon && <div className="break-words">{lead.telefon}</div>}
+                      {lead.email && <div className="break-all">{lead.email}</div>}
+                      {lead.www && <div className="break-all">{lead.www}</div>}
                     </div>
                   )}
                   <div className="mt-1.5 flex items-center justify-between gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type Lead = {
   id: string;
@@ -174,27 +174,44 @@ export function EditableText({ value, onSave }: { value: string; onSave: (v: str
   return (
     <input
       value={v}
+      title={value || undefined}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
         if (v !== value) onSave(v);
       }}
-      className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+      className="w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
     />
   );
 }
 
+// Rośnie razem z treścią (zamiast sztywnych 2 wierszy), więc dłuższe
+// notatki nie są wizualnie ucinane w tabeli/podstronie — cały tekst zawsze
+// widać, bez przewijania w ukrytym, niewidocznym scrollu.
 export function EditableTextarea({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [v, setV] = useState(value);
+  const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => setV(value), [value]);
+
+  const resize = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  useEffect(() => {
+    resize();
+  }, [v]);
+
   return (
     <textarea
+      ref={ref}
       value={v}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
         if (v !== value) onSave(v);
       }}
-      rows={2}
-      className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+      rows={1}
+      className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
     />
   );
 }
