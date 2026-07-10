@@ -16,12 +16,16 @@ import {
 export function ProjectKanban({
   projects,
   lang,
+  selectedIds,
+  onToggleSelect,
   onUpdate,
   onDelete,
   onOpen,
 }: {
   projects: Project[];
   lang: Locale;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
   onUpdate: (id: string, field: string, value: string) => void;
   onDelete: (id: string, tytul: string) => void;
   onOpen: (id: string) => void;
@@ -93,10 +97,25 @@ export function ProjectKanban({
                   }}
                   className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-brand-cyan/30 active:cursor-grabbing ${
                     draggingId === p.id ? "opacity-40" : ""
-                  } ${overdue ? "border-orange-500/40" : ""}`}
+                  } ${overdue ? "border-orange-500/40" : ""} ${
+                    selectedIds.has(p.id) ? "border-brand-purple/50 bg-brand-purple/[0.06]" : ""
+                  }`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
-                    <span className="text-xs font-medium leading-snug">{p.tytul}</span>
+                    <span className="flex min-w-0 items-start gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          onToggleSelect(p.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-cyan"
+                        aria-label={`Zaznacz ${p.tytul}`}
+                      />
+                      <span className="text-xs font-medium leading-snug">{p.tytul}</span>
+                    </span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -117,20 +136,26 @@ export function ProjectKanban({
                     )}
                     {p.priorytet && <span className="text-[11px] text-muted">Priorytet: {p.priorytet}</span>}
                   </div>
+                  {typeof p.task_total === "number" && p.task_total > 0 && (
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-brand-purple to-brand-cyan transition-all"
+                          style={{ width: `${Math.round(((p.task_done ?? 0) / p.task_total) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="shrink-0 text-[10px] text-muted">{p.task_done ?? 0}/{p.task_total}</span>
+                    </div>
+                  )}
                   <div className="mt-1.5 flex items-center justify-between gap-2">
                     <span onClick={(e) => e.stopPropagation()}>
                       <ProjectStatusTag status={p.status} onChange={(v) => onUpdate(p.id, "status", v)} />
                     </span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {typeof p.task_total === "number" && p.task_total > 0 && (
-                        <span className="text-[10px] text-muted">{p.task_done}/{p.task_total} zadań</span>
-                      )}
-                      {p.termin && (
-                        <span className={`text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
-                          termin: {formatPlDate(p.termin)}
-                        </span>
-                      )}
-                    </div>
+                    {p.termin && (
+                      <span className={`shrink-0 text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
+                        termin: {formatPlDate(p.termin)}
+                      </span>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -138,7 +163,7 @@ export function ProjectKanban({
             </AnimatePresence>
             {col.items.length === 0 && (
               <div className="rounded-xl border border-dashed hairline p-3 text-center text-[11px] text-muted opacity-50">
-                Pusto
+                🌤️ Pusto
               </div>
             )}
           </div>

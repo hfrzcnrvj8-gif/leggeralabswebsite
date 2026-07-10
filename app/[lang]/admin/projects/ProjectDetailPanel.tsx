@@ -293,7 +293,7 @@ export function ProjectDetailPanel({
 
             {milestones.length === 0 && unmilestoned.length === 0 ? (
               <div className="text-sm text-muted opacity-60">
-                Brak zadań — dodaj kamień milowy powyżej albo pojedyncze zadanie:{" "}
+                🗒️ Brak zadań — dodaj kamień milowy powyżej albo pojedyncze zadanie:{" "}
                 <button onClick={() => addTask(null)} className="text-[var(--fg)] underline underline-offset-2 opacity-100">
                   + dodaj zadanie
                 </button>
@@ -370,7 +370,13 @@ export function ProjectDetailPanel({
               <textarea
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
-                placeholder="Co się wydarzyło? np. wysłałem ofertę, klient poprosił o zmianę zakresu…"
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder="Co się wydarzyło? np. wysłałem ofertę, klient poprosił o zmianę zakresu… (Cmd+Enter, by zapisać)"
                 rows={3}
                 className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
               />
@@ -385,7 +391,7 @@ export function ProjectDetailPanel({
               </div>
             </form>
             {activity.length === 0 ? (
-              <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
+              <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
             ) : (
               <ul className="space-y-3">
                 {activity.map((a) => (
@@ -520,7 +526,7 @@ function TaskList({
   onToggle: (id: string, done: boolean) => void;
   onDelete: (id: string) => void;
 }) {
-  if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">Brak zadań.</p>;
+  if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">🗒️ Brak zadań.</p>;
   return (
     <ul className="space-y-1">
       {tasks.map((t) => (

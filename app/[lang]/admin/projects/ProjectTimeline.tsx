@@ -113,7 +113,7 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
   if (dated.length === 0) {
     return (
       <div className="card-paper rounded-2xl p-8 text-center text-sm text-muted">
-        Brak projektów do pokazania — dodaj pierwszy projekt, żeby zobaczyć oś czasu.
+        🗺️ Brak projektów do pokazania — dodaj pierwszy projekt, żeby zobaczyć oś czasu.
       </div>
     );
   }

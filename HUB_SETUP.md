@@ -19,8 +19,8 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
   z dwoma widokami do przełączania (jak Kanban/Tabela przy leadach):
   - **Tablica** — kanban po statusie (Pomysł → Planowanie → W trakcie →
     Testy/review → Wdrożone/Wstrzymane), karty pokazują priorytet, pigułkę
-    "zdrowia" projektu (gdy inne niż "Na dobrej drodze"), ułamek
-    ukończonych zadań (np. „3/7 zadań”) i termin.
+    "zdrowia" projektu (gdy inne niż "Na dobrej drodze"), pasek postępu
+    zadań (gradient purple→cyan, z ułamkiem obok, np. „3/7”) i termin.
   - **Oś czasu** — widok Gantt-lite: paski projektów od daty startu do
     terminu na siatce miesięcy, romby kamieni milowych na osi, pionowa
     linia „dziś”. Kolor paska odzwierciedla zdrowie projektu (zielony/
@@ -46,7 +46,21 @@ agreguje akcje kontekstowe bieżącego modułu (np. „+ Dodaj projekt”) razem
 z wyszukiwaniem pełnotekstowym po leadach, projektach, notatkach i
 wydarzeniach jednocześnie. Skróty klawiszowe (`/` — szukaj, `n` — nowy
 element, `j`/`k` — nawigacja po liście, `Esc` — zamknij panel) działają
-spójnie we wszystkich modułach, nie tylko w Leadach.
+spójnie we wszystkich modułach, nie tylko w Leadach. `Cmd/Ctrl+Enter` zapisuje
+formularz z aktywnego pola tekstowego (notatka w logu aktywności leada/
+projektu, nowa notatka w Notatniku, nowe wydarzenie w Kalendarzu) — bez
+sięgania po myszkę.
+
+## Zaznaczanie wielu elementów naraz (bulk actions)
+
+Zarówno tabela i tablica leadów, jak i tablica projektów mają checkboxy przy
+każdym wierszu/karcie (w tabeli leadów też „zaznacz wszystko” w nagłówku).
+Gdy coś jest zaznaczone, nad listą pojawia się pływający pasek akcji:
+zmiana statusu (leady, projekty), zmiana priorytetu (projekty) i usuwanie
+zaznaczonych naraz. Zaznaczenie czyści się automatycznie przy zmianie
+filtra, wyszukiwania albo przełączeniu widoku — to świadomie proste
+zachowanie (żeby nie zostawiać "zombie" zaznaczenia po zmianie kontekstu),
+bez osobnego przycisku "odznacz przy zmianie filtra".
 
 ## Przypominacz
 

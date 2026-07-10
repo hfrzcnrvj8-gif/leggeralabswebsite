@@ -118,7 +118,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             </Link>
           </div>
           {data.todayEvents.length === 0 ? (
-            <p className="text-sm text-muted opacity-60">Brak wydarzeń na dziś.</p>
+            <p className="text-sm text-muted opacity-60">🗓️ Brak wydarzeń na dziś.</p>
           ) : (
             <ul className="space-y-2">
               {data.todayEvents.map((e) => (
@@ -139,7 +139,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             </Link>
           </div>
           {data.recentNotes.length === 0 ? (
-            <p className="text-sm text-muted opacity-60">Brak notatek.</p>
+            <p className="text-sm text-muted opacity-60">📝 Brak notatek.</p>
           ) : (
             <ul className="space-y-2">
               {data.recentNotes.map((n) => (

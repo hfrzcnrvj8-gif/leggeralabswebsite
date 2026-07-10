@@ -215,7 +215,13 @@ export function LeadDetailPanel({
           <textarea
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Co się wydarzyło? np. zadzwoniłem, obiecał odpowiedzieć do piątku…"
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
+            placeholder="Co się wydarzyło? np. zadzwoniłem, obiecał odpowiedzieć do piątku… (Cmd+Enter, by zapisać)"
             rows={3}
             className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
           />
@@ -248,7 +254,7 @@ export function LeadDetailPanel({
         </form>
 
         {activity.length === 0 ? (
-          <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
+          <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
         ) : (
           <ul className="space-y-3">
             {activity.map((a) => (

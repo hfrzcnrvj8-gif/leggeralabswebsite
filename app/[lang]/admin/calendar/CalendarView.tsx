@@ -184,7 +184,7 @@ export function CalendarView() {
         <div className="card-paper rounded-2xl p-4">
           <h2 className="mb-3 font-serif text-sm font-semibold">{selectedDay}</h2>
           {selectedEvents.length === 0 ? (
-            <p className="mb-3 text-sm text-muted opacity-60">Brak wydarzeń tego dnia.</p>
+            <p className="mb-3 text-sm text-muted opacity-60">🗓️ Brak wydarzeń tego dnia.</p>
           ) : (
             <ul className="mb-3 space-y-1.5">
               {selectedEvents.map((e) => (
@@ -211,7 +211,13 @@ export function CalendarView() {
               ref={newTitleRef}
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Nowe wydarzenie…"
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  addEvent();
+                }
+              }}
+              placeholder="Nowe wydarzenie… (Cmd+Enter, by dodać)"
               className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
             <div className="flex items-center gap-2">

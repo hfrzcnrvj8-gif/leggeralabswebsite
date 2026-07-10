@@ -29,6 +29,8 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sendingReport, setSendingReport] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -134,6 +136,48 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     }
   }, [toast]);
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback((checked: boolean, ids: string[]) => {
+    setSelectedIds(checked ? new Set(ids) : new Set());
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const bulkUpdateStatus = useCallback(async (status: string) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    for (const id of ids) {
+      await updateLead(id, "status", status);
+    }
+    setBulkBusy(false);
+    toast(`Zaktualizowano status dla ${ids.length} leadów.`);
+    clearSelection();
+  }, [selectedIds, updateLead, toast, clearSelection]);
+
+  const bulkDelete = useCallback(async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych leadów?`, { danger: true });
+    if (!ok) return;
+    setBulkBusy(true);
+    for (const id of ids) {
+      await fetch(`/api/leads/${id}`, { method: "DELETE" });
+    }
+    setBulkBusy(false);
+    setLeads((prev) => prev?.filter((l) => !selectedIds.has(l.id)) ?? prev);
+    toast(`Usunięto ${ids.length} leadów.`);
+    clearSelection();
+  }, [selectedIds, confirm, toast, clearSelection]);
+
   const zrodla = useMemo(() => [...new Set((leads ?? []).map((l) => l.zrodlo))], [leads]);
 
   const filtered = useMemo(() => {
@@ -151,7 +195,8 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [filterStatus, filterZrodlo, search, view]);
+    clearSelection();
+  }, [filterStatus, filterZrodlo, search, view, clearSelection]);
 
   // Skróty lokalne dla tego widoku: "/" fokus wyszukiwarki, "j"/"k"
   // nawigacja w tabeli, Esc zamyka peek panel. Cmd+K i "n" (dodaj) obsługuje
@@ -336,13 +381,59 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         </button>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
+          <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
+          <select
+            disabled={bulkBusy}
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) bulkUpdateStatus(e.target.value);
+              e.target.value = "";
+            }}
+            className="rounded-full border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] disabled:opacity-50"
+          >
+            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
+              Zmień status na…
+            </option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">
+                {s}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={bulkDelete}
+            disabled={bulkBusy}
+            className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
+          >
+            ✕ Usuń zaznaczone
+          </button>
+          <span className="flex-1" />
+          <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
+            Odznacz wszystko
+          </button>
+        </div>
+      )}
+
       {view === "kanban" ? (
-        <KanbanBoard leads={filtered} lang={lang} onUpdate={updateLead} onDelete={deleteLead} onOpen={setOpenLeadId} />
+        <KanbanBoard
+          leads={filtered}
+          lang={lang}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onUpdate={updateLead}
+          onDelete={deleteLead}
+          onOpen={setOpenLeadId}
+        />
       ) : (
         <TableView
           leads={filtered}
           lang={lang}
           selectedId={selectedId}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onToggleSelectAll={(checked) => toggleSelectAll(checked, filtered.map((l) => l.id))}
           onUpdate={updateLead}
           onDelete={deleteLead}
           onOpen={setOpenLeadId}

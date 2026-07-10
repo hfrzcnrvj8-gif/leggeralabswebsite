@@ -20,6 +20,8 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const [filterPriority, setFilterPriority] = useState("");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/projects");
@@ -110,6 +112,48 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
     if (search) list = list.filter((p) => p.tytul.toLowerCase().includes(search.toLowerCase()));
     return list;
   }, [projects, filterStatus, filterPriority, search]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  useEffect(() => {
+    clearSelection();
+  }, [filterStatus, filterPriority, search, view, clearSelection]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const bulkUpdateField = useCallback(async (field: "status" | "priorytet", value: string) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    for (const id of ids) {
+      await updateProject(id, field, value);
+    }
+    setBulkBusy(false);
+    toast(`Zaktualizowano ${ids.length} projektów.`);
+    clearSelection();
+  }, [selectedIds, updateProject, toast, clearSelection]);
+
+  const bulkDelete = useCallback(async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych projektów?`, { danger: true });
+    if (!ok) return;
+    setBulkBusy(true);
+    for (const id of ids) {
+      await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    }
+    setBulkBusy(false);
+    setProjects((prev) => prev?.filter((p) => !selectedIds.has(p.id)) ?? prev);
+    toast(`Usunięto ${ids.length} projektów.`);
+    clearSelection();
+  }, [selectedIds, confirm, toast, clearSelection]);
 
   useRegisterActions(
     [{ id: "add", label: "+ Dodaj projekt", hint: "N", run: addProject }],
@@ -227,8 +271,69 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
         </div>
       </div>
 
+      {view === "kanban" && selectedIds.size > 0 && (
+        <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
+          <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
+          <select
+            disabled={bulkBusy}
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) bulkUpdateField("status", e.target.value);
+              e.target.value = "";
+            }}
+            className="rounded-full border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] disabled:opacity-50"
+          >
+            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
+              Zmień status na…
+            </option>
+            {PROJECT_STATUSES.map((s) => (
+              <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">
+                {s}
+              </option>
+            ))}
+          </select>
+          <select
+            disabled={bulkBusy}
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) bulkUpdateField("priorytet", e.target.value);
+              e.target.value = "";
+            }}
+            className="rounded-full border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] disabled:opacity-50"
+          >
+            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
+              Zmień priorytet na…
+            </option>
+            {PROJECT_PRIORITIES.map((p) => (
+              <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">
+                {p}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={bulkDelete}
+            disabled={bulkBusy}
+            className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
+          >
+            ✕ Usuń zaznaczone
+          </button>
+          <span className="flex-1" />
+          <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
+            Odznacz wszystko
+          </button>
+        </div>
+      )}
+
       {view === "kanban" ? (
-        <ProjectKanban projects={filtered} lang={lang} onUpdate={updateProject} onDelete={deleteProject} onOpen={setOpenId} />
+        <ProjectKanban
+          projects={filtered}
+          lang={lang}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onUpdate={updateProject}
+          onDelete={deleteProject}
+          onOpen={setOpenId}
+        />
       ) : (
         <ProjectTimeline lang={lang} onOpen={setOpenId} />
       )}

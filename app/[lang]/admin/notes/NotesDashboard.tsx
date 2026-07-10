@@ -130,7 +130,13 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
           ref={newTextRef}
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
-          placeholder="Nowy pomysł / notatka… pierwsza linia stanie się tytułem."
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault();
+              addNote();
+            }
+          }}
+          placeholder="Nowy pomysł / notatka… pierwsza linia stanie się tytułem. (Cmd+Enter, by zapisać)"
           rows={3}
           className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
         />
@@ -175,7 +181,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
       )}
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-muted opacity-60">Brak notatek — dodaj pierwszą powyżej.</p>
+        <p className="text-sm text-muted opacity-60">📝 Brak notatek — dodaj pierwszą powyżej.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((n) => (

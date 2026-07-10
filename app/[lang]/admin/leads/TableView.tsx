@@ -16,6 +16,9 @@ export function TableView({
   leads,
   lang,
   selectedId,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
   onUpdate,
   onDelete,
   onOpen,
@@ -23,6 +26,9 @@ export function TableView({
   leads: Lead[];
   lang: Locale;
   selectedId?: string | null;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleSelectAll: (checked: boolean) => void;
   onUpdate: (id: string, field: string, value: string) => void;
   onDelete: (id: string, firma: string) => void;
   onOpen: (id: string) => void;
@@ -62,6 +68,15 @@ export function TableView({
         <table className="w-full text-xs">
           <thead>
             <tr className="sticky top-0 z-10 border-b hairline bg-[var(--bg-soft)] text-left uppercase tracking-wide text-muted">
+              <th className="bg-[var(--bg-soft)] p-2">
+                <input
+                  type="checkbox"
+                  checked={leads.length > 0 && leads.every((l) => selectedIds.has(l.id))}
+                  onChange={(e) => onToggleSelectAll(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer accent-brand-cyan"
+                  aria-label="Zaznacz wszystkie"
+                />
+              </th>
               <th className="min-w-[140px] bg-[var(--bg-soft)] p-2">Firma</th>
               <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Branża</th>
               <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Telefon</th>
@@ -78,8 +93,8 @@ export function TableView({
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={11} className="p-8 text-center text-sm text-muted opacity-60">
-                  Brak leadów pasujących do filtrów.
+                <td colSpan={12} className="p-8 text-center text-sm text-muted opacity-60">
+                  🗂️ Brak leadów pasujących do filtrów.
                 </td>
               </tr>
             )}
@@ -87,13 +102,23 @@ export function TableView({
               const d = daysSince(lead.ostatni_kontakt);
               const overdueRow = isOverdue(lead);
               const selected = selectedId === lead.id;
+              const checked = selectedIds.has(lead.id);
               return (
                 <tr
                   key={lead.id}
                   className={`border-b hairline align-top transition-colors ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
-                  } ${selected ? "bg-brand-cyan/[0.08]" : ""}`}
+                  } ${selected ? "bg-brand-cyan/[0.08]" : ""} ${checked ? "bg-brand-purple/[0.08]" : ""}`}
                 >
+                  <td className="p-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggleSelect(lead.id)}
+                      className="h-3.5 w-3.5 cursor-pointer accent-brand-cyan"
+                      aria-label={`Zaznacz ${lead.firma}`}
+                    />
+                  </td>
                   <td className="p-2">
                     <EditableText value={lead.firma} onSave={(v) => onUpdate(lead.id, "firma", v)} />
                   </td>
