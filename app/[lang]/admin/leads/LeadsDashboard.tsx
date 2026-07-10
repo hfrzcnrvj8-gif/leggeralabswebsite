@@ -8,6 +8,7 @@ import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
+import { SavedViews } from "../components";
 import { useUI, useRegisterActions } from "../ui";
 
 type ViewMode = "kanban" | "table";
@@ -388,6 +389,17 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         <button onClick={seedInitial} className="rounded-full border hairline px-3 py-1.5 text-xs">
           Wczytaj listę startową
         </button>
+      </div>
+
+      <div className="mb-4">
+        <SavedViews
+          storageKey="leggera_leads_saved_views"
+          currentFilters={{ status: filterStatus, zrodlo: filterZrodlo }}
+          onApply={(f) => {
+            setFilterStatus(f.status ?? "");
+            setFilterZrodlo(f.zrodlo ?? "");
+          }}
+        />
       </div>
 
       {selectedIds.size > 0 && (

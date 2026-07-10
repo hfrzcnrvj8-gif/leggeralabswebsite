@@ -58,7 +58,22 @@ projektu, nowa notatka w Notatniku, nowe wydarzenie w Kalendarzu) — bez
 sięgania po myszkę. Gdy panel szczegółów leada lub projektu jest otwarty,
 cyfry `1`-`9` zmieniają status na n-tą pozycję z listy statusów (kolejność
 jak w `STATUSES`/`PROJECT_STATUSES`) — szybka zmiana bez sięgania po
-pigułkę statusu myszką, tak jak w Linear.
+pigułkę statusu myszką, tak jak w Linear. Poza paletą działają też chordy
+nawigacyjne w stylu Linear: `g` a potem `h`/`p`/`n`/`c`/`l` przenosi
+odpowiednio do Pulpitu/Projektów/Notatnika/Kalendarza/Leadów (drugi klawisz
+trzeba nacisnąć w ciągu ~0,9 s od `g`).
+
+## Zapisane Widoki (nazwane kombinacje filtrów)
+
+Leady i Projekty mają, obok jednego zapamiętanego ostatniego filtra, też
+nazwane, zapisane kombinacje filtrów — pigułki pod paskiem filtrów (np.
+„Leady gorące” = status + źródło, „Projekty zagrożone” = status +
+priorytet). „+ Zapisz widok” zapisuje bieżące ustawienie filtrów pod nazwą
+z promptu; kliknięcie pigułki je przywraca; ✕ (widoczny po najechaniu) ją
+usuwa. Trzymane w `localStorage` (`leggera_leads_saved_views` /
+`leggera_projects_saved_views`) — świadomie bez tabeli w bazie, to lokalna
+wygoda, nie dane biznesowe. Komponent `SavedViews` w `components.tsx` jest
+współdzielony przez oba moduły.
 
 ## Zaznaczanie wielu elementów naraz (bulk actions)
 

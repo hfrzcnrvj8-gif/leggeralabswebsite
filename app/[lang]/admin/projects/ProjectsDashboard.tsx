@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, isProjectOverdue, formatPlDate } from "./shared";
-import { SummaryCard } from "../components";
+import { SummaryCard, SavedViews } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectTimeline } from "./ProjectTimeline";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
@@ -296,6 +296,17 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             Oś czasu
           </button>
         </div>
+      </div>
+
+      <div className="mb-4">
+        <SavedViews
+          storageKey="leggera_projects_saved_views"
+          currentFilters={{ status: filterStatus, priorytet: filterPriority }}
+          onApply={(f) => {
+            setFilterStatus(f.status ?? "");
+            setFilterPriority(f.priorytet ?? "");
+          }}
+        />
       </div>
 
       {view === "kanban" && selectedIds.size > 0 && (

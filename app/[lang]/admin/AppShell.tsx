@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -21,6 +21,16 @@ const NAV: { href: string; label: string; icon: string }[] = [
   { href: "/calendar", label: "Kalendarz", icon: "📅" },
   { href: "/leads", label: "Leady", icon: "🎯" },
 ];
+
+// Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
+// dla Pulpitu, bo "p" jest zajęte przez Projekty.
+const GO_CHORDS: Record<string, string> = {
+  h: "",
+  p: "/projects",
+  n: "/notes",
+  c: "/calendar",
+  l: "/leads",
+};
 
 function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -127,6 +137,9 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     setSearchResults(null);
   }, []);
 
+  const goPendingRef = useRef(false);
+  const goTimeoutRef = useRef<number | null>(null);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -136,7 +149,28 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       }
       if (paletteOpen) return;
       if (isTypingTarget(e.target)) return;
-      if (e.key.toLowerCase() === "n") {
+
+      const key = e.key.toLowerCase();
+
+      if (goPendingRef.current) {
+        goPendingRef.current = false;
+        if (goTimeoutRef.current) window.clearTimeout(goTimeoutRef.current);
+        if (key in GO_CHORDS) {
+          e.preventDefault();
+          router.push(`${base}${GO_CHORDS[key]}`);
+        }
+        return;
+      }
+
+      if (key === "g" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        goPendingRef.current = true;
+        goTimeoutRef.current = window.setTimeout(() => {
+          goPendingRef.current = false;
+        }, 900);
+        return;
+      }
+
+      if (key === "n") {
         const addAction = contextActions.find((a) => a.id === "add");
         if (addAction) {
           e.preventDefault();
@@ -145,8 +179,11 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [paletteOpen, contextActions]);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      if (goTimeoutRef.current) window.clearTimeout(goTimeoutRef.current);
+    };
+  }, [paletteOpen, contextActions, router, base]);
 
   return (
     <div className="relative flex min-h-screen flex-col md:flex-row">

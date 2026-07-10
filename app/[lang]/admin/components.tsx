@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useUI } from "./ui";
 
 // Generyczne komponenty UI współdzielone przez wszystkie moduły panelu
 // (leady, projekty, notatnik, kalendarz) — jedno miejsce zamiast kopiowania
@@ -116,5 +117,86 @@ export function StatusPill({
         </option>
       ))}
     </select>
+  );
+}
+
+type SavedView = { id: string; name: string; filters: Record<string, string> };
+
+/** Nazwane, zapisane kombinacje filtrów (np. "Leady gorące", "Projekty
+ * zagrożone") — coś więcej niż jeden zapamiętany ostatni filtr. Trzymane w
+ * localStorage per moduł (przekazany storageKey), świadomie bez tabeli w
+ * bazie — to lokalna wygoda, nie dane biznesowe do synchronizacji. */
+export function SavedViews({
+  storageKey,
+  currentFilters,
+  onApply,
+}: {
+  storageKey: string;
+  currentFilters: Record<string, string>;
+  onApply: (filters: Record<string, string>) => void;
+}) {
+  const { prompt, confirm, toast } = useUI();
+  const [views, setViews] = useState<SavedView[]>([]);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        setViews(JSON.parse(saved));
+      } catch {
+        // ignoruj uszkodzony zapis
+      }
+    }
+  }, [storageKey]);
+
+  const persist = (next: SavedView[]) => {
+    setViews(next);
+    window.localStorage.setItem(storageKey, JSON.stringify(next));
+  };
+
+  const saveCurrent = async () => {
+    const hasFilters = Object.values(currentFilters).some(Boolean);
+    if (!hasFilters) {
+      toast("Ustaw najpierw jakiś filtr, żeby było co zapisać.", "error");
+      return;
+    }
+    const name = await prompt("Nazwa widoku:", { placeholder: "np. Leady gorące" });
+    if (!name) return;
+    persist([...views, { id: crypto.randomUUID(), name, filters: currentFilters }]);
+  };
+
+  const removeView = async (id: string, name: string) => {
+    const ok = await confirm(`Usunąć widok "${name}"?`, { danger: true });
+    if (!ok) return;
+    persist(views.filter((v) => v.id !== id));
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {views.map((v) => (
+        <span
+          key={v.id}
+          className="group flex items-center gap-1 rounded-full border hairline pl-2.5 pr-1 py-1 text-[11px] text-muted"
+        >
+          <button onClick={() => onApply(v.filters)} className="hover:text-[var(--fg)]">
+            {v.name}
+          </button>
+          <button
+            onClick={() => removeView(v.id, v.name)}
+            className="rounded-full px-1 opacity-0 hover:text-red-400 group-hover:opacity-100"
+            aria-label={`Usuń widok ${v.name}`}
+            title="Usuń widok"
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      <button
+        onClick={saveCurrent}
+        className="rounded-full border border-dashed hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+      >
+        + Zapisz widok
+      </button>
+    </div>
   );
 }

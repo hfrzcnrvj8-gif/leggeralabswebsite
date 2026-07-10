@@ -106,7 +106,7 @@ export function CommandPalette({
               )}
             </div>
             <div className="border-t hairline px-4 py-2 text-[10px] text-muted opacity-70">
-              ↑↓ nawiguj · Enter wybierz · Esc zamknij
+              ↑↓ nawiguj · Enter wybierz · Esc zamknij · poza paletą: g + h/p/n/c/l — szybkie przejście
             </div>
           </motion.div>
         </motion.div>
