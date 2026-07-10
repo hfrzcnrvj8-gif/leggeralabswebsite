@@ -198,6 +198,17 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
 
   const chartPxWidth = Math.max(months.length * MONTH_PX, 420);
 
+  // Numerki dni na początku każdego tygodnia (5, 12, 19…) — konkretne punkty
+  // odniesienia na osi, bez rysowania pełnowysokościowych linii siatki.
+  const weekTicks: { date: Date; leftPct: number }[] = [];
+  {
+    let cursor = rangeStart;
+    while (cursor < rangeEnd) {
+      weekTicks.push({ date: cursor, leftPct: pctOf(cursor) });
+      cursor = addDays(cursor, 7);
+    }
+  }
+
   // Naprzemienne "cykle" co 14 dni — czysto wizualny rytm pracy, bez modelu danych.
   const cycles: { index: number; leftPct: number; widthPct: number }[] = [];
   {
@@ -232,6 +243,20 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+          <div className="flex">
+            <div className="shrink-0" style={{ width: `${LABEL_COL_PX}px` }} />
+            <div className="relative h-4 flex-1">
+              {weekTicks.map((w, i) => (
+                <span
+                  key={i}
+                  className="absolute top-0 -translate-x-1/2 text-[9px] text-muted opacity-60"
+                  style={{ left: `${w.leftPct}%` }}
+                >
+                  {w.date.getDate()}
+                </span>
+              ))}
             </div>
           </div>
           <div className="flex">
