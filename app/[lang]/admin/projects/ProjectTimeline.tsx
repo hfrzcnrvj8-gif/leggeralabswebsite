@@ -236,14 +236,14 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
           </div>
           <div className="flex">
             <div className="shrink-0 text-[10px] text-muted" style={{ width: `${LABEL_COL_PX}px` }} />
-            <div className="relative h-5 flex-1 border-b hairline">
+            <div className="relative h-4 flex-1 border-b hairline">
               {cycles.map((c) => (
                 <div
                   key={c.index}
-                  className="absolute inset-y-0 flex items-center border-l hairline px-1.5 text-[9px] font-medium uppercase tracking-wide text-muted opacity-70"
+                  className="absolute inset-y-0 flex items-center px-1.5 text-[9px] text-muted opacity-40"
                   style={{ left: `${c.leftPct}%`, width: `${c.widthPct}%` }}
                 >
-                  Cykl {c.index}
+                  {c.index}
                 </div>
               ))}
             </div>
@@ -379,39 +379,6 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 border-t hairline pt-3 text-[10px] text-muted">
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rotate-45 border border-[var(--bg)] bg-brand-gold" /> kamień milowy
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-4 rounded-full bg-gradient-to-r from-brand-purple/70 to-brand-cyan/70" /> na dobrej drodze
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-4 rounded-full bg-orange-500/70" /> zagrożony
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-4 rounded-full bg-red-500/70" /> zerwany
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-4 rounded-full border border-dashed border-current bg-[var(--hairline)] opacity-60" /> daty orientacyjne — ustaw start/termin w szczegółach
-        </span>
-        <span className="flex items-center gap-1">
-          <span
-            className="h-2 w-4 rounded-full bg-gradient-to-r from-brand-purple/70 to-brand-cyan/70 opacity-45"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, rgba(255,255,255,0.4) 0, rgba(255,255,255,0.4) 2px, transparent 2px, transparent 5px)",
-            }}
-          />{" "}
-          poza kamieniami milowymi (prognoza)
-        </span>
-        <span className="flex items-center gap-1">
-          <PrioritySignal priorytet="Wysoki" /> priorytet (więcej słupków = wyżej)
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-4 rounded-sm bg-[var(--hairline)]/15" /> cykl (2 tyg., wizualny rytm)
-        </span>
-      </div>
     </div>
   );
 }
