@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type Project, type ProjectTask, type ProjectActivity, PROJECT_PRIORITIES, ProjectStatusTag } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
 import { useUI } from "../ui";
+import type { Lead } from "@/lib/leads";
 
 /** Rdzeń widoku szczegółów projektu — pola, checklista, log aktywności.
  * Używany zarówno jako wysuwany panel ("peek") z tablicy, jak i jako
@@ -26,6 +27,7 @@ export function ProjectDetailPanel({
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [leads, setLeads] = useState<Lead[] | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`);
@@ -48,6 +50,13 @@ export function ProjectDetailPanel({
     setNotFound(false);
     load();
   }, [load]);
+
+  // Lista leadów do wyboru w polu "Powiązany lead" — ładowana raz, leniwie.
+  useEffect(() => {
+    fetch("/api/leads")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setLeads(data.leads));
+  }, []);
 
   const updateProject = async (field: string, value: string) => {
     setProject((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -202,6 +211,22 @@ export function ProjectDetailPanel({
               onChange={(e) => updateProject("termin", e.target.value)}
               className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
             />
+          </Field>
+          <Field label="Powiązany lead">
+            <select
+              value={project.lead_id ?? ""}
+              onChange={(e) => updateProject("lead_id", e.target.value)}
+              className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
+            >
+              <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
+                — brak —
+              </option>
+              {(leads ?? []).map((l) => (
+                <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">
+                  {l.firma}
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
 

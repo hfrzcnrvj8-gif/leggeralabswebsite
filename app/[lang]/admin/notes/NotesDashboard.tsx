@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Locale } from "@/i18n/config";
 import { type Note, parseTags } from "@/lib/notes";
 import { EditableText, EditableTextarea } from "../components";
-import { useUI } from "../ui";
+import { useUI, useRegisterActions } from "../ui";
 
 export function NotesDashboard({ lang }: { lang: Locale }) {
   const router = useRouter();
@@ -13,7 +13,9 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [newText, setNewText] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [promoting, setPromoting] = useState<string | null>(null);
+  const newTextRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/notes");
@@ -27,7 +29,13 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
 
   useEffect(() => {
     load();
+    const saved = window.localStorage.getItem("leggera_notes_tag_filter");
+    if (saved) setTagFilter(saved);
   }, [load]);
+
+  useEffect(() => {
+    window.localStorage.setItem("leggera_notes_tag_filter", tagFilter);
+  }, [tagFilter]);
 
   const addNote = async () => {
     if (!newText.trim()) return;
@@ -90,9 +98,19 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
   }, [notes]);
 
   const filtered = useMemo(() => {
-    if (!tagFilter) return notes ?? [];
-    return (notes ?? []).filter((n) => parseTags(n.tagi).includes(tagFilter));
-  }, [notes, tagFilter]);
+    let list = notes ?? [];
+    if (tagFilter) list = list.filter((n) => parseTags(n.tagi).includes(tagFilter));
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter((n) => n.tytul.toLowerCase().includes(q) || n.tresc.toLowerCase().includes(q));
+    }
+    return list;
+  }, [notes, tagFilter, search]);
+
+  useRegisterActions(
+    [{ id: "add", label: "+ Nowa notatka", hint: "N", run: () => newTextRef.current?.focus() }],
+    []
+  );
 
   if (!notes) {
     return <div className="h-48 animate-pulse rounded-2xl bg-[var(--hairline)]" />;
@@ -109,6 +127,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
 
       <div className="card-paper mb-6 rounded-2xl p-4">
         <textarea
+          ref={newTextRef}
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
           placeholder="Nowy pomysł / notatka… pierwsza linia stanie się tytułem."
@@ -124,6 +143,15 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
             Zapisz notatkę
           </button>
         </div>
+      </div>
+
+      <div className="mb-4">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Szukaj w notatkach…"
+          className="w-full max-w-xs rounded-full border hairline bg-transparent px-3 py-1.5 text-xs text-[var(--fg)] placeholder:text-muted"
+        />
       </div>
 
       {allTags.length > 0 && (

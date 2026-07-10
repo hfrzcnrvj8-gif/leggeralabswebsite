@@ -1,21 +1,44 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 
 // Generyczne komponenty UI współdzielone przez wszystkie moduły panelu
 // (leady, projekty, notatnik, kalendarz) — jedno miejsce zamiast kopiowania
 // tych samych "edytowalnych" pól i pigułek statusu w każdym module osobno.
 
+/** Liczba, która "dolicza się" do nowej wartości zamiast skakać —
+ * drobny, ale bardzo charakterystyczny dla Linear szczegół. */
+function AnimatedNumber({ value }: { value: number }) {
+  const motionVal = useMotionValue(0);
+  const spring = useSpring(motionVal, { stiffness: 120, damping: 20 });
+  const rounded = useTransform(spring, (v) => Math.round(v).toString());
+  const [display, setDisplay] = useState("0");
+
+  useEffect(() => {
+    motionVal.set(value);
+  }, [value, motionVal]);
+
+  useEffect(() => rounded.on("change", (v) => setDisplay(v)), [rounded]);
+
+  return <motion.span>{display}</motion.span>;
+}
+
 export function SummaryCard({ label, value, alert }: { label: string; value: number; alert?: boolean }) {
   return (
-    <div
+    <motion.div
+      layout
+      whileHover={{ y: -2 }}
+      transition={{ type: "spring", stiffness: 400, damping: 26 }}
       className={`card-paper min-w-[110px] rounded-2xl px-4 py-3 ${
         alert ? "border-red-500/30 bg-red-500/[0.04]" : ""
       }`}
     >
-      <div className={`text-xl font-bold ${alert ? "text-red-400" : ""}`}>{value}</div>
+      <div className={`text-xl font-bold ${alert ? "text-red-400" : ""}`}>
+        <AnimatedNumber value={value} />
+      </div>
       <div className="text-[11px] text-muted">{label}</div>
-    </div>
+    </motion.div>
   );
 }
 

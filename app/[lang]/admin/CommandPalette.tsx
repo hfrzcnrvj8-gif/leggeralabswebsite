@@ -1,77 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { Lead } from "./shared";
+import type { Action } from "./ui";
 
-type Action = { id: string; label: string; hint?: string; run: () => void };
-
-/** Cmd+K / Ctrl+K — szybkie akcje i wyszukiwanie leada po nazwie, bez
- * sięgania po mysz. Styl znany z Linear/Raycast. */
+/** Globalna paleta poleceń (Cmd+K), działa na każdej stronie panelu.
+ * Prezentacyjna — logikę łączenia nawigacji + akcji kontekstowych strony +
+ * wyników wyszukiwania globalnego trzyma AppShell, tu tylko renderujemy. */
 export function CommandPalette({
   open,
   onClose,
-  leads,
-  onAddLead,
-  onOpenLead,
-  onSwitchView,
-  onOpenDiscover,
-  onSendReport,
-  onLogout,
+  query,
+  onQueryChange,
+  actions,
+  loading,
 }: {
   open: boolean;
   onClose: () => void;
-  leads: Lead[];
-  onAddLead: () => void;
-  onOpenLead: (id: string) => void;
-  onSwitchView: (v: "kanban" | "table") => void;
-  onOpenDiscover: () => void;
-  onSendReport: () => void;
-  onLogout: () => void;
+  query: string;
+  onQueryChange: (q: string) => void;
+  actions: Action[];
+  loading?: boolean;
 }) {
-  const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
-      setQuery("");
       setIndex(0);
       const t = window.setTimeout(() => inputRef.current?.focus(), 30);
       return () => window.clearTimeout(t);
     }
   }, [open]);
 
-  const staticActions: Action[] = useMemo(
-    () => [
-      { id: "add", label: "+ Dodaj leada", hint: "N", run: onAddLead },
-      { id: "kanban", label: "Widok: Tablica", run: () => onSwitchView("kanban") },
-      { id: "table", label: "Widok: Tabela", run: () => onSwitchView("table") },
-      { id: "discover", label: "✨ Znajdź nowe leady", run: onOpenDiscover },
-      { id: "report", label: "Wyślij dzienny raport teraz", run: onSendReport },
-      { id: "logout", label: "Wyloguj", run: onLogout },
-    ],
-    [onAddLead, onSwitchView, onOpenDiscover, onSendReport, onLogout]
-  );
-
-  const leadActions: Action[] = useMemo(
-    () =>
-      leads.slice(0, 300).map((l) => ({
-        id: `lead:${l.id}`,
-        label: l.firma,
-        hint: l.status,
-        run: () => onOpenLead(l.id),
-      })),
-    [leads, onOpenLead]
-  );
-
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [...staticActions, ...leadActions.slice(0, 8)];
-    return [...staticActions, ...leadActions].filter((a) => a.label.toLowerCase().includes(q)).slice(0, 40);
-  }, [query, staticActions, leadActions]);
-
-  useEffect(() => setIndex(0), [query]);
+  useEffect(() => setIndex(0), [actions]);
 
   const runAndClose = (action: Action) => {
     action.run();
@@ -101,8 +63,8 @@ export function CommandPalette({
             <input
               ref={inputRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Szukaj akcji lub leada…"
+              onChange={(e) => onQueryChange(e.target.value)}
+              placeholder="Szukaj wszędzie — leady, projekty, notatki, wydarzenia, akcje…"
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
                   e.preventDefault();
@@ -110,35 +72,36 @@ export function CommandPalette({
                 }
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  setIndex((i) => Math.min(i + 1, results.length - 1));
+                  setIndex((i) => Math.min(i + 1, actions.length - 1));
                 }
                 if (e.key === "ArrowUp") {
                   e.preventDefault();
                   setIndex((i) => Math.max(i - 1, 0));
                 }
-                if (e.key === "Enter" && results[index]) {
+                if (e.key === "Enter" && actions[index]) {
                   e.preventDefault();
-                  runAndClose(results[index]);
+                  runAndClose(actions[index]);
                 }
               }}
               className="w-full border-b hairline bg-transparent px-4 py-3 text-sm text-[var(--fg)] placeholder:text-muted focus:outline-none"
             />
             <div className="max-h-[50vh] overflow-y-auto p-1.5">
-              {results.length === 0 ? (
-                <p className="p-3 text-sm text-muted opacity-60">Brak wyników.</p>
+              {actions.length === 0 ? (
+                <p className="p-3 text-sm text-muted opacity-60">{loading ? "Szukam…" : "Brak wyników."}</p>
               ) : (
-                results.map((a, i) => (
-                  <button
+                actions.map((a, i) => (
+                  <motion.button
                     key={a.id}
                     onClick={() => runAndClose(a)}
                     onMouseEnter={() => setIndex(i)}
+                    whileTap={{ scale: 0.98 }}
                     className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${
                       i === index ? "bg-[var(--hairline)]" : ""
                     }`}
                   >
                     <span className="truncate">{a.label}</span>
                     {a.hint && <span className="ml-3 shrink-0 text-[10px] text-muted">{a.hint}</span>}
-                  </button>
+                  </motion.button>
                 ))
               )}
             </div>

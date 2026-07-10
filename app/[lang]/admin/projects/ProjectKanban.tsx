@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import {
   type Project,
@@ -64,14 +65,22 @@ export function ProjectKanban({
           </div>
 
           <div className="flex min-h-[40px] flex-col gap-2">
+            <AnimatePresence initial={false}>
             {col.items.map((p) => {
               const overdue = isProjectOverdue(p);
               return (
-                <div
+                <motion.div
                   key={p.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.94 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
                   draggable
                   onDragStart={(e) => {
-                    e.dataTransfer.setData("text/project-id", p.id);
+                    (e as unknown as React.DragEvent).dataTransfer.setData("text/project-id", p.id);
                     setDraggingId(p.id);
                   }}
                   onDragEnd={() => setDraggingId(null)}
@@ -109,9 +118,10 @@ export function ProjectKanban({
                       </span>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
+            </AnimatePresence>
             {col.items.length === 0 && (
               <div className="rounded-xl border border-dashed hairline p-3 text-center text-[11px] text-muted opacity-50">
                 Pusto

@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HubEvent } from "@/lib/events";
-import { useUI } from "../ui";
+import type { Lead } from "@/lib/leads";
+import type { Project } from "@/lib/projects";
+import { useUI, useRegisterActions } from "../ui";
 
 const WEEKDAYS = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nie"];
 const MONTH_NAMES = [
@@ -35,6 +37,16 @@ export function CalendarView() {
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
   const [newTitle, setNewTitle] = useState("");
   const [newTime, setNewTime] = useState("");
+  const [newLeadId, setNewLeadId] = useState("");
+  const [newProjectId, setNewProjectId] = useState("");
+  const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [projects, setProjects] = useState<Project[] | null>(null);
+  const newTitleRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/leads").then((r) => (r.ok ? r.json() : null)).then((d) => d && setLeads(d.leads));
+    fetch("/api/projects").then((r) => (r.ok ? r.json() : null)).then((d) => d && setProjects(d.projects));
+  }, []);
 
   const monthKey = `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
 
@@ -77,11 +89,19 @@ export function CalendarView() {
     const res = await fetch("/api/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tytul: newTitle.trim(), data: selectedDay, godzina: newTime || null }),
+      body: JSON.stringify({
+        tytul: newTitle.trim(),
+        data: selectedDay,
+        godzina: newTime || null,
+        lead_id: newLeadId || null,
+        project_id: newProjectId || null,
+      }),
     });
     if (res.ok) {
       setNewTitle("");
       setNewTime("");
+      setNewLeadId("");
+      setNewProjectId("");
       load();
       toast("Dodano wydarzenie.");
     } else {
@@ -100,8 +120,15 @@ export function CalendarView() {
     setEvents((prev) => prev?.filter((e) => e.id !== id) ?? prev);
   };
 
+  useRegisterActions(
+    [{ id: "add", label: "+ Nowe wydarzenie", hint: "N", run: () => newTitleRef.current?.focus() }],
+    []
+  );
+
   const today = todayISO();
   const selectedEvents = eventsByDay.get(selectedDay) ?? [];
+  const leadName = (id: string | null) => (id ? leads?.find((l) => l.id === id)?.firma : null);
+  const projectName = (id: string | null) => (id ? projects?.find((p) => p.id === id)?.tytul : null);
 
   return (
     <div>
@@ -161,18 +188,27 @@ export function CalendarView() {
           ) : (
             <ul className="mb-3 space-y-1.5">
               {selectedEvents.map((e) => (
-                <li key={e.id} className="flex items-center justify-between rounded-lg border hairline px-2.5 py-1.5 text-sm">
-                  <span>
-                    {e.godzina && <span className="mr-1.5 text-muted">{e.godzina}</span>}
-                    {e.tytul}
-                  </span>
-                  <button onClick={() => deleteEvent(e.id)} className="text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
+                <li key={e.id} className="rounded-lg border hairline px-2.5 py-1.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      {e.godzina && <span className="mr-1.5 text-muted">{e.godzina}</span>}
+                      {e.tytul}
+                    </span>
+                    <button onClick={() => deleteEvent(e.id)} className="text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
+                  </div>
+                  {(leadName(e.lead_id) || projectName(e.project_id)) && (
+                    <div className="mt-0.5 text-[11px] text-muted">
+                      {leadName(e.lead_id) && <>Lead: {leadName(e.lead_id)} </>}
+                      {projectName(e.project_id) && <>Projekt: {projectName(e.project_id)}</>}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           )}
           <div className="space-y-2 border-t hairline pt-3">
             <input
+              ref={newTitleRef}
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="Nowe wydarzenie…"
@@ -192,6 +228,28 @@ export function CalendarView() {
               >
                 Dodaj
               </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={newLeadId}
+                onChange={(e) => setNewLeadId(e.target.value)}
+                className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11px] text-muted"
+              >
+                <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Powiąż z leadem (opcjonalnie)</option>
+                {(leads ?? []).map((l) => (
+                  <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{l.firma}</option>
+                ))}
+              </select>
+              <select
+                value={newProjectId}
+                onChange={(e) => setNewProjectId(e.target.value)}
+                className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11px] text-muted"
+              >
+                <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Powiąż z projektem (opcjonalnie)</option>
+                {(projects ?? []).map((p) => (
+                  <option key={p.id} value={p.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{p.tytul}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

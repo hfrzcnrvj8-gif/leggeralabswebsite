@@ -8,8 +8,7 @@ import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
-import { CommandPalette } from "./CommandPalette";
-import { useUI } from "../ui";
+import { useUI, useRegisterActions } from "../ui";
 
 type ViewMode = "kanban" | "table";
 
@@ -28,7 +27,6 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [view, setView] = useState<ViewMode>("kanban");
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [sendingReport, setSendingReport] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -136,11 +134,6 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     }
   }, [toast]);
 
-  const logout = useCallback(async () => {
-    await fetch("/api/admin/logout", { method: "POST" });
-    window.location.reload();
-  }, []);
-
   const zrodla = useMemo(() => [...new Set((leads ?? []).map((l) => l.zrodlo))], [leads]);
 
   const filtered = useMemo(() => {
@@ -160,32 +153,20 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     setSelectedIndex(0);
   }, [filterStatus, filterZrodlo, search, view]);
 
-  // Skróty klawiszowe (styl Linear): Cmd/Ctrl+K paleta poleceń, "/" fokus
-  // wyszukiwarki, "n" nowy lead, "j"/"k" nawigacja w tabeli, Esc zamyka.
+  // Skróty lokalne dla tego widoku: "/" fokus wyszukiwarki, "j"/"k"
+  // nawigacja w tabeli, Esc zamyka peek panel. Cmd+K i "n" (dodaj) obsługuje
+  // globalny AppShell — patrz useRegisterActions poniżej.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-        return;
-      }
-      if (paletteOpen) return;
-
       if (e.key === "Escape") {
         if (openLeadId) setOpenLeadId(null);
         return;
       }
-
       if (isTypingTarget(e.target)) return;
 
       if (e.key === "/") {
         e.preventDefault();
         searchRef.current?.focus();
-        return;
-      }
-      if (e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        addLead();
         return;
       }
       if (view === "table" && (e.key === "j" || e.key === "k")) {
@@ -203,7 +184,19 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [paletteOpen, openLeadId, view, filtered, selectedIndex, addLead]);
+  }, [openLeadId, view, filtered, selectedIndex]);
+
+  // Akcje zgłoszone do globalnej palety poleceń (Cmd+K) w AppShell.
+  useRegisterActions(
+    [
+      { id: "add", label: "+ Dodaj leada", hint: "N", run: addLead },
+      { id: "kanban", label: "Widok: Tablica", run: () => switchView("kanban") },
+      { id: "table", label: "Widok: Tabela", run: () => switchView("table") },
+      { id: "discover", label: "✨ Znajdź nowe leady", run: () => setDiscoverOpen(true) },
+      { id: "report", label: "Wyślij dzienny raport teraz", run: sendReportNow },
+    ],
+    [addLead, switchView, sendReportNow]
+  );
 
   if (!leads) {
     return (
@@ -225,26 +218,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-            Rejestr <span className="text-liquid">leadów</span>
-          </h1>
-          <p className="text-sm text-muted">Zgłoszenia z formularza na stronie trafiają tu automatycznie.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPaletteOpen(true)}
-            className="hidden rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] sm:flex sm:items-center sm:gap-1.5"
-            title="Paleta poleceń"
-          >
-            Szukaj / akcje
-            <span className="rounded border hairline px-1 text-[10px] opacity-70">⌘K</span>
-          </button>
-          <button onClick={logout} className="rounded-full border hairline px-3 py-1.5 text-xs">
-            Wyloguj
-          </button>
-        </div>
+      <div className="mb-6">
+        <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl">
+          Rejestr <span className="text-liquid">leadów</span>
+        </h1>
+        <p className="text-sm text-muted">Zgłoszenia z formularza na stronie trafiają tu automatycznie.</p>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-3">
@@ -370,18 +348,6 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenLeadId}
         />
       )}
-
-      <CommandPalette
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-        leads={leads}
-        onAddLead={addLead}
-        onOpenLead={setOpenLeadId}
-        onSwitchView={switchView}
-        onOpenDiscover={() => setDiscoverOpen(true)}
-        onSendReport={sendReportNow}
-        onLogout={logout}
-      />
 
       {/* Wysuwany panel szczegółów leada — "peek", bez opuszczania listy. */}
       <AnimatePresence>

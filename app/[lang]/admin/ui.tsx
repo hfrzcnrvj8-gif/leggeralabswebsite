@@ -7,10 +7,14 @@ type ToastItem = { id: string; message: string; type: "success" | "error" };
 type ConfirmState = { message: string; danger?: boolean; resolve: (v: boolean) => void } | null;
 type PromptState = { message: string; placeholder?: string; resolve: (v: string | null) => void } | null;
 
+export type Action = { id: string; label: string; hint?: string; run: () => void };
+
 type UIContextType = {
   toast: (message: string, type?: "success" | "error") => void;
   confirm: (message: string, opts?: { danger?: boolean }) => Promise<boolean>;
   prompt: (message: string, opts?: { placeholder?: string }) => Promise<string | null>;
+  contextActions: Action[];
+  setContextActions: (actions: Action[]) => void;
 };
 
 const UIContext = createContext<UIContextType | null>(null);
@@ -24,11 +28,28 @@ export function useUI(): UIContextType {
   return ctx;
 }
 
+/**
+ * Pozwala danej stronie "zgłosić" swoje szybkie akcje (np. "Dodaj leada") do
+ * globalnej palety poleceń (Cmd+K) w AppShell — bez tego paleta znałaby
+ * tylko nawigację, nie akcje właściwe dla aktualnie otwartego modułu.
+ * Konwencja: akcja o id "add" jest też uruchamiana skrótem "n".
+ */
+export function useRegisterActions(actions: Action[], deps: unknown[]): void {
+  const { setContextActions } = useUI();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setContextActions(actions);
+    return () => setContextActions([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
 export function AdminUIProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [promptState, setPromptState] = useState<PromptState>(null);
   const [promptValue, setPromptValue] = useState("");
+  const [contextActions, setContextActions] = useState<Action[]>([]);
   const promptInputRef = useRef<HTMLInputElement>(null);
 
   const toast = useCallback((message: string, type: "success" | "error" = "success") => {
@@ -69,7 +90,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <UIContext.Provider value={{ toast, confirm, prompt }}>
+    <UIContext.Provider value={{ toast, confirm, prompt, contextActions, setContextActions }}>
       {children}
 
       {/* Toasty */}

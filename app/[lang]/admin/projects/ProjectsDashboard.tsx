@@ -3,17 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-import { type Project, PROJECT_STATUSES, isProjectOverdue } from "./shared";
+import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, isProjectOverdue } from "./shared";
 import { SummaryCard } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
-import { useUI } from "../ui";
+import { useUI, useRegisterActions } from "../ui";
 
 export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterPriority, setFilterPriority] = useState("");
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/projects");
@@ -27,7 +29,26 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
 
   useEffect(() => {
     load();
+    const saved = window.localStorage.getItem("leggera_projects_filters");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as { status?: string; priority?: string };
+        if (parsed.status) setFilterStatus(parsed.status);
+        if (parsed.priority) setFilterPriority(parsed.priority);
+      } catch {
+        // ignoruj uszkodzony zapis
+      }
+    }
   }, [load]);
+
+  // Zapamiętane filtry — "zapisany widok", żeby nie ustawiać ich od nowa
+  // przy każdej wizycie.
+  useEffect(() => {
+    window.localStorage.setItem(
+      "leggera_projects_filters",
+      JSON.stringify({ status: filterStatus, priority: filterPriority })
+    );
+  }, [filterStatus, filterPriority]);
 
   const updateProject = useCallback(async (id: string, field: string, value: string) => {
     setProjects((prev) => prev?.map((p) => (p.id === id ? { ...p, [field]: value } : p)) ?? prev);
@@ -74,8 +95,15 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const filtered = useMemo(() => {
     let list = projects ?? [];
     if (filterStatus) list = list.filter((p) => p.status === filterStatus);
+    if (filterPriority) list = list.filter((p) => p.priorytet === filterPriority);
+    if (search) list = list.filter((p) => p.tytul.toLowerCase().includes(search.toLowerCase()));
     return list;
-  }, [projects, filterStatus]);
+  }, [projects, filterStatus, filterPriority, search]);
+
+  useRegisterActions(
+    [{ id: "add", label: "+ Dodaj projekt", hint: "N", run: addProject }],
+    [addProject]
+  );
 
   if (!projects) {
     return (
@@ -143,6 +171,26 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             </option>
           ))}
         </select>
+        <select
+          value={filterPriority}
+          onChange={(e) => setFilterPriority(e.target.value)}
+          className="rounded-full border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
+        >
+          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
+            Wszystkie priorytety
+          </option>
+          {PROJECT_PRIORITIES.map((p) => (
+            <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">
+              {p}
+            </option>
+          ))}
+        </select>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Szukaj po nazwie…"
+          className="rounded-full border hairline bg-transparent px-3 py-1.5 text-xs text-[var(--fg)] placeholder:text-muted"
+        />
       </div>
 
       <ProjectKanban projects={filtered} lang={lang} onUpdate={updateProject} onDelete={deleteProject} onOpen={setOpenId} />

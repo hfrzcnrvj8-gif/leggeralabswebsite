@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue, StatusTag } from "./shared";
 
@@ -58,15 +59,23 @@ export function KanbanBoard({
           </div>
 
           <div className="flex min-h-[40px] flex-col gap-2">
+            <AnimatePresence initial={false}>
             {col.items.map((lead) => {
               const overdue = isOverdue(lead);
               const d = daysSince(lead.ostatni_kontakt);
               return (
-                <div
+                <motion.div
                   key={lead.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.94 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
                   draggable
                   onDragStart={(e) => {
-                    e.dataTransfer.setData("text/lead-id", lead.id);
+                    (e as unknown as React.DragEvent).dataTransfer.setData("text/lead-id", lead.id);
                     setDraggingId(lead.id);
                   }}
                   onDragEnd={() => setDraggingId(null)}
@@ -112,9 +121,10 @@ export function KanbanBoard({
                     )}
                   </div>
                   <div className="mt-1 text-[10px] text-muted opacity-70">{lead.zrodlo}</div>
-                </div>
+                </motion.div>
               );
             })}
+            </AnimatePresence>
             {col.items.length === 0 && (
               <div className="rounded-xl border border-dashed hairline p-3 text-center text-[11px] text-muted opacity-50">
                 Pusto
