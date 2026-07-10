@@ -48,7 +48,22 @@ export function ContactForm({
 
     setErrors({});
     setStatus("sending");
-    const payload = Object.fromEntries(new FormData(form).entries());
+    const payload = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
+
+    // Best-effort: also store the submission in the internal lead registry
+    // so it shows up in /admin/leads without manual entry. Non-blocking —
+    // failures here must never affect the Formspree-driven UX below.
+    fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        firma: payload.company?.trim() || payload.name,
+        kontakt: `${payload.name} · ${payload.email}`,
+        zrodlo: "Formularz na stronie",
+        status: "Nowe zgłoszenie ze strony",
+        notatki: payload.message ?? "",
+      }),
+    }).catch(() => {});
 
     try {
       const res = await fetch(FORMSPREE_ENDPOINT, {
