@@ -18,8 +18,7 @@ type TimelineProject = {
 };
 
 const DAY_MS = 86400000;
-const CYCLE_DAYS = 14;
-const ROW_PX = 64;
+const ROW_PX = 108;
 const MONTH_PX = 128;
 
 function parseDate(s: string | null): Date | null {
@@ -116,13 +115,12 @@ function buildSegments(
   return segments;
 }
 
-/** Widok osi czasu (Gantt-lite, w duchu "Roadmap" z Linear) — pasek projektu
- * dzieli się na odcinki wyznaczone kamieniami milowymi, każdy z etykietą na
- * stałe widoczną pod spodem (nie tylko po najechaniu); odcinek po ostatnim
- * kamieniu do końca to skośnie kreskowana "prognoza" — praca jeszcze
- * nierozbita na kamienie milowe. Naprzemienne pasy "cykli" (dwutygodniowy
- * rytm pracy, czysto wizualny — bez przypisywania czegokolwiek, żeby nie
- * komplikować modelu danych) w tle. Projekty bez ręcznie ustawionych dat
+/** Widok osi czasu (Gantt-lite, 1:1 ze wzorca "Roadmap" z Linear) — pasek
+ * projektu dzieli się na odcinki wyznaczone kamieniami milowymi, każdy z
+ * etykietą na stałe widoczną pod spodem; odcinek po ostatnim kamieniu do
+ * końca to kreskowana "prognoza". Paski są stonowane (obrys + delikatne
+ * tło, nie jaskrawy gradient) i mają mały promień zaokrąglenia, nie pełną
+ * pigułkę — tak jak w oryginale. Projekty bez ręcznie ustawionych dat
  * dostają orientacyjny, przerywany pasek liczony od daty utworzenia — oś
  * nigdy nie jest pusta. */
 export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: string) => void }) {
@@ -208,21 +206,6 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
     }
   }
 
-  // Naprzemienne "cykle" co 14 dni — czysto wizualny rytm pracy, bez modelu danych.
-  const cycles: { index: number; leftPct: number; widthPct: number }[] = [];
-  {
-    let cIndex = 1;
-    let cursor = rangeStart;
-    while (cursor < rangeEnd) {
-      const next = addDays(cursor, CYCLE_DAYS);
-      const leftPct = pctOf(cursor);
-      const rightPct = pctOf(next < rangeEnd ? next : rangeEnd);
-      cycles.push({ index: cIndex, leftPct, widthPct: Math.max(rightPct - leftPct, 0) });
-      cursor = next;
-      cIndex += 1;
-    }
-  }
-
   return (
     <div className="card-paper overflow-x-auto rounded-2xl p-3 sm:p-4">
       <div style={{ minWidth: `${chartPxWidth}px` }}>
@@ -242,7 +225,7 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
               ))}
             </div>
           </div>
-          <div className="relative h-4">
+          <div className="relative h-4 border-b hairline">
             {weekTicks.map((w, i) => (
               <span
                 key={i}
@@ -253,47 +236,27 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
               </span>
             ))}
           </div>
-          <div className="relative h-4 border-b hairline">
-            {cycles.map((c) => (
-              <div
-                key={c.index}
-                className="absolute inset-y-0 flex items-center px-1.5 text-[9px] text-muted opacity-40"
-                style={{ left: `${c.leftPct}%`, width: `${c.widthPct}%` }}
-              >
-                {c.index}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Wiersze projektów — tytuł stoi nad paskiem, na tej samej pozycji
             osi co data startu (nie w stałej kolumnie po lewej). */}
         <div className="relative mt-2">
-          {/* Tło: naprzemienne pasy cykli, wspólne dla wszystkich wierszy */}
-          <div className="pointer-events-none absolute inset-0 z-0">
-            {cycles
-              .filter((c) => c.index % 2 === 0)
-              .map((c) => (
-                <div
-                  key={c.index}
-                  className="absolute inset-y-0 bg-[var(--hairline)]/15"
-                  style={{ left: `${c.leftPct}%`, width: `${c.widthPct}%` }}
-                />
-              ))}
-          </div>
-
           <div className="relative z-10">
             {dated.map(({ p, start, end, estimated }, rowIdx) => {
               const milestonesWithDates = p.milestones
                 .map((m) => ({ id: m.id, nazwa: m.nazwa, date: parseDate(m.termin) }))
                 .filter((m): m is { id: string; nazwa: string; date: Date } => m.date !== null);
               const segments = estimated ? [] : buildSegments(start, end, milestonesWithDates);
+              // Stonowany wypełnienie + obrys, nie jaskrawy gradient — tak jak
+              // paski w Linear (delikatny kolor, nie krzyczący).
               const healthClass =
                 p.zdrowie === "Zerwany"
-                  ? "bg-red-500/70"
+                  ? "bg-red-500/10 border-red-500/50"
                   : p.zdrowie === "Zagrożony"
-                  ? "bg-orange-500/70"
-                  : "bg-gradient-to-r from-brand-purple/70 to-brand-cyan/70";
+                  ? "bg-orange-500/10 border-orange-500/50"
+                  : "bg-[var(--fg)]/[0.06] border-[var(--fg)]/25";
+              const diamondBorderClass =
+                p.zdrowie === "Zerwany" ? "border-red-500" : p.zdrowie === "Zagrożony" ? "border-orange-500" : "border-[var(--fg)]/50";
               const startPct = pctOf(start);
 
               return (
@@ -318,7 +281,7 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                   {estimated ? (
                     <button
                       onClick={() => onOpen(p.id)}
-                      className={`absolute top-[22px] h-6 overflow-hidden rounded-full border border-dashed border-current px-3 text-left opacity-60 transition-[filter] hover:brightness-110 ${healthClass}`}
+                      className={`absolute top-6 h-5 overflow-hidden rounded-[4px] border border-dashed px-2 text-left opacity-70 transition-colors hover:bg-[var(--fg)]/10 ${healthClass}`}
                       style={{ left: `${pctOf(start)}%`, width: `${Math.max(pctOf(end) - pctOf(start), 1.5)}%`, minWidth: "10px" }}
                       title={`${p.tytul} · daty orientacyjne (brak ustawionych)`}
                     />
@@ -332,17 +295,13 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                         <div key={i}>
                           <button
                             onClick={() => onOpen(p.id)}
-                            className={`absolute top-[22px] h-6 overflow-hidden transition-[filter] hover:brightness-110 ${
-                              isFirst ? "rounded-l-full" : ""
-                            } ${isLast ? "rounded-r-full" : ""} ${seg.trailing ? "opacity-45" : "shadow-sm"} ${healthClass}`}
+                            className={`absolute top-6 h-5 overflow-hidden border-y border-r transition-colors hover:bg-[var(--fg)]/10 ${
+                              isFirst ? "rounded-l-[4px] border-l" : ""
+                            } ${isLast ? "rounded-r-[4px]" : ""} ${seg.trailing ? "border-dashed opacity-70" : ""} ${healthClass}`}
                             style={{
                               left: `${segLeft}%`,
                               width: `${segWidth}%`,
                               minWidth: "6px",
-                              marginLeft: isFirst ? 0 : "1px",
-                              backgroundImage: seg.trailing
-                                ? "repeating-linear-gradient(45deg, rgba(255,255,255,0.4) 0, rgba(255,255,255,0.4) 2px, transparent 2px, transparent 7px)"
-                                : undefined,
                             }}
                             title={`${p.tytul}${seg.label ? ` · ${seg.label}` : ""} · ${formatPlDate(
                               toLocalISO(seg.left)
@@ -350,7 +309,7 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                           />
                           {seg.label && segWidth > 5 && (
                             <span
-                              className="pointer-events-none absolute top-[50px] -translate-x-1/2 whitespace-nowrap text-[10px] text-muted"
+                              className="pointer-events-none absolute top-12 -translate-x-1/2 whitespace-nowrap text-[10px] text-muted"
                               style={{ left: `${segLeft + segWidth / 2}%` }}
                             >
                               {seg.label}
@@ -365,11 +324,11 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                     return (
                       <div
                         key={m.id}
-                        className="pointer-events-none absolute top-[22px] z-20 h-6 -translate-x-1/2"
+                        className="pointer-events-none absolute top-6 z-20 h-5 -translate-x-1/2"
                         style={{ left: `${mp}%` }}
                         title={`${m.nazwa} — ${formatPlDate(toLocalISO(m.date))}`}
                       >
-                        <div className="mt-[7px] h-2.5 w-2.5 rotate-45 border border-[var(--bg)] bg-brand-gold shadow" />
+                        <div className={`mt-[5px] h-2.5 w-2.5 rotate-45 border-[1.5px] bg-[var(--bg)] ${diamondBorderClass}`} />
                       </div>
                     );
                   })}
