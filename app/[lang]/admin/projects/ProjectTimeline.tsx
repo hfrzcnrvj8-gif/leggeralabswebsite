@@ -251,10 +251,10 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
               // paski w Linear (delikatny kolor, nie krzyczący).
               const healthClass =
                 p.zdrowie === "Zerwany"
-                  ? "bg-red-500/10 border-red-500/50"
+                  ? "bg-red-500/20 border-red-500/60"
                   : p.zdrowie === "Zagrożony"
-                  ? "bg-orange-500/10 border-orange-500/50"
-                  : "bg-[var(--fg)]/[0.06] border-[var(--fg)]/25";
+                  ? "bg-orange-500/20 border-orange-500/60"
+                  : "bg-[var(--fg)]/15 border-[var(--fg)]/40";
               const diamondBorderClass =
                 p.zdrowie === "Zerwany" ? "border-red-500" : p.zdrowie === "Zagrożony" ? "border-orange-500" : "border-[var(--fg)]/50";
               const startPct = pctOf(start);
@@ -281,7 +281,7 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                   {estimated ? (
                     <button
                       onClick={() => onOpen(p.id)}
-                      className={`absolute top-6 h-5 overflow-hidden rounded-[4px] border border-dashed px-2 text-left opacity-70 transition-colors hover:bg-[var(--fg)]/10 ${healthClass}`}
+                      className={`absolute top-6 h-5 overflow-hidden rounded-[4px] border border-dashed px-2 text-left transition-colors hover:bg-[var(--fg)]/20 ${healthClass}`}
                       style={{ left: `${pctOf(start)}%`, width: `${Math.max(pctOf(end) - pctOf(start), 1.5)}%`, minWidth: "10px" }}
                       title={`${p.tytul} · daty orientacyjne (brak ustawionych)`}
                     />
