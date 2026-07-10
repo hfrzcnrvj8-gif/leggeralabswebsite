@@ -4,6 +4,7 @@ type Sql = NeonQueryFunction<false, false>;
 
 let client: Sql | null = null;
 let schemaReady: Promise<void> | null = null;
+let hubSchemaReady: Promise<void> | null = null;
 
 function connectionString(): string {
   // Vercel's native Postgres product (and @vercel/postgres) is gone — DB
@@ -77,4 +78,80 @@ async function createSchema(): Promise<void> {
 export async function ensureLeadsSchema(): Promise<void> {
   if (!schemaReady) schemaReady = createSchema();
   await schemaReady;
+}
+
+async function createHubSchema(): Promise<void> {
+  const sql = getSql();
+
+  // Projekty/wdrożenia — druga tablica obok leadów, z tym samym duchem
+  // (kanban po statusie), plus checklisty i log aktywności per projekt.
+  await sql`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      tytul TEXT NOT NULL,
+      opis TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Pomysł',
+      priorytet TEXT NOT NULL DEFAULT 'Normalny',
+      termin DATE,
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS project_tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      done BOOLEAN NOT NULL DEFAULT false,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_tasks_project_id_idx ON project_tasks(project_id);`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS project_activity (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_activity_project_id_idx ON project_activity(project_id);`;
+
+  // Notatnik — szybkie zapisywanie pomysłów, z tagami (proste CSV zamiast
+  // typu tablicowego — mniej niespodzianek przy odczycie przez neon-http).
+  await sql`
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY,
+      tytul TEXT NOT NULL DEFAULT '',
+      tresc TEXT NOT NULL DEFAULT '',
+      tagi TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  // Kalendarz — pojedyncze wydarzenia, opcjonalnie powiązane z leadem lub
+  // projektem, żeby dashboard mógł je pokazać w kontekście.
+  await sql`
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      tytul TEXT NOT NULL,
+      opis TEXT NOT NULL DEFAULT '',
+      data DATE NOT NULL,
+      godzina TEXT,
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS events_data_idx ON events(data);`;
+}
+
+/** Lazily creates projects/notes/events tables (i tabele pomocnicze) na
+ * pierwsze użycie — analogicznie do ensureLeadsSchema(). */
+export async function ensureHubSchema(): Promise<void> {
+  if (!hubSchemaReady) hubSchemaReady = createHubSchema();
+  await hubSchemaReady;
 }

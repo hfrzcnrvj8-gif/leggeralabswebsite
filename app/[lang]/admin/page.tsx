@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import { isAuthed } from "@/lib/auth";
 import type { Locale } from "@/i18n/config";
-import { AppShell } from "../AppShell";
-import { LoginForm } from "./LoginForm";
-import { LeadsDashboard } from "./LeadsDashboard";
+import { AppShell } from "./AppShell";
+import { LoginForm } from "./leads/LoginForm";
+import { DashboardHome } from "./DashboardHome";
 
 export const metadata: Metadata = {
-  title: "Rejestr leadów — Leggera Labs",
+  title: "Pulpit — Leggera Labs",
   robots: { index: false, follow: false },
 };
 
-export default async function AdminLeadsPage({
+export default async function AdminHomePage({
   params,
 }: {
   params: Promise<{ lang: string }>;
@@ -20,7 +20,7 @@ export default async function AdminLeadsPage({
 
   return (
     <AppShell lang={lang as Locale}>
-      {authed ? <LeadsDashboard lang={lang as Locale} /> : <LoginForm />}
+      {authed ? <DashboardHome lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );
 }

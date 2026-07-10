@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { type Lead, type Activity, EditableText, EditableTextarea, StatusTag } from "./shared";
-import { useUI } from "./ui";
+import { useUI } from "../ui";
 
 /**
  * Rdzeń widoku szczegółów leada — pola, log aktywności. Używany zarówno

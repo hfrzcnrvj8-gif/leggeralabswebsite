@@ -9,7 +9,7 @@ import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
 import { CommandPalette } from "./CommandPalette";
-import { useUI } from "./ui";
+import { useUI } from "../ui";
 
 type ViewMode = "kanban" | "table";
 

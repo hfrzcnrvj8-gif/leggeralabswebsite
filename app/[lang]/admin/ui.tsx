@@ -16,7 +16,8 @@ type UIContextType = {
 const UIContext = createContext<UIContextType | null>(null);
 
 /** Zamiast native window.confirm/alert/prompt — spójne z resztą UI, nie
- * blokuje wątku przeglądarki i da się to sensownie ostylować. */
+ * blokuje wątku przeglądarki i da się to sensownie ostylować. Współdzielone
+ * przez cały panel /admin (leady, projekty, notatnik, kalendarz, pulpit). */
 export function useUI(): UIContextType {
   const ctx = useContext(UIContext);
   if (!ctx) throw new Error("useUI() musi być użyte wewnątrz <AdminUIProvider>");

@@ -1,41 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
+import { isProjectOverdue, type Project } from "@/lib/projects";
+import type { HubEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const NOTIFY_TO = "kontakt@leggeralabs.pl";
 
+/** Dzienny raport ze wszystkich modułów panelu (leady + projekty +
+ * dzisiejszy kalendarz), nie tylko z rejestru leadów — jeden mail spinający
+ * całość, zamiast osobnych powiadomień per moduł. */
 async function buildAndSendDigest(): Promise<{ overdue: number; total: number }> {
   await ensureLeadsSchema();
+  await ensureHubSchema();
   const sql = getSql();
-  const leads = (await sql`SELECT * FROM leads ORDER BY created_at DESC;`) as unknown as Lead[];
+  const today = new Date().toISOString().slice(0, 10);
 
-  const overdue = leads.filter(isOverdue);
+  const [leads, projects, todayEvents] = await Promise.all([
+    sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
+    sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
+    sql`SELECT * FROM events WHERE data = ${today} ORDER BY godzina ASC NULLS LAST;` as unknown as Promise<HubEvent[]>,
+  ]);
+
+  const overdueLeads = leads.filter(isOverdue);
+  const dueProjects = projects.filter(isProjectOverdue);
   const counts = Object.fromEntries(STATUSES.map((s) => [s, leads.filter((l) => l.status === s).length]));
 
-  const overdueLines = overdue.length
-    ? overdue.map((l) => `- ${l.firma} — ${overdueReason(l)}`).join("\n")
+  const leadLines = overdueLeads.length
+    ? overdueLeads.map((l) => `- ${l.firma} — ${overdueReason(l)}`).join("\n")
     : "Brak leadów wymagających dziś działania.";
 
+  const projectLines = dueProjects.length
+    ? dueProjects.map((p) => `- ${p.tytul} — termin ${p.termin}`).join("\n")
+    : "Brak projektów z minionym terminem.";
+
+  const eventLines = todayEvents.length
+    ? todayEvents.map((e) => `- ${e.godzina ? `${e.godzina} ` : ""}${e.tytul}`).join("\n")
+    : "Brak wydarzeń w kalendarzu na dziś.";
+
   const summaryLines = STATUSES.map((s) => `  ${s}: ${counts[s] ?? 0}`).join("\n");
+  const totalActionable = overdueLeads.length + dueProjects.length;
 
   const text = [
     "Dzień dobry,",
     "",
-    "Dzienny przegląd rejestru leadów Leggera Labs:",
+    "Dzienny przegląd panelu Leggera Labs:",
     "",
-    `Wymaga działania dziś (${overdue.length}):`,
-    overdueLines,
+    `Leady wymagające działania dziś (${overdueLeads.length}):`,
+    leadLines,
     "",
-    "Podsumowanie wg statusu:",
+    `Projekty z minionym terminem (${dueProjects.length}):`,
+    projectLines,
+    "",
+    `Dziś w kalendarzu (${todayEvents.length}):`,
+    eventLines,
+    "",
+    "Podsumowanie leadów wg statusu:",
     summaryLines,
     "",
-    `Łącznie w rejestrze: ${leads.length} leadów.`,
+    `Łącznie: ${leads.length} leadów, ${projects.length} projektów.`,
     "",
-    "— automatyczny raport z /admin/leads",
+    "— automatyczny raport z /admin",
   ].join("\n");
 
   const apiKey = process.env.RESEND_API_KEY;
@@ -46,9 +74,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number }>
   }
   const from = process.env.RESEND_FROM || "Leggera Labs <onboarding@resend.dev>";
   const subject =
-    overdue.length > 0
-      ? `[Leady] ${overdue.length} ${overdue.length === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania`
-      : "[Leady] Dzienny raport — wszystko ogarnięte";
+    totalActionable > 0
+      ? `[Panel] ${totalActionable} ${totalActionable === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania`
+      : "[Panel] Dzienny raport — wszystko ogarnięte";
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -64,7 +92,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number }>
     throw new Error(`Resend zwrócił błąd ${res.status}: ${errText.slice(0, 300)}`);
   }
 
-  return { overdue: overdue.length, total: leads.length };
+  return { overdue: totalActionable, total: leads.length + projects.length };
 }
 
 /**
