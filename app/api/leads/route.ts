@@ -37,7 +37,12 @@ export async function POST(req: NextRequest) {
 
   const id = randomUUID();
   const branza = str(body?.branza, 200);
+  // `kontakt` accepted for backward compatibility with older callers; new
+  // writers should use the split telefon/email/www fields instead.
   const kontakt = str(body?.kontakt, 300);
+  const telefon = str(body?.telefon, 100);
+  const email = str(body?.email, 200);
+  const www = str(body?.www, 200);
   const zrodlo = str(body?.zrodlo, 200) || "Ręcznie dodane";
   const status = str(body?.status, 100) || "Do kontaktu";
   const notatki = str(body?.notatki, 4000);
@@ -46,8 +51,8 @@ export async function POST(req: NextRequest) {
     typeof rawDate === "string" && rawDate.trim() ? rawDate : null;
 
   await sql`
-    INSERT INTO leads (id, firma, branza, kontakt, zrodlo, status, ostatni_kontakt, notatki)
-    VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${kontakt}, ${zrodlo}, ${status}, ${ostatniKontakt}, ${notatki});
+    INSERT INTO leads (id, firma, branza, kontakt, telefon, email, www, zrodlo, status, ostatni_kontakt, notatki)
+    VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${kontakt}, ${telefon}, ${email}, ${www}, ${zrodlo}, ${status}, ${ostatniKontakt}, ${notatki});
   `;
 
   return NextResponse.json({ ok: true, id });

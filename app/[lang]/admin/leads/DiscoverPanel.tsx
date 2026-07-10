@@ -56,7 +56,7 @@ export function DiscoverPanel({ onDiscovered }: { onDiscovered: () => void }) {
   }
 
   return (
-    <div className="glass w-full rounded-2xl p-4">
+    <div className="card-paper w-full rounded-2xl p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-serif text-sm font-semibold">Znajdź nowe leady</h3>
         <button onClick={() => setOpen(false)} className="text-xs text-muted hover:text-[var(--fg)]">

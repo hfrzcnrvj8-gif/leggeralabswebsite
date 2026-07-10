@@ -130,17 +130,17 @@ out center ${ile * 3};`;
     }
     existingNames.add(firma.toLowerCase());
 
-    const phone = t.phone || t["contact:phone"] || "";
-    const website = t.website || t["contact:website"] || "";
-    const kontakt = [phone, website].filter(Boolean).join(" / ").slice(0, 300);
+    const telefon = (t.phone || t["contact:phone"] || "").slice(0, 100);
+    const website = (t.website || t["contact:website"] || "").slice(0, 200);
+    const email = (t.email || t["contact:email"] || "").slice(0, 200);
     const addrParts = [t["addr:street"], t["addr:housenumber"], t["addr:city"]].filter(Boolean);
     const notatki = addrParts.join(" ").slice(0, 1000);
     const zrodlo = `Auto-wyszukane (OSM): ${lokalizacja}`;
     const id = randomUUID();
 
     await sql`
-      INSERT INTO leads (id, firma, branza, kontakt, zrodlo, status, notatki)
-      VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${kontakt}, ${zrodlo}, 'Do kontaktu', ${notatki});
+      INSERT INTO leads (id, firma, branza, telefon, email, www, zrodlo, status, notatki)
+      VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${telefon}, ${email}, ${website}, ${zrodlo}, 'Do kontaktu', ${notatki});
     `;
     added++;
     insertedLeads.push({ firma });

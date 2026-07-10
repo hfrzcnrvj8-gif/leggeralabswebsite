@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Locale } from "@/i18n/config";
 import { type Lead, STATUSES, SEED, SummaryCard, daysSince, isOverdue } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
@@ -8,7 +9,7 @@ import { DiscoverPanel } from "./DiscoverPanel";
 
 type ViewMode = "kanban" | "table";
 
-export function LeadsDashboard() {
+export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterZrodlo, setFilterZrodlo] = useState("");
@@ -204,13 +205,21 @@ export function LeadsDashboard() {
         <div className="flex overflow-hidden rounded-full border hairline text-xs">
           <button
             onClick={() => switchView("kanban")}
-            className={view === "kanban" ? "btn-primary px-3 py-1.5" : "px-3 py-1.5"}
+            className={
+              view === "kanban"
+                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
+                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
+            }
           >
             Tablica
           </button>
           <button
             onClick={() => switchView("table")}
-            className={view === "table" ? "btn-primary px-3 py-1.5" : "px-3 py-1.5"}
+            className={
+              view === "table"
+                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
+                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
+            }
           >
             Tabela
           </button>
@@ -221,9 +230,9 @@ export function LeadsDashboard() {
       </div>
 
       {view === "kanban" ? (
-        <KanbanBoard leads={filtered} onUpdate={updateLead} onDelete={deleteLead} />
+        <KanbanBoard leads={filtered} lang={lang} onUpdate={updateLead} onDelete={deleteLead} />
       ) : (
-        <TableView leads={filtered} onUpdate={updateLead} onDelete={deleteLead} />
+        <TableView leads={filtered} lang={lang} onUpdate={updateLead} onDelete={deleteLead} />
       )}
     </div>
   );

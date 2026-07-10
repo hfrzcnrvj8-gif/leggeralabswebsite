@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue } from "./shared";
+import Link from "next/link";
+import type { Locale } from "@/i18n/config";
+import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue, StatusTag } from "./shared";
 
 export function KanbanBoard({
   leads,
+  lang,
   onUpdate,
   onDelete,
 }: {
   leads: Lead[];
+  lang: Locale;
   onUpdate: (id: string, field: string, value: string) => void;
   onDelete: (id: string, firma: string) => void;
 }) {
@@ -69,7 +73,12 @@ export function KanbanBoard({
                   } ${overdue ? "border-orange-500/40" : ""}`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
-                    <span className="text-xs font-medium leading-snug">{lead.firma}</span>
+                    <Link
+                      href={`/${lang}/admin/leads/${lead.id}`}
+                      className="text-xs font-medium leading-snug hover:underline"
+                    >
+                      {lead.firma}
+                    </Link>
                     <button
                       onClick={() => onDelete(lead.id, lead.firma)}
                       className="shrink-0 text-muted hover:text-red-400"
@@ -79,19 +88,22 @@ export function KanbanBoard({
                     </button>
                   </div>
                   {lead.branza && <div className="text-[11px] text-muted">{lead.branza}</div>}
-                  {lead.kontakt && (
-                    <div className="mt-1 truncate text-[11px] text-muted opacity-80" title={lead.kontakt}>
-                      {lead.kontakt}
+                  {(lead.telefon || lead.email || lead.www) && (
+                    <div className="mt-1 space-y-0.5 text-[11px] text-muted opacity-80">
+                      {lead.telefon && <div className="truncate">{lead.telefon}</div>}
+                      {lead.email && <div className="truncate">{lead.email}</div>}
+                      {lead.www && <div className="truncate">{lead.www}</div>}
                     </div>
                   )}
-                  <div className="mt-1.5 flex items-center justify-between">
-                    <span className="text-[10px] text-muted opacity-70">{lead.zrodlo}</span>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
                     {d !== null && (
-                      <span className={`text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
+                      <span className={`shrink-0 text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
                         {d} dni temu
                       </span>
                     )}
                   </div>
+                  <div className="mt-1 text-[10px] text-muted opacity-70">{lead.zrodlo}</div>
                 </div>
               );
             })}

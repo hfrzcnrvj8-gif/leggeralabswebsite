@@ -58,10 +58,10 @@ export function ContactForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         firma: payload.company?.trim() || payload.name,
-        kontakt: `${payload.name} · ${payload.email}`,
+        email: payload.email,
         zrodlo: "Formularz na stronie",
         status: "Nowe zgłoszenie ze strony",
-        notatki: payload.message ?? "",
+        notatki: `Osoba kontaktowa: ${payload.name}\n\n${payload.message ?? ""}`,
       }),
     }).catch(() => {});
 

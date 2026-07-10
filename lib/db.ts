@@ -45,6 +45,29 @@ async function createSchema(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+  // Jawna data "przypomnij mi" — zastępuje sztywną regułę "4 dni od
+  // ostatniego kontaktu" czymś, co Ty sam ustawiasz przy każdej interakcji.
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_followup DATE;`;
+
+  // Rozbicie dawnego, zlepionego pola "kontakt" (telefon+mail+www w jednym
+  // stringu) na osobne, ustrukturyzowane kolumny. Stara kolumna `kontakt`
+  // zostaje w bazie nietknięta (nie tracimy danych już tam zapisanych),
+  // po prostu nowe zapisy lądują w nowych polach.
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS telefon TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS www TEXT NOT NULL DEFAULT '';`;
+
+  // Chronologiczny log aktywności per lead — w przeciwieństwie do jednego
+  // nadpisywanego pola notatek, każdy wpis zostaje na zawsze.
+  await sql`
+    CREATE TABLE IF NOT EXISTS lead_activity (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS lead_activity_lead_id_idx ON lead_activity(lead_id);`;
 }
 
 /**
