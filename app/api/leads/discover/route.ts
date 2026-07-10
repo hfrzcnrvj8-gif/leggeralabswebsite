@@ -86,7 +86,13 @@ out center ${ile * 3};`;
 
   const overpassRes = await fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      // Overpass API's public instance returns 406 for requests without a
+      // descriptive User-Agent (it's used to keep out generic bot traffic).
+      "User-Agent": "LeggeraLabsLeadsApp/1.0 (kontakt: patryk@leggeralabs.pl)",
+      Accept: "application/json",
+    },
     body: `data=${encodeURIComponent(query)}`,
   });
 
