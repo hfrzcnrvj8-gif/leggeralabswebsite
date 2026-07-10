@@ -6,8 +6,11 @@ import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, isProjectOverdue } from "./shared";
 import { SummaryCard } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
+import { ProjectTimeline } from "./ProjectTimeline";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { useUI, useRegisterActions } from "../ui";
+
+type ViewMode = "kanban" | "timeline";
 
 export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
@@ -16,6 +19,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<ViewMode>("kanban");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/projects");
@@ -39,7 +43,14 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
         // ignoruj uszkodzony zapis
       }
     }
+    const savedView = window.localStorage.getItem("leggera_projects_view");
+    if (savedView === "kanban" || savedView === "timeline") setView(savedView);
   }, [load]);
+
+  const switchView = useCallback((v: ViewMode) => {
+    setView(v);
+    window.localStorage.setItem("leggera_projects_view", v);
+  }, []);
 
   // Zapamiętane filtry — "zapisany widok", żeby nie ustawiać ich od nowa
   // przy każdej wizycie.
@@ -191,9 +202,36 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           placeholder="Szukaj po nazwie…"
           className="rounded-full border hairline bg-transparent px-3 py-1.5 text-xs text-[var(--fg)] placeholder:text-muted"
         />
+        <span className="flex-1" />
+        <div className="flex overflow-hidden rounded-full border hairline text-xs">
+          <button
+            onClick={() => switchView("kanban")}
+            className={
+              view === "kanban"
+                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
+                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
+            }
+          >
+            Tablica
+          </button>
+          <button
+            onClick={() => switchView("timeline")}
+            className={
+              view === "timeline"
+                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
+                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
+            }
+          >
+            Oś czasu
+          </button>
+        </div>
       </div>
 
-      <ProjectKanban projects={filtered} lang={lang} onUpdate={updateProject} onDelete={deleteProject} onOpen={setOpenId} />
+      {view === "kanban" ? (
+        <ProjectKanban projects={filtered} lang={lang} onUpdate={updateProject} onDelete={deleteProject} onOpen={setOpenId} />
+      ) : (
+        <ProjectTimeline lang={lang} />
+      )}
 
       <AnimatePresence>
         {openId && (

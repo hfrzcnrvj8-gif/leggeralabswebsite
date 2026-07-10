@@ -27,6 +27,11 @@ export async function PATCH(
   if ("text" in body && typeof body.text === "string") {
     await sql`UPDATE project_tasks SET text = ${body.text.slice(0, 500)} WHERE id = ${taskId} AND project_id = ${id};`;
   }
+  if ("milestone_id" in body) {
+    const raw = body.milestone_id;
+    const value = typeof raw === "string" && raw.trim() ? raw : null;
+    await sql`UPDATE project_tasks SET milestone_id = ${value} WHERE id = ${taskId} AND project_id = ${id};`;
+  }
 
   return NextResponse.json({ ok: true });
 }

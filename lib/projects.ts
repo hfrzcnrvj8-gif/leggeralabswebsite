@@ -8,10 +8,17 @@ export type Project = {
   opis: string;
   status: string;
   priorytet: string;
+  zdrowie: string;
+  start: string | null;
   termin: string | null;
   lead_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Agregat z listy /api/projects — liczba zadań łącznie/ukończonych.
+   * Opcjonalne, bo endpointy pojedynczego projektu ich nie zwracają
+   * (tam liczymy bezpośrednio z pełnej listy `tasks`). */
+  task_total?: number;
+  task_done?: number;
 };
 
 export type ProjectTask = {
@@ -20,6 +27,7 @@ export type ProjectTask = {
   text: string;
   done: boolean;
   position: number;
+  milestone_id: string | null;
   created_at: string;
 };
 
@@ -27,6 +35,24 @@ export type ProjectActivity = {
   id: string;
   project_id: string;
   text: string;
+  created_at: string;
+};
+
+export type ProjectMilestone = {
+  id: string;
+  project_id: string;
+  nazwa: string;
+  termin: string | null;
+  position: number;
+  created_at: string;
+};
+
+export type ProjectResource = {
+  id: string;
+  project_id: string;
+  etykieta: string;
+  url: string;
+  position: number;
   created_at: string;
 };
 
@@ -68,4 +94,21 @@ export function isProjectOverdue(p: Project): boolean {
   if (!p.termin) return false;
   const today = new Date().toISOString().slice(0, 10);
   return p.termin <= today;
+}
+
+// "Zdrowie" — ręcznie ustawiana ocena, niezależna od statusu na tablicy
+// (styl Linear: projekt może być "W trakcie" i jednocześnie "Zagrożony").
+export const PROJECT_HEALTHS = ["Na dobrej drodze", "Zagrożony", "Zerwany"] as const;
+
+export const PROJECT_HEALTH_CLASS: Record<string, string> = {
+  "Na dobrej drodze": "bg-emerald-500/15 text-emerald-400",
+  Zagrożony: "bg-orange-500/15 text-orange-400",
+  Zerwany: "bg-red-500/15 text-red-400",
+};
+
+/** Postęp checklisty/kamienia milowego jako "X% z Y" — bezpieczny na 0/0. */
+export function progressOf(tasks: { done: boolean }[]): { pct: number; total: number; done: number } {
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.done).length;
+  return { pct: total === 0 ? 0 : Math.round((done / total) * 100), total, done };
 }

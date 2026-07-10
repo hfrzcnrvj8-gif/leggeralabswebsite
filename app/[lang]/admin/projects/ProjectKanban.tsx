@@ -8,6 +8,7 @@ import {
   type Project,
   PROJECT_STATUSES,
   PROJECT_STATUS_DOT,
+  PROJECT_HEALTH_CLASS,
   isProjectOverdue,
   ProjectStatusTag,
 } from "./shared";
@@ -109,14 +110,26 @@ export function ProjectKanban({
                       ✕
                     </button>
                   </div>
-                  {p.priorytet && <div className="text-[11px] text-muted">Priorytet: {p.priorytet}</div>}
-                  <div className="mt-1.5 flex items-center justify-between gap-2">
-                    <ProjectStatusTag status={p.status} onChange={(v) => onUpdate(p.id, "status", v)} />
-                    {p.termin && (
-                      <span className={`shrink-0 text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
-                        termin: {p.termin}
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    {p.zdrowie && p.zdrowie !== "Na dobrej drodze" && (
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${PROJECT_HEALTH_CLASS[p.zdrowie] ?? ""}`}>
+                        {p.zdrowie}
                       </span>
                     )}
+                    {p.priorytet && <span className="text-[11px] text-muted">Priorytet: {p.priorytet}</span>}
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <ProjectStatusTag status={p.status} onChange={(v) => onUpdate(p.id, "status", v)} />
+                    <div className="flex shrink-0 items-center gap-2">
+                      {typeof p.task_total === "number" && p.task_total > 0 && (
+                        <span className="text-[10px] text-muted">{p.task_done}/{p.task_total} zadań</span>
+                      )}
+                      {p.termin && (
+                        <span className={`text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
+                          termin: {p.termin}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               );

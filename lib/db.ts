@@ -119,6 +119,41 @@ async function createHubSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS project_activity_project_id_idx ON project_activity(project_id);`;
 
+  // Zdrowie projektu (Na dobrej drodze/Zagrożony/Zerwany) — ustawiane ręcznie,
+  // niezależne od statusu na tablicy, styl Linear. Data startu potrzebna do
+  // widoku osi czasu (pasek projektu rysuje się między start a termin).
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS zdrowie TEXT NOT NULL DEFAULT 'Na dobrej drodze';`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS start DATE;`;
+
+  // Kamienie milowe — grupują zadania z checklisty i pokazują postęp
+  // ("Core 100% z 73") osobno dla każdego etapu projektu, nie tylko całości.
+  await sql`
+    CREATE TABLE IF NOT EXISTS project_milestones (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      nazwa TEXT NOT NULL,
+      termin DATE,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_milestones_project_id_idx ON project_milestones(project_id);`;
+  await sql`ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS milestone_id TEXT REFERENCES project_milestones(id) ON DELETE SET NULL;`;
+
+  // Zasoby — linki do Figmy/dokumentów/notatek przypięte do projektu, żeby
+  // nie szukać ich rozproszonych po mailu/Slacku.
+  await sql`
+    CREATE TABLE IF NOT EXISTS project_resources (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      etykieta TEXT NOT NULL,
+      url TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_resources_project_id_idx ON project_resources(project_id);`;
+
   // Notatnik — szybkie zapisywanie pomysłów, z tagami (proste CSV zamiast
   // typu tablicowego — mniej niespodzianek przy odczycie przez neon-http).
   await sql`

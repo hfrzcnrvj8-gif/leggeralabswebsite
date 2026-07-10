@@ -14,11 +14,12 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const body = (await req.json().catch(() => null)) as { text?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { text?: unknown; milestone_id?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }
+  const milestoneId = typeof body?.milestone_id === "string" && body.milestone_id.trim() ? body.milestone_id : null;
 
   await ensureHubSchema();
   const sql = getSql();
@@ -28,8 +29,8 @@ export async function POST(
 
   const taskId = randomUUID();
   await sql`
-    INSERT INTO project_tasks (id, project_id, text, position)
-    VALUES (${taskId}, ${id}, ${text.slice(0, 500)}, ${position});
+    INSERT INTO project_tasks (id, project_id, text, position, milestone_id)
+    VALUES (${taskId}, ${id}, ${text.slice(0, 500)}, ${position}, ${milestoneId});
   `;
 
   const tasks = await sql`

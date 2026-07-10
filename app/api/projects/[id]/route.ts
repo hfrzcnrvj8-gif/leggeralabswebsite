@@ -27,8 +27,14 @@ export async function GET(
   const activity = await sql`
     SELECT * FROM project_activity WHERE project_id = ${id} ORDER BY created_at DESC;
   `;
+  const milestones = await sql`
+    SELECT * FROM project_milestones WHERE project_id = ${id} ORDER BY position ASC, created_at ASC;
+  `;
+  const resources = await sql`
+    SELECT * FROM project_resources WHERE project_id = ${id} ORDER BY position ASC, created_at ASC;
+  `;
 
-  return NextResponse.json({ project, tasks, activity });
+  return NextResponse.json({ project, tasks, activity, milestones, resources });
 }
 
 /** PATCH /api/projects/:id — update one or more fields. Admin-only. */
@@ -70,6 +76,14 @@ export async function PATCH(
     const raw = body.lead_id;
     const value = typeof raw === "string" && raw.trim() ? raw : null;
     await sql`UPDATE projects SET lead_id = ${value}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("zdrowie" in body) {
+    await sql`UPDATE projects SET zdrowie = ${str(body.zdrowie)}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("start" in body) {
+    const raw = body.start;
+    const value = typeof raw === "string" && raw.trim() ? raw : null;
+    await sql`UPDATE projects SET start = ${value}, updated_at = now() WHERE id = ${id};`;
   }
 
   return NextResponse.json({ ok: true });

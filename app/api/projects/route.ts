@@ -12,7 +12,17 @@ export async function GET() {
   }
   await ensureHubSchema();
   const sql = getSql();
-  const rows = await sql`SELECT * FROM projects ORDER BY created_at DESC;`;
+  const rows = await sql`
+    SELECT p.*,
+      COALESCE(t.total, 0)::int AS task_total,
+      COALESCE(t.done, 0)::int AS task_done
+    FROM projects p
+    LEFT JOIN (
+      SELECT project_id, COUNT(*) AS total, COUNT(*) FILTER (WHERE done) AS done
+      FROM project_tasks GROUP BY project_id
+    ) t ON t.project_id = p.id
+    ORDER BY p.created_at DESC;
+  `;
   return NextResponse.json({ projects: rows });
 }
 
