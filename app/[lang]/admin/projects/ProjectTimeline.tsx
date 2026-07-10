@@ -19,8 +19,7 @@ type TimelineProject = {
 
 const DAY_MS = 86400000;
 const CYCLE_DAYS = 14;
-const ROW_PX = 60;
-const LABEL_COL_PX = 200;
+const ROW_PX = 64;
 const MONTH_PX = 128;
 
 function parseDate(s: string | null): Date | null {
@@ -226,59 +225,52 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
 
   return (
     <div className="card-paper overflow-x-auto rounded-2xl p-3 sm:p-4">
-      <div style={{ minWidth: `${LABEL_COL_PX + chartPxWidth}px` }}>
-        {/* Nagłówek: miesiące + cykle */}
+      <div style={{ minWidth: `${chartPxWidth}px` }}>
+        {/* Nagłówek: miesiące + numerki tygodni + cykle — pełna szerokość,
+            bez lewej kolumny na tytuły (te stoją nad paskami, jak w Linear). */}
         <div>
-          <div className="flex">
-            <div className="shrink-0" style={{ width: `${LABEL_COL_PX}px` }} />
-            <div className="relative flex-1 border-b hairline">
-              <div className="flex">
-                {months.map((m, i) => (
-                  <div
-                    key={i}
-                    className="shrink-0 border-l hairline px-2 py-1.5 text-[11px] font-semibold capitalize text-[var(--fg)]"
-                    style={{ width: `${(1 / months.length) * 100}%` }}
-                  >
-                    {fmtMonth(m)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex">
-            <div className="shrink-0" style={{ width: `${LABEL_COL_PX}px` }} />
-            <div className="relative h-4 flex-1">
-              {weekTicks.map((w, i) => (
-                <span
-                  key={i}
-                  className="absolute top-0 -translate-x-1/2 text-[9px] text-muted opacity-60"
-                  style={{ left: `${w.leftPct}%` }}
-                >
-                  {w.date.getDate()}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="flex">
-            <div className="shrink-0 text-[10px] text-muted" style={{ width: `${LABEL_COL_PX}px` }} />
-            <div className="relative h-4 flex-1 border-b hairline">
-              {cycles.map((c) => (
+          <div className="relative border-b hairline">
+            <div className="flex">
+              {months.map((m, i) => (
                 <div
-                  key={c.index}
-                  className="absolute inset-y-0 flex items-center px-1.5 text-[9px] text-muted opacity-40"
-                  style={{ left: `${c.leftPct}%`, width: `${c.widthPct}%` }}
+                  key={i}
+                  className="shrink-0 border-l hairline px-2 py-1.5 text-[11px] font-semibold capitalize text-[var(--fg)]"
+                  style={{ width: `${(1 / months.length) * 100}%` }}
                 >
-                  {c.index}
+                  {fmtMonth(m)}
                 </div>
               ))}
             </div>
           </div>
+          <div className="relative h-4">
+            {weekTicks.map((w, i) => (
+              <span
+                key={i}
+                className="absolute top-0 -translate-x-1/2 text-[9px] text-muted opacity-60"
+                style={{ left: `${w.leftPct}%` }}
+              >
+                {w.date.getDate()}
+              </span>
+            ))}
+          </div>
+          <div className="relative h-4 border-b hairline">
+            {cycles.map((c) => (
+              <div
+                key={c.index}
+                className="absolute inset-y-0 flex items-center px-1.5 text-[9px] text-muted opacity-40"
+                style={{ left: `${c.leftPct}%`, width: `${c.widthPct}%` }}
+              >
+                {c.index}
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Wiersze projektów */}
-        <div className="relative">
-          {/* Tło: naprzemienne pasy cykli + cotygodniowa siatka, wspólne dla wszystkich wierszy */}
-          <div className="pointer-events-none absolute inset-0 z-0" style={{ left: `${LABEL_COL_PX}px` }}>
+        {/* Wiersze projektów — tytuł stoi nad paskiem, na tej samej pozycji
+            osi co data startu (nie w stałej kolumnie po lewej). */}
+        <div className="relative mt-2">
+          {/* Tło: naprzemienne pasy cykli, wspólne dla wszystkich wierszy */}
+          <div className="pointer-events-none absolute inset-0 z-0">
             {cycles
               .filter((c) => c.index % 2 === 0)
               .map((c) => (
@@ -302,94 +294,92 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                   : p.zdrowie === "Zagrożony"
                   ? "bg-orange-500/70"
                   : "bg-gradient-to-r from-brand-purple/70 to-brand-cyan/70";
+              const startPct = pctOf(start);
 
               return (
                 <div
                   key={p.id}
-                  className={`group rounded-lg transition-colors hover:bg-[var(--hairline)]/40 ${
+                  className={`group relative rounded-lg transition-colors hover:bg-[var(--hairline)]/40 ${
                     rowIdx % 2 === 1 ? "bg-[var(--hairline)]/10" : ""
                   }`}
                   style={{ height: `${ROW_PX}px` }}
                 >
-                  <div className="flex h-full items-start">
+                  <button
+                    onClick={() => onOpen(p.id)}
+                    className="absolute top-0 z-20 flex items-center gap-1.5 whitespace-nowrap px-1 text-left text-xs hover:underline"
+                    style={{ left: `${startPct}%` }}
+                    title={p.tytul}
+                  >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`} />
+                    <span className="font-medium">{p.tytul}</span>
+                    <PrioritySignal priorytet={p.priorytet} />
+                  </button>
+
+                  {estimated ? (
                     <button
                       onClick={() => onOpen(p.id)}
-                      className="flex h-6 shrink-0 items-center gap-1.5 truncate px-2 text-left text-xs hover:underline"
-                      style={{ width: `${LABEL_COL_PX}px` }}
-                      title={p.tytul}
-                    >
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`} />
-                      <span className="truncate font-medium">{p.tytul}</span>
-                      <PrioritySignal priorytet={p.priorytet} />
-                    </button>
-                    <div className="relative flex-1" style={{ height: `${ROW_PX}px` }}>
-                      {estimated ? (
-                        <button
-                          onClick={() => onOpen(p.id)}
-                          className={`absolute top-0 h-6 overflow-hidden rounded-full border border-dashed border-current px-3 text-left opacity-60 transition-[filter] hover:brightness-110 ${healthClass}`}
-                          style={{ left: `${pctOf(start)}%`, width: `${Math.max(pctOf(end) - pctOf(start), 1.5)}%`, minWidth: "10px" }}
-                          title={`${p.tytul} · daty orientacyjne (brak ustawionych)`}
-                        />
-                      ) : (
-                        segments.map((seg, i) => {
-                          const segLeft = pctOf(seg.left);
-                          const segWidth = Math.max(pctOf(seg.right) - segLeft, 0.4);
-                          const isFirst = i === 0;
-                          const isLast = i === segments.length - 1;
-                          return (
-                            <div key={i}>
-                              <button
-                                onClick={() => onOpen(p.id)}
-                                className={`absolute top-0 h-6 overflow-hidden transition-[filter] hover:brightness-110 ${
-                                  isFirst ? "rounded-l-full" : ""
-                                } ${isLast ? "rounded-r-full" : ""} ${seg.trailing ? "opacity-45" : "shadow-sm"} ${healthClass}`}
-                                style={{
-                                  left: `${segLeft}%`,
-                                  width: `${segWidth}%`,
-                                  minWidth: "6px",
-                                  marginLeft: isFirst ? 0 : "1px",
-                                  backgroundImage: seg.trailing
-                                    ? "repeating-linear-gradient(45deg, rgba(255,255,255,0.4) 0, rgba(255,255,255,0.4) 2px, transparent 2px, transparent 7px)"
-                                    : undefined,
-                                }}
-                                title={`${p.tytul}${seg.label ? ` · ${seg.label}` : ""} · ${formatPlDate(
-                                  toLocalISO(seg.left)
-                                )} – ${formatPlDate(toLocalISO(seg.right))}`}
-                              />
-                              {seg.label && segWidth > 5 && (
-                                <span
-                                  className="pointer-events-none absolute top-7 -translate-x-1/2 whitespace-nowrap text-[10px] text-muted"
-                                  style={{ left: `${segLeft + segWidth / 2}%` }}
-                                >
-                                  {seg.label}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                      {milestonesWithDates.map((m) => {
-                        const mp = pctOf(m.date);
-                        return (
-                          <div
-                            key={m.id}
-                            className="pointer-events-none absolute top-0 z-20 h-6 -translate-x-1/2"
-                            style={{ left: `${mp}%` }}
-                            title={`${m.nazwa} — ${formatPlDate(toLocalISO(m.date))}`}
-                          >
-                            <div className="mt-[7px] h-2.5 w-2.5 rotate-45 border border-[var(--bg)] bg-brand-gold shadow" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                      className={`absolute top-[22px] h-6 overflow-hidden rounded-full border border-dashed border-current px-3 text-left opacity-60 transition-[filter] hover:brightness-110 ${healthClass}`}
+                      style={{ left: `${pctOf(start)}%`, width: `${Math.max(pctOf(end) - pctOf(start), 1.5)}%`, minWidth: "10px" }}
+                      title={`${p.tytul} · daty orientacyjne (brak ustawionych)`}
+                    />
+                  ) : (
+                    segments.map((seg, i) => {
+                      const segLeft = pctOf(seg.left);
+                      const segWidth = Math.max(pctOf(seg.right) - segLeft, 0.4);
+                      const isFirst = i === 0;
+                      const isLast = i === segments.length - 1;
+                      return (
+                        <div key={i}>
+                          <button
+                            onClick={() => onOpen(p.id)}
+                            className={`absolute top-[22px] h-6 overflow-hidden transition-[filter] hover:brightness-110 ${
+                              isFirst ? "rounded-l-full" : ""
+                            } ${isLast ? "rounded-r-full" : ""} ${seg.trailing ? "opacity-45" : "shadow-sm"} ${healthClass}`}
+                            style={{
+                              left: `${segLeft}%`,
+                              width: `${segWidth}%`,
+                              minWidth: "6px",
+                              marginLeft: isFirst ? 0 : "1px",
+                              backgroundImage: seg.trailing
+                                ? "repeating-linear-gradient(45deg, rgba(255,255,255,0.4) 0, rgba(255,255,255,0.4) 2px, transparent 2px, transparent 7px)"
+                                : undefined,
+                            }}
+                            title={`${p.tytul}${seg.label ? ` · ${seg.label}` : ""} · ${formatPlDate(
+                              toLocalISO(seg.left)
+                            )} – ${formatPlDate(toLocalISO(seg.right))}`}
+                          />
+                          {seg.label && segWidth > 5 && (
+                            <span
+                              className="pointer-events-none absolute top-[50px] -translate-x-1/2 whitespace-nowrap text-[10px] text-muted"
+                              style={{ left: `${segLeft + segWidth / 2}%` }}
+                            >
+                              {seg.label}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                  {milestonesWithDates.map((m) => {
+                    const mp = pctOf(m.date);
+                    return (
+                      <div
+                        key={m.id}
+                        className="pointer-events-none absolute top-[22px] z-20 h-6 -translate-x-1/2"
+                        style={{ left: `${mp}%` }}
+                        title={`${m.nazwa} — ${formatPlDate(toLocalISO(m.date))}`}
+                      >
+                        <div className="mt-[7px] h-2.5 w-2.5 rotate-45 border border-[var(--bg)] bg-brand-gold shadow" />
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
           </div>
 
           {todayPct !== null && (
-            <div className="pointer-events-none absolute inset-0 z-30" style={{ left: `${LABEL_COL_PX}px` }}>
+            <div className="pointer-events-none absolute inset-0 z-30">
               <div
                 className="absolute inset-y-0 flex -translate-x-1/2 flex-col items-center"
                 style={{ left: `${todayPct}%` }}
@@ -403,7 +393,6 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
           )}
         </div>
       </div>
-
     </div>
   );
 }
