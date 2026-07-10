@@ -24,10 +24,16 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
     Testy/review → Wdrożone/Wstrzymane), karty pokazują priorytet, pigułkę
     "zdrowia" projektu (gdy inne niż "Na dobrej drodze"), pasek postępu
     zadań (gradient purple→cyan, z ułamkiem obok, np. „3/7”) i termin.
-  - **Oś czasu** — widok Gantt-lite: paski projektów od daty startu do
-    terminu na siatce miesięcy, romby kamieni milowych na osi, pionowa
-    linia „dziś”. Kolor paska odzwierciedla zdrowie projektu (zielony/
-    pomarańczowy/czerwony).
+  - **Oś czasu** — widok Gantt-lite: pasek projektu dzieli się na odcinki
+    wyznaczone kamieniami milowymi, każdy z nazwą kamienia na stałe widoczną
+    pod spodem (styl Linear — nie tylko po najechaniu); odcinek po ostatnim
+    kamieniu do końca to skośnie kreskowana "prognoza" (praca jeszcze
+    nierozbita na kamienie milowe). Romby kamieni milowych na granicach
+    odcinków, pionowa linia „dziś”, mały wskaźnik priorytetu (słupki, a dla
+    "Krytyczny" pomarańczowa plakietka z „!") obok tytułu. Kolor paska
+    odzwierciedla zdrowie projektu (zielony/pomarańczowy/czerwony).
+    Świadomie bez linii zależności między projektami (patrz sekcja "Czego
+    świadomie nie ma" niżej) — to był wyraźny wybór, nie przeoczenie.
   - Panel szczegółów projektu jest dwukolumnowy (styl Linear): treść +
     kamienie milowe z paskami postępu + log aktywności po lewej; po prawej
     boczny pasek z metadanymi — zdrowie, status, priorytet, daty
