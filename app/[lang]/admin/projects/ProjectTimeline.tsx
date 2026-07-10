@@ -273,7 +273,11 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                     style={{ left: `${startPct}%` }}
                     title={p.tytul}
                   >
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`} />
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-[9px] ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`}
+                    >
+                      🗂️
+                    </span>
                     <span className="font-medium">{p.tytul}</span>
                     <PrioritySignal priorytet={p.priorytet} />
                   </button>
