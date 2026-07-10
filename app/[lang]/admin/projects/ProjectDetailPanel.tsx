@@ -432,25 +432,11 @@ export function ProjectDetailPanel({
               </select>
             </MetaRow>
             <MetaRow icon="📅" title="Start → Termin">
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
-                  min="2000-01-01"
-                  max="2100-12-31"
-                  value={project.start ?? ""}
-                  onChange={(e) => updateProject("start", e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
-                />
-                <span className="shrink-0 text-muted">→</span>
-                <input
-                  type="date"
-                  min="2000-01-01"
-                  max="2100-12-31"
-                  value={project.termin ?? ""}
-                  onChange={(e) => updateProject("termin", e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
-                />
-              </div>
+              <DateRangeField
+                start={project.start ?? ""}
+                termin={project.termin ?? ""}
+                onSave={(field, value) => updateProject(field, value)}
+              />
             </MetaRow>
             <MetaRow icon="🎯" title="Powiązany lead">
               <select
@@ -585,6 +571,68 @@ function MetaRow({ icon, title, children }: { icon: string; title: string; child
     <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-[var(--hairline)]/30" title={title}>
       <span className="w-4 shrink-0 text-center text-xs text-muted opacity-80">{icon}</span>
       <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+/** Para pól start/termin z jawnym przyciskiem "Zapisz" zamiast polegania
+ * wyłącznie na zdarzeniu onChange natywnego <input type="date">. Przeglądarka
+ * zgłasza zmianę dopiero gdy wszystkie trzy segmenty (dzień/miesiąc/rok) są
+ * wypełnione — jeśli użytkownik kliknie gdzie indziej w trakcie wpisywania
+ * roku, onChange nigdy się nie odpali i nic się nie zapisze, bez żadnego
+ * komunikatu. Lokalny "draft" + widoczny przycisk, gdy coś się różni od
+ * zapisanej wartości, daje pewne, jawne wyjście awaryjne. */
+function DateRangeField({
+  start,
+  termin,
+  onSave,
+}: {
+  start: string;
+  termin: string;
+  onSave: (field: "start" | "termin", value: string) => void;
+}) {
+  const [draftStart, setDraftStart] = useState(start);
+  const [draftTermin, setDraftTermin] = useState(termin);
+
+  useEffect(() => setDraftStart(start), [start]);
+  useEffect(() => setDraftTermin(termin), [termin]);
+
+  const dirty = draftStart !== start || draftTermin !== termin;
+
+  const save = () => {
+    if (draftStart !== start) onSave("start", draftStart);
+    if (draftTermin !== termin) onSave("termin", draftTermin);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="date"
+        min="2000-01-01"
+        max="2100-12-31"
+        value={draftStart}
+        onChange={(e) => setDraftStart(e.target.value)}
+        onBlur={() => draftStart !== start && onSave("start", draftStart)}
+        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+      />
+      <span className="shrink-0 text-muted">→</span>
+      <input
+        type="date"
+        min="2000-01-01"
+        max="2100-12-31"
+        value={draftTermin}
+        onChange={(e) => setDraftTermin(e.target.value)}
+        onBlur={() => draftTermin !== termin && onSave("termin", draftTermin)}
+        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+      />
+      {dirty && (
+        <button
+          onClick={save}
+          className="shrink-0 rounded-full bg-brand-cyan px-2 py-1 text-[10px] font-semibold text-[var(--bg)]"
+        >
+          Zapisz
+        </button>
+      )}
     </div>
   );
 }
