@@ -15,7 +15,7 @@ export async function GET() {
   const sql = getSql();
   const rows = await sql`
     SELECT
-      p.id, p.tytul, p.status, p.zdrowie, p.priorytet, p.start, p.termin,
+      p.id, p.tytul, p.status, p.zdrowie, p.priorytet, p.start, p.termin, p.created_at,
       COALESCE(
         json_agg(
           json_build_object('id', m.id, 'nazwa', m.nazwa, 'termin', m.termin)

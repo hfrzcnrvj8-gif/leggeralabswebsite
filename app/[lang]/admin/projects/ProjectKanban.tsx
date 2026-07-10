@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import {
@@ -85,24 +84,23 @@ export function ProjectKanban({
                     setDraggingId(p.id);
                   }}
                   onDragEnd={() => setDraggingId(null)}
-                  className={`card-paper cursor-grab rounded-xl p-2.5 active:cursor-grabbing ${
+                  onClick={() => onOpen(p.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onOpen(p.id);
+                  }}
+                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-brand-cyan/30 active:cursor-grabbing ${
                     draggingId === p.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""}`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
-                    <Link
-                      href={`/${lang}/admin/projects/${p.id}`}
-                      onClick={(e) => {
-                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-                        e.preventDefault();
-                        onOpen(p.id);
-                      }}
-                      className="text-xs font-medium leading-snug hover:underline"
-                    >
-                      {p.tytul}
-                    </Link>
+                    <span className="text-xs font-medium leading-snug">{p.tytul}</span>
                     <button
-                      onClick={() => onDelete(p.id, p.tytul)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(p.id, p.tytul);
+                      }}
                       className="shrink-0 text-muted hover:text-red-400"
                       aria-label={`Usuń ${p.tytul}`}
                       title="Usuń"
@@ -119,7 +117,9 @@ export function ProjectKanban({
                     {p.priorytet && <span className="text-[11px] text-muted">Priorytet: {p.priorytet}</span>}
                   </div>
                   <div className="mt-1.5 flex items-center justify-between gap-2">
-                    <ProjectStatusTag status={p.status} onChange={(v) => onUpdate(p.id, "status", v)} />
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <ProjectStatusTag status={p.status} onChange={(v) => onUpdate(p.id, "status", v)} />
+                    </span>
                     <div className="flex shrink-0 items-center gap-2">
                       {typeof p.task_total === "number" && p.task_total > 0 && (
                         <span className="text-[10px] text-muted">{p.task_done}/{p.task_total} zadań</span>

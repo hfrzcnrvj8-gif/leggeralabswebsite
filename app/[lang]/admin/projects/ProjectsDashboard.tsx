@@ -230,7 +230,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
       {view === "kanban" ? (
         <ProjectKanban projects={filtered} lang={lang} onUpdate={updateProject} onDelete={deleteProject} onOpen={setOpenId} />
       ) : (
-        <ProjectTimeline lang={lang} />
+        <ProjectTimeline lang={lang} onOpen={setOpenId} />
       )}
 
       <AnimatePresence>

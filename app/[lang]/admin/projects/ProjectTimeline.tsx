@@ -13,6 +13,7 @@ type TimelineProject = {
   priorytet: string;
   start: string | null;
   termin: string | null;
+  created_at: string;
   milestones: TimelineMilestone[];
 };
 
@@ -42,8 +43,10 @@ function fmtMonth(d: Date): string {
 
 /** Widok osi czasu (Gantt-lite) — projekty jako paski od startu do terminu,
  * kamienie milowe jako romby na osi. Odpowiednik widoku "Roadmap" w Linear,
- * dopasowany do skali solo-przedsiębiorcy (miesięczna siatka, bez zależności). */
-export function ProjectTimeline({ lang }: { lang: Locale }) {
+ * dopasowany do skali solo-przedsiębiorcy (miesięczna siatka, bez zależności).
+ * Projekty bez ręcznie ustawionych dat dostają orientacyjny pasek liczony od
+ * daty utworzenia (2 tyg.) — dzięki temu oś nigdy nie jest pusta "od zera". */
+export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: string) => void }) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
 
   useEffect(() => {
@@ -58,25 +61,22 @@ export function ProjectTimeline({ lang }: { lang: Locale }) {
     })();
   }, []);
 
-  const { dated, undated, rangeStart, totalDays, months } = useMemo(() => {
+  const { dated, rangeStart, totalDays, months } = useMemo(() => {
     const list = projects ?? [];
-    const dated: { p: TimelineProject; start: Date; end: Date }[] = [];
-    const undated: TimelineProject[] = [];
+    const dated: { p: TimelineProject; start: Date; end: Date; estimated: boolean }[] = [];
 
     for (const p of list) {
       const s = parseDate(p.start);
       const t = parseDate(p.termin);
-      if (!s && !t) {
-        undated.push(p);
-        continue;
-      }
-      const start = s ?? addDays(t as Date, -14);
-      const end = t ?? addDays(s as Date, 14);
-      dated.push({ p, start: start <= end ? start : end, end: start <= end ? end : start });
+      const c = parseDate(p.created_at.slice(0, 10)) ?? new Date();
+      const estimated = !s && !t;
+      const start = s ?? (t ? addDays(t, -14) : c);
+      const end = t ?? (s ? addDays(s, 14) : addDays(c, 14));
+      dated.push({ p, start: start <= end ? start : end, end: start <= end ? end : start, estimated });
     }
 
     if (dated.length === 0) {
-      return { dated, undated, rangeStart: new Date(), totalDays: 1, months: [] as Date[] };
+      return { dated, rangeStart: new Date(), totalDays: 1, months: [] as Date[] };
     }
 
     let minD = dated[0].start;
@@ -97,7 +97,7 @@ export function ProjectTimeline({ lang }: { lang: Locale }) {
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
 
-    return { dated, undated, rangeStart, totalDays, months };
+    return { dated, rangeStart, totalDays, months };
   }, [projects]);
 
   if (!projects) {
@@ -107,7 +107,7 @@ export function ProjectTimeline({ lang }: { lang: Locale }) {
   if (dated.length === 0) {
     return (
       <div className="card-paper rounded-2xl p-8 text-center text-sm text-muted">
-        Brak projektów z datą startu lub terminem — dodaj daty w panelu szczegółów, żeby zobaczyć oś czasu.
+        Brak projektów do pokazania — dodaj pierwszy projekt, żeby zobaczyć oś czasu.
       </div>
     );
   }
@@ -140,25 +140,28 @@ export function ProjectTimeline({ lang }: { lang: Locale }) {
 
         {/* Wiersze projektów */}
         <div className="space-y-1.5">
-          {dated.map(({ p, start, end }) => {
+          {dated.map(({ p, start, end, estimated }) => {
             const left = pctOf(start);
             const width = Math.max(pctOf(end) - left, 1.5);
             return (
               <div key={p.id} className="flex items-center">
-                <a
-                  href={`/${lang}/admin/projects/${p.id}`}
-                  className="flex w-40 shrink-0 items-center gap-1.5 truncate pr-2 text-xs hover:underline sm:w-52"
+                <button
+                  onClick={() => onOpen(p.id)}
+                  className="flex w-40 shrink-0 items-center gap-1.5 truncate pr-2 text-left text-xs hover:underline sm:w-52"
                   title={p.tytul}
                 >
                   <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`} />
                   <span className="truncate">{p.tytul}</span>
-                </a>
+                </button>
                 <div className="relative h-6 flex-1">
                   {todayPct !== null && (
                     <div className="absolute inset-y-0 z-10 w-px bg-brand-cyan/50" style={{ left: `${todayPct}%` }} />
                   )}
-                  <div
-                    className={`absolute inset-y-1 rounded-full ${
+                  <button
+                    onClick={() => onOpen(p.id)}
+                    className={`absolute inset-y-1 rounded-full transition-opacity hover:opacity-80 ${
+                      estimated ? "border border-dashed border-current opacity-50" : ""
+                    } ${
                       p.zdrowie === "Zerwany"
                         ? "bg-red-500/60"
                         : p.zdrowie === "Zagrożony"
@@ -166,7 +169,7 @@ export function ProjectTimeline({ lang }: { lang: Locale }) {
                         : "bg-brand-cyan/50"
                     }`}
                     style={{ left: `${left}%`, width: `${width}%` }}
-                    title={`${p.tytul}${p.start ? ` · start ${p.start}` : ""}${p.termin ? ` · termin ${p.termin}` : ""}`}
+                    title={`${p.tytul}${estimated ? " · daty orientacyjne (brak ustawionych)" : ""}${p.start ? ` · start ${p.start}` : ""}${p.termin ? ` · termin ${p.termin}` : ""}`}
                   />
                   {p.milestones
                     .filter((m) => m.termin)
@@ -189,12 +192,6 @@ export function ProjectTimeline({ lang }: { lang: Locale }) {
         </div>
       </div>
 
-      {undated.length > 0 && (
-        <p className="mt-4 border-t hairline pt-3 text-[11px] text-muted opacity-70">
-          Bez dat: {undated.map((p) => p.tytul).join(", ")}
-        </p>
-      )}
-
       <div className="mt-3 flex flex-wrap items-center gap-3 border-t hairline pt-3 text-[10px] text-muted">
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rotate-45 border border-[var(--bg)] bg-brand-gold" /> kamień milowy
@@ -210,6 +207,9 @@ export function ProjectTimeline({ lang }: { lang: Locale }) {
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2 w-px bg-brand-cyan/50" /> dziś
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-2 w-4 rounded-full border border-dashed border-current bg-brand-cyan/20 opacity-50" /> daty orientacyjne — ustaw start/termin w szczegółach
         </span>
       </div>
     </div>

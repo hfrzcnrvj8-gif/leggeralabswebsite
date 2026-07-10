@@ -252,7 +252,7 @@ export function ProjectDetailPanel({
 
   return (
     <div>
-      <PanelHeader onClose={onClose} />
+      <PanelHeader onClose={onClose} tytul={project.tytul} />
 
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_280px]">
         {/* Kolumna główna: treść, kamienie milowe, log aktywności */}
@@ -278,7 +278,12 @@ export function ProjectDetailPanel({
             </div>
 
             {milestones.length === 0 && unmilestoned.length === 0 ? (
-              <p className="text-sm text-muted opacity-60">Brak zadań — dodaj kamień milowy albo zadanie poniżej.</p>
+              <div className="text-sm text-muted opacity-60">
+                Brak zadań — dodaj kamień milowy powyżej albo pojedyncze zadanie:{" "}
+                <button onClick={() => addTask(null)} className="text-[var(--fg)] underline underline-offset-2 opacity-100">
+                  + dodaj zadanie
+                </button>
+              </div>
             ) : (
               <div className="space-y-5">
                 {milestones.map((m) => {
@@ -521,14 +526,16 @@ function TaskList({
   );
 }
 
-function PanelHeader({ onClose }: { onClose?: () => void }) {
+function PanelHeader({ onClose, tytul }: { onClose?: () => void; tytul?: string }) {
   if (!onClose) return null;
   return (
     <div className="flex items-center justify-between">
-      <span className="text-xs text-muted">Szczegóły projektu</span>
+      <span className="truncate text-xs text-muted">
+        Projekty {tytul ? <>/ <span className="text-[var(--fg)]">{tytul}</span></> : null}
+      </span>
       <button
         onClick={onClose}
-        className="rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
+        className="shrink-0 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
         aria-label="Zamknij"
         title="Zamknij (Esc)"
       >

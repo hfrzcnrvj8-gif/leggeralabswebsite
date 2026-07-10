@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue, StatusTag } from "./shared";
@@ -79,24 +78,23 @@ export function KanbanBoard({
                     setDraggingId(lead.id);
                   }}
                   onDragEnd={() => setDraggingId(null)}
-                  className={`card-paper cursor-grab rounded-xl p-2.5 active:cursor-grabbing ${
+                  onClick={() => onOpen(lead.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onOpen(lead.id);
+                  }}
+                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-brand-cyan/30 active:cursor-grabbing ${
                     draggingId === lead.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""}`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
-                    <Link
-                      href={`/${lang}/admin/leads/${lead.id}`}
-                      onClick={(e) => {
-                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-                        e.preventDefault();
-                        onOpen(lead.id);
-                      }}
-                      className="text-xs font-medium leading-snug hover:underline"
-                    >
-                      {lead.firma}
-                    </Link>
+                    <span className="text-xs font-medium leading-snug">{lead.firma}</span>
                     <button
-                      onClick={() => onDelete(lead.id, lead.firma)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(lead.id, lead.firma);
+                      }}
                       className="shrink-0 text-muted hover:text-red-400"
                       aria-label={`Usuń ${lead.firma}`}
                       title="Usuń"
@@ -113,7 +111,9 @@ export function KanbanBoard({
                     </div>
                   )}
                   <div className="mt-1.5 flex items-center justify-between gap-2">
-                    <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
+                    </span>
                     {d !== null && (
                       <span className={`shrink-0 text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
                         {d} dni temu
