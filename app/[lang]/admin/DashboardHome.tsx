@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import type { Lead } from "@/lib/leads";
-import type { Project } from "@/lib/projects";
+import { type Project, formatPlDate } from "@/lib/projects";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { overdueReason } from "@/lib/leads";
@@ -103,7 +103,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   <Link href={`/${lang}/admin/projects/${p.id}`} className="font-medium hover:underline">
                     {p.tytul}
                   </Link>
-                  <span className="text-muted"> — termin {p.termin}</span>
+                  <span className="text-muted"> — termin {formatPlDate(p.termin)}</span>
                 </li>
               ))}
             </ul>

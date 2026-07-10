@@ -112,3 +112,23 @@ export function progressOf(tasks: { done: boolean }[]): { pct: number; total: nu
   const done = tasks.filter((t) => t.done).length;
   return { pct: total === 0 ? 0 : Math.round((done / total) * 100), total, done };
 }
+
+/** Waliduje "sensowną" datę (YYYY-MM-DD, rok 2000–2100) — chroni przed
+ * pułapką natywnego <input type="date">, gdzie da się przypadkowo zapisać
+ * niepełny rok (np. wpisanie "202" i odkliknięcie pola zanim dopiszesz "6"). */
+export function isPlausibleDateString(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const year = Number(m[1]);
+  return year >= 2000 && year <= 2100;
+}
+
+/** Formatuje datę ISO (YYYY-MM-DD, ew. z częścią czasową) na czytelną
+ * postać pl-PL — używane wszędzie tam, gdzie wcześniej wyciekały surowe
+ * stringi/timestampy prosto z bazy. */
+export function formatPlDate(s: string | null | undefined): string {
+  if (!s) return "";
+  const d = new Date(`${s.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+}

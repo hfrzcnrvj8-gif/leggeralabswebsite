@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { isPlausibleDateString } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -69,7 +70,11 @@ export async function PATCH(
   }
   if ("termin" in body) {
     const raw = body.termin;
-    const value = typeof raw === "string" && raw.trim() ? raw : null;
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (trimmed && !isPlausibleDateString(trimmed)) {
+      return NextResponse.json({ error: "invalid termin" }, { status: 400 });
+    }
+    const value = trimmed || null;
     await sql`UPDATE projects SET termin = ${value}, updated_at = now() WHERE id = ${id};`;
   }
   if ("lead_id" in body) {
@@ -82,7 +87,11 @@ export async function PATCH(
   }
   if ("start" in body) {
     const raw = body.start;
-    const value = typeof raw === "string" && raw.trim() ? raw : null;
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (trimmed && !isPlausibleDateString(trimmed)) {
+      return NextResponse.json({ error: "invalid start" }, { status: 400 });
+    }
+    const value = trimmed || null;
     await sql`UPDATE projects SET start = ${value}, updated_at = now() WHERE id = ${id};`;
   }
 

@@ -11,6 +11,7 @@ import {
   ProjectStatusTag,
   ProjectHealthTag,
   progressOf,
+  isPlausibleDateString,
 } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
 import { useUI } from "../ui";
@@ -79,6 +80,14 @@ export function ProjectDetailPanel({
   }, []);
 
   const updateProject = async (field: string, value: string) => {
+    // Natywne <input type="date"> potrafi zapisać niepełny rok (np. "0202"
+    // zamiast "2026"), jeśli pole straci fokus w trakcie wpisywania —
+    // odrzucamy takie wartości zamiast zapisywać śmieciową datę.
+    if ((field === "start" || field === "termin") && value && !isPlausibleDateString(value)) {
+      toast("Nieprawidłowa data — sprawdź, czy rok jest w pełni wpisany (np. 2026).", "error");
+      load();
+      return;
+    }
     setProject((prev) => (prev ? { ...prev, [field]: value } : prev));
     onFieldChange?.(id, field, value);
     const res = await fetch(`/api/projects/${id}`, {
@@ -119,6 +128,11 @@ export function ProjectDetailPanel({
   };
 
   const updateMilestone = async (milestoneId: string, field: "nazwa" | "termin", value: string) => {
+    if (field === "termin" && value && !isPlausibleDateString(value)) {
+      toast("Nieprawidłowa data — sprawdź, czy rok jest w pełni wpisany (np. 2026).", "error");
+      load();
+      return;
+    }
     setMilestones((prev) => prev.map((m) => (m.id === milestoneId ? { ...m, [field]: value } : m)));
     const res = await fetch(`/api/projects/${id}/milestones/${milestoneId}`, {
       method: "PATCH",
@@ -297,6 +311,8 @@ export function ProjectDetailPanel({
                         </div>
                         <input
                           type="date"
+                          min="2000-01-01"
+                          max="2100-12-31"
                           value={m.termin ?? ""}
                           onChange={(e) => updateMilestone(m.id, "termin", e.target.value)}
                           className="shrink-0 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
@@ -408,6 +424,8 @@ export function ProjectDetailPanel({
             <SidebarField label="Start">
               <input
                 type="date"
+                min="2000-01-01"
+                max="2100-12-31"
                 value={project.start ?? ""}
                 onChange={(e) => updateProject("start", e.target.value)}
                 className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
@@ -416,6 +434,8 @@ export function ProjectDetailPanel({
             <SidebarField label="Termin">
               <input
                 type="date"
+                min="2000-01-01"
+                max="2100-12-31"
                 value={project.termin ?? ""}
                 onChange={(e) => updateProject("termin", e.target.value)}
                 className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"

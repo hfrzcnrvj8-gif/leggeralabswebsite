@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, isProjectOverdue } from "./shared";
+import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, isProjectOverdue, formatPlDate } from "./shared";
 import { SummaryCard } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectTimeline } from "./ProjectTimeline";
@@ -151,7 +151,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           {overdue.map((p) => (
             <div key={p.id} className="flex items-center justify-between border-b border-orange-500/15 py-1.5 text-sm last:border-0">
               <span>
-                <b>{p.tytul}</b> — termin {p.termin}
+                <b>{p.tytul}</b> — termin {formatPlDate(p.termin)}
               </span>
               <button
                 onClick={() => setOpenId(p.id)}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { isPlausibleDateString } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,11 @@ export async function PATCH(
   }
   if ("termin" in body) {
     const raw = body.termin;
-    const value = typeof raw === "string" && raw.trim() ? raw : null;
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (trimmed && !isPlausibleDateString(trimmed)) {
+      return NextResponse.json({ error: "invalid termin" }, { status: 400 });
+    }
+    const value = trimmed || null;
     await sql`UPDATE project_milestones SET termin = ${value} WHERE id = ${milestoneId} AND project_id = ${id};`;
   }
 

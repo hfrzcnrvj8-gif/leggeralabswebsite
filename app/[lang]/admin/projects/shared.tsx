@@ -14,6 +14,8 @@ export {
   PROJECT_HEALTH_CLASS,
   isProjectOverdue,
   progressOf,
+  isPlausibleDateString,
+  formatPlDate,
 } from "@/lib/projects";
 
 import { PROJECT_STATUSES, PROJECT_STATUS_CLASS, PROJECT_HEALTHS, PROJECT_HEALTH_CLASS } from "@/lib/projects";

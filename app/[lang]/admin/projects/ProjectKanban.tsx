@@ -10,6 +10,7 @@ import {
   PROJECT_HEALTH_CLASS,
   isProjectOverdue,
   ProjectStatusTag,
+  formatPlDate,
 } from "./shared";
 
 export function ProjectKanban({
@@ -126,7 +127,7 @@ export function ProjectKanban({
                       )}
                       {p.termin && (
                         <span className={`text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
-                          termin: {p.termin}
+                          termin: {formatPlDate(p.termin)}
                         </span>
                       )}
                     </div>
