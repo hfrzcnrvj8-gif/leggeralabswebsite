@@ -1,20 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, SEED, SummaryCard, daysSince, isOverdue } from "./shared";
+import { type Lead, STATUSES, SEED, SummaryCard, isOverdue, overdueReason } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
+import { LeadDetailPanel } from "./LeadDetailPanel";
+import { CommandPalette } from "./CommandPalette";
+import { useUI } from "./ui";
 
 type ViewMode = "kanban" | "table";
 
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+
 export function LeadsDashboard({ lang }: { lang: Locale }) {
+  const { toast, confirm, prompt } = useUI();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterZrodlo, setFilterZrodlo] = useState("");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [sendingReport, setSendingReport] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/leads");
@@ -32,46 +49,65 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     if (saved === "table" || saved === "kanban") setView(saved);
   }, [load]);
 
-  const switchView = (v: ViewMode) => {
+  const switchView = useCallback((v: ViewMode) => {
     setView(v);
     window.localStorage.setItem("leggera_leads_view", v);
-  };
+  }, []);
 
   const updateLead = useCallback(async (id: string, field: string, value: string) => {
     setLeads((prev) => prev?.map((l) => (l.id === id ? { ...l, [field]: value } : l)) ?? prev);
-    await fetch(`/api/leads/${id}`, {
+    const res = await fetch(`/api/leads/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
     });
+    if (!res.ok) toast("Nie udało się zapisać zmiany.", "error");
+  }, [toast]);
+
+  // Panel szczegółów sam wykonuje zapis — tu tylko odzwierciedlamy zmianę w
+  // lokalnym stanie listy, żeby kanban/tabela od razu pokazały nowy stan.
+  const reflectFieldChange = useCallback((id: string, field: string, value: string) => {
+    setLeads((prev) => prev?.map((l) => (l.id === id ? { ...l, [field]: value } : l)) ?? prev);
   }, []);
 
-  const addLead = async () => {
-    const firma = window.prompt("Nazwa firmy:");
+  const addLead = useCallback(async () => {
+    const firma = await prompt("Nazwa firmy nowego leada:", { placeholder: "np. Kancelaria Kowalski" });
     if (!firma) return;
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ firma, zrodlo: "Ręcznie dodane", status: "Do kontaktu" }),
     });
-    if (res.ok) load();
-  };
+    if (res.ok) {
+      toast("Dodano leada.");
+      load();
+    } else {
+      toast("Nie udało się dodać leada.", "error");
+    }
+  }, [prompt, toast, load]);
 
-  const deleteLead = async (id: string, firma: string) => {
-    if (!window.confirm(`Usunąć "${firma}" z listy?`)) return;
-    await fetch(`/api/leads/${id}`, { method: "DELETE" });
+  const deleteLead = useCallback(async (id: string, firma: string) => {
+    const ok = await confirm(`Usunąć "${firma}" z listy?`, { danger: true });
+    if (!ok) return;
+    const res = await fetch(`/api/leads/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast("Nie udało się usunąć leada.", "error");
+      return;
+    }
     setLeads((prev) => prev?.filter((l) => l.id !== id) ?? prev);
-  };
+    toast("Lead usunięty.");
+  }, [confirm, toast]);
 
-  const seedInitial = async () => {
+  const seedInitial = useCallback(async () => {
     if (!leads) return;
     const existing = new Set(leads.map((l) => l.firma));
     const toAdd = SEED.filter((s) => !existing.has(s.firma));
     if (toAdd.length === 0) {
-      window.alert("Wszystkie firmy ze startowej listy już są w rejestrze.");
+      toast("Wszystkie firmy ze startowej listy już są w rejestrze.");
       return;
     }
-    if (!window.confirm(`Dodać ${toAdd.length} firm ze startowej listy?`)) return;
+    const ok = await confirm(`Dodać ${toAdd.length} firm ze startowej listy?`);
+    if (!ok) return;
     for (const s of toAdd) {
       await fetch("/api/leads", {
         method: "POST",
@@ -79,13 +115,31 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         body: JSON.stringify(s),
       });
     }
+    toast(`Dodano ${toAdd.length} firm.`);
     load();
-  };
+  }, [leads, confirm, toast, load]);
 
-  const logout = async () => {
+  const sendReportNow = useCallback(async () => {
+    setSendingReport(true);
+    try {
+      const res = await fetch("/api/leads/notify", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast("Raport wysłany na kontakt@leggeralabs.pl.");
+      } else {
+        toast(data?.error ?? "Nie udało się wysłać raportu.", "error");
+      }
+    } catch {
+      toast("Nie udało się połączyć z serwerem.", "error");
+    } finally {
+      setSendingReport(false);
+    }
+  }, [toast]);
+
+  const logout = useCallback(async () => {
     await fetch("/api/admin/logout", { method: "POST" });
     window.location.reload();
-  };
+  }, []);
 
   const zrodla = useMemo(() => [...new Set((leads ?? []).map((l) => l.zrodlo))], [leads]);
 
@@ -102,12 +156,72 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     });
   }, [leads, filterStatus, filterZrodlo, search]);
 
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filterStatus, filterZrodlo, search, view]);
+
+  // Skróty klawiszowe (styl Linear): Cmd/Ctrl+K paleta poleceń, "/" fokus
+  // wyszukiwarki, "n" nowy lead, "j"/"k" nawigacja w tabeli, Esc zamyka.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
+      if (paletteOpen) return;
+
+      if (e.key === "Escape") {
+        if (openLeadId) setOpenLeadId(null);
+        return;
+      }
+
+      if (isTypingTarget(e.target)) return;
+
+      if (e.key === "/") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      if (e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        addLead();
+        return;
+      }
+      if (view === "table" && (e.key === "j" || e.key === "k")) {
+        e.preventDefault();
+        setSelectedIndex((i) => {
+          const delta = e.key === "j" ? 1 : -1;
+          return Math.min(Math.max(i + delta, 0), Math.max(filtered.length - 1, 0));
+        });
+        return;
+      }
+      if (view === "table" && e.key === "Enter" && filtered[selectedIndex]) {
+        e.preventDefault();
+        setOpenLeadId(filtered[selectedIndex].id);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [paletteOpen, openLeadId, view, filtered, selectedIndex, addLead]);
+
   if (!leads) {
-    return <p className="text-sm text-muted">Ładowanie…</p>;
+    return (
+      <div className="space-y-3">
+        <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
+        <div className="flex gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-16 w-28 animate-pulse rounded-2xl bg-[var(--hairline)]" />
+          ))}
+        </div>
+        <div className="h-64 animate-pulse rounded-2xl bg-[var(--hairline)]" />
+      </div>
+    );
   }
 
   const overdue = leads.filter(isOverdue);
   const counts = Object.fromEntries(STATUSES.map((s) => [s, leads.filter((l) => l.status === s).length]));
+  const selectedId = view === "table" ? filtered[selectedIndex]?.id ?? null : null;
 
   return (
     <div>
@@ -118,9 +232,19 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           </h1>
           <p className="text-sm text-muted">Zgłoszenia z formularza na stronie trafiają tu automatycznie.</p>
         </div>
-        <button onClick={logout} className="rounded-full border hairline px-3 py-1.5 text-xs">
-          Wyloguj
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="hidden rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] sm:flex sm:items-center sm:gap-1.5"
+            title="Paleta poleceń"
+          >
+            Szukaj / akcje
+            <span className="rounded border hairline px-1 text-[10px] opacity-70">⌘K</span>
+          </button>
+          <button onClick={logout} className="rounded-full border hairline px-3 py-1.5 text-xs">
+            Wyloguj
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-3">
@@ -143,10 +267,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
               className="flex items-center justify-between border-b border-orange-500/15 py-1.5 text-sm last:border-0"
             >
               <span>
-                <b>{l.firma}</b>
-                {l.status === "Nowe zgłoszenie ze strony"
-                  ? " — nowe zgłoszenie ze strony, jeszcze nieobsłużone"
-                  : ` — napisano ${daysSince(l.ostatni_kontakt)} dni temu, brak odpowiedzi`}
+                <b>{l.firma}</b> — {overdueReason(l)}
               </span>
               <button
                 onClick={async () => {
@@ -166,7 +287,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         <button onClick={addLead} className="btn-primary rounded-full px-3 py-1.5 text-xs font-semibold">
           + Dodaj lead
         </button>
-        <DiscoverPanel onDiscovered={load} />
+        <DiscoverPanel open={discoverOpen} onOpenChange={setDiscoverOpen} onDiscovered={load} />
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -196,9 +317,10 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           ))}
         </select>
         <input
+          ref={searchRef}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj po nazwie firmy…"
+          placeholder="Szukaj po nazwie firmy… (/)"
           className="rounded-full border hairline bg-transparent px-3 py-1.5 text-xs text-[var(--fg)] placeholder:text-muted"
         />
         <span className="flex-1" />
@@ -224,16 +346,74 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             Tabela
           </button>
         </div>
+        <button
+          onClick={sendReportNow}
+          disabled={sendingReport}
+          className="rounded-full border hairline px-3 py-1.5 text-xs disabled:opacity-50"
+        >
+          {sendingReport ? "Wysyłam…" : "Wyślij raport teraz"}
+        </button>
         <button onClick={seedInitial} className="rounded-full border hairline px-3 py-1.5 text-xs">
           Wczytaj listę startową
         </button>
       </div>
 
       {view === "kanban" ? (
-        <KanbanBoard leads={filtered} lang={lang} onUpdate={updateLead} onDelete={deleteLead} />
+        <KanbanBoard leads={filtered} lang={lang} onUpdate={updateLead} onDelete={deleteLead} onOpen={setOpenLeadId} />
       ) : (
-        <TableView leads={filtered} lang={lang} onUpdate={updateLead} onDelete={deleteLead} />
+        <TableView
+          leads={filtered}
+          lang={lang}
+          selectedId={selectedId}
+          onUpdate={updateLead}
+          onDelete={deleteLead}
+          onOpen={setOpenLeadId}
+        />
       )}
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        leads={leads}
+        onAddLead={addLead}
+        onOpenLead={setOpenLeadId}
+        onSwitchView={switchView}
+        onOpenDiscover={() => setDiscoverOpen(true)}
+        onSendReport={sendReportNow}
+        onLogout={logout}
+      />
+
+      {/* Wysuwany panel szczegółów leada — "peek", bez opuszczania listy. */}
+      <AnimatePresence>
+        {openLeadId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] bg-black/30 backdrop-blur-[2px]"
+            onClick={() => setOpenLeadId(null)}
+          >
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 340, damping: 34 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass ml-auto h-full w-full max-w-2xl overflow-y-auto p-4 sm:p-6"
+            >
+              <LeadDetailPanel
+                id={openLeadId}
+                onClose={() => setOpenLeadId(null)}
+                onFieldChange={reflectFieldChange}
+                onDeleted={(id) => {
+                  setLeads((prev) => prev?.filter((l) => l.id !== id) ?? prev);
+                  setOpenLeadId(null);
+                }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

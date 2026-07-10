@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const BRANZE = [
   "Kancelaria prawna",
@@ -11,8 +11,15 @@ const BRANZE = [
   "Firma doradcza / consulting",
 ];
 
-export function DiscoverPanel({ onDiscovered }: { onDiscovered: () => void }) {
-  const [open, setOpen] = useState(false);
+export function DiscoverPanel({
+  open,
+  onOpenChange,
+  onDiscovered,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onDiscovered: () => void;
+}) {
   const [branza, setBranza] = useState(BRANZE[0]);
   const [lokalizacja, setLokalizacja] = useState("Warszawa Wilanów");
   const [ile, setIle] = useState(8);
@@ -44,10 +51,20 @@ export function DiscoverPanel({ onDiscovered }: { onDiscovered: () => void }) {
     }
   };
 
+  // Komunikaty same znikają po chwili zamiast wisieć aż do kolejnej akcji.
+  useEffect(() => {
+    if (!message && !error) return;
+    const t = window.setTimeout(() => {
+      setMessage(null);
+      setError(null);
+    }, 6000);
+    return () => window.clearTimeout(t);
+  }, [message, error]);
+
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => onOpenChange(true)}
         className="rounded-full border hairline px-3 py-1.5 text-xs font-medium text-liquid"
       >
         ✨ Znajdź nowe leady
@@ -59,7 +76,7 @@ export function DiscoverPanel({ onDiscovered }: { onDiscovered: () => void }) {
     <div className="card-paper w-full rounded-2xl p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-serif text-sm font-semibold">Znajdź nowe leady</h3>
-        <button onClick={() => setOpen(false)} className="text-xs text-muted hover:text-[var(--fg)]">
+        <button onClick={() => onOpenChange(false)} className="text-xs text-muted hover:text-[var(--fg)]">
           Zamknij
         </button>
       </div>

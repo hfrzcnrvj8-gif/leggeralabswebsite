@@ -10,11 +10,13 @@ export function KanbanBoard({
   lang,
   onUpdate,
   onDelete,
+  onOpen,
 }: {
   leads: Lead[];
   lang: Locale;
   onUpdate: (id: string, field: string, value: string) => void;
   onDelete: (id: string, firma: string) => void;
+  onOpen: (id: string) => void;
 }) {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -75,6 +77,11 @@ export function KanbanBoard({
                   <div className="mb-1 flex items-start justify-between gap-2">
                     <Link
                       href={`/${lang}/admin/leads/${lead.id}`}
+                      onClick={(e) => {
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                        e.preventDefault();
+                        onOpen(lead.id);
+                      }}
                       className="text-xs font-medium leading-snug hover:underline"
                     >
                       {lead.firma}
@@ -82,6 +89,7 @@ export function KanbanBoard({
                     <button
                       onClick={() => onDelete(lead.id, lead.firma)}
                       className="shrink-0 text-muted hover:text-red-400"
+                      aria-label={`Usuń ${lead.firma}`}
                       title="Usuń"
                     >
                       ✕

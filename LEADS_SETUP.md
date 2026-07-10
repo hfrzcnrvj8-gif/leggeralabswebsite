@@ -32,6 +32,12 @@ Przycisk **„Znajdź nowe leady”** nie wymaga żadnego klucza API ani konfigu
 
 Ograniczenie: obsługiwane są tylko branże z góry zmapowane na tagi OpenStreetMap (lista w `app/api/leads/discover/route.ts`, `BRANZA_TAGS`) — dokładnie te sześć, które są dostępne w rozwijanej liście w panelu. Kompletność danych bywa różna (baza jest tworzona społecznie) — czasem zabraknie telefonu czy strony www, ale nazwa i adres z reguły się znajdą.
 
+Dzienny raport mailowy (patrz sekcja niżej) wymaga osobnej, opcjonalnej konfiguracji:
+
+- `RESEND_API_KEY` — klucz z [resend.com](https://resend.com) (darmowy plan wystarcza). Bez niego panel działa normalnie, po prostu przycisk „Wyślij raport teraz” i codzienny cron zwrócą błąd zamiast wysłać maila.
+- `RESEND_FROM` — opcjonalny, adres nadawcy po zweryfikowaniu domeny leggeralabs.pl w Resend, np. `Leggera Labs <leady@leggeralabs.pl>`. Bez tego maile idą z testowej domeny Resend i mogą trafiać do spamu.
+- `CRON_SECRET` — opcjonalny, dowolny losowy ciąg; jeśli ustawiony, chroni `/api/leads/notify` przed wywołaniem z zewnątrz (Vercel Cron dołącza go automatycznie do własnych wywołań).
+
 ## 3. Lokalny rozwój (opcjonalnie)
 
 ```bash
@@ -59,11 +65,25 @@ Standardowo — commit + push do `main` (Vercel wdroży automatycznie), albo `ve
 
 ## Widoki: tablica (kanban) i tabela
 
-Domyślny widok to tablica w stylu Trello — kolumna na każdy status, karty przeciągasz między kolumnami myszką, żeby zmienić etap. Przycisk „Tabela” przełącza na widok tabelaryczny, wygodniejszy do szybkiej edycji wielu pól naraz (kontakt, notatki) — wybór widoku zapamiętuje się w przeglądarce.
+Domyślny widok to tablica w stylu Trello — kolumna na każdy status, karty przeciągasz między kolumnami myszką, żeby zmienić etap (albo klikasz kolorowy tag statusu na karcie/w wierszu — bez przeciągania). Przycisk „Tabela” przełącza na widok tabelaryczny z osobnymi kolumnami telefon/email/WWW, wygodniejszy do szybkiej edycji wielu pól naraz — wybór widoku zapamiętuje się w przeglądarce. Klik na nazwę firmy (lub ikonkę ↗) otwiera szczegóły w wysuwanym panelu z boku, bez opuszczania listy — Ctrl/Cmd/Shift+klik otwiera normalnie w nowej karcie.
 
 ## Automatyczne wyszukiwanie leadów
 
 Przycisk **„Znajdź nowe leady”** odpytuje OpenStreetMap o wybraną branżę i lokalizację i zwraca dane, jakie są dostępne — nazwę, czasem telefon/stronę www, adres. Wyniki są automatycznie porównywane z tym, co już masz w rejestrze (po nazwie firmy), więc duplikaty są pomijane. Nowe firmy trafiają ze statusem „Do kontaktu”. Nie wymaga żadnej konfiguracji — działa od razu.
+
+## Skróty klawiszowe i paleta poleceń
+
+- `Cmd/Ctrl + K` — paleta poleceń: szybkie akcje (dodaj leada, zmień widok, znajdź leady, wyślij raport, wyloguj) i wyszukiwanie leada po nazwie z klawiatury.
+- `/` — fokus na wyszukiwarkę.
+- `n` — dodaj nowego leada.
+- `j` / `k` — w widoku tabeli: przesuwa zaznaczenie w dół/górę, `Enter` otwiera zaznaczonego leada.
+- `Esc` — zamyka wysuwany panel szczegółów / paletę poleceń.
+
+## Dzienny raport mailowy
+
+Raz dziennie (domyślnie 6:00 UTC, konfigurowalne w `vercel.json` → `crons[0].schedule`) Vercel Cron odpytuje `/api/leads/notify`, które wysyła na **kontakt@leggeralabs.pl** mail z listą leadów wymagających dziś działania (te same, co w banerze „Wymaga działania dziś” w panelu) oraz podsumowaniem liczby leadów wg statusu. Ten sam raport możesz wysłać ręcznie w dowolnej chwili przyciskiem **„Wyślij raport teraz”** w toolbarze (albo z palety poleceń).
+
+Wymaga skonfigurowania `RESEND_API_KEY` (patrz sekcja o zmiennych środowiskowych wyżej) — bez tego przycisk pokaże błąd zamiast wysłać maila, reszta panelu działa normalnie.
 
 ## Jak to działa na co dzień
 
