@@ -306,8 +306,11 @@ export function ProjectDetailPanel({
                   return (
                     <div key={m.id}>
                       <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <EditableText value={m.nazwa} onSave={(v) => updateMilestone(m.id, "nazwa", v)} />
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-brand-gold" />
+                          <div className="min-w-0 flex-1">
+                            <EditableText value={m.nazwa} onSave={(v) => updateMilestone(m.id, "nazwa", v)} />
+                          </div>
                         </div>
                         <input
                           type="date"
@@ -405,20 +408,21 @@ export function ProjectDetailPanel({
           </div>
         </div>
 
-        {/* Boczny pasek: metadane, styl Linear */}
-        <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <div className="card-paper space-y-3 rounded-2xl p-4">
-            <SidebarField label="Zdrowie">
+        {/* Boczny pasek: metadane, styl Linear — płaskie wiersze z ikoną,
+            bez kart/etykiet nad polem, zamiast formularza. */}
+        <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+          <div>
+            <MetaRow icon="🩺" title="Zdrowie">
               <ProjectHealthTag zdrowie={project.zdrowie} onChange={(v) => updateProject("zdrowie", v)} />
-            </SidebarField>
-            <SidebarField label="Status">
+            </MetaRow>
+            <MetaRow icon="◔" title="Status">
               <ProjectStatusTag status={project.status} onChange={(v) => updateProject("status", v)} />
-            </SidebarField>
-            <SidebarField label="Priorytet">
+            </MetaRow>
+            <MetaRow icon="▮▯" title="Priorytet">
               <select
                 value={project.priorytet}
                 onChange={(e) => updateProject("priorytet", e.target.value)}
-                className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
+                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
               >
                 {PROJECT_PRIORITIES.map((p) => (
                   <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">
@@ -426,49 +430,51 @@ export function ProjectDetailPanel({
                   </option>
                 ))}
               </select>
-            </SidebarField>
-            <SidebarField label="Start">
-              <input
-                type="date"
-                min="2000-01-01"
-                max="2100-12-31"
-                value={project.start ?? ""}
-                onChange={(e) => updateProject("start", e.target.value)}
-                className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
-              />
-            </SidebarField>
-            <SidebarField label="Termin">
-              <input
-                type="date"
-                min="2000-01-01"
-                max="2100-12-31"
-                value={project.termin ?? ""}
-                onChange={(e) => updateProject("termin", e.target.value)}
-                className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
-              />
-            </SidebarField>
-            <SidebarField label="Powiązany lead">
+            </MetaRow>
+            <MetaRow icon="📅" title="Start → Termin">
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  min="2000-01-01"
+                  max="2100-12-31"
+                  value={project.start ?? ""}
+                  onChange={(e) => updateProject("start", e.target.value)}
+                  className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                />
+                <span className="shrink-0 text-muted">→</span>
+                <input
+                  type="date"
+                  min="2000-01-01"
+                  max="2100-12-31"
+                  value={project.termin ?? ""}
+                  onChange={(e) => updateProject("termin", e.target.value)}
+                  className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                />
+              </div>
+            </MetaRow>
+            <MetaRow icon="🎯" title="Powiązany lead">
               <select
                 value={project.lead_id ?? ""}
                 onChange={(e) => updateProject("lead_id", e.target.value)}
-                className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
+                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
               >
                 <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">— brak —</option>
                 {(leads ?? []).map((l) => (
                   <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{l.firma}</option>
                 ))}
               </select>
-            </SidebarField>
+            </MetaRow>
           </div>
 
-          <div className="card-paper rounded-2xl p-4">
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Zasoby</h3>
+          <div className="border-t hairline pt-4">
+            <h3 className="mb-2 text-[11px] text-muted opacity-70">Zasoby</h3>
             {resources.length > 0 && (
               <ul className="mb-2 space-y-1">
                 {resources.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                    <a href={r.url} target="_blank" rel="noreferrer" className="truncate text-liquid hover:underline">
-                      {r.etykieta}
+                    <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-liquid hover:underline">
+                      <span className="shrink-0 opacity-70">🔗</span>
+                      <span className="truncate">{r.etykieta}</span>
                     </a>
                     <button
                       onClick={() => deleteResource(r.id)}
@@ -571,11 +577,14 @@ function PanelHeader({ onClose, tytul }: { onClose?: () => void; tytul?: string 
   );
 }
 
-function SidebarField({ label, children }: { label: string; children: React.ReactNode }) {
+/** Płaski wiersz właściwości w bocznym pasku — ikona po lewej, kontrolka
+ * zajmuje resztę szerokości, bez etykiety nad polem i bez obramowania karty
+ * (styl Linear: lista właściwości, nie formularz). */
+function MetaRow({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label className="mb-1 block text-[11px] text-muted">{label}</label>
-      {children}
+    <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-[var(--hairline)]/30" title={title}>
+      <span className="w-4 shrink-0 text-center text-xs text-muted opacity-80">{icon}</span>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
