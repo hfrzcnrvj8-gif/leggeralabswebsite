@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconBuildingStore, IconExternalLink, IconX } from "@tabler/icons-react";
+import { IconPlus, IconBuildingStore, IconExternalLink, IconX, IconRepeat } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Invoice,
   INVOICE_STATUSES,
   INVOICE_STATUS_CLASS,
+  INVOICE_TYPE_LABEL,
   formatMoney,
   isInvoiceOverdue,
 } from "@/lib/invoices";
@@ -16,6 +17,7 @@ import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { CompanySettingsPanel } from "./CompanySettingsPanel";
+import { RecurringPanel } from "./RecurringPanel";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number };
 
@@ -24,6 +26,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
 
   const load = useCallback(async () => {
@@ -95,6 +98,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
     const nieoplacone = new Map<string, number>();
     const poTerminie = new Map<string, number>();
     for (const i of list) {
+      // Proforma nie jest dokumentem fiskalnym — nie liczy się do przychodu/KPI.
+      if (i.typ_dokumentu === "proforma") continue;
       const currency = i.waluta || "PLN";
       const overdue = isInvoiceOverdue(i);
       if (i.status === "Wystawiona" || overdue) nieoplacone.set(currency, (nieoplacone.get(currency) ?? 0) + i.brutto);
@@ -145,6 +150,13 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
+        <button
+          onClick={() => setRecurringOpen(true)}
+          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Faktury cykliczne"
+        >
+          <IconRepeat size={14} /> Cykliczne
+        </button>
         <button
           onClick={() => setSettingsOpen(true)}
           className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
@@ -211,6 +223,11 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                           <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted" title="Język wydruku">
                             {inv.jezyk}
                           </span>
+                          {inv.typ_dokumentu !== "faktura" && (
+                            <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-gold" title="Typ dokumentu">
+                              {INVOICE_TYPE_LABEL[inv.typ_dokumentu]}
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="p-2.5">{inv.klient_nazwa || <span className="text-muted opacity-60">— brak —</span>}</td>
@@ -308,6 +325,30 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               className="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-5 sm:p-6"
             >
               <CompanySettingsPanel onClose={() => setSettingsOpen(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal faktur cyklicznych */}
+      <AnimatePresence>
+        {recurringOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
+            onClick={() => setRecurringOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
+            >
+              <RecurringPanel onClose={() => setRecurringOpen(false)} />
             </motion.div>
           </motion.div>
         )}

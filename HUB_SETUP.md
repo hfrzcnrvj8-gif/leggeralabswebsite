@@ -139,6 +139,56 @@ waluty każdej faktury** (`inv.waluta`), nie zawsze PLN — KPI
 żeby nie dodawać do siebie PLN i EUR. Każdy wiersz ma też plakietkę języka
 wydruku (PL/EN/DE) obok numeru — to samo w Ofertach.
 
+**Księgowość — dopięte do końca (wzorce z Fakturowni/inFakt/SAP, bez KSeF na
+razie — celowo, to osobny, większy zakres):**
+
+- **Typ dokumentu** (`typ_dokumentu`: faktura / proforma / zaliczkowa) —
+  proforma ma własną numerację (prefiks `PF`), nie liczy się do KPI
+  przychodu (niefiskalna); ma przycisk „Przekształć w fakturę VAT”
+  (`InvoiceEditor.tsx`), który kopiuje dane jako nowy szkic prawdziwej
+  faktury (`POST /api/invoices/:id/duplicate` z `{ typ_dokumentu: "faktura"
+  }`). Zaliczkowa ma pole „Rozlicza zaliczkę” na fakturze końcowej
+  (`rozlicza_zaliczke_id`) — na wydruku odejmuje kwotę zaliczki od sumy do
+  zapłaty.
+- **Korekta** (`koryguje_id`, prefiks numeracji `KOR`) — przycisk „Wystaw
+  korektę” na już wystawionej fakturze tworzy nowy szkic powiązany z
+  oryginałem; wydruk pokazuje tabelę porównawczą przed/po korekcie
+  (`InvoicePrint.tsx`), oryginał zostaje nienaruszony.
+- **Wpłaty częściowe** (`invoice_payments`) — karta „Płatności” w edytorze,
+  pokazuje zapłacono/pozostało (`totalPaid()` w `lib/invoices.ts`).
+- **Link publiczny + e-mail** — każda faktura ma `share_token` (losowy,
+  generowany w JS, nie SQL — PGlite nie ma `pgcrypto`), pod
+  `/[lang]/faktura/[token]` widoczny bez logowania. Przycisk „Wyślij
+  mailem” (`app/api/invoices/[id]/send`) wysyła link przez Resend
+  (`lib/email.ts`, wspólne z modułem leadów).
+- **Przypomnienia o zaległych płatnościach** — automatycznie, w ramach
+  istniejącego dziennego crona `/api/leads/notify` (celowo bez nowego wpisu
+  w `vercel.json` — jeden cron na cały panel), z odstępem 7 dni między
+  przypomnieniami tej samej faktury (`last_reminder_at`); też ręcznie,
+  przyciskiem „Wyślij przypomnienie” (widoczny tylko gdy faktura po
+  terminie).
+- **Kurs NBP dla faktur w walucie obcej** — wymóg ustawy o VAT: kwota VAT
+  musi być dodatkowo pokazana w PLN wg kursu z dnia poprzedzającego
+  wystawienie. Pobierane automatycznie przy „Wystaw fakturę” (`lib/nbp.ts`,
+  cofa się do 10 dni wstecz pomijając dni bez publikacji kursu), zapisywane
+  raz i nigdy nie nadpisywane przy ponownym wystawieniu; jeśli NBP jest
+  nieosiągalne, wystawienie i tak przechodzi (fail-open).
+- **Biała Lista MF (lookup NIP)** — przycisk „Szukaj po NIP” w edytorze
+  (`app/api/mf/nip/[nip]`, `lib/mf.ts`) autouzupełnia nazwę/adres nabywcy z
+  publicznego API Ministerstwa Finansów.
+- **Duplikowanie faktury** — kopiuje nabywcę/odbiorcę/pozycje do nowego
+  szkicu (`app/api/invoices/[id]/duplicate`), bez numeru/dat/statusu/wpłat.
+- **Faktury cykliczne** (`recurring_invoices`, `RecurringPanel.tsx`, panel
+  „Cykliczne” w pasku Faktur) — szablon (nabywca + pozycje + cykl
+  miesięczny/kwartalny/roczny) generuje automatycznie nowy szkic faktury,
+  gdy nadejdzie `next_run` — też w ramach dziennego crona
+  (`generateDueRecurringInvoices()` w `app/api/leads/notify/route.ts`).
+  Wystawienie (numer) i wysyłkę robi właściciel ręcznie z listy faktur —
+  świadomie, żeby zawsze mógł spojrzeć na szkic przed wysłaniem klientowi.
+  Edycja pozycji w panelu zapisuje na `onBlur`, nie na każdym znaku (patch
+  po każdym keystroke'u ścigał się z odświeżeniem listy i gubił wpisywane
+  znaki — poprawione).
+
 ## Cmd+K, wyszukiwanie, skróty
 
 Globalna paleta poleceń (Cmd/Ctrl+K) działa na każdej podstronie panelu —
@@ -202,3 +252,7 @@ duch co przy leadach:
   pojedynczy wpis.
 - Brak wielu użytkowników/ról — panel jest jednoosobowy z jednym hasłem
   administratora, zgodnie z założeniem "narzędzie dla solo-przedsiębiorcy".
+- Brak integracji KSeF (Krajowy System e-Faktur) — świadomie odłożone,
+  osobny i większy zakres (wymaga certyfikatów/uwierzytelniania API
+  Ministerstwa Finansów). Podobnie brak linków do płatności online
+  (Stripe/Przelewy24) — nie było w zatwierdzonym zakresie.

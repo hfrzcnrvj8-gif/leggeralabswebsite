@@ -15,6 +15,7 @@ import {
   clientAddressLines,
   recipientAddressLines,
   vatBreakdown,
+  round2,
 } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload } from "@/lib/documents";
 
@@ -204,15 +205,44 @@ const DICT: Record<InvoiceLang, Dict> = {
 const money = docMoney;
 const dateStr = docDate;
 
-export function InvoicePrint({ id }: { id: string }) {
+/** Nagłówek dokumentu dla typów innych niż zwykła faktura (proforma nie jest
+ * dokumentem fiskalnym; zaliczkowa jest, ale inaczej nazwana). */
+const DOC_TITLE_OVERRIDE: Record<InvoiceLang, Record<string, string>> = {
+  pl: { proforma: "Proforma", zaliczkowa: "Faktura zaliczkowa" },
+  en: { proforma: "Pro forma invoice", zaliczkowa: "Advance invoice" },
+  de: { proforma: "Proforma-Rechnung", zaliczkowa: "Abschlagsrechnung" },
+};
+
+const CORRECTION_LABEL: Record<InvoiceLang, { title: string; reason: string; before: string; after: string; difference: string }> = {
+  pl: { title: "Faktura korygująca do faktury nr", reason: "Przyczyna korekty", before: "Przed korektą", after: "Po korekcie", difference: "Różnica" },
+  en: { title: "Correction invoice to invoice no.", reason: "Reason for correction", before: "Before correction", after: "After correction", difference: "Difference" },
+  de: { title: "Rechnungskorrektur zur Rechnung Nr.", reason: "Korrekturgrund", before: "Vor der Korrektur", after: "Nach der Korrektur", difference: "Differenz" },
+};
+
+const ADVANCE_LABEL: Record<InvoiceLang, string> = {
+  pl: "Otrzymana zaliczka (faktura nr {numer})",
+  en: "Advance received (invoice no. {numer})",
+  de: "Erhaltene Anzahlung (Rechnung Nr. {numer})",
+};
+
+const NBP_LABEL: Record<InvoiceLang, string> = {
+  pl: "Kwota VAT w PLN wg kursu NBP",
+  en: "VAT amount in PLN per NBP exchange rate",
+  de: "USt.-Betrag in PLN nach NBP-Wechselkurs",
+};
+
+export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [original, setOriginal] = useState<{ invoice: Invoice; items: InvoiceItem[] } | null>(null);
+  const [zaliczka, setZaliczka] = useState<{ numer: string | null; brutto: number } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/invoices/${id}`)
+    const url = token ? `/api/invoices/public/${token}` : `/api/invoices/${id}`;
+    fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => {
         setInvoice(d.invoice);
@@ -220,7 +250,37 @@ export function InvoicePrint({ id }: { id: string }) {
         setSettings(d.settings);
       })
       .catch(() => setNotFound(true));
-  }, [id]);
+  }, [id, token]);
+
+  // Korekta: podgląd admina dociąga oryginał do porównania przed/po. Klient
+  // (widok publiczny po tokenie) widzi tylko finalny stan — bez dostępu do
+  // wewnętrznego API admina.
+  useEffect(() => {
+    if (token || !invoice?.koryguje_id) {
+      setOriginal(null);
+      return;
+    }
+    fetch(`/api/invoices/${invoice.koryguje_id}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setOriginal({ invoice: d.invoice, items: d.items }))
+      .catch(() => setOriginal(null));
+  }, [invoice?.koryguje_id, token]);
+
+  // Faktura końcowa rozliczająca zaliczkę — dociągnij kwotę zaliczki do
+  // odjęcia od sumy.
+  useEffect(() => {
+    if (token || !invoice?.rozlicza_zaliczke_id) {
+      setZaliczka(null);
+      return;
+    }
+    fetch(`/api/invoices/${invoice.rozlicza_zaliczke_id}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        const t = invoiceTotals(d.items as { ilosc: number; cena_netto: number; vat_stawka: string }[]);
+        setZaliczka({ numer: d.invoice.numer, brutto: t.brutto });
+      })
+      .catch(() => setZaliczka(null));
+  }, [invoice?.rozlicza_zaliczke_id, token]);
 
   const lang: InvoiceLang = invoice?.jezyk ?? "pl";
   const t = DICT[lang];
@@ -228,6 +288,9 @@ export function InvoicePrint({ id }: { id: string }) {
   const totals = invoiceTotals(items);
   const vat = settings?.vat_payer ?? true;
   const dueAmount = vat ? totals.brutto : totals.netto;
+  // Faktura końcowa rozliczająca zaliczkę — odejmij już opłaconą zaliczkę od
+  // sumy do zapłaty.
+  const finalDue = zaliczka ? Math.round((dueAmount - zaliczka.brutto + Number.EPSILON) * 100) / 100 : dueAmount;
   const currency = invoice?.waluta || "PLN";
 
   // Kod QR (standard EPC069-12 / "GiroCode") — tylko dla EUR, bo standard
@@ -242,7 +305,7 @@ export function InvoicePrint({ id }: { id: string }) {
       beneficiaryName: settings.nazwa,
       iban: settings.konto,
       bic: settings.swift,
-      amountEur: dueAmount,
+      amountEur: finalDue,
       remittanceInfo: invoice.numer ?? invoice.id,
     });
     if (!payload) {
@@ -257,13 +320,15 @@ export function InvoicePrint({ id }: { id: string }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoice?.id, invoice?.numer, settings?.konto, settings?.swift, settings?.nazwa, currency, dueAmount]);
+  }, [invoice?.id, invoice?.numer, settings?.konto, settings?.swift, settings?.nazwa, currency, finalDue]);
 
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!invoice || !settings) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 
   const breakdown = vatBreakdown(items);
   const hasReverseCharge = items.some((it) => it.vat_stawka === "np");
+  const docTitle = DOC_TITLE_OVERRIDE[lang][invoice.typ_dokumentu] ?? t.doc;
+  const originalTotals = original ? invoiceTotals(original.items) : null;
 
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
@@ -311,7 +376,7 @@ export function InvoicePrint({ id }: { id: string }) {
               {settings.nazwa && <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa}</span>}
             </div>
             <div className="text-right">
-              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{t.doc}</div>
+              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{docTitle}</div>
               <div className="mt-0.5 text-xl font-semibold tracking-tight text-neutral-900">
                 {invoice.numer ?? `(${t.draft})`}
               </div>
@@ -375,6 +440,21 @@ export function InvoicePrint({ id }: { id: string }) {
             )}
           </div>
 
+          {/* Faktura korygująca — odwołanie do oryginału + przyczyna */}
+          {invoice.koryguje_id && (
+            <div className="mt-6 rounded-lg bg-neutral-50 px-3 py-2.5 text-[11.5px] text-neutral-700">
+              <div>
+                {CORRECTION_LABEL[lang].title} <span className="font-medium">{original?.invoice.numer ?? "…"}</span>
+                {original?.invoice.data_wystawienia ? ` (${dateStr(original.invoice.data_wystawienia, lang)})` : ""}
+              </div>
+              {invoice.przyczyna_korekty && (
+                <div className="mt-1">
+                  {CORRECTION_LABEL[lang].reason}: {invoice.przyczyna_korekty}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Pozycje */}
           <table className="mt-10 w-full border-collapse text-[12px]">
             <thead>
@@ -411,6 +491,31 @@ export function InvoicePrint({ id }: { id: string }) {
             </tbody>
           </table>
 
+          {/* Korekta: podsumowanie przed/po/różnica (tylko widok admina, gdy
+              udało się dociągnąć oryginał) */}
+          {invoice.koryguje_id && originalTotals && (
+            <div className="mt-4 flex justify-end">
+              <table className="w-80 border-collapse text-[11.5px] text-neutral-600">
+                <tbody>
+                  <tr className="border-b border-neutral-100">
+                    <td className="py-1 pr-2">{CORRECTION_LABEL[lang].before}</td>
+                    <td className="py-1 text-right tabular-nums">{money(originalTotals.brutto, lang, currency)}</td>
+                  </tr>
+                  <tr className="border-b border-neutral-100">
+                    <td className="py-1 pr-2">{CORRECTION_LABEL[lang].after}</td>
+                    <td className="py-1 text-right tabular-nums">{money(totals.brutto, lang, currency)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-2 font-medium text-neutral-900">{CORRECTION_LABEL[lang].difference}</td>
+                    <td className="py-1 text-right tabular-nums font-medium text-neutral-900">
+                      {money(round2(totals.brutto - originalTotals.brutto), lang, currency)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Sumy */}
           <div className="mt-4 flex justify-end">
             <div className="w-64 space-y-1.5">
@@ -424,13 +529,27 @@ export function InvoicePrint({ id }: { id: string }) {
                   <span className="tabular-nums">{money(totals.vat, lang, currency)}</span>
                 </div>
               )}
+              {vat && invoice.kurs_nbp && (
+                <div className="flex justify-between text-[11px] text-neutral-400">
+                  <span>
+                    {NBP_LABEL[lang]} ({invoice.kurs_nbp_tabela} {invoice.kurs_nbp_data ? dateStr(invoice.kurs_nbp_data, lang) : ""}, 1 {currency} = {invoice.kurs_nbp} PLN)
+                  </span>
+                  <span className="tabular-nums">{docMoney(round2(totals.vat * invoice.kurs_nbp), lang, "PLN")}</span>
+                </div>
+              )}
+              {zaliczka && (
+                <div className="flex justify-between text-neutral-500">
+                  <span>{ADVANCE_LABEL[lang].replace("{numer}", zaliczka.numer ?? "—")}</span>
+                  <span className="tabular-nums">−{money(zaliczka.brutto, lang, currency)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-neutral-200 pt-2 text-[15px] font-semibold">
                 <span className="text-neutral-900">{t.totalDue}</span>
                 <span
                   className="tabular-nums"
                   style={{ background: DOC_GRADIENT, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
                 >
-                  {money(dueAmount, lang, currency)}
+                  {money(finalDue, lang, currency)}
                 </span>
               </div>
             </div>
@@ -466,7 +585,7 @@ export function InvoicePrint({ id }: { id: string }) {
             </div>
           )}
 
-          {lang === "pl" && <div className="mt-2 text-neutral-500">{t.inWords}: {amountInWords(dueAmount, currency)}</div>}
+          {lang === "pl" && <div className="mt-2 text-neutral-500">{t.inWords}: {amountInWords(finalDue, currency)}</div>}
 
           {/* Płatność */}
           <div className="mt-10 grid grid-cols-2 gap-8 border-t border-neutral-100 pt-6 text-neutral-500">

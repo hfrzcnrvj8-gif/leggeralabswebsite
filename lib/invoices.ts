@@ -67,6 +67,17 @@ export type VatRate = (typeof VAT_RATES)[number];
  * (standard EPC069-12 jest zdefiniowany wyłącznie dla EUR). */
 export const INVOICE_CURRENCIES = ["PLN", "EUR", "USD", "GBP"] as const;
 
+/** Typ dokumentu: zwykła faktura / proforma (niefiskalna, własna numeracja,
+ * nie liczy się do KPI/przychodu) / zaliczkowa (na poczet przyszłej faktury
+ * końcowej, która ją potem rozliczy przez `rozlicza_zaliczke_id`). */
+export const INVOICE_TYPES = ["faktura", "proforma", "zaliczkowa"] as const;
+export type InvoiceDocType = (typeof INVOICE_TYPES)[number];
+export const INVOICE_TYPE_LABEL: Record<InvoiceDocType, string> = {
+  faktura: "Faktura",
+  proforma: "Proforma",
+  zaliczkowa: "Faktura zaliczkowa",
+};
+
 export type InvoiceItem = {
   id: string;
   invoice_id: string;
@@ -102,6 +113,19 @@ export type Invoice = {
   odbiorca_kod: string;
   odbiorca_miasto: string;
   odbiorca_kraj: string;
+  klient_email: string;
+  share_token: string | null;
+  last_reminder_at: string | null;
+  typ_dokumentu: InvoiceDocType;
+  /** Ustawione, gdy TA faktura jest korektą innej — pozycje tej faktury to
+   * stan PO korekcie, oryginał (koryguje_id) zostaje nienaruszony. */
+  koryguje_id: string | null;
+  przyczyna_korekty: string;
+  /** Ustawione na fakturze KOŃCOWEJ, która rozlicza wskazaną zaliczkową. */
+  rozlicza_zaliczke_id: string | null;
+  kurs_nbp: number | null;
+  kurs_nbp_data: string | null;
+  kurs_nbp_tabela: string | null;
   data_wystawienia: string | null;
   data_sprzedazy: string | null;
   termin_platnosci: string | null;
@@ -113,6 +137,19 @@ export type Invoice = {
   updated_at: string;
 };
 
+export type InvoicePayment = {
+  id: string;
+  invoice_id: string;
+  kwota: number;
+  data: string;
+  created_at: string;
+};
+
+/** Suma zarejestrowanych wpłat na fakturę. */
+export function totalPaid(payments: { kwota: number }[]): number {
+  return round2(payments.reduce((sum, p) => sum + p.kwota, 0));
+}
+
 /** Ułamek stawki VAT (0 dla "zw"/"np"/"0"). */
 export function vatFraction(rate: string): number {
   if (rate === "zw" || rate === "np" || rate === "0") return 0;
@@ -120,7 +157,7 @@ export function vatFraction(rate: string): number {
   return Number.isFinite(n) ? n / 100 : 0;
 }
 
-function round2(n: number): number {
+export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 

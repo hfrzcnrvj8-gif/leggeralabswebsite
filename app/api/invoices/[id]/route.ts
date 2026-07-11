@@ -22,7 +22,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
-  return NextResponse.json({ invoice, items: numItems(items), settings: settings[0] ?? null });
+  const payments = await sql`SELECT * FROM invoice_payments WHERE invoice_id = ${id} ORDER BY data ASC;`;
+  const korekty = await sql`SELECT id, numer, data_wystawienia FROM invoices WHERE koryguje_id = ${id} ORDER BY created_at ASC;`;
+  const koryguje = invoice.koryguje_id
+    ? (await sql`SELECT id, numer, data_wystawienia FROM invoices WHERE id = ${invoice.koryguje_id};`)[0] ?? null
+    : null;
+  return NextResponse.json({
+    invoice,
+    items: numItems(items),
+    settings: settings[0] ?? null,
+    payments: payments.map((p) => ({ ...p, kwota: Number(p.kwota) })),
+    korekty,
+    koryguje,
+  });
 }
 
 /** PATCH /api/invoices/:id — aktualizacja pól nagłówka faktury. */
@@ -54,6 +66,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("odbiorca_kod" in body) await sql`UPDATE invoices SET odbiorca_kod = ${str(body.odbiorca_kod, 20)}, updated_at = now() WHERE id = ${id};`;
     if ("odbiorca_miasto" in body) await sql`UPDATE invoices SET odbiorca_miasto = ${str(body.odbiorca_miasto, 200)}, updated_at = now() WHERE id = ${id};`;
     if ("odbiorca_kraj" in body) await sql`UPDATE invoices SET odbiorca_kraj = ${str(body.odbiorca_kraj, 100)}, updated_at = now() WHERE id = ${id};`;
+    if ("klient_email" in body) await sql`UPDATE invoices SET klient_email = ${str(body.klient_email, 200)}, updated_at = now() WHERE id = ${id};`;
+    if ("przyczyna_korekty" in body) await sql`UPDATE invoices SET przyczyna_korekty = ${str(body.przyczyna_korekty, 500)}, updated_at = now() WHERE id = ${id};`;
+    if ("typ_dokumentu" in body) {
+      const v = typeof body.typ_dokumentu === "string" && ["faktura", "proforma", "zaliczkowa"].includes(body.typ_dokumentu) ? body.typ_dokumentu : "faktura";
+      await sql`UPDATE invoices SET typ_dokumentu = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("uwagi" in body) await sql`UPDATE invoices SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
     if ("waluta" in body) await sql`UPDATE invoices SET waluta = ${str(body.waluta, 10) || "PLN"}, updated_at = now() WHERE id = ${id};`;
     if ("jezyk" in body) {

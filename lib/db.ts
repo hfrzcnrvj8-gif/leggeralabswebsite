@@ -1,4 +1,5 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import { randomUUID } from "node:crypto";
 
 type Sql = NeonQueryFunction<false, false>;
 
@@ -313,6 +314,69 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_kod TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_miasto TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_kraj TEXT NOT NULL DEFAULT '';`;
+  // E-mail nabywcy — do wysyłki faktury/przypomnień; share_token — losowy
+  // token do publicznego (bez logowania) podglądu faktury przez klienta.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_email TEXT NOT NULL DEFAULT '';`;
+  // share_token generowany w JS (randomUUID) przy tworzeniu faktury, nie w
+  // SQL — bez zależności od rozszerzenia pgcrypto (niedostępnego w PGlite).
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS share_token TEXT;`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS invoices_share_token_idx ON invoices(share_token);`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;`;
+  // Typ dokumentu — zwykła faktura / proforma (niefiskalna, własna numeracja,
+  // nie wchodzi do KPI) / zaliczkowa (na poczet przyszłej faktury końcowej).
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS typ_dokumentu TEXT NOT NULL DEFAULT 'faktura';`;
+  // Korekta — ta faktura POPRAWIA fakturę o id = koryguje_id; pozycje tej
+  // faktury to stan PO korekcie, oryginał pozostaje nienaruszony (wydruk
+  // liczy różnicę przez porównanie pozycji obu dokumentów).
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS koryguje_id TEXT REFERENCES invoices(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS przyczyna_korekty TEXT NOT NULL DEFAULT '';`;
+  // Rozliczenie zaliczki — ta faktura (końcowa) odejmuje od sumy kwotę
+  // wskazanej wcześniej faktury zaliczkowej.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS rozlicza_zaliczke_id TEXT REFERENCES invoices(id) ON DELETE SET NULL;`;
+  // Kurs NBP zastosowany do VAT na fakturze w walucie obcej (wymóg ustawy o
+  // VAT — kwota VAT musi być dodatkowo wyrażona w PLN wg kursu z dnia
+  // poprzedzającego wystawienie). Zapisywany raz, przy wystawieniu.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp NUMERIC;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp_data DATE;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp_tabela TEXT;`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoice_payments (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      kwota NUMERIC NOT NULL,
+      data DATE NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS invoice_payments_invoice_id_idx ON invoice_payments(invoice_id);`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS recurring_invoices (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL DEFAULT '',
+      klient_nazwa TEXT NOT NULL DEFAULT '',
+      klient_nip TEXT NOT NULL DEFAULT '',
+      klient_ulica TEXT NOT NULL DEFAULT '',
+      klient_kod TEXT NOT NULL DEFAULT '',
+      klient_miasto TEXT NOT NULL DEFAULT '',
+      klient_kraj TEXT NOT NULL DEFAULT '',
+      klient_email TEXT NOT NULL DEFAULT '',
+      waluta TEXT NOT NULL DEFAULT 'PLN',
+      jezyk TEXT NOT NULL DEFAULT 'pl',
+      termin_dni INTEGER NOT NULL DEFAULT 14,
+      -- Pozycje szablonu jako JSON: [{nazwa, ilosc, jednostka, cena_netto, vat_stawka}]
+      -- (nie osobna tabela — to tylko "odbitka" kopiowana przy generowaniu
+      -- kolejnej faktury, bez potrzeby relacyjnej integralności).
+      pozycje JSONB NOT NULL DEFAULT '[]',
+      cykl TEXT NOT NULL DEFAULT 'miesiecznie',
+      next_run DATE NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS recurring_invoices_active_idx ON recurring_invoices(active, next_run);`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_items (
@@ -389,4 +453,14 @@ async function createOffersSchema(): Promise<void> {
 export async function ensureOffersSchema(): Promise<void> {
   if (!offersSchemaReady) offersSchemaReady = createOffersSchema();
   await offersSchemaReady;
+}
+
+/** Zwraca `share_token` faktury, generując go w locie (randomUUID), jeśli
+ * jeszcze go nie ma — dotyczy faktur utworzonych przed wprowadzeniem
+ * publicznego podglądu/wysyłki mailem. */
+export async function ensureInvoiceShareToken(sql: Sql, id: string, existingToken: string | null): Promise<string> {
+  if (existingToken) return existingToken;
+  const token = randomUUID().replace(/-/g, "");
+  await sql`UPDATE invoices SET share_token = ${token} WHERE id = ${id};`;
+  return token;
 }
