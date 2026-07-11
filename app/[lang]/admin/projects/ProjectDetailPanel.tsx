@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList } from "@tabler/icons-react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -103,6 +103,44 @@ export function ProjectDetailPanel({
     }
     setDependencies((prev) => [...new Set([...prev, dependsOnId])]);
     onFieldChange?.(id, "dependencies", "");
+  };
+
+  const dragMsRef = useRef<string | null>(null);
+  const onDropMilestone = async (toId: string) => {
+    const fromId = dragMsRef.current;
+    dragMsRef.current = null;
+    if (!fromId || fromId === toId) return;
+    const arr = [...milestones];
+    const from = arr.findIndex((m) => m.id === fromId);
+    const to = arr.findIndex((m) => m.id === toId);
+    if (from < 0 || to < 0) return;
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    setMilestones(arr);
+    await fetch(`/api/projects/${id}/milestones/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: arr.map((m) => m.id) }),
+    });
+  };
+
+  const dragTaskRef = useRef<string | null>(null);
+  const onDropTask = async (toId: string) => {
+    const fromId = dragTaskRef.current;
+    dragTaskRef.current = null;
+    if (!fromId || fromId === toId) return;
+    const from = tasks.findIndex((t) => t.id === fromId);
+    const to = tasks.findIndex((t) => t.id === toId);
+    if (from < 0 || to < 0 || tasks[from].milestone_id !== tasks[to].milestone_id) return; // reorder tylko w obrębie tej samej grupy
+    const arr = [...tasks];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    setTasks(arr);
+    await fetch(`/api/projects/${id}/tasks/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: arr.map((t) => t.id) }),
+    });
   };
 
   const removeDependency = async (dependsOnId: string) => {
@@ -383,9 +421,20 @@ export function ProjectDetailPanel({
                   const mTasks = tasks.filter((t) => t.milestone_id === m.id);
                   const { pct, done, total } = progressOf(mTasks);
                   return (
-                    <div key={m.id}>
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <div key={m.id} onDragOver={(e) => e.preventDefault()} onDrop={() => onDropMilestone(m.id)}>
+                      <div className="group/ms mb-1.5 flex items-center justify-between gap-2">
                         <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span
+                            draggable
+                            onDragStart={(e) => {
+                              dragMsRef.current = m.id;
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            className="shrink-0 cursor-grab text-muted opacity-0 transition-opacity group-hover/ms:opacity-60 active:cursor-grabbing"
+                            title="Przeciągnij, aby zmienić kolejność"
+                          >
+                            <IconGripVertical size={14} />
+                          </span>
                           <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-[#4ea7fc]" />
                           <div className="min-w-0 flex-1">
                             <EditableText value={m.nazwa} onSave={(v) => updateMilestone(m.id, "nazwa", v)} />
@@ -410,7 +459,7 @@ export function ProjectDetailPanel({
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <TaskList tasks={mTasks} onToggle={toggleTask} onDelete={deleteTask} />
+                      <TaskList tasks={mTasks} onToggle={toggleTask} onDelete={deleteTask} onDragStartTask={(tid) => (dragTaskRef.current = tid)} onDropTask={onDropTask} />
                       <button
                         onClick={() => addTask(m.id)}
                         className="mt-1 text-[11px] text-muted hover:text-[var(--fg)]"
@@ -428,7 +477,7 @@ export function ProjectDetailPanel({
                         Bez kamienia milowego
                       </h3>
                     )}
-                    <TaskList tasks={unmilestoned} onToggle={toggleTask} onDelete={deleteTask} />
+                    <TaskList tasks={unmilestoned} onToggle={toggleTask} onDelete={deleteTask} onDragStartTask={(tid) => (dragTaskRef.current = tid)} onDropTask={onDropTask} />
                     <button
                       onClick={() => addTask(null)}
                       className="mt-1 text-[11px] text-muted hover:text-[var(--fg)]"
@@ -636,16 +685,36 @@ function TaskList({
   tasks,
   onToggle,
   onDelete,
+  onDragStartTask,
+  onDropTask,
 }: {
   tasks: ProjectTask[];
   onToggle: (id: string, done: boolean) => void;
   onDelete: (id: string) => void;
+  onDragStartTask?: (id: string) => void;
+  onDropTask?: (id: string) => void;
 }) {
   if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">Brak zadań.</p>;
   return (
     <ul className="space-y-1">
       {tasks.map((t) => (
-        <li key={t.id} className="flex items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-[var(--hairline)]">
+        <li
+          key={t.id}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => onDropTask?.(t.id)}
+          className="group/task flex items-center gap-1.5 rounded-lg px-1 py-0.5 hover:bg-[var(--hairline)]"
+        >
+          <span
+            draggable
+            onDragStart={(e) => {
+              onDragStartTask?.(t.id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            className="shrink-0 cursor-grab text-muted opacity-0 transition-opacity group-hover/task:opacity-50 active:cursor-grabbing"
+            title="Przeciągnij, aby zmienić kolejność"
+          >
+            <IconGripVertical size={13} />
+          </span>
           <input
             type="checkbox"
             checked={t.done}

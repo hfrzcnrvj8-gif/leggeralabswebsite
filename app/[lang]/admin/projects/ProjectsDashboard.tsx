@@ -492,7 +492,13 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenId}
         />
       ) : (
-        <ProjectTimeline key={timelineRefreshKey} lang={lang} onOpen={setOpenId} onChange={load} />
+        <ProjectTimeline
+          key={timelineRefreshKey}
+          lang={lang}
+          onOpen={setOpenId}
+          onChange={load}
+          filter={{ status: filterStatus, priority: filterPriority, health: filterHealth }}
+        />
       )}
       </div>
 

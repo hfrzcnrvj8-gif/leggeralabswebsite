@@ -17,6 +17,8 @@ type TimelineProject = {
   created_at: string;
   kolor: string | null;
   ikona: string | null;
+  task_total?: number;
+  task_done?: number;
   milestones: TimelineMilestone[];
 };
 
@@ -105,14 +107,18 @@ export function ProjectTimeline({
   lang,
   onOpen,
   onChange,
+  filter,
 }: {
   lang: Locale;
   onOpen: (id: string) => void;
   onChange?: () => void;
+  /** Filtry z paska Projektów — oś respektuje je tak jak roadmapa w Linear. */
+  filter?: { status?: string; priority?: string; health?: string };
 }) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
   const [deps, setDeps] = useState<{ project_id: string; depends_on_id: string }[]>([]);
   const [zoom, setZoom] = useState<Zoom>("month");
+  const [groupBy, setGroupBy] = useState<"none" | "status" | "zdrowie">("none");
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   dragRef.current = drag;
@@ -156,8 +162,13 @@ export function ProjectTimeline({
     el.scrollLeft = Math.max(0, todayPx - el.clientWidth / 2);
   }, [projects, zoom]);
 
+  const fStatus = filter?.status ?? "";
+  const fPriority = filter?.priority ?? "";
+  const fHealth = filter?.health ?? "";
   const { dated, rangeStart, rangeEnd, totalDays, months } = useMemo(() => {
-    const list = projects ?? [];
+    const list = (projects ?? []).filter(
+      (p) => (!fStatus || p.status === fStatus) && (!fPriority || p.priorytet === fPriority) && (!fHealth || p.zdrowie === fHealth)
+    );
     const dated: { p: TimelineProject; start: Date; end: Date; estimated: boolean }[] = [];
 
     for (const p of list) {
@@ -210,7 +221,7 @@ export function ProjectTimeline({
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
     return { dated, rangeStart, rangeEnd, totalDays, months };
-  }, [projects]);
+  }, [projects, fStatus, fPriority, fHealth]);
 
   const commitDrag = useCallback(
     async (deltaDays: number) => {
@@ -314,19 +325,53 @@ export function ProjectTimeline({
   }
   const monthLines = months.map((m) => pctOf(m)).filter((pct) => pct > 0.01);
 
-  // Krzywe zależności: od KOŃCA paska poprzednika (depends_on) do STARTU
-  // następnika (project_id), jak w Linear Roadmap. Współrzędne w px.
-  const posById = new Map<string, { i: number; start: Date; end: Date }>();
-  dated.forEach((d, i) => posById.set(d.p.id, { i, start: d.start, end: d.end }));
+  // Układ wierszy z opcjonalnym grupowaniem (wg statusu/zdrowia) — nagłówek grupy
+  // + projekty pod nim. Liczymy pozycję Y każdego projektu (do krzywych zależności).
+  const GROUP_H = 30;
+  type Row = { type: "group"; label: string; count: number } | { type: "project"; d: (typeof dated)[number]; y: number; alt: boolean };
+  const layoutRows: Row[] = [];
+  const posById = new Map<string, { start: Date; end: Date; yCenter: number }>();
+  {
+    let y = 0;
+    let projIdx = 0;
+    const addProject = (d: (typeof dated)[number]) => {
+      posById.set(d.p.id, { start: d.start, end: d.end, yCenter: y + BAR_TOP + BAR_H / 2 });
+      layoutRows.push({ type: "project", d, y, alt: projIdx % 2 === 1 });
+      y += ROW_H;
+      projIdx += 1;
+    };
+    if (groupBy === "none") {
+      dated.forEach(addProject);
+    } else {
+      const groups = new Map<string, (typeof dated)[number][]>();
+      const order: string[] = [];
+      for (const d of dated) {
+        const k = groupBy === "status" ? d.p.status : d.p.zdrowie;
+        if (!groups.has(k)) {
+          groups.set(k, []);
+          order.push(k);
+        }
+        groups.get(k)!.push(d);
+      }
+      for (const k of order) {
+        layoutRows.push({ type: "group", label: k, count: groups.get(k)!.length });
+        y += GROUP_H;
+        groups.get(k)!.forEach(addProject);
+      }
+    }
+  }
+  const bodyHeight = layoutRows.reduce((h, r) => h + (r.type === "group" ? GROUP_H : ROW_H), 0);
+
+  // Krzywe zależności: od KOŃCA paska poprzednika (depends_on) do STARTU następnika.
   const curves = deps
     .map((dep, idx) => {
       const pred = posById.get(dep.depends_on_id);
       const succ = posById.get(dep.project_id);
       if (!pred || !succ) return null;
       const x1 = (pctOf(pred.end) / 100) * chartPxWidth;
-      const y1 = pred.i * ROW_H + BAR_TOP + BAR_H / 2;
+      const y1 = pred.yCenter;
       const x2 = (pctOf(succ.start) / 100) * chartPxWidth;
-      const y2 = succ.i * ROW_H + BAR_TOP + BAR_H / 2;
+      const y2 = succ.yCenter;
       const cx = Math.max(28, Math.abs(x2 - x1) / 2);
       return { idx, x2, y2, d: `M ${x1} ${y1} C ${x1 + cx} ${y1}, ${x2 - cx} ${y2}, ${x2} ${y2}` };
     })
@@ -334,8 +379,25 @@ export function ProjectTimeline({
 
   return (
     <div>
-      {/* Pasek narzędzi: zoom */}
-      <div className="mb-2 flex items-center justify-end">
+      {/* Pasek narzędzi: grupowanie + zoom */}
+      <div className="mb-2 flex items-center justify-end gap-2">
+        <div className="flex items-center rounded-lg border hairline p-0.5">
+          {([
+            ["none", "Bez grup"],
+            ["status", "Status"],
+            ["zdrowie", "Zdrowie"],
+          ] as const).map(([g, label]) => (
+            <button
+              key={g}
+              onClick={() => setGroupBy(g)}
+              className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                groupBy === g ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:text-[var(--fg)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center rounded-lg border hairline p-0.5">
           {(["quarter", "month", "week"] as Zoom[]).map((z) => (
             <button
@@ -391,7 +453,7 @@ export function ProjectTimeline({
 
             {/* Krzywe zależności między projektami (jak w Linear) */}
             {curves.length > 0 && (
-              <svg className="pointer-events-none absolute left-0 top-0 z-[1]" width={chartPxWidth} height={dated.length * ROW_H} style={{ overflow: "visible" }}>
+              <svg className="pointer-events-none absolute left-0 top-0 z-[1]" width={chartPxWidth} height={bodyHeight} style={{ overflow: "visible" }}>
                 {curves.map((c) => (
                   <g key={c.idx}>
                     <path d={c.d} fill="none" stroke="var(--fg-muted)" strokeWidth={1.5} strokeOpacity={0.5} />
@@ -401,7 +463,16 @@ export function ProjectTimeline({
               </svg>
             )}
 
-            {dated.map(({ p, start, end, estimated }, rowIdx) => {
+            {layoutRows.map((row, ri) => {
+              if (row.type === "group") {
+                return (
+                  <div key={`g-${ri}`} className="relative flex items-center gap-2 border-y hairline bg-[var(--hairline)]/[0.18] px-3" style={{ height: GROUP_H }}>
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{row.label}</span>
+                    <span className="rounded-full bg-[var(--hairline)] px-1.5 text-[10px] text-muted">{row.count}</span>
+                  </div>
+                );
+              }
+              const { p, start, end, estimated } = row.d;
               const milestonesWithDates = p.milestones
                 .map((m) => ({ id: m.id, nazwa: m.nazwa, date: parseDate(m.termin) }))
                 .filter((m): m is { id: string; nazwa: string; date: Date } => m.date !== null);
@@ -440,7 +511,7 @@ export function ProjectTimeline({
               const hasTrail = !estimated && solidEndPct < endPct - 0.2;
 
               return (
-                <div key={p.id} className={`group relative ${rowIdx % 2 === 1 ? "bg-[var(--hairline)]/[0.06]" : ""}`} style={{ height: ROW_H }}>
+                <div key={p.id} className={`group relative ${row.alt ? "bg-[var(--hairline)]/[0.06]" : ""}`} style={{ height: ROW_H }}>
                   {/* NAZWA NAD PASKIEM — przy dacie startu */}
                   <button
                     onClick={() => {
@@ -469,6 +540,14 @@ export function ProjectTimeline({
                         : `${p.tytul} · ${formatPlDate(toLocalISO(dispStart))} – ${formatPlDate(toLocalISO(dispEnd))}`
                     }
                   >
+                    {/* Wypełnienie postępu (ukończone zadania) — jak w Linear */}
+                    {(p.task_total ?? 0) > 0 && (
+                      <div
+                        className="pointer-events-none absolute inset-y-0 left-0 rounded-md"
+                        style={{ width: `${((p.task_done ?? 0) / (p.task_total ?? 1)) * 100}%`, backgroundColor: accent, opacity: 0.5 }}
+                        title={`${p.task_done}/${p.task_total} zadań`}
+                      />
+                    )}
                     <button onPointerDown={(e) => beginDrag(e, "move", p.id, start, end)} onClick={() => { if (!movedRef.current) onOpen(p.id); }} className="absolute inset-0 cursor-grab rounded-md active:cursor-grabbing" aria-label={`Przesuń ${p.tytul}`} />
                     <div onPointerDown={(e) => beginDrag(e, "start", p.id, start, end)} className="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize rounded-l-md hover:bg-white/25" title="Zmień start" />
                     {!hasTrail && <div onPointerDown={(e) => beginDrag(e, "end", p.id, start, end)} className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize rounded-r-md hover:bg-white/25" title="Zmień termin" />}
