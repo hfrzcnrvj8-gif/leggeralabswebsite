@@ -9,7 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { IconCheck } from "@tabler/icons-react";
 
 /**
@@ -97,23 +97,20 @@ export function Popover({
         {trigger(openMenu, open)}
       </span>
       {typeof document !== "undefined" &&
+        open &&
+        pos &&
         createPortal(
-          <AnimatePresence>
-            {open && pos && (
-              <motion.div
-                ref={menuRef}
-                initial={{ opacity: 0, scale: 0.97, y: -2 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.1, ease: "easeOut" }}
-                role="menu"
-                className="fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
-                style={{ top: pos.top, left: pos.left, width }}
-              >
-                {children(() => setOpen(false))}
-              </motion.div>
-            )}
-          </AnimatePresence>,
+          <motion.div
+            ref={menuRef}
+            initial={{ opacity: 0, scale: 0.97, y: -2 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
+            role="menu"
+            className="fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+            style={{ top: pos.top, left: pos.left, width }}
+          >
+            {children(() => setOpen(false))}
+          </motion.div>,
           document.body
         )}
     </>
@@ -253,21 +250,20 @@ export function PropertyMenu<T extends string>({
         {children}
       </button>
       {typeof document !== "undefined" &&
+        open &&
+        pos &&
         createPortal(
-          <AnimatePresence>
-            {open && pos && (
-              <motion.div
-                ref={menuRef}
-                initial={{ opacity: 0, scale: 0.97, y: -2 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.1, ease: "easeOut" }}
-                onClick={(e) => e.stopPropagation()}
-                role="menu"
-                className="fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
-                style={{ top: pos.top, left: pos.left, minWidth: MENU_MIN_W }}
-              >
-                {options.map((opt, i) => (
+          <motion.div
+            ref={menuRef}
+            initial={{ opacity: 0, scale: 0.97, y: -2 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
+            onClick={(e) => e.stopPropagation()}
+            role="menu"
+            className="fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+            style={{ top: pos.top, left: pos.left, minWidth: MENU_MIN_W }}
+          >
+            {options.map((opt, i) => (
                   <button
                     key={opt.value}
                     role="menuitemradio"
@@ -287,9 +283,7 @@ export function PropertyMenu<T extends string>({
                     {opt.value === value && <IconCheck size={14} className="shrink-0 text-[#8a8f98]" />}
                   </button>
                 ))}
-              </motion.div>
-            )}
-          </AnimatePresence>,
+          </motion.div>,
           document.body
         )}
     </>

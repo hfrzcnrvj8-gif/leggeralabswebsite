@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Popover } from "./Menu";
 
 /**
@@ -15,7 +15,7 @@ import { Popover } from "./Menu";
  */
 
 const MONTHS_PL = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"];
-const ITEM_H = 36;
+const ITEM_H = 40;
 const VISIBLE = 5; // nieparzyste — środek = zaznaczenie
 const YEAR_MIN = 2020;
 const YEAR_MAX = 2040;
@@ -105,18 +105,24 @@ function WheelColumn({
     }
   }, []);
 
+  // Raportuj wybór do rodzica. BEZ strażnika „i !== idxRef" — ten potrafił
+  // po cichu połknąć zmianę w wyścigu z re-renderem. onIndex→setDraft jest
+  // idempotentne (ta sama wartość = no-op), więc powtórne wywołanie nie szkodzi.
   const report = useCallback(
     (i: number) => {
-      if (i !== idxRef.current) {
-        idxRef.current = i;
-        onIndex(i);
-      }
+      idxRef.current = i;
+      onIndex(i);
     },
     [onIndex]
   );
 
   // Pętla bezwładności + dociągania: leci z prędkością i tarciem, a gdy zwolni —
   // miękko dociąga (ease) do najbliższego całego indeksu i raportuje wybór.
+  // Napędzana setInterval-em (~60 fps), NIE requestAnimationFrame — w tle/gdy
+  // podgląd nie maluje klatek, rAF bywa wstrzymany i zapis nigdy by nie nastąpił.
+  // setTimeout odpala niezależnie od malowania, więc wybór zawsze się zatwierdza.
+  const tick16 = (fn: () => void) => window.setTimeout(fn, 16);
+
   const animate = useCallback(() => {
     const v = velRef.current;
     let pos = posRef.current;
@@ -126,14 +132,14 @@ function WheelColumn({
       velRef.current = v * FRICTION;
       if (pos <= 0 || pos >= len - 1) velRef.current = 0; // wygaś na krańcu
       paint();
-      rafRef.current = requestAnimationFrame(animate);
+      rafRef.current = tick16(animate);
     } else {
       const target = clamp(Math.round(pos));
       const diff = target - pos;
-      if (Math.abs(diff) > 0.002) {
+      if (Math.abs(diff) > 0.02) {
         posRef.current = pos + diff * SNAP_EASE;
         paint();
-        rafRef.current = requestAnimationFrame(animate);
+        rafRef.current = tick16(animate);
       } else {
         posRef.current = target;
         paint();
@@ -145,14 +151,24 @@ function WheelColumn({
 
   const stopAnim = useCallback(() => {
     if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
+      window.clearTimeout(rafRef.current);
       rafRef.current = null;
     }
   }, []);
 
   const startAnim = useCallback(() => {
-    if (rafRef.current == null) rafRef.current = requestAnimationFrame(animate);
+    if (rafRef.current == null) rafRef.current = tick16(animate);
   }, [animate]);
+
+  // Deterministyczne zatwierdzenie dla scrolla myszą: dociągnij do najbliższego
+  // elementu i zaraportuj OD RAZU (bez pętli animacji), żeby zapis był pewny.
+  const snapNow = useCallback(() => {
+    stopAnim();
+    const target = clamp(Math.round(posRef.current));
+    posRef.current = target;
+    paint();
+    report(target);
+  }, [clamp, paint, report, stopAnim]);
 
   // Płynny „tween" do konkretnego elementu (klik w element listy).
   const tweenTo = useCallback(
@@ -162,7 +178,7 @@ function WheelColumn({
       const step = () => {
         const pos = posRef.current;
         const diff = target - pos;
-        if (Math.abs(diff) < 0.002) {
+        if (Math.abs(diff) < 0.02) {
           posRef.current = target;
           paint();
           rafRef.current = null;
@@ -171,9 +187,9 @@ function WheelColumn({
         }
         posRef.current = pos + diff * SNAP_EASE;
         paint();
-        rafRef.current = requestAnimationFrame(step);
+        rafRef.current = tick16(step);
       };
-      rafRef.current = requestAnimationFrame(step);
+      rafRef.current = tick16(step);
     },
     [paint, report, stopAnim]
   );
@@ -216,7 +232,7 @@ function WheelColumn({
     velRef.current = 0;
     paint();
     if (wheelToRef.current) window.clearTimeout(wheelToRef.current);
-    wheelToRef.current = window.setTimeout(startAnim, 70);
+    wheelToRef.current = window.setTimeout(snapNow, 90);
   };
 
   // Ustaw pozycję gdy indeks przyjdzie z zewnątrz (np. zmiana miesiąca skróciła
@@ -257,7 +273,7 @@ function WheelColumn({
             key={i}
             data-item={i}
             onClick={() => tweenTo(i)}
-            className={`flex items-center ${justify} text-[16px]`}
+            className={`flex items-center ${justify} text-[17px]`}
             style={{ height: ITEM_H, willChange: "transform, opacity", backfaceVisibility: "hidden" }}
           >
             {it}
@@ -268,57 +284,69 @@ function WheelColumn({
   );
 }
 
-function Wheel({ value, onChange, close }: { value: string; onChange: (v: string) => void; close: () => void }) {
-  const { y, m, d } = parse(value);
+/**
+ * Zawartość koła. Trzyma roboczą datę (draft) w state — kręcenie kołem zmienia
+ * TYLKO draft, do bazy nic nie leci. Zapis następuje dopiero po kliknięciu
+ * „Zapisz"; zamknięcie bez zapisu (klik poza / Esc / X) porzuca zmiany. Dzięki
+ * temu przycisk „Zapisz" ma realne znaczenie i nie ma serii zapisów przy kręceniu.
+ */
+function WheelPicker({ value, onCommit, onClear }: { value: string; onCommit: (v: string) => void; onClear: () => void }) {
+  const [draft, setDraft] = useState(value);
+  const { y, m, d } = parse(draft || value);
   const years: string[] = [];
   for (let yr = YEAR_MIN; yr <= YEAR_MAX; yr++) years.push(String(yr));
   const yIndex = Math.max(0, Math.min(y - YEAR_MIN, years.length - 1));
   const dim = daysInMonth(y, m);
   const dayItems = Array.from({ length: dim }, (_, i) => pad2(i + 1));
 
-  const emit = (ny: number, nm: number, nd: number) => {
+  const set = (ny: number, nm: number, nd: number) => {
     const maxD = daysInMonth(ny, nm);
     const cd = Math.min(nd, maxD);
-    onChange(`${ny}-${pad2(nm + 1)}-${pad2(cd)}`);
+    setDraft(`${ny}-${pad2(nm + 1)}-${pad2(cd)}`);
   };
 
   return (
-    <div className="p-2.5">
-      <div className="relative flex items-stretch justify-center gap-1">
+    <div
+      className="p-3"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onCommit(draft || `${y}-${pad2(m + 1)}-${pad2(d)}`);
+        }
+      }}
+    >
+      <div className="relative flex items-stretch justify-center gap-1.5">
         {/* Pasek zaznaczenia na środku */}
         <div
           className="pointer-events-none absolute inset-x-0 rounded-lg border-y border-white/10 bg-white/[0.05]"
           style={{ height: ITEM_H, top: ((VISIBLE - 1) / 2) * ITEM_H }}
         />
-        <WheelColumn width={54} items={dayItems} index={d - 1} onIndex={(i) => emit(y, m, i + 1)} align="right" />
-        <WheelColumn width={66} items={MONTHS_PL} index={m} onIndex={(i) => emit(y, i, d)} align="center" />
-        <WheelColumn width={70} items={years} index={yIndex} onIndex={(i) => emit(YEAR_MIN + i, m, d)} align="left" />
+        <WheelColumn width={62} items={dayItems} index={d - 1} onIndex={(i) => set(y, m, i + 1)} align="right" />
+        <WheelColumn width={74} items={MONTHS_PL} index={m} onIndex={(i) => set(y, i, d)} align="center" />
+        <WheelColumn width={80} items={years} index={yIndex} onIndex={(i) => set(YEAR_MIN + i, m, d)} align="left" />
       </div>
-      <div className="mt-2.5 flex items-center gap-2 border-t border-[#2a2b2f] pt-2.5">
+      <div className="mt-3 flex items-center gap-2 border-t border-[#2a2b2f] pt-3">
         <button
           onClick={() => {
             const t = new Date();
-            emit(t.getFullYear(), t.getMonth(), t.getDate());
+            set(t.getFullYear(), t.getMonth(), t.getDate());
           }}
-          className="rounded-md px-2 py-1 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          className="rounded-md px-2.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
         >
           Dziś
         </button>
         <button
-          onClick={() => {
-            onChange("");
-            close();
-          }}
-          className="rounded-md px-2 py-1 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          onClick={onClear}
+          className="rounded-md px-2.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
         >
           Wyczyść
         </button>
         <span className="flex-1" />
         <button
-          onClick={close}
-          className="admin-grad-border rounded-md px-4 py-1 text-[12px] font-medium text-[var(--fg)]"
+          onClick={() => onCommit(draft || `${y}-${pad2(m + 1)}-${pad2(d)}`)}
+          className="admin-grad-border rounded-md px-5 py-1.5 text-[12.5px] font-semibold text-[var(--fg)]"
         >
-          Gotowe
+          Zapisz
         </button>
       </div>
     </div>
@@ -326,7 +354,8 @@ function Wheel({ value, onChange, close }: { value: string; onChange: (v: string
 }
 
 /** Pojedyncze pole daty: klikalny trigger (sformatowana data lub placeholder)
- * otwierający koło wyboru. */
+ * otwierający koło wyboru. Koło otwiera się dosunięte prawą krawędzią do pola
+ * (align="right"), żeby nie uciekało poza krawędź panelu przy prawej kolumnie. */
 export function DateField({
   value,
   onChange,
@@ -339,8 +368,8 @@ export function DateField({
   const label = value ? formatDisplay(value) : placeholder;
   return (
     <Popover
-      align="left"
-      width={216}
+      align="right"
+      width={256}
       trigger={(open, isOpen) => (
         <button
           onClick={open}
@@ -352,7 +381,19 @@ export function DateField({
         </button>
       )}
     >
-      {(close) => <Wheel value={value} onChange={onChange} close={close} />}
+      {(close) => (
+        <WheelPicker
+          value={value}
+          onCommit={(v) => {
+            onChange(v);
+            close();
+          }}
+          onClear={() => {
+            onChange("");
+            close();
+          }}
+        />
+      )}
     </Popover>
   );
 }
