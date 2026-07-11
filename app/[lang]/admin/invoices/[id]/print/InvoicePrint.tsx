@@ -18,6 +18,7 @@ import {
   round2,
 } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload } from "@/lib/documents";
+import { DocLogoMark } from "../../../DocLogoMark";
 
 /** Podgląd/wydruk faktury — samodzielny biały dokument (niezależny od motywu
  * panelu), gotowy do „Drukuj / Zapisz jako PDF" przeglądarki. Premium,
@@ -25,6 +26,47 @@ import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload } from "@/lib/docume
  * fiolet→złoto), wzorowany na fakturach Apple/Anthropic. Trójjęzyczny
  * (PL/EN/DE) — język wybiera się per faktura w edytorze (`invoice.jezyk`),
  * niezależnie od języka w jakim akurat przegląda się panel. */
+
+// Kraje UE (nazwy PL/EN/DE, małe litery) — do rozróżnienia, czy pozycja ze
+// stawką "np" to odwrotne obciążenie (usługa B2B dla kontrahenta z UE, art.
+// 28b ustawy o VAT) czy sprzedaż całkowicie poza zakresem polskiego VAT
+// (klient spoza UE, np. USA) — to dwie różne, prawnie odmienne adnotacje.
+// Pole kraju jest wolnym tekstem (patrz InvoiceEditor.tsx), więc dopasowanie
+// nie jest w 100% niezawodne przy literówkach/rzadkich zapisach, ale jest
+// wyraźnie lepsze niż jedna adnotacja dla wszystkich krajów.
+const EU_COUNTRIES = new Set([
+  "polska", "poland", "polen",
+  "austria", "österreich",
+  "belgia", "belgium", "belgien",
+  "bułgaria", "bulgaria", "bulgarien",
+  "chorwacja", "croatia", "kroatien",
+  "cypr", "cyprus", "zypern",
+  "czechy", "czech republic", "tschechien",
+  "dania", "denmark", "dänemark",
+  "estonia", "estland",
+  "finlandia", "finland", "finnland",
+  "francja", "france", "frankreich",
+  "grecja", "greece", "griechenland",
+  "hiszpania", "spain", "spanien",
+  "holandia", "niderlandy", "netherlands", "niederlande",
+  "irlandia", "ireland", "irland",
+  "litwa", "lithuania", "litauen",
+  "luksemburg", "luxembourg",
+  "łotwa", "latvia", "lettland",
+  "malta",
+  "niemcy", "germany", "deutschland",
+  "portugalia", "portugal",
+  "rumunia", "romania", "rumänien",
+  "słowacja", "slovakia", "slowakei",
+  "słowenia", "slovenia", "slowenien",
+  "szwecja", "sweden", "schweden",
+  "węgry", "hungary", "ungarn",
+  "włochy", "italy", "italien",
+]);
+function isEuCountry(kraj: string): boolean {
+  const norm = kraj.trim().toLowerCase();
+  return norm !== "" && EU_COUNTRIES.has(norm);
+}
 
 type Dict = {
   doc: string;
@@ -50,9 +92,12 @@ type Dict = {
   inWords: string;
   paymentMethod: string;
   bankTransfer: string;
+  cash: string;
+  card: string;
   dueDate: string;
   bankAccount: string;
   vatExemptBasis: string;
+  outsideVatScope: string;
   eSignatureNote: string;
   loading: string;
   notFound: string;
@@ -95,9 +140,12 @@ const DICT: Record<InvoiceLang, Dict> = {
     inWords: "Słownie",
     paymentMethod: "Sposób płatności",
     bankTransfer: "Przelew",
+    cash: "Gotówka",
+    card: "Karta",
     dueDate: "Termin płatności",
     bankAccount: "Nr konta",
     vatExemptBasis: "Zwolnienie z VAT na podstawie",
+    outsideVatScope: "Transakcja poza terytorium kraju — nie podlega opodatkowaniu VAT w Polsce.",
     eSignatureNote: "Faktura wystawiona elektronicznie i nie wymaga podpisu ani pieczęci.",
     loading: "Wczytywanie…",
     notFound: "Nie znaleziono faktury.",
@@ -116,14 +164,14 @@ const DICT: Record<InvoiceLang, Dict> = {
   },
   en: {
     doc: "Invoice",
-    no: "No.",
+    no: "Invoice no.",
     issueDate: "Issue date",
     saleDate: "Sale date",
     seller: "Seller",
     buyer: "Bill to",
     recipient: "Ship to",
     taxId: "Tax ID (NIP)",
-    lp: "No.",
+    lp: "#",
     item: "Description",
     qty: "Qty",
     unit: "Unit",
@@ -138,9 +186,12 @@ const DICT: Record<InvoiceLang, Dict> = {
     inWords: "Amount in words",
     paymentMethod: "Payment method",
     bankTransfer: "Bank transfer",
+    cash: "Cash",
+    card: "Card",
     dueDate: "Due date",
     bankAccount: "Bank account (IBAN)",
-    vatExemptBasis: "VAT exempt pursuant to",
+    vatExemptBasis: "VAT exemption basis",
+    outsideVatScope: "Outside the scope of Polish VAT.",
     eSignatureNote: "This invoice was issued electronically and does not require a signature or stamp.",
     loading: "Loading…",
     notFound: "Invoice not found.",
@@ -159,14 +210,14 @@ const DICT: Record<InvoiceLang, Dict> = {
   },
   de: {
     doc: "Rechnung",
-    no: "Nr.",
+    no: "Rechnungsnr.",
     issueDate: "Rechnungsdatum",
     saleDate: "Leistungsdatum",
     seller: "Verkäufer",
     buyer: "Käufer",
     recipient: "Empfänger",
     taxId: "Steuernummer (NIP)",
-    lp: "Nr.",
+    lp: "#",
     item: "Bezeichnung",
     qty: "Menge",
     unit: "Einheit",
@@ -181,9 +232,12 @@ const DICT: Record<InvoiceLang, Dict> = {
     inWords: "Betrag in Worten",
     paymentMethod: "Zahlungsart",
     bankTransfer: "Überweisung",
+    cash: "Bar",
+    card: "Karte",
     dueDate: "Zahlungsziel",
     bankAccount: "Kontonummer (IBAN)",
-    vatExemptBasis: "Von der Umsatzsteuer befreit gemäß",
+    vatExemptBasis: "Grundlage der USt.-Befreiung",
+    outsideVatScope: "Außerhalb des Anwendungsbereichs der polnischen Umsatzsteuer.",
     eSignatureNote: "Diese Rechnung wurde elektronisch ausgestellt und bedarf keiner Unterschrift oder eines Stempels.",
     loading: "Wird geladen…",
     notFound: "Rechnung nicht gefunden.",
@@ -326,7 +380,13 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   if (!invoice || !settings) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 
   const breakdown = vatBreakdown(items);
-  const hasReverseCharge = items.some((it) => it.vat_stawka === "np");
+  const hasNpItems = items.some((it) => it.vat_stawka === "np");
+  const buyerCountry = invoice.odbiorca_kraj || invoice.klient_kraj || "";
+  const hasReverseCharge = hasNpItems && isEuCountry(buyerCountry);
+  const hasOutsideVatScope = hasNpItems && !isEuCountry(buyerCountry);
+  const hasExemptItems = items.some((it) => it.vat_stawka === "zw");
+  const paymentMethodLabel =
+    invoice.sposob_platnosci === "gotowka" ? t.cash : invoice.sposob_platnosci === "karta" ? t.card : t.bankTransfer;
   const docTitle = DOC_TITLE_OVERRIDE[lang][invoice.typ_dokumentu] ?? t.doc;
   const originalTotals = original ? invoiceTotals(original.items) : null;
 
@@ -372,7 +432,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
           {/* Nagłówek: logo + nazwa + tytuł/meta */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <DocLogoMark />
+              <DocLogoMark gradientId="invLogoGradient" />
               {settings.nazwa && <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa}</span>}
             </div>
             <div className="text-right">
@@ -591,7 +651,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
           <div className="mt-10 grid grid-cols-2 gap-8 border-t border-neutral-100 pt-6 text-neutral-500">
             <div className="space-y-0.5">
               <div>
-                {t.paymentMethod}: <span className="font-medium text-neutral-800">{t.bankTransfer}</span>
+                {t.paymentMethod}: <span className="font-medium text-neutral-800">{paymentMethodLabel}</span>
               </div>
               <div>
                 {t.dueDate}: <span className="font-medium text-neutral-800">{dateStr(invoice.termin_platnosci, lang)}</span>
@@ -603,7 +663,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
               )}
             </div>
             <div>
-              {!vat && settings.zwolnienie_podstawa && (
+              {(!vat || hasExemptItems) && settings.zwolnienie_podstawa && (
                 <div className="text-[11px]">
                   {t.vatExemptBasis}: {settings.zwolnienie_podstawa}
                 </div>
@@ -615,6 +675,9 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
 
           {hasReverseCharge && (
             <div className="mt-6 rounded-lg bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-700">{t.reverseCharge}</div>
+          )}
+          {hasOutsideVatScope && (
+            <div className="mt-6 rounded-lg bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-700">{t.outsideVatScope}</div>
           )}
 
           {/* Stopka: stałe dane firmowe (jak w klasycznych fakturach) +
@@ -657,24 +720,3 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   );
 }
 
-/** Prawdziwe logo Leggera Labs (dwa nachodzące na siebie "L", jak w
- * app/icon.svg i components/Logo.tsx) — tu jako sam kontur w gradiencie
- * marki, bez wypełnienia, na wniosek właściciela. */
-function DocLogoMark() {
-  return (
-    <svg viewBox="0 0 90 90" width="42" height="42" aria-hidden className="shrink-0">
-      <defs>
-        <linearGradient id="invLogoGradient" x1="0" y1="0" x2="90" y2="90" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#7C3AED" />
-          <stop offset="100%" stopColor="#E0A93B" />
-        </linearGradient>
-      </defs>
-      <text x="22" y="61" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#invLogoGradient)" strokeWidth="2.5">
-        L
-      </text>
-      <text x="34" y="73" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#invLogoGradient)" strokeWidth="2.5">
-        L
-      </text>
-    </svg>
-  );
-}

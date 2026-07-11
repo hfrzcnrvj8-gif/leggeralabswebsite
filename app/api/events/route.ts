@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO } from "@/lib/dates";
+import { isPlausibleDateString } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
   const data = typeof body?.data === "string" ? body.data.trim() : "";
   if (!tytul || !data) {
     return NextResponse.json({ error: "tytul and data are required" }, { status: 400 });
+  }
+  if (!isPlausibleDateString(data)) {
+    return NextResponse.json({ error: "invalid data" }, { status: 400 });
   }
 
   await ensureHubSchema();

@@ -11,16 +11,10 @@ import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
 import { SavedViews } from "../components";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
-import { useUI, useRegisterActions } from "../ui";
+import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
 
 type ViewMode = "kanban" | "table";
-
-function isTypingTarget(el: EventTarget | null): boolean {
-  if (!(el instanceof HTMLElement)) return false;
-  const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
-}
 
 export function LeadsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();

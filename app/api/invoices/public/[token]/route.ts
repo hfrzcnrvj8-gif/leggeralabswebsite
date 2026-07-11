@@ -19,7 +19,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   const rows = await sql`SELECT * FROM invoices WHERE share_token = ${token} AND status != 'Szkic';`;
   const invoice = rows[0];
   if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // Ukryj wewnętrzne FK-i i metadane, których wydruk nie używa — publiczny
+  // klient nie musi widzieć powiązanych id leada/projektu ani daty ostatniego
+  // przypomnienia (zasada minimalnego ujawniania danych).
+  const { lead_id, project_id, last_reminder_at, ...publicInvoice } = invoice;
+  void lead_id;
+  void project_id;
+  void last_reminder_at;
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${invoice.id} ORDER BY position ASC;`;
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
-  return NextResponse.json({ invoice, items: numItems(items), settings: settings[0] ?? null });
+  return NextResponse.json({ invoice: publicInvoice, items: numItems(items), settings: settings[0] ?? null });
 }

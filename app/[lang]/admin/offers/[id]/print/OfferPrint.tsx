@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { type Offer, type OfferItem, type OfferLang, offerTotal, itemKwota, clientAddressLines, offerReference } from "@/lib/offers";
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
+import { DocLogoMark } from "../../../DocLogoMark";
 
 /** Podgląd/wydruk oferty — ten sam premium, stonowany styl co faktura
  * (czerń/biel/szarości + subtelny akcent gradientu marki fiolet→złoto),
@@ -117,13 +118,24 @@ const DICT: Record<OfferLang, Dict> = {
 const money = docMoney;
 const dateStr = docDate;
 
-export function OfferPrint({ id }: { id: string }) {
+export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [items, setItems] = useState<OfferItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (token) {
+      fetch(`/api/offers/public/${token}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d) => {
+          setOffer(d.offer);
+          setItems(d.items);
+          setSettings(d.settings);
+        })
+        .catch(() => setNotFound(true));
+      return;
+    }
     Promise.all([
       fetch(`/api/offers/${id}`).then((r) => (r.ok ? r.json() : Promise.reject())),
       fetch("/api/settings").then((r) => (r.ok ? r.json() : { settings: null })),
@@ -134,7 +146,7 @@ export function OfferPrint({ id }: { id: string }) {
         setSettings(settingsData.settings);
       })
       .catch(() => setNotFound(true));
-  }, [id]);
+  }, [id, token]);
 
   const lang: OfferLang = offer?.jezyk ?? "pl";
   const t = DICT[lang];
@@ -179,7 +191,7 @@ export function OfferPrint({ id }: { id: string }) {
           {/* Nagłówek: logo + nazwa + tytuł/meta */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <DocLogoMark />
+              <DocLogoMark gradientId="offLogoGradient" />
               {settings?.nazwa && <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa}</span>}
             </div>
             <div className="text-right">
@@ -306,24 +318,3 @@ export function OfferPrint({ id }: { id: string }) {
   );
 }
 
-/** Prawdziwe logo Leggera Labs (dwa nachodzące na siebie "L", jak w
- * app/icon.svg i components/Logo.tsx) — tu jako sam kontur w gradiencie
- * marki, bez wypełnienia, na wniosek właściciela. */
-function DocLogoMark() {
-  return (
-    <svg viewBox="0 0 90 90" width="42" height="42" aria-hidden className="shrink-0">
-      <defs>
-        <linearGradient id="offLogoGradient" x1="0" y1="0" x2="90" y2="90" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#7C3AED" />
-          <stop offset="100%" stopColor="#E0A93B" />
-        </linearGradient>
-      </defs>
-      <text x="22" y="61" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#offLogoGradient)" strokeWidth="2.5">
-        L
-      </text>
-      <text x="34" y="73" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#offLogoGradient)" strokeWidth="2.5">
-        L
-      </text>
-    </svg>
-  );
-}

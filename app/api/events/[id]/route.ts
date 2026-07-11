@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { isPlausibleDateString } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,11 @@ export async function PATCH(
     await sql`UPDATE events SET opis = ${str(body.opis)} WHERE id = ${id};`;
   }
   if ("data" in body && typeof body.data === "string" && body.data.trim()) {
-    await sql`UPDATE events SET data = ${body.data} WHERE id = ${id};`;
+    const trimmed = body.data.trim();
+    if (!isPlausibleDateString(trimmed)) {
+      return NextResponse.json({ error: "invalid data" }, { status: 400 });
+    }
+    await sql`UPDATE events SET data = ${trimmed} WHERE id = ${id};`;
   }
   if ("godzina" in body) {
     const raw = body.godzina;

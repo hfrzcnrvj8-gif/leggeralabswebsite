@@ -339,6 +339,9 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp NUMERIC;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp_data DATE;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp_tabela TEXT;`;
+  // Sposób zapłaty na wydruku — wybieralny w edytorze (przelew/gotówka/
+  // karta), domyślnie przelew (jak dotąd, gdy pole było zahardkodowane).
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sposob_platnosci TEXT NOT NULL DEFAULT 'przelew';`;
   // Ubezpieczenie na poziomie bazy przeciwko wyścigowi przy nadawaniu numeru
   // (dwa równoczesne "Wystaw fakturę" nie mogą dać tej samej faktury dwa
   // razy ten sam numer — drugi UPDATE dostanie unique violation i ponowi
@@ -440,6 +443,11 @@ async function createOffersSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_kod TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_miasto TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_kraj TEXT NOT NULL DEFAULT '';`;
+  // E-mail nabywcy i token publicznego podglądu — jak w invoices, do wysyłki
+  // oferty mailem z linkiem bez logowania.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_email TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS share_token TEXT;`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS offers_share_token_idx ON offers(share_token);`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (
@@ -468,5 +476,12 @@ export async function ensureInvoiceShareToken(sql: Sql, id: string, existingToke
   if (existingToken) return existingToken;
   const token = randomUUID().replace(/-/g, "");
   await sql`UPDATE invoices SET share_token = ${token} WHERE id = ${id};`;
+  return token;
+}
+
+export async function ensureOfferShareToken(sql: Sql, id: string, existingToken: string | null): Promise<string> {
+  if (existingToken) return existingToken;
+  const token = randomUUID().replace(/-/g, "");
+  await sql`UPDATE offers SET share_token = ${token} WHERE id = ${id};`;
   return token;
 }

@@ -6,6 +6,7 @@
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
 import { todayLocalISO } from "./dates";
+import { round2 } from "./invoices";
 
 /** Język wydruku oferty — jak w fakturach (lib/invoices.ts), niezależny od
  * języka panelu. Typ i lista dzielone przez lib/documents.ts. */
@@ -50,6 +51,8 @@ export type Offer = {
   klient_kod: string;
   klient_miasto: string;
   klient_kraj: string;
+  klient_email: string;
+  share_token: string | null;
   wazna_do: string | null;
   status: OfferStatus;
   jezyk: OfferLang;
@@ -57,10 +60,6 @@ export type Offer = {
   created_at: string;
   updated_at: string;
 };
-
-function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
 
 export function itemKwota(it: { ilosc: number; cena: number }): number {
   return round2(it.ilosc * it.cena);

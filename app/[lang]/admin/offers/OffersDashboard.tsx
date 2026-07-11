@@ -18,6 +18,8 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const [offers, setOffers] = useState<OfferRow[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/offers");
@@ -71,6 +73,51 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     },
     [toast]
   );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback((checked: boolean, ids: string[]) => {
+    setSelectedIds(checked ? new Set(ids) : new Set());
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const bulkUpdateStatus = useCallback(
+    async (status: string) => {
+      const ids = [...selectedIds];
+      if (ids.length === 0) return;
+      setBulkBusy(true);
+      for (const id of ids) {
+        await updateStatus(id, status);
+      }
+      setBulkBusy(false);
+      toast(`Zaktualizowano status dla ${ids.length} ofert.`);
+      clearSelection();
+    },
+    [selectedIds, updateStatus, toast, clearSelection]
+  );
+
+  const bulkDelete = useCallback(async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych ofert?`, { danger: true });
+    if (!ok) return;
+    setBulkBusy(true);
+    for (const id of ids) {
+      await fetch(`/api/offers/${id}`, { method: "DELETE" });
+    }
+    setBulkBusy(false);
+    setOffers((prev) => prev?.filter((o) => !selectedIds.has(o.id)) ?? prev);
+    toast(`Usunięto ${ids.length} ofert.`);
+    clearSelection();
+  }, [selectedIds, confirm, toast, clearSelection]);
 
   useRegisterActions([{ id: "add", label: "+ Nowa oferta", hint: "N", run: createOffer }], [createOffer]);
 
@@ -146,6 +193,47 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
           </div>
         </div>
 
+        {selectedIds.size > 0 && (
+          <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
+            <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
+            <Popover
+              align="left"
+              width={200}
+              trigger={(open) => (
+                <button onClick={open} disabled={bulkBusy} className="rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)] disabled:opacity-50">
+                  Zmień status na…
+                </button>
+              )}
+            >
+              {(close) => (
+                <div>
+                  {OFFER_STATUSES.map((s) => (
+                    <MenuRow
+                      key={s}
+                      label={s}
+                      onClick={() => {
+                        bulkUpdateStatus(s);
+                        close();
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </Popover>
+            <button
+              onClick={bulkDelete}
+              disabled={bulkBusy}
+              className="flex items-center gap-1 rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
+            >
+              <IconX size={13} /> Usuń zaznaczone
+            </button>
+            <span className="flex-1" />
+            <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
+              Odznacz wszystko
+            </button>
+          </div>
+        )}
+
         {rows.length === 0 ? (
           <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
             <IconOfferEmpty />
@@ -156,6 +244,15 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b hairline text-left text-[11px] uppercase tracking-wide text-muted">
+                  <th className="p-2.5">
+                    <input
+                      type="checkbox"
+                      checked={rows.length > 0 && rows.every((r) => selectedIds.has(r.id))}
+                      onChange={(e) => toggleSelectAll(e.target.checked, rows.map((r) => r.id))}
+                      className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                      aria-label="Zaznacz wszystkie"
+                    />
+                  </th>
                   <th className="p-2.5 font-medium">Tytuł</th>
                   <th className="p-2.5 font-medium">Klient</th>
                   <th className="p-2.5 text-right font-medium">Kwota</th>
@@ -173,8 +270,17 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       onClick={() => setOpenId(o.id)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                         expired ? "bg-red-500/[0.04]" : ""
-                      }`}
+                      } ${selectedIds.has(o.id) ? "bg-[#4ea7fc]/[0.08]" : ""}`}
                     >
+                      <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(o.id)}
+                          onChange={() => toggleSelect(o.id)}
+                          className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                          aria-label={`Zaznacz ${o.tytul || "(bez tytułu)"}`}
+                        />
+                      </td>
                       <td className="p-2.5 font-medium text-[var(--fg)]">
                         <span className="flex items-center gap-1.5">
                           {o.tytul || <span className="text-muted">(bez tytułu)</span>}

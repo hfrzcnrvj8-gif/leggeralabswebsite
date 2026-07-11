@@ -79,6 +79,16 @@ export const INVOICE_TYPE_LABEL: Record<InvoiceDocType, string> = {
   zaliczkowa: "Faktura zaliczkowa",
 };
 
+/** Sposób zapłaty pokazywany na wydruku — wybierany w edytorze, domyślnie
+ * przelew (jak dotąd, gdy pole było zahardkodowane na wydruku). */
+export const PAYMENT_METHODS = ["przelew", "gotowka", "karta"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  przelew: "Przelew",
+  gotowka: "Gotówka",
+  karta: "Karta",
+};
+
 export type InvoiceItem = {
   id: string;
   invoice_id: string;
@@ -133,6 +143,7 @@ export type Invoice = {
   status: InvoiceStatus;
   waluta: string;
   jezyk: InvoiceLang;
+  sposob_platnosci: PaymentMethod;
   uwagi: string;
   created_at: string;
   updated_at: string;

@@ -26,6 +26,8 @@ import {
   INVOICE_CURRENCIES,
   INVOICE_TYPES,
   INVOICE_TYPE_LABEL,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_LABEL,
   addDaysISO,
   invoiceTotals,
   itemNetto,
@@ -34,6 +36,7 @@ import {
   totalPaid,
   isInvoiceOverdue,
 } from "@/lib/invoices";
+import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
@@ -292,15 +295,17 @@ export function InvoiceEditor({
       body: JSON.stringify({ kwota, data: newPaymentData || undefined }),
     });
     if (res.ok) {
-      const data = (await res.json()) as { payments: InvoicePayment[] };
+      const data = (await res.json()) as { payments: InvoicePayment[]; status: Invoice["status"] };
       setPayments(data.payments);
       setNewPaymentKwota("");
       setNewPaymentData("");
-      toast("Zarejestrowano wpłatę.");
+      setInvoice((prev) => (prev && prev.status !== data.status ? { ...prev, status: data.status } : prev));
+      toast(data.status === "Opłacona" ? "Zarejestrowano wpłatę — faktura oznaczona jako opłacona." : "Zarejestrowano wpłatę.");
+      onChange?.();
     } else {
       toast("Nie udało się zapisać wpłaty.", "error");
     }
-  }, [id, newPaymentKwota, newPaymentData, toast]);
+  }, [id, newPaymentKwota, newPaymentData, toast, onChange]);
 
   const deletePayment = useCallback(
     async (paymentId: string) => {
@@ -649,6 +654,19 @@ export function InvoiceEditor({
                 </span>
               </PropertyMenu>
             </Field>
+            <Field label="Zapłata">
+              <PropertyMenu
+                value={invoice.sposob_platnosci || "przelew"}
+                options={PAYMENT_METHODS.map((m) => ({ value: m, label: PAYMENT_METHOD_LABEL[m] }))}
+                onChange={(v) => patchInvoice({ sposob_platnosci: v as Invoice["sposob_platnosci"] })}
+                title="Sposób zapłaty"
+                full
+              >
+                <span className="text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)] rounded-md px-1.5 py-1 -mx-1.5">
+                  {PAYMENT_METHOD_LABEL[invoice.sposob_platnosci || "przelew"]}
+                </span>
+              </PropertyMenu>
+            </Field>
 
             {koryguje && (
               <div className="mt-2">
@@ -762,7 +780,7 @@ export function InvoiceEditor({
                 <div className="mb-2 space-y-1">
                   {payments.map((p) => (
                     <div key={p.id} className="flex items-center justify-between text-[12.5px]">
-                      <span className="text-muted">{p.data}</span>
+                      <span className="text-muted">{formatPlDate(p.data)}</span>
                       <span className="tabular-nums">{formatMoney(p.kwota, invoice.waluta || "PLN")}</span>
                       <button onClick={() => deletePayment(p.id)} className="text-muted hover:text-red-400">
                         <IconX size={12} />

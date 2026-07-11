@@ -28,6 +28,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/invoices");
@@ -82,6 +84,56 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
     },
     [toast]
   );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback((checked: boolean, ids: string[]) => {
+    setSelectedIds(checked ? new Set(ids) : new Set());
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const bulkUpdateStatus = useCallback(
+    async (status: string) => {
+      const ids = [...selectedIds];
+      if (ids.length === 0) return;
+      setBulkBusy(true);
+      for (const id of ids) {
+        await updateStatus(id, status);
+      }
+      setBulkBusy(false);
+      toast(`Zaktualizowano status dla ${ids.length} faktur.`);
+      clearSelection();
+    },
+    [selectedIds, updateStatus, toast, clearSelection]
+  );
+
+  const bulkDelete = useCallback(async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych faktur? Wystawionych (z numerem) nie da się usunąć — trzeba je anulować pojedynczo.`, {
+      danger: true,
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    let removed = 0;
+    for (const id of ids) {
+      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
+      if (res.ok) removed += 1;
+    }
+    setBulkBusy(false);
+    await load();
+    clearSelection();
+    if (removed === ids.length) toast(`Usunięto ${removed} faktur.`);
+    else toast(`Usunięto ${removed} z ${ids.length} — reszta to wystawione faktury (ustaw status "Anulowana" zamiast usuwać).`, "error");
+  }, [selectedIds, confirm, toast, clearSelection, load]);
 
   useRegisterActions([{ id: "add", label: "+ Nowa faktura", hint: "N", run: createInvoice }], [createInvoice]);
 
@@ -189,6 +241,47 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
           </div>
         </div>
 
+        {selectedIds.size > 0 && (
+          <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
+            <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
+            <Popover
+              align="left"
+              width={200}
+              trigger={(open) => (
+                <button onClick={open} disabled={bulkBusy} className="rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)] disabled:opacity-50">
+                  Zmień status na…
+                </button>
+              )}
+            >
+              {(close) => (
+                <div>
+                  {INVOICE_STATUSES.map((s) => (
+                    <MenuRow
+                      key={s}
+                      label={s}
+                      onClick={() => {
+                        bulkUpdateStatus(s);
+                        close();
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </Popover>
+            <button
+              onClick={bulkDelete}
+              disabled={bulkBusy}
+              className="flex items-center gap-1 rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
+            >
+              <IconX size={13} /> Usuń zaznaczone
+            </button>
+            <span className="flex-1" />
+            <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
+              Odznacz wszystko
+            </button>
+          </div>
+        )}
+
         {rows.length === 0 ? (
           <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
             <IconReceiptEmpty />
@@ -199,6 +292,15 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b hairline text-left text-[11px] uppercase tracking-wide text-muted">
+                  <th className="p-2.5">
+                    <input
+                      type="checkbox"
+                      checked={rows.length > 0 && rows.every((r) => selectedIds.has(r.id))}
+                      onChange={(e) => toggleSelectAll(e.target.checked, rows.map((r) => r.id))}
+                      className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                      aria-label="Zaznacz wszystkie"
+                    />
+                  </th>
                   <th className="p-2.5 font-medium">Numer</th>
                   <th className="p-2.5 font-medium">Klient</th>
                   <th className="p-2.5 text-right font-medium">Brutto</th>
@@ -216,8 +318,17 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                       onClick={() => setOpenId(inv.id)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                         overdue ? "bg-red-500/[0.04]" : ""
-                      }`}
+                      } ${selectedIds.has(inv.id) ? "bg-[#4ea7fc]/[0.08]" : ""}`}
                     >
+                      <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(inv.id)}
+                          onChange={() => toggleSelect(inv.id)}
+                          className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                          aria-label={`Zaznacz ${inv.numer ?? "szkic"}`}
+                        />
+                      </td>
                       <td className="p-2.5 font-medium text-[var(--fg)]">
                         <span className="flex items-center gap-1.5">
                           {inv.numer ?? <span className="text-muted">szkic</span>}

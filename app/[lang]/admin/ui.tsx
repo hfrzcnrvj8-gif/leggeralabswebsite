@@ -9,6 +9,15 @@ type PromptState = { message: string; placeholder?: string; resolve: (v: string 
 
 export type Action = { id: string; label: string; hint?: string; run: () => void };
 
+/** Czy zdarzenie klawiatury przyszło z pola tekstowego — używane przez
+ * globalne skróty klawiszowe (paleta poleceń, "g o", "n" itd.), żeby nie
+ * przechwytywały liter wpisywanych przez użytkownika w formularzu. */
+export function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+
 type UIContextType = {
   toast: (message: string, type?: "success" | "error") => void;
   confirm: (message: string, opts?: { danger?: boolean }) => Promise<boolean>;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
-import { INVOICE_LANGS } from "@/lib/invoices";
+import { INVOICE_LANGS, PAYMENT_METHODS } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 
@@ -74,6 +74,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     if ("uwagi" in body) await sql`UPDATE invoices SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
     if ("waluta" in body) await sql`UPDATE invoices SET waluta = ${str(body.waluta, 10) || "PLN"}, updated_at = now() WHERE id = ${id};`;
+    if ("sposob_platnosci" in body) {
+      const v = typeof body.sposob_platnosci === "string" && (PAYMENT_METHODS as readonly string[]).includes(body.sposob_platnosci) ? body.sposob_platnosci : "przelew";
+      await sql`UPDATE invoices SET sposob_platnosci = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("jezyk" in body) {
       const v = typeof body.jezyk === "string" && (INVOICE_LANGS as string[]).includes(body.jezyk) ? body.jezyk : "pl";
       await sql`UPDATE invoices SET jezyk = ${v}, updated_at = now() WHERE id = ${id};`;

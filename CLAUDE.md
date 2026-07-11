@@ -51,6 +51,13 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   dla projektów), peek panel (wysuwany z prawej) ORAZ osobna podstrona
   `[id]/page.tsx` dla bezpośrednich linków — obie renderują ten sam
   `*DetailPanel.tsx`/`*Detail.tsx` komponent
+- **Wyjątek — Faktury/Oferty/Projekty**: edytor otwiera się jako wyśrodkowany
+  modal (`InvoiceEditor.tsx`/`OfferEditor.tsx` w `InvoicesDashboard.tsx`/
+  `OffersDashboard.tsx`/`ProjectsDashboard.tsx`), NIE jako wysuwany panel z
+  prawej jak w Leadach. To świadoma decyzja, nie przeoczenie — te edytory
+  mają dużo pól (daty, kwoty, pozycje, status dokumentu) i potrzebują
+  szerszej, wyśrodkowanej przestrzeni; wąski panel z prawej byłby dla nich
+  zbyt ciasny. Nie ujednolicaj tego bez wyraźnej prośby właściciela.
 
 ## Design system (trzymaj się tego)
 

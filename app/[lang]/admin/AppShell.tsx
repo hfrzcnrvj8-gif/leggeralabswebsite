@@ -20,10 +20,11 @@ import {
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { AdminUIProvider, useUI, type Action } from "./ui";
+import { AdminUIProvider, useUI, isTypingTarget, type Action } from "./ui";
 import { CommandPalette } from "./CommandPalette";
 import type { Lead } from "@/lib/leads";
 import type { Project } from "@/lib/projects";
+import { formatPlDate } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
 import type { HubEvent } from "@/lib/events";
 
@@ -45,13 +46,9 @@ const GO_CHORDS: Record<string, string> = {
   n: "/notes",
   c: "/calendar",
   l: "/leads",
+  o: "/offers",
+  f: "/invoices",
 };
-
-function isTypingTarget(el: EventTarget | null): boolean {
-  if (!(el instanceof HTMLElement)) return false;
-  const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
-}
 
 /** Wspólna rama dla całego panelu /admin — lewy sidebar (styl Linear),
  * globalna paleta poleceń (Cmd+K) z wyszukiwaniem po wszystkich modułach,
@@ -132,7 +129,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       out.push({ id: `note:${n.id}`, label: n.tytul || "Notatka bez tytułu", hint: "Notatka", run: () => router.push(`${base}/notes`) })
     );
     searchResults.events.forEach((e) =>
-      out.push({ id: `event:${e.id}`, label: `${e.tytul} (${e.data})`, hint: "Wydarzenie", run: () => router.push(`${base}/calendar`) })
+      out.push({ id: `event:${e.id}`, label: `${e.tytul} (${formatPlDate(e.data)})`, hint: "Wydarzenie", run: () => router.push(`${base}/calendar`) })
     );
     return out;
   }, [searchResults, router, base]);

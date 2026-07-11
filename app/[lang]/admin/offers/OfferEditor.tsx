@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink } from "@tabler/icons-react";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, type OfferItem, OFFER_LANGS, OFFER_LANG_LABEL, offerTotal, itemKwota } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
@@ -29,6 +29,8 @@ export function OfferEditor({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const savedTimer = useRef<number | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/offers/${id}`);
@@ -142,6 +144,33 @@ export function OfferEditor({
     }
   }, [offer, id, confirm, toast, onDeleted]);
 
+  const duplicateOffer = useCallback(async () => {
+    setDuplicating(true);
+    const res = await fetch(`/api/offers/${id}/duplicate`, { method: "POST" });
+    setDuplicating(false);
+    if (res.ok) {
+      toast("Utworzono duplikat jako nowy szkic.");
+      onChange?.();
+    } else {
+      toast("Nie udało się zduplikować oferty.", "error");
+    }
+  }, [id, onChange, toast]);
+
+  const sendOfferEmail = useCallback(async () => {
+    setSending(true);
+    const res = await fetch(`/api/offers/${id}/send`, { method: "POST" });
+    setSending(false);
+    if (res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { status?: string };
+      toast("Oferta wysłana mailem.");
+      if (data.status) setOffer((p) => (p ? { ...p, status: data.status as Offer["status"] } : p));
+      onChange?.();
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(data.error ?? "Nie udało się wysłać oferty.", "error");
+    }
+  }, [id, toast, onChange]);
+
   if (!offer) {
     return (
       <div>
@@ -204,6 +233,13 @@ export function OfferEditor({
               onChange={(e) => setOffer((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
               onBlur={(e) => patchOffer({ klient_nip: e.target.value })}
               placeholder="NIP"
+              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+            />
+            <input
+              value={offer.klient_email}
+              onChange={(e) => setOffer((p) => (p ? { ...p, klient_email: e.target.value } : p))}
+              onBlur={(e) => patchOffer({ klient_email: e.target.value })}
+              placeholder="E-mail klienta (do wysyłki oferty)"
               className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
             <input
@@ -404,6 +440,25 @@ export function OfferEditor({
               )}
             </Popover>
           )}
+
+          <button
+            onClick={sendOfferEmail}
+            disabled={sending || !offer.klient_email}
+            title={offer.klient_email ? "Wyślij link do oferty na e-mail klienta" : "Uzupełnij e-mail klienta"}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
+            Wyślij mailem
+          </button>
+
+          <button
+            onClick={duplicateOffer}
+            disabled={duplicating}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            {duplicating ? <IconLoader2 size={13} className="animate-spin" /> : <IconCopy size={13} />}
+            Duplikuj ofertę
+          </button>
 
           <button onClick={remove} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
             Usuń ofertę
