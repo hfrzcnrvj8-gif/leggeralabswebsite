@@ -69,6 +69,29 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   nowy moduł powinien zarejestrować swoją akcję „+ Dodaj X” z `id: "add"`
   (skrót `n`)
 
+## Lokalne środowisko dev (KLUCZOWE — używaj do iteracji wizualnej)
+
+Panel można oglądać i poprawiać LOKALNIE na żywo, bez deploya i bez hasła —
+to jedyny sensowny sposób pracy nad wyglądem (koniec z „zmień → wypchnij →
+czekaj na Vercel → zgaduj"):
+
+- `npm run dev` startuje serwer. `.env.local` NIE ma `DATABASE_URL` ani
+  `ADMIN_PASSWORD` (te żyją tylko w env Vercela), więc lokalnie działają dwa
+  dev-only mechanizmy, oba niemożliwe do włączenia na produkcji:
+  - **Dev-login** (`lib/auth.ts`): `isAuthed()` zwraca `true`, jeśli
+    `NODE_ENV=development` **i** `DEV_ADMIN_BYPASS=1` (jest w `.env.local`).
+    Bez tego logowanie na `http://localhost` i tak nie działa — cookie sesji
+    ma `secure:true` (wymaga HTTPS).
+  - **Dev-baza** (`lib/dev-db.ts`): gdy brak `DATABASE_URL` w trybie dev,
+    `getSql()` używa PGlite (Postgres w WASM, w procesie) z danymi testowymi
+    (`ensureSeeded()` — projekty z datami i kamieniami milowymi, leady,
+    notatki, wydarzenia). Mówi prawdziwym SQL-em → route'y i migracje działają
+    bez zmian, dane w 100% izolowane od produkcji. Zmiana schematu seeda:
+    edytuj `ensureSeeded()` w `dev-db.ts`.
+- Weryfikacja wizualna: narzędzia przeglądarki (`preview_start name:"dev"`,
+  screenshot, `read_page`) — patrz zrzuty w tej sesji. NAJPIERW obejrzyj
+  panel lokalnie, DOPIERO potem wnioski.
+
 ## Znane pułapki tego środowiska
 
 - **`.git/index.lock`** — środowisko sandboxowe Claude regularnie zostawia
