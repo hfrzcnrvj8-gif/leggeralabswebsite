@@ -10,6 +10,7 @@ import {
   IconNotes,
   IconCalendar,
   IconTarget,
+  IconReceipt,
   IconSearch,
   IconChevronLeft,
   IconChevronRight,
@@ -31,6 +32,7 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/notes", label: "Notatnik", icon: IconNotes },
   { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
   { href: "/leads", label: "Leady", icon: IconTarget },
+  { href: "/invoices", label: "Faktury", icon: IconReceipt },
 ];
 
 // Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
