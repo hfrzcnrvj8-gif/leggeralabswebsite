@@ -118,6 +118,14 @@ export async function PATCH(
     const value = typeof raw === "string" && raw.trim() ? raw : null;
     await sql`UPDATE projects SET lead_id = ${value}, updated_at = now() WHERE id = ${id};`;
   }
+  if ("kolor" in body) {
+    const value = typeof body.kolor === "string" && body.kolor.trim() ? body.kolor.slice(0, 20) : null;
+    await sql`UPDATE projects SET kolor = ${value}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("ikona" in body) {
+    const value = typeof body.ikona === "string" && body.ikona.trim() ? body.ikona.slice(0, 16) : null;
+    await sql`UPDATE projects SET ikona = ${value}, updated_at = now() WHERE id = ${id};`;
+  }
 
   // Dopisz automatyczne wpisy „system" do logu aktywności (audyt zmian).
   for (const text of changes) {

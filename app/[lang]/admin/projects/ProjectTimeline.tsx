@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconFolder } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { PROJECT_STATUS_DOT, formatPlDate } from "./shared";
+import { ProjectIcon, formatPlDate } from "./shared";
 
 type TimelineMilestone = { id: string; nazwa: string; termin: string | null };
 type TimelineProject = {
@@ -15,6 +14,8 @@ type TimelineProject = {
   start: string | null;
   termin: string | null;
   created_at: string;
+  kolor: string | null;
+  ikona: string | null;
   milestones: TimelineMilestone[];
 };
 
@@ -347,13 +348,7 @@ export function ProjectTimeline({
             style={{ height: ROW_H }}
             title={p.tytul}
           >
-            <span
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-white ${
-                PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"
-              }`}
-            >
-              <IconFolder size={11} stroke={2} />
-            </span>
+            <ProjectIcon kolor={p.kolor} ikona={p.ikona} size={20} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium text-[var(--fg)]">{p.tytul}</span>
               <span className="block truncate text-[11px] text-muted">{p.status}</span>

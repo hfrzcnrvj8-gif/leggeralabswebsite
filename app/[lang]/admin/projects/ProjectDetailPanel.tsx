@@ -12,6 +12,7 @@ import {
   isPlausibleDateString,
   relativeDeadline,
   daysFromToday,
+  ProjectIconPicker,
 } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
 import { PropertyMenu, type MenuOption } from "../Menu";
@@ -297,12 +298,22 @@ export function ProjectDetailPanel({
         {/* Kolumna główna: treść, kamienie milowe, log aktywności */}
         <div className="min-w-0 space-y-4">
           <div>
-            <input
-              value={project.tytul}
-              onChange={(e) => setProject((prev) => (prev ? { ...prev, tytul: e.target.value } : prev))}
-              onBlur={(e) => updateProject("tytul", e.target.value)}
-              className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
-            />
+            <div className="flex items-center gap-2.5">
+              <ProjectIconPicker
+                kolor={project.kolor}
+                ikona={project.ikona}
+                onChange={(patch) => {
+                  if (patch.kolor !== undefined) updateProject("kolor", patch.kolor);
+                  if (patch.ikona !== undefined) updateProject("ikona", patch.ikona);
+                }}
+              />
+              <input
+                value={project.tytul}
+                onChange={(e) => setProject((prev) => (prev ? { ...prev, tytul: e.target.value } : prev))}
+                onBlur={(e) => updateProject("tytul", e.target.value)}
+                className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
+              />
+            </div>
             <div className="mt-2">
               <EditableTextarea value={project.opis} onSave={(v) => updateProject("opis", v)} />
             </div>

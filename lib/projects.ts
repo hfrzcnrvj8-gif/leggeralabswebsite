@@ -12,6 +12,10 @@ export type Project = {
   start: string | null;
   termin: string | null;
   lead_id: string | null;
+  /** Kolor akcentu projektu (hex) — tożsamość w listach/tablicy/osi czasu. */
+  kolor: string | null;
+  /** Ikona projektu (emoji) — jak w Linear/Notion. */
+  ikona: string | null;
   created_at: string;
   updated_at: string;
   /** Agregat z listy /api/projects — liczba zadań łącznie/ukończonych.
@@ -125,6 +129,27 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 export function getProjectTemplate(id: string): ProjectTemplate | undefined {
   return PROJECT_TEMPLATES.find((t) => t.id === id);
 }
+
+/** Paleta kolorów akcentu projektu (hex) — kilka spójnych, żywych barw jak w
+ * Linear/Notion; wybierane ręcznie w panelu szczegółów. */
+export const PROJECT_COLORS = [
+  "#7C3AED", // fiolet (marka)
+  "#E0A93B", // złoto (marka)
+  "#4ea7fc", // niebieski
+  "#22D3EE", // cyan
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ef4444", // czerwony
+  "#ec4899", // różowy
+  "#8b5cf6", // fioletowy jasny
+  "#64748b", // szary
+] as const;
+
+/** Zestaw emoji-ikon projektu do szybkiego wyboru. */
+export const PROJECT_ICONS = ["📁", "🌐", "⚙️", "🔍", "🚀", "📊", "💼", "🎨", "📝", "🤖", "💡", "🔧", "📦", "🎯", "🛠️", "📈"] as const;
+
+export const DEFAULT_PROJECT_COLOR = "#4ea7fc";
+export const DEFAULT_PROJECT_ICON = "📁";
 
 export const PROJECT_STATUS_CLASS: Record<string, string> = {
   Pomysł: "bg-[var(--hairline)] text-muted",

@@ -14,7 +14,7 @@ import {
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
+import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate, ProjectIcon } from "./shared";
 import { PropertyMenu, type MenuOption } from "../Menu";
 
 // Status jako ikona (styl Linear) — kształt koła oddaje etap, nie słowo.
@@ -201,8 +201,9 @@ export function ProjectKanban({
                             {statusIconEl(p.status, 15)}
                           </PropertyMenu>
                         </span>
-                        <span className="min-w-0 flex-1 text-[13px] font-medium leading-snug text-[var(--fg)]">
-                          {p.tytul}
+                        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] font-medium leading-snug text-[var(--fg)]">
+                          <ProjectIcon kolor={p.kolor} ikona={p.ikona} size={16} />
+                          <span className="min-w-0 flex-1">{p.tytul}</span>
                         </span>
                       </div>
 

@@ -155,6 +155,9 @@ async function createHubSchema(): Promise<void> {
   // widoku osi czasu (pasek projektu rysuje się między start a termin).
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS zdrowie TEXT NOT NULL DEFAULT 'Na dobrej drodze';`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS start DATE;`;
+  // Kolor akcentu (hex) i ikona (emoji) — tożsamość projektu w listach/osi czasu.
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS kolor TEXT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS ikona TEXT;`;
 
   // Kamienie milowe — grupują zadania z checklisty i pokazują postęp
   // ("Core 100% z 73") osobno dla każdego etapu projektu, nie tylko całości.
