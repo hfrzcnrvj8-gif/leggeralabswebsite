@@ -81,24 +81,33 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
 - **Faktury** (`/admin/invoices`) — proste fakturowanie: dane sprzedawcy +
   tryb VAT/zwolnienie w „Dane firmy” (singleton), faktura jako szkic z
   dowolną liczbą pozycji (VAT per pozycja), numer nadawany dopiero przy
-  „Wystaw fakturę” (kolejny w roku), podgląd/wydruk pod
-  `/admin/invoices/:id/print`. `lib/invoices.ts` / `app/api/invoices/*`.
-  Wydruk (`InvoicePrint.tsx`) ma premium, stonowany styl (czerń/biel/
-  szarości + jeden delikatny akcent `brand.purple`, wzorowany na fakturach
-  Apple/Anthropic) i jest **trójjęzyczny (PL/EN/DE)** — język wybiera się
-  per faktura w edytorze (pole `invoice.jezyk`, property "Dokument" w
-  bocznym pasku), niezależnie od języka aktualnie przeglądanego panelu,
-  bo klient bywa zagraniczny. Kwoty/daty formatowane wg locale danego
-  języka; domyślna jednostka nowej pozycji też dopasowana do języka
-  (szt./pcs./Stk.). „Słownie” (kwota słowna) pokazuje się tylko w PL — to
-  polska konwencja, nie tłumaczona. Adres nabywcy to pola strukturalne
-  (ulica / kod pocztowy + miasto / kraj) zamiast jednego zlepionego pola —
-  `klient_adres` zostaje w bazie tylko jako fallback dla starych faktur
-  (`clientAddressLines()` w `lib/invoices.ts`). Termin płatności ma szybkie
-  przyciski 7/14/30 dni obok koła dat (liczone od daty wystawienia, a gdy
-  ta jest pusta — od dziś). Endpointy `PATCH`/`issue` łapią wyjątki i
+  „Wystaw fakturę” (kolejny w roku). `lib/invoices.ts` / `app/api/invoices/*`.
+  Endpointy `PATCH`/`issue` (i analogicznie w Ofertach) łapią wyjątki i
   zwracają realny komunikat błędu Postgresa w toaście zamiast generycznego
   „nie udało się” — ważne przy diagnozowaniu bez dostępu do logów produkcji.
+  Termin płatności ma szybkie przyciski 7/14/30 dni obok koła dat.
+
+**Wydruk faktur i ofert dzieli wspólną logikę** przez `lib/documents.ts`
+(język/locale, adres klienta, formatowanie kwot/dat, akcent gradientu marki)
+— oba dokumenty są strukturalnie bliźniacze, więc realna duplikacja
+(formatowanie, adres) żyje w jednym miejscu, a JSX/prezentacja zostają
+osobno w `InvoicePrint.tsx` / `OfferPrint.tsx` (inne sekcje: faktura ma
+VAT/płatność, oferta ma „ważna do” bez VAT). Styl: premium, stonowany
+(czerń/biel/szarości) + **subtelny akcent gradientu marki fiolet→złoto**
+(`DOC_GRADIENT` w `lib/documents.ts`) na pasku u góry, „logo”-kropce przy
+nazwie firmy i kwocie końcowej — wzorowane na fakturach Apple/Anthropic.
+**Trójjęzyczne (PL/EN/DE)** — język wybiera się per dokument w edytorze
+(pole `jezyk`, property "Dokument" w bocznym pasku), niezależnie od języka
+aktualnie przeglądanego panelu. Adres nabywcy to pola strukturalne (ulica /
+kod pocztowy + miasto / kraj) zamiast jednego zlepionego pola —
+`klient_adres` zostaje w bazie tylko jako fallback dla starych rekordów
+(`clientAddressLines()`). Faktura dodatkowo pokazuje: telefon sprzedawcy
+(z „Dane firmy”), „Słownie” tylko w PL (polska konwencja, nie tłumaczona) i
+**zestawienie VAT wg stawek** (`vatBreakdown()` w `lib/invoices.ts`) — widoczne
+tylko gdy pozycje mieszają stawki (przy jednej stawce łączne sumy już to w
+pełni pokrywają). Oferta nie ma numeracji fiskalnej (nie podlega przepisom
+o VAT) — na wydruku pokazuje się `offerReference()`, stabilna referencja
+liczona z daty utworzenia i ID, bez osobnej kolumny w bazie.
 
 ## Cmd+K, wyszukiwanie, skróty
 

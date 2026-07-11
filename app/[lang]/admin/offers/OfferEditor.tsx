@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown } from "@tabler/icons-react";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Offer, type OfferItem, offerTotal, itemKwota } from "@/lib/offers";
+import { type Offer, type OfferItem, OFFER_LANGS, OFFER_LANG_LABEL, offerTotal, itemKwota } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
 import { PROJECT_TEMPLATES } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
-import { Popover, MenuRow, MenuDivider, MenuLabel } from "../Menu";
+import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
 
 export function OfferEditor({
   id,
@@ -162,6 +162,14 @@ export function OfferEditor({
         </span>
         <div className="flex items-center gap-3">
           <SaveIndicator state={saveState} />
+          <a
+            href={`/${lang}/admin/offers/${id}/print`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
+          >
+            <IconExternalLink size={13} /> Podgląd
+          </a>
           <button onClick={onClose} className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]">
             <IconX size={13} /> Zamknij
           </button>
@@ -186,22 +194,48 @@ export function OfferEditor({
               placeholder="Nazwa klienta / firmy"
               className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
-            <div className="grid grid-cols-2 gap-2">
+            <input
+              value={offer.klient_nip}
+              onChange={(e) => setOffer((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
+              onBlur={(e) => patchOffer({ klient_nip: e.target.value })}
+              placeholder="NIP"
+              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+            />
+            <input
+              value={offer.klient_ulica}
+              onChange={(e) => setOffer((p) => (p ? { ...p, klient_ulica: e.target.value } : p))}
+              onBlur={(e) => patchOffer({ klient_ulica: e.target.value })}
+              placeholder="Ulica i numer"
+              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+            />
+            <div className="grid grid-cols-[100px_1fr] gap-2">
               <input
-                value={offer.klient_nip}
-                onChange={(e) => setOffer((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
-                onBlur={(e) => patchOffer({ klient_nip: e.target.value })}
-                placeholder="NIP"
+                value={offer.klient_kod}
+                onChange={(e) => setOffer((p) => (p ? { ...p, klient_kod: e.target.value } : p))}
+                onBlur={(e) => patchOffer({ klient_kod: e.target.value })}
+                placeholder="Kod pocztowy"
                 className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
               />
               <input
-                value={offer.klient_adres}
-                onChange={(e) => setOffer((p) => (p ? { ...p, klient_adres: e.target.value } : p))}
-                onBlur={(e) => patchOffer({ klient_adres: e.target.value })}
-                placeholder="Adres"
+                value={offer.klient_miasto}
+                onChange={(e) => setOffer((p) => (p ? { ...p, klient_miasto: e.target.value } : p))}
+                onBlur={(e) => patchOffer({ klient_miasto: e.target.value })}
+                placeholder="Miasto"
                 className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
               />
             </div>
+            <input
+              value={offer.klient_kraj}
+              onChange={(e) => setOffer((p) => (p ? { ...p, klient_kraj: e.target.value } : p))}
+              onBlur={(e) => patchOffer({ klient_kraj: e.target.value })}
+              placeholder="Kraj (dla klientów zagranicznych)"
+              className="mt-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+            />
+            {offer.klient_adres && !offer.klient_ulica && !offer.klient_miasto && (
+              <p className="mt-2 whitespace-pre-line rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
+                Stary adres (sprzed rozbicia na pola): {offer.klient_adres}
+              </p>
+            )}
           </div>
 
           <div className="card-paper rounded-xl border hairline p-4">
@@ -278,6 +312,23 @@ export function OfferEditor({
         </div>
 
         <div className="space-y-4">
+          <div className="card-paper rounded-xl border hairline p-4">
+            <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Dokument</h3>
+            <Field label="Język">
+              <PropertyMenu
+                value={offer.jezyk}
+                options={OFFER_LANGS.map((l) => ({ value: l, label: `${l.toUpperCase()} — ${OFFER_LANG_LABEL[l]}` }))}
+                onChange={(v) => patchOffer({ jezyk: v })}
+                title="Język wydruku oferty"
+                full
+              >
+                <span className="text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)] rounded-md px-1.5 py-1 -mx-1.5">
+                  {offer.jezyk.toUpperCase()} — {OFFER_LANG_LABEL[offer.jezyk]}
+                </span>
+              </PropertyMenu>
+            </Field>
+          </div>
+
           <div className="card-paper rounded-xl border hairline p-4">
             <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Ważność</h3>
             <Field label="Ważna do">

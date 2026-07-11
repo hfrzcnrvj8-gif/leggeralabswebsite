@@ -12,16 +12,16 @@ import {
   itemBrutto,
   amountInWords,
   clientAddressLines,
+  vatBreakdown,
 } from "@/lib/invoices";
+import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
 
 /** Podgląd/wydruk faktury — samodzielny biały dokument (niezależny od motywu
  * panelu), gotowy do „Drukuj / Zapisz jako PDF" przeglądarki. Premium,
- * stonowany styl (czerń/biel/szarości + jeden delikatny akcent koloru marki),
- * wzorowany na fakturach Apple/Anthropic. Trójjęzyczny (PL/EN/DE) — język
- * wybiera się per faktura w edytorze (`invoice.jezyk`), niezależnie od
- * języka w jakim akurat przegląda się panel. */
-
-const ACCENT = "#7C3AED"; // brand.purple — jedyny akcent koloru na dokumencie
+ * stonowany styl (czerń/biel/szarości + subtelny akcent gradientu marki
+ * fiolet→złoto), wzorowany na fakturach Apple/Anthropic. Trójjęzyczny
+ * (PL/EN/DE) — język wybiera się per faktura w edytorze (`invoice.jezyk`),
+ * niezależnie od języka w jakim akurat przegląda się panel. */
 
 type Dict = {
   doc: string;
@@ -55,6 +55,10 @@ type Dict = {
   close: string;
   print: string;
   draft: string;
+  phone: string;
+  vatSummary: string;
+  vatBase: string;
+  reverseCharge: string;
 };
 
 const DICT: Record<InvoiceLang, Dict> = {
@@ -90,6 +94,10 @@ const DICT: Record<InvoiceLang, Dict> = {
     close: "Zamknij",
     print: "Drukuj / Zapisz PDF",
     draft: "szkic",
+    phone: "Tel.",
+    vatSummary: "Zestawienie VAT wg stawek",
+    vatBase: "Podstawa VAT",
+    reverseCharge: "Odwrotne obciążenie — podatek rozlicza nabywca.",
   },
   en: {
     doc: "Invoice",
@@ -123,6 +131,10 @@ const DICT: Record<InvoiceLang, Dict> = {
     close: "Close",
     print: "Print / Save PDF",
     draft: "draft",
+    phone: "Phone",
+    vatSummary: "VAT summary by rate",
+    vatBase: "VAT base",
+    reverseCharge: "Reverse charge — VAT to be accounted for by the recipient.",
   },
   de: {
     doc: "Rechnung",
@@ -156,21 +168,15 @@ const DICT: Record<InvoiceLang, Dict> = {
     close: "Schließen",
     print: "Drucken / Als PDF speichern",
     draft: "Entwurf",
+    phone: "Tel.",
+    vatSummary: "USt.-Zusammenfassung nach Satz",
+    vatBase: "USt.-Basis",
+    reverseCharge: "Steuerschuldnerschaft des Leistungsempfängers (Reverse-Charge-Verfahren).",
   },
 };
 
-const LOCALE: Record<InvoiceLang, string> = { pl: "pl-PL", en: "en-GB", de: "de-DE" };
-
-function money(n: number, lang: InvoiceLang, currency = "PLN"): string {
-  return new Intl.NumberFormat(LOCALE[lang], { style: "currency", currency }).format(n);
-}
-
-function dateStr(s: string | null, lang: InvoiceLang): string {
-  if (!s) return "—";
-  const d = new Date(`${s.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleDateString(LOCALE[lang], { day: "2-digit", month: "2-digit", year: "numeric" });
-}
+const money = docMoney;
+const dateStr = docDate;
 
 export function InvoicePrint({ id }: { id: string }) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -199,34 +205,49 @@ export function InvoicePrint({ id }: { id: string }) {
   const vat = settings.vat_payer;
   const dueAmount = vat ? totals.brutto : totals.netto;
   const currency = invoice.waluta || "PLN";
+  const breakdown = vatBreakdown(items);
+  const hasReverseCharge = items.some((it) => it.vat_stawka === "np");
 
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
+      {/* A4: rozmiar strony i marginesy wydruku — bez tego przeglądarka
+          drukuje na domyślnym papierze użytkownika (bywa Letter) z losowymi
+          marginesami. Reset tła na biel, żeby ciemny motyw panelu (jeśli
+          przeglądarka drukuje tła) nie wyciekał poza dokument. */}
+      <style>{`
+        @page { size: A4; margin: 16mm; }
+        @media print {
+          html, body { background: #fff !important; }
+        }
+      `}</style>
+
       {/* Pasek akcji — ukryty na wydruku */}
-      <div className="mx-auto mb-4 flex max-w-[820px] items-center justify-between px-4 print:hidden">
+      <div className="mx-auto mb-4 flex max-w-[794px] items-center justify-between px-4 print:hidden">
         <button onClick={() => window.close()} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
           ← {t.close}
         </button>
         <button
           onClick={() => window.print()}
           className="rounded-lg px-4 py-1.5 text-sm font-semibold text-white"
-          style={{ background: ACCENT }}
+          style={{ background: DOC_GRADIENT }}
         >
           {t.print}
         </button>
       </div>
 
-      {/* Dokument */}
-      <div className="mx-auto max-w-[820px] bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:max-w-none print:shadow-none">
+      {/* Dokument — 794px na ekranie ≈ szerokość A4 (210mm) przy 96dpi, więc
+          podgląd wiernie odzwierciedla wydruk; na print bez ograniczenia
+          szerokości, bo @page już definiuje obszar strony. */}
+      <div className="mx-auto max-w-[794px] bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:max-w-none print:shadow-none">
         {/* Cienki pasek akcentu marki na górze dokumentu */}
-        <div className="h-[3px] w-full" style={{ background: ACCENT }} />
+        <div className="h-[3px] w-full" style={{ background: DOC_GRADIENT }} />
 
         <div className="p-10">
           {/* Nagłówek: wordmark + tytuł/meta */}
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full" style={{ background: ACCENT }} />
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: DOC_GRADIENT }} />
                 <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa || "—"}</span>
               </div>
             </div>
@@ -262,6 +283,11 @@ export function InvoicePrint({ id }: { id: string }) {
                 </div>
               )}
               {settings.email && <div className="mt-0.5 text-neutral-500">{settings.email}</div>}
+              {settings.telefon && (
+                <div className="mt-0.5 text-neutral-500">
+                  {t.phone}: {settings.telefon}
+                </div>
+              )}
             </div>
             <div>
               <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.buyer}</div>
@@ -330,12 +356,45 @@ export function InvoicePrint({ id }: { id: string }) {
               )}
               <div className="flex justify-between border-t border-neutral-200 pt-2 text-[15px] font-semibold">
                 <span className="text-neutral-900">{t.totalDue}</span>
-                <span className="tabular-nums" style={{ color: ACCENT }}>
+                <span
+                  className="tabular-nums"
+                  style={{ background: DOC_GRADIENT, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
+                >
                   {money(dueAmount, lang, currency)}
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Zestawienie VAT wg stawek — tylko gdy pozycje mieszają stawki
+              (przy jednej stawce sumy wyżej już to w pełni pokrywają). */}
+          {vat && breakdown.length > 1 && (
+            <div className="mt-6 flex justify-end">
+              <table className="w-80 border-collapse text-[11.5px]">
+                <caption className="mb-1.5 text-left text-[10.5px] font-medium uppercase tracking-wide text-neutral-400">
+                  {t.vatSummary}
+                </caption>
+                <thead>
+                  <tr className="border-b border-neutral-200 text-left text-[10px] uppercase tracking-wide text-neutral-400">
+                    <th className="py-1 pr-2">{t.vatRate}</th>
+                    <th className="py-1 pr-2 text-right">{t.vatBase}</th>
+                    <th className="py-1 pr-2 text-right">{t.vatAmount}</th>
+                    <th className="py-1 pl-2 text-right">{t.grossValue}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.map((b) => (
+                    <tr key={b.stawka} className="border-b border-neutral-100 text-neutral-600">
+                      <td className="py-1 pr-2">{b.stawka === "zw" || b.stawka === "np" ? b.stawka : `${b.stawka}%`}</td>
+                      <td className="py-1 pr-2 text-right tabular-nums">{money(b.netto, lang, currency)}</td>
+                      <td className="py-1 pr-2 text-right tabular-nums">{money(b.vat, lang, currency)}</td>
+                      <td className="py-1 pl-2 text-right tabular-nums font-medium text-neutral-900">{money(b.brutto, lang, currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {lang === "pl" && <div className="mt-2 text-neutral-500">{t.inWords}: {amountInWords(dueAmount)}</div>}
 
@@ -364,6 +423,10 @@ export function InvoicePrint({ id }: { id: string }) {
           </div>
 
           {invoice.uwagi && <div className="mt-6 whitespace-pre-line text-neutral-600">{invoice.uwagi}</div>}
+
+          {hasReverseCharge && (
+            <div className="mt-6 rounded-lg bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-700">{t.reverseCharge}</div>
+          )}
 
           {/* Drobny druk */}
           <div className="mt-10 border-t border-neutral-100 pt-4 text-[10.5px] leading-relaxed text-neutral-400">{t.eSignatureNote}</div>

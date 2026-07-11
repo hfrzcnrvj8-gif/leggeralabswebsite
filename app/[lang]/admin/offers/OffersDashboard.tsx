@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconX } from "@tabler/icons-react";
+import { IconPlus, IconX, IconExternalLink } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, isOfferExpired } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
@@ -190,6 +190,15 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       </td>
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          <a
+                            href={`/${lang}/admin/offers/${o.id}/print`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex text-muted hover:text-[var(--fg)]"
+                            title="Podgląd / wydruk"
+                          >
+                            <IconExternalLink size={15} />
+                          </a>
                           <button
                             onClick={() => deleteOffer(o.id, o.tytul)}
                             className="flex text-muted hover:text-red-400"

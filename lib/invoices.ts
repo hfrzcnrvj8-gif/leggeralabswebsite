@@ -2,6 +2,11 @@
 // serwerowe route'y (obliczenia sum, formatowanie). Wzorowane na lib/leads.ts
 // i lib/projects.ts. Świadomie lekki moduł: bez KSeF, elastyczny VAT/bez-VAT.
 
+import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
+
+export type InvoiceLang = DocLang;
+export { addDaysISO } from "./documents";
+
 export type CompanySettings = {
   nazwa: string;
   nip: string;
@@ -31,10 +36,10 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
 
 /** Język wydruku faktury — niezależny od języka panelu (klient może być
  * zagraniczny, nawet gdy właściciel akurat przegląda panel po polsku).
- * Wybierany per faktura w edytorze, domyślnie polski. */
-export type InvoiceLang = "pl" | "en" | "de";
-export const INVOICE_LANGS: InvoiceLang[] = ["pl", "en", "de"];
-export const INVOICE_LANG_LABEL: Record<InvoiceLang, string> = { pl: "Polski", en: "English", de: "Deutsch" };
+ * Wybierany per faktura w edytorze, domyślnie polski. Typ i lista języków
+ * dzielone z lib/offers.ts przez lib/documents.ts. */
+export const INVOICE_LANGS = DOC_LANGS;
+export const INVOICE_LANG_LABEL = DOC_LANG_LABEL;
 
 export type InvoiceStatus = "Szkic" | "Wystawiona" | "Opłacona" | "Po terminie" | "Anulowana";
 export const INVOICE_STATUSES: InvoiceStatus[] = ["Szkic", "Wystawiona", "Opłacona", "Po terminie", "Anulowana"];
@@ -137,31 +142,30 @@ export function formatInvoiceNumber(seq: number, year: number): string {
   return `${seq}/${year}`;
 }
 
-/** Adres nabywcy jako linie do wydruku — preferuje pola strukturalne
- * (ulica / kod+miasto / kraj), a dla starszych faktur bez nich spada na
- * zlepione pole `klient_adres`. */
+/** Adres nabywcy jako linie do wydruku (patrz lib/documents.ts). */
 export function clientAddressLines(
   inv: Pick<Invoice, "klient_ulica" | "klient_kod" | "klient_miasto" | "klient_kraj" | "klient_adres">
 ): string[] {
-  const lines: string[] = [];
-  if (inv.klient_ulica) lines.push(inv.klient_ulica);
-  const kodMiasto = [inv.klient_kod, inv.klient_miasto].filter(Boolean).join(" ");
-  if (kodMiasto) lines.push(kodMiasto);
-  if (inv.klient_kraj) lines.push(inv.klient_kraj);
-  if (lines.length > 0) return lines;
-  return inv.klient_adres ? inv.klient_adres.split("\n").filter(Boolean) : [];
+  return sharedClientAddressLines(inv);
 }
 
-/** Dodaje N dni do daty ISO (lub do dziś, gdy brak bazowej daty) — do
- * szybkiego ustawiania terminu płatności (7/14/30 dni) bez ręcznego wyboru
- * z koła dat. */
-export function addDaysISO(baseIso: string | null, days: number): string {
-  const base = baseIso ? new Date(`${baseIso.slice(0, 10)}T00:00:00`) : new Date();
-  const d = new Date(base.getTime() + days * 86400000);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+/** Sumy faktury pogrupowane wg stawki VAT — do zestawienia "Podstawa VAT /
+ * Kwota VAT / Stawka" na wydruku, wymaganego gdy pozycje mieszają stawki
+ * (styl znany z faktur Apple/dużych firm). Zwraca tylko stawki faktycznie
+ * użyte na fakturze, posortowane malejąco wg wysokości stawki. */
+export function vatBreakdown(
+  items: { ilosc: number; cena_netto: number; vat_stawka: string }[]
+): { stawka: string; netto: number; vat: number; brutto: number }[] {
+  const byRate = new Map<string, { netto: number; vat: number }>();
+  for (const it of items) {
+    const cur = byRate.get(it.vat_stawka) ?? { netto: 0, vat: 0 };
+    cur.netto += itemNetto(it);
+    cur.vat += itemVat(it);
+    byRate.set(it.vat_stawka, cur);
+  }
+  return Array.from(byRate.entries())
+    .map(([stawka, { netto, vat }]) => ({ stawka, netto: round2(netto), vat: round2(vat), brutto: round2(netto + vat) }))
+    .sort((a, b) => vatFraction(b.stawka) - vatFraction(a.stawka));
 }
 
 const CLOSED_INVOICE_STATUSES = new Set<string>(["Opłacona", "Anulowana"]);

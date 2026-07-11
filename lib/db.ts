@@ -352,6 +352,13 @@ async function createOffersSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS offers_status_idx ON offers(status);`;
+  // Język wydruku (pl/en/de) i strukturalny adres klienta — dodane po
+  // pierwszym wdrożeniu modułu, tak samo jak w invoices.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS jezyk TEXT NOT NULL DEFAULT 'pl';`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_ulica TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_kod TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_miasto TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_kraj TEXT NOT NULL DEFAULT '';`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (
