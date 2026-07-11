@@ -29,6 +29,13 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   domyslny_termin_dni: 14,
 };
 
+/** Język wydruku faktury — niezależny od języka panelu (klient może być
+ * zagraniczny, nawet gdy właściciel akurat przegląda panel po polsku).
+ * Wybierany per faktura w edytorze, domyślnie polski. */
+export type InvoiceLang = "pl" | "en" | "de";
+export const INVOICE_LANGS: InvoiceLang[] = ["pl", "en", "de"];
+export const INVOICE_LANG_LABEL: Record<InvoiceLang, string> = { pl: "Polski", en: "English", de: "Deutsch" };
+
 export type InvoiceStatus = "Szkic" | "Wystawiona" | "Opłacona" | "Po terminie" | "Anulowana";
 export const INVOICE_STATUSES: InvoiceStatus[] = ["Szkic", "Wystawiona", "Opłacona", "Po terminie", "Anulowana"];
 
@@ -63,12 +70,20 @@ export type Invoice = {
   project_id: string | null;
   klient_nazwa: string;
   klient_nip: string;
+  /** @deprecated jedno pole adresowe sprzed rozbicia na ulicę/kod/miasto/kraj
+   * — trzymane tylko dla wstecznej zgodności ze starymi fakturami (fallback
+   * w wydruku, gdy pola strukturalne są puste). Nowe faktury go nie używają. */
   klient_adres: string;
+  klient_ulica: string;
+  klient_kod: string;
+  klient_miasto: string;
+  klient_kraj: string;
   data_wystawienia: string | null;
   data_sprzedazy: string | null;
   termin_platnosci: string | null;
   status: InvoiceStatus;
   waluta: string;
+  jezyk: InvoiceLang;
   uwagi: string;
   created_at: string;
   updated_at: string;
@@ -120,6 +135,33 @@ export function formatMoney(n: number, waluta = "PLN"): string {
 /** Numer faktury w formacie "kolejny/rok" (np. "7/2026"). */
 export function formatInvoiceNumber(seq: number, year: number): string {
   return `${seq}/${year}`;
+}
+
+/** Adres nabywcy jako linie do wydruku — preferuje pola strukturalne
+ * (ulica / kod+miasto / kraj), a dla starszych faktur bez nich spada na
+ * zlepione pole `klient_adres`. */
+export function clientAddressLines(
+  inv: Pick<Invoice, "klient_ulica" | "klient_kod" | "klient_miasto" | "klient_kraj" | "klient_adres">
+): string[] {
+  const lines: string[] = [];
+  if (inv.klient_ulica) lines.push(inv.klient_ulica);
+  const kodMiasto = [inv.klient_kod, inv.klient_miasto].filter(Boolean).join(" ");
+  if (kodMiasto) lines.push(kodMiasto);
+  if (inv.klient_kraj) lines.push(inv.klient_kraj);
+  if (lines.length > 0) return lines;
+  return inv.klient_adres ? inv.klient_adres.split("\n").filter(Boolean) : [];
+}
+
+/** Dodaje N dni do daty ISO (lub do dziś, gdy brak bazowej daty) — do
+ * szybkiego ustawiania terminu płatności (7/14/30 dni) bez ręcznego wyboru
+ * z koła dat. */
+export function addDaysISO(baseIso: string | null, days: number): string {
+  const base = baseIso ? new Date(`${baseIso.slice(0, 10)}T00:00:00`) : new Date();
+  const d = new Date(base.getTime() + days * 86400000);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 const CLOSED_INVOICE_STATUSES = new Set<string>(["Opłacona", "Anulowana"]);

@@ -294,6 +294,14 @@ async function createInvoicesSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS invoices_status_idx ON invoices(status);`;
+  // Język wydruku faktury (pl/en/de) — dodany po pierwszym wdrożeniu modułu.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS jezyk TEXT NOT NULL DEFAULT 'pl';`;
+  // Rozbicie adresu nabywcy na pola strukturalne (zamiast jednego zlepionego
+  // pola) — `klient_adres` zostaje tylko jako fallback dla starych faktur.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_ulica TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_kod TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_miasto TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_kraj TEXT NOT NULL DEFAULT '';`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_items (
@@ -314,4 +322,53 @@ async function createInvoicesSchema(): Promise<void> {
 export async function ensureInvoicesSchema(): Promise<void> {
   if (!invoicesSchemaReady) invoicesSchemaReady = createInvoicesSchema();
   await invoicesSchemaReady;
+}
+
+let offersSchemaReady: Promise<void> | null = null;
+
+async function createOffersSchema(): Promise<void> {
+  const sql = getSql();
+  // Oferta odwołuje się do leada, a po akceptacji do utworzonego projektu i
+  // faktury (FK) — upewnij się, że te tabele istnieją.
+  await ensureLeadsSchema();
+  await ensureHubSchema();
+  await ensureInvoicesSchema();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS offers (
+      id TEXT PRIMARY KEY,
+      tytul TEXT NOT NULL DEFAULT '',
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      invoice_id TEXT REFERENCES invoices(id) ON DELETE SET NULL,
+      klient_nazwa TEXT NOT NULL DEFAULT '',
+      klient_nip TEXT NOT NULL DEFAULT '',
+      klient_adres TEXT NOT NULL DEFAULT '',
+      wazna_do DATE,
+      status TEXT NOT NULL DEFAULT 'Szkic',
+      uwagi TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS offers_status_idx ON offers(status);`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS offer_items (
+      id TEXT PRIMARY KEY,
+      offer_id TEXT NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+      nazwa TEXT NOT NULL DEFAULT '',
+      ilosc NUMERIC NOT NULL DEFAULT 1,
+      jednostka TEXT NOT NULL DEFAULT 'szt.',
+      cena NUMERIC NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS offer_items_offer_id_idx ON offer_items(offer_id);`;
+}
+
+/** Lazily tworzy tabele modułu Ofert (oferty, pozycje). */
+export async function ensureOffersSchema(): Promise<void> {
+  if (!offersSchemaReady) offersSchemaReady = createOffersSchema();
+  await offersSchemaReady;
 }

@@ -8,6 +8,9 @@ import {
   type InvoiceItem,
   type CompanySettings,
   VAT_RATES,
+  INVOICE_LANGS,
+  INVOICE_LANG_LABEL,
+  addDaysISO,
   invoiceTotals,
   itemNetto,
   itemBrutto,
@@ -194,22 +197,48 @@ export function InvoiceEditor({
               placeholder="Nazwa firmy / imię i nazwisko"
               className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
-            <div className="grid grid-cols-2 gap-2">
+            <input
+              value={invoice.klient_nip}
+              onChange={(e) => setInvoice((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
+              onBlur={(e) => patchInvoice({ klient_nip: e.target.value })}
+              placeholder="NIP"
+              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+            />
+            <input
+              value={invoice.klient_ulica}
+              onChange={(e) => setInvoice((p) => (p ? { ...p, klient_ulica: e.target.value } : p))}
+              onBlur={(e) => patchInvoice({ klient_ulica: e.target.value })}
+              placeholder="Ulica i numer"
+              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+            />
+            <div className="grid grid-cols-[100px_1fr] gap-2">
               <input
-                value={invoice.klient_nip}
-                onChange={(e) => setInvoice((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
-                onBlur={(e) => patchInvoice({ klient_nip: e.target.value })}
-                placeholder="NIP"
+                value={invoice.klient_kod}
+                onChange={(e) => setInvoice((p) => (p ? { ...p, klient_kod: e.target.value } : p))}
+                onBlur={(e) => patchInvoice({ klient_kod: e.target.value })}
+                placeholder="Kod pocztowy"
                 className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
               />
               <input
-                value={invoice.klient_adres}
-                onChange={(e) => setInvoice((p) => (p ? { ...p, klient_adres: e.target.value } : p))}
-                onBlur={(e) => patchInvoice({ klient_adres: e.target.value })}
-                placeholder="Adres"
+                value={invoice.klient_miasto}
+                onChange={(e) => setInvoice((p) => (p ? { ...p, klient_miasto: e.target.value } : p))}
+                onBlur={(e) => patchInvoice({ klient_miasto: e.target.value })}
+                placeholder="Miasto"
                 className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
               />
             </div>
+            <input
+              value={invoice.klient_kraj}
+              onChange={(e) => setInvoice((p) => (p ? { ...p, klient_kraj: e.target.value } : p))}
+              onBlur={(e) => patchInvoice({ klient_kraj: e.target.value })}
+              placeholder="Kraj (dla klientów zagranicznych)"
+              className="mt-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+            />
+            {invoice.klient_adres && !invoice.klient_ulica && !invoice.klient_miasto && (
+              <p className="mt-2 whitespace-pre-line rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
+                Stary adres (sprzed rozbicia na pola): {invoice.klient_adres}
+              </p>
+            )}
           </div>
 
           <div className="card-paper rounded-xl border hairline p-4">
@@ -312,6 +341,23 @@ export function InvoiceEditor({
         {/* Boczny pasek: daty, status, akcje */}
         <div className="space-y-4">
           <div className="card-paper rounded-xl border hairline p-4">
+            <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Dokument</h3>
+            <Field label="Język">
+              <PropertyMenu
+                value={invoice.jezyk}
+                options={INVOICE_LANGS.map((l) => ({ value: l, label: `${l.toUpperCase()} — ${INVOICE_LANG_LABEL[l]}` }))}
+                onChange={(v) => patchInvoice({ jezyk: v })}
+                title="Język wydruku faktury"
+                full
+              >
+                <span className="text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)] rounded-md px-1.5 py-1 -mx-1.5">
+                  {invoice.jezyk.toUpperCase()} — {INVOICE_LANG_LABEL[invoice.jezyk]}
+                </span>
+              </PropertyMenu>
+            </Field>
+          </div>
+
+          <div className="card-paper rounded-xl border hairline p-4">
             <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Daty</h3>
             <Field label="Wystawienia">
               <DateField value={invoice.data_wystawienia ?? ""} onChange={(v) => patchInvoice({ data_wystawienia: v || null })} placeholder="—" />
@@ -322,6 +368,18 @@ export function InvoiceEditor({
             <Field label="Termin płat.">
               <DateField value={invoice.termin_platnosci ?? ""} onChange={(v) => patchInvoice({ termin_platnosci: v || null })} placeholder="—" />
             </Field>
+            <div className="mt-1.5 flex gap-1.5 pl-[104px]">
+              {[7, 14, 30].map((days) => (
+                <button
+                  key={days}
+                  onClick={() => patchInvoice({ termin_platnosci: addDaysISO(invoice.data_wystawienia, days) })}
+                  className="rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                  title={`Ustaw termin na ${days} dni od daty wystawienia (lub od dziś, jeśli nie ustawiono)`}
+                >
+                  {days} dni
+                </button>
+              ))}
+            </div>
           </div>
 
           {isDraft ? (

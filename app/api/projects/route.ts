@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { getProjectTemplate } from "@/lib/projects";
-
-function toLocalISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+import { getProjectTemplate, expandProjectTemplate } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -62,13 +55,13 @@ export async function POST(req: NextRequest) {
   let start: string | null = null;
   let termin: string | null = typeof body?.termin === "string" && body.termin.trim() ? body.termin : null;
 
+  let milestones: { nazwa: string; termin: string; tasks: string[] }[] = [];
   if (template) {
-    if (!opis) opis = template.opis;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const lastOffset = template.milestones.reduce((mx, m) => Math.max(mx, m.dayOffset), 0);
-    start = toLocalISO(today);
-    termin = toLocalISO(new Date(today.getTime() + lastOffset * 86400000));
+    const exp = expandProjectTemplate(template);
+    if (!opis) opis = exp.opis;
+    start = exp.start;
+    termin = exp.termin;
+    milestones = exp.milestones;
   }
 
   await sql`
@@ -76,27 +69,22 @@ export async function POST(req: NextRequest) {
     VALUES (${id}, ${tytul.slice(0, 300)}, ${opis}, ${status}, ${priorytet}, ${start}, ${termin}, ${leadId});
   `;
 
-  if (template) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let mPos = 0;
-    for (const m of template.milestones) {
-      const milestoneId = randomUUID();
-      const mTermin = toLocalISO(new Date(today.getTime() + m.dayOffset * 86400000));
+  let mPos = 0;
+  for (const m of milestones) {
+    const milestoneId = randomUUID();
+    await sql`
+      INSERT INTO project_milestones (id, project_id, nazwa, termin, position)
+      VALUES (${milestoneId}, ${id}, ${m.nazwa.slice(0, 200)}, ${m.termin}, ${mPos});
+    `;
+    let tPos = 0;
+    for (const taskText of m.tasks) {
       await sql`
-        INSERT INTO project_milestones (id, project_id, nazwa, termin, position)
-        VALUES (${milestoneId}, ${id}, ${m.nazwa.slice(0, 200)}, ${mTermin}, ${mPos});
+        INSERT INTO project_tasks (id, project_id, text, position, milestone_id)
+        VALUES (${randomUUID()}, ${id}, ${taskText.slice(0, 1000)}, ${tPos}, ${milestoneId});
       `;
-      let tPos = 0;
-      for (const taskText of m.tasks) {
-        await sql`
-          INSERT INTO project_tasks (id, project_id, text, position, milestone_id)
-          VALUES (${randomUUID()}, ${id}, ${taskText.slice(0, 1000)}, ${tPos}, ${milestoneId});
-        `;
-        tPos += 1;
-      }
-      mPos += 1;
+      tPos += 1;
     }
+    mPos += 1;
   }
 
   return NextResponse.json({ ok: true, id });

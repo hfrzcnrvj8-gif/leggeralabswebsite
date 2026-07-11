@@ -10,6 +10,7 @@ import {
   IconNotes,
   IconCalendar,
   IconTarget,
+  IconFileText,
   IconReceipt,
   IconSearch,
   IconChevronLeft,
@@ -32,6 +33,7 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/notes", label: "Notatnik", icon: IconNotes },
   { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
   { href: "/leads", label: "Leady", icon: IconTarget },
+  { href: "/offers", label: "Oferty", icon: IconFileText },
   { href: "/invoices", label: "Faktury", icon: IconReceipt },
 ];
 

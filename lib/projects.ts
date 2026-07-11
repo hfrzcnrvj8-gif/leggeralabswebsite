@@ -143,6 +143,36 @@ export function getProjectTemplate(id: string): ProjectTemplate | undefined {
   return PROJECT_TEMPLATES.find((t) => t.id === id);
 }
 
+export function toLocalISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Rozwija szablon projektu na konkretne daty (start = dziś, kamienie/termin
+ * = dziś + dayOffset) — używane przez POST /api/projects i przez akceptację
+ * oferty (POST /api/offers/:id/accept), żeby obie ścieżki tworzenia projektu
+ * z szablonu liczyły daty identycznie. */
+export function expandProjectTemplate(
+  template: ProjectTemplate,
+  today: Date = new Date()
+): { opis: string; start: string; termin: string; milestones: { nazwa: string; termin: string; tasks: string[] }[] } {
+  const base = new Date(today);
+  base.setHours(0, 0, 0, 0);
+  const lastOffset = template.milestones.reduce((mx, m) => Math.max(mx, m.dayOffset), 0);
+  return {
+    opis: template.opis,
+    start: toLocalISODate(base),
+    termin: toLocalISODate(new Date(base.getTime() + lastOffset * 86400000)),
+    milestones: template.milestones.map((m) => ({
+      nazwa: m.nazwa,
+      termin: toLocalISODate(new Date(base.getTime() + m.dayOffset * 86400000)),
+      tasks: m.tasks,
+    })),
+  };
+}
+
 /** Paleta kolorów akcentu projektu (hex) — kilka spójnych, żywych barw jak w
  * Linear/Notion; wybierane ręcznie w panelu szczegółów. */
 export const PROJECT_COLORS = [

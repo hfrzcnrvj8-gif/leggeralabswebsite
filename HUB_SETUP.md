@@ -71,6 +71,34 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
   opcjonalne powiązanie z leadem lub projektem).
 - **Leady** (`/admin/leads`) — opisane w `LEADS_SETUP.md`, teraz też w
   ramach wspólnego sidebaru i palety poleceń.
+- **Oferty** (`/admin/offers`) — most między leadem a realizacją: oferta ma
+  tytuł, dane klienta, pozycje (nazwa/ilość/cena — bez VAT, to kwota
+  ogólna) i datę ważności. Przycisk „Akceptuj ofertę” jednym kliknięciem
+  (opcjonalnie z wyborem szablonu projektu z `PROJECT_TEMPLATES`) tworzy
+  PROJEKT i FAKTURĘ-szkic z pozycjami skopiowanymi z oferty (domyślnie VAT
+  23% na fakturze), podpina oba do oferty i ustawia jej status na
+  „Zaakceptowana”. `lib/offers.ts` / `app/api/offers/*`.
+- **Faktury** (`/admin/invoices`) — proste fakturowanie: dane sprzedawcy +
+  tryb VAT/zwolnienie w „Dane firmy” (singleton), faktura jako szkic z
+  dowolną liczbą pozycji (VAT per pozycja), numer nadawany dopiero przy
+  „Wystaw fakturę” (kolejny w roku), podgląd/wydruk pod
+  `/admin/invoices/:id/print`. `lib/invoices.ts` / `app/api/invoices/*`.
+  Wydruk (`InvoicePrint.tsx`) ma premium, stonowany styl (czerń/biel/
+  szarości + jeden delikatny akcent `brand.purple`, wzorowany na fakturach
+  Apple/Anthropic) i jest **trójjęzyczny (PL/EN/DE)** — język wybiera się
+  per faktura w edytorze (pole `invoice.jezyk`, property "Dokument" w
+  bocznym pasku), niezależnie od języka aktualnie przeglądanego panelu,
+  bo klient bywa zagraniczny. Kwoty/daty formatowane wg locale danego
+  języka; domyślna jednostka nowej pozycji też dopasowana do języka
+  (szt./pcs./Stk.). „Słownie” (kwota słowna) pokazuje się tylko w PL — to
+  polska konwencja, nie tłumaczona. Adres nabywcy to pola strukturalne
+  (ulica / kod pocztowy + miasto / kraj) zamiast jednego zlepionego pola —
+  `klient_adres` zostaje w bazie tylko jako fallback dla starych faktur
+  (`clientAddressLines()` w `lib/invoices.ts`). Termin płatności ma szybkie
+  przyciski 7/14/30 dni obok koła dat (liczone od daty wystawienia, a gdy
+  ta jest pusta — od dziś). Endpointy `PATCH`/`issue` łapią wyjątki i
+  zwracają realny komunikat błędu Postgresa w toaście zamiast generycznego
+  „nie udało się” — ważne przy diagnozowaniu bez dostępu do logów produkcji.
 
 ## Cmd+K, wyszukiwanie, skróty
 
