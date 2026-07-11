@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOffersSchema } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -36,16 +36,35 @@ export async function POST(req: NextRequest) {
 
   let tytul = str(body?.tytul, 300);
   let klientNazwa = str(body?.klient_nazwa, 300);
-  if (leadId && (!tytul || !klientNazwa)) {
-    const lead = await sql`SELECT firma FROM leads WHERE id = ${leadId};`;
-    const firma = typeof lead[0]?.firma === "string" ? lead[0].firma : "";
+  let clientId: string | null = null;
+
+  if (leadId) {
+    const lead = (await sql`SELECT firma, branza, telefon, email, www, client_id FROM leads WHERE id = ${leadId};`)[0];
+    const firma = typeof lead?.firma === "string" ? lead.firma : "";
     if (!klientNazwa) klientNazwa = firma;
     if (!tytul) tytul = firma ? `Oferta — ${firma}` : "";
+
+    // Pierwsza oferta dla leada = sygnał, że jest realna szansa coś sprzedać —
+    // to moment, w którym Lead automatycznie "awansuje" na Klienta (patrz
+    // lib/clients.ts). Jeśli lead ma już podpiętego klienta (np. przez ręczne
+    // "Utwórz klienta" albo poprzednią ofertę), używamy tego samego rekordu
+    // zamiast tworzyć duplikat.
+    await ensureClientsSchema();
+    if (lead?.client_id) {
+      clientId = String(lead.client_id);
+    } else if (lead) {
+      clientId = randomUUID();
+      await sql`
+        INSERT INTO clients (id, nazwa, branza, telefon, email, www, lead_id)
+        VALUES (${clientId}, ${firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${leadId});
+      `;
+      await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${leadId};`;
+    }
   }
 
   await sql`
-    INSERT INTO offers (id, tytul, lead_id, klient_nazwa)
-    VALUES (${id}, ${tytul}, ${leadId}, ${klientNazwa});
+    INSERT INTO offers (id, tytul, lead_id, klient_nazwa, client_id)
+    VALUES (${id}, ${tytul}, ${leadId}, ${klientNazwa}, ${clientId});
   `;
   return NextResponse.json({ ok: true, id });
 }

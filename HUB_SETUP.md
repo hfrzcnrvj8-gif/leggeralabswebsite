@@ -88,6 +88,29 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
   opcjonalne powiązanie z leadem lub projektem).
 - **Leady** (`/admin/leads`) — opisane w `LEADS_SETUP.md`, teraz też w
   ramach wspólnego sidebaru i palety poleceń.
+- **Klienci** (`/admin/clients`, Faza F, 2026-07-12) — fundament CRM: Lead to
+  ktoś nieznany, dopiero kwalifikowany; Klient to ktoś, z kim realnie zaczęła
+  się rozmowa i jest szansa coś dla niego stworzyć/sprzedać (teraz albo w
+  przyszłości). Rekord Klienta powstaje **automatycznie** przy tworzeniu
+  pierwszej Oferty dla leada (`app/api/offers/route.ts` POST), albo
+  **ręcznie** przyciskiem „+ Utwórz klienta” na leadzie
+  (`app/api/leads/[id]/promote`) — dla sytuacji gdy rozmowa już trwa, zanim
+  jest gotowa oferta. `client_id` (nullable, `ON DELETE SET NULL`) doklejony
+  do leads/offers/invoices/projects — przy akceptacji oferty propaguje się
+  automatycznie do utworzonego projektu i faktury. Status relacji
+  (Prospekt/Aktywny/Uśpiony/Stracony, `lib/clients.ts`) to OSOBNA oś od tego
+  czy klient coś kupił — dokładnie jak „zdrowie” projektu vs jego status.
+  Karta klienta (peek panel wysuwany z prawej, jak Leady — NIE modal): dane
+  kontaktowe, statyczna podpowiedź „co zwykle dalej” per status
+  (`CLIENT_STATUS_HINT` — miękka, nigdy nie blokuje), **jeden chronologiczny
+  log historii kontaktu** (`client_activity`, ten sam mechanizm co log
+  leadów — kiedy/jak/w jakiej sprawie, z opcjonalnym „przypomnij mi”), i
+  sekcja „Powiązane” z listą ofert/faktur/projektów tego klienta w jednym
+  miejscu. Pulpit ma osobną sekcję „Klienci wymagający kontaktu”
+  (`isClientOverdue` — wyłącznie na podstawie jawnie ustawionego
+  `next_followup`, bez sztywnej reguły czasowej jak przy leadach). Globalne
+  wyszukiwanie (Cmd+K, `/api/search`) i skrót `g k` też obejmują klientów.
+  `lib/clients.ts` / `app/api/clients/*`.
 - **Oferty** (`/admin/offers`) — most między leadem a realizacją: oferta ma
   tytuł, dane klienta, pozycje (nazwa/ilość/cena — bez VAT, to kwota
   ogólna) i datę ważności. Przycisk „Akceptuj ofertę” jednym kliknięciem

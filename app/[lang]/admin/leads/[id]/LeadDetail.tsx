@@ -16,7 +16,7 @@ export function LeadDetail({ id, lang }: { id: string; lang: Locale }) {
       <Link href={`/${lang}/admin/leads`} className="text-sm text-muted hover:text-[var(--fg)]">
         ← Wróć do tablicy
       </Link>
-      <LeadDetailPanel id={id} onDeleted={() => router.push(`/${lang}/admin/leads`)} />
+      <LeadDetailPanel id={id} lang={lang} onDeleted={() => router.push(`/${lang}/admin/leads`)} />
     </div>
   );
 }

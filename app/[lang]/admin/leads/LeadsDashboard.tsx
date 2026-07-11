@@ -511,6 +511,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             >
               <LeadDetailPanel
                 id={openLeadId}
+                lang={lang}
                 onClose={() => setOpenLeadId(null)}
                 onFieldChange={reflectFieldChange}
                 onDeleted={(id) => {

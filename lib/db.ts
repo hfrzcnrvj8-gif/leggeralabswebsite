@@ -469,6 +469,71 @@ export async function ensureOffersSchema(): Promise<void> {
   await offersSchemaReady;
 }
 
+let clientsSchemaReady: Promise<void> | null = null;
+
+/** Moduł Klienci — fundament pod resztę CRM (patrz virtual-company-roadmap w
+ * pamięci): Klient to fizyczny/prawny kontrahent, z którym realnie zaczęła
+ * się rozmowa (nie każdy Lead nim jest). Leady/Oferty/Faktury/Projekty
+ * dostają opcjonalną kolumnę `client_id`, żeby dało się zbudować jedną,
+ * chronologiczną historię kontaktu per klient. Świadomie NULLable wszędzie —
+ * stare rekordy i szybkie jednorazowe dokumenty bez podpiętego klienta mają
+ * dalej działać bez zmian. */
+async function createClientsSchema(): Promise<void> {
+  // client_id w leads/offers/invoices/projects odwołuje się do clients(id),
+  // więc clients musi istnieć najpierw — a offers/invoices/projects muszą
+  // istnieć, zanim dodamy im nowe kolumny.
+  await ensureLeadsSchema();
+  await ensureHubSchema();
+  await ensureInvoicesSchema();
+  await ensureOffersSchema();
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS clients (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL DEFAULT '',
+      nip TEXT NOT NULL DEFAULT '',
+      ulica TEXT NOT NULL DEFAULT '',
+      kod TEXT NOT NULL DEFAULT '',
+      miasto TEXT NOT NULL DEFAULT '',
+      kraj TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      telefon TEXT NOT NULL DEFAULT '',
+      www TEXT NOT NULL DEFAULT '',
+      branza TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Prospekt',
+      ostatni_kontakt DATE,
+      next_followup DATE,
+      notatki TEXT NOT NULL DEFAULT '',
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS clients_status_idx ON clients(status);`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_activity (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_activity_client_id_idx ON client_activity(client_id);`;
+
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+}
+
+export async function ensureClientsSchema(): Promise<void> {
+  if (!clientsSchemaReady) clientsSchemaReady = createClientsSchema();
+  await clientsSchemaReady;
+}
+
 /** Zwraca `share_token` faktury, generując go w locie (randomUUID), jeśli
  * jeszcze go nie ma — dotyczy faktur utworzonych przed wprowadzeniem
  * publicznego podglądu/wysyłki mailem. */

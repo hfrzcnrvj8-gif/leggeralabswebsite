@@ -1,0 +1,95 @@
+// Czysta logika modułu Klienci — bez "use client". Wzorowane 1:1 na
+// lib/leads.ts (ten sam kształt: status, log aktywności, przypomnienia).
+//
+// Klient to nie to samo co Lead: Lead = ktoś nieznany, kogo dopiero
+// kwalifikujesz. Klient = ktoś, z kim realnie zaczęła się rozmowa i jest
+// szansa coś dla niego stworzyć/sprzedać, teraz albo w przyszłości — od tego
+// momentu chcesz mieć jedną, chronologiczną historię kontaktu. Rekord
+// Klienta powstaje albo automatycznie (pierwsza Oferta utworzona dla leada),
+// albo ręcznie (przycisk "Utwórz klienta" na leadzie, gdy rozmowa już trwa,
+// zanim jest oferta). Patrz lib/db.ts ensureClientsSchema.
+
+import { todayLocalISO } from "./dates";
+
+export type Client = {
+  id: string;
+  nazwa: string;
+  nip: string;
+  ulica: string;
+  kod: string;
+  miasto: string;
+  kraj: string;
+  email: string;
+  telefon: string;
+  www: string;
+  branza: string;
+  status: ClientStatus;
+  ostatni_kontakt: string | null;
+  next_followup: string | null;
+  notatki: string;
+  lead_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientActivity = {
+  id: string;
+  client_id: string;
+  text: string;
+  created_at: string;
+};
+
+/** Status relacji — świadomie OSOBNA oś od tego, czy klient coś już kupił
+ * (to widać po powiązanych ofertach/fakturach). Ten sam wzorzec co "zdrowie"
+ * projektu vs jego status na tablicy. */
+export const CLIENT_STATUSES = ["Prospekt", "Aktywny", "Uśpiony", "Stracony"] as const;
+export type ClientStatus = (typeof CLIENT_STATUSES)[number];
+
+export const CLIENT_STATUS_CLASS: Record<ClientStatus, string> = {
+  Prospekt: "bg-brand-cyan/15 text-brand-cyan",
+  Aktywny: "bg-emerald-500/15 text-emerald-400 font-semibold",
+  Uśpiony: "bg-[var(--hairline)] text-muted",
+  Stracony: "bg-[var(--hairline)] text-muted opacity-70",
+};
+
+export const CLIENT_STATUS_DOT: Record<ClientStatus, string> = {
+  Prospekt: "bg-brand-cyan",
+  Aktywny: "bg-emerald-500",
+  Uśpiony: "bg-[var(--fg-muted)]",
+  Stracony: "bg-[var(--fg-muted)]",
+};
+
+/** Miękkie, statyczne podpowiedzi "co zwykle dalej" per status — mentor
+ * bez LLM (zgodne z istniejącą zasadą "brak AI w logice przypominacza").
+ * Czysto informacyjne, nigdy nie blokują żadnej akcji. */
+export const CLIENT_STATUS_HINT: Record<ClientStatus, string> = {
+  Prospekt: "Rozmowa w toku — umów kolejny kontakt albo przygotuj ofertę, gdy widzisz konkretną potrzebę.",
+  Aktywny: "Ma otwartą ofertę/projekt/fakturę — pilnuj terminów, nie zostawiaj bez odpowiedzi dłużej niż kilka dni.",
+  Uśpiony: "Cisza od jakiegoś czasu — ustaw przypomnienie, żeby wrócić z nową propozycją zamiast zapomnieć o kliencie.",
+  Stracony: "Odrzucił lub nieaktualne — warto zanotować dlaczego, przyda się przy następnej okazji.",
+};
+
+function daysSince(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+const CLOSED_CLIENT_STATUSES = new Set<ClientStatus>(["Stracony"]);
+
+/** Klient "wymaga działania dziś" wyłącznie na podstawie jawnie ustawionego
+ * przypomnienia — w przeciwieństwie do leadów nie ma tu sztywnej reguły
+ * czasowej per status, bo tempo kontaktu z klientem jest bardziej
+ * zróżnicowane i to Ty decydujesz kiedy wrócić. */
+export function isClientOverdue(client: Pick<Client, "status" | "next_followup">): boolean {
+  if (CLOSED_CLIENT_STATUSES.has(client.status)) return false;
+  if (!client.next_followup) return false;
+  return client.next_followup <= todayLocalISO();
+}
+
+export function clientOverdueReason(client: Pick<Client, "next_followup">): string {
+  return `ustawione przypomnienie na ${client.next_followup}`;
+}
+
+export { daysSince as clientDaysSince };

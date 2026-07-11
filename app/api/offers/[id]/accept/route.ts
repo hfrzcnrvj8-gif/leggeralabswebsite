@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOffersSchema } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { getProjectTemplate, expandProjectTemplate } from "@/lib/projects";
 import { isOfferExpired, type Offer } from "@/lib/offers";
@@ -16,6 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   await ensureOffersSchema();
+  await ensureClientsSchema();
   const sql = getSql();
 
   const rows = await sql`SELECT * FROM offers WHERE id = ${id};`;
@@ -44,13 +45,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const tytulProjektu =
     (typeof offer.tytul === "string" && offer.tytul) || (typeof offer.klient_nazwa === "string" && offer.klient_nazwa) || "Projekt z oferty";
   const leadId = typeof offer.lead_id === "string" ? offer.lead_id : null;
+  const clientId = typeof offer.client_id === "string" ? offer.client_id : null;
 
   const projectId = randomUUID();
   if (template) {
     const exp = expandProjectTemplate(template);
     await sql`
-      INSERT INTO projects (id, tytul, opis, status, priorytet, start, termin, lead_id)
-      VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, ${exp.opis}, 'Pomysł', 'Normalny', ${exp.start}, ${exp.termin}, ${leadId});
+      INSERT INTO projects (id, tytul, opis, status, priorytet, start, termin, lead_id, client_id)
+      VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, ${exp.opis}, 'Pomysł', 'Normalny', ${exp.start}, ${exp.termin}, ${leadId}, ${clientId});
     `;
     let mPos = 0;
     for (const m of exp.milestones) {
@@ -71,19 +73,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   } else {
     await sql`
-      INSERT INTO projects (id, tytul, status, priorytet, lead_id)
-      VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, 'Pomysł', 'Normalny', ${leadId});
+      INSERT INTO projects (id, tytul, status, priorytet, lead_id, client_id)
+      VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, 'Pomysł', 'Normalny', ${leadId}, ${clientId});
     `;
   }
 
   const invoiceId = randomUUID();
   await sql`
     INSERT INTO invoices (
-      id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres,
+      id, lead_id, project_id, client_id, klient_nazwa, klient_nip, klient_adres,
       klient_ulica, klient_kod, klient_miasto, klient_kraj
     )
     VALUES (
-      ${invoiceId}, ${leadId}, ${projectId}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres},
+      ${invoiceId}, ${leadId}, ${projectId}, ${clientId}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres},
       ${offer.klient_ulica ?? ""}, ${offer.klient_kod ?? ""}, ${offer.klient_miasto ?? ""}, ${offer.klient_kraj ?? ""}
     );
   `;

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import type { Locale } from "@/i18n/config";
 import { type Lead, type Activity, EditableText, EditableTextarea, StatusTag } from "./shared";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -20,11 +22,13 @@ import { todayLocalISO } from "@/lib/dates";
  */
 export function LeadDetailPanel({
   id,
+  lang,
   onClose,
   onDeleted,
   onFieldChange,
 }: {
   id: string;
+  lang: Locale;
   onClose?: () => void;
   onDeleted?: (id: string) => void;
   onFieldChange?: (id: string, field: string, value: string) => void;
@@ -37,6 +41,7 @@ export function LeadDetailPanel({
   const [noteFollowup, setNoteFollowup] = useState("");
   const [markContacted, setMarkContacted] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [promoting, setPromoting] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/leads/${id}`);
@@ -109,6 +114,20 @@ export function LeadDetailPanel({
     }
   };
 
+  const promoteToClient = async () => {
+    setPromoting(true);
+    const res = await fetch(`/api/leads/${id}/promote`, { method: "POST" });
+    setPromoting(false);
+    if (res.ok) {
+      const data = (await res.json()) as { id: string };
+      setLead((prev) => (prev ? { ...prev, client_id: data.id } : prev));
+      onFieldChange?.(id, "client_id", data.id);
+      toast("Utworzono klienta.");
+    } else {
+      toast("Nie udało się utworzyć klienta.", "error");
+    }
+  };
+
   const deleteNote = async (activityId: string) => {
     const ok = await confirm("Usunąć ten wpis z logu?", { danger: true });
     if (!ok) return;
@@ -166,8 +185,22 @@ export function LeadDetailPanel({
           </button>
         </div>
 
-        <div className="mt-2">
+        <div className="mt-2 flex items-center gap-2">
           <StatusTag status={lead.status} onChange={(v) => updateLead("status", v)} />
+          {lead.client_id ? (
+            <Link href={`/${lang}/admin/clients/${lead.client_id}`} className="text-[12.5px] text-muted hover:text-[var(--fg)] hover:underline">
+              → Karta klienta
+            </Link>
+          ) : (
+            <button
+              onClick={promoteToClient}
+              disabled={promoting}
+              title="Gdy rozmowa realnie się zaczęła — utwórz klienta, żeby mieć jego historię kontaktu w jednym miejscu"
+              className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+            >
+              {promoting ? "Tworzę…" : "+ Utwórz klienta"}
+            </button>
+          )}
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">

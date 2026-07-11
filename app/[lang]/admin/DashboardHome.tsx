@@ -10,6 +10,7 @@ import type { Note } from "@/lib/notes";
 import { overdueReason } from "@/lib/leads";
 import { type Invoice, formatMoney } from "@/lib/invoices";
 import type { Offer } from "@/lib/offers";
+import { type Client, clientOverdueReason } from "@/lib/clients";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI } from "./ui";
 
@@ -25,13 +26,14 @@ type Kpi = {
 
 type TodayData = {
   overdueLeads: Lead[];
+  overdueClients: Client[];
   dueProjects: Project[];
   overdueInvoices: InvoiceRow[];
   expiredOffers: OfferRow[];
   todayEvents: HubEvent[];
   recentNotes: Note[];
   kpi: Kpi;
-  counts: { leads: number; projects: number; invoices: number; offers: number };
+  counts: { leads: number; clients: number; projects: number; invoices: number; offers: number };
 };
 
 /** Sumy w różnych walutach nie da się zmergować w jedną liczbę — każda
@@ -76,6 +78,20 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     }
     setData((prev) => (prev ? { ...prev, overdueLeads: prev.overdueLeads.filter((l) => l.id !== id) } : prev));
     toast("Lead oznaczony jako obsłużony.");
+  };
+
+  const markClientHandled = async (id: string) => {
+    const res = await fetch(`/api/clients/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ next_followup: "", ostatni_kontakt: todayLocalISO() }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, overdueClients: prev.overdueClients.filter((c) => c.id !== id) } : prev));
+    toast("Klient oznaczony jako obsłużony.");
   };
 
   const markProjectDone = async (id: string, tytul: string) => {
@@ -127,7 +143,11 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   }
 
   const totalActionable =
-    data.overdueLeads.length + data.dueProjects.length + data.overdueInvoices.length + data.expiredOffers.length;
+    data.overdueLeads.length +
+    data.overdueClients.length +
+    data.dueProjects.length +
+    data.overdueInvoices.length +
+    data.expiredOffers.length;
 
   const revenueThisMonthPln = sumPln(data.kpi.revenueThisMonth);
   const revenueLastMonthPln = sumPln(data.kpi.revenueLastMonth);
@@ -195,6 +215,37 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   </span>
                   <button
                     onClick={() => markLeadHandled(l.id)}
+                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                  >
+                    Obsłużone
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Klienci wymagający kontaktu</h2>
+            <Link href={`/${lang}/admin/clients`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {data.overdueClients.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — wszystko obsłużone.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.overdueClients.slice(0, 6).map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={`/${lang}/admin/clients/${c.id}`} className="font-medium hover:underline">
+                      {c.nazwa}
+                    </Link>
+                    <span className="text-muted"> — {clientOverdueReason(c)}</span>
+                  </span>
+                  <button
+                    onClick={() => markClientHandled(c.id)}
                     className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
                   >
                     Obsłużone
@@ -325,8 +376,8 @@ export function DashboardHome({ lang }: { lang: Locale }) {
 
       <div className="flex flex-wrap gap-2 px-4 pb-4 text-xs text-muted sm:px-6">
         <span>
-          W rejestrze: {data.counts.leads} leadów, {data.counts.projects} projektów, {data.counts.invoices} faktur,{" "}
-          {data.counts.offers} ofert.
+          W rejestrze: {data.counts.leads} leadów, {data.counts.clients} klientów, {data.counts.projects} projektów,{" "}
+          {data.counts.invoices} faktur, {data.counts.offers} ofert.
         </span>
       </div>
     </div>

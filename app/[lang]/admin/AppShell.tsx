@@ -10,6 +10,7 @@ import {
   IconNotes,
   IconCalendar,
   IconTarget,
+  IconUsers,
   IconFileText,
   IconReceipt,
   IconSearch,
@@ -23,6 +24,7 @@ import type { Locale } from "@/i18n/config";
 import { AdminUIProvider, useUI, isTypingTarget, type Action } from "./ui";
 import { CommandPalette } from "./CommandPalette";
 import type { Lead } from "@/lib/leads";
+import type { Client } from "@/lib/clients";
 import type { Project } from "@/lib/projects";
 import { formatPlDate } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
@@ -34,6 +36,7 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/notes", label: "Notatnik", icon: IconNotes },
   { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
   { href: "/leads", label: "Leady", icon: IconTarget },
+  { href: "/clients", label: "Klienci", icon: IconUsers },
   { href: "/offers", label: "Oferty", icon: IconFileText },
   { href: "/invoices", label: "Faktury", icon: IconReceipt },
 ];
@@ -46,6 +49,7 @@ const GO_CHORDS: Record<string, string> = {
   n: "/notes",
   c: "/calendar",
   l: "/leads",
+  k: "/clients",
   o: "/offers",
   f: "/invoices",
 };
@@ -72,6 +76,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{
     leads: Lead[];
+    clients: Client[];
     projects: Project[];
     notes: Note[];
     events: HubEvent[];
@@ -121,6 +126,9 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     const out: Action[] = [];
     searchResults.leads.forEach((l) =>
       out.push({ id: `lead:${l.id}`, label: l.firma, hint: "Lead", run: () => router.push(`${base}/leads/${l.id}`) })
+    );
+    searchResults.clients.forEach((c) =>
+      out.push({ id: `client:${c.id}`, label: c.nazwa, hint: "Klient", run: () => router.push(`${base}/clients/${c.id}`) })
     );
     searchResults.projects.forEach((p) =>
       out.push({ id: `project:${p.id}`, label: p.tytul, hint: "Projekt", run: () => router.push(`${base}/projects/${p.id}`) })

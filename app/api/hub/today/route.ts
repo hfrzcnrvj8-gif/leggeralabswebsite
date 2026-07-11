@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
 import { isInvoiceOverdue, type Invoice } from "@/lib/invoices";
 import { isOfferExpired, type Offer } from "@/lib/offers";
+import { isClientOverdue, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { todayLocalISO } from "@/lib/dates";
@@ -30,6 +31,7 @@ export async function GET() {
   await ensureHubSchema();
   await ensureInvoicesSchema();
   await ensureOffersSchema();
+  await ensureClientsSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -40,8 +42,9 @@ export async function GET() {
   const lastMonth =
     thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
-  const [leads, projects, todayEvents, recentNotes, invoices, offers] = await Promise.all([
+  const [leads, clients, projects, todayEvents, recentNotes, invoices, offers] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,
+    sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects;` as unknown as Promise<Project[]>,
     sql`SELECT * FROM events WHERE data = ${today} ORDER BY godzina ASC NULLS LAST;` as unknown as Promise<HubEvent[]>,
     sql`SELECT * FROM notes ORDER BY updated_at DESC LIMIT 5;` as unknown as Promise<Note[]>,
@@ -73,6 +76,7 @@ export async function GET() {
   ]);
 
   const overdueLeads = leads.filter(isOverdue);
+  const overdueClients = clients.filter(isClientOverdue);
   const dueProjects = projects.filter(isProjectOverdue);
   // Proforma nie jest dokumentem fiskalnym — nie liczy się do żadnego KPI (patrz lib/invoices.ts).
   const realInvoices = invoices.filter((i) => i.typ_dokumentu !== "proforma");
@@ -102,6 +106,7 @@ export async function GET() {
 
   return NextResponse.json({
     overdueLeads,
+    overdueClients,
     dueProjects,
     overdueInvoices,
     expiredOffers,
@@ -115,6 +120,7 @@ export async function GET() {
     },
     counts: {
       leads: leads.length,
+      clients: clients.length,
       projects: projects.length,
       invoices: invoices.length,
       offers: offers.length,

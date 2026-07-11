@@ -20,6 +20,10 @@ export type Lead = {
   ostatni_kontakt: string | null;
   next_followup: string | null;
   notatki: string;
+  /** Ustawiony, gdy lead "awansował" na Klienta — automatycznie przy
+   * pierwszej ofercie, albo ręcznie przyciskiem "Utwórz klienta" (patrz
+   * lib/clients.ts). Null dopóki to wciąż tylko potencjalny kontakt. */
+  client_id: string | null;
   created_at: string;
   updated_at: string;
 };
