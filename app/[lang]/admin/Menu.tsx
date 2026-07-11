@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
@@ -39,7 +40,7 @@ export function Popover({
   align = "left",
   width = 240,
 }: {
-  trigger: (open: () => void, isOpen: boolean) => ReactNode;
+  trigger: (open: (e?: ReactMouseEvent) => void, isOpen: boolean) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
   width?: number;
@@ -58,7 +59,8 @@ export function Popover({
     setPos({ top: r.bottom + 6, left });
   }, [align, width]);
 
-  const openMenu = useCallback(() => {
+  const openMenu = useCallback((e?: ReactMouseEvent) => {
+    e?.stopPropagation();
     place();
     setOpen(true);
   }, [place]);
@@ -185,7 +187,7 @@ export function PropertyMenu<T extends string>({
     setPos({ top, left });
   }, [align, options.length]);
 
-  const openMenu = (e: React.MouseEvent) => {
+  const openMenu = (e: ReactMouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     place();

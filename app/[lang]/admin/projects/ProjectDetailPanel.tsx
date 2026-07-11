@@ -13,6 +13,7 @@ import {
 } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
 import { PropertyMenu, type MenuOption } from "../Menu";
+import { DateField } from "../DatePicker";
 import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
 import { useUI } from "../ui";
 import type { Lead } from "@/lib/leads";
@@ -595,12 +596,8 @@ function MetaRow({ icon, title, children }: { icon: React.ReactNode; title: stri
 }
 
 /** Para pól start/termin z jawnym przyciskiem "Zapisz" zamiast polegania
- * wyłącznie na zdarzeniu onChange natywnego <input type="date">. Przeglądarka
- * zgłasza zmianę dopiero gdy wszystkie trzy segmenty (dzień/miesiąc/rok) są
- * wypełnione — jeśli użytkownik kliknie gdzie indziej w trakcie wpisywania
- * roku, onChange nigdy się nie odpali i nic się nie zapisze, bez żadnego
- * komunikatu. Lokalny "draft" + widoczny przycisk, gdy coś się różni od
- * zapisanej wartości, daje pewne, jawne wyjście awaryjne. */
+ * apple'owy wheel picker (DateField), który zmienia datę od razu przy
+ * przewinięciu koła — bez natywnego <input> i bez ryzyka niepełnego roku. */
 function DateRangeField({
   start,
   termin,
@@ -610,48 +607,11 @@ function DateRangeField({
   termin: string;
   onSave: (field: "start" | "termin", value: string) => void;
 }) {
-  const [draftStart, setDraftStart] = useState(start);
-  const [draftTermin, setDraftTermin] = useState(termin);
-
-  useEffect(() => setDraftStart(start), [start]);
-  useEffect(() => setDraftTermin(termin), [termin]);
-
-  const dirty = draftStart !== start || draftTermin !== termin;
-
-  const save = () => {
-    if (draftStart !== start) onSave("start", draftStart);
-    if (draftTermin !== termin) onSave("termin", draftTermin);
-  };
-
   return (
-    <div className="flex items-center gap-1.5">
-      <input
-        type="date"
-        min="2000-01-01"
-        max="2100-12-31"
-        value={draftStart}
-        onChange={(e) => setDraftStart(e.target.value)}
-        onBlur={() => draftStart !== start && onSave("start", draftStart)}
-        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
-      />
+    <div className="flex items-center gap-1">
+      <DateField value={start} onChange={(v) => onSave("start", v)} placeholder="Start" />
       <span className="shrink-0 text-muted">→</span>
-      <input
-        type="date"
-        min="2000-01-01"
-        max="2100-12-31"
-        value={draftTermin}
-        onChange={(e) => setDraftTermin(e.target.value)}
-        onBlur={() => draftTermin !== termin && onSave("termin", draftTermin)}
-        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
-      />
-      {dirty && (
-        <button
-          onClick={save}
-          className="shrink-0 rounded-full bg-[#4ea7fc] px-2 py-1 text-[10px] font-semibold text-[var(--bg)]"
-        >
-          Zapisz
-        </button>
-      )}
+      <DateField value={termin} onChange={(v) => onSave("termin", v)} placeholder="Termin" />
     </div>
   );
 }
