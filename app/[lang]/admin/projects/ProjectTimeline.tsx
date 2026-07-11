@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { IconFolder } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { PROJECT_STATUS_DOT, formatPlDate } from "./shared";
 
@@ -274,9 +275,9 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                     title={p.tytul}
                   >
                     <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-[9px] ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`}
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-white ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`}
                     >
-                      🗂️
+                      <IconFolder size={11} stroke={2} />
                     </span>
                     <span className="font-medium">{p.tytul}</span>
                     <PrioritySignal priorytet={p.priorytet} />
