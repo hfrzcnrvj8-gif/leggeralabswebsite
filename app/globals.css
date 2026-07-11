@@ -193,6 +193,26 @@
   }
 }
 
+/* Panel /admin — paleta 1:1 z Linear (ciemna, neutralna, bez gradientów
+   marki), zatwierdzona przez właściciela na osobnym mockupie. Skopowana
+   klasą na korzeniu AppShell, więc NIE dotyka strony publicznej (ta wciąż
+   używa --bg/--fg z :root/.dark powyżej — to świadomie odrębne systemy). */
+.admin-linear {
+  --bg: #08090a;
+  --bg-soft: #0d0e10;
+  --fg: #f7f8f8;
+  --fg-muted: #8a8f98;
+  --hairline: #1f2023;
+  color-scheme: dark;
+}
+.admin-linear .card-paper {
+  background: var(--bg-soft);
+  border: 1px solid var(--hairline);
+}
+.admin-linear .card-paper:hover {
+  box-shadow: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

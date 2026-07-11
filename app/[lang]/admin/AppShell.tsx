@@ -4,9 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  IconHome,
+  IconFolder,
+  IconNotes,
+  IconCalendar,
+  IconTarget,
+  IconSearch,
+  IconChevronLeft,
+  IconChevronRight,
+  IconLogout,
+  IconSlash,
+  type Icon as TablerIcon,
+} from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { Logo } from "@/components/Logo";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { AdminUIProvider, useUI, type Action } from "./ui";
 import { CommandPalette } from "./CommandPalette";
 import type { Lead } from "@/lib/leads";
@@ -14,12 +25,12 @@ import type { Project } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
 import type { HubEvent } from "@/lib/events";
 
-const NAV: { href: string; label: string; icon: string }[] = [
-  { href: "", label: "Pulpit", icon: "🏠" },
-  { href: "/projects", label: "Projekty", icon: "🗂️" },
-  { href: "/notes", label: "Notatnik", icon: "📝" },
-  { href: "/calendar", label: "Kalendarz", icon: "📅" },
-  { href: "/leads", label: "Leady", icon: "🎯" },
+const NAV: { href: string; label: string; icon: TablerIcon }[] = [
+  { href: "", label: "Pulpit", icon: IconHome },
+  { href: "/projects", label: "Projekty", icon: IconFolder },
+  { href: "/notes", label: "Notatnik", icon: IconNotes },
+  { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
+  { href: "/leads", label: "Leady", icon: IconTarget },
 ];
 
 // Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
@@ -186,47 +197,47 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
   }, [paletteOpen, contextActions, router, base]);
 
   return (
-    <div className="relative flex min-h-screen flex-col md:flex-row">
-      <div
-        className="orb pointer-events-none fixed -top-40 left-1/2 -z-10 h-[40vw] w-[40vw] max-h-[500px] max-w-[500px] -translate-x-1/2 rounded-full opacity-20"
-        aria-hidden
-      />
-
+    <div className="admin-linear relative flex min-h-screen flex-col bg-[var(--bg)] font-sans text-[var(--fg)] md:flex-row">
       {/* Sidebar — pozioma lista na mobile, pionowy panel od md w górę. */}
       <aside
-        className={`shrink-0 border-b hairline md:sticky md:top-0 md:h-screen md:border-b-0 md:border-r ${
+        className={`shrink-0 border-b hairline bg-[var(--bg-soft)] md:sticky md:top-0 md:h-screen md:border-b-0 md:border-r ${
           collapsed ? "md:w-16" : "md:w-56"
         } transition-[width] duration-200`}
       >
-        <div className="flex h-full flex-col p-3">
-          <div className="mb-4 flex items-center justify-between px-1">
-            {!collapsed && <Logo lang={lang} />}
+        <div className="flex h-full flex-col p-2.5">
+          <div className="mb-2.5 flex items-center justify-between px-1.5 py-1">
+            {!collapsed && (
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
+                <IconSlash size={15} stroke={2} />
+                Leggera Labs
+              </span>
+            )}
             <button
               onClick={toggleCollapsed}
-              className="hidden shrink-0 rounded-full border hairline px-2 py-1 text-xs text-muted hover:text-[var(--fg)] md:block"
+              className="hidden shrink-0 rounded-md p-1 text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] md:block"
               title={collapsed ? "Rozwiń" : "Zwiń"}
             >
-              {collapsed ? "»" : "«"}
+              {collapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
             </button>
           </div>
 
           <button
             onClick={() => setPaletteOpen(true)}
-            className={`mb-3 flex items-center gap-2 rounded-xl border hairline px-3 py-2 text-xs text-muted hover:text-[var(--fg)] ${
+            className={`mb-1.5 flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)] ${
               collapsed ? "justify-center" : ""
             }`}
             title="Szukaj / akcje (⌘K)"
           >
-            <span>🔍</span>
+            <IconSearch size={15} />
             {!collapsed && (
               <>
-                <span>Szukaj / akcje</span>
+                <span>Szukaj</span>
                 <span className="ml-auto rounded border hairline px-1 text-[10px] opacity-70">⌘K</span>
               </>
             )}
           </button>
 
-          <nav className="flex flex-1 flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible">
+          <nav className="flex flex-1 flex-row gap-0.5 overflow-x-auto md:flex-col md:overflow-visible">
             {NAV.map((item) => {
               const href = `${base}${item.href}`;
               const active = item.href === "" ? pathname === base || pathname === `${base}/` : pathname.startsWith(href);
@@ -234,50 +245,38 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
                 <Link
                   key={item.href}
                   href={href}
-                  className={`relative flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
-                    active ? "text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                  className={`relative flex shrink-0 items-center gap-2.5 rounded-md px-1.5 py-1.5 text-[13px] transition-colors ${
+                    active
+                      ? "border border-[#4ea7fc] text-[var(--fg)]"
+                      : "border border-transparent text-[#c7c9cd] hover:bg-[var(--hairline)]"
                   } ${collapsed ? "justify-center" : ""}`}
                   title={item.label}
                 >
-                  {active && (
-                    <motion.span
-                      layoutId="nav-active-pill"
-                      className="absolute inset-0 rounded-xl bg-[var(--fg)]"
-                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                    />
-                  )}
-                  <span className="relative">{item.icon}</span>
-                  {!collapsed && <span className="relative font-medium">{item.label}</span>}
+                  <item.icon size={16} className={active ? "text-[var(--fg)]" : "text-muted"} />
+                  {!collapsed && <span>{item.label}</span>}
                 </Link>
               );
             })}
           </nav>
 
-          <div className={`mt-3 flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
-            <div className="hidden md:block">
-              <ThemeToggle />
-            </div>
+          <div className={`mt-2 flex items-center ${collapsed ? "flex-col" : ""}`}>
             <button
               onClick={async () => {
                 await fetch("/api/admin/logout", { method: "POST" });
                 window.location.reload();
               }}
-              className={`rounded-full border hairline px-2.5 py-1.5 text-xs text-muted hover:text-[var(--fg)] ${
-                collapsed ? "" : "ml-auto"
-              }`}
+              className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)]"
               title="Wyloguj"
             >
-              {collapsed ? "⏻" : "Wyloguj"}
+              <IconLogout size={15} />
+              {!collapsed && <span>Wyloguj</span>}
             </button>
           </div>
         </div>
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="flex items-center justify-end gap-2 px-4 pt-4 sm:px-6 md:hidden">
-          <ThemeToggle />
-        </header>
-        <div className="mx-auto max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={pathname}
