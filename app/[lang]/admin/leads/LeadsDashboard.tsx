@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter } from "@tabler/icons-react";
+import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Lead, STATUSES, SEED, isOverdue, overdueReason } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
@@ -429,30 +429,40 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       {selectedIds.size > 0 && (
         <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
           <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
-          <select
-            disabled={bulkBusy}
-            defaultValue=""
-            onChange={(e) => {
-              if (e.target.value) bulkUpdateStatus(e.target.value);
-              e.target.value = "";
-            }}
-            className="rounded-full border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] disabled:opacity-50"
+          <Popover
+            align="left"
+            width={240}
+            trigger={(open) => (
+              <button
+                onClick={open}
+                disabled={bulkBusy}
+                className="rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)] disabled:opacity-50"
+              >
+                Zmień status na…
+              </button>
+            )}
           >
-            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
-              Zmień status na…
-            </option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-                {s}
-              </option>
-            ))}
-          </select>
+            {(close) => (
+              <div className="max-h-[60vh] overflow-y-auto">
+                {STATUSES.map((s) => (
+                  <MenuRow
+                    key={s}
+                    label={s}
+                    onClick={() => {
+                      bulkUpdateStatus(s);
+                      close();
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </Popover>
           <button
             onClick={bulkDelete}
             disabled={bulkBusy}
-            className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
           >
-            ✕ Usuń zaznaczone
+            <IconX size={13} /> Usuń zaznaczone
           </button>
           <span className="flex-1" />
           <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
