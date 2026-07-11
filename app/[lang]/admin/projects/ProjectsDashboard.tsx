@@ -453,7 +453,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenId}
         />
       ) : (
-        <ProjectTimeline key={timelineRefreshKey} lang={lang} onOpen={setOpenId} />
+        <ProjectTimeline key={timelineRefreshKey} lang={lang} onOpen={setOpenId} onChange={load} />
       )}
       </div>
 

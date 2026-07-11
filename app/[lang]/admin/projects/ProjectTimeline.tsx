@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconFolder } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { PROJECT_STATUS_DOT, formatPlDate } from "./shared";
@@ -83,24 +83,47 @@ function PrioritySignal({ priorytet }: { priorytet: string }) {
   );
 }
 
-/** Kolory paska/diamentu wg "zdrowia" projektu (Na dobrej drodze/Zagrożony/
- * Zerwany) — wyraźne, nie wyblakłe, ale nadal spójne z ciemną paletą panelu. */
+/** Kolory paska/diamentu wg "zdrowia" projektu — wyraźne, nie wyblakłe. */
 function healthColors(zdrowie: string): { bar: string; diamond: string } {
   if (zdrowie === "Zerwany") return { bar: "bg-red-500/25 border-red-500/70", diamond: "border-red-400" };
   if (zdrowie === "Zagrożony") return { bar: "bg-orange-500/25 border-orange-500/70", diamond: "border-orange-400" };
   return { bar: "bg-[#4ea7fc]/25 border-[#4ea7fc]/70", diamond: "border-[#4ea7fc]" };
 }
 
+type DragState = {
+  kind: "move" | "start" | "end" | "milestone";
+  projectId: string;
+  milestoneId?: string;
+  startX: number;
+  origStart: Date;
+  origEnd: Date;
+  origM?: Date;
+  deltaDays: number;
+};
+
 /**
  * Oś czasu (Gantt-lite w stylu Linear Roadmap / GitHub Projects / Notion):
- * stała lewa kolumna z nazwami projektów (ikona statusu, tytuł, priorytet) i
- * prawy, przewijalny w poziomie obszar z paskami. Pasek biegnie od startu do
- * terminu; kamienie milowe to diamenty na pasku; projekty bez ustawionych dat
- * dostają orientacyjny, przerywany pasek. Pionowa linia „dziś" nie koliduje z
- * niczym, bo tytuły są w lewej kolumnie, nie nad paskami.
+ * stała lewa kolumna z nazwami projektów i prawy, przewijalny obszar z paskami.
+ * Paski i kamienie milowe można PRZECIĄGAĆ, żeby zmienić daty: ciało paska
+ * przesuwa cały projekt, lewa/prawa krawędź zmienia start/termin, a diament —
+ * termin danego kamienia. Zmiana zapisuje się do bazy po puszczeniu.
  */
-export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: string) => void }) {
+export function ProjectTimeline({
+  lang,
+  onOpen,
+  onChange,
+}: {
+  lang: Locale;
+  onOpen: (id: string) => void;
+  onChange?: () => void;
+}) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const dragRef = useRef<DragState | null>(null);
+  dragRef.current = drag;
+  const gridRef = useRef<HTMLDivElement>(null);
+  const pxPerDayRef = useRef(1);
+  const movedRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -153,6 +176,95 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
     return { dated, rangeStart, rangeEnd, totalDays, months };
   }, [projects]);
 
+  // Zapis po puszczeniu przeciąganego paska/diamentu (optymistycznie w stanie
+  // lokalnym + PATCH do bazy). Bez ruchu (klik) nic nie zapisujemy.
+  const commitDrag = useCallback(
+    async (deltaDays: number) => {
+      const dg = dragRef.current;
+      setDrag(null);
+      if (!dg || !movedRef.current || deltaDays === 0) return;
+
+      if (dg.kind === "milestone" && dg.origM && dg.milestoneId) {
+        const iso = toLocalISO(addDays(dg.origM, deltaDays));
+        setProjects((prev) =>
+          prev?.map((p) =>
+            p.id === dg.projectId
+              ? { ...p, milestones: p.milestones.map((m) => (m.id === dg.milestoneId ? { ...m, termin: iso } : m)) }
+              : p
+          ) ?? prev
+        );
+        await fetch(`/api/projects/${dg.projectId}/milestones/${dg.milestoneId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ termin: iso }),
+        });
+      } else {
+        let ns = dg.origStart;
+        let ne = dg.origEnd;
+        if (dg.kind === "move") {
+          ns = addDays(dg.origStart, deltaDays);
+          ne = addDays(dg.origEnd, deltaDays);
+        } else if (dg.kind === "start") {
+          ns = addDays(dg.origStart, deltaDays);
+          if (ns > ne) ns = ne;
+        } else if (dg.kind === "end") {
+          ne = addDays(dg.origEnd, deltaDays);
+          if (ne < ns) ne = ns;
+        }
+        const sIso = toLocalISO(ns);
+        const tIso = toLocalISO(ne);
+        setProjects((prev) => prev?.map((p) => (p.id === dg.projectId ? { ...p, start: sIso, termin: tIso } : p)) ?? prev);
+        const body: Record<string, string> = {};
+        if (dg.kind === "move" || dg.kind === "start") body.start = sIso;
+        if (dg.kind === "move" || dg.kind === "end") body.termin = tIso;
+        await fetch(`/api/projects/${dg.projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
+      onChange?.();
+    },
+    [onChange]
+  );
+
+  // Globalne nasłuchy na czas przeciągania (klawisz myszy trzymany poza paskiem).
+  useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: PointerEvent) => {
+      const dd = Math.round((e.clientX - drag.startX) / pxPerDayRef.current);
+      if (dd !== 0) movedRef.current = true;
+      setDrag((d) => (d ? { ...d, deltaDays: dd } : d));
+    };
+    const onUp = (e: PointerEvent) => {
+      const dd = Math.round((e.clientX - drag.startX) / pxPerDayRef.current);
+      commitDrag(dd);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag?.projectId, drag?.kind, drag?.milestoneId, drag?.startX, commitDrag]);
+
+  const beginDrag = (
+    e: React.PointerEvent,
+    kind: DragState["kind"],
+    projectId: string,
+    origStart: Date,
+    origEnd: Date,
+    extra?: { milestoneId: string; origM: Date }
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const w = gridRef.current?.getBoundingClientRect().width ?? 1;
+    pxPerDayRef.current = w / totalDays;
+    movedRef.current = false;
+    setDrag({ kind, projectId, startX: e.clientX, origStart, origEnd, deltaDays: 0, ...(extra ?? {}) });
+  };
+
   if (!projects) {
     return <div className="h-64 animate-pulse rounded-2xl bg-[var(--hairline)]" />;
   }
@@ -170,7 +282,6 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
   const pctOf = (d: Date) => Math.max(0, Math.min((daysBetween(rangeStart, d) / totalDays) * 100, 100));
   const chartPxWidth = Math.max(months.length * MONTH_PX, 360);
 
-  // Numerki dni na początku każdego tygodnia (5, 12, 19…) jako punkty odniesienia.
   const weekTicks: { date: Date; leftPct: number }[] = [];
   {
     let cursor = rangeStart;
@@ -180,12 +291,11 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
     }
   }
 
-  // Linie siatki na granicach miesięcy (bez pierwszej — to lewa krawędź obszaru).
   const monthLines = months.map((m) => pctOf(m)).filter((pct) => pct > 0.01);
 
   return (
-    <div className="card-paper flex overflow-hidden rounded-2xl">
-      {/* LEWA KOLUMNA — nazwy projektów (stała, nie przewija się w poziomie) */}
+    <div className={`card-paper flex overflow-hidden rounded-2xl ${drag ? "select-none" : ""}`}>
+      {/* LEWA KOLUMNA — nazwy projektów (stała) */}
       <div className="shrink-0 border-r hairline bg-[var(--bg-soft)]" style={{ width: LEFT_W }}>
         <div className="border-b hairline" style={{ height: HEADER_H }} />
         {dated.map(({ p }, i) => (
@@ -245,9 +355,8 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
             </div>
           </div>
 
-          {/* Ciało: linie siatki miesięcy + wiersze z paskami */}
-          <div className="relative">
-            {/* Pionowe linie siatki na granicach miesięcy */}
+          {/* Ciało: siatka miesięcy + wiersze z paskami (ref do pomiaru szerokości w px) */}
+          <div className="relative" ref={gridRef}>
             <div className="pointer-events-none absolute inset-0 z-0">
               {monthLines.map((pct, i) => (
                 <div key={i} className="absolute inset-y-0 w-px bg-[var(--hairline)]" style={{ left: `${pct}%` }} />
@@ -259,8 +368,26 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                 .map((m) => ({ id: m.id, nazwa: m.nazwa, date: parseDate(m.termin) }))
                 .filter((m): m is { id: string; nazwa: string; date: Date } => m.date !== null);
               const { bar, diamond } = healthColors(p.zdrowie);
-              const barLeft = pctOf(start);
-              const barWidth = Math.max(pctOf(end) - barLeft, 0.5);
+
+              // Pozycja z uwzględnieniem trwającego przeciągania tego projektu.
+              const dg = drag && drag.projectId === p.id ? drag : null;
+              let dispStart = start;
+              let dispEnd = end;
+              if (dg) {
+                if (dg.kind === "move") {
+                  dispStart = addDays(start, dg.deltaDays);
+                  dispEnd = addDays(end, dg.deltaDays);
+                } else if (dg.kind === "start") {
+                  dispStart = addDays(start, dg.deltaDays);
+                  if (dispStart > dispEnd) dispStart = dispEnd;
+                } else if (dg.kind === "end") {
+                  dispEnd = addDays(end, dg.deltaDays);
+                  if (dispEnd < dispStart) dispEnd = dispStart;
+                }
+              }
+              const barLeft = pctOf(dispStart);
+              const barWidth = Math.max(pctOf(dispEnd) - barLeft, 0.5);
+              const dragging = !!dg;
 
               return (
                 <div
@@ -268,37 +395,65 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                   className={`group relative border-b hairline ${rowIdx % 2 === 1 ? "bg-[var(--hairline)]/10" : ""}`}
                   style={{ height: ROW_H }}
                 >
-                  {/* Pasek projektu (start → termin) */}
-                  <button
-                    onClick={() => onOpen(p.id)}
-                    className={`absolute top-1/2 z-10 h-6 -translate-y-1/2 rounded-md border transition-colors hover:brightness-125 ${bar} ${
+                  {/* Pasek projektu — ciało przesuwa, krawędzie zmieniają start/termin */}
+                  <div
+                    className={`absolute top-1/2 z-10 h-6 -translate-y-1/2 rounded-md border ${bar} ${
                       estimated ? "border-dashed opacity-80" : ""
-                    }`}
+                    } ${dragging ? "brightness-125 ring-1 ring-[#4ea7fc]/60" : ""}`}
                     style={{ left: `${barLeft}%`, width: `${barWidth}%`, minWidth: "10px" }}
                     title={
                       estimated
-                        ? `${p.tytul} · daty orientacyjne (brak ustawionych)`
-                        : `${p.tytul} · ${formatPlDate(toLocalISO(start))} – ${formatPlDate(toLocalISO(end))}`
+                        ? `${p.tytul} · daty orientacyjne — przeciągnij, aby ustawić`
+                        : `${p.tytul} · ${formatPlDate(toLocalISO(dispStart))} – ${formatPlDate(toLocalISO(dispEnd))}`
                     }
-                  />
-
-                  {/* Kamienie milowe — diamenty na pasku */}
-                  {milestonesWithDates.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`pointer-events-none absolute top-1/2 z-20 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 bg-[var(--bg-soft)] ${diamond}`}
-                      style={{ left: `${pctOf(m.date)}%` }}
-                      title={`${m.nazwa} — ${formatPlDate(toLocalISO(m.date))}`}
+                  >
+                    {/* Ciało paska (przeciąganie = przesunięcie całości; klik = otwórz) */}
+                    <button
+                      onPointerDown={(e) => beginDrag(e, "move", p.id, start, end)}
+                      onClick={() => {
+                        if (!movedRef.current) onOpen(p.id);
+                      }}
+                      className="absolute inset-0 cursor-grab rounded-md active:cursor-grabbing"
+                      aria-label={`Przesuń ${p.tytul}`}
                     />
-                  ))}
+                    {/* Uchwyt lewej krawędzi — zmiana startu */}
+                    <div
+                      onPointerDown={(e) => beginDrag(e, "start", p.id, start, end)}
+                      className="absolute inset-y-0 left-0 z-20 w-2 cursor-ew-resize rounded-l-md hover:bg-white/25"
+                      title="Przeciągnij, aby zmienić start"
+                    />
+                    {/* Uchwyt prawej krawędzi — zmiana terminu */}
+                    <div
+                      onPointerDown={(e) => beginDrag(e, "end", p.id, start, end)}
+                      className="absolute inset-y-0 right-0 z-20 w-2 cursor-ew-resize rounded-r-md hover:bg-white/25"
+                      title="Przeciągnij, aby zmienić termin"
+                    />
+                  </div>
+
+                  {/* Kamienie milowe — diamenty na pasku (przeciągalne) */}
+                  {milestonesWithDates.map((m) => {
+                    const mDate =
+                      dg && dg.kind === "milestone" && dg.milestoneId === m.id ? addDays(m.date, dg.deltaDays) : m.date;
+                    return (
+                      <div
+                        key={m.id}
+                        onPointerDown={(e) => beginDrag(e, "milestone", p.id, start, end, { milestoneId: m.id, origM: m.date })}
+                        className={`absolute top-1/2 z-30 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center active:cursor-grabbing`}
+                        style={{ left: `${pctOf(mDate)}%` }}
+                        title={`${m.nazwa} — ${formatPlDate(toLocalISO(mDate))} (przeciągnij, aby zmienić)`}
+                      >
+                        <div className={`h-3 w-3 rotate-45 border-2 bg-[var(--bg-soft)] ${diamond}`} />
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
           </div>
 
-          {/* Pionowa linia „dziś" — przez cały prawy obszar (nagłówek + wiersze) */}
+          {/* Pionowa linia „dziś" — przez cały prawy obszar */}
           {todayPct !== null && (
-            <div className="pointer-events-none absolute inset-y-0 z-30 w-px -translate-x-1/2 bg-[#4ea7fc]" style={{ left: `${todayPct}%` }}>
+            <div className="pointer-events-none absolute inset-y-0 z-40 w-px -translate-x-1/2 bg-[#4ea7fc]" style={{ left: `${todayPct}%` }}>
               <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-md bg-[#4ea7fc] px-1.5 py-0.5 text-[9px] font-semibold text-white shadow">
                 dziś
               </span>
