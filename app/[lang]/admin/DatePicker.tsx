@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Popover } from "./Menu";
 
 /**
- * Date picker w stylu Apple (iOS) — trzy „obrotowe" kolumny dzień/miesiąc/rok
- * z efektem bębna (rotateX + skala + zanikanie względem środka), paskiem
- * zaznaczenia na środku, przyciąganiem (scroll-snap) i delikatnym „klikiem"
- * (haptic na mobile) przy każdym przeskoku. Otwiera się po kliknięciu w datę i
- * zmienia ją od razu. Renderowany w Popoverze (portal do body).
+ * Date picker w stylu Apple (iOS) — trzy „obrotowe" kolumny dzień/miesiąc/rok.
+ *
+ * Koło NIE korzysta z natywnego scrolla (to psuło feel: scroll-snap walczył z
+ * bezwładnością). Zamiast tego własna fizyka na pointer events: przeciąganie
+ * palcem/myszą, bezwładność (momentum) z tarciem, miękkie „dociąganie" (snap)
+ * do najbliższej pozycji i haptyczny „klik" przy każdym przeskoku środka.
+ * Każdy element dostaje transform bębna (rotateX + skala + zanikanie względem
+ * środka). Renderowany w Popoverze (portal do body).
  */
 
 const MONTHS_PL = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"];
@@ -16,6 +19,8 @@ const ITEM_H = 36;
 const VISIBLE = 5; // nieparzyste — środek = zaznaczenie
 const YEAR_MIN = 2020;
 const YEAR_MAX = 2040;
+const FRICTION = 0.94; // tłumienie bezwładności na klatkę
+const SNAP_EASE = 0.2; // siła dociągania do najbliższego elementu
 
 function daysInMonth(y: number, m: number): number {
   return new Date(y, m + 1, 0).getDate();
@@ -40,6 +45,12 @@ function tick() {
   }
 }
 
+/**
+ * Jedna kolumna koła. Stan pozycji trzymany w ref (nie w state) — animacja
+ * bezwładności działa na 60 fps przez requestAnimationFrame i maluje bezpośrednio
+ * transformy w DOM, bez re-renderów Reacta. Do rodzica raportujemy indeks dopiero
+ * gdy koło się zatrzyma na konkretnym elemencie.
+ */
 function WheelColumn({
   items,
   index,
@@ -53,90 +64,205 @@ function WheelColumn({
   width: number;
   align?: "center" | "left" | "right";
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const settleRef = useRef<number | null>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef(index); // ułamkowy indeks na środku
+  const velRef = useRef(0); // prędkość w jednostkach indeksu / klatkę
+  const draggingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startPosRef = useRef(index);
+  const lastYRef = useRef(0);
+  const lastTRef = useRef(0);
   const rafRef = useRef<number | null>(null);
-  const lastIdxRef = useRef(index);
+  const wheelToRef = useRef<number | null>(null);
+  const idxRef = useRef(index); // ostatnio zaraportowany indeks
+  const lastTickRef = useRef(index);
+  const len = items.length;
 
-  const applyTransforms = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const center = el.scrollTop / ITEM_H;
-    el.querySelectorAll<HTMLElement>("[data-item]").forEach((c) => {
+  const clamp = useCallback((p: number) => Math.max(0, Math.min(len - 1, p)), [len]);
+
+  const paint = useCallback(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const pos = posRef.current;
+    track.style.transform = `translate3d(0, ${-pos * ITEM_H}px, 0)`;
+    track.querySelectorAll<HTMLElement>("[data-item]").forEach((c) => {
       const i = Number(c.dataset.item);
-      const dist = i - center;
+      const dist = i - pos;
       const ad = Math.abs(dist);
       // Krzywa bębna — im dalej od środka, tym większy obrót, mniejsza skala,
       // słabsza jasność. Środek zostaje ostry, duży i biały (feel premium).
-      const rot = Math.max(-80, Math.min(80, dist * 26));
-      const scale = Math.max(0.62, 1 - ad * 0.13);
-      c.style.transform = `translateZ(0) rotateX(${rot}deg) scale(${scale})`;
-      c.style.opacity = String(Math.max(0.1, 1 - ad * 0.42));
+      const rot = Math.max(-72, Math.min(72, dist * 24));
+      const scale = Math.max(0.56, 1 - ad * 0.12);
+      c.style.transform = `rotateX(${rot}deg) scale(${scale})`;
+      c.style.opacity = String(Math.max(0.14, 1 - ad * 0.38));
+      c.style.color = ad < 0.5 ? "#ffffff" : "#e6e7ea";
       c.style.fontWeight = ad < 0.5 ? "600" : "400";
     });
+    const cur = Math.round(pos);
+    if (cur !== lastTickRef.current) {
+      lastTickRef.current = cur;
+      tick();
+    }
   }, []);
 
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.scrollTop = index * ITEM_H;
-    lastIdxRef.current = index;
-    requestAnimationFrame(applyTransforms);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, items.length]);
+  const report = useCallback(
+    (i: number) => {
+      if (i !== idxRef.current) {
+        idxRef.current = i;
+        onIndex(i);
+      }
+    },
+    [onIndex]
+  );
 
-  const onScroll = () => {
-    if (rafRef.current == null) {
-      rafRef.current = requestAnimationFrame(() => {
+  // Pętla bezwładności + dociągania: leci z prędkością i tarciem, a gdy zwolni —
+  // miękko dociąga (ease) do najbliższego całego indeksu i raportuje wybór.
+  const animate = useCallback(() => {
+    const v = velRef.current;
+    let pos = posRef.current;
+    if (Math.abs(v) > 0.008) {
+      pos = clamp(pos + v);
+      posRef.current = pos;
+      velRef.current = v * FRICTION;
+      if (pos <= 0 || pos >= len - 1) velRef.current = 0; // wygaś na krańcu
+      paint();
+      rafRef.current = requestAnimationFrame(animate);
+    } else {
+      const target = clamp(Math.round(pos));
+      const diff = target - pos;
+      if (Math.abs(diff) > 0.002) {
+        posRef.current = pos + diff * SNAP_EASE;
+        paint();
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        posRef.current = target;
+        paint();
         rafRef.current = null;
-        applyTransforms();
-        // „Klik" — haptic gdy środek przeskoczy na nowy element
-        const el = ref.current;
-        if (el) {
-          const cur = Math.round(el.scrollTop / ITEM_H);
-          if (cur !== lastIdxRef.current) {
-            lastIdxRef.current = cur;
-            tick();
-          }
-        }
-      });
+        report(target);
+      }
     }
-    // Po zatrzymaniu — odczytaj wybór (native scroll-snap sam przyciąga).
-    if (settleRef.current) window.clearTimeout(settleRef.current);
-    settleRef.current = window.setTimeout(() => {
-      const el = ref.current;
-      if (!el) return;
-      const i = Math.max(0, Math.min(Math.round(el.scrollTop / ITEM_H), items.length - 1));
-      if (i !== index) onIndex(i);
-    }, 120);
+  }, [clamp, len, paint, report]);
+
+  const stopAnim = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  const startAnim = useCallback(() => {
+    if (rafRef.current == null) rafRef.current = requestAnimationFrame(animate);
+  }, [animate]);
+
+  // Płynny „tween" do konkretnego elementu (klik w element listy).
+  const tweenTo = useCallback(
+    (target: number) => {
+      stopAnim();
+      velRef.current = 0;
+      const step = () => {
+        const pos = posRef.current;
+        const diff = target - pos;
+        if (Math.abs(diff) < 0.002) {
+          posRef.current = target;
+          paint();
+          rafRef.current = null;
+          report(target);
+          return;
+        }
+        posRef.current = pos + diff * SNAP_EASE;
+        paint();
+        rafRef.current = requestAnimationFrame(step);
+      };
+      rafRef.current = requestAnimationFrame(step);
+    },
+    [paint, report, stopAnim]
+  );
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    draggingRef.current = true;
+    startYRef.current = e.clientY;
+    startPosRef.current = posRef.current;
+    lastYRef.current = e.clientY;
+    lastTRef.current = performance.now();
+    velRef.current = 0;
+    stopAnim();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
   };
+
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return;
+    const dy = e.clientY - startYRef.current;
+    posRef.current = clamp(startPosRef.current - dy / ITEM_H);
+    const now = performance.now();
+    const dt = Math.max(1, now - lastTRef.current);
+    const dyi = e.clientY - lastYRef.current;
+    velRef.current = ((-dyi / ITEM_H) / dt) * 16; // znormalizowane do ~60 fps
+    lastYRef.current = e.clientY;
+    lastTRef.current = now;
+    paint();
+  };
+
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    startAnim();
+  };
+
+  const onWheel = (e: ReactWheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    stopAnim();
+    posRef.current = clamp(posRef.current + e.deltaY / (ITEM_H * 1.5));
+    velRef.current = 0;
+    paint();
+    if (wheelToRef.current) window.clearTimeout(wheelToRef.current);
+    wheelToRef.current = window.setTimeout(startAnim, 70);
+  };
+
+  // Ustaw pozycję gdy indeks przyjdzie z zewnątrz (np. zmiana miesiąca skróciła
+  // liczbę dni). Bez animacji — natychmiast.
+  useLayoutEffect(() => {
+    posRef.current = index;
+    idxRef.current = index;
+    lastTickRef.current = index;
+    paint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, len]);
+
+  useLayoutEffect(() => () => stopAnim(), [stopAnim]);
 
   const pad = ((VISIBLE - 1) / 2) * ITEM_H;
   const justify = align === "left" ? "justify-start pl-1" : align === "right" ? "justify-end pr-1" : "justify-center";
   return (
-    <div style={{ width, height: VISIBLE * ITEM_H, perspective: 900 }}>
-      <div
-        ref={ref}
-        onScroll={onScroll}
-        className="h-full overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ scrollSnapType: "y mandatory", scrollBehavior: "auto" }}
-      >
-        <div style={{ height: pad }} />
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onWheel={onWheel}
+      className="relative cursor-grab overflow-hidden select-none active:cursor-grabbing"
+      style={{
+        width,
+        height: VISIBLE * ITEM_H,
+        perspective: 1000,
+        touchAction: "none",
+        // Miękkie wygaszanie góry/dołu — elementy „wtapiają się" w krawędzie.
+        WebkitMaskImage: "linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)",
+        maskImage: "linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)",
+      }}
+    >
+      <div ref={trackRef} style={{ paddingTop: pad, paddingBottom: pad, willChange: "transform" }}>
         {items.map((it, i) => (
           <div
             key={i}
             data-item={i}
-            onClick={() => {
-              ref.current?.scrollTo({ top: i * ITEM_H, behavior: "smooth" });
-              onIndex(i);
-            }}
-            className={`flex cursor-pointer items-center ${justify} text-[16px] text-[#f4f4f5]`}
-            style={{ height: ITEM_H, scrollSnapAlign: "center", willChange: "transform, opacity", backfaceVisibility: "hidden" }}
+            onClick={() => tweenTo(i)}
+            className={`flex items-center ${justify} text-[16px]`}
+            style={{ height: ITEM_H, willChange: "transform, opacity", backfaceVisibility: "hidden" }}
           >
             {it}
           </div>
         ))}
-        <div style={{ height: pad }} />
       </div>
     </div>
   );
@@ -157,18 +283,18 @@ function Wheel({ value, onChange, close }: { value: string; onChange: (v: string
   };
 
   return (
-    <div className="p-2">
-      <div className="relative flex items-stretch justify-center">
+    <div className="p-2.5">
+      <div className="relative flex items-stretch justify-center gap-1">
         {/* Pasek zaznaczenia na środku */}
         <div
-          className="pointer-events-none absolute inset-x-1 rounded-lg border-y border-[#33343a] bg-white/[0.04]"
+          className="pointer-events-none absolute inset-x-0 rounded-lg border-y border-white/10 bg-white/[0.05]"
           style={{ height: ITEM_H, top: ((VISIBLE - 1) / 2) * ITEM_H }}
         />
-        <WheelColumn width={44} items={dayItems} index={d - 1} onIndex={(i) => emit(y, m, i + 1)} align="right" />
-        <WheelColumn width={56} items={MONTHS_PL} index={m} onIndex={(i) => emit(y, i, d)} align="center" />
-        <WheelColumn width={56} items={years} index={yIndex} onIndex={(i) => emit(YEAR_MIN + i, m, d)} align="left" />
+        <WheelColumn width={54} items={dayItems} index={d - 1} onIndex={(i) => emit(y, m, i + 1)} align="right" />
+        <WheelColumn width={66} items={MONTHS_PL} index={m} onIndex={(i) => emit(y, i, d)} align="center" />
+        <WheelColumn width={70} items={years} index={yIndex} onIndex={(i) => emit(YEAR_MIN + i, m, d)} align="left" />
       </div>
-      <div className="mt-2 flex items-center gap-2 border-t border-[#2a2b2f] pt-2">
+      <div className="mt-2.5 flex items-center gap-2 border-t border-[#2a2b2f] pt-2.5">
         <button
           onClick={() => {
             const t = new Date();
@@ -190,7 +316,7 @@ function Wheel({ value, onChange, close }: { value: string; onChange: (v: string
         <span className="flex-1" />
         <button
           onClick={close}
-          className="admin-grad-border rounded-md px-3.5 py-1 text-[12px] font-medium text-[var(--fg)]"
+          className="admin-grad-border rounded-md px-4 py-1 text-[12px] font-medium text-[var(--fg)]"
         >
           Gotowe
         </button>
@@ -214,7 +340,7 @@ export function DateField({
   return (
     <Popover
       align="left"
-      width={172}
+      width={216}
       trigger={(open, isOpen) => (
         <button
           onClick={open}

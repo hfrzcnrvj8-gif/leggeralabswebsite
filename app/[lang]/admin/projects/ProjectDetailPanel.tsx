@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2 } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -42,6 +42,8 @@ export function ProjectDetailPanel({
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const savedTimer = useRef<number | null>(null);
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [newResourceLabel, setNewResourceLabel] = useState("");
   const [newResourceUrl, setNewResourceUrl] = useState("");
@@ -90,15 +92,20 @@ export function ProjectDetailPanel({
       return;
     }
     setProject((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setSaveState("saving");
     const res = await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
     });
     if (!res.ok) {
+      setSaveState("idle");
       toast("Nie udało się zapisać zmiany.", "error");
       return;
     }
+    setSaveState("saved");
+    if (savedTimer.current) window.clearTimeout(savedTimer.current);
+    savedTimer.current = window.setTimeout(() => setSaveState("idle"), 1800);
     // Dopiero PO potwierdzonym zapisie w bazie — inaczej oś czasu (która
     // odświeża się na ten sygnał) potrafiła pobrać dane zanim PATCH się
     // faktycznie zapisał (wyścig: refetch wygrywał z zapisem).
@@ -277,7 +284,7 @@ export function ProjectDetailPanel({
 
   return (
     <div>
-      <PanelHeader onClose={onClose} tytul={project.tytul} />
+      <PanelHeader onClose={onClose} tytul={project.tytul} saveState={saveState} />
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* Kolumna główna: treść, kamienie milowe, log aktywności */}
@@ -545,22 +552,51 @@ function TaskList({
   );
 }
 
-function PanelHeader({ onClose, tytul }: { onClose?: () => void; tytul?: string }) {
+function PanelHeader({ onClose, tytul, saveState = "idle" }: { onClose?: () => void; tytul?: string; saveState?: "idle" | "saving" | "saved" }) {
   if (!onClose) return null;
   return (
     <div className="flex items-center justify-between">
       <span className="truncate text-xs text-muted">
         Projekty {tytul ? <>/ <span className="text-[var(--fg)]">{tytul}</span></> : null}
       </span>
-      <button
-        onClick={onClose}
-        className="shrink-0 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
-        aria-label="Zamknij"
-        title="Zamknij (Esc)"
-      >
-        ✕ Zamknij
-      </button>
+      <div className="flex shrink-0 items-center gap-3">
+        <SaveIndicator state={saveState} />
+        <button
+          onClick={onClose}
+          className="rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
+          aria-label="Zamknij"
+          title="Zamknij (Esc)"
+        >
+          ✕ Zamknij
+        </button>
+      </div>
     </div>
+  );
+}
+
+/** Dyskretny wskaźnik autozapisu (styl Linear — zmiany zapisują się od razu,
+ * bez przycisku „Zapisz"). „Zapisywanie…" podczas PATCH, potem „Zapisano ✓"
+ * które po chwili znika. Daje pewność, że zmiana trafiła do bazy. */
+function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {
+  return (
+    <span
+      className={`flex items-center gap-1.5 text-[11px] transition-opacity duration-300 ${
+        state === "idle" ? "opacity-0" : "opacity-100"
+      } ${state === "saved" ? "text-emerald-400" : "text-muted"}`}
+      aria-live="polite"
+    >
+      {state === "saving" ? (
+        <>
+          <IconLoader2 size={12} className="animate-spin" />
+          Zapisywanie…
+        </>
+      ) : (
+        <>
+          <IconCheck size={12} />
+          Zapisano
+        </>
+      )}
+    </span>
   );
 }
 

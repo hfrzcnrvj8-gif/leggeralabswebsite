@@ -215,10 +215,11 @@
 
 /* Gradientowa obwódka fiolet→złoto (marka) przez technikę maski, plus
    delikatne gradientowe tło. Sama border-color nie przyjmuje gradientu, więc
-   obwódkę rysuje ::before. Używane na aktywnej pozycji nawigacji i na
-   akcentowych przyciskach (np. „Gotowe" w date-pickerze). */
-.admin-linear .admin-nav-active,
-.admin-linear .admin-grad-border {
+   obwódkę rysuje ::before. Klasy GLOBALNE (nie pod .admin-linear), bo
+   date-picker renderuje „Gotowe" w portalu do <body> — poza scope'em panelu.
+   Używane tylko w panelu, więc globalny zasięg jest bezpieczny. */
+.admin-nav-active,
+.admin-grad-border {
   position: relative;
   background-image: linear-gradient(
     90deg,
@@ -226,8 +227,8 @@
     rgba(224, 169, 59, 0.12)
   );
 }
-.admin-linear .admin-nav-active::before,
-.admin-linear .admin-grad-border::before {
+.admin-nav-active::before,
+.admin-grad-border::before {
   content: "";
   position: absolute;
   inset: 0;
