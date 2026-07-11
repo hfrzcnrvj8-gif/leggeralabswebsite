@@ -22,7 +22,12 @@ const DAY_MS = 86400000;
 const LEFT_W = 224; // szerokość lewej kolumny z nazwami projektów
 const ROW_H = 52; // wysokość wiersza — gęsto, jak w Linear/GitHub Roadmap
 const HEADER_H = 44; // nagłówek: pasek miesięcy (28) + pasek numerków tygodni (16)
-const MONTH_PX = 128; // minimalna szerokość miesiąca w prawym (przewijalnym) obszarze
+
+type Zoom = "quarter" | "month" | "week";
+// Szerokość miesiąca w px wg poziomu zoomu — kwartał (przegląd), miesiąc
+// (domyślny), tydzień (szczegół dzienny). Więcej px = bardziej rozciągnięta oś.
+const MONTH_PX_BY_ZOOM: Record<Zoom, number> = { quarter: 72, month: 128, week: 264 };
+const ZOOM_LABEL: Record<Zoom, string> = { quarter: "Kwartał", month: "Miesiąc", week: "Tydzień" };
 
 function parseDate(s: string | null): Date | null {
   if (!s) return null;
@@ -118,12 +123,26 @@ export function ProjectTimeline({
   onChange?: () => void;
 }) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
+  const [zoom, setZoom] = useState<Zoom>("month");
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   dragRef.current = drag;
   const gridRef = useRef<HTMLDivElement>(null);
   const pxPerDayRef = useRef(1);
   const movedRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollInfoRef = useRef({ todayPct: 0, chartPxWidth: 0, hasToday: false });
+
+  // Auto-przewinięcie prawego obszaru tak, by „dziś" było na środku — przy
+  // pierwszym załadowaniu i po zmianie zoomu. Bez tego oś startuje od lewej
+  // krawędzi (przeszłość), a najważniejsze jest to, co dzieje się teraz.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const info = scrollInfoRef.current;
+    if (!el || !info.hasToday) return;
+    const todayPx = (info.todayPct / 100) * info.chartPxWidth;
+    el.scrollLeft = Math.max(0, todayPx - el.clientWidth / 2);
+  }, [projects, zoom]);
 
   useEffect(() => {
     (async () => {
@@ -280,7 +299,9 @@ export function ProjectTimeline({
   const today = new Date();
   const todayPct = today >= rangeStart && today <= rangeEnd ? (daysBetween(rangeStart, today) / totalDays) * 100 : null;
   const pctOf = (d: Date) => Math.max(0, Math.min((daysBetween(rangeStart, d) / totalDays) * 100, 100));
-  const chartPxWidth = Math.max(months.length * MONTH_PX, 360);
+  const chartPxWidth = Math.max(months.length * MONTH_PX_BY_ZOOM[zoom], 360);
+  // Zapamiętaj dane potrzebne do auto-przewinięcia (odczytywane w efekcie po renderze).
+  scrollInfoRef.current = { todayPct: todayPct ?? 0, chartPxWidth, hasToday: todayPct !== null };
 
   const weekTicks: { date: Date; leftPct: number }[] = [];
   {
@@ -294,7 +315,25 @@ export function ProjectTimeline({
   const monthLines = months.map((m) => pctOf(m)).filter((pct) => pct > 0.01);
 
   return (
-    <div className={`card-paper flex overflow-hidden rounded-2xl ${drag ? "select-none" : ""}`}>
+    <div>
+      {/* Pasek narzędzi osi: przełącznik zoomu (Kwartał / Miesiąc / Tydzień) */}
+      <div className="mb-2 flex items-center justify-end gap-2">
+        <div className="flex items-center rounded-lg border hairline p-0.5">
+          {(["quarter", "month", "week"] as Zoom[]).map((z) => (
+            <button
+              key={z}
+              onClick={() => setZoom(z)}
+              className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+                zoom === z ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:text-[var(--fg)]"
+              }`}
+            >
+              {ZOOM_LABEL[z]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={`card-paper flex overflow-hidden rounded-2xl ${drag ? "select-none" : ""}`}>
       {/* LEWA KOLUMNA — nazwy projektów (stała) */}
       <div className="shrink-0 border-r hairline bg-[var(--bg-soft)]" style={{ width: LEFT_W }}>
         <div className="border-b hairline" style={{ height: HEADER_H }} />
@@ -325,7 +364,7 @@ export function ProjectTimeline({
       </div>
 
       {/* PRAWY OBSZAR — przewijalna siatka z paskami */}
-      <div className="min-w-0 flex-1 overflow-x-auto">
+      <div className="min-w-0 flex-1 overflow-x-auto" ref={scrollRef}>
         <div className="relative" style={{ minWidth: `${chartPxWidth}px` }}>
           {/* Nagłówek: miesiące + numerki tygodni */}
           <div className="border-b hairline" style={{ height: HEADER_H }}>
@@ -443,6 +482,11 @@ export function ProjectTimeline({
                         title={`${m.nazwa} — ${formatPlDate(toLocalISO(mDate))} (przeciągnij, aby zmienić)`}
                       >
                         <div className={`h-3 w-3 rotate-45 border-2 bg-[var(--bg-soft)] ${diamond}`} />
+                        {zoom !== "quarter" && (
+                          <span className="pointer-events-none absolute left-1/2 top-full mt-px max-w-[130px] -translate-x-1/2 truncate text-[9px] leading-none text-muted">
+                            {m.nazwa}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -460,6 +504,7 @@ export function ProjectTimeline({
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
