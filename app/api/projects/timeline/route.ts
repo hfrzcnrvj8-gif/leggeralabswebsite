@@ -28,5 +28,6 @@ export async function GET() {
     GROUP BY p.id
     ORDER BY p.start ASC NULLS LAST, p.termin ASC NULLS LAST, p.created_at DESC;
   `;
-  return NextResponse.json({ projects: rows });
+  const dependencies = await sql`SELECT project_id, depends_on_id FROM project_dependencies;`;
+  return NextResponse.json({ projects: rows, dependencies });
 }

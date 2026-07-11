@@ -35,8 +35,9 @@ export async function GET(
   const resources = await sql`
     SELECT * FROM project_resources WHERE project_id = ${id} ORDER BY position ASC, created_at ASC;
   `;
+  const dependencies = await sql`SELECT depends_on_id FROM project_dependencies WHERE project_id = ${id};`;
 
-  return NextResponse.json({ project, tasks, activity, milestones, resources });
+  return NextResponse.json({ project, tasks, activity, milestones, resources, dependencies });
 }
 
 /** PATCH /api/projects/:id — update one or more fields. Admin-only. */

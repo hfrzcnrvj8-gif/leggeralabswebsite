@@ -188,6 +188,20 @@ async function createHubSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS project_resources_project_id_idx ON project_resources(project_id);`;
 
+  // Zależności między projektami (styl Linear Roadmap): project_id "zależy od"
+  // depends_on_id (poprzednik musi się skończyć wcześniej) — rysowane jako
+  // krzywe łączące koniec poprzednika ze startem następnika na osi czasu.
+  await sql`
+    CREATE TABLE IF NOT EXISTS project_dependencies (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      depends_on_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (project_id, depends_on_id)
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_dependencies_project_id_idx ON project_dependencies(project_id);`;
+
   // Notatnik — szybkie zapisywanie pomysłów, z tagami (proste CSV zamiast
   // typu tablicowego — mniej niespodzianek przy odczycie przez neon-http).
   await sql`

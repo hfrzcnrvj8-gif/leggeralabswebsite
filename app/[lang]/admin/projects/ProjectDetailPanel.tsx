@@ -15,7 +15,7 @@ import {
   ProjectIconPicker,
 } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
-import { PropertyMenu, type MenuOption } from "../Menu";
+import { PropertyMenu, Popover, MenuRow, type MenuOption } from "../Menu";
 import { DateField } from "../DatePicker";
 import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
 import { useUI } from "../ui";
@@ -50,6 +50,8 @@ export function ProjectDetailPanel({
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [newResourceLabel, setNewResourceLabel] = useState("");
   const [newResourceUrl, setNewResourceUrl] = useState("");
+  const [dependencies, setDependencies] = useState<string[]>([]);
+  const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`);
@@ -67,12 +69,14 @@ export function ProjectDetailPanel({
       activity: ProjectActivity[];
       milestones: ProjectMilestone[];
       resources: ProjectResource[];
+      dependencies?: { depends_on_id: string }[];
     };
     setProject(data.project);
     setTasks(data.tasks);
     setActivity(data.activity);
     setMilestones(data.milestones);
     setResources(data.resources);
+    setDependencies((data.dependencies ?? []).map((d) => d.depends_on_id));
   }, [id]);
 
   useEffect(() => {
@@ -83,7 +87,33 @@ export function ProjectDetailPanel({
 
   useEffect(() => {
     fetch("/api/leads").then((r) => (r.ok ? r.json() : null)).then((d) => d && setLeads(d.leads));
+    fetch("/api/projects").then((r) => (r.ok ? r.json() : null)).then((d) => d && setAllProjects(d.projects.map((p: { id: string; tytul: string }) => ({ id: p.id, tytul: p.tytul }))));
   }, []);
+
+  const addDependency = async (dependsOnId: string) => {
+    const res = await fetch(`/api/projects/${id}/dependencies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ depends_on_id: dependsOnId }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(d.error ?? "Nie udało się dodać zależności.", "error");
+      return;
+    }
+    setDependencies((prev) => [...new Set([...prev, dependsOnId])]);
+    onFieldChange?.(id, "dependencies", "");
+  };
+
+  const removeDependency = async (dependsOnId: string) => {
+    const res = await fetch(`/api/projects/${id}/dependencies?depends_on_id=${encodeURIComponent(dependsOnId)}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast("Nie udało się usunąć zależności.", "error");
+      return;
+    }
+    setDependencies((prev) => prev.filter((x) => x !== dependsOnId));
+    onFieldChange?.(id, "dependencies", "");
+  };
 
   const updateProject = async (field: string, value: string) => {
     // Natywne <input type="date"> potrafi zapisać niepełny rok (np. "0202"
@@ -500,6 +530,49 @@ export function ProjectDetailPanel({
                 <PropTrigger label={project.lead_id ? (leads?.find((l) => l.id === project.lead_id)?.firma ?? "—") : "— brak —"} />
               </PropertyMenu>
             </MetaRow>
+          </div>
+
+          <div className="border-t hairline pt-4">
+            <h3 className="mb-2 text-[11px] text-muted opacity-70">Zależy od</h3>
+            {dependencies.length > 0 && (
+              <ul className="mb-2 space-y-1">
+                {dependencies.map((depId) => (
+                  <li key={depId} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-1.5 truncate">
+                      <IconArrowRight size={13} className="shrink-0 text-muted" />
+                      <span className="truncate">{allProjects.find((p) => p.id === depId)?.tytul ?? "—"}</span>
+                    </span>
+                    <button onClick={() => removeDependency(depId)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń zależność" title="Usuń">
+                      <IconX size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Popover
+              align="left"
+              width={240}
+              trigger={(open) => (
+                <button onClick={open} className="w-full rounded-lg border hairline px-2 py-1 text-xs text-muted hover:text-[var(--fg)]">
+                  + Dodaj zależność
+                </button>
+              )}
+            >
+              {(close) => {
+                const opts = allProjects.filter((p) => p.id !== id && !dependencies.includes(p.id));
+                return (
+                  <div className="max-h-[50vh] overflow-y-auto">
+                    {opts.length === 0 ? (
+                      <div className="px-2.5 py-2 text-[12px] text-muted">Brak innych projektów.</div>
+                    ) : (
+                      opts.map((p) => (
+                        <MenuRow key={p.id} label={p.tytul} onClick={() => { addDependency(p.id); close(); }} />
+                      ))
+                    )}
+                  </div>
+                );
+              }}
+            </Popover>
           </div>
 
           <div className="border-t hairline pt-4">

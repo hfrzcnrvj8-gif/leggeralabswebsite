@@ -110,6 +110,7 @@ export function ProjectTimeline({
   onChange?: () => void;
 }) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
+  const [deps, setDeps] = useState<{ project_id: string; depends_on_id: string }[]>([]);
   const [zoom, setZoom] = useState<Zoom>("month");
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -127,8 +128,9 @@ export function ProjectTimeline({
         window.location.reload();
         return;
       }
-      const data = (await res.json()) as { projects: TimelineProject[] };
+      const data = (await res.json()) as { projects: TimelineProject[]; dependencies?: { project_id: string; depends_on_id: string }[] };
       setProjects(data.projects);
+      setDeps(data.dependencies ?? []);
     })();
   }, []);
 
@@ -297,6 +299,24 @@ export function ProjectTimeline({
   }
   const monthLines = months.map((m) => pctOf(m)).filter((pct) => pct > 0.01);
 
+  // Krzywe zależności: od KOŃCA paska poprzednika (depends_on) do STARTU
+  // następnika (project_id), jak w Linear Roadmap. Współrzędne w px.
+  const posById = new Map<string, { i: number; start: Date; end: Date }>();
+  dated.forEach((d, i) => posById.set(d.p.id, { i, start: d.start, end: d.end }));
+  const curves = deps
+    .map((dep, idx) => {
+      const pred = posById.get(dep.depends_on_id);
+      const succ = posById.get(dep.project_id);
+      if (!pred || !succ) return null;
+      const x1 = (pctOf(pred.end) / 100) * chartPxWidth;
+      const y1 = pred.i * ROW_H + BAR_TOP + BAR_H / 2;
+      const x2 = (pctOf(succ.start) / 100) * chartPxWidth;
+      const y2 = succ.i * ROW_H + BAR_TOP + BAR_H / 2;
+      const cx = Math.max(28, Math.abs(x2 - x1) / 2);
+      return { idx, x2, y2, d: `M ${x1} ${y1} C ${x1 + cx} ${y1}, ${x2 - cx} ${y2}, ${x2} ${y2}` };
+    })
+    .filter((c): c is { idx: number; x2: number; y2: number; d: string } => c !== null);
+
   return (
     <div>
       {/* Pasek narzędzi: zoom */}
@@ -353,6 +373,18 @@ export function ProjectTimeline({
                 />
               ))}
             </div>
+
+            {/* Krzywe zależności między projektami (jak w Linear) */}
+            {curves.length > 0 && (
+              <svg className="pointer-events-none absolute left-0 top-0 z-[1]" width={chartPxWidth} height={dated.length * ROW_H} style={{ overflow: "visible" }}>
+                {curves.map((c) => (
+                  <g key={c.idx}>
+                    <path d={c.d} fill="none" stroke="var(--fg-muted)" strokeWidth={1.5} strokeOpacity={0.5} />
+                    <circle cx={c.x2} cy={c.y2} r={2.5} fill="var(--fg-muted)" fillOpacity={0.7} />
+                  </g>
+                ))}
+              </svg>
+            )}
 
             {dated.map(({ p, start, end, estimated }, rowIdx) => {
               const milestonesWithDates = p.milestones
