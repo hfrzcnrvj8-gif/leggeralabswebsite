@@ -89,6 +89,15 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   karta: "Karta",
 };
 
+/** Próg miesięcznej sprzedaży (brutto, PLN), do którego mikroprzedsiębiorca
+ * może w 2026 r. wystawiać faktury poza KSeF (obowiązek wszedł w życie
+ * 1 lutego 2026 dla dużych firm, 1 kwietnia 2026 dla reszty — zwolnienie dla
+ * mikrofirm obowiązuje do 31 grudnia 2026, tylko poniżej tego progu). Po
+ * przekroczeniu progu w danym miesiącu KSeF staje się obowiązkowy. Świadomie
+ * tylko licznik/ostrzeżenie — bez pełnej integracji z KSeF (osobny, większy
+ * zakres, patrz virtual-company-roadmap w pamięci). */
+export const KSEF_MICRO_THRESHOLD_PLN = 10000;
+
 export type InvoiceItem = {
   id: string;
   invoice_id: string;

@@ -9,10 +9,12 @@ import {
   INVOICE_STATUSES,
   INVOICE_STATUS_CLASS,
   INVOICE_TYPE_LABEL,
+  KSEF_MICRO_THRESHOLD_PLN,
   formatMoney,
   isInvoiceOverdue,
 } from "@/lib/invoices";
 import { formatPlDate } from "@/lib/projects";
+import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { InvoiceEditor } from "./InvoiceEditor";
@@ -150,6 +152,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
     const list = invoices ?? [];
     const nieoplacone = new Map<string, number>();
     const poTerminie = new Map<string, number>();
+    const thisMonth = todayLocalISO().slice(0, 7);
+    let ksefMonthSalesPln = 0;
     for (const i of list) {
       // Proforma nie jest dokumentem fiskalnym — nie liczy się do przychodu/KPI.
       if (i.typ_dokumentu === "proforma") continue;
@@ -157,8 +161,18 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       const overdue = isInvoiceOverdue(i);
       if (i.status === "Wystawiona" || overdue) nieoplacone.set(currency, (nieoplacone.get(currency) ?? 0) + i.brutto);
       if (overdue) poTerminie.set(currency, (poTerminie.get(currency) ?? 0) + i.brutto);
+      // Licznik progu KSeF dla mikrofirm — tylko faktury w PLN, wystawione
+      // (nie szkice/anulowane), wg daty wystawienia w bieżącym miesiącu.
+      if (
+        currency === "PLN" &&
+        i.status !== "Szkic" &&
+        i.status !== "Anulowana" &&
+        i.data_wystawienia?.slice(0, 7) === thisMonth
+      ) {
+        ksefMonthSalesPln += i.brutto;
+      }
     }
-    return { nieoplacone, poTerminie };
+    return { nieoplacone, poTerminie, ksefMonthSalesPln };
   }, [invoices]);
 
   const formatKpi = (byCurrency: Map<string, number>) => {
@@ -227,8 +241,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       </div>
 
       <div className="px-4 py-4 sm:px-6">
-        {/* KPI: nieopłacone / po terminie */}
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
+        {/* KPI: nieopłacone / po terminie / próg KSeF dla mikrofirm */}
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-2xl sm:grid-cols-3">
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Nieopłacone</div>
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatKpi(kpi.nieoplacone)}</div>
@@ -238,6 +252,23 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             <div className={`mt-0.5 text-lg font-semibold ${kpi.poTerminie.size > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
               {formatKpi(kpi.poTerminie)}
             </div>
+          </div>
+          <div className="card-paper rounded-xl border hairline p-3" title="Mikroprzedsiębiorcy mogą do końca 2026 wystawiać faktury poza KSeF, dopóki miesięczna sprzedaż nie przekroczy tego progu.">
+            <div className="text-[11px] text-muted">Sprzedaż (ten mies.) / próg KSeF</div>
+            <div
+              className={`mt-0.5 text-lg font-semibold ${
+                kpi.ksefMonthSalesPln >= KSEF_MICRO_THRESHOLD_PLN
+                  ? "text-red-400"
+                  : kpi.ksefMonthSalesPln >= KSEF_MICRO_THRESHOLD_PLN * 0.7
+                    ? "text-brand-gold"
+                    : "text-[var(--fg)]"
+              }`}
+            >
+              {formatMoney(kpi.ksefMonthSalesPln)} / {formatMoney(KSEF_MICRO_THRESHOLD_PLN)}
+            </div>
+            {kpi.ksefMonthSalesPln >= KSEF_MICRO_THRESHOLD_PLN && (
+              <div className="mt-0.5 text-[11px] text-red-400">Próg przekroczony — KSeF może być już obowiązkowy.</div>
+            )}
           </div>
         </div>
 

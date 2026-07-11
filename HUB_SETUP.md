@@ -156,6 +156,15 @@ waluty każdej faktury** (`inv.waluta`), nie zawsze PLN — KPI
 żeby nie dodawać do siebie PLN i EUR. Każdy wiersz ma też plakietkę języka
 wydruku (PL/EN/DE) obok numeru — to samo w Ofertach.
 
+Trzeci kafelek KPI: **"Sprzedaż (ten mies.) / próg KSeF"** — licznik miesięcznej
+sprzedaży w PLN (faktury nie-proforma, nie-szkic, nie-anulowane, wg daty
+wystawienia) vs `KSEF_MICRO_THRESHOLD_PLN` = 10 000 zł (`lib/invoices.ts`).
+Obowiązek KSeF wszedł w życie 1 lutego 2026 (duże firmy) i 1 kwietnia 2026
+(wszyscy pozostali) — mikroprzedsiębiorcy mają zwolnienie do końca 2026, ale
+tylko poniżej tego progu miesięcznie. Świadomie tylko miękkie ostrzeżenie
+(żółty przy 70%, czerwony po przekroczeniu) — bez blokowania czegokolwiek i
+bez integracji z samym KSeF (to osobna, większa faza z roadmapy).
+
 **Księgowość — dopięte do końca (wzorce z Fakturowni/inFakt/SAP, bez KSeF na
 razie — celowo, to osobny, większy zakres):**
 
