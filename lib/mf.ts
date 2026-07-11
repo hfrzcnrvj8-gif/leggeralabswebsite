@@ -3,6 +3,8 @@
 // autouzupełniania danych nabywcy/odbiorcy na fakturze/ofercie zamiast
 // ręcznego przepisywania. Bez "use client" — tylko server-side.
 
+import { todayLocalISO } from "./dates";
+
 export type MfSubject = {
   nazwa: string;
   ulica: string;
@@ -26,7 +28,7 @@ function splitAddress(address: string): { ulica: string; kod: string; miasto: st
 export async function lookupNip(nip: string): Promise<MfSubject | null> {
   const cleanNip = nip.replace(/\D/g, "");
   if (cleanNip.length !== 10) return null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
   try {
     const res = await fetch(`https://wl-api.mf.gov.pl/api/search/nip/${cleanNip}?date=${today}`, {
       signal: AbortSignal.timeout(6000),

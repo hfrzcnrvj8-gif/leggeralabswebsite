@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { getProjectTemplate, expandProjectTemplate } from "@/lib/projects";
+import { isOfferExpired, type Offer } from "@/lib/offers";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (offer.status === "Zaakceptowana") {
     return NextResponse.json({ error: "Oferta jest już zaakceptowana." }, { status: 400 });
+  }
+  // Wygasła oferta wciąż da się zaakceptować, ale świadomie, dopiero po
+  // potwierdzeniu (body.confirmExpired) — inaczej łatwo przez pomyłkę
+  // "ożywić" ofertę sprzed miesięcy i utworzyć z niej projekt/fakturę.
+  if (isOfferExpired(offer as Pick<Offer, "status" | "wazna_do">) && body.confirmExpired !== true) {
+    return NextResponse.json(
+      { error: "Oferta jest przeterminowana (minęła data ważności).", expired: true },
+      { status: 409 }
+    );
   }
 
   const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
@@ -68,8 +78,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const invoiceId = randomUUID();
   await sql`
-    INSERT INTO invoices (id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres)
-    VALUES (${invoiceId}, ${leadId}, ${projectId}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres});
+    INSERT INTO invoices (
+      id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres,
+      klient_ulica, klient_kod, klient_miasto, klient_kraj
+    )
+    VALUES (
+      ${invoiceId}, ${leadId}, ${projectId}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres},
+      ${offer.klient_ulica ?? ""}, ${offer.klient_kod ?? ""}, ${offer.klient_miasto ?? ""}, ${offer.klient_kraj ?? ""}
+    );
   `;
   let pos = 0;
   for (const it of items) {
@@ -80,10 +96,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     pos += 1;
   }
 
-  await sql`
+  // Atomowy "claim": WHERE status != 'Zaakceptowana' gwarantuje, że tylko
+  // JEDNO z dwóch niemal równoczesnych żądań (np. podwójny klik) rzeczywiście
+  // podepnie swój projekt/fakturę do oferty — Postgres serializuje UPDATE-y
+  // na tym samym wierszu, więc przegrany zobaczy 0 zmienionych wierszy.
+  const claimed = await sql`
     UPDATE offers SET status = 'Zaakceptowana', project_id = ${projectId}, invoice_id = ${invoiceId}, updated_at = now()
-    WHERE id = ${id};
+    WHERE id = ${id} AND status != 'Zaakceptowana'
+    RETURNING id;
   `;
+  if (claimed.length === 0) {
+    // Przegraliśmy wyścig — ktoś inny zaakceptował tę ofertę w międzyczasie.
+    // Nie zostawiaj osieroconego projektu/faktury utworzonych "na próbę".
+    await sql`DELETE FROM invoices WHERE id = ${invoiceId};`;
+    await sql`DELETE FROM projects WHERE id = ${projectId};`;
+    return NextResponse.json({ error: "Oferta została już zaakceptowana (w innej karcie/kliknięciu)." }, { status: 409 });
+  }
 
   return NextResponse.json({ ok: true, projectId, invoiceId });
 }

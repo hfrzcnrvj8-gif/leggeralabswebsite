@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { isPlausibleDateString } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -42,12 +43,19 @@ export async function POST(
   `;
 
   if (typeof body?.ostatni_kontakt === "string" && body.ostatni_kontakt.trim()) {
-    await sql`UPDATE leads SET ostatni_kontakt = ${body.ostatni_kontakt}, updated_at = now() WHERE id = ${id};`;
+    const trimmed = body.ostatni_kontakt.trim();
+    if (isPlausibleDateString(trimmed)) {
+      await sql`UPDATE leads SET ostatni_kontakt = ${trimmed}, updated_at = now() WHERE id = ${id};`;
+    }
   }
   if ("next_followup" in (body ?? {})) {
     const raw = body?.next_followup;
-    const value = typeof raw === "string" && raw.trim() ? raw : null;
-    await sql`UPDATE leads SET next_followup = ${value}, updated_at = now() WHERE id = ${id};`;
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (!trimmed) {
+      await sql`UPDATE leads SET next_followup = NULL, updated_at = now() WHERE id = ${id};`;
+    } else if (isPlausibleDateString(trimmed)) {
+      await sql`UPDATE leads SET next_followup = ${trimmed}, updated_at = now() WHERE id = ${id};`;
+    }
   }
 
   const activity = await sql`

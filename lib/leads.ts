@@ -4,6 +4,8 @@
 // (app/api/leads/notify/route.ts). Trzymana osobno, żeby route handler mógł
 // ją zaimportować bez ciągnięcia za sobą granicy klienckiej.
 
+import { todayLocalISO } from "./dates";
+
 export type Lead = {
   id: string;
   firma: string;
@@ -119,8 +121,7 @@ export function isOverdue(lead: Lead): boolean {
   // Jawnie ustawiona data przypomnienia bierze pierwszeństwo nad sztywną
   // regułą — jeśli ją ustawiłeś, to Ty decydujesz kiedy się odezwać.
   if (lead.next_followup) {
-    const today = new Date().toISOString().slice(0, 10);
-    return lead.next_followup <= today;
+    return lead.next_followup <= todayLocalISO();
   }
 
   if (lead.status !== "Napisano - czeka na odpowiedź") return false;

@@ -36,7 +36,7 @@ Dzienny raport mailowy (patrz sekcja niżej) wymaga osobnej, opcjonalnej konfigu
 
 - `RESEND_API_KEY` — klucz z [resend.com](https://resend.com) (darmowy plan wystarcza). Bez niego panel działa normalnie, po prostu przycisk „Wyślij raport teraz” i codzienny cron zwrócą błąd zamiast wysłać maila.
 - `RESEND_FROM` — opcjonalny, adres nadawcy po zweryfikowaniu domeny leggeralabs.pl w Resend, np. `Leggera Labs <leady@leggeralabs.pl>`. Bez tego maile idą z testowej domeny Resend i mogą trafiać do spamu.
-- `CRON_SECRET` — opcjonalny, dowolny losowy ciąg; jeśli ustawiony, chroni `/api/leads/notify` przed wywołaniem z zewnątrz (Vercel Cron dołącza go automatycznie do własnych wywołań).
+- `CRON_SECRET` — **WYMAGANY** (nie opcjonalny), dowolny losowy ciąg; chroni `/api/leads/notify` przed wywołaniem z zewnątrz (Vercel Cron dołącza go automatycznie do własnych wywołań jako nagłówek `Authorization`). Bez tej zmiennej endpoint zwraca błąd 500 zamiast być publicznie dostępny (fail-closed) — codzienny raport i generowanie faktur cyklicznych nie zadziałają, dopóki zmienna nie zostanie ustawiona w env Vercela.
 
 ## 3. Lokalny rozwój (opcjonalnie)
 

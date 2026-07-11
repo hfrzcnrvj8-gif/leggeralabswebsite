@@ -1,7 +1,7 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 
-type Sql = NeonQueryFunction<false, false>;
+export type Sql = NeonQueryFunction<false, false>;
 
 let client: Sql | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -339,6 +339,12 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp NUMERIC;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp_data DATE;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS kurs_nbp_tabela TEXT;`;
+  // Ubezpieczenie na poziomie bazy przeciwko wyścigowi przy nadawaniu numeru
+  // (dwa równoczesne "Wystaw fakturę" nie mogą dać tej samej faktury dwa
+  // razy ten sam numer — drugi UPDATE dostanie unique violation i ponowi
+  // próbę z przeliczonym numerem, patrz app/api/invoices/[id]/issue).
+  // Częściowy indeks — szkice bez numeru (NULL) mogą być w dowolnej liczbie.
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS invoices_numer_unique_idx ON invoices(numer) WHERE numer IS NOT NULL;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_payments (

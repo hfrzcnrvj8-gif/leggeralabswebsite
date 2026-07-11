@@ -3,6 +3,7 @@
 // i lib/projects.ts. Świadomie lekki moduł: bez KSeF, elastyczny VAT/bez-VAT.
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
+import { todayLocalISO } from "./dates";
 
 export type InvoiceLang = DocLang;
 export { addDaysISO } from "./documents";
@@ -244,8 +245,7 @@ export function isInvoiceOverdue(inv: Pick<Invoice, "status" | "termin_platnosci
   if (CLOSED_INVOICE_STATUSES.has(inv.status)) return false;
   if (inv.status === "Szkic") return false;
   if (!inv.termin_platnosci) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return inv.termin_platnosci < today;
+  return inv.termin_platnosci < todayLocalISO();
 }
 
 const JEDNOSCI = ["", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć"];

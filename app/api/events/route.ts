@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   const sql = getSql();
 
   const month = req.nextUrl.searchParams.get("month");
-  const prefix = month && /^\d{4}-\d{2}$/.test(month) ? month : new Date().toISOString().slice(0, 7);
+  const prefix = month && /^\d{4}-\d{2}$/.test(month) ? month : todayLocalISO().slice(0, 7);
 
   const rows = await sql`
     SELECT * FROM events WHERE to_char(data, 'YYYY-MM') = ${prefix} ORDER BY data ASC, godzina ASC NULLS LAST;

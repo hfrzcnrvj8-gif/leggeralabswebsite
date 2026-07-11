@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
+import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const kwota = Number(body.kwota);
     if (!Number.isFinite(kwota) || kwota <= 0) return NextResponse.json({ error: "Nieprawidłowa kwota wpłaty." }, { status: 400 });
-    const data = typeof body.data === "string" && isPlausibleDateString(body.data) ? body.data : new Date().toISOString().slice(0, 10);
+    const data = typeof body.data === "string" && isPlausibleDateString(body.data) ? body.data : todayLocalISO();
 
     const inv = await sql`SELECT id FROM invoices WHERE id = ${id};`;
     if (!inv[0]) return NextResponse.json({ error: "not found" }, { status: 404 });

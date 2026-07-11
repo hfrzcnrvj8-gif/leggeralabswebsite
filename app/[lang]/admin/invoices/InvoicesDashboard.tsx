@@ -60,7 +60,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       if (!ok) return;
       const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        toast("Nie udało się usunąć.", "error");
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast(data.error ?? "Nie udało się usunąć.", "error");
         return;
       }
       setInvoices((prev) => prev?.filter((i) => i.id !== id) ?? prev);

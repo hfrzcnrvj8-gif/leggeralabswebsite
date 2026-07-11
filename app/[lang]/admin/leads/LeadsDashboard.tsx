@@ -12,6 +12,7 @@ import { LeadDetailPanel } from "./LeadDetailPanel";
 import { SavedViews } from "../components";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
+import { todayLocalISO } from "@/lib/dates";
 
 type ViewMode = "kanban" | "table";
 
@@ -404,7 +405,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
               <button
                 onClick={async () => {
                   await updateLead(l.id, "status", "Przypomnienie wysłane");
-                  await updateLead(l.id, "ostatni_kontakt", new Date().toISOString().slice(0, 10));
+                  await updateLead(l.id, "ostatni_kontakt", todayLocalISO());
                 }}
                 className="rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
               >

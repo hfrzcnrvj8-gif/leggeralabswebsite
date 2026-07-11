@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, type Sql } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { formatInvoiceNumber } from "@/lib/invoices";
 import { fetchNbpRateBeforeDate } from "@/lib/nbp";
@@ -22,6 +22,31 @@ function normalizeDbDate(v: unknown): string | null {
   if (v instanceof Date) return toLocalISO(v);
   const s = String(v).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+// Kolejny wolny numer w obrębie roku, w osobnej sekwencji dla korekt/proform.
+// Wywoływane wewnątrz pętli z retry (patrz POST) — samo w sobie NIE jest
+// atomowe (dwa równoczesne wywołania mogą policzyć ten sam numer), ale
+// końcowy UPDATE ma unikalny indeks na `numer` (lib/db.ts), więc kolizja
+// kończy się błędem 23505, a nie cichym duplikatem — POST wtedy ponawia
+// próbę z przeliczonym numerem.
+async function computeNextNumer(sql: Sql, inv: Record<string, unknown>, year: number): Promise<string> {
+  const prefix = inv.koryguje_id ? "KOR " : inv.typ_dokumentu === "proforma" ? "PF " : "";
+  const numbered = await sql`SELECT numer FROM invoices WHERE numer IS NOT NULL AND numer LIKE ${"%/" + year};`;
+  let maxSeq = 0;
+  for (const r of numbered) {
+    const raw = String(r.numer);
+    if (prefix) {
+      if (!raw.startsWith(prefix)) continue;
+      const m = /^(\d+)\//.exec(raw.slice(prefix.length));
+      if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
+    } else {
+      if (raw.startsWith("KOR ") || raw.startsWith("PF ")) continue;
+      const m = /^(\d+)\//.exec(raw);
+      if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
+    }
+  }
+  return prefix + formatInvoiceNumber(maxSeq + 1, year);
 }
 
 /** POST /api/invoices/:id/issue — "wystaw fakturę": nadaje numer, ustawia
@@ -48,28 +73,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const today = new Date();
     const year = today.getFullYear();
 
-    // Numer: kolejny w obrębie roku, w osobnej sekwencji dla korekt/proform.
-    // Zachowaj istniejący, jeśli już nadany.
-    let numer = typeof inv.numer === "string" && inv.numer ? inv.numer : null;
-    if (!numer) {
-      const prefix = inv.koryguje_id ? "KOR " : inv.typ_dokumentu === "proforma" ? "PF " : "";
-      const numbered = await sql`SELECT numer FROM invoices WHERE numer IS NOT NULL AND numer LIKE ${"%/" + year};`;
-      let maxSeq = 0;
-      for (const r of numbered) {
-        const raw = String(r.numer);
-        if (prefix) {
-          if (!raw.startsWith(prefix)) continue;
-          const m = /^(\d+)\//.exec(raw.slice(prefix.length));
-          if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
-        } else {
-          if (raw.startsWith("KOR ") || raw.startsWith("PF ")) continue;
-          const m = /^(\d+)\//.exec(raw);
-          if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
-        }
-      }
-      numer = prefix + formatInvoiceNumber(maxSeq + 1, year);
-    }
-
     const settingsRows = await sql`SELECT domyslny_termin_dni, vat_payer FROM company_settings WHERE id = 'default';`;
     const terminDni = Number(settingsRows[0]?.domyslny_termin_dni ?? 14);
     const vatPayer = Boolean(settingsRows[0]?.vat_payer);
@@ -81,11 +84,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // Kurs NBP dla VAT na fakturze w walucie obcej (wymóg ustawy o VAT) —
     // liczony raz, przy wystawieniu; jeśli już zapisany (np. ponowne
     // wystawienie), nie nadpisuj. Nieudany fetch nie blokuje wystawienia.
+    // Kurs bierzemy sprzed daty SPRZEDAŻY (obowiązek podatkowy powstaje wg
+    // niej, art. 31a ustawy o VAT), nie sprzed daty wystawienia — te dwie
+    // daty często się różnią (np. usługa wykonana pod koniec miesiąca,
+    // faktura wystawiona kilka dni później).
     let kursNbp = inv.kurs_nbp != null ? Number(inv.kurs_nbp) : null;
     let kursNbpData = normalizeDbDate(inv.kurs_nbp_data);
     let kursNbpTabela = typeof inv.kurs_nbp_tabela === "string" ? inv.kurs_nbp_tabela : null;
     if (kursNbp == null && vatPayer && inv.waluta && inv.waluta !== "PLN") {
-      const rate = await fetchNbpRateBeforeDate(String(inv.waluta), dataWyst);
+      const rate = await fetchNbpRateBeforeDate(String(inv.waluta), dataSprz);
       if (rate) {
         kursNbp = rate.kurs;
         kursNbpData = rate.data;
@@ -93,14 +100,31 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    await sql`
-      UPDATE invoices
-      SET numer = ${numer}, status = 'Wystawiona',
-          data_wystawienia = ${dataWyst}, data_sprzedazy = ${dataSprz}, termin_platnosci = ${termin},
-          kurs_nbp = ${kursNbp}, kurs_nbp_data = ${kursNbpData}, kurs_nbp_tabela = ${kursNbpTabela},
-          updated_at = now()
-      WHERE id = ${id};
-    `;
+    // Numer: zachowaj istniejący, jeśli już nadany (ponowne wystawienie).
+    // W przeciwnym razie policz i spróbuj zapisać — z retry na wypadek, gdy
+    // dwie równoczesne prośby "Wystaw fakturę" policzą ten sam numer
+    // (chroni przed tym unikalny indeks na `numer`, patrz computeNextNumer).
+    let numer = typeof inv.numer === "string" && inv.numer ? inv.numer : null;
+    const MAX_ATTEMPTS = 5;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const candidate = numer ?? (await computeNextNumer(sql, inv, year));
+      try {
+        await sql`
+          UPDATE invoices
+          SET numer = ${candidate}, status = 'Wystawiona',
+              data_wystawienia = ${dataWyst}, data_sprzedazy = ${dataSprz}, termin_platnosci = ${termin},
+              kurs_nbp = ${kursNbp}, kurs_nbp_data = ${kursNbpData}, kurs_nbp_tabela = ${kursNbpTabela},
+              updated_at = now()
+          WHERE id = ${id};
+        `;
+        numer = candidate;
+        break;
+      } catch (err) {
+        const code = (err as { code?: string } | null)?.code;
+        if (numer === null && code === "23505" && attempt < MAX_ATTEMPTS) continue; // kolizja numeru — przelicz i ponów
+        throw err;
+      }
+    }
     return NextResponse.json({ ok: true, numer });
   } catch (err) {
     // Nie połykaj błędu w generyczny 500 — pokaż realny powód w toaście, żeby

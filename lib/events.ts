@@ -1,3 +1,5 @@
+import { todayLocalISO } from "./dates";
+
 // Nazwane HubEvent, żeby nie kolidować z wbudowanym DOM-owym typem Event.
 export type HubEvent = {
   id: string;
@@ -11,7 +13,7 @@ export type HubEvent = {
 };
 
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayLocalISO();
 }
 
 export function isPast(dateStr: string): boolean {

@@ -7,6 +7,7 @@ import { isInvoiceOverdue, type Invoice } from "@/lib/invoices";
 import { isOfferExpired, type Offer } from "@/lib/offers";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
+import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -31,11 +32,13 @@ export async function GET() {
   await ensureOffersSchema();
   const sql = getSql();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
   const thisMonth = today.slice(0, 7); // "YYYY-MM"
-  const lastMonthDate = new Date();
-  lastMonthDate.setUTCMonth(lastMonthDate.getUTCMonth() - 1);
-  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+  // Miesiąc poprzedni liczony przez arytmetykę na roku/miesiącu (nie przez
+  // Date), żeby uniknąć tej samej pułapki UTC-vs-lokalny czas co przy `today`.
+  const [thisYearNum, thisMonthNum] = thisMonth.split("-").map(Number);
+  const lastMonth =
+    thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
   const [leads, projects, todayEvents, recentNotes, invoices, offers] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,

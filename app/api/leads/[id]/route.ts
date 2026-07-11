@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { isPlausibleDateString } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -76,13 +77,19 @@ export async function PATCH(
   }
   if ("ostatni_kontakt" in body) {
     const raw = body.ostatni_kontakt;
-    const value = typeof raw === "string" && raw.trim() ? raw : null;
-    await sql`UPDATE leads SET ostatni_kontakt = ${value}, updated_at = now() WHERE id = ${id};`;
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (trimmed && !isPlausibleDateString(trimmed)) {
+      return NextResponse.json({ error: "invalid ostatni_kontakt" }, { status: 400 });
+    }
+    await sql`UPDATE leads SET ostatni_kontakt = ${trimmed || null}, updated_at = now() WHERE id = ${id};`;
   }
   if ("next_followup" in body) {
     const raw = body.next_followup;
-    const value = typeof raw === "string" && raw.trim() ? raw : null;
-    await sql`UPDATE leads SET next_followup = ${value}, updated_at = now() WHERE id = ${id};`;
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (trimmed && !isPlausibleDateString(trimmed)) {
+      return NextResponse.json({ error: "invalid next_followup" }, { status: 400 });
+    }
+    await sql`UPDATE leads SET next_followup = ${trimmed || null}, updated_at = now() WHERE id = ${id};`;
   }
 
   return NextResponse.json({ ok: true });

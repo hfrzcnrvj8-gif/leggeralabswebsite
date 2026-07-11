@@ -182,8 +182,18 @@ export function InvoiceEditor({
     if (res.ok) {
       toast("Faktura usunięta.");
       onDeleted?.(id);
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(data.error ?? "Nie udało się usunąć.", "error");
     }
   }, [invoice, id, confirm, toast, onDeleted]);
+
+  const cancelInvoice = useCallback(async () => {
+    if (!invoice) return;
+    const ok = await confirm(`Anulować fakturę ${invoice.numer ?? ""}? Numer zostanie zachowany.`, { danger: true });
+    if (!ok) return;
+    await patchInvoice({ status: "Anulowana" });
+  }, [invoice, confirm, patchInvoice]);
 
   const lookupNip = useCallback(async () => {
     if (!invoice?.klient_nip) {
@@ -849,9 +859,17 @@ export function InvoiceEditor({
             Duplikuj fakturę
           </button>
 
-          <button onClick={remove} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
-            Usuń fakturę
-          </button>
+          {isDraft ? (
+            <button onClick={remove} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
+              Usuń fakturę
+            </button>
+          ) : (
+            invoice.status !== "Anulowana" && (
+              <button onClick={cancelInvoice} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
+                Anuluj fakturę
+              </button>
+            )
+          )}
         </div>
       </div>
     </div>

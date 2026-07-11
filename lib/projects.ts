@@ -2,6 +2,8 @@
 // re-używana zarówno przez UI, jak i serwerowe route'y (agregacja
 // dashboardu, dzienny raport mailowy). Wzorowane 1:1 na lib/leads.ts.
 
+import { todayLocalISO } from "./dates";
+
 export type Project = {
   id: string;
   tytul: string;
@@ -219,8 +221,7 @@ const CLOSED_PROJECT_STATUSES = new Set(["Wdrożone"]);
 export function isProjectOverdue(p: Project): boolean {
   if (CLOSED_PROJECT_STATUSES.has(p.status)) return false;
   if (!p.termin) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return p.termin <= today;
+  return p.termin <= todayLocalISO();
 }
 
 /** Liczba dni od dziś do daty (dodatnia = przyszłość, 0 = dziś, ujemna =

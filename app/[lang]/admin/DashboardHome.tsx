@@ -10,6 +10,7 @@ import type { Note } from "@/lib/notes";
 import { overdueReason } from "@/lib/leads";
 import { type Invoice, formatMoney } from "@/lib/invoices";
 import type { Offer } from "@/lib/offers";
+import { todayLocalISO } from "@/lib/dates";
 import { useUI } from "./ui";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
@@ -67,7 +68,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     const res = await fetch(`/api/leads/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "Przypomnienie wysłane", ostatni_kontakt: new Date().toISOString().slice(0, 10) }),
+      body: JSON.stringify({ status: "Przypomnienie wysłane", ostatni_kontakt: todayLocalISO() }),
     });
     if (!res.ok) {
       toast("Nie udało się zapisać zmiany.", "error");

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HubEvent } from "@/lib/events";
 import type { Lead } from "@/lib/leads";
 import type { Project } from "@/lib/projects";
+import { todayLocalISO as todayISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 
 const WEEKDAYS = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nie"];
@@ -11,10 +12,6 @@ const MONTH_NAMES = [
   "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
   "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
 ];
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /** Liczba dni w miesiącu + offset dnia tygodnia (poniedziałek = 0), żeby
  * ułożyć siatkę kalendarza bez zewnętrznej biblioteki. */

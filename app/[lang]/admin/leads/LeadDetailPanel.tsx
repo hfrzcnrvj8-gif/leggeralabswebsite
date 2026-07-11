@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { type Lead, type Activity, EditableText, EditableTextarea, StatusTag } from "./shared";
 import { useUI } from "../ui";
+import { DateField } from "../DatePicker";
+import { todayLocalISO } from "@/lib/dates";
 
 /**
  * Rdzeń widoku szczegółów leada — pola, log aktywności. Używany zarówno
@@ -92,7 +94,7 @@ export function LeadDetailPanel({
       body: JSON.stringify({
         text: noteText.trim(),
         next_followup: noteFollowup || null,
-        ...(markContacted ? { ostatni_kontakt: new Date().toISOString().slice(0, 10) } : {}),
+        ...(markContacted ? { ostatni_kontakt: todayLocalISO() } : {}),
       }),
     });
     setSaving(false);
@@ -185,20 +187,10 @@ export function LeadDetailPanel({
             <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
           </Field>
           <Field label="Ostatni kontakt">
-            <input
-              type="date"
-              value={lead.ostatni_kontakt ?? ""}
-              onChange={(e) => updateLead("ostatni_kontakt", e.target.value)}
-              className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
-            />
+            <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
           </Field>
           <Field label="Przypomnij mi">
-            <input
-              type="date"
-              value={lead.next_followup ?? ""}
-              onChange={(e) => updateLead("next_followup", e.target.value)}
-              className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)]"
-            />
+            <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
           </Field>
         </div>
 
@@ -236,12 +228,7 @@ export function LeadDetailPanel({
             </label>
             <label className="flex items-center gap-2 text-xs text-muted">
               Przypomnij mi:
-              <input
-                type="date"
-                value={noteFollowup}
-                onChange={(e) => setNoteFollowup(e.target.value)}
-                className="rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)]"
-              />
+              <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
             </label>
             <button
               type="submit"

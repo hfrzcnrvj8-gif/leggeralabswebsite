@@ -5,6 +5,7 @@
 // pojawia się dopiero na fakturze po akceptacji.
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
+import { todayLocalISO } from "./dates";
 
 /** Język wydruku oferty — jak w fakturach (lib/invoices.ts), niezależny od
  * języka panelu. Typ i lista dzielone przez lib/documents.ts. */
@@ -76,8 +77,7 @@ const CLOSED_OFFER_STATUSES = new Set<string>(["Zaakceptowana", "Odrzucona", "Wy
 export function isOfferExpired(offer: Pick<Offer, "status" | "wazna_do">): boolean {
   if (CLOSED_OFFER_STATUSES.has(offer.status)) return false;
   if (!offer.wazna_do) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return offer.wazna_do < today;
+  return offer.wazna_do < todayLocalISO();
 }
 
 /** Adres klienta jako linie do wydruku (patrz lib/documents.ts). */

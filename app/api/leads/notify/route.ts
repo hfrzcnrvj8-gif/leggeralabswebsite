@@ -7,6 +7,7 @@ import type { HubEvent } from "@/lib/events";
 import { isInvoiceOverdue, formatMoney, addDaysISO, type Invoice } from "@/lib/invoices";
 import { sendEmail } from "@/lib/email";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
+import { todayLocalISO } from "@/lib/dates";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -135,7 +136,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   await ensureLeadsSchema();
   await ensureHubSchema();
   const sql = getSql();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalISO();
 
   const [leads, projects, todayEvents, invoiceReminders, recurring] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
@@ -210,17 +211,22 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
 
 /**
  * GET /api/leads/notify — wywoływane raz dziennie przez Vercel Cron (patrz
- * vercel.json). Jeśli ustawiono CRON_SECRET, żąda nagłówka
- * `Authorization: Bearer <CRON_SECRET>`, który Vercel dołącza automatycznie
- * do wywołań crona — chroni endpoint przed przypadkowym/obcym wywołaniem.
+ * vercel.json). Wymaga nagłówka `Authorization: Bearer <CRON_SECRET>`, który
+ * Vercel dołącza automatycznie do wywołań crona — chroni endpoint przed
+ * przypadkowym/obcym wywołaniem. Fail-closed: jeśli CRON_SECRET nie jest
+ * ustawiony w env, endpoint jest zablokowany, a nie cicho publiczny —
+ * inaczej ktokolwiek znający URL mógłby wielokrotnie wywoływać dzienny
+ * raport i generowanie faktur cyklicznych.
  */
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = req.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
+  if (!cronSecret) {
+    console.error("[GET /api/leads/notify] CRON_SECRET nie jest ustawiony w env — endpoint zablokowany.");
+    return NextResponse.json({ error: "CRON_SECRET nie jest skonfigurowany w env Vercela." }, { status: 500 });
+  }
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
     const result = await buildAndSendDigest();

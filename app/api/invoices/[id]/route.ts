@@ -111,12 +111,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-/** DELETE /api/invoices/:id — usuwa fakturę (kaskadowo pozycje). */
+/** DELETE /api/invoices/:id — usuwa fakturę (kaskadowo pozycje). Wystawionej
+ * faktury (ma nadany `numer`) NIE wolno fizycznie usunąć — zostawiłoby to
+ * dziurę w numeracji, niezgodną z wymogiem jej ciągłości (art. 106e ustawy o
+ * VAT). Zamiast tego trzeba ustawić status "Anulowana". Tylko szkice (bez
+ * numeru) można kasować bez ograniczeń. */
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   await ensureInvoicesSchema();
   const sql = getSql();
+  const rows = await sql`SELECT numer FROM invoices WHERE id = ${id};`;
+  const invoice = rows[0];
+  if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (invoice.numer) {
+    return NextResponse.json(
+      { error: "Nie można usunąć wystawionej faktury (zostawiłoby to dziurę w numeracji) — ustaw status na „Anulowana”." },
+      { status: 400 }
+    );
+  }
   await sql`DELETE FROM invoices WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }

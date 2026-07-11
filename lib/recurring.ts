@@ -4,6 +4,7 @@
 // szkic, to tylko oszczędza przepisywanie tych samych pozycji co miesiąc.
 
 import type { InvoiceLang } from "./invoices";
+import { todayLocalISO } from "./dates";
 
 export const RECURRING_CYCLES = ["miesiecznie", "kwartalnie", "rocznie"] as const;
 export type RecurringCycle = (typeof RECURRING_CYCLES)[number];
@@ -57,9 +58,5 @@ export function nextRunAfter(fromIso: string, cykl: RecurringCycle): string {
 }
 
 export function todayISO(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return todayLocalISO();
 }

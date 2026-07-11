@@ -106,24 +106,29 @@ export function OfferEditor({
   );
 
   const accept = useCallback(
-    async (template?: string) => {
+    async (template?: string, confirmExpired?: boolean) => {
       setAccepting(true);
       const res = await fetch(`/api/offers/${id}/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(template ? { template } : {}),
+        body: JSON.stringify({ ...(template ? { template } : {}), ...(confirmExpired ? { confirmExpired: true } : {}) }),
       });
       setAccepting(false);
       if (res.ok) {
         toast("Zaakceptowano — utworzono projekt i fakturę.");
         await load();
         onChange?.();
-      } else {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        toast(data.error ?? "Nie udało się zaakceptować oferty.", "error");
+        return;
       }
+      const data = (await res.json().catch(() => ({}))) as { error?: string; expired?: boolean };
+      if (res.status === 409 && data.expired) {
+        const ok = await confirm("Ta oferta jest przeterminowana (minęła data ważności). Zaakceptować mimo to?", { danger: true });
+        if (ok) await accept(template, true);
+        return;
+      }
+      toast(data.error ?? "Nie udało się zaakceptować oferty.", "error");
     },
-    [id, load, onChange, toast]
+    [id, load, onChange, toast, confirm]
   );
 
   const remove = useCallback(async () => {

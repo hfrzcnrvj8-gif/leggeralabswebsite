@@ -12,6 +12,7 @@ import {
   EditableTextarea,
   StatusTag,
 } from "./shared";
+import { DateField } from "../DatePicker";
 
 export function TableView({
   leads,
@@ -143,12 +144,7 @@ export function TableView({
                     <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
                   </td>
                   <td className="p-2">
-                    <input
-                      type="date"
-                      value={lead.ostatni_kontakt ?? ""}
-                      onChange={(e) => onUpdate(lead.id, "ostatni_kontakt", e.target.value)}
-                      className="rounded-lg border border-transparent bg-transparent text-xs text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
-                    />
+                    <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => onUpdate(lead.id, "ostatni_kontakt", v)} placeholder="—" />
                   </td>
                   <td className="p-2">
                     {d === null ? (
