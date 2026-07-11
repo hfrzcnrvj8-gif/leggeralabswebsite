@@ -47,8 +47,19 @@ function toLocalISO(d: Date): string {
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
-function fmtMonth(d: Date): string {
-  return d.toLocaleDateString("pl-PL", { month: "short", year: "numeric" });
+/** Skrót miesiąca wielkimi literami, BEZ roku — jak w Linear (CZE, LIP, SIE…).
+ * Rok dopisujemy tylko przy styczniu (granica roku) i na pierwszym miesiącu osi,
+ * żeby było wiadomo, o który rok chodzi, bez zaśmiecania każdej etykiety. */
+function fmtMonth(d: Date, showYear: boolean): string {
+  const abbr = d.toLocaleDateString("pl-PL", { month: "short" }).replace(".", "").toUpperCase();
+  return showYear || d.getMonth() === 0 ? `${abbr} ${d.getFullYear()}` : abbr;
+}
+
+/** Kolor paska = kolor projektu (hex z pickera). Zwraca style tła/obrysu z
+ * dodanym kanałem alfa (8-cyfrowy hex). Diament = pełny kolor. */
+function barColorStyle(kolor: string | null | undefined): { fill: string; border: string; accent: string } {
+  const c = kolor && /^#([0-9a-fA-F]{6})$/.test(kolor) ? kolor : "#4ea7fc";
+  return { fill: `${c}33`, border: `${c}b3`, accent: c };
 }
 
 function PrioritySignal({ priorytet }: { priorytet: string }) {
@@ -68,12 +79,6 @@ function PrioritySignal({ priorytet }: { priorytet: string }) {
       ))}
     </span>
   );
-}
-
-function healthColors(zdrowie: string): { solid: string; trail: string; diamond: string } {
-  if (zdrowie === "Zerwany") return { solid: "bg-red-500/30 border-red-500/70", trail: "border-red-500/50", diamond: "border-red-300" };
-  if (zdrowie === "Zagrożony") return { solid: "bg-orange-500/30 border-orange-500/70", trail: "border-orange-500/50", diamond: "border-orange-300" };
-  return { solid: "bg-[#4ea7fc]/30 border-[#4ea7fc]/70", trail: "border-[#4ea7fc]/50", diamond: "border-[#9ecbfb]" };
 }
 
 type DragState = {
@@ -313,22 +318,23 @@ export function ProjectTimeline({
 
       <div className={`card-paper overflow-x-auto rounded-2xl ${drag ? "select-none" : ""}`} ref={scrollRef}>
         <div className="relative" style={{ minWidth: `${chartPxWidth}px` }}>
-          {/* Nagłówek: miesiące + numerki tygodni */}
+          {/* Nagłówek osi — jak w Linear: wielkie skróty miesięcy (bez roku),
+              pod spodem numerki początków tygodni; wszystko wyszarzone i lekkie. */}
           <div className="sticky top-0 z-30 border-b hairline bg-[var(--bg-soft)]" style={{ height: HEADER_H }}>
-            <div className="flex" style={{ height: 28 }}>
+            <div className="relative" style={{ height: 26 }}>
               {months.map((m, i) => (
                 <div
                   key={i}
-                  className={`shrink-0 px-2 py-1.5 text-[11px] font-semibold capitalize text-[var(--fg)] ${i > 0 ? "border-l hairline" : ""}`}
-                  style={{ width: `${(1 / months.length) * 100}%` }}
+                  className="absolute top-0 whitespace-nowrap px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted"
+                  style={{ left: `${pctOf(m)}%` }}
                 >
-                  {fmtMonth(m)}
+                  {fmtMonth(m, i === 0)}
                 </div>
               ))}
             </div>
-            <div className="relative" style={{ height: 16 }}>
+            <div className="relative" style={{ height: 18 }}>
               {weekTicks.map((w, i) => (
-                <span key={i} className="absolute top-0 -translate-x-1/2 text-[9px] text-muted opacity-60" style={{ left: `${w.leftPct}%` }}>
+                <span key={i} className="absolute top-0 -translate-x-1/2 text-[9.5px] tabular-nums text-muted opacity-55" style={{ left: `${w.leftPct}%` }}>
                   {w.date.getDate()}
                 </span>
               ))}
@@ -337,10 +343,14 @@ export function ProjectTimeline({
 
           {/* Ciało */}
           <div className="relative" ref={gridRef}>
-            {/* linie siatki miesięcy */}
+            {/* Kropkowane pionowe linie tygodni (subtelna siatka jak w Linear) */}
             <div className="pointer-events-none absolute inset-0 z-0">
-              {monthLines.map((pct, i) => (
-                <div key={i} className="absolute inset-y-0 w-px bg-[var(--hairline)]" style={{ left: `${pct}%` }} />
+              {weekTicks.map((w, i) => (
+                <div
+                  key={i}
+                  className={`absolute inset-y-0 border-l border-dashed border-[var(--hairline)] ${monthLines.includes(w.leftPct) ? "opacity-90" : "opacity-45"}`}
+                  style={{ left: `${w.leftPct}%` }}
+                />
               ))}
             </div>
 
@@ -348,7 +358,12 @@ export function ProjectTimeline({
               const milestonesWithDates = p.milestones
                 .map((m) => ({ id: m.id, nazwa: m.nazwa, date: parseDate(m.termin) }))
                 .filter((m): m is { id: string; nazwa: string; date: Date } => m.date !== null);
-              const { solid, trail, diamond } = healthColors(p.zdrowie);
+              // Kolor paska = kolor projektu (picker). Prognoza czerwienieje, gdy
+              // projekt jest po terminie i nie jest jeszcze Wdrożony (sygnał jak w Linear).
+              const { fill, border, accent } = barColorStyle(p.kolor);
+              const tDate = parseDate(p.termin);
+              const overdue = !estimated && p.status !== "Wdrożone" && !!tDate && tDate < today;
+              const trailBorder = overdue ? "#ef4444" : accent;
 
               const dg = drag && drag.projectId === p.id ? drag : null;
               let dispStart = start;
@@ -395,10 +410,10 @@ export function ProjectTimeline({
 
                   {/* PASEK (solidna część) — ciało przeciąga, krawędzie zmieniają start/termin */}
                   <div
-                    className={`absolute rounded-md border ${solid} ${estimated ? "border-dashed opacity-80" : ""} ${
+                    className={`absolute rounded-md border ${estimated ? "border-dashed opacity-80" : ""} ${
                       dg ? "ring-1 ring-[#4ea7fc]/60" : ""
                     }`}
-                    style={{ left: `${startPct}%`, width: `${Math.max((hasTrail ? solidEndPct : endPct) - startPct, 0.4)}%`, top: BAR_TOP, height: BAR_H, minWidth: 10 }}
+                    style={{ left: `${startPct}%`, width: `${Math.max((hasTrail ? solidEndPct : endPct) - startPct, 0.4)}%`, top: BAR_TOP, height: BAR_H, minWidth: 10, backgroundColor: fill, borderColor: border }}
                     title={
                       estimated
                         ? `${p.tytul} · daty orientacyjne — przeciągnij, aby ustawić`
@@ -413,8 +428,8 @@ export function ProjectTimeline({
                   {/* PROGNOZA (po ostatnim kamieniu do terminu) — jaśniejsza, kreskowana */}
                   {hasTrail && (
                     <div
-                      className={`absolute rounded-r-md border border-l-0 border-dashed ${trail} bg-white/[0.03]`}
-                      style={{ left: `${solidEndPct}%`, width: `${Math.max(endPct - solidEndPct, 0.4)}%`, top: BAR_TOP, height: BAR_H }}
+                      className="absolute rounded-r-md border border-l-0 border-dashed bg-white/[0.03]"
+                      style={{ left: `${solidEndPct}%`, width: `${Math.max(endPct - solidEndPct, 0.4)}%`, top: BAR_TOP, height: BAR_H, borderColor: `${trailBorder}80` }}
                       title={`${p.tytul} · prognoza do ${formatPlDate(toLocalISO(dispEnd))}`}
                     >
                       <div onPointerDown={(e) => beginDrag(e, "end", p.id, start, end)} className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize rounded-r-md hover:bg-white/25" title="Zmień termin" />
@@ -433,7 +448,7 @@ export function ProjectTimeline({
                           style={{ left: `${mp}%`, top: BAR_TOP + BAR_H / 2 - 10 }}
                           title={`${m.nazwa} — ${formatPlDate(toLocalISO(mDate))} (przeciągnij)`}
                         >
-                          <div className={`h-3 w-3 rotate-45 border-2 bg-[var(--bg-soft)] ${diamond}`} />
+                          <div className="h-3 w-3 rotate-45 border-2 bg-[var(--bg-soft)]" style={{ borderColor: accent }} />
                         </div>
                         {zoom !== "quarter" && (
                           <span
