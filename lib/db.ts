@@ -233,3 +233,71 @@ export async function ensureHubSchema(): Promise<void> {
   if (!hubSchemaReady) hubSchemaReady = createHubSchema();
   await hubSchemaReady;
 }
+
+let invoicesSchemaReady: Promise<void> | null = null;
+
+async function createInvoicesSchema(): Promise<void> {
+  const sql = getSql();
+  // Faktura odwołuje się do leadów/projektów (FK) — upewnij się, że istnieją.
+  await ensureLeadsSchema();
+  await ensureHubSchema();
+
+  // Dane sprzedawcy + tryb VAT — pojedynczy wiersz (singleton, id='default').
+  await sql`
+    CREATE TABLE IF NOT EXISTS company_settings (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      nazwa TEXT NOT NULL DEFAULT '',
+      nip TEXT NOT NULL DEFAULT '',
+      adres TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      telefon TEXT NOT NULL DEFAULT '',
+      konto TEXT NOT NULL DEFAULT '',
+      vat_payer BOOLEAN NOT NULL DEFAULT true,
+      zwolnienie_podstawa TEXT NOT NULL DEFAULT '',
+      domyslny_termin_dni INTEGER NOT NULL DEFAULT 14,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`INSERT INTO company_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoices (
+      id TEXT PRIMARY KEY,
+      numer TEXT,
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      klient_nazwa TEXT NOT NULL DEFAULT '',
+      klient_nip TEXT NOT NULL DEFAULT '',
+      klient_adres TEXT NOT NULL DEFAULT '',
+      data_wystawienia DATE,
+      data_sprzedazy DATE,
+      termin_platnosci DATE,
+      status TEXT NOT NULL DEFAULT 'Szkic',
+      waluta TEXT NOT NULL DEFAULT 'PLN',
+      uwagi TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS invoices_status_idx ON invoices(status);`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoice_items (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      nazwa TEXT NOT NULL DEFAULT '',
+      ilosc NUMERIC NOT NULL DEFAULT 1,
+      jednostka TEXT NOT NULL DEFAULT 'szt.',
+      cena_netto NUMERIC NOT NULL DEFAULT 0,
+      vat_stawka TEXT NOT NULL DEFAULT '23',
+      position INTEGER NOT NULL DEFAULT 0
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS invoice_items_invoice_id_idx ON invoice_items(invoice_id);`;
+}
+
+/** Lazily tworzy tabele modułu Faktur (ustawienia firmy, faktury, pozycje). */
+export async function ensureInvoicesSchema(): Promise<void> {
+  if (!invoicesSchemaReady) invoicesSchemaReady = createInvoicesSchema();
+  await invoicesSchemaReady;
+}
