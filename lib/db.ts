@@ -572,6 +572,48 @@ export async function logClientEvent(
   `;
 }
 
+let costsSchemaReady: Promise<void> | null = null;
+
+/** Moduł Koszty (Faza G) — ewidencja faktur PRZYCHODZĄCYCH od dostawców, w
+ * odróżnieniu od `invoices` (wyłącznie WYCHODZĄCE, sprzedażowe). Opcjonalny
+ * `project_id` pozwala liczyć prostą rentowność projektu (przychód z
+ * faktur projektu − koszty projektu) — patrz GET /api/projects/[id]. Świadomie
+ * tylko PLN w v1 i bez uploadu załączników (skan faktury od dostawcy to nowa
+ * zdolność panelu, odłożona na później — patrz memory koszty-module-candidate). */
+async function createCostsSchema(): Promise<void> {
+  // Koszt może być podpięty do projektu (FK) — upewnij się, że istnieje.
+  await ensureHubSchema();
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS costs (
+      id TEXT PRIMARY KEY,
+      dostawca_nazwa TEXT NOT NULL DEFAULT '',
+      dostawca_nip TEXT NOT NULL DEFAULT '',
+      kategoria TEXT NOT NULL DEFAULT 'Inne',
+      opis TEXT NOT NULL DEFAULT '',
+      data_wydatku DATE NOT NULL DEFAULT CURRENT_DATE,
+      kwota_netto NUMERIC NOT NULL DEFAULT 0,
+      vat_stawka TEXT NOT NULL DEFAULT '23',
+      kwota_brutto NUMERIC NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'Nieopłacony',
+      data_platnosci DATE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS costs_status_idx ON costs(status);`;
+  await sql`CREATE INDEX IF NOT EXISTS costs_project_id_idx ON costs(project_id);`;
+}
+
+/** Lazily tworzy tabelę modułu Koszty. */
+export async function ensureCostsSchema(): Promise<void> {
+  if (!costsSchemaReady) costsSchemaReady = createCostsSchema();
+  await costsSchemaReady;
+}
+
 /** Zwraca `share_token` faktury, generując go w locie (randomUUID), jeśli
  * jeszcze go nie ma — dotyczy faktur utworzonych przed wprowadzeniem
  * publicznego podglądu/wysyłki mailem. */

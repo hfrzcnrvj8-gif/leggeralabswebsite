@@ -13,6 +13,7 @@ import {
   IconUsers,
   IconFileText,
   IconReceipt,
+  IconReportMoney,
   IconSearch,
   IconChevronLeft,
   IconChevronRight,
@@ -39,6 +40,7 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/clients", label: "Klienci", icon: IconUsers },
   { href: "/offers", label: "Oferty", icon: IconFileText },
   { href: "/invoices", label: "Faktury", icon: IconReceipt },
+  { href: "/costs", label: "Koszty", icon: IconReportMoney },
 ];
 
 // Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
@@ -52,6 +54,7 @@ const GO_CHORDS: Record<string, string> = {
   k: "/clients",
   o: "/offers",
   f: "/invoices",
+  w: "/costs",
 };
 
 /** Wspólna rama dla całego panelu /admin — lewy sidebar (styl Linear),

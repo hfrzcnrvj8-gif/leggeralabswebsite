@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureHubSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString, formatPlDate } from "@/lib/projects";
 
@@ -37,7 +37,48 @@ export async function GET(
   `;
   const dependencies = await sql`SELECT depends_on_id FROM project_dependencies WHERE project_id = ${id};`;
 
-  return NextResponse.json({ project, tasks, activity, milestones, resources, dependencies });
+  // Rentowność projektu: przychód netto z faktur projektu (wg tych samych
+  // wykluczeń co licznik KSeF w InvoicesDashboard: bez proform/szkiców/
+  // anulowanych, tylko PLN) minus koszty netto podpięte do projektu.
+  // Świadomie tylko PLN w v1 — faktury w innych walutach są pomijane, o czym
+  // informuje `ma_inne_waluty`.
+  await ensureInvoicesSchema();
+  await ensureCostsSchema();
+  const [revenueRow] = await sql`
+    SELECT COALESCE(SUM(t.netto), 0)::float8 AS netto
+    FROM invoices i
+    JOIN (
+      SELECT invoice_id, SUM(ilosc * cena_netto) AS netto
+      FROM invoice_items GROUP BY invoice_id
+    ) t ON t.invoice_id = i.id
+    WHERE i.project_id = ${id}
+      AND i.typ_dokumentu != 'proforma'
+      AND i.status != 'Szkic'
+      AND i.status != 'Anulowana'
+      AND i.waluta = 'PLN';
+  `;
+  const [nonPlnRow] = await sql`
+    SELECT COUNT(*)::int AS n
+    FROM invoices
+    WHERE project_id = ${id}
+      AND typ_dokumentu != 'proforma'
+      AND status != 'Szkic'
+      AND status != 'Anulowana'
+      AND waluta != 'PLN';
+  `;
+  const [costsRow] = await sql`
+    SELECT COALESCE(SUM(kwota_netto), 0)::float8 AS netto FROM costs WHERE project_id = ${id};
+  `;
+  const przychodNetto = Number(revenueRow?.netto ?? 0);
+  const kosztyNetto = Number(costsRow?.netto ?? 0);
+  const rentownosc = {
+    przychod_netto: przychodNetto,
+    koszty_netto: kosztyNetto,
+    zysk_netto: przychodNetto - kosztyNetto,
+    ma_inne_waluty: Number(nonPlnRow?.n ?? 0) > 0,
+  };
+
+  return NextResponse.json({ project, tasks, activity, milestones, resources, dependencies, rentownosc });
 }
 
 /** PATCH /api/projects/:id — update one or more fields. Admin-only. */

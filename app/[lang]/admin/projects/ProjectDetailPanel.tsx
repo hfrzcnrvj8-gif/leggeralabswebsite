@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical } from "@tabler/icons-react";
 import {
   type Project,
@@ -20,6 +21,7 @@ import { DateField } from "../DatePicker";
 import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
 import { useUI } from "../ui";
 import type { Lead } from "@/lib/leads";
+import { formatMoney } from "@/lib/invoices";
 
 /** Rdzeń widoku szczegółów projektu, w stylu Linear: treść + kamienie
  * milowe + log aktywności po lewej, metadane (zdrowie/status/terminy/
@@ -37,6 +39,8 @@ export function ProjectDetailPanel({
   onFieldChange?: (id: string, field: string, value: string) => void;
 }) {
   const { confirm, toast, prompt } = useUI();
+  const pathname = usePathname();
+  const langPrefix = pathname?.split("/")[1] ?? "pl";
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [activity, setActivity] = useState<ProjectActivity[]>([]);
@@ -52,6 +56,7 @@ export function ProjectDetailPanel({
   const [newResourceUrl, setNewResourceUrl] = useState("");
   const [dependencies, setDependencies] = useState<string[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
+  const [rentownosc, setRentownosc] = useState<{ przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean } | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`);
@@ -70,6 +75,7 @@ export function ProjectDetailPanel({
       milestones: ProjectMilestone[];
       resources: ProjectResource[];
       dependencies?: { depends_on_id: string }[];
+      rentownosc?: { przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean };
     };
     setProject(data.project);
     setTasks(data.tasks);
@@ -77,6 +83,7 @@ export function ProjectDetailPanel({
     setMilestones(data.milestones);
     setResources(data.resources);
     setDependencies((data.dependencies ?? []).map((d) => d.depends_on_id));
+    setRentownosc(data.rentownosc ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -396,6 +403,36 @@ export function ProjectDetailPanel({
               </div>
             )}
           </div>
+
+          {rentownosc && (rentownosc.przychod_netto > 0 || rentownosc.koszty_netto > 0) && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-[14px] font-medium">Rentowność</h2>
+                <a href={`/${langPrefix}/admin/costs?project=${id}`} className="text-xs text-muted hover:text-[var(--fg)]">
+                  Zobacz koszty projektu →
+                </a>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[11px] text-muted">Przychód netto</div>
+                  <div className="mt-0.5 text-[15px] font-semibold text-[var(--fg)]">{formatMoney(rentownosc.przychod_netto)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted">Koszty netto</div>
+                  <div className="mt-0.5 text-[15px] font-semibold text-[var(--fg)]">{formatMoney(rentownosc.koszty_netto)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted">Zysk netto</div>
+                  <div className={`mt-0.5 text-[15px] font-semibold ${rentownosc.zysk_netto >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {formatMoney(rentownosc.zysk_netto)}
+                  </div>
+                </div>
+              </div>
+              {rentownosc.ma_inne_waluty && (
+                <div className="mt-2 text-[11px] text-muted">Pominięto faktury w walucie innej niż PLN.</div>
+              )}
+            </div>
+          )}
 
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-3 flex items-center justify-between">
