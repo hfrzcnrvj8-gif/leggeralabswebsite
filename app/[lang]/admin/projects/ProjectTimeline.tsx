@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "@/i18n/config";
 import { ProjectIcon, formatPlDate } from "./shared";
+import { statusIconEl } from "./ProjectKanban";
 
 type TimelineMilestone = { id: string; nazwa: string; termin: string | null };
 type TimelineProject = {
@@ -20,11 +21,11 @@ type TimelineProject = {
 };
 
 const DAY_MS = 86400000;
-const ROW_H = 80; // wysokość wiersza: nazwa nad paskiem + pasek + etykiety kamieni pod
+const ROW_H = 92; // wysokość wiersza: nazwa nad paskiem + pasek + etykiety kamieni pod
 const HEADER_H = 44;
-const BAR_TOP = 28; // odległość paska od góry wiersza
-const BAR_H = 22;
-const LABEL_Y = 54; // pozycja etykiet kamieni (pod paskiem)
+const BAR_TOP = 34; // odległość paska od góry wiersza
+const BAR_H = 24;
+const LABEL_Y = 66; // pozycja etykiet kamieni (pod paskiem)
 
 type Zoom = "quarter" | "month" | "week";
 const MONTH_PX_BY_ZOOM: Record<Zoom, number> = { quarter: 80, month: 150, week: 300 };
@@ -120,6 +121,19 @@ export function ProjectTimeline({
   const movedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollInfoRef = useRef({ todayPct: 0, chartPxWidth: 0, hasToday: false });
+  const [containerW, setContainerW] = useState(0);
+
+  // Mierzymy szerokość obszaru osi — gdy naturalna szerokość (miesiące×px) jest
+  // mniejsza, rozciągamy wykres do pełnej szerokości karty (koniec pustego miejsca).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setContainerW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -286,7 +300,8 @@ export function ProjectTimeline({
   const today = new Date();
   const todayPct = today >= rangeStart && today <= rangeEnd ? (daysBetween(rangeStart, today) / totalDays) * 100 : null;
   const pctOf = (d: Date) => Math.max(0, Math.min((daysBetween(rangeStart, d) / totalDays) * 100, 100));
-  const chartPxWidth = Math.max(months.length * MONTH_PX_BY_ZOOM[zoom], 480);
+  // Rozciągnij wykres do pełnej szerokości karty, gdy naturalna szerokość jest mniejsza.
+  const chartPxWidth = Math.max(months.length * MONTH_PX_BY_ZOOM[zoom], containerW || 480);
   scrollInfoRef.current = { todayPct: todayPct ?? 0, chartPxWidth, hasToday: todayPct !== null };
 
   const weekTicks: { date: Date; leftPct: number }[] = [];
@@ -437,6 +452,8 @@ export function ProjectTimeline({
                   >
                     <ProjectIcon kolor={p.kolor} ikona={p.ikona} size={16} />
                     <span className="font-medium text-[var(--fg)]">{p.tytul}</span>
+                    {/* Ikona statusu — zmienia się przy zmianie statusu (Pomysł/W trakcie/…) */}
+                    <span className="shrink-0" title={`Status: ${p.status}`}>{statusIconEl(p.status, 14)}</span>
                     <PrioritySignal priorytet={p.priorytet} />
                   </button>
 
