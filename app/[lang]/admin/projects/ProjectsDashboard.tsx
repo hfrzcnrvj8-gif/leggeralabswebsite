@@ -2,16 +2,31 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconFilter, IconAdjustmentsHorizontal } from "@tabler/icons-react";
+import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, isProjectOverdue, formatPlDate } from "./shared";
+import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
 import { SavedViews } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectTimeline } from "./ProjectTimeline";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
+import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
 
 type ViewMode = "kanban" | "timeline";
+type SortBy = "reczna" | "nazwa" | "termin" | "priorytet";
+
+const PRIORITY_RANK: Record<string, number> = { "Krytyczny": 0, "Wysoki": 1, "Normalny": 2, "Niski": 3 };
+const HEALTH_COLOR: Record<string, string> = {
+  "Na dobrej drodze": "text-[#3fb987]",
+  "Zagrożony": "text-[#e2a336]",
+  "Zerwany": "text-[#e5484d]",
+};
+const SORT_LABEL: Record<SortBy, string> = {
+  reczna: "Domyślnie",
+  nazwa: "Nazwa (A→Z)",
+  termin: "Termin",
+  priorytet: "Priorytet",
+};
 
 function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -25,6 +40,8 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
+  const [filterHealth, setFilterHealth] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("reczna");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -126,15 +143,27 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
     let list = projects ?? [];
     if (filterStatus) list = list.filter((p) => p.status === filterStatus);
     if (filterPriority) list = list.filter((p) => p.priorytet === filterPriority);
+    if (filterHealth) list = list.filter((p) => p.zdrowie === filterHealth);
     if (search) list = list.filter((p) => p.tytul.toLowerCase().includes(search.toLowerCase()));
+    if (sortBy !== "reczna") {
+      list = [...list].sort((a, b) => {
+        if (sortBy === "nazwa") return a.tytul.localeCompare(b.tytul, "pl");
+        if (sortBy === "termin") return (a.termin ?? "9999").localeCompare(b.termin ?? "9999");
+        if (sortBy === "priorytet")
+          return (PRIORITY_RANK[a.priorytet] ?? 9) - (PRIORITY_RANK[b.priorytet] ?? 9);
+        return 0;
+      });
+    }
     return list;
-  }, [projects, filterStatus, filterPriority, search]);
+  }, [projects, filterStatus, filterPriority, filterHealth, search, sortBy]);
+
+  const activeFilterCount = [filterStatus, filterPriority, filterHealth].filter(Boolean).length;
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   useEffect(() => {
     clearSelection();
-  }, [filterStatus, filterPriority, search, view, clearSelection]);
+  }, [filterStatus, filterPriority, filterHealth, search, view, clearSelection]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -238,34 +267,85 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           placeholder="Szukaj…"
           className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
         />
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-md bg-transparent px-1.5 py-1 text-[12.5px] text-muted"
-          title="Filtruj po statusie"
+        {/* Filtry — jedno menu (Linear), realnie filtruje po statusie/priorytecie/zdrowiu */}
+        <Popover
+          align="right"
+          width={230}
+          trigger={(open, isOpen) => (
+            <button
+              onClick={open}
+              title="Filtry"
+              className={`flex h-6 items-center gap-1 rounded-md px-1.5 text-[12.5px] ${
+                activeFilterCount > 0 || isOpen ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+              }`}
+            >
+              <IconFilter size={15} />
+              {activeFilterCount > 0 && <span className="text-[11px]">{activeFilterCount}</span>}
+            </button>
+          )}
         >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Status: wszystkie</option>
-          {PROJECT_STATUSES.map((s) => (
-            <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">{s}</option>
-          ))}
-        </select>
-        <select
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
-          className="rounded-md bg-transparent px-1.5 py-1 text-[12.5px] text-muted"
-          title="Filtruj po priorytecie"
+          {(close) => (
+            <>
+              <MenuLabel>Status</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterStatus} onClick={() => { setFilterStatus(""); }} />
+              {PROJECT_STATUSES.map((s) => (
+                <MenuRow key={s} label={s} selected={filterStatus === s} onClick={() => setFilterStatus(s)} />
+              ))}
+              <MenuDivider />
+              <MenuLabel>Priorytet</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterPriority} onClick={() => setFilterPriority("")} />
+              {PROJECT_PRIORITIES.map((p) => (
+                <MenuRow key={p} label={p} selected={filterPriority === p} onClick={() => setFilterPriority(p)} />
+              ))}
+              <MenuDivider />
+              <MenuLabel>Zdrowie</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterHealth} onClick={() => setFilterHealth("")} />
+              {PROJECT_HEALTHS.map((h) => (
+                <MenuRow
+                  key={h}
+                  label={h}
+                  selected={filterHealth === h}
+                  icon={<IconCircleFilled size={9} className={HEALTH_COLOR[h] ?? "text-muted"} />}
+                  onClick={() => setFilterHealth(h)}
+                />
+              ))}
+              {activeFilterCount > 0 && (
+                <>
+                  <MenuDivider />
+                  <MenuRow
+                    label="Wyczyść filtry"
+                    onClick={() => { setFilterStatus(""); setFilterPriority(""); setFilterHealth(""); close(); }}
+                  />
+                </>
+              )}
+            </>
+          )}
+        </Popover>
+        {/* Widok — sortowanie (realne) */}
+        <Popover
+          align="right"
+          width={210}
+          trigger={(open, isOpen) => (
+            <button
+              onClick={open}
+              title="Opcje widoku"
+              className={`flex h-6 w-6 items-center justify-center rounded-md ${
+                isOpen ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+              }`}
+            >
+              <IconAdjustmentsHorizontal size={15} />
+            </button>
+          )}
         >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Priorytet: wszystkie</option>
-          {PROJECT_PRIORITIES.map((p) => (
-            <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">{p}</option>
-          ))}
-        </select>
-        <span className="flex h-6 w-6 items-center justify-center rounded-md text-muted" title="Filtry">
-          <IconFilter size={15} />
-        </span>
-        <span className="flex h-6 w-6 items-center justify-center rounded-md text-muted" title="Opcje wyświetlania">
-          <IconAdjustmentsHorizontal size={15} />
-        </span>
+          {() => (
+            <>
+              <MenuLabel>Sortuj</MenuLabel>
+              {(Object.keys(SORT_LABEL) as SortBy[]).map((s) => (
+                <MenuRow key={s} label={SORT_LABEL[s]} selected={sortBy === s} onClick={() => setSortBy(s)} />
+              ))}
+            </>
+          )}
+        </Popover>
         <button
           onClick={addProject}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
