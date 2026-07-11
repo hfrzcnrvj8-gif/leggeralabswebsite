@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { type Client, type ClientActivity, CLIENT_STATUS_HINT, EditableText, EditableTextarea, StatusTag } from "./shared";
+import { type Client, CLIENT_STATUS_HINT, CLIENT_EVENT_ICON, EditableText, EditableTextarea, StatusTag } from "./shared";
 import { formatPlDate } from "@/lib/projects";
+import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { todayLocalISO } from "@/lib/dates";
@@ -12,6 +13,19 @@ import { todayLocalISO } from "@/lib/dates";
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
 type LinkedInvoice = { id: string; numer: string | null; status: string; typ_dokumentu: string; created_at: string };
 type LinkedProject = { id: string; tytul: string; status: string; termin: string | null; created_at: string };
+
+/** Jeden scalony chronologiczny feed z trzech źródeł (patrz
+ * app/api/clients/[id]/route.ts): ręczne notatki klienta, notatki
+ * dociągnięte z leada sprzed awansu na klienta, i zdarzenia systemowe
+ * (oferta wysłana, faktura wystawiona/opłacona itd.). */
+type FeedItem = {
+  id: string;
+  created_at: string;
+  kind: string;
+  text: string;
+  amount: number | null;
+  source: "client" | "lead" | "system";
+};
 
 /**
  * Rdzeń widoku szczegółów klienta — dane kontaktowe, status relacji,
@@ -34,7 +48,7 @@ export function ClientDetailPanel({
 }) {
   const { confirm, toast } = useUI();
   const [client, setClient] = useState<Client | null>(null);
-  const [activity, setActivity] = useState<ClientActivity[]>([]);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
   const [offers, setOffers] = useState<LinkedOffer[]>([]);
   const [invoices, setInvoices] = useState<LinkedInvoice[]>([]);
   const [projects, setProjects] = useState<LinkedProject[]>([]);
@@ -56,13 +70,13 @@ export function ClientDetailPanel({
     }
     const data = (await res.json()) as {
       client: Client;
-      activity: ClientActivity[];
+      feed: FeedItem[];
       offers: LinkedOffer[];
       invoices: LinkedInvoice[];
       projects: LinkedProject[];
     };
     setClient(data.client);
-    setActivity(data.activity);
+    setFeed(data.feed);
     setOffers(data.offers);
     setInvoices(data.invoices);
     setProjects(data.projects);
@@ -116,8 +130,6 @@ export function ClientDetailPanel({
     });
     setSaving(false);
     if (res.ok) {
-      const data = (await res.json()) as { activity: ClientActivity[] };
-      setActivity(data.activity);
       setNoteText("");
       toast("Zapisano wpis.");
       load();
@@ -134,7 +146,7 @@ export function ClientDetailPanel({
       toast("Nie udało się usunąć wpisu.", "error");
       return;
     }
-    setActivity((prev) => prev.filter((a) => a.id !== activityId));
+    setFeed((prev) => prev.filter((f) => f.id !== activityId));
   };
 
   if (notFound) {
@@ -274,7 +286,10 @@ export function ClientDetailPanel({
       )}
 
       <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
-        <h2 className="mb-4 text-lg font-semibold">Historia kontaktu</h2>
+        <h2 className="mb-1 text-lg font-semibold">Pełna historia</h2>
+        <p className="mb-4 text-[12px] text-muted opacity-70">
+          Notatki i zdarzenia systemowe (oferty, faktury, wpłaty) w jednej chronologicznej osi.
+        </p>
 
         <form onSubmit={submitNote} className="mb-6 space-y-2">
           <textarea
@@ -309,19 +324,32 @@ export function ClientDetailPanel({
           </div>
         </form>
 
-        {activity.length === 0 ? (
+        {feed.length === 0 ? (
           <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
         ) : (
           <ul className="space-y-3">
-            {activity.map((a) => (
-              <li key={a.id} className="rounded-xl border hairline p-3 text-sm">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-[11px] text-muted">{formatDate(a.created_at)}</span>
-                  <button onClick={() => deleteNote(a.id)} className="text-muted hover:text-red-400" aria-label="Usuń wpis" title="Usuń wpis">
-                    ✕
-                  </button>
+            {feed.map((f) => (
+              <li key={`${f.source}:${f.id}`} className="rounded-xl border hairline p-3 text-sm">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                    <span aria-hidden>{f.kind === "note" ? "💬" : CLIENT_EVENT_ICON[f.kind] ?? "•"}</span>
+                    {formatDate(f.created_at)}
+                    {f.source === "lead" && (
+                      <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted" title="Wpis sprzed awansu na klienta">
+                        z etapu leada
+                      </span>
+                    )}
+                  </span>
+                  {f.source === "client" && (
+                    <button onClick={() => deleteNote(f.id)} className="text-muted hover:text-red-400" aria-label="Usuń wpis" title="Usuń wpis">
+                      ✕
+                    </button>
+                  )}
                 </div>
-                <p className="whitespace-pre-wrap">{a.text}</p>
+                <p className="whitespace-pre-wrap">
+                  {f.text}
+                  {f.amount != null && <span className="font-medium"> — {formatMoney(f.amount)}</span>}
+                </p>
               </li>
             ))}
           </ul>

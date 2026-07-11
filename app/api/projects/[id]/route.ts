@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureHubSchema } from "@/lib/db";
+import { getSql, ensureHubSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString, formatPlDate } from "@/lib/projects";
 
@@ -75,9 +75,13 @@ export async function PATCH(
   if ("opis" in body) {
     await sql`UPDATE projects SET opis = ${str(body.opis)}, updated_at = now() WHERE id = ${id};`;
   }
+  let statusChangedTo: string | null = null;
   if ("status" in body) {
     const nv = str(body.status);
-    if (current && norm(current.status) !== nv) changes.push(`Status: ${norm(current.status) || "—"} → ${nv}`);
+    if (current && norm(current.status) !== nv) {
+      changes.push(`Status: ${norm(current.status) || "—"} → ${nv}`);
+      statusChangedTo = nv;
+    }
     await sql`UPDATE projects SET status = ${nv}, updated_at = now() WHERE id = ${id};`;
   }
   if ("priorytet" in body) {
@@ -134,6 +138,12 @@ export async function PATCH(
       INSERT INTO project_activity (id, project_id, text, kind)
       VALUES (${randomUUID()}, ${id}, ${text}, 'system');
     `;
+  }
+
+  if (statusChangedTo && current) {
+    const clientId = typeof current.client_id === "string" ? current.client_id : null;
+    const tytul = typeof current.tytul === "string" ? current.tytul : "Projekt";
+    await logClientEvent(sql, clientId, "project_status_changed", `Projekt „${tytul}” → ${statusChangedTo}`);
   }
 
   const activity = await sql`

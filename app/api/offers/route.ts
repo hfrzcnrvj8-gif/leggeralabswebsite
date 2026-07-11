@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
         VALUES (${clientId}, ${firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${leadId});
       `;
       await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${leadId};`;
+      await logClientEvent(sql, clientId, "client_created", "Awansował z leada przy tworzeniu pierwszej oferty");
     }
   }
 
@@ -66,5 +67,6 @@ export async function POST(req: NextRequest) {
     INSERT INTO offers (id, tytul, lead_id, klient_nazwa, client_id)
     VALUES (${id}, ${tytul}, ${leadId}, ${klientNazwa}, ${clientId});
   `;
+  await logClientEvent(sql, clientId, "offer_created", `Utworzono ofertę „${tytul || "(bez tytułu)"}”`);
   return NextResponse.json({ ok: true, id });
 }

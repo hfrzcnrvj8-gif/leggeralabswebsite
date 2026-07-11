@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, type Sql } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, logClientEvent, type Sql } from "@/lib/db";
+import { INVOICE_TYPE_LABEL, type InvoiceDocType } from "@/lib/invoices";
 import { isAuthed } from "@/lib/auth";
 import { formatInvoiceNumber } from "@/lib/invoices";
 import { fetchNbpRateBeforeDate } from "@/lib/nbp";
@@ -125,6 +126,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         throw err;
       }
     }
+    const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
+    const typLabel = INVOICE_TYPE_LABEL[(inv.typ_dokumentu as InvoiceDocType) ?? "faktura"];
+    await logClientEvent(sql, clientId, "invoice_issued", `Wystawiono: ${typLabel} nr ${numer}`);
+
     return NextResponse.json({ ok: true, numer });
   } catch (err) {
     // Nie połykaj błędu w generyczny 500 — pokaż realny powód w toaście, żeby

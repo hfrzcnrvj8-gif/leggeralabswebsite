@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -27,6 +27,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     VALUES (${clientId}, ${lead.firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${id});
   `;
   await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${id};`;
+  await logClientEvent(sql, clientId, "client_created", "Ręcznie utworzony z leada");
 
   return NextResponse.json({ ok: true, id: clientId });
 }

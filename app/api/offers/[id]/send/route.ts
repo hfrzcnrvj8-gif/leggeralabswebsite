@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, ensureOfferShareToken } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 
@@ -47,6 +47,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await sql`UPDATE offers SET status = 'Wysłana', updated_at = now() WHERE id = ${id};`;
       status = "Wysłana";
     }
+    const clientId = typeof offer.client_id === "string" ? offer.client_id : null;
+    await logClientEvent(sql, clientId, "offer_sent", `Wysłano ofertę „${tytul}” mailem`);
 
     return NextResponse.json({ ok: true, status });
   } catch (err) {

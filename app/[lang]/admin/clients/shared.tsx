@@ -5,11 +5,13 @@
 export {
   type Client,
   type ClientActivity,
+  type ClientEvent,
   type ClientStatus,
   CLIENT_STATUSES,
   CLIENT_STATUS_CLASS,
   CLIENT_STATUS_DOT,
   CLIENT_STATUS_HINT,
+  CLIENT_EVENT_ICON,
   clientDaysSince,
   isClientOverdue,
   clientOverdueReason,

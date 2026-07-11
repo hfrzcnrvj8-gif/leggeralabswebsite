@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { INVOICE_TYPE_LABEL, type InvoiceDocType } from "@/lib/invoices";
@@ -40,6 +40,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         `Leggera Labs`,
       ].join("\n"),
     });
+
+    const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
+    await logClientEvent(sql, clientId, "invoice_sent", `Wysłano mailem: ${typLabel} nr ${inv.numer}`);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -102,14 +102,25 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
   czy klient coś kupił — dokładnie jak „zdrowie” projektu vs jego status.
   Karta klienta (peek panel wysuwany z prawej, jak Leady — NIE modal): dane
   kontaktowe, statyczna podpowiedź „co zwykle dalej” per status
-  (`CLIENT_STATUS_HINT` — miękka, nigdy nie blokuje), **jeden chronologiczny
-  log historii kontaktu** (`client_activity`, ten sam mechanizm co log
-  leadów — kiedy/jak/w jakiej sprawie, z opcjonalnym „przypomnij mi”), i
-  sekcja „Powiązane” z listą ofert/faktur/projektów tego klienta w jednym
-  miejscu. Pulpit ma osobną sekcję „Klienci wymagający kontaktu”
-  (`isClientOverdue` — wyłącznie na podstawie jawnie ustawionego
-  `next_followup`, bez sztywnej reguły czasowej jak przy leadach). Globalne
-  wyszukiwanie (Cmd+K, `/api/search`) i skrót `g k` też obejmują klientów.
+  (`CLIENT_STATUS_HINT` — miękka, nigdy nie blokuje), sekcja „Powiązane” z
+  listą ofert/faktur/projektów (szybkie linki do aktualnego stanu), i
+  **„Pełna historia”** — JEDEN scalony chronologiczny feed (2026-07-12,
+  właściciel wprost poprosił o "pełną historię akcji" łączącą wszystko w
+  jedno) z trzech źródeł, scalanych server-side w `GET /api/clients/:id`:
+  1. ręczne notatki na karcie klienta (`client_activity`),
+  2. notatki z leada sprzed awansu na klienta (`lead_activity` leada spod
+     `client.lead_id`, dociągnięte automatycznie — bez tego historia sprzed
+     powstania klienta by ginęła), oznaczone tagiem „z etapu leada”,
+  3. zdarzenia systemowe (`client_events`, `lib/db.ts` `logClientEvent()`) —
+     zapisywane od razu w momencie realnej akcji (nie odgadywane później z
+     `updated_at`): utworzenie/wysyłka/akceptacja oferty, wystawienie/
+     wysyłka faktury, przypomnienie o płatności (ręczne i z dziennego
+     crona), wpłata (z kwotą), pełne opłacenie faktury, zmiana statusu
+     projektu. Każdy typ ma swoją ikonę (`CLIENT_EVENT_ICON`).
+  Pulpit ma osobną sekcję „Klienci wymagający kontaktu” (`isClientOverdue`
+  — wyłącznie na podstawie jawnie ustawionego `next_followup`, bez sztywnej
+  reguły czasowej jak przy leadach). Globalne wyszukiwanie (Cmd+K,
+  `/api/search`) i skrót `g k` też obejmują klientów.
   `lib/clients.ts` / `app/api/clients/*`.
 - **Oferty** (`/admin/offers`) — most między leadem a realizacją: oferta ma
   tytuł, dane klienta, pozycje (nazwa/ilość/cena — bez VAT, to kwota

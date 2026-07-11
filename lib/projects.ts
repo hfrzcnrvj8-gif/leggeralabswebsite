@@ -14,6 +14,9 @@ export type Project = {
   start: string | null;
   termin: string | null;
   lead_id: string | null;
+  /** Podpięty klient (patrz lib/clients.ts) — propagowany automatycznie z
+   * oferty przy akceptacji, nullable dla projektów bez podpiętego klienta. */
+  client_id: string | null;
   /** Kolor akcentu projektu (hex) — tożsamość w listach/tablicy/osi czasu. */
   kolor: string | null;
   /** Ikona projektu (emoji) — jak w Linear/Notion. */

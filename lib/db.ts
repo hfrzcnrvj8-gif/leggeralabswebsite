@@ -527,11 +527,49 @@ async function createClientsSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+
+  // Zdarzenia systemowe (oferta wysłana, faktura wystawiona, wpłata itd.) —
+  // osobno od `client_activity` (ręczne notatki właściciela), bo mają inny
+  // cykl życia (zapisywane automatycznie przez routes, nigdy nie edytowane
+  // ręcznie). GET /api/clients/:id scala oba źródła + lead_activity leada, z
+  // którego klient powstał, w jeden chronologiczny feed — patrz
+  // ClientDetailPanel.tsx. `amount` nullable — tylko zdarzenia pieniężne
+  // (wpłata, wystawienie faktury) je mają, żeby feed mógł pokazać kwotę.
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_events (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      text TEXT NOT NULL,
+      amount NUMERIC,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_events_client_id_idx ON client_events(client_id);`;
 }
 
 export async function ensureClientsSchema(): Promise<void> {
   if (!clientsSchemaReady) clientsSchemaReady = createClientsSchema();
   await clientsSchemaReady;
+}
+
+/** Zapisz zdarzenie systemowe na osi czasu klienta — cichy no-op, gdy
+ * `clientId` jest null (dokument bez podpiętego klienta). Wywoływane z
+ * różnych routes (oferty/faktury/wpłaty/projekty) zaraz po akcji, żeby data
+ * zdarzenia była prawdziwym momentem jego wystąpienia, nie odgadywana
+ * później z `updated_at`. */
+export async function logClientEvent(
+  sql: Sql,
+  clientId: string | null,
+  kind: string,
+  text: string,
+  amount?: number | null
+): Promise<void> {
+  if (!clientId) return;
+  await sql`
+    INSERT INTO client_events (id, client_id, kind, text, amount)
+    VALUES (${randomUUID()}, ${clientId}, ${kind}, ${text}, ${amount ?? null});
+  `;
 }
 
 /** Zwraca `share_token` faktury, generując go w locie (randomUUID), jeśli

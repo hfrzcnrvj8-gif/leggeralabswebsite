@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureInvoicesSchema } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
@@ -27,11 +27,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!Number.isFinite(kwota) || kwota <= 0) return NextResponse.json({ error: "Nieprawidłowa kwota wpłaty." }, { status: 400 });
     const data = typeof body.data === "string" && isPlausibleDateString(body.data) ? body.data : todayLocalISO();
 
-    const inv = await sql`SELECT id, status FROM invoices WHERE id = ${id};`;
+    const inv = await sql`SELECT id, status, numer, client_id, waluta FROM invoices WHERE id = ${id};`;
     if (!inv[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const clientId = typeof inv[0].client_id === "string" ? inv[0].client_id : null;
 
     const paymentId = randomUUID();
     await sql`INSERT INTO invoice_payments (id, invoice_id, kwota, data) VALUES (${paymentId}, ${id}, ${kwota}, ${data});`;
+    await logClientEvent(sql, clientId, "payment_received", `Wpłata na fakturę ${inv[0].numer ?? "(szkic)"}`, kwota);
 
     const payments = await sql`SELECT * FROM invoice_payments WHERE invoice_id = ${id} ORDER BY data ASC;`;
     const paymentsNum = payments.map((p) => ({ ...p, kwota: Number(p.kwota) }));
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (brutto > 0 && totalPaid(paymentsNum) >= brutto) {
         await sql`UPDATE invoices SET status = 'Opłacona', updated_at = now() WHERE id = ${id};`;
         status = "Opłacona";
+        await logClientEvent(sql, clientId, "invoice_paid", `Faktura ${inv[0].numer ?? "(szkic)"} w pełni opłacona`);
       }
     }
 

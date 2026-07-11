@@ -113,6 +113,9 @@ export type Invoice = {
   id: string;
   numer: string | null; // nadawany przy wystawieniu (Szkic nie ma numeru)
   lead_id: string | null;
+  /** Podpięty klient (patrz lib/clients.ts) — propagowany automatycznie z
+   * oferty przy akceptacji, nullable dla dokumentów bez podpiętego klienta. */
+  client_id: string | null;
   project_id: string | null;
   klient_nazwa: string;
   klient_nip: string;

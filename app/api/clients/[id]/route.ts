@@ -6,8 +6,11 @@ import { CLIENT_STATUSES } from "@/lib/clients";
 
 export const runtime = "nodejs";
 
-/** GET /api/clients/:id — klient + log aktywności + powiązane oferty/
- * faktury/projekty (do jednej, spójnej historii na karcie klienta). */
+/** GET /api/clients/:id — klient + JEDEN scalony chronologiczny feed
+ * ("pełna historia akcji": ręczne notatki + historia z leada sprzed awansu
+ * na klienta + zdarzenia systemowe jak wysłanie oferty/wystawienie
+ * faktury/wpłata) + powiązane oferty/faktury/projekty (szybkie linki do
+ * aktualnego stanu). */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -17,15 +20,53 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const rows = await sql`SELECT * FROM clients WHERE id = ${id};`;
   const client = rows[0];
   if (!client) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const leadId = typeof client.lead_id === "string" ? client.lead_id : null;
 
-  const [activity, offers, invoices, projects] = await Promise.all([
-    sql`SELECT * FROM client_activity WHERE client_id = ${id} ORDER BY created_at DESC;`,
+  const [clientActivity, leadActivity, events, offers, invoices, projects] = await Promise.all([
+    sql`SELECT id, text, created_at FROM client_activity WHERE client_id = ${id};`,
+    leadId
+      ? (sql`SELECT id, text, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<
+          { id: string; text: string; created_at: string }[]
+        >)
+      : Promise.resolve([] as { id: string; text: string; created_at: string }[]),
+    sql`SELECT id, kind, text, amount, created_at FROM client_events WHERE client_id = ${id};`,
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, tytul, status, termin, created_at FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;`,
   ]);
 
-  return NextResponse.json({ client, activity, offers, invoices, projects });
+  // Scalony feed — trzy różne źródła, wspólny kształt, posortowane
+  // chronologicznie (najnowsze pierwsze). `source: "lead"` oznacza wpisy
+  // sprzed awansu na klienta (dociągnięte z leada, z którego powstał) —
+  // UI pokazuje je z osobnym tagiem, żeby było jasne skąd się wzięły.
+  const feed = [
+    ...clientActivity.map((a) => ({
+      id: a.id,
+      created_at: a.created_at as string,
+      kind: "note" as const,
+      text: a.text as string,
+      amount: null as number | null,
+      source: "client" as const,
+    })),
+    ...leadActivity.map((a) => ({
+      id: a.id,
+      created_at: a.created_at,
+      kind: "note" as const,
+      text: a.text,
+      amount: null as number | null,
+      source: "lead" as const,
+    })),
+    ...events.map((e) => ({
+      id: e.id as string,
+      created_at: e.created_at as string,
+      kind: e.kind as string,
+      text: e.text as string,
+      amount: e.amount != null ? Number(e.amount) : null,
+      source: "system" as const,
+    })),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  return NextResponse.json({ client, feed, offers, invoices, projects });
 }
 
 /** PATCH /api/clients/:id — aktualizacja pól karty klienta. */

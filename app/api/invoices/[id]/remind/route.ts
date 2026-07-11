@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { formatMoney } from "@/lib/invoices";
@@ -52,6 +52,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     await sql`UPDATE invoices SET last_reminder_at = now() WHERE id = ${id};`;
+    const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
+    await logClientEvent(sql, clientId, "invoice_reminder", `Wysłano przypomnienie o płatności — faktura ${inv.numer}`);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[POST /api/invoices/:id/remind] failed", err);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { getProjectTemplate, expandProjectTemplate } from "@/lib/projects";
 import { isOfferExpired, type Offer } from "@/lib/offers";
@@ -114,6 +114,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await sql`DELETE FROM projects WHERE id = ${projectId};`;
     return NextResponse.json({ error: "Oferta została już zaakceptowana (w innej karcie/kliknięciu)." }, { status: 409 });
   }
+
+  await logClientEvent(sql, clientId, "offer_accepted", `Zaakceptowano ofertę „${tytulProjektu}” — utworzono projekt i fakturę`);
 
   return NextResponse.json({ ok: true, projectId, invoiceId });
 }

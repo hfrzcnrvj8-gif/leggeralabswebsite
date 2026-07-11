@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureInvoiceShareToken } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
@@ -68,6 +68,7 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
         ].join("\n"),
       });
       await sql`UPDATE invoices SET last_reminder_at = now() WHERE id = ${inv.id};`;
+      await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności — faktura ${inv.numer}`);
       sent += 1;
     } catch (e) {
       console.error("[sendOverdueInvoiceReminders] failed for", inv.id, e);

@@ -39,6 +39,45 @@ export type ClientActivity = {
   created_at: string;
 };
 
+/** Zdarzenia systemowe zapisywane automatycznie przez routes (patrz
+ * lib/db.ts logClientEvent) — zaraz po realnej akcji, więc `created_at` to
+ * prawdziwy moment jej wystąpienia, nie odgadnięty później z `updated_at`. */
+export const CLIENT_EVENT_KINDS = [
+  "client_created",
+  "offer_created",
+  "offer_sent",
+  "offer_accepted",
+  "invoice_issued",
+  "invoice_sent",
+  "invoice_reminder",
+  "payment_received",
+  "invoice_paid",
+  "project_status_changed",
+] as const;
+export type ClientEventKind = (typeof CLIENT_EVENT_KINDS)[number];
+
+export type ClientEvent = {
+  id: string;
+  client_id: string;
+  kind: ClientEventKind | string;
+  text: string;
+  amount: number | null;
+  created_at: string;
+};
+
+export const CLIENT_EVENT_ICON: Record<string, string> = {
+  client_created: "🤝",
+  offer_created: "📝",
+  offer_sent: "📤",
+  offer_accepted: "✅",
+  invoice_issued: "🧾",
+  invoice_sent: "📤",
+  invoice_reminder: "🔔",
+  payment_received: "💰",
+  invoice_paid: "✅",
+  project_status_changed: "📁",
+};
+
 /** Status relacji — świadomie OSOBNA oś od tego, czy klient coś już kupił
  * (to widać po powiązanych ofertach/fakturach). Ten sam wzorzec co "zdrowie"
  * projektu vs jego status na tablicy. */

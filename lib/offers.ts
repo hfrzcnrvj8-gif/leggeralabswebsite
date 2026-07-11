@@ -39,6 +39,9 @@ export type Offer = {
   id: string;
   tytul: string;
   lead_id: string | null;
+  /** Podpięty klient (patrz lib/clients.ts) — ustawiany automatycznie przy
+   * tworzeniu pierwszej oferty dla leada. */
+  client_id: string | null;
   project_id: string | null;
   invoice_id: string | null;
   klient_nazwa: string;
