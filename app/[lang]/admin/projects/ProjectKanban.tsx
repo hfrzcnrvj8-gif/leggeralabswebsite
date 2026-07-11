@@ -14,7 +14,8 @@ import {
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Project, PROJECT_STATUSES, isProjectOverdue, formatPlDate } from "./shared";
+import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
+import { PropertyMenu, type MenuOption } from "../Menu";
 
 // Status jako ikona (styl Linear) — kształt koła oddaje etap, nie słowo.
 const STATUS_ICON: Record<string, { icon: TablerIcon; className: string }> = {
@@ -46,10 +47,38 @@ function PriorityIcon({ priorytet }: { priorytet: string }) {
   );
 }
 
+const HEALTH_COLOR: Record<string, string> = {
+  "Na dobrej drodze": "text-[#3fb987]",
+  "Zagrożony": "text-[#e2a336]",
+  "Zerwany": "text-[#e5484d]",
+};
 const HEALTH_DOT: Record<string, string> = {
   "Zagrożony": "text-[#e2a336]",
   "Zerwany": "text-[#e5484d]",
 };
+
+function statusIconEl(status: string, size = 15) {
+  const st = STATUS_ICON[status];
+  const Ico = st?.icon ?? IconCircle;
+  return <Ico size={size} className={st?.className ?? "text-muted"} />;
+}
+
+// Listy opcji do menu (z ikonami) — budowane raz.
+const STATUS_OPTS: MenuOption<string>[] = PROJECT_STATUSES.map((s) => ({
+  value: s,
+  label: s,
+  icon: statusIconEl(s, 15),
+}));
+const PRIORITY_OPTS: MenuOption<string>[] = PROJECT_PRIORITIES.map((p) => ({
+  value: p,
+  label: p,
+  icon: <PriorityIcon priorytet={p} />,
+}));
+const HEALTH_OPTS: MenuOption<string>[] = PROJECT_HEALTHS.map((h) => ({
+  value: h,
+  label: h,
+  icon: <IconPointFilled size={12} className={HEALTH_COLOR[h] ?? "text-muted"} />,
+}));
 
 export function ProjectKanban({
   projects,
@@ -155,26 +184,50 @@ export function ProjectKanban({
                         }`}
                       />
 
-                      {/* Tytuł ze statusem-ikoną; przesuwa się gdy widać checkbox */}
+                      {/* Tytuł ze statusem-ikoną (klikalną); przesuwa się gdy widać checkbox */}
                       <div
                         className={`flex items-start gap-2 transition-[margin] ${
                           anySelected ? "ml-5" : "group-hover:ml-5"
                         }`}
                       >
-                        <span onClick={(e) => e.stopPropagation()} className="mt-[1px] shrink-0">
-                          <StatusPickerIcon status={p.status} onChange={(v) => onUpdate(p.id, "status", v)} />
+                        <span className="mt-[1px] shrink-0">
+                          <PropertyMenu
+                            value={p.status}
+                            options={STATUS_OPTS}
+                            onChange={(v) => onUpdate(p.id, "status", v)}
+                            title="Zmień status"
+                          >
+                            {statusIconEl(p.status, 15)}
+                          </PropertyMenu>
                         </span>
                         <span className="min-w-0 flex-1 text-[13px] font-medium leading-snug text-[var(--fg)]">
                           {p.tytul}
                         </span>
                       </div>
 
-                      {/* Wiersz meta — wszystko małe i wyciszone, ikony zamiast słów */}
+                      {/* Wiersz meta — każda właściwość klikalna osobno (menu), ikony zamiast słów */}
                       <div className="mt-2 flex items-center gap-2 text-muted">
-                        <PriorityIcon priorytet={p.priorytet} />
-                        {showRisk && (
-                          <IconPointFilled size={12} className={HEALTH_DOT[p.zdrowie]} title={p.zdrowie} />
-                        )}
+                        <PropertyMenu
+                          value={p.priorytet}
+                          options={PRIORITY_OPTS}
+                          onChange={(v) => onUpdate(p.id, "priorytet", v)}
+                          title={`Priorytet: ${p.priorytet}`}
+                        >
+                          <PriorityIcon priorytet={p.priorytet} />
+                        </PropertyMenu>
+                        <PropertyMenu
+                          value={p.zdrowie}
+                          options={HEALTH_OPTS}
+                          onChange={(v) => onUpdate(p.id, "zdrowie", v)}
+                          title={`Zdrowie: ${p.zdrowie}`}
+                        >
+                          <IconPointFilled
+                            size={12}
+                            className={`${HEALTH_COLOR[p.zdrowie] ?? "text-[#3a3b40]"} ${
+                              showRisk ? "" : "opacity-40 group-hover:opacity-100"
+                            }`}
+                          />
+                        </PropertyMenu>
                         {hasTasks && (
                           <span className="flex items-center gap-1">
                             <span className="h-1 w-8 overflow-hidden rounded-full bg-[#2a2b2f]">
@@ -205,27 +258,3 @@ export function ProjectKanban({
   );
 }
 
-// Ukryty select stylizowany na ikonę statusu — klik otwiera natywną listę,
-// ale wygląda jak sama ikona (jak w Linear, gdzie status zmienia się z karty).
-function StatusPickerIcon({ status, onChange }: { status: string; onChange: (v: string) => void }) {
-  const st = STATUS_ICON[status];
-  const Ico = st?.icon ?? IconCircle;
-  return (
-    <span className="relative inline-flex">
-      <Ico size={15} className={st?.className ?? "text-muted"} />
-      <select
-        value={status}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 cursor-pointer opacity-0"
-        aria-label="Zmień status"
-        title="Zmień status"
-      >
-        {PROJECT_STATUSES.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
-    </span>
-  );
-}
