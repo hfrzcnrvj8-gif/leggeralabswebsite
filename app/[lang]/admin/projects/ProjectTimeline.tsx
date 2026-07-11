@@ -347,10 +347,10 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
                 className="absolute inset-y-0 flex -translate-x-1/2 flex-col items-center"
                 style={{ left: `${todayPct}%` }}
               >
-                <span className="rounded-full bg-brand-cyan px-1.5 py-0.5 text-[9px] font-semibold text-[var(--bg)] shadow">
+                <span className="rounded-full bg-[#4ea7fc] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--bg)] shadow">
                   dziś
                 </span>
-                <div className="w-px flex-1 bg-brand-cyan/50" />
+                <div className="w-px flex-1 bg-[#4ea7fc]/50" />
               </div>
             </div>
           )}

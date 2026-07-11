@@ -152,7 +152,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
                   className={
                     confirmState.danger
                       ? "rounded-full bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
-                      : "btn-primary rounded-full px-3 py-1.5 text-xs font-semibold"
+                      : "rounded-md bg-[var(--fg)] px-3 py-1.5 text-xs font-medium text-[var(--bg)] hover:opacity-90"
                   }
                 >
                   Potwierdź
@@ -193,7 +193,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
                   if (e.key === "Escape") closePrompt(null);
                   if (e.key === "Enter") closePrompt(promptValue.trim() || null);
                 }}
-                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted focus:border-brand-cyan/60 focus:outline-none"
+                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted focus:border-[#4ea7fc]/60 focus:outline-none"
               />
               <div className="mt-4 flex justify-end gap-2">
                 <button
@@ -204,7 +204,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
                 </button>
                 <button
                   onClick={() => closePrompt(promptValue.trim() || null)}
-                  className="btn-primary rounded-full px-3 py-1.5 text-xs font-semibold"
+                  className="rounded-md bg-[var(--fg)] px-3 py-1.5 text-xs font-medium text-[var(--bg)] hover:opacity-90"
                 >
                   Dodaj
                 </button>

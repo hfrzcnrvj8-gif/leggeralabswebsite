@@ -73,7 +73,7 @@ export function TableView({
                   type="checkbox"
                   checked={leads.length > 0 && leads.every((l) => selectedIds.has(l.id))}
                   onChange={(e) => onToggleSelectAll(e.target.checked)}
-                  className="h-3.5 w-3.5 cursor-pointer accent-brand-cyan"
+                  className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
                   aria-label="Zaznacz wszystkie"
                 />
               </th>
@@ -108,14 +108,14 @@ export function TableView({
                   key={lead.id}
                   className={`border-b hairline align-top transition-colors ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
-                  } ${selected ? "bg-brand-cyan/[0.08]" : ""} ${checked ? "bg-brand-purple/[0.08]" : ""}`}
+                  } ${selected ? "bg-[#4ea7fc]/[0.08]" : ""} ${checked ? "bg-[#4ea7fc]/[0.08]" : ""}`}
                 >
                   <td className="p-2">
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => onToggleSelect(lead.id)}
-                      className="h-3.5 w-3.5 cursor-pointer accent-brand-cyan"
+                      className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
                       aria-label={`Zaznacz ${lead.firma}`}
                     />
                   </td>
@@ -145,7 +145,7 @@ export function TableView({
                       type="date"
                       value={lead.ostatni_kontakt ?? ""}
                       onChange={(e) => onUpdate(lead.id, "ostatni_kontakt", e.target.value)}
-                      className="rounded-lg border border-transparent bg-transparent text-xs text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                      className="rounded-lg border border-transparent bg-transparent text-xs text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
                     />
                   </td>
                   <td className="p-2">

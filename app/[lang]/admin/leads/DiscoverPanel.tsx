@@ -65,7 +65,7 @@ export function DiscoverPanel({
     return (
       <button
         onClick={() => onOpenChange(true)}
-        className="rounded-full border hairline px-3 py-1.5 text-xs font-medium text-liquid"
+        className="rounded-full border hairline px-3 py-1.5 text-xs font-medium text-[#4ea7fc]"
       >
         ✨ Znajdź nowe leady
       </button>
@@ -75,7 +75,7 @@ export function DiscoverPanel({
   return (
     <div className="card-paper w-full rounded-2xl p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="font-serif text-sm font-semibold">Znajdź nowe leady</h3>
+        <h3 className="text-sm font-semibold">Znajdź nowe leady</h3>
         <button onClick={() => onOpenChange(false)} className="text-xs text-muted hover:text-[var(--fg)]">
           Zamknij
         </button>
@@ -117,7 +117,7 @@ export function DiscoverPanel({
         <button
           onClick={run}
           disabled={loading}
-          className="btn-primary rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "Szukam…" : "Szukaj"}
         </button>

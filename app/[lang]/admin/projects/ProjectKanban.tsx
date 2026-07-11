@@ -57,7 +57,7 @@ export function ProjectKanban({
           }}
           className={`w-72 shrink-0 rounded-2xl border p-2 transition-colors ${
             dragOverStatus === col.status
-              ? "border-brand-cyan/50 bg-brand-cyan/[0.05]"
+              ? "border-[#4ea7fc]/50 bg-[#4ea7fc]/[0.05]"
               : "border hairline bg-[var(--bg-soft)]/60"
           }`}
         >
@@ -95,10 +95,10 @@ export function ProjectKanban({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onOpen(p.id);
                   }}
-                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-brand-cyan/30 active:cursor-grabbing ${
+                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-[#4ea7fc]/30 active:cursor-grabbing ${
                     draggingId === p.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""} ${
-                    selectedIds.has(p.id) ? "border-brand-purple/50 bg-brand-purple/[0.06]" : ""
+                    selectedIds.has(p.id) ? "border-[#4ea7fc]/50 bg-[#4ea7fc]/[0.06]" : ""
                   }`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
@@ -111,7 +111,7 @@ export function ProjectKanban({
                           onToggleSelect(p.id);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-cyan"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
                         aria-label={`Zaznacz ${p.tytul}`}
                       />
                       <span className="text-xs font-medium leading-snug">{p.tytul}</span>
@@ -140,7 +140,7 @@ export function ProjectKanban({
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-brand-purple to-brand-cyan transition-all"
+                          className="h-full rounded-full bg-gradient-to-r from-[#4ea7fc] to-[#4ea7fc] transition-all"
                           style={{ width: `${Math.round(((p.task_done ?? 0) / p.task_total) * 100)}%` }}
                         />
                       </div>

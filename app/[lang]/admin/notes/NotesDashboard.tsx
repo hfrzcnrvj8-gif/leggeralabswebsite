@@ -192,7 +192,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
                   defaultValue={n.tagi}
                   onBlur={(e) => updateNote(n.id, "tagi", e.target.value)}
                   placeholder="tagi, po przecinku"
-                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
                 />
               </div>
               <div className="mt-3 flex items-center justify-between">

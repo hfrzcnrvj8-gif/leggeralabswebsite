@@ -276,7 +276,7 @@ export function ProjectDetailPanel({
               value={project.tytul}
               onChange={(e) => setProject((prev) => (prev ? { ...prev, tytul: e.target.value } : prev))}
               onBlur={(e) => updateProject("tytul", e.target.value)}
-              className="w-full bg-transparent font-serif text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
+              className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
             />
             <div className="mt-4">
               <EditableTextarea value={project.opis} onSave={(v) => updateProject("opis", v)} />
@@ -285,7 +285,7 @@ export function ProjectDetailPanel({
 
           <div className="card-paper rounded-3xl p-6 sm:p-8">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-lg font-semibold">Kamienie milowe</h2>
+              <h2 className="text-lg font-semibold">Kamienie milowe</h2>
               <button onClick={addMilestone} className="rounded-full border hairline px-3 py-1 text-xs">
                 + Nowy kamień milowy
               </button>
@@ -307,7 +307,7 @@ export function ProjectDetailPanel({
                     <div key={m.id}>
                       <div className="mb-1.5 flex items-center justify-between gap-2">
                         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-brand-gold" />
+                          <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-[#4ea7fc]" />
                           <div className="min-w-0 flex-1">
                             <EditableText value={m.nazwa} onSave={(v) => updateMilestone(m.id, "nazwa", v)} />
                           </div>
@@ -318,7 +318,7 @@ export function ProjectDetailPanel({
                           max="2100-12-31"
                           value={m.termin ?? ""}
                           onChange={(e) => updateMilestone(m.id, "termin", e.target.value)}
-                          className="shrink-0 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                          className="shrink-0 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
                         />
                         <span className="shrink-0 text-[11px] text-muted">{pct}% z {total}</span>
                         <button
@@ -332,7 +332,7 @@ export function ProjectDetailPanel({
                       </div>
                       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--hairline)]">
                         <div
-                          className="h-full rounded-full bg-brand-cyan transition-all"
+                          className="h-full rounded-full bg-[#4ea7fc] transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -368,7 +368,7 @@ export function ProjectDetailPanel({
           </div>
 
           <div className="card-paper rounded-3xl p-6 sm:p-8">
-            <h2 className="mb-4 font-serif text-lg font-semibold">Log aktywności</h2>
+            <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
             <form onSubmit={submitNote} className="mb-6 space-y-2">
               <textarea
                 value={noteText}
@@ -387,7 +387,7 @@ export function ProjectDetailPanel({
                 <button
                   type="submit"
                   disabled={saving || !noteText.trim()}
-                  className="btn-primary rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                  className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? "Zapisuję…" : "Dodaj wpis"}
                 </button>
@@ -422,7 +422,7 @@ export function ProjectDetailPanel({
               <select
                 value={project.priorytet}
                 onChange={(e) => updateProject("priorytet", e.target.value)}
-                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
               >
                 {PROJECT_PRIORITIES.map((p) => (
                   <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">
@@ -442,7 +442,7 @@ export function ProjectDetailPanel({
               <select
                 value={project.lead_id ?? ""}
                 onChange={(e) => updateProject("lead_id", e.target.value)}
-                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
               >
                 <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">— brak —</option>
                 {(leads ?? []).map((l) => (
@@ -458,7 +458,7 @@ export function ProjectDetailPanel({
               <ul className="mb-2 space-y-1">
                 {resources.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                    <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-liquid hover:underline">
+                    <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-[#4ea7fc] hover:underline">
                       <span className="shrink-0 opacity-70">🔗</span>
                       <span className="truncate">{r.etykieta}</span>
                     </a>
@@ -527,7 +527,7 @@ function TaskList({
             type="checkbox"
             checked={t.done}
             onChange={(e) => onToggle(t.id, e.target.checked)}
-            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-cyan"
+            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
           />
           <span className={`flex-1 text-sm ${t.done ? "text-muted line-through" : ""}`}>{t.text}</span>
           <button
@@ -613,7 +613,7 @@ function DateRangeField({
         value={draftStart}
         onChange={(e) => setDraftStart(e.target.value)}
         onBlur={() => draftStart !== start && onSave("start", draftStart)}
-        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
       />
       <span className="shrink-0 text-muted">→</span>
       <input
@@ -623,12 +623,12 @@ function DateRangeField({
         value={draftTermin}
         onChange={(e) => setDraftTermin(e.target.value)}
         onBlur={() => draftTermin !== termin && onSave("termin", draftTermin)}
-        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
       />
       {dirty && (
         <button
           onClick={save}
-          className="shrink-0 rounded-full bg-brand-cyan px-2 py-1 text-[10px] font-semibold text-[var(--bg)]"
+          className="shrink-0 rounded-full bg-[#4ea7fc] px-2 py-1 text-[10px] font-semibold text-[var(--bg)]"
         >
           Zapisz
         </button>
