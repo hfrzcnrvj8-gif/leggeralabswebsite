@@ -213,6 +213,31 @@
   box-shadow: none;
 }
 
+/* Aktywna pozycja nawigacji — gradientowa obwódka fiolet→złoto (marka) przez
+   technikę maski, plus delikatne gradientowe tło. Sama border-color nie
+   przyjmuje gradientu, więc obwódkę rysuje ::before. */
+.admin-linear .admin-nav-active {
+  position: relative;
+  background-image: linear-gradient(
+    90deg,
+    rgba(124, 58, 237, 0.2),
+    rgba(224, 169, 59, 0.12)
+  );
+}
+.admin-linear .admin-nav-active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, #7c3aed, #e0a93b);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

@@ -279,24 +279,24 @@ export function ProjectDetailPanel({
     <div>
       <PanelHeader onClose={onClose} tytul={project.tytul} />
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_280px]">
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* Kolumna główna: treść, kamienie milowe, log aktywności */}
-        <div className="min-w-0 space-y-6">
-          <div className="card-paper rounded-3xl p-6 sm:p-8">
+        <div className="min-w-0 space-y-4">
+          <div>
             <input
               value={project.tytul}
               onChange={(e) => setProject((prev) => (prev ? { ...prev, tytul: e.target.value } : prev))}
               onBlur={(e) => updateProject("tytul", e.target.value)}
               className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
             />
-            <div className="mt-4">
+            <div className="mt-2">
               <EditableTextarea value={project.opis} onSave={(v) => updateProject("opis", v)} />
             </div>
           </div>
 
-          <div className="card-paper rounded-3xl p-6 sm:p-8">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Kamienie milowe</h2>
+          <div className="card-paper rounded-xl border hairline p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[14px] font-medium">Kamienie milowe</h2>
               <button onClick={addMilestone} className="rounded-full border hairline px-3 py-1 text-xs">
                 + Nowy kamień milowy
               </button>
@@ -378,8 +378,8 @@ export function ProjectDetailPanel({
             )}
           </div>
 
-          <div className="card-paper rounded-3xl p-6 sm:p-8">
-            <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
+          <div className="card-paper rounded-xl border hairline p-4">
+            <h2 className="mb-3 text-[14px] font-medium">Log aktywności</h2>
             <form onSubmit={submitNote} className="mb-6 space-y-2">
               <textarea
                 value={noteText}
@@ -438,14 +438,14 @@ export function ProjectDetailPanel({
                 <PropTrigger icon={<PriorityIcon priorytet={project.priorytet} />} label={project.priorytet} />
               </PropertyMenu>
             </MetaRow>
-            <MetaRow icon={<IconCalendar size={15} />} title="Start → Termin">
+            <MetaRow icon={<IconCalendar size={15} />} title="Daty">
               <DateRangeField
                 start={project.start ?? ""}
                 termin={project.termin ?? ""}
                 onSave={(field, value) => updateProject(field, value)}
               />
             </MetaRow>
-            <MetaRow icon={<IconTargetArrow size={15} />} title="Powiązany lead">
+            <MetaRow icon={<IconTargetArrow size={15} />} title="Lead">
               <PropertyMenu
                 value={project.lead_id ?? ""}
                 options={leadOptions}
@@ -586,9 +586,10 @@ function PropTrigger({ icon, label }: { icon?: React.ReactNode; label: string })
 
 function MetaRow({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1" title={title}>
-      <span className="flex w-16 shrink-0 items-center gap-1.5 text-[12px] text-muted">
+    <div className="flex items-center gap-2 py-0.5">
+      <span className="flex w-24 shrink-0 items-center gap-2 text-[12.5px] text-muted" title={title}>
         <span className="flex w-4 justify-center">{icon}</span>
+        <span className="truncate">{title}</span>
       </span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
