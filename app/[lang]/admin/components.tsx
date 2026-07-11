@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { useUI } from "./ui";
+import { PropertyMenu } from "./Menu";
 
 // Generyczne komponenty UI współdzielone przez wszystkie moduły panelu
 // (leady, projekty, notatnik, kalendarz) — jedno miejsce zamiast kopiowania
@@ -105,18 +106,22 @@ export function StatusPill({
   onChange: (v: string) => void;
   className?: string;
 }) {
+  // Klikalna pigułka statusu otwierająca własne menu (styl Linear) zamiast
+  // natywnego <select>, które psuło „feel" panelu. Kolor pigułki z classMap,
+  // menu z pełną listą statusów i haczykiem przy wybranym.
   return (
-    <select
+    <PropertyMenu
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`cursor-pointer appearance-none rounded-full border-none px-2.5 py-1 text-[11px] font-medium outline-none ${classMap[value] ?? ""} ${className}`}
+      options={options.map((s) => ({ value: s, label: s }))}
+      onChange={onChange}
+      title="Zmień status"
     >
-      {options.map((s) => (
-        <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-          {s}
-        </option>
-      ))}
-    </select>
+      <span
+        className={`cursor-pointer rounded-full px-2.5 py-1 text-[11px] font-medium ${classMap[value] ?? ""} ${className}`}
+      >
+        {value}
+      </span>
+    </PropertyMenu>
   );
 }
 

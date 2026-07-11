@@ -260,8 +260,8 @@ export function PropertyMenu<T extends string>({
             transition={{ duration: 0.1, ease: "easeOut" }}
             onClick={(e) => e.stopPropagation()}
             role="menu"
-            className="fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
-            style={{ top: pos.top, left: pos.left, minWidth: MENU_MIN_W }}
+            className="fixed z-[200] w-max min-w-[190px] max-w-[340px] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+            style={{ top: pos.top, left: pos.left }}
           >
             {options.map((opt, i) => (
                   <button

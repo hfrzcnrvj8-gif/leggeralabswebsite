@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { IconArrowUpRight, IconX, IconInbox } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
@@ -94,7 +95,8 @@ export function TableView({
             {leads.length === 0 && (
               <tr>
                 <td colSpan={12} className="p-8 text-center text-sm text-muted opacity-60">
-                  🗂️ Brak leadów pasujących do filtrów.
+                  <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
+                  Brak leadów pasujących do filtrów.
                 </td>
               </tr>
             )}
@@ -167,18 +169,18 @@ export function TableView({
                           e.preventDefault();
                           onOpen(lead.id);
                         }}
-                        className="text-muted hover:text-[var(--fg)]"
+                        className="flex text-muted hover:text-[var(--fg)]"
                         title="Otwórz szczegóły"
                       >
-                        ↗
+                        <IconArrowUpRight size={15} />
                       </Link>
                       <button
                         onClick={() => onDelete(lead.id, lead.firma)}
-                        className="text-muted hover:text-red-400"
+                        className="flex text-muted hover:text-red-400"
                         aria-label={`Usuń ${lead.firma}`}
                         title="Usuń"
                       >
-                        ✕
+                        <IconX size={14} />
                       </button>
                     </div>
                   </td>

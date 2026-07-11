@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconSparkles, IconMailForward, IconDownload } from "@tabler/icons-react";
+import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Lead, STATUSES, SEED, isOverdue, overdueReason } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
@@ -10,6 +10,7 @@ import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
 import { SavedViews } from "../components";
+import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
 
 type ViewMode = "kanban" | "table";
@@ -181,6 +182,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   }, [selectedIds, confirm, toast, clearSelection]);
 
   const zrodla = useMemo(() => [...new Set((leads ?? []).map((l) => l.zrodlo))], [leads]);
+  const activeFilterCount = (filterStatus ? 1 : 0) + (filterZrodlo ? 1 : 0);
 
   const filtered = useMemo(() => {
     let list = leads ?? [];
@@ -306,26 +308,54 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           placeholder="Szukaj… (/)"
           className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
         />
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-md bg-transparent px-1.5 py-1 text-[12.5px] text-muted"
+        <Popover
+          align="right"
+          width={240}
+          trigger={(open) => (
+            <button
+              onClick={open}
+              className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+              title="Filtry"
+            >
+              <IconFilter size={14} /> Filtry
+              {activeFilterCount > 0 && (
+                <span className="ml-0.5 rounded-full bg-[#4ea7fc]/20 px-1.5 text-[10px] font-medium text-[#4ea7fc]">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
         >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Status: wszystkie</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">{s}</option>
-          ))}
-        </select>
-        <select
-          value={filterZrodlo}
-          onChange={(e) => setFilterZrodlo(e.target.value)}
-          className="rounded-md bg-transparent px-1.5 py-1 text-[12.5px] text-muted"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Źródło: wszystkie</option>
-          {zrodla.map((z) => (
-            <option key={z} value={z} className="bg-[var(--bg-soft)] text-[var(--fg)]">{z}</option>
-          ))}
-        </select>
+          {() => (
+            <div className="max-h-[60vh] overflow-y-auto">
+              <MenuLabel>Status</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterStatus} onClick={() => setFilterStatus("")} />
+              {STATUSES.map((s) => (
+                <MenuRow key={s} label={s} selected={filterStatus === s} onClick={() => setFilterStatus(filterStatus === s ? "" : s)} />
+              ))}
+              <MenuDivider />
+              <MenuLabel>Źródło</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterZrodlo} onClick={() => setFilterZrodlo("")} />
+              {zrodla.map((z) => (
+                <MenuRow key={z} label={z} selected={filterZrodlo === z} onClick={() => setFilterZrodlo(filterZrodlo === z ? "" : z)} />
+              ))}
+              {activeFilterCount > 0 && (
+                <>
+                  <MenuDivider />
+                  <button
+                    onClick={() => {
+                      setFilterStatus("");
+                      setFilterZrodlo("");
+                    }}
+                    className="w-full px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-[#232327]"
+                  >
+                    Wyczyść filtry
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </Popover>
         <button
           onClick={() => setDiscoverOpen(true)}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
