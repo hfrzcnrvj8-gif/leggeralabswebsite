@@ -24,9 +24,31 @@ function connectionString(): string {
   return cs;
 }
 
-/** Lazily creates (and caches) the Neon HTTP query client for this instance. */
+/** Lazily creates (and caches) the Neon HTTP query client for this instance.
+ *
+ * W trybie deweloperskim BEZ prawdziwej bazy (brak DATABASE_URL/POSTGRES_URL)
+ * używamy lokalnego PGlite (Postgres w WASM) z danymi testowymi — patrz
+ * dev-db.ts. Pozwala to na `npm run dev` z w pełni działającym panelem bez
+ * podłączania Neona. Na produkcji ten warunek nigdy nie jest spełniony
+ * (NODE_ENV=production + realny DATABASE_URL). */
 export function getSql(): Sql {
-  if (!client) client = neon(connectionString());
+  if (client) return client;
+
+  const hasRealDb = Boolean(
+    process.env.DATABASE_URL ??
+      process.env.POSTGRES_URL ??
+      process.env.DATABASE_URL_UNPOOLED ??
+      process.env.POSTGRES_URL_NON_POOLING
+  );
+  if (process.env.NODE_ENV === "development" && !hasRealDb) {
+    // Import wewnątrz warunku, żeby PGlite nie trafił do bundla produkcyjnego.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getDevSql } = require("./dev-db") as typeof import("./dev-db");
+    client = getDevSql() as unknown as Sql;
+    return client;
+  }
+
+  client = neon(connectionString());
   return client;
 }
 
@@ -81,6 +103,13 @@ export async function ensureLeadsSchema(): Promise<void> {
 }
 
 async function createHubSchema(): Promise<void> {
+  // `projects.lead_id` odwołuje się kluczem obcym do `leads(id)`, więc tabela
+  // leadów musi istnieć PRZED tworzeniem projektów. Na ciepłej instancji
+  // produkcyjnej leady zwykle już były, ale na świeżej bazie (nowy deploy,
+  // lokalny dev) kolejność ma znaczenie — dlatego jawnie zapewniamy schemat
+  // leadów jako pierwszy.
+  await ensureLeadsSchema();
+
   const sql = getSql();
 
   // Projekty/wdrożenia — druga tablica obok leadów, z tym samym duchem
