@@ -19,8 +19,10 @@ type TimelineProject = {
 };
 
 const DAY_MS = 86400000;
-const ROW_PX = 108;
-const MONTH_PX = 128;
+const LEFT_W = 224; // szerokość lewej kolumny z nazwami projektów
+const ROW_H = 52; // wysokość wiersza — gęsto, jak w Linear/GitHub Roadmap
+const HEADER_H = 44; // nagłówek: pasek miesięcy (28) + pasek numerków tygodni (16)
+const MONTH_PX = 128; // minimalna szerokość miesiąca w prawym (przewijalnym) obszarze
 
 function parseDate(s: string | null): Date | null {
   if (!s) return null;
@@ -37,8 +39,7 @@ function daysBetween(a: Date, b: Date): number {
 }
 
 /** YYYY-MM-DD z lokalnej daty — nie przez toISOString(), bo to konwertuje
- * na UTC i przy dodatnich strefach (Polska) potrafi zjechać o dzień wstecz
- * dla dat parsowanych jako lokalna północ. */
+ * na UTC i przy dodatnich strefach (Polska) potrafi zjechać o dzień wstecz. */
 function toLocalISO(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -54,10 +55,8 @@ function fmtMonth(d: Date): string {
   return d.toLocaleDateString("pl-PL", { month: "short", year: "numeric" });
 }
 
-/** Malutki wskaźnik priorytetu obok tytułu projektu — "słupki sygnału" jak
- * w Linear (im więcej wypełnionych, tym wyższy priorytet), a dla
- * "Krytyczny" płaska pomarańczowa plakietka z wykrzyknikiem zamiast słupków
- * (tak jak Linear pokazuje Urgent inaczej niż resztę skali). */
+/** Malutki wskaźnik priorytetu — "słupki sygnału" jak w Linear (im więcej
+ * wypełnionych, tym wyższy), a dla "Krytyczny" płaska pomarańczowa plakietka. */
 function PrioritySignal({ priorytet }: { priorytet: string }) {
   if (priorytet === "Krytyczny") {
     return (
@@ -84,46 +83,22 @@ function PrioritySignal({ priorytet }: { priorytet: string }) {
   );
 }
 
-type Segment = { left: Date; right: Date; label: string | null; trailing: boolean; milestoneId: string | null };
-
-/** Dzieli pasek projektu na odcinki wyznaczone kamieniami milowymi — każdy
- * odcinek kończy się datą kamienia i nosi jego nazwę jako etykietę (styl
- * Linear: "Core screens" / "Polish" pod paskiem, na stałe widoczne, nie
- * tylko po najechaniu). Odcinek po ostatnim kamieniu do końca paska nie ma
- * etykiety i renderuje się jako skośnie kreskowany "ogon" — praca
- * jeszcze nierozbita na kamienie milowe, więc z natury mniej pewna. */
-function buildSegments(
-  start: Date,
-  end: Date,
-  milestones: { id: string; nazwa: string; date: Date }[]
-): Segment[] {
-  const sorted = [...milestones].sort((a, b) => a.date.getTime() - b.date.getTime());
-  const segments: Segment[] = [];
-  let cursor = start;
-  for (const m of sorted) {
-    const md = m.date < start ? start : m.date > end ? end : m.date;
-    if (md > cursor) {
-      segments.push({ left: cursor, right: md, label: m.nazwa, trailing: false, milestoneId: m.id });
-      cursor = md;
-    }
-  }
-  if (cursor < end) {
-    segments.push({ left: cursor, right: end, label: null, trailing: true, milestoneId: null });
-  }
-  if (segments.length === 0) {
-    segments.push({ left: start, right: end, label: null, trailing: false, milestoneId: null });
-  }
-  return segments;
+/** Kolory paska/diamentu wg "zdrowia" projektu (Na dobrej drodze/Zagrożony/
+ * Zerwany) — wyraźne, nie wyblakłe, ale nadal spójne z ciemną paletą panelu. */
+function healthColors(zdrowie: string): { bar: string; diamond: string } {
+  if (zdrowie === "Zerwany") return { bar: "bg-red-500/25 border-red-500/70", diamond: "border-red-400" };
+  if (zdrowie === "Zagrożony") return { bar: "bg-orange-500/25 border-orange-500/70", diamond: "border-orange-400" };
+  return { bar: "bg-[#4ea7fc]/25 border-[#4ea7fc]/70", diamond: "border-[#4ea7fc]" };
 }
 
-/** Widok osi czasu (Gantt-lite, 1:1 ze wzorca "Roadmap" z Linear) — pasek
- * projektu dzieli się na odcinki wyznaczone kamieniami milowymi, każdy z
- * etykietą na stałe widoczną pod spodem; odcinek po ostatnim kamieniu do
- * końca to kreskowana "prognoza". Paski są stonowane (obrys + delikatne
- * tło, nie jaskrawy gradient) i mają mały promień zaokrąglenia, nie pełną
- * pigułkę — tak jak w oryginale. Projekty bez ręcznie ustawionych dat
- * dostają orientacyjny, przerywany pasek liczony od daty utworzenia — oś
- * nigdy nie jest pusta. */
+/**
+ * Oś czasu (Gantt-lite w stylu Linear Roadmap / GitHub Projects / Notion):
+ * stała lewa kolumna z nazwami projektów (ikona statusu, tytuł, priorytet) i
+ * prawy, przewijalny w poziomie obszar z paskami. Pasek biegnie od startu do
+ * terminu; kamienie milowe to diamenty na pasku; projekty bez ustawionych dat
+ * dostają orientacyjny, przerywany pasek. Pionowa linia „dziś" nie koliduje z
+ * niczym, bo tytuły są w lewej kolumnie, nie nad paskami.
+ */
 export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: string) => void }) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
 
@@ -185,7 +160,7 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
   if (dated.length === 0) {
     return (
       <div className="card-paper rounded-2xl p-8 text-center text-sm text-muted">
-        🗺️ Brak projektów do pokazania — dodaj pierwszy projekt, żeby zobaczyć oś czasu.
+        Brak projektów do pokazania — dodaj pierwszy projekt, żeby zobaczyć oś czasu.
       </div>
     );
   }
@@ -193,11 +168,9 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
   const today = new Date();
   const todayPct = today >= rangeStart && today <= rangeEnd ? (daysBetween(rangeStart, today) / totalDays) * 100 : null;
   const pctOf = (d: Date) => Math.max(0, Math.min((daysBetween(rangeStart, d) / totalDays) * 100, 100));
+  const chartPxWidth = Math.max(months.length * MONTH_PX, 360);
 
-  const chartPxWidth = Math.max(months.length * MONTH_PX, 420);
-
-  // Numerki dni na początku każdego tygodnia (5, 12, 19…) — konkretne punkty
-  // odniesienia na osi, bez rysowania pełnowysokościowych linii siatki.
+  // Numerki dni na początku każdego tygodnia (5, 12, 19…) jako punkty odniesienia.
   const weekTicks: { date: Date; leftPct: number }[] = [];
   {
     let cursor = rangeStart;
@@ -207,152 +180,128 @@ export function ProjectTimeline({ lang, onOpen }: { lang: Locale; onOpen: (id: s
     }
   }
 
+  // Linie siatki na granicach miesięcy (bez pierwszej — to lewa krawędź obszaru).
+  const monthLines = months.map((m) => pctOf(m)).filter((pct) => pct > 0.01);
+
   return (
-    <div className="card-paper overflow-x-auto rounded-2xl p-3 sm:p-4">
-      <div style={{ minWidth: `${chartPxWidth}px` }}>
-        {/* Nagłówek: miesiące + numerki tygodni + cykle — pełna szerokość,
-            bez lewej kolumny na tytuły (te stoją nad paskami, jak w Linear). */}
-        <div>
-          <div className="relative border-b hairline">
-            <div className="flex">
+    <div className="card-paper flex overflow-hidden rounded-2xl">
+      {/* LEWA KOLUMNA — nazwy projektów (stała, nie przewija się w poziomie) */}
+      <div className="shrink-0 border-r hairline bg-[var(--bg-soft)]" style={{ width: LEFT_W }}>
+        <div className="border-b hairline" style={{ height: HEADER_H }} />
+        {dated.map(({ p }, i) => (
+          <button
+            key={p.id}
+            onClick={() => onOpen(p.id)}
+            className={`flex w-full items-center gap-2 border-b hairline px-3 text-left transition-colors hover:bg-[var(--hairline)]/50 ${
+              i % 2 === 1 ? "bg-[var(--hairline)]/10" : ""
+            }`}
+            style={{ height: ROW_H }}
+            title={p.tytul}
+          >
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-white ${
+                PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"
+              }`}
+            >
+              <IconFolder size={11} stroke={2} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium text-[var(--fg)]">{p.tytul}</span>
+              <span className="block truncate text-[11px] text-muted">{p.status}</span>
+            </span>
+            <PrioritySignal priorytet={p.priorytet} />
+          </button>
+        ))}
+      </div>
+
+      {/* PRAWY OBSZAR — przewijalna siatka z paskami */}
+      <div className="min-w-0 flex-1 overflow-x-auto">
+        <div className="relative" style={{ minWidth: `${chartPxWidth}px` }}>
+          {/* Nagłówek: miesiące + numerki tygodni */}
+          <div className="border-b hairline" style={{ height: HEADER_H }}>
+            <div className="flex" style={{ height: 28 }}>
               {months.map((m, i) => (
                 <div
                   key={i}
-                  className="shrink-0 border-l hairline px-2 py-1.5 text-[11px] font-semibold capitalize text-[var(--fg)]"
+                  className={`shrink-0 px-2 py-1.5 text-[11px] font-semibold capitalize text-[var(--fg)] ${
+                    i > 0 ? "border-l hairline" : ""
+                  }`}
                   style={{ width: `${(1 / months.length) * 100}%` }}
                 >
                   {fmtMonth(m)}
                 </div>
               ))}
             </div>
+            <div className="relative" style={{ height: 16 }}>
+              {weekTicks.map((w, i) => (
+                <span
+                  key={i}
+                  className="absolute top-0 -translate-x-1/2 text-[9px] text-muted opacity-60"
+                  style={{ left: `${w.leftPct}%` }}
+                >
+                  {w.date.getDate()}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="relative h-4 border-b hairline">
-            {weekTicks.map((w, i) => (
-              <span
-                key={i}
-                className="absolute top-0 -translate-x-1/2 text-[9px] text-muted opacity-60"
-                style={{ left: `${w.leftPct}%` }}
-              >
-                {w.date.getDate()}
-              </span>
-            ))}
-          </div>
-        </div>
 
-        {/* Wiersze projektów — tytuł stoi nad paskiem, na tej samej pozycji
-            osi co data startu (nie w stałej kolumnie po lewej). */}
-        <div className="relative mt-2">
-          <div className="relative z-10">
+          {/* Ciało: linie siatki miesięcy + wiersze z paskami */}
+          <div className="relative">
+            {/* Pionowe linie siatki na granicach miesięcy */}
+            <div className="pointer-events-none absolute inset-0 z-0">
+              {monthLines.map((pct, i) => (
+                <div key={i} className="absolute inset-y-0 w-px bg-[var(--hairline)]" style={{ left: `${pct}%` }} />
+              ))}
+            </div>
+
             {dated.map(({ p, start, end, estimated }, rowIdx) => {
               const milestonesWithDates = p.milestones
                 .map((m) => ({ id: m.id, nazwa: m.nazwa, date: parseDate(m.termin) }))
                 .filter((m): m is { id: string; nazwa: string; date: Date } => m.date !== null);
-              const segments = estimated ? [] : buildSegments(start, end, milestonesWithDates);
-              // Stonowany wypełnienie + obrys, nie jaskrawy gradient — tak jak
-              // paski w Linear (delikatny kolor, nie krzyczący).
-              const healthClass =
-                p.zdrowie === "Zerwany"
-                  ? "bg-red-500/20 border-red-500/60"
-                  : p.zdrowie === "Zagrożony"
-                  ? "bg-orange-500/20 border-orange-500/60"
-                  : "bg-[var(--fg)]/15 border-[var(--fg)]/40";
-              const diamondBorderClass =
-                p.zdrowie === "Zerwany" ? "border-red-500" : p.zdrowie === "Zagrożony" ? "border-orange-500" : "border-[var(--fg)]/50";
-              const startPct = pctOf(start);
+              const { bar, diamond } = healthColors(p.zdrowie);
+              const barLeft = pctOf(start);
+              const barWidth = Math.max(pctOf(end) - barLeft, 0.5);
 
               return (
                 <div
                   key={p.id}
-                  className={`group relative rounded-lg transition-colors hover:bg-[var(--hairline)]/40 ${
-                    rowIdx % 2 === 1 ? "bg-[var(--hairline)]/10" : ""
-                  }`}
-                  style={{ height: `${ROW_PX}px` }}
+                  className={`group relative border-b hairline ${rowIdx % 2 === 1 ? "bg-[var(--hairline)]/10" : ""}`}
+                  style={{ height: ROW_H }}
                 >
+                  {/* Pasek projektu (start → termin) */}
                   <button
                     onClick={() => onOpen(p.id)}
-                    className="absolute top-0 z-20 flex items-center gap-1.5 whitespace-nowrap px-1 text-left text-xs hover:underline"
-                    style={{ left: `${startPct}%` }}
-                    title={p.tytul}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-white ${PROJECT_STATUS_DOT[p.status] ?? "bg-[var(--fg-muted)]"}`}
-                    >
-                      <IconFolder size={11} stroke={2} />
-                    </span>
-                    <span className="font-medium">{p.tytul}</span>
-                    <PrioritySignal priorytet={p.priorytet} />
-                  </button>
+                    className={`absolute top-1/2 z-10 h-6 -translate-y-1/2 rounded-md border transition-colors hover:brightness-125 ${bar} ${
+                      estimated ? "border-dashed opacity-80" : ""
+                    }`}
+                    style={{ left: `${barLeft}%`, width: `${barWidth}%`, minWidth: "10px" }}
+                    title={
+                      estimated
+                        ? `${p.tytul} · daty orientacyjne (brak ustawionych)`
+                        : `${p.tytul} · ${formatPlDate(toLocalISO(start))} – ${formatPlDate(toLocalISO(end))}`
+                    }
+                  />
 
-                  {estimated ? (
-                    <button
-                      onClick={() => onOpen(p.id)}
-                      className={`absolute top-6 h-5 overflow-hidden rounded-[4px] border border-dashed px-2 text-left transition-colors hover:bg-[var(--fg)]/20 ${healthClass}`}
-                      style={{ left: `${pctOf(start)}%`, width: `${Math.max(pctOf(end) - pctOf(start), 1.5)}%`, minWidth: "10px" }}
-                      title={`${p.tytul} · daty orientacyjne (brak ustawionych)`}
+                  {/* Kamienie milowe — diamenty na pasku */}
+                  {milestonesWithDates.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`pointer-events-none absolute top-1/2 z-20 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 bg-[var(--bg-soft)] ${diamond}`}
+                      style={{ left: `${pctOf(m.date)}%` }}
+                      title={`${m.nazwa} — ${formatPlDate(toLocalISO(m.date))}`}
                     />
-                  ) : (
-                    segments.map((seg, i) => {
-                      const segLeft = pctOf(seg.left);
-                      const segWidth = Math.max(pctOf(seg.right) - segLeft, 0.4);
-                      const isFirst = i === 0;
-                      const isLast = i === segments.length - 1;
-                      return (
-                        <div key={i}>
-                          <button
-                            onClick={() => onOpen(p.id)}
-                            className={`absolute top-6 h-5 overflow-hidden border-y border-r transition-colors hover:bg-[var(--fg)]/10 ${
-                              isFirst ? "rounded-l-[4px] border-l" : ""
-                            } ${isLast ? "rounded-r-[4px]" : ""} ${seg.trailing ? "border-dashed opacity-70" : ""} ${healthClass}`}
-                            style={{
-                              left: `${segLeft}%`,
-                              width: `${segWidth}%`,
-                              minWidth: "6px",
-                            }}
-                            title={`${p.tytul}${seg.label ? ` · ${seg.label}` : ""} · ${formatPlDate(
-                              toLocalISO(seg.left)
-                            )} – ${formatPlDate(toLocalISO(seg.right))}`}
-                          />
-                          {seg.label && segWidth > 5 && (
-                            <span
-                              className="pointer-events-none absolute top-12 -translate-x-1/2 whitespace-nowrap text-[10px] text-muted"
-                              style={{ left: `${segLeft + segWidth / 2}%` }}
-                            >
-                              {seg.label}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                  {milestonesWithDates.map((m) => {
-                    const mp = pctOf(m.date);
-                    return (
-                      <div
-                        key={m.id}
-                        className="pointer-events-none absolute top-6 z-20 h-5 -translate-x-1/2"
-                        style={{ left: `${mp}%` }}
-                        title={`${m.nazwa} — ${formatPlDate(toLocalISO(m.date))}`}
-                      >
-                        <div className={`mt-[5px] h-2.5 w-2.5 rotate-45 border-[1.5px] bg-[var(--bg)] ${diamondBorderClass}`} />
-                      </div>
-                    );
-                  })}
+                  ))}
                 </div>
               );
             })}
           </div>
 
+          {/* Pionowa linia „dziś" — przez cały prawy obszar (nagłówek + wiersze) */}
           {todayPct !== null && (
-            <div className="pointer-events-none absolute inset-0 z-30">
-              <div
-                className="absolute inset-y-0 flex -translate-x-1/2 flex-col items-center"
-                style={{ left: `${todayPct}%` }}
-              >
-                <span className="rounded-full bg-[#4ea7fc] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--bg)] shadow">
-                  dziś
-                </span>
-                <div className="w-px flex-1 bg-[#4ea7fc]/50" />
-              </div>
+            <div className="pointer-events-none absolute inset-y-0 z-30 w-px -translate-x-1/2 bg-[#4ea7fc]" style={{ left: `${todayPct}%` }}>
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-md bg-[#4ea7fc] px-1.5 py-0.5 text-[9px] font-semibold text-white shadow">
+                dziś
+              </span>
             </div>
           )}
         </div>
