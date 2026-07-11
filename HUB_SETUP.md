@@ -88,26 +88,40 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
   Termin płatności ma szybkie przyciski 7/14/30 dni obok koła dat.
 
 **Wydruk faktur i ofert dzieli wspólną logikę** przez `lib/documents.ts`
-(język/locale, adres klienta, formatowanie kwot/dat, akcent gradientu marki)
-— oba dokumenty są strukturalnie bliźniacze, więc realna duplikacja
-(formatowanie, adres) żyje w jednym miejscu, a JSX/prezentacja zostają
-osobno w `InvoicePrint.tsx` / `OfferPrint.tsx` (inne sekcje: faktura ma
-VAT/płatność, oferta ma „ważna do” bez VAT). Styl: premium, stonowany
+(język/locale, adres klienta, formatowanie kwot/dat, akcent gradientu marki,
+payload kodu QR) — oba dokumenty są strukturalnie bliźniacze, więc realna
+duplikacja (formatowanie, adres) żyje w jednym miejscu, a JSX/prezentacja
+zostają osobno w `InvoicePrint.tsx` / `OfferPrint.tsx` (inne sekcje: faktura
+ma VAT/płatność/QR, oferta ma „ważna do” bez VAT). Styl: premium, stonowany
 (czerń/biel/szarości) + **subtelny akcent gradientu marki fiolet→złoto**
-(`DOC_GRADIENT` w `lib/documents.ts`) na pasku u góry, „logo”-kropce przy
-nazwie firmy i kwocie końcowej — wzorowane na fakturach Apple/Anthropic.
-**Trójjęzyczne (PL/EN/DE)** — język wybiera się per dokument w edytorze
-(pole `jezyk`, property "Dokument" w bocznym pasku), niezależnie od języka
-aktualnie przeglądanego panelu. Adres nabywcy to pola strukturalne (ulica /
-kod pocztowy + miasto / kraj) zamiast jednego zlepionego pola —
-`klient_adres` zostaje w bazie tylko jako fallback dla starych rekordów
-(`clientAddressLines()`). Faktura dodatkowo pokazuje: telefon sprzedawcy
-(z „Dane firmy”), „Słownie” tylko w PL (polska konwencja, nie tłumaczona) i
-**zestawienie VAT wg stawek** (`vatBreakdown()` w `lib/invoices.ts`) — widoczne
-tylko gdy pozycje mieszają stawki (przy jednej stawce łączne sumy już to w
-pełni pokrywają). Oferta nie ma numeracji fiskalnej (nie podlega przepisom
-o VAT) — na wydruku pokazuje się `offerReference()`, stabilna referencja
-liczona z daty utworzenia i ID, bez osobnej kolumny w bazie.
+(`DOC_GRADIENT` w `lib/documents.ts`) na pasku u góry, na kwocie końcowej i
+na monogramie-znaczku przy nazwie firmy (kwadrat z pierwszą literą nazwy —
+zastępuje logo, bo panel świadomie nie ma przesłanego pliku graficznego).
+**Format A4**: jawne `@page { size: A4; margin: 16mm }` + kontener o
+szerokości/wysokości 794×1123px (210×297mm przy 96dpi) — na ekranie wygląda
+jak pełna strona, na wydruku `min-h` jest wyłączone (`print:min-h-0`), żeby
+krótkie dokumenty nie generowały pustej drugiej strony; **stopka trzyma się
+dołu** dzięki `mt-auto` w kontenerze flex. **Trójjęzyczne (PL/EN/DE)** —
+język wybiera się per dokument w edytorze (pole `jezyk`, property "Dokument"
+w bocznym pasku), niezależnie od języka aktualnie przeglądanego panelu.
+Adres nabywcy to pola strukturalne (ulica / kod pocztowy + miasto / kraj)
+zamiast jednego zlepionego pola — `klient_adres` zostaje w bazie tylko jako
+fallback dla starych rekordów (`clientAddressLines()`).
+
+Stopka faktury/oferty pokazuje na stałe (3 kolumny): dane firmy, kontakt,
+dane do przelewu (bank/konto/BIC-SWIFT — nowe pola `company_settings.
+bank_nazwa`/`swift`, edytowalne w „Dane firmy”) — jak w klasycznych
+fakturach korporacyjnych. Faktura dodatkowo: **zestawienie VAT wg stawek**
+(`vatBreakdown()` w `lib/invoices.ts`, widoczne tylko gdy pozycje mieszają
+stawki), **adnotacja o odwrotnym obciążeniu** (gdy użyto stawki VAT „np” —
+wymagana prawnie przy usługach B2B do UE), „Słownie” tylko w PL (polska
+konwencja, nie tłumaczona), i **kod QR do przelewu** (`buildEpcQrPayload()`
++ npm `qrcode`, standard EPC069-12/„GiroCode”) — tylko gdy waluta faktury to
+EUR (standard SEPA jest zdefiniowany wyłącznie dla EUR); waluta wybierana
+per faktura w edytorze (`INVOICE_CURRENCIES`). Oferta nie ma numeracji
+fiskalnej (nie podlega przepisom o VAT) — na wydruku pokazuje się
+`offerReference()`, stabilna referencja liczona z daty utworzenia i ID, bez
+osobnej kolumny w bazie.
 
 ## Cmd+K, wyszukiwanie, skróty
 

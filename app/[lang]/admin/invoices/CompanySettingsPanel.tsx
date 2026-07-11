@@ -48,6 +48,10 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
         <SField label="Adres" value={s.adres} onSave={(v) => patch({ adres: v })} placeholder="ul. …, 00-000 Miasto" />
         <SField label="E-mail" value={s.email} onSave={(v) => patch({ email: v })} placeholder="kontakt@…" />
         <SField label="Nr konta (do przelewu)" value={s.konto} onSave={(v) => patch({ konto: v })} placeholder="PL00 0000 0000 0000 0000 0000 0000" />
+        <div className="grid grid-cols-2 gap-2.5">
+          <SField label="Nazwa banku" value={s.bank_nazwa} onSave={(v) => patch({ bank_nazwa: v })} placeholder="np. mBank" />
+          <SField label="BIC / SWIFT" value={s.swift} onSave={(v) => patch({ swift: v })} placeholder="np. BREXPLPWMBK" />
+        </div>
 
         <div className="mt-3 rounded-lg border hairline p-3">
           <label className="flex cursor-pointer items-center justify-between gap-3">

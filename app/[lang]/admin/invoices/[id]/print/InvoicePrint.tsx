@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import {
   type Invoice,
   type InvoiceItem,
@@ -14,7 +15,7 @@ import {
   clientAddressLines,
   vatBreakdown,
 } from "@/lib/invoices";
-import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
+import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload } from "@/lib/documents";
 
 /** Podgląd/wydruk faktury — samodzielny biały dokument (niezależny od motywu
  * panelu), gotowy do „Drukuj / Zapisz jako PDF" przeglądarki. Premium,
@@ -59,6 +60,11 @@ type Dict = {
   vatSummary: string;
   vatBase: string;
   reverseCharge: string;
+  footerCompany: string;
+  footerContact: string;
+  footerBank: string;
+  bank: string;
+  scanToPay: string;
 };
 
 const DICT: Record<InvoiceLang, Dict> = {
@@ -98,6 +104,11 @@ const DICT: Record<InvoiceLang, Dict> = {
     vatSummary: "Zestawienie VAT wg stawek",
     vatBase: "Podstawa VAT",
     reverseCharge: "Odwrotne obciążenie — podatek rozlicza nabywca.",
+    footerCompany: "Firma",
+    footerContact: "Kontakt",
+    footerBank: "Dane do przelewu",
+    bank: "Bank",
+    scanToPay: "Zeskanuj, aby zapłacić",
   },
   en: {
     doc: "Invoice",
@@ -135,6 +146,11 @@ const DICT: Record<InvoiceLang, Dict> = {
     vatSummary: "VAT summary by rate",
     vatBase: "VAT base",
     reverseCharge: "Reverse charge — VAT to be accounted for by the recipient.",
+    footerCompany: "Company",
+    footerContact: "Contact",
+    footerBank: "Bank details",
+    bank: "Bank",
+    scanToPay: "Scan to pay",
   },
   de: {
     doc: "Rechnung",
@@ -172,6 +188,11 @@ const DICT: Record<InvoiceLang, Dict> = {
     vatSummary: "USt.-Zusammenfassung nach Satz",
     vatBase: "USt.-Basis",
     reverseCharge: "Steuerschuldnerschaft des Leistungsempfängers (Reverse-Charge-Verfahren).",
+    footerCompany: "Firma",
+    footerContact: "Kontakt",
+    footerBank: "Bankverbindung",
+    bank: "Bank",
+    scanToPay: "Zum Bezahlen scannen",
   },
 };
 
@@ -183,6 +204,7 @@ export function InvoicePrint({ id }: { id: string }) {
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/invoices/${id}`)
@@ -198,15 +220,46 @@ export function InvoicePrint({ id }: { id: string }) {
   const lang: InvoiceLang = invoice?.jezyk ?? "pl";
   const t = DICT[lang];
 
+  const totals = invoiceTotals(items);
+  const vat = settings?.vat_payer ?? true;
+  const dueAmount = vat ? totals.brutto : totals.netto;
+  const currency = invoice?.waluta || "PLN";
+
+  // Kod QR (standard EPC069-12 / "GiroCode") — tylko dla EUR, bo standard
+  // SEPA jest zdefiniowany wyłącznie dla tej waluty. Skanowalny przez
+  // większość europejskich bankowości mobilnych, wypełnia gotowy przelew.
+  useEffect(() => {
+    if (!invoice || !settings || currency !== "EUR" || !settings.konto) {
+      setQrUrl(null);
+      return;
+    }
+    const payload = buildEpcQrPayload({
+      beneficiaryName: settings.nazwa,
+      iban: settings.konto,
+      bic: settings.swift,
+      amountEur: dueAmount,
+      remittanceInfo: invoice.numer ?? invoice.id,
+    });
+    if (!payload) {
+      setQrUrl(null);
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(payload, { margin: 0, width: 160 })
+      .then((url) => !cancelled && setQrUrl(url))
+      .catch(() => !cancelled && setQrUrl(null));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice?.id, invoice?.numer, settings?.konto, settings?.swift, settings?.nazwa, currency, dueAmount]);
+
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!invoice || !settings) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 
-  const totals = invoiceTotals(items);
-  const vat = settings.vat_payer;
-  const dueAmount = vat ? totals.brutto : totals.netto;
-  const currency = invoice.waluta || "PLN";
   const breakdown = vatBreakdown(items);
   const hasReverseCharge = items.some((it) => it.vat_stawka === "np");
+  const logoLetter = (settings.nazwa || "L").trim().charAt(0).toUpperCase();
 
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
@@ -237,19 +290,26 @@ export function InvoicePrint({ id }: { id: string }) {
 
       {/* Dokument — 794px na ekranie ≈ szerokość A4 (210mm) przy 96dpi, więc
           podgląd wiernie odzwierciedla wydruk; na print bez ograniczenia
-          szerokości, bo @page już definiuje obszar strony. */}
-      <div className="mx-auto max-w-[794px] bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:max-w-none print:shadow-none">
+          szerokości, bo @page już definiuje obszar strony. min-h-[1123px]
+          (≈297mm) daje na ekranie kształt pełnej strony A4 — na wydruku
+          wyłączone (print:min-h-0), żeby nie wymuszać pustej drugiej strony
+          przy krótkich fakturach; stopka i tak trzyma się dołu dzięki
+          mt-auto w środku. */}
+      <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
         {/* Cienki pasek akcentu marki na górze dokumentu */}
-        <div className="h-[3px] w-full" style={{ background: DOC_GRADIENT }} />
+        <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
 
-        <div className="p-10">
-          {/* Nagłówek: wordmark + tytuł/meta */}
+        <div className="flex flex-1 flex-col p-10">
+          {/* Nagłówek: logo + nazwa + tytuł/meta */}
           <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: DOC_GRADIENT }} />
-                <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa || "—"}</span>
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold text-white"
+                style={{ background: DOC_GRADIENT }}
+              >
+                {logoLetter}
               </div>
+              <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa || "—"}</span>
             </div>
             <div className="text-right">
               <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{t.doc}</div>
@@ -428,8 +488,40 @@ export function InvoicePrint({ id }: { id: string }) {
             <div className="mt-6 rounded-lg bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-700">{t.reverseCharge}</div>
           )}
 
-          {/* Drobny druk */}
-          <div className="mt-10 border-t border-neutral-100 pt-4 text-[10.5px] leading-relaxed text-neutral-400">{t.eSignatureNote}</div>
+          {/* Stopka: stałe dane firmowe (jak w klasycznych fakturach) +
+              QR do przelewu (tylko EUR/SEPA) — mt-auto trzyma ją przy dole
+              strony niezależnie od długości faktury. */}
+          <div className="mt-auto pt-10">
+            <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 border-t border-neutral-100 pt-4 text-[10.5px] text-neutral-500">
+              <div>
+                <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerCompany}</div>
+                <div className="font-medium text-neutral-700">{settings.nazwa || "—"}</div>
+                {settings.adres && <div className="whitespace-pre-line">{settings.adres}</div>}
+                {settings.nip && <div>{t.taxId}: {settings.nip}</div>}
+              </div>
+              <div>
+                <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerContact}</div>
+                {settings.email && <div>{settings.email}</div>}
+                {settings.telefon && <div>{settings.telefon}</div>}
+              </div>
+              <div>
+                <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerBank}</div>
+                {settings.bank_nazwa && <div>{t.bank}: {settings.bank_nazwa}</div>}
+                {settings.konto && <div>{settings.konto}</div>}
+                {settings.swift && <div>BIC/SWIFT: {settings.swift}</div>}
+              </div>
+              {qrUrl && (
+                <div className="flex flex-col items-center gap-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrUrl} alt="" width={64} height={64} className="rounded" />
+                  <span className="text-center text-[9px] leading-tight text-neutral-400">{t.scanToPay}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Drobny druk */}
+            <div className="mt-4 border-t border-neutral-100 pt-4 text-[10.5px] leading-relaxed text-neutral-400">{t.eSignatureNote}</div>
+          </div>
         </div>
       </div>
     </div>

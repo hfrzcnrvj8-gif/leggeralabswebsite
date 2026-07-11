@@ -60,3 +60,25 @@ export function docDate(s: string | null, lang: DocLang): string {
   if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleDateString(DOC_LOCALE[lang], { day: "2-digit", month: "2-digit", year: "numeric" });
 }
+
+/** Payload kodu QR wg standardu EPC069-12 ("EPC QR" / niem. "GiroCode") —
+ * skanowalny przez większość europejskich aplikacji bankowych, wypełnia
+ * odbiorcy gotowy przelew SEPA (IBAN, kwota, tytuł). Standard jest
+ * zdefiniowany wyłącznie dla przelewów w EUR — dlatego używać tylko gdy
+ * waluta faktury to EUR (patrz wywołanie w InvoicePrint.tsx). Zwraca `null`,
+ * gdy brakuje danych wymaganych przez standard (IBAN, nazwa odbiorcy). */
+export function buildEpcQrPayload(params: {
+  beneficiaryName: string;
+  iban: string;
+  bic?: string;
+  amountEur: number;
+  remittanceInfo: string;
+}): string | null {
+  const iban = params.iban.replace(/\s+/g, "").toUpperCase();
+  const name = params.beneficiaryName.trim().slice(0, 70);
+  if (!iban || !name) return null;
+  const bic = (params.bic ?? "").replace(/\s+/g, "").toUpperCase().slice(0, 11);
+  const amount = `EUR${params.amountEur.toFixed(2)}`;
+  const remittance = params.remittanceInfo.trim().slice(0, 140);
+  return ["BCD", "002", "1", "SCT", bic, name, iban, amount, "", remittance, ""].join("\n");
+}

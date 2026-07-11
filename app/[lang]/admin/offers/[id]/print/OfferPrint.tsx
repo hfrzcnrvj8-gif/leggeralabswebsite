@@ -32,6 +32,8 @@ type Dict = {
   close: string;
   print: string;
   draft: string;
+  footerCompany: string;
+  footerContact: string;
 };
 
 const DICT: Record<OfferLang, Dict> = {
@@ -57,6 +59,8 @@ const DICT: Record<OfferLang, Dict> = {
     close: "Zamknij",
     print: "Drukuj / Zapisz PDF",
     draft: "szkic",
+    footerCompany: "Firma",
+    footerContact: "Kontakt",
   },
   en: {
     doc: "Quote",
@@ -80,6 +84,8 @@ const DICT: Record<OfferLang, Dict> = {
     close: "Close",
     print: "Print / Save PDF",
     draft: "draft",
+    footerCompany: "Company",
+    footerContact: "Contact",
   },
   de: {
     doc: "Angebot",
@@ -103,6 +109,8 @@ const DICT: Record<OfferLang, Dict> = {
     close: "Schließen",
     print: "Drucken / Als PDF speichern",
     draft: "Entwurf",
+    footerCompany: "Firma",
+    footerContact: "Kontakt",
   },
 };
 
@@ -135,6 +143,7 @@ export function OfferPrint({ id }: { id: string }) {
   if (!offer) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 
   const total = offerTotal(items);
+  const logoLetter = (settings?.nazwa || "L").trim().charAt(0).toUpperCase();
 
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
@@ -161,18 +170,23 @@ export function OfferPrint({ id }: { id: string }) {
         </button>
       </div>
 
-      {/* Dokument — 794px na ekranie ≈ szerokość A4 (210mm) przy 96dpi */}
-      <div className="mx-auto max-w-[794px] bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:max-w-none print:shadow-none">
-        <div className="h-[3px] w-full" style={{ background: DOC_GRADIENT }} />
+      {/* Dokument — 794px na ekranie ≈ szerokość A4 (210mm) przy 96dpi;
+          min-h-[1123px] (≈297mm) daje kształt pełnej strony A4 na ekranie,
+          wyłączone na print (patrz komentarz w InvoicePrint.tsx). */}
+      <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
+        <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
 
-        <div className="p-10">
-          {/* Nagłówek: wordmark + tytuł/meta */}
+        <div className="flex flex-1 flex-col p-10">
+          {/* Nagłówek: logo + nazwa + tytuł/meta */}
           <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: DOC_GRADIENT }} />
-                <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings?.nazwa || "—"}</span>
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold text-white"
+                style={{ background: DOC_GRADIENT }}
+              >
+                {logoLetter}
               </div>
+              <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings?.nazwa || "—"}</span>
             </div>
             <div className="text-right">
               <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{t.doc}</div>
@@ -272,8 +286,26 @@ export function OfferPrint({ id }: { id: string }) {
 
           {offer.uwagi && <div className="mt-6 whitespace-pre-line text-neutral-600">{offer.uwagi}</div>}
 
-          {/* Drobny druk */}
-          <div className="mt-10 border-t border-neutral-100 pt-4 text-[10.5px] leading-relaxed text-neutral-400">{t.eSignatureNote}</div>
+          {/* Stopka: stałe dane firmowe, przyklejona do dołu strony
+              (mt-auto) niezależnie od długości oferty. */}
+          <div className="mt-auto pt-10">
+            <div className="grid grid-cols-2 gap-6 border-t border-neutral-100 pt-4 text-[10.5px] text-neutral-500">
+              <div>
+                <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerCompany}</div>
+                <div className="font-medium text-neutral-700">{settings?.nazwa || "—"}</div>
+                {settings?.adres && <div className="whitespace-pre-line">{settings.adres}</div>}
+                {settings?.nip && <div>{t.taxId}: {settings.nip}</div>}
+              </div>
+              <div>
+                <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerContact}</div>
+                {settings?.email && <div>{settings.email}</div>}
+                {settings?.telefon && <div>{settings.telefon}</div>}
+              </div>
+            </div>
+
+            {/* Drobny druk */}
+            <div className="mt-4 border-t border-neutral-100 pt-4 text-[10.5px] leading-relaxed text-neutral-400">{t.eSignatureNote}</div>
+          </div>
         </div>
       </div>
     </div>

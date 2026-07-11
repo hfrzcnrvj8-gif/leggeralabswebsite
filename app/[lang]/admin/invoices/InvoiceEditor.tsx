@@ -10,6 +10,7 @@ import {
   VAT_RATES,
   INVOICE_LANGS,
   INVOICE_LANG_LABEL,
+  INVOICE_CURRENCIES,
   addDaysISO,
   invoiceTotals,
   itemNetto,
@@ -352,6 +353,19 @@ export function InvoiceEditor({
               >
                 <span className="text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)] rounded-md px-1.5 py-1 -mx-1.5">
                   {invoice.jezyk.toUpperCase()} — {INVOICE_LANG_LABEL[invoice.jezyk]}
+                </span>
+              </PropertyMenu>
+            </Field>
+            <Field label="Waluta">
+              <PropertyMenu
+                value={invoice.waluta || "PLN"}
+                options={INVOICE_CURRENCIES.map((c) => ({ value: c, label: c }))}
+                onChange={(v) => patchInvoice({ waluta: v })}
+                title="Waluta faktury"
+                full
+              >
+                <span className="text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)] rounded-md px-1.5 py-1 -mx-1.5">
+                  {invoice.waluta || "PLN"}
                 </span>
               </PropertyMenu>
             </Field>

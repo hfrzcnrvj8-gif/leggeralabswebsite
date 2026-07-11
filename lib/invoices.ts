@@ -14,6 +14,10 @@ export type CompanySettings = {
   email: string;
   telefon: string;
   konto: string; // numer konta / IBAN
+  /** Nazwa banku prowadzącego konto — na wydruku obok numeru konta. */
+  bank_nazwa: string;
+  /** BIC/SWIFT — potrzebny zagranicznym klientom do przelewu SEPA/SWIFT. */
+  swift: string;
   /** true = płatnik VAT (faktury z VAT), false = zwolniony (bez VAT). */
   vat_payer: boolean;
   /** Podstawa zwolnienia z VAT (pokazywana na fakturze, gdy vat_payer=false). */
@@ -29,6 +33,8 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   email: "",
   telefon: "",
   konto: "",
+  bank_nazwa: "",
+  swift: "",
   vat_payer: true,
   zwolnienie_podstawa: "art. 113 ust. 1 ustawy o VAT",
   domyslny_termin_dni: 14,
@@ -56,6 +62,10 @@ export const INVOICE_STATUS_CLASS: Record<string, string> = {
  * i "np" nie podlega). Trzymane jako string, bo "zw"/"np" nie są liczbami. */
 export const VAT_RATES = ["23", "8", "5", "0", "zw", "np"] as const;
 export type VatRate = (typeof VAT_RATES)[number];
+
+/** Waluty dostępne na fakturze. EUR odblokowuje kod QR do przelewu SEPA
+ * (standard EPC069-12 jest zdefiniowany wyłącznie dla EUR). */
+export const INVOICE_CURRENCIES = ["PLN", "EUR", "USD", "GBP"] as const;
 
 export type InvoiceItem = {
   id: string;

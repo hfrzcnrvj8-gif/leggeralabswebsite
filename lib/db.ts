@@ -273,6 +273,10 @@ async function createInvoicesSchema(): Promise<void> {
     );
   `;
   await sql`INSERT INTO company_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;`;
+  // Nazwa banku + BIC/SWIFT — dodane po pierwszym wdrożeniu, do stopki
+  // wydruku (przydatne zwłaszcza zagranicznym klientom płacącym SWIFT/SEPA).
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_nazwa TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS swift TEXT NOT NULL DEFAULT '';`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
