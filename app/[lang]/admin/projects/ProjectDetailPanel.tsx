@@ -89,13 +89,19 @@ export function ProjectDetailPanel({
       return;
     }
     setProject((prev) => (prev ? { ...prev, [field]: value } : prev));
-    onFieldChange?.(id, field, value);
     const res = await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
     });
-    if (!res.ok) toast("Nie udało się zapisać zmiany.", "error");
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    // Dopiero PO potwierdzonym zapisie w bazie — inaczej oś czasu (która
+    // odświeża się na ten sygnał) potrafiła pobrać dane zanim PATCH się
+    // faktycznie zapisał (wyścig: refetch wygrywał z zapisem).
+    onFieldChange?.(id, field, value);
   };
 
   const deleteProject = async () => {
