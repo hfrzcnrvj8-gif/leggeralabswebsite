@@ -189,12 +189,80 @@ export function isInvoiceOverdue(inv: Pick<Invoice, "status" | "termin_platnosci
   return inv.termin_platnosci < today;
 }
 
-/** Kwota słownie po polsku — uproszczona wersja dla złotych i groszy na
- * fakturze ("1 234,50 zł" → "tysiąc dwieście trzydzieści cztery zł 50/100").
- * Świadomie prosta: pełna odmiana nie jest wymagana prawnie, ale kwota słownie
- * bywa oczekiwana na fakturze. */
-export function amountInWords(n: number): string {
-  const zl = Math.floor(n);
-  const gr = Math.round((n - zl) * 100);
-  return `${zl} zł ${String(gr).padStart(2, "0")}/100`;
+const JEDNOSCI = ["", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć"];
+const NASTKI = [
+  "dziesięć", "jedenaście", "dwanaście", "trzynaście", "czternaście",
+  "piętnaście", "szesnaście", "siedemnaście", "osiemnaście", "dziewiętnaście",
+];
+const DZIESIATKI = ["", "", "dwadzieścia", "trzydzieści", "czterdzieści", "pięćdziesiąt", "sześćdziesiąt", "siedemdziesiąt", "osiemdziesiąt", "dziewięćdziesiąt"];
+const SETKI = ["", "sto", "dwieście", "trzysta", "czterysta", "pięćset", "sześćset", "siedemset", "osiemset", "dziewięćset"];
+
+type PluralForms = { one: string; few: string; many: string };
+
+/** Polska odmiana rzeczownika policzalnego wg liczby (1 / 2-4 / 5+, z wyjątkiem
+ * 12-14) — działa dla wszystkich form użytych tu (złoty/tysiąc/milion/cent
+ * itd. — wszystkie rodzaju męskiego, ta sama reguła odmiany). */
+function pluralPL(n: number, forms: PluralForms): string {
+  if (n === 1) return forms.one;
+  const lastDigit = n % 10;
+  const lastTwo = n % 100;
+  if (lastDigit >= 2 && lastDigit <= 4 && !(lastTwo >= 12 && lastTwo <= 14)) return forms.few;
+  return forms.many;
+}
+
+function threeDigitsToWords(n: number): string {
+  const parts: string[] = [];
+  const h = Math.floor(n / 100);
+  const rem = n % 100;
+  if (h) parts.push(SETKI[h]);
+  if (rem >= 10 && rem <= 19) {
+    parts.push(NASTKI[rem - 10]);
+  } else {
+    const d = Math.floor(rem / 10);
+    const j = rem % 10;
+    if (d) parts.push(DZIESIATKI[d]);
+    if (j) parts.push(JEDNOSCI[j]);
+  }
+  return parts.join(" ");
+}
+
+/** Liczba całkowita (0–999 999 999) rozpisana słownie po polsku. "tysiąc" i
+ * "milion" bez poprzedzającego "jeden" (naturalna polszczyzna: "tysiąc
+ * złotych", nie "jeden tysiąc złotych" — tak samo jak przy "stu"). */
+function integerToWordsPL(n: number): string {
+  if (n === 0) return "zero";
+  const millions = Math.floor(n / 1_000_000);
+  const thousands = Math.floor((n % 1_000_000) / 1000);
+  const rest = n % 1000;
+  const parts: string[] = [];
+  if (millions) {
+    const word = millions === 1 ? "milion" : `${threeDigitsToWords(millions)} ${pluralPL(millions, { one: "milion", few: "miliony", many: "milionów" })}`;
+    parts.push(word);
+  }
+  if (thousands) {
+    const word = thousands === 1 ? "tysiąc" : `${threeDigitsToWords(thousands)} ${pluralPL(thousands, { one: "tysiąc", few: "tysiące", many: "tysięcy" })}`;
+    parts.push(word);
+  }
+  if (rest || parts.length === 0) parts.push(threeDigitsToWords(rest));
+  return parts.join(" ").trim();
+}
+
+const CURRENCY_WORDS: Record<string, { major: PluralForms }> = {
+  PLN: { major: { one: "złoty", few: "złote", many: "złotych" } },
+  EUR: { major: { one: "euro", few: "euro", many: "euro" } }, // euro nieodmienne w liczbie mnogiej
+  USD: { major: { one: "dolar", few: "dolary", many: "dolarów" } },
+  GBP: { major: { one: "funt", few: "funty", many: "funtów" } },
+};
+
+/** Kwota słownie po polsku, wg waluty faktury (domyślnie PLN) — np.
+ * "Jedenaście tysięcy siedemset pięćdziesiąt osiem złotych 80/100". Grosze/
+ * centy zostają cyfrą (X/100) — to standardowa polska konwencja na fakturach,
+ * nie tylko złote są rozpisywane słownie. */
+export function amountInWords(n: number, currency: string = "PLN"): string {
+  const whole = Math.floor(n);
+  const fraction = Math.round((n - whole) * 100);
+  const cw = CURRENCY_WORDS[currency] ?? CURRENCY_WORDS.PLN;
+  const words = integerToWordsPL(whole);
+  const capitalized = words.charAt(0).toUpperCase() + words.slice(1);
+  return `${capitalized} ${pluralPL(whole, cw.major)} ${String(fraction).padStart(2, "0")}/100`;
 }

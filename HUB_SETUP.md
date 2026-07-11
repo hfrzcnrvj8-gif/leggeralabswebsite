@@ -95,8 +95,10 @@ zostają osobno w `InvoicePrint.tsx` / `OfferPrint.tsx` (inne sekcje: faktura
 ma VAT/płatność/QR, oferta ma „ważna do” bez VAT). Styl: premium, stonowany
 (czerń/biel/szarości) + **subtelny akcent gradientu marki fiolet→złoto**
 (`DOC_GRADIENT` w `lib/documents.ts`) na pasku u góry, na kwocie końcowej i
-na monogramie-znaczku przy nazwie firmy (kwadrat z pierwszą literą nazwy —
-zastępuje logo, bo panel świadomie nie ma przesłanego pliku graficznego).
+na prawdziwym logo firmy (`DocLogoMark` w obu komponentach print — dwa
+nachodzące na siebie "L" jak w `app/icon.svg`/`components/Logo.tsx`, tu
+renderowane jako sam kontur/stroke w gradiencie, bez wypełnienia, na wyraźną
+prośbę właściciela).
 **Format A4**: jawne `@page { size: A4; margin: 16mm }` + kontener o
 szerokości/wysokości 794×1123px (210×297mm przy 96dpi) — na ekranie wygląda
 jak pełna strona, na wydruku `min-h` jest wyłączone (`print:min-h-0`), żeby
@@ -115,7 +117,9 @@ fakturach korporacyjnych. Faktura dodatkowo: **zestawienie VAT wg stawek**
 (`vatBreakdown()` w `lib/invoices.ts`, widoczne tylko gdy pozycje mieszają
 stawki), **adnotacja o odwrotnym obciążeniu** (gdy użyto stawki VAT „np” —
 wymagana prawnie przy usługach B2B do UE), „Słownie” tylko w PL (polska
-konwencja, nie tłumaczona), i **kod QR do przelewu** (`buildEpcQrPayload()`
+konwencja, nie tłumaczona; `amountInWords()` faktycznie rozpisuje kwotę
+słowami po polsku z odmianą wg waluty — PLN/EUR/USD/GBP — a nie tylko
+przepisuje cyfry jak w pierwszej wersji), i **kod QR do przelewu** (`buildEpcQrPayload()`
 + npm `qrcode`, standard EPC069-12/„GiroCode”) — tylko gdy waluta faktury to
 EUR (standard SEPA jest zdefiniowany wyłącznie dla EUR); waluta wybierana
 per faktura w edytorze (`INVOICE_CURRENCIES`). Oferta nie ma numeracji
