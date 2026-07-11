@@ -147,6 +147,8 @@ async function createHubSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS project_activity_project_id_idx ON project_activity(project_id);`;
+  // Rodzaj wpisu: "note" (ręczny) vs "system" (automatyczny log zmiany pola).
+  await sql`ALTER TABLE project_activity ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'note';`;
 
   // Zdrowie projektu (Na dobrej drodze/Zagrożony/Zerwany) — ustawiane ręcznie,
   // niezależne od statusu na tablicy, styl Linear. Data startu potrzebna do

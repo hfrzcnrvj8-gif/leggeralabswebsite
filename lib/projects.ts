@@ -35,6 +35,9 @@ export type ProjectActivity = {
   id: string;
   project_id: string;
   text: string;
+  /** "note" = ręczny wpis użytkownika, "system" = automatyczny log zmiany
+   * (status/priorytet/zdrowie/data), renderowany dyskretnie. */
+  kind: "note" | "system";
   created_at: string;
 };
 

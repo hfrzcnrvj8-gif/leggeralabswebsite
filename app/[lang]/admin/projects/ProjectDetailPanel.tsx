@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2 } from "@tabler/icons-react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -106,6 +106,10 @@ export function ProjectDetailPanel({
     setSaveState("saved");
     if (savedTimer.current) window.clearTimeout(savedTimer.current);
     savedTimer.current = window.setTimeout(() => setSaveState("idle"), 1800);
+    // Serwer dopisuje automatyczny wpis „system" do logu (audyt zmiany) i
+    // zwraca świeżą listę — pokaż ją od razu, bez ponownego pobierania.
+    const data = (await res.json().catch(() => null)) as { activity?: ProjectActivity[] } | null;
+    if (data?.activity) setActivity(data.activity);
     // Dopiero PO potwierdzonym zapisie w bazie — inaczej oś czasu (która
     // odświeża się na ten sygnał) potrafiła pobrać dane zanim PATCH się
     // faktycznie zapisał (wyścig: refetch wygrywał z zapisem).
@@ -409,13 +413,21 @@ export function ProjectDetailPanel({
             {activity.length === 0 ? (
               <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
             ) : (
-              <ul className="space-y-3">
-                {activity.map((a) => (
-                  <li key={a.id} className="rounded-xl border hairline p-3 text-sm">
-                    <span className="text-[11px] text-muted">{formatDate(a.created_at)}</span>
-                    <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
-                  </li>
-                ))}
+              <ul className="space-y-2">
+                {activity.map((a) =>
+                  a.kind === "system" ? (
+                    <li key={a.id} className="flex items-center gap-2 px-1 py-0.5 text-[12.5px] text-muted">
+                      <IconArrowRight size={13} className="shrink-0 opacity-60" />
+                      <span className="min-w-0 flex-1 truncate">{a.text}</span>
+                      <span className="shrink-0 text-[11px] opacity-70">{formatDate(a.created_at)}</span>
+                    </li>
+                  ) : (
+                    <li key={a.id} className="rounded-xl border hairline p-3 text-sm">
+                      <span className="text-[11px] text-muted">{formatDate(a.created_at)}</span>
+                      <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
+                    </li>
+                  )
+                )}
               </ul>
             )}
           </div>
