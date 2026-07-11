@@ -49,6 +49,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("klient_kod" in body) await sql`UPDATE invoices SET klient_kod = ${str(body.klient_kod, 20)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_miasto" in body) await sql`UPDATE invoices SET klient_miasto = ${str(body.klient_miasto, 200)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_kraj" in body) await sql`UPDATE invoices SET klient_kraj = ${str(body.klient_kraj, 100)}, updated_at = now() WHERE id = ${id};`;
+    if ("odbiorca_nazwa" in body) await sql`UPDATE invoices SET odbiorca_nazwa = ${str(body.odbiorca_nazwa, 300)}, updated_at = now() WHERE id = ${id};`;
+    if ("odbiorca_ulica" in body) await sql`UPDATE invoices SET odbiorca_ulica = ${str(body.odbiorca_ulica, 300)}, updated_at = now() WHERE id = ${id};`;
+    if ("odbiorca_kod" in body) await sql`UPDATE invoices SET odbiorca_kod = ${str(body.odbiorca_kod, 20)}, updated_at = now() WHERE id = ${id};`;
+    if ("odbiorca_miasto" in body) await sql`UPDATE invoices SET odbiorca_miasto = ${str(body.odbiorca_miasto, 200)}, updated_at = now() WHERE id = ${id};`;
+    if ("odbiorca_kraj" in body) await sql`UPDATE invoices SET odbiorca_kraj = ${str(body.odbiorca_kraj, 100)}, updated_at = now() WHERE id = ${id};`;
     if ("uwagi" in body) await sql`UPDATE invoices SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
     if ("waluta" in body) await sql`UPDATE invoices SET waluta = ${str(body.waluta, 10) || "PLN"}, updated_at = now() WHERE id = ${id};`;
     if ("jezyk" in body) {

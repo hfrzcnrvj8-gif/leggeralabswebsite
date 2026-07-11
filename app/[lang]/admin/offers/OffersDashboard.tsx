@@ -175,7 +175,14 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                         expired ? "bg-red-500/[0.04]" : ""
                       }`}
                     >
-                      <td className="p-2.5 font-medium text-[var(--fg)]">{o.tytul || <span className="text-muted">(bez tytułu)</span>}</td>
+                      <td className="p-2.5 font-medium text-[var(--fg)]">
+                        <span className="flex items-center gap-1.5">
+                          {o.tytul || <span className="text-muted">(bez tytułu)</span>}
+                          <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted" title="Język wydruku">
+                            {o.jezyk}
+                          </span>
+                        </span>
+                      </td>
                       <td className="p-2.5">{o.klient_nazwa || <span className="text-muted opacity-60">— brak —</span>}</td>
                       <td className="p-2.5 text-right tabular-nums">{formatMoney(o.kwota)}</td>
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>

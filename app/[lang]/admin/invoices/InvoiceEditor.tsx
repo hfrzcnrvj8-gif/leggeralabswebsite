@@ -41,6 +41,7 @@ export function InvoiceEditor({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const savedTimer = useRef<number | null>(null);
   const [issuing, setIssuing] = useState(false);
+  const [showOdbiorca, setShowOdbiorca] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/invoices/${id}`);
@@ -49,6 +50,7 @@ export function InvoiceEditor({
     setInvoice(data.invoice);
     setItems(data.items);
     setSettings(data.settings);
+    setShowOdbiorca(Boolean(data.invoice.odbiorca_nazwa));
   }, [id]);
 
   useEffect(() => {
@@ -239,6 +241,68 @@ export function InvoiceEditor({
               <p className="mt-2 whitespace-pre-line rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
                 Stary adres (sprzed rozbicia na pola): {invoice.klient_adres}
               </p>
+            )}
+          </div>
+
+          <div className="card-paper rounded-xl border hairline p-4">
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span>
+                <span className="block text-[13px] font-medium">Inny odbiorca niż nabywca</span>
+                <span className="block text-[11px] text-muted">Np. faktura na centralę, towar/usługa fizycznie dla oddziału.</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={showOdbiorca}
+                onChange={(e) => {
+                  setShowOdbiorca(e.target.checked);
+                  if (!e.target.checked) {
+                    patchInvoice({ odbiorca_nazwa: "", odbiorca_ulica: "", odbiorca_kod: "", odbiorca_miasto: "", odbiorca_kraj: "" });
+                  }
+                }}
+                className="h-4 w-4 cursor-pointer accent-[#7C3AED]"
+              />
+            </label>
+
+            {showOdbiorca && (
+              <div className="mt-3 border-t hairline pt-3">
+                <input
+                  value={invoice.odbiorca_nazwa}
+                  onChange={(e) => setInvoice((p) => (p ? { ...p, odbiorca_nazwa: e.target.value } : p))}
+                  onBlur={(e) => patchInvoice({ odbiorca_nazwa: e.target.value })}
+                  placeholder="Nazwa odbiorcy"
+                  className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                />
+                <input
+                  value={invoice.odbiorca_ulica}
+                  onChange={(e) => setInvoice((p) => (p ? { ...p, odbiorca_ulica: e.target.value } : p))}
+                  onBlur={(e) => patchInvoice({ odbiorca_ulica: e.target.value })}
+                  placeholder="Ulica i numer"
+                  className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                />
+                <div className="grid grid-cols-[100px_1fr] gap-2">
+                  <input
+                    value={invoice.odbiorca_kod}
+                    onChange={(e) => setInvoice((p) => (p ? { ...p, odbiorca_kod: e.target.value } : p))}
+                    onBlur={(e) => patchInvoice({ odbiorca_kod: e.target.value })}
+                    placeholder="Kod pocztowy"
+                    className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                  />
+                  <input
+                    value={invoice.odbiorca_miasto}
+                    onChange={(e) => setInvoice((p) => (p ? { ...p, odbiorca_miasto: e.target.value } : p))}
+                    onBlur={(e) => patchInvoice({ odbiorca_miasto: e.target.value })}
+                    placeholder="Miasto"
+                    className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                  />
+                </div>
+                <input
+                  value={invoice.odbiorca_kraj}
+                  onChange={(e) => setInvoice((p) => (p ? { ...p, odbiorca_kraj: e.target.value } : p))}
+                  onBlur={(e) => patchInvoice({ odbiorca_kraj: e.target.value })}
+                  placeholder="Kraj"
+                  className="mt-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                />
+              </div>
             )}
           </div>
 

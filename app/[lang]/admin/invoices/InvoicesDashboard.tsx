@@ -87,17 +87,28 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
     return list;
   }, [invoices, filterStatus]);
 
+  // Grupowane wg waluty — sumowanie kwot z różnych walut w jedną liczbę
+  // byłoby matematycznie bez sensu (faktura w EUR i w PLN to nie ta sama
+  // "złotówka"), więc każda waluta dostaje własną sumę.
   const kpi = useMemo(() => {
     const list = invoices ?? [];
-    let nieoplacone = 0;
-    let poTerminie = 0;
+    const nieoplacone = new Map<string, number>();
+    const poTerminie = new Map<string, number>();
     for (const i of list) {
+      const currency = i.waluta || "PLN";
       const overdue = isInvoiceOverdue(i);
-      if (i.status === "Wystawiona" || overdue) nieoplacone += i.brutto;
-      if (overdue) poTerminie += i.brutto;
+      if (i.status === "Wystawiona" || overdue) nieoplacone.set(currency, (nieoplacone.get(currency) ?? 0) + i.brutto);
+      if (overdue) poTerminie.set(currency, (poTerminie.get(currency) ?? 0) + i.brutto);
     }
     return { nieoplacone, poTerminie };
   }, [invoices]);
+
+  const formatKpi = (byCurrency: Map<string, number>) => {
+    if (byCurrency.size === 0) return formatMoney(0);
+    return Array.from(byCurrency.entries())
+      .map(([currency, sum]) => formatMoney(sum, currency))
+      .join(" + ");
+  };
 
   if (!invoices) {
     return (
@@ -155,12 +166,12 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
         <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Nieopłacone</div>
-            <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.nieoplacone)}</div>
+            <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatKpi(kpi.nieoplacone)}</div>
           </div>
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Po terminie</div>
-            <div className={`mt-0.5 text-lg font-semibold ${kpi.poTerminie > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
-              {formatMoney(kpi.poTerminie)}
+            <div className={`mt-0.5 text-lg font-semibold ${kpi.poTerminie.size > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
+              {formatKpi(kpi.poTerminie)}
             </div>
           </div>
         </div>
@@ -194,9 +205,16 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                         overdue ? "bg-red-500/[0.04]" : ""
                       }`}
                     >
-                      <td className="p-2.5 font-medium text-[var(--fg)]">{inv.numer ?? <span className="text-muted">szkic</span>}</td>
+                      <td className="p-2.5 font-medium text-[var(--fg)]">
+                        <span className="flex items-center gap-1.5">
+                          {inv.numer ?? <span className="text-muted">szkic</span>}
+                          <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted" title="Język wydruku">
+                            {inv.jezyk}
+                          </span>
+                        </span>
+                      </td>
                       <td className="p-2.5">{inv.klient_nazwa || <span className="text-muted opacity-60">— brak —</span>}</td>
-                      <td className="p-2.5 text-right tabular-nums">{formatMoney(inv.brutto)}</td>
+                      <td className="p-2.5 text-right tabular-nums">{formatMoney(inv.brutto, inv.waluta || "PLN")}</td>
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <PropertyMenu value={inv.status} options={statusOpts} onChange={(v) => updateStatus(inv.id, v)} title="Zmień status">
                           <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${INVOICE_STATUS_CLASS[inv.status] ?? ""}`}>

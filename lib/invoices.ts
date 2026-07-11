@@ -93,6 +93,15 @@ export type Invoice = {
   klient_kod: string;
   klient_miasto: string;
   klient_kraj: string;
+  /** Odbiorca — opcjonalny, osobny od nabywcy (np. faktura na centralę, towar/
+   * usługa fizycznie dla oddziału). Wypełniony tylko gdy właściciel włączy tę
+   * opcję w edytorze; pusty `odbiorca_nazwa` = brak osobnego odbiorcy, wydruk
+   * pokazuje wtedy tylko nabywcę (jak w Fakturowni/inFakt). */
+  odbiorca_nazwa: string;
+  odbiorca_ulica: string;
+  odbiorca_kod: string;
+  odbiorca_miasto: string;
+  odbiorca_kraj: string;
   data_wystawienia: string | null;
   data_sprzedazy: string | null;
   termin_platnosci: string | null;
@@ -157,6 +166,19 @@ export function clientAddressLines(
   inv: Pick<Invoice, "klient_ulica" | "klient_kod" | "klient_miasto" | "klient_kraj" | "klient_adres">
 ): string[] {
   return sharedClientAddressLines(inv);
+}
+
+/** Adres odbiorcy (jeśli inny niż nabywca) jako linie do wydruku. */
+export function recipientAddressLines(
+  inv: Pick<Invoice, "odbiorca_ulica" | "odbiorca_kod" | "odbiorca_miasto" | "odbiorca_kraj">
+): string[] {
+  return sharedClientAddressLines({
+    klient_ulica: inv.odbiorca_ulica,
+    klient_kod: inv.odbiorca_kod,
+    klient_miasto: inv.odbiorca_miasto,
+    klient_kraj: inv.odbiorca_kraj,
+    klient_adres: "",
+  });
 }
 
 /** Sumy faktury pogrupowane wg stawki VAT — do zestawienia "Podstawa VAT /

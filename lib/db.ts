@@ -306,6 +306,13 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_kod TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_miasto TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_kraj TEXT NOT NULL DEFAULT '';`;
+  // Odbiorca — opcjonalny, osobny od nabywcy (np. faktura na centralę, towar
+  // fizycznie dla oddziału), jak w Fakturowni/inFakt. Puste pola = brak.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_nazwa TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_ulica TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_kod TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_miasto TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_kraj TEXT NOT NULL DEFAULT '';`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_items (

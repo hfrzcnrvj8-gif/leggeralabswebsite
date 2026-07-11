@@ -127,6 +127,18 @@ fiskalnej (nie podlega przepisom o VAT) — na wydruku pokazuje się
 `offerReference()`, stabilna referencja liczona z daty utworzenia i ID, bez
 osobnej kolumny w bazie.
 
+Faktura opcjonalnie ma **Odbiorcę** — osobnego od Nabywcy (np. faktura na
+centralę, towar/usługa fizycznie dla oddziału), jak w Fakturowni/inFakt.
+Włączany checkboxem "Inny odbiorca niż nabywca" w edytorze (odkrywa pola
+`odbiorca_nazwa/ulica/kod/miasto/kraj`), na wydruku pojawia się jako trzecia
+kolumna obok Sprzedawcy/Nabywcy tylko gdy `odbiorca_nazwa` jest wypełnione.
+
+Lista faktur (`InvoicesDashboard.tsx`) formatuje kwoty wg **rzeczywistej
+waluty każdej faktury** (`inv.waluta`), nie zawsze PLN — KPI
+"Nieopłacone"/"Po terminie" sumują osobno per walutę (Map, nie jedna liczba),
+żeby nie dodawać do siebie PLN i EUR. Każdy wiersz ma też plakietkę języka
+wydruku (PL/EN/DE) obok numeru — to samo w Ofertach.
+
 ## Cmd+K, wyszukiwanie, skróty
 
 Globalna paleta poleceń (Cmd/Ctrl+K) działa na każdej podstronie panelu —

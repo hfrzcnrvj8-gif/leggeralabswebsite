@@ -178,9 +178,9 @@ export function OfferPrint({ id }: { id: string }) {
         <div className="flex flex-1 flex-col p-10">
           {/* Nagłówek: logo + nazwa + tytuł/meta */}
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <DocLogoMark />
-              <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings?.nazwa || "—"}</span>
+              {settings?.nazwa && <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa}</span>}
             </div>
             <div className="text-right">
               <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{t.doc}</div>
@@ -311,17 +311,17 @@ export function OfferPrint({ id }: { id: string }) {
  * marki, bez wypełnienia, na wniosek właściciela. */
 function DocLogoMark() {
   return (
-    <svg viewBox="0 0 90 90" width="30" height="30" aria-hidden className="shrink-0">
+    <svg viewBox="0 0 90 90" width="42" height="42" aria-hidden className="shrink-0">
       <defs>
         <linearGradient id="offLogoGradient" x1="0" y1="0" x2="90" y2="90" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#7C3AED" />
           <stop offset="100%" stopColor="#E0A93B" />
         </linearGradient>
       </defs>
-      <text x="18" y="55" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#offLogoGradient)" strokeWidth="2.5">
+      <text x="22" y="61" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#offLogoGradient)" strokeWidth="2.5">
         L
       </text>
-      <text x="30" y="67" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#offLogoGradient)" strokeWidth="2.5">
+      <text x="34" y="73" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="62" fill="none" stroke="url(#offLogoGradient)" strokeWidth="2.5">
         L
       </text>
     </svg>
