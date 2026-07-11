@@ -246,19 +246,25 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
       <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <button
           onClick={() => switchView("kanban")}
-          className={`flex h-full items-center border-b-2 px-1 text-[13px] ${
-            view === "kanban" ? "border-[#4ea7fc] text-[var(--fg)]" : "border-transparent text-muted"
+          className={`relative flex h-full items-center px-1 text-[13px] ${
+            view === "kanban" ? "text-[var(--fg)]" : "text-muted"
           }`}
         >
           Tablica
+          {view === "kanban" && (
+            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
+          )}
         </button>
         <button
           onClick={() => switchView("timeline")}
-          className={`flex h-full items-center border-b-2 px-1 text-[13px] ${
-            view === "timeline" ? "border-[#4ea7fc] text-[var(--fg)]" : "border-transparent text-muted"
+          className={`relative flex h-full items-center px-1 text-[13px] ${
+            view === "timeline" ? "text-[var(--fg)]" : "text-muted"
           }`}
         >
           Oś czasu
+          {view === "timeline" && (
+            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
+          )}
         </button>
         <span className="flex-1" />
         <input

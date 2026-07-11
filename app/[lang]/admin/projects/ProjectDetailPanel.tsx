@@ -1,19 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
   type ProjectActivity,
   type ProjectMilestone,
   type ProjectResource,
-  PROJECT_PRIORITIES,
-  ProjectStatusTag,
-  ProjectHealthTag,
   progressOf,
   isPlausibleDateString,
 } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
+import { PropertyMenu, type MenuOption } from "../Menu";
+import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
 import { useUI } from "../ui";
 import type { Lead } from "@/lib/leads";
 
@@ -269,6 +269,10 @@ export function ProjectDetailPanel({
   }
 
   const unmilestoned = tasks.filter((t) => !t.milestone_id);
+  const leadOptions: MenuOption<string>[] = [
+    { value: "", label: "— brak —" },
+    ...(leads ?? []).map((l) => ({ value: l.id, label: l.firma })),
+  ];
 
   return (
     <div>
@@ -418,43 +422,38 @@ export function ProjectDetailPanel({
             bez kart/etykiet nad polem, zamiast formularza. */}
         <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           <div>
-            <MetaRow icon="🩺" title="Zdrowie">
-              <ProjectHealthTag zdrowie={project.zdrowie} onChange={(v) => updateProject("zdrowie", v)} />
+            <MetaRow icon={<IconHeartbeat size={15} />} title="Zdrowie">
+              <PropertyMenu value={project.zdrowie} options={HEALTH_OPTS} onChange={(v) => updateProject("zdrowie", v)} title="Zdrowie" full>
+                <PropTrigger icon={<IconPointFilled size={10} className={HEALTH_COLOR[project.zdrowie] ?? "text-muted"} />} label={project.zdrowie} />
+              </PropertyMenu>
             </MetaRow>
-            <MetaRow icon="◔" title="Status">
-              <ProjectStatusTag status={project.status} onChange={(v) => updateProject("status", v)} />
+            <MetaRow icon={statusIconEl(project.status, 15)} title="Status">
+              <PropertyMenu value={project.status} options={STATUS_OPTS} onChange={(v) => updateProject("status", v)} title="Status" full>
+                <PropTrigger icon={statusIconEl(project.status, 14)} label={project.status} />
+              </PropertyMenu>
             </MetaRow>
-            <MetaRow icon="▮▯" title="Priorytet">
-              <select
-                value={project.priorytet}
-                onChange={(e) => updateProject("priorytet", e.target.value)}
-                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
-              >
-                {PROJECT_PRIORITIES.map((p) => (
-                  <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-                    {p}
-                  </option>
-                ))}
-              </select>
+            <MetaRow icon={<IconChartBar size={15} />} title="Priorytet">
+              <PropertyMenu value={project.priorytet} options={PRIORITY_OPTS} onChange={(v) => updateProject("priorytet", v)} title="Priorytet" full>
+                <PropTrigger icon={<PriorityIcon priorytet={project.priorytet} />} label={project.priorytet} />
+              </PropertyMenu>
             </MetaRow>
-            <MetaRow icon="📅" title="Start → Termin">
+            <MetaRow icon={<IconCalendar size={15} />} title="Start → Termin">
               <DateRangeField
                 start={project.start ?? ""}
                 termin={project.termin ?? ""}
                 onSave={(field, value) => updateProject(field, value)}
               />
             </MetaRow>
-            <MetaRow icon="🎯" title="Powiązany lead">
-              <select
+            <MetaRow icon={<IconTargetArrow size={15} />} title="Powiązany lead">
+              <PropertyMenu
                 value={project.lead_id ?? ""}
-                onChange={(e) => updateProject("lead_id", e.target.value)}
-                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
+                options={leadOptions}
+                onChange={(v) => updateProject("lead_id", v)}
+                title="Powiązany lead"
+                full
               >
-                <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">— brak —</option>
-                {(leads ?? []).map((l) => (
-                  <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{l.firma}</option>
-                ))}
-              </select>
+                <PropTrigger label={project.lead_id ? (leads?.find((l) => l.id === project.lead_id)?.firma ?? "—") : "— brak —"} />
+              </PropertyMenu>
             </MetaRow>
           </div>
 
@@ -572,10 +571,24 @@ function PanelHeader({ onClose, tytul }: { onClose?: () => void; tytul?: string 
 /** Płaski wiersz właściwości w bocznym pasku — ikona po lewej, kontrolka
  * zajmuje resztę szerokości, bez etykiety nad polem i bez obramowania karty
  * (styl Linear: lista właściwości, nie formularz). */
-function MetaRow({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+/** Wartość właściwości jako klikalny wiersz (styl Linear): [ikona] etykieta,
+ * chevron pojawia się na hover. Trigger dla PropertyMenu w panelu szczegółów. */
+function PropTrigger({ icon, label }: { icon?: React.ReactNode; label: string }) {
   return (
-    <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-[var(--hairline)]/30" title={title}>
-      <span className="w-4 shrink-0 text-center text-xs text-muted opacity-80">{icon}</span>
+    <span className="group/pt flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)]">
+      {icon && <span className="flex w-4 shrink-0 justify-center">{icon}</span>}
+      <span className="flex-1 truncate text-left">{label}</span>
+      <IconChevronDown size={13} className="shrink-0 text-muted opacity-0 group-hover/pt:opacity-100" />
+    </span>
+  );
+}
+
+function MetaRow({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1" title={title}>
+      <span className="flex w-16 shrink-0 items-center gap-1.5 text-[12px] text-muted">
+        <span className="flex w-4 justify-center">{icon}</span>
+      </span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

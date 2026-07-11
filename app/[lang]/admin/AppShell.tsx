@@ -247,7 +247,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
                   href={href}
                   className={`relative flex shrink-0 items-center gap-2.5 rounded-md px-1.5 py-1.5 text-[13px] transition-colors ${
                     active
-                      ? "border border-[#4ea7fc] text-[var(--fg)]"
+                      ? "border border-[#7C3AED]/40 bg-gradient-to-r from-[#7C3AED]/22 to-[#E0A93B]/14 text-[var(--fg)]"
                       : "border border-transparent text-[#c7c9cd] hover:bg-[var(--hairline)]"
                   } ${collapsed ? "justify-center" : ""}`}
                   title={item.label}

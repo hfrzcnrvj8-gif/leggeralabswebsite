@@ -28,7 +28,7 @@ const STATUS_ICON: Record<string, { icon: TablerIcon; className: string }> = {
 };
 
 // Priorytet jako słupki sygnału (jak w Linear), Krytyczny = ostrzeżenie.
-function PriorityIcon({ priorytet }: { priorytet: string }) {
+export function PriorityIcon({ priorytet }: { priorytet: string }) {
   if (priorytet === "Krytyczny") {
     return <IconAlertTriangleFilled size={13} className="shrink-0 text-[#e5484d]" title="Priorytet: Krytyczny" />;
   }
@@ -47,7 +47,7 @@ function PriorityIcon({ priorytet }: { priorytet: string }) {
   );
 }
 
-const HEALTH_COLOR: Record<string, string> = {
+export const HEALTH_COLOR: Record<string, string> = {
   "Na dobrej drodze": "text-[#3fb987]",
   "Zagrożony": "text-[#e2a336]",
   "Zerwany": "text-[#e5484d]",
@@ -57,24 +57,25 @@ const HEALTH_DOT: Record<string, string> = {
   "Zerwany": "text-[#e5484d]",
 };
 
-function statusIconEl(status: string, size = 15) {
+export function statusIconEl(status: string, size = 15) {
   const st = STATUS_ICON[status];
   const Ico = st?.icon ?? IconCircle;
   return <Ico size={size} className={st?.className ?? "text-muted"} />;
 }
 
-// Listy opcji do menu (z ikonami) — budowane raz.
-const STATUS_OPTS: MenuOption<string>[] = PROJECT_STATUSES.map((s) => ({
+// Listy opcji do menu (z ikonami) — budowane raz, współdzielone z panelem
+// szczegółów, żeby wygląd właściwości był identyczny wszędzie.
+export const STATUS_OPTS: MenuOption<string>[] = PROJECT_STATUSES.map((s) => ({
   value: s,
   label: s,
   icon: statusIconEl(s, 15),
 }));
-const PRIORITY_OPTS: MenuOption<string>[] = PROJECT_PRIORITIES.map((p) => ({
+export const PRIORITY_OPTS: MenuOption<string>[] = PROJECT_PRIORITIES.map((p) => ({
   value: p,
   label: p,
   icon: <PriorityIcon priorytet={p} />,
 }));
-const HEALTH_OPTS: MenuOption<string>[] = PROJECT_HEALTHS.map((h) => ({
+export const HEALTH_OPTS: MenuOption<string>[] = PROJECT_HEALTHS.map((h) => ({
   value: h,
   label: h,
   icon: <IconPointFilled size={12} className={HEALTH_COLOR[h] ?? "text-muted"} />,

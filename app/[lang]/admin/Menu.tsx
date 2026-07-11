@@ -155,6 +155,7 @@ export function PropertyMenu<T extends string>({
   children,
   align = "left",
   title,
+  full = false,
 }: {
   value?: T;
   options: MenuOption<T>[];
@@ -163,6 +164,8 @@ export function PropertyMenu<T extends string>({
   children: ReactNode;
   align?: "left" | "right";
   title?: string;
+  /** true = trigger na pełną szerokość (wiersz właściwości w panelu). */
+  full?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -239,7 +242,7 @@ export function PropertyMenu<T extends string>({
         type="button"
         onClick={openMenu}
         title={title}
-        className="inline-flex items-center"
+        className={full ? "flex w-full items-center" : "inline-flex items-center"}
       >
         {children}
       </button>
