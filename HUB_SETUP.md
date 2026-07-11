@@ -35,10 +35,27 @@ użyciu API.
 Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
 
 - **Pulpit** (`/admin`) — widok "co dziś": leady wymagające działania,
-  projekty z minionym terminem, dzisiejsze wydarzenia z kalendarza,
-  ostatnie notatki. Punkt startowy każdego dnia pracy. Interaktywny — bez
-  przechodzenia do modułu można leada oznaczyć jako obsłużony, projekt jako
-  wdrożone, albo usunąć dzisiejsze wydarzenie prosto z listy.
+  projekty z minionym terminem, zaległe faktury, dzisiejsze wydarzenia z
+  kalendarza, ostatnie notatki. Punkt startowy każdego dnia pracy.
+  Interaktywny — bez przechodzenia do modułu można leada oznaczyć jako
+  obsłużony, projekt jako wdrożone, wysłać przypomnienie o zaległej
+  fakturze, albo usunąć dzisiejsze wydarzenie prosto z listy.
+  Na górze pasek KPI ("Pulpit prezesa" — Faza C planu wirtualnej firmy):
+  - **Przychód (ten miesiąc)** — suma brutto faktur (bez proform) wg daty
+    wystawienia w bieżącym miesiącu, z porównaniem procentowym do
+    poprzedniego miesiąca. Świadomie liczone wg daty wystawienia, nie wg
+    wpłat — wpłaty częściowe są opcjonalne i nie każda opłacona faktura ma
+    zarejestrowaną wpłatę, więc suma wpłat zaniżałaby przychód.
+  - **Należności (zaległe)** — suma (brutto − zapłacono) faktur po
+    terminie płatności (bez proform), ten sam wzorzec co kafelek "Po
+    terminie" w `InvoicesDashboard.tsx`.
+  - **Pipeline ofert** — suma kwot ofert w statusie Szkic/Wysłana (nie
+    Zaakceptowana/Odrzucona/Wygasła). Oferty są wyłącznie w PLN.
+  - **Wymaga działania dziś** — suma leadów+projektów+faktur+ofert z
+    powyższych list (liczba, nie kwota).
+  Kwoty w różnych walutach nie są sumowane w jedną liczbę (faktura w EUR i
+  w PLN to nie ta sama wartość) — każda waluta pokazana osobno, sklejone
+  znakiem "+", tak jak w `InvoicesDashboard.tsx`.
 - **Projekty** (`/admin/projects`) — Twoje własne projekty/wdrożenia,
   z dwoma widokami do przełączania (jak Kanban/Tabela przy leadach):
   - **Tablica** — kanban po statusie (Pomysł → Planowanie → W trakcie →

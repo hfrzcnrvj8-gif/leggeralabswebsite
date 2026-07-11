@@ -8,15 +8,41 @@ import { type Project, formatPlDate } from "@/lib/projects";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { overdueReason } from "@/lib/leads";
+import { type Invoice, formatMoney } from "@/lib/invoices";
+import type { Offer } from "@/lib/offers";
 import { useUI } from "./ui";
+
+type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
+type OfferRow = Offer & { kwota: number };
+
+type Kpi = {
+  revenueThisMonth: [string, number][];
+  revenueLastMonth: [string, number][];
+  outstanding: [string, number][];
+  pipeline: number;
+};
 
 type TodayData = {
   overdueLeads: Lead[];
   dueProjects: Project[];
+  overdueInvoices: InvoiceRow[];
+  expiredOffers: OfferRow[];
   todayEvents: HubEvent[];
   recentNotes: Note[];
-  counts: { leads: number; projects: number };
+  kpi: Kpi;
+  counts: { leads: number; projects: number; invoices: number; offers: number };
 };
+
+/** Sumy w różnych walutach nie da się zmergować w jedną liczbę — każda
+ * waluta dostaje osobną kwotę, sklejone znakiem "+" (jak w InvoicesDashboard). */
+function formatByCurrency(entries: [string, number][]): string {
+  if (entries.length === 0) return formatMoney(0);
+  return entries.map(([currency, sum]) => formatMoney(sum, currency)).join(" + ");
+}
+
+function sumPln(entries: [string, number][]): number {
+  return entries.find(([c]) => c === "PLN")?.[1] ?? 0;
+}
 
 /** Pulpit dnia — jedno miejsce spinające wszystkie moduły: co dziś wymaga
  * działania (leady, projekty), co jest w kalendarzu, i ostatnie notatki.
@@ -76,6 +102,16 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     setData((prev) => (prev ? { ...prev, todayEvents: prev.todayEvents.filter((e) => e.id !== id) } : prev));
   };
 
+  const remindInvoice = async (id: string, numer: string | null) => {
+    const res = await fetch(`/api/invoices/${id}/remind`, { method: "POST" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast(body?.error ?? "Nie udało się wysłać przypomnienia.", "error");
+      return;
+    }
+    toast(`Przypomnienie wysłane${numer ? ` (${numer})` : ""}.`);
+  };
+
   if (!data) {
     return (
       <div className="space-y-3">
@@ -89,7 +125,13 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     );
   }
 
-  const totalActionable = data.overdueLeads.length + data.dueProjects.length;
+  const totalActionable =
+    data.overdueLeads.length + data.dueProjects.length + data.overdueInvoices.length + data.expiredOffers.length;
+
+  const revenueThisMonthPln = sumPln(data.kpi.revenueThisMonth);
+  const revenueLastMonthPln = sumPln(data.kpi.revenueLastMonth);
+  const revenueDelta =
+    revenueLastMonthPln > 0 ? Math.round(((revenueThisMonthPln - revenueLastMonthPln) / revenueLastMonthPln) * 100) : null;
 
   return (
     <div className="-mx-4 sm:-mx-6">
@@ -99,6 +141,35 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             ? "Pulpit — nic pilnego dziś nie czeka."
             : `Pulpit — ${totalActionable} ${totalActionable === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania.`}
         </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-4">
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Przychód (ten miesiąc)</div>
+          <div className="mt-1 text-liquid text-lg font-semibold">{formatByCurrency(data.kpi.revenueThisMonth)}</div>
+          {revenueDelta !== null && (
+            <div className={`mt-0.5 text-[11px] ${revenueDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {revenueDelta >= 0 ? "▲" : "▼"} {Math.abs(revenueDelta)}% vs poprzedni miesiąc
+            </div>
+          )}
+        </div>
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Należności (zaległe)</div>
+          <div className="mt-1 text-lg font-semibold">{formatByCurrency(data.kpi.outstanding)}</div>
+          <div className="mt-0.5 text-[11px] text-muted">
+            {data.overdueInvoices.length} {data.overdueInvoices.length === 1 ? "faktura" : "faktur"} po terminie
+          </div>
+        </div>
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Pipeline ofert</div>
+          <div className="mt-1 text-lg font-semibold">{formatMoney(data.kpi.pipeline)}</div>
+          <div className="mt-0.5 text-[11px] text-muted">otwarte oferty</div>
+        </div>
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Wymaga działania dziś</div>
+          <div className="mt-1 text-lg font-semibold">{totalActionable}</div>
+          <div className="mt-0.5 text-[11px] text-muted">leady, projekty, faktury, oferty</div>
+        </div>
       </div>
 
       <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-2">
@@ -166,6 +237,40 @@ export function DashboardHome({ lang }: { lang: Locale }) {
 
         <section className="card-paper rounded-xl border hairline p-4">
           <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Zaległe faktury</h2>
+            <Link href={`/${lang}/admin/invoices`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {data.overdueInvoices.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — wszystko opłacone na czas.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.overdueInvoices.slice(0, 6).map((inv) => (
+                <li key={inv.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={`/${lang}/admin/invoices/${inv.id}`} className="font-medium hover:underline">
+                      {inv.numer ?? "(szkic)"}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — {inv.klient_nazwa || "bez klienta"} — {formatMoney(inv.brutto - inv.zaplacono, inv.waluta || "PLN")}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => remindInvoice(inv.id, inv.numer)}
+                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                  >
+                    Przypomnij
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Dziś w kalendarzu</h2>
             <Link href={`/${lang}/admin/calendar`} className="text-xs text-muted hover:text-[var(--fg)]">
               Otwórz kalendarz →
@@ -218,7 +323,10 @@ export function DashboardHome({ lang }: { lang: Locale }) {
       </div>
 
       <div className="flex flex-wrap gap-2 px-4 pb-4 text-xs text-muted sm:px-6">
-        <span>W rejestrze: {data.counts.leads} leadów, {data.counts.projects} projektów.</span>
+        <span>
+          W rejestrze: {data.counts.leads} leadów, {data.counts.projects} projektów, {data.counts.invoices} faktur,{" "}
+          {data.counts.offers} ofert.
+        </span>
       </div>
     </div>
   );
