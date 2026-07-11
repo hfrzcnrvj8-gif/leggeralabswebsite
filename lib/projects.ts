@@ -70,6 +70,62 @@ export const PROJECT_STATUSES = [
 
 export const PROJECT_PRIORITIES = ["Niski", "Normalny", "Wysoki", "Krytyczny"] as const;
 
+/** Szablon projektu — powtarzalna struktura zlecenia (kamienie milowe z
+ * przesunięciami dni od startu + zadania pod każdym). Tworzy gotowy projekt
+ * jednym kliknięciem zamiast klepania tego samego za każdym razem. Używane
+ * przez POST /api/projects (rozwijane po stronie serwera) i przez picker w UI. */
+export type ProjectTemplateMilestone = { nazwa: string; dayOffset: number; tasks: string[] };
+export type ProjectTemplate = {
+  id: string;
+  name: string;
+  emoji: string;
+  opis: string;
+  milestones: ProjectTemplateMilestone[];
+};
+
+export const PROJECT_TEMPLATES: ProjectTemplate[] = [
+  {
+    id: "www",
+    name: "Wdrożenie strony WWW",
+    emoji: "🌐",
+    opis: "Projekt i wdrożenie strony internetowej dla klienta.",
+    milestones: [
+      { nazwa: "Discovery / brief", dayOffset: 7, tasks: ["Spotkanie kickoff", "Zebranie wymagań", "Analiza konkurencji"] },
+      { nazwa: "Projekt (design)", dayOffset: 21, tasks: ["Wireframe", "Projekt UI", "Akceptacja klienta"] },
+      { nazwa: "Wdrożenie", dayOffset: 42, tasks: ["Frontend", "Integracje / CMS", "Treści"] },
+      { nazwa: "Testy / review", dayOffset: 49, tasks: ["QA", "Poprawki", "Akceptacja"] },
+      { nazwa: "Launch", dayOffset: 56, tasks: ["Wdrożenie produkcyjne", "Analytics", "Przekazanie klientowi"] },
+    ],
+  },
+  {
+    id: "automatyzacja",
+    name: "Automatyzacja / integracja",
+    emoji: "⚙️",
+    opis: "Automatyzacja procesu lub integracja systemów.",
+    milestones: [
+      { nazwa: "Analiza procesu", dayOffset: 7, tasks: ["Mapowanie procesu", "Identyfikacja wąskich gardeł", "Zakres MVP"] },
+      { nazwa: "Proof of Concept", dayOffset: 21, tasks: ["Prototyp", "Test na danych", "Prezentacja PoC"] },
+      { nazwa: "Wdrożenie", dayOffset: 42, tasks: ["Integracje API", "Automatyzacja", "Obsługa błędów"] },
+      { nazwa: "Uruchomienie", dayOffset: 49, tasks: ["Testy end-to-end", "Szkolenie", "Dokumentacja"] },
+    ],
+  },
+  {
+    id: "audyt",
+    name: "Audyt / konsultacja",
+    emoji: "🔍",
+    opis: "Audyt i rekomendacje dla klienta.",
+    milestones: [
+      { nazwa: "Zebranie danych", dayOffset: 5, tasks: ["Wywiady", "Dostęp do systemów", "Zebranie materiałów"] },
+      { nazwa: "Analiza", dayOffset: 12, tasks: ["Analiza stanu obecnego", "Identyfikacja szans", "Benchmark"] },
+      { nazwa: "Raport i rekomendacje", dayOffset: 18, tasks: ["Raport", "Rekomendacje", "Prezentacja dla klienta"] },
+    ],
+  },
+];
+
+export function getProjectTemplate(id: string): ProjectTemplate | undefined {
+  return PROJECT_TEMPLATES.find((t) => t.id === id);
+}
+
 export const PROJECT_STATUS_CLASS: Record<string, string> = {
   Pomysł: "bg-[var(--hairline)] text-muted",
   Planowanie: "bg-brand-gold/15 text-brand-gold",

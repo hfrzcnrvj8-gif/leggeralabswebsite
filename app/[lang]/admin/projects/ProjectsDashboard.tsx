@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
+import { PROJECT_TEMPLATES } from "@/lib/projects";
 import { SavedViews } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectTimeline } from "./ProjectTimeline";
@@ -110,22 +111,29 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
     bumpTimelineRefresh();
   }, [bumpTimelineRefresh]);
 
-  const addProject = useCallback(async () => {
-    const tytul = await prompt("Nazwa nowego projektu / wdrożenia:", { placeholder: "np. Wdrożenie automatyzacji u klienta X" });
-    if (!tytul) return;
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tytul }),
-    });
-    if (res.ok) {
-      toast("Dodano projekt.");
-      load();
-      bumpTimelineRefresh();
-    } else {
-      toast("Nie udało się dodać projektu.", "error");
-    }
-  }, [prompt, toast, load, bumpTimelineRefresh]);
+  const createProject = useCallback(
+    async (template?: string) => {
+      const tpl = template ? PROJECT_TEMPLATES.find((t) => t.id === template) : undefined;
+      const tytul = await prompt(tpl ? `Nazwa projektu (szablon: ${tpl.name}):` : "Nazwa nowego projektu / wdrożenia:", {
+        placeholder: tpl ? "np. Wdrożenie strony — Klient X" : "np. Wdrożenie automatyzacji u klienta X",
+      });
+      if (!tytul) return;
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tytul, ...(template ? { template } : {}) }),
+      });
+      if (res.ok) {
+        toast(tpl ? `Utworzono projekt z szablonu „${tpl.name}".` : "Dodano projekt.");
+        load();
+        bumpTimelineRefresh();
+      } else {
+        toast("Nie udało się dodać projektu.", "error");
+      }
+    },
+    [prompt, toast, load, bumpTimelineRefresh]
+  );
+  const addProject = useCallback(() => createProject(), [createProject]);
 
   const deleteProject = useCallback(async (id: string, tytul: string) => {
     const ok = await confirm(`Usunąć "${tytul}"?`, { danger: true });
@@ -352,13 +360,44 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             </>
           )}
         </Popover>
-        <button
-          onClick={addProject}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Dodaj projekt"
+        <Popover
+          align="right"
+          width={248}
+          trigger={(open) => (
+            <button
+              onClick={open}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+              title="Dodaj projekt"
+            >
+              <IconPlus size={16} />
+            </button>
+          )}
         >
-          <IconPlus size={16} />
-        </button>
+          {(close) => (
+            <div>
+              <MenuRow
+                label="Pusty projekt"
+                onClick={() => {
+                  close();
+                  createProject();
+                }}
+              />
+              <MenuDivider />
+              <MenuLabel>Z szablonu</MenuLabel>
+              {PROJECT_TEMPLATES.map((t) => (
+                <MenuRow
+                  key={t.id}
+                  icon={<span className="text-[13px] leading-none">{t.emoji}</span>}
+                  label={t.name}
+                  onClick={() => {
+                    close();
+                    createProject(t.id);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </Popover>
       </div>
 
       <div className="px-4 py-4 sm:px-6">
