@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight } from "@tabler/icons-react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -10,6 +10,8 @@ import {
   type ProjectResource,
   progressOf,
   isPlausibleDateString,
+  relativeDeadline,
+  daysFromToday,
 } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
 import { PropertyMenu, type MenuOption } from "../Menu";
@@ -281,6 +283,7 @@ export function ProjectDetailPanel({
   }
 
   const unmilestoned = tasks.filter((t) => !t.milestone_id);
+  const overall = progressOf(tasks);
   const leadOptions: MenuOption<string>[] = [
     { value: "", label: "— brak —" },
     ...(leads ?? []).map((l) => ({ value: l.id, label: l.firma })),
@@ -303,6 +306,16 @@ export function ProjectDetailPanel({
             <div className="mt-2">
               <EditableTextarea value={project.opis} onSave={(v) => updateProject("opis", v)} />
             </div>
+            {overall.total > 0 && (
+              <div className="mt-3 flex items-center gap-2.5">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
+                  <div className="h-full rounded-full bg-[#4ea7fc] transition-all" style={{ width: `${overall.pct}%` }} />
+                </div>
+                <span className="shrink-0 text-[11px] text-muted tabular-nums">
+                  {overall.pct}% · {overall.done}/{overall.total}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="card-paper rounded-xl border hairline p-4">
@@ -314,11 +327,14 @@ export function ProjectDetailPanel({
             </div>
 
             {milestones.length === 0 && unmilestoned.length === 0 ? (
-              <div className="text-sm text-muted opacity-60">
-                🗒️ Brak zadań — dodaj kamień milowy powyżej albo pojedyncze zadanie:{" "}
-                <button onClick={() => addTask(null)} className="text-[var(--fg)] underline underline-offset-2 opacity-100">
-                  + dodaj zadanie
-                </button>
+              <div className="flex items-start gap-2 text-sm text-muted opacity-60">
+                <IconClipboardList size={15} className="mt-0.5 shrink-0" />
+                <span>
+                  Brak zadań — dodaj kamień milowy powyżej albo pojedyncze zadanie:{" "}
+                  <button onClick={() => addTask(null)} className="text-[var(--fg)] underline underline-offset-2 opacity-100">
+                    + dodaj zadanie
+                  </button>
+                </span>
               </div>
             ) : (
               <div className="space-y-5">
@@ -344,7 +360,7 @@ export function ProjectDetailPanel({
                           aria-label="Usuń kamień milowy"
                           title="Usuń"
                         >
-                          ✕
+                          <IconX size={14} />
                         </button>
                       </div>
                       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--hairline)]">
@@ -411,7 +427,7 @@ export function ProjectDetailPanel({
               </div>
             </form>
             {activity.length === 0 ? (
-              <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
+              <p className="flex items-center gap-2 text-sm text-muted opacity-60"><IconInbox size={15} className="shrink-0" /> Brak wpisów — dodaj pierwszy powyżej.</p>
             ) : (
               <ul className="space-y-2">
                 {activity.map((a) =>
@@ -453,11 +469,14 @@ export function ProjectDetailPanel({
               </PropertyMenu>
             </MetaRow>
             <MetaRow icon={<IconCalendar size={15} />} title="Daty">
-              <DateRangeField
-                start={project.start ?? ""}
-                termin={project.termin ?? ""}
-                onSave={(field, value) => updateProject(field, value)}
-              />
+              <div>
+                <DateRangeField
+                  start={project.start ?? ""}
+                  termin={project.termin ?? ""}
+                  onSave={(field, value) => updateProject(field, value)}
+                />
+                <DeadlineHint termin={project.termin} closed={project.status === "Wdrożone"} />
+              </div>
             </MetaRow>
             <MetaRow icon={<IconTargetArrow size={15} />} title="Lead">
               <PropertyMenu
@@ -479,7 +498,7 @@ export function ProjectDetailPanel({
                 {resources.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
                     <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-[#4ea7fc] hover:underline">
-                      <span className="shrink-0 opacity-70">🔗</span>
+                      <IconLink size={13} className="shrink-0 opacity-70" />
                       <span className="truncate">{r.etykieta}</span>
                     </a>
                     <button
@@ -488,7 +507,7 @@ export function ProjectDetailPanel({
                       aria-label="Usuń zasób"
                       title="Usuń"
                     >
-                      ✕
+                      <IconX size={14} />
                     </button>
                   </li>
                 ))}
@@ -538,7 +557,7 @@ function TaskList({
   onToggle: (id: string, done: boolean) => void;
   onDelete: (id: string) => void;
 }) {
-  if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">🗒️ Brak zadań.</p>;
+  if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">Brak zadań.</p>;
   return (
     <ul className="space-y-1">
       {tasks.map((t) => (
@@ -556,7 +575,7 @@ function TaskList({
             aria-label="Usuń zadanie"
             title="Usuń"
           >
-            ✕
+            <IconX size={14} />
           </button>
         </li>
       ))}
@@ -575,11 +594,11 @@ function PanelHeader({ onClose, tytul, saveState = "idle" }: { onClose?: () => v
         <SaveIndicator state={saveState} />
         <button
           onClick={onClose}
-          className="rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
+          className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
           aria-label="Zamknij"
           title="Zamknij (Esc)"
         >
-          ✕ Zamknij
+          <IconX size={13} /> Zamknij
         </button>
       </div>
     </div>
@@ -625,6 +644,22 @@ function PropTrigger({ icon, label }: { icon?: React.ReactNode; label: string })
       <IconChevronDown size={13} className="shrink-0 text-muted opacity-0 group-hover/pt:opacity-100" />
     </span>
   );
+}
+
+/** Względna podpowiedź terminu pod polami dat: „za 3 dni" (wyszarzone),
+ * „jutro/dziś" (bursztyn) lub „2 dni po terminie" (czerwień) — chyba że projekt
+ * jest już Wdrożony (wtedy termin nie „pali"). */
+function DeadlineHint({ termin, closed }: { termin: string | null | undefined; closed: boolean }) {
+  const label = relativeDeadline(termin);
+  if (!label) return null;
+  const d = daysFromToday(termin);
+  const color =
+    !closed && d != null && d < 0
+      ? "text-red-400"
+      : !closed && d != null && d <= 2
+      ? "text-amber-400"
+      : "text-muted";
+  return <div className={`mt-0.5 pl-1.5 text-[11px] ${color}`}>{label}</div>;
 }
 
 function MetaRow({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {

@@ -16,6 +16,8 @@ export {
   progressOf,
   isPlausibleDateString,
   formatPlDate,
+  relativeDeadline,
+  daysFromToday,
 } from "@/lib/projects";
 
 import { PROJECT_STATUSES, PROJECT_STATUS_CLASS, PROJECT_HEALTHS, PROJECT_HEALTH_CLASS } from "@/lib/projects";

@@ -99,6 +99,29 @@ export function isProjectOverdue(p: Project): boolean {
   return p.termin <= today;
 }
 
+/** Liczba dni od dziś do daty (dodatnia = przyszłość, 0 = dziś, ujemna =
+ * przeszłość). null gdy brak/niepoprawna data. */
+export function daysFromToday(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const target = new Date(`${s.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+/** Krótka etykieta względna terminu: „dziś", „jutro", „za 3 dni", „wczoraj",
+ * „3 dni po terminie". Pusty string gdy brak daty. */
+export function relativeDeadline(s: string | null | undefined): string {
+  const d = daysFromToday(s);
+  if (d == null) return "";
+  if (d === 0) return "dziś";
+  if (d === 1) return "jutro";
+  if (d === -1) return "wczoraj";
+  if (d > 1) return `za ${d} dni`;
+  return `${-d} dni po terminie`;
+}
+
 // "Zdrowie" — ręcznie ustawiana ocena, niezależna od statusu na tablicy
 // (styl Linear: projekt może być "W trakcie" i jednocześnie "Zagrożony").
 export const PROJECT_HEALTHS = ["Na dobrej drodze", "Zagrożony", "Zerwany"] as const;
