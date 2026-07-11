@@ -56,7 +56,11 @@ export function Popover({
     const r = (el as HTMLElement).getBoundingClientRect();
     let left = align === "right" ? r.right - width : r.left;
     left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
-    setPos({ top: r.bottom + 6, left });
+    // Domyślnie poniżej triggera; jeśli za blisko dołu ekranu — nad nim.
+    const estH = (menuRef.current?.offsetHeight ?? 250) + 8;
+    const below = r.bottom + 6;
+    const top = below + estH > window.innerHeight - 8 ? Math.max(8, r.top - estH) : below;
+    setPos({ top, left });
   }, [align, width]);
 
   const openMenu = useCallback((e?: ReactMouseEvent) => {

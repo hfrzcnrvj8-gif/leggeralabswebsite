@@ -323,14 +323,9 @@ export function ProjectDetailPanel({
                             <EditableText value={m.nazwa} onSave={(v) => updateMilestone(m.id, "nazwa", v)} />
                           </div>
                         </div>
-                        <input
-                          type="date"
-                          min="2000-01-01"
-                          max="2100-12-31"
-                          value={m.termin ?? ""}
-                          onChange={(e) => updateMilestone(m.id, "termin", e.target.value)}
-                          className="shrink-0 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
-                        />
+                        <span className="shrink-0 text-[12px] text-muted">
+                          <DateField value={m.termin ?? ""} onChange={(v) => updateMilestone(m.id, "termin", v)} placeholder="Termin" />
+                        </span>
                         <span className="shrink-0 text-[11px] text-muted">{pct}% z {total}</span>
                         <button
                           onClick={() => deleteMilestone(m.id)}

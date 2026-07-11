@@ -1,17 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { Popover } from "./Menu";
 
 /**
  * Date picker w stylu Apple (iOS) — trzy „obrotowe" kolumny dzień/miesiąc/rok
- * z efektem bębna (rotateX + zanikanie względem środka), paskiem zaznaczenia
- * na środku i przyciąganiem (scroll-snap). Otwiera się po kliknięciu w datę i
+ * z efektem bębna (rotateX + skala + zanikanie względem środka), paskiem
+ * zaznaczenia na środku, przyciąganiem (scroll-snap) i delikatnym „klikiem"
+ * (haptic na mobile) przy każdym przeskoku. Otwiera się po kliknięciu w datę i
  * zmienia ją od razu. Renderowany w Popoverze (portal do body).
  */
 
 const MONTHS_PL = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"];
-const ITEM_H = 34;
+const ITEM_H = 36;
 const VISIBLE = 5; // nieparzyste — środek = zaznaczenie
 const YEAR_MIN = 2020;
 const YEAR_MAX = 2040;
@@ -22,11 +23,21 @@ function daysInMonth(y: number, m: number): number {
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
+/** Odporne na wartości z bazy z częścią czasową (np. "2026-07-11T00:00:00Z"). */
 function parse(value: string): { y: number; m: number; d: number } {
   const today = new Date();
-  const mm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const mm = /^(\d{4})-(\d{2})-(\d{2})/.exec((value || "").slice(0, 10));
   if (mm) return { y: Number(mm[1]), m: Number(mm[2]) - 1, d: Number(mm[3]) };
   return { y: today.getFullYear(), m: today.getMonth(), d: today.getDate() };
+}
+function tick() {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      navigator.vibrate(3);
+    } catch {
+      /* niektóre przeglądarki rzucają — ignoruj */
+    }
+  }
 }
 
 function WheelColumn({
@@ -34,14 +45,18 @@ function WheelColumn({
   index,
   onIndex,
   width,
+  align = "center",
 }: {
   items: string[];
   index: number;
   onIndex: (i: number) => void;
   width: number;
+  align?: "center" | "left" | "right";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const settleRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastIdxRef = useRef(index);
 
   const applyTransforms = useCallback(() => {
     const el = ref.current;
@@ -51,42 +66,60 @@ function WheelColumn({
       const i = Number(c.dataset.item);
       const dist = i - center;
       const ad = Math.abs(dist);
-      const rot = Math.max(-70, Math.min(70, dist * 24));
-      c.style.transform = `rotateX(${rot}deg) scale(${Math.max(0.7, 1 - ad * 0.06)})`;
-      c.style.opacity = String(Math.max(0.12, 1 - ad * 0.32));
+      // Krzywa bębna — im dalej od środka, tym większy obrót, mniejsza skala,
+      // słabsza jasność. Środek zostaje ostry, duży i biały (feel premium).
+      const rot = Math.max(-80, Math.min(80, dist * 26));
+      const scale = Math.max(0.62, 1 - ad * 0.13);
+      c.style.transform = `translateZ(0) rotateX(${rot}deg) scale(${scale})`;
+      c.style.opacity = String(Math.max(0.1, 1 - ad * 0.42));
+      c.style.fontWeight = ad < 0.5 ? "600" : "400";
     });
   }, []);
 
-  // Ustaw pozycję na aktualny indeks przy montażu i gdy indeks zmieni się
-  // z zewnątrz (np. przycięcie dnia przy zmianie miesiąca).
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.scrollTop = index * ITEM_H;
+    lastIdxRef.current = index;
     requestAnimationFrame(applyTransforms);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, items.length]);
 
   const onScroll = () => {
-    applyTransforms();
+    if (rafRef.current == null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        applyTransforms();
+        // „Klik" — haptic gdy środek przeskoczy na nowy element
+        const el = ref.current;
+        if (el) {
+          const cur = Math.round(el.scrollTop / ITEM_H);
+          if (cur !== lastIdxRef.current) {
+            lastIdxRef.current = cur;
+            tick();
+          }
+        }
+      });
+    }
+    // Po zatrzymaniu — odczytaj wybór (native scroll-snap sam przyciąga).
     if (settleRef.current) window.clearTimeout(settleRef.current);
     settleRef.current = window.setTimeout(() => {
       const el = ref.current;
       if (!el) return;
       const i = Math.max(0, Math.min(Math.round(el.scrollTop / ITEM_H), items.length - 1));
-      if (Math.abs(el.scrollTop - i * ITEM_H) > 1) el.scrollTo({ top: i * ITEM_H, behavior: "smooth" });
       if (i !== index) onIndex(i);
-    }, 100);
+    }, 120);
   };
 
   const pad = ((VISIBLE - 1) / 2) * ITEM_H;
+  const justify = align === "left" ? "justify-start pl-1" : align === "right" ? "justify-end pr-1" : "justify-center";
   return (
-    <div style={{ width, height: VISIBLE * ITEM_H, perspective: 700 }}>
+    <div style={{ width, height: VISIBLE * ITEM_H, perspective: 900 }}>
       <div
         ref={ref}
         onScroll={onScroll}
         className="h-full overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ scrollSnapType: "y mandatory" }}
+        style={{ scrollSnapType: "y mandatory", scrollBehavior: "auto" }}
       >
         <div style={{ height: pad }} />
         {items.map((it, i) => (
@@ -97,8 +130,8 @@ function WheelColumn({
               ref.current?.scrollTo({ top: i * ITEM_H, behavior: "smooth" });
               onIndex(i);
             }}
-            className="flex cursor-pointer items-center justify-center text-[15px] font-medium text-[#e9e9ea]"
-            style={{ height: ITEM_H, scrollSnapAlign: "center", willChange: "transform, opacity" }}
+            className={`flex cursor-pointer items-center ${justify} text-[16px] text-[#f4f4f5]`}
+            style={{ height: ITEM_H, scrollSnapAlign: "center", willChange: "transform, opacity", backfaceVisibility: "hidden" }}
           >
             {it}
           </div>
@@ -125,15 +158,15 @@ function Wheel({ value, onChange, close }: { value: string; onChange: (v: string
 
   return (
     <div className="p-2">
-      <div className="relative flex items-stretch justify-center gap-1">
+      <div className="relative flex items-stretch justify-center">
         {/* Pasek zaznaczenia na środku */}
         <div
-          className="pointer-events-none absolute inset-x-1 rounded-md border-y border-[#2a2b2f] bg-[#232327]/40"
+          className="pointer-events-none absolute inset-x-1 rounded-lg border-y border-[#33343a] bg-white/[0.04]"
           style={{ height: ITEM_H, top: ((VISIBLE - 1) / 2) * ITEM_H }}
         />
-        <WheelColumn width={52} items={dayItems} index={d - 1} onIndex={(i) => emit(y, m, i + 1)} />
-        <WheelColumn width={58} items={MONTHS_PL} index={m} onIndex={(i) => emit(y, i, d)} />
-        <WheelColumn width={64} items={years} index={yIndex} onIndex={(i) => emit(YEAR_MIN + i, m, d)} />
+        <WheelColumn width={44} items={dayItems} index={d - 1} onIndex={(i) => emit(y, m, i + 1)} align="right" />
+        <WheelColumn width={56} items={MONTHS_PL} index={m} onIndex={(i) => emit(y, i, d)} align="center" />
+        <WheelColumn width={56} items={years} index={yIndex} onIndex={(i) => emit(YEAR_MIN + i, m, d)} align="left" />
       </div>
       <div className="mt-2 flex items-center gap-2 border-t border-[#2a2b2f] pt-2">
         <button
@@ -157,7 +190,7 @@ function Wheel({ value, onChange, close }: { value: string; onChange: (v: string
         <span className="flex-1" />
         <button
           onClick={close}
-          className="rounded-md bg-gradient-to-r from-[#7C3AED] to-[#E0A93B] px-3 py-1 text-[12px] font-medium text-black"
+          className="admin-grad-border rounded-md px-3.5 py-1 text-[12px] font-medium text-[var(--fg)]"
         >
           Gotowe
         </button>
@@ -181,7 +214,7 @@ export function DateField({
   return (
     <Popover
       align="left"
-      width={200}
+      width={172}
       trigger={(open, isOpen) => (
         <button
           onClick={open}
@@ -198,8 +231,9 @@ export function DateField({
   );
 }
 
+/** Odporne na ISO z częścią czasową → "DD.MM.YYYY". */
 function formatDisplay(v: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec((v || "").slice(0, 10));
   if (!m) return v;
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
