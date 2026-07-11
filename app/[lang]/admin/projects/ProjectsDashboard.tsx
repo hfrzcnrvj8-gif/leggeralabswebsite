@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { IconPlus, IconFilter, IconAdjustmentsHorizontal } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, isProjectOverdue, formatPlDate } from "./shared";
-import { SummaryCard, SavedViews } from "../components";
+import { SavedViews } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectTimeline } from "./ProjectTimeline";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
@@ -207,117 +208,100 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   }
 
   const overdue = projects.filter(isProjectOverdue);
-  const counts = Object.fromEntries(PROJECT_STATUSES.map((s) => [s, projects.filter((p) => p.status === s).length]));
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-          Projekty <span className="text-liquid">i wdrożenia</span>
-        </h1>
-        <p className="text-sm text-muted">Twoje własne projekty — od pomysłu, przez wdrożenie, do zamknięcia.</p>
-      </div>
-
-      <div className="mb-6 flex flex-wrap gap-3">
-        <SummaryCard label="Wszystkie" value={projects.length} />
-        <SummaryCard label="Pomysły" value={counts["Pomysł"]} />
-        <SummaryCard label="W trakcie" value={counts["W trakcie"]} />
-        <SummaryCard label="Wdrożone" value={counts["Wdrożone"]} />
-        <SummaryCard label="Wymaga działania" value={overdue.length} alert />
-      </div>
-
-      {overdue.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-orange-500/30 bg-orange-500/[0.05] p-4">
-          <h2 className="mb-2 text-sm font-semibold text-orange-400">⚠ Mija/minął termin</h2>
-          {overdue.map((p) => (
-            <div key={p.id} className="flex items-center justify-between border-b border-orange-500/15 py-1.5 text-sm last:border-0">
-              <span>
-                <b>{p.tytul}</b> — termin {formatPlDate(p.termin)}
-              </span>
-              <button
-                onClick={() => setOpenId(p.id)}
-                className="rounded-full border border-orange-500/40 px-2 py-1 text-xs text-orange-400"
-              >
-                Otwórz
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button onClick={addProject} className="btn-primary rounded-full px-3 py-1.5 text-xs font-semibold">
-          + Dodaj projekt
+    <div className="-mx-4 sm:-mx-6">
+      {/* Kompaktowy, jednowierszowy pasek — zakładki widoku po lewej,
+          filtry/dodawanie jako małe ikony po prawej. Bez dużego nagłówka
+          strony (Linear go nie ma — patrz docs: "reduce visual noise"). */}
+      <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+        <button
+          onClick={() => switchView("kanban")}
+          className={`flex h-full items-center border-b-2 px-1 text-[13px] ${
+            view === "kanban" ? "border-[#4ea7fc] text-[var(--fg)]" : "border-transparent text-muted"
+          }`}
+        >
+          Tablica
         </button>
+        <button
+          onClick={() => switchView("timeline")}
+          className={`flex h-full items-center border-b-2 px-1 text-[13px] ${
+            view === "timeline" ? "border-[#4ea7fc] text-[var(--fg)]" : "border-transparent text-muted"
+          }`}
+        >
+          Oś czasu
+        </button>
+        <span className="flex-1" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Szukaj…"
+          className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+        />
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-full border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
+          className="rounded-md bg-transparent px-1.5 py-1 text-[12.5px] text-muted"
+          title="Filtruj po statusie"
         >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
-            Wszystkie statusy
-          </option>
+          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Status: wszystkie</option>
           {PROJECT_STATUSES.map((s) => (
-            <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-              {s}
-            </option>
+            <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">{s}</option>
           ))}
         </select>
         <select
           value={filterPriority}
           onChange={(e) => setFilterPriority(e.target.value)}
-          className="rounded-full border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
+          className="rounded-md bg-transparent px-1.5 py-1 text-[12.5px] text-muted"
+          title="Filtruj po priorytecie"
         >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
-            Wszystkie priorytety
-          </option>
+          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Priorytet: wszystkie</option>
           {PROJECT_PRIORITIES.map((p) => (
-            <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-              {p}
-            </option>
+            <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">{p}</option>
           ))}
         </select>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj po nazwie…"
-          className="rounded-full border hairline bg-transparent px-3 py-1.5 text-xs text-[var(--fg)] placeholder:text-muted"
-        />
-        <span className="flex-1" />
-        <div className="flex overflow-hidden rounded-full border hairline text-xs">
-          <button
-            onClick={() => switchView("kanban")}
-            className={
-              view === "kanban"
-                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
-                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
-            }
-          >
-            Tablica
-          </button>
-          <button
-            onClick={() => switchView("timeline")}
-            className={
-              view === "timeline"
-                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
-                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
-            }
-          >
-            Oś czasu
-          </button>
-        </div>
+        <span className="flex h-6 w-6 items-center justify-center rounded-md text-muted" title="Filtry">
+          <IconFilter size={15} />
+        </span>
+        <span className="flex h-6 w-6 items-center justify-center rounded-md text-muted" title="Opcje wyświetlania">
+          <IconAdjustmentsHorizontal size={15} />
+        </span>
+        <button
+          onClick={addProject}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Dodaj projekt"
+        >
+          <IconPlus size={16} />
+        </button>
       </div>
 
-      <div className="mb-4">
-        <SavedViews
-          storageKey="leggera_projects_saved_views"
-          currentFilters={{ status: filterStatus, priorytet: filterPriority }}
-          onApply={(f) => {
-            setFilterStatus(f.status ?? "");
-            setFilterPriority(f.priorytet ?? "");
-          }}
-        />
-      </div>
+      <div className="px-4 py-4 sm:px-6">
+        {overdue.length > 0 && (
+          <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
+            <h2 className="mb-1.5 text-[12.5px] font-medium text-orange-400">Mija/minął termin</h2>
+            {overdue.map((p) => (
+              <div key={p.id} className="flex items-center justify-between border-b border-orange-500/10 py-1 text-[13px] last:border-0">
+                <span>
+                  <b>{p.tytul}</b> — termin {formatPlDate(p.termin)}
+                </span>
+                <button onClick={() => setOpenId(p.id)} className="rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10">
+                  Otwórz
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mb-3">
+          <SavedViews
+            storageKey="leggera_projects_saved_views"
+            currentFilters={{ status: filterStatus, priorytet: filterPriority }}
+            onApply={(f) => {
+              setFilterStatus(f.status ?? "");
+              setFilterPriority(f.priorytet ?? "");
+            }}
+          />
+        </div>
 
       {view === "kanban" && selectedIds.size > 0 && (
         <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
@@ -385,6 +369,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
       ) : (
         <ProjectTimeline key={timelineRefreshKey} lang={lang} onOpen={setOpenId} />
       )}
+      </div>
 
       <AnimatePresence>
         {openId && (
