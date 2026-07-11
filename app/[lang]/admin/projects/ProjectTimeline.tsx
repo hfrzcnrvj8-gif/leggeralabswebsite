@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "@/i18n/config";
-import { ProjectIcon, formatPlDate } from "./shared";
+import { ProjectIcon, formatPlDate, PROJECT_STATUS_HEX, DEFAULT_STATUS_HEX } from "./shared";
 import { statusIconEl } from "./ProjectKanban";
 
 type TimelineMilestone = { id: string; nazwa: string; termin: string | null };
@@ -56,13 +56,6 @@ function startOfMonth(d: Date): Date {
 function fmtMonth(d: Date, showYear: boolean): string {
   const abbr = d.toLocaleDateString("pl-PL", { month: "short" }).replace(".", "").toUpperCase();
   return showYear || d.getMonth() === 0 ? `${abbr} ${d.getFullYear()}` : abbr;
-}
-
-/** Kolor paska = kolor projektu (hex z pickera). Zwraca style tła/obrysu z
- * dodanym kanałem alfa (8-cyfrowy hex). Diament = pełny kolor. */
-function barColorStyle(kolor: string | null | undefined): { fill: string; border: string; accent: string } {
-  const c = kolor && /^#([0-9a-fA-F]{6})$/.test(kolor) ? kolor : "#4ea7fc";
-  return { fill: `${c}33`, border: `${c}b3`, accent: c };
 }
 
 function PrioritySignal({ priorytet }: { priorytet: string }) {
@@ -476,12 +469,14 @@ export function ProjectTimeline({
               const milestonesWithDates = p.milestones
                 .map((m) => ({ id: m.id, nazwa: m.nazwa, date: parseDate(m.termin) }))
                 .filter((m): m is { id: string; nazwa: string; date: Date } => m.date !== null);
-              // Kolor paska = kolor projektu (picker). Prognoza czerwienieje, gdy
-              // projekt jest po terminie i nie jest jeszcze Wdrożony (sygnał jak w Linear).
-              const { fill, border, accent } = barColorStyle(p.kolor);
+              // Kolor paska = kolor STATUSU (każdy status ma własną barwę — z daleka
+              // widać stan projektu). Obramowanie w kolorze statusu, wypełnienie to
+              // delikatny gradient tego koloru. Prognoza czerwienieje po terminie.
+              const statusHex = PROJECT_STATUS_HEX[p.status] ?? DEFAULT_STATUS_HEX;
+              const barFill = `linear-gradient(180deg, ${statusHex}45 0%, ${statusHex}12 100%)`;
               const tDate = parseDate(p.termin);
               const overdue = !estimated && p.status !== "Wdrożone" && !!tDate && tDate < today;
-              const trailBorder = overdue ? "#ef4444" : accent;
+              const trailBorder = overdue ? "#ef4444" : statusHex;
 
               const dg = drag && drag.projectId === p.id ? drag : null;
               let dispStart = start;
@@ -533,7 +528,7 @@ export function ProjectTimeline({
                     className={`absolute rounded-md border ${estimated ? "border-dashed opacity-80" : ""} ${
                       dg ? "ring-1 ring-[#4ea7fc]/60" : ""
                     }`}
-                    style={{ left: `${startPct}%`, width: `${Math.max((hasTrail ? solidEndPct : endPct) - startPct, 0.4)}%`, top: BAR_TOP, height: BAR_H, minWidth: 10, backgroundColor: fill, borderColor: border }}
+                    style={{ left: `${startPct}%`, width: `${Math.max((hasTrail ? solidEndPct : endPct) - startPct, 0.4)}%`, top: BAR_TOP, height: BAR_H, minWidth: 10, background: barFill, borderColor: statusHex }}
                     title={
                       estimated
                         ? `${p.tytul} · daty orientacyjne — przeciągnij, aby ustawić`
@@ -544,7 +539,7 @@ export function ProjectTimeline({
                     {(p.task_total ?? 0) > 0 && (
                       <div
                         className="pointer-events-none absolute inset-y-0 left-0 rounded-md"
-                        style={{ width: `${((p.task_done ?? 0) / (p.task_total ?? 1)) * 100}%`, backgroundColor: accent, opacity: 0.5 }}
+                        style={{ width: `${((p.task_done ?? 0) / (p.task_total ?? 1)) * 100}%`, backgroundColor: statusHex, opacity: 0.4 }}
                         title={`${p.task_done}/${p.task_total} zadań`}
                       />
                     )}
@@ -576,7 +571,7 @@ export function ProjectTimeline({
                           style={{ left: `${mp}%`, top: BAR_TOP + BAR_H / 2 - 10 }}
                           title={`${m.nazwa} — ${formatPlDate(toLocalISO(mDate))} (przeciągnij)`}
                         >
-                          <div className="h-3 w-3 rotate-45 border-2 bg-[var(--bg-soft)]" style={{ borderColor: accent }} />
+                          <div className="h-3 w-3 rotate-45 border-2 bg-[var(--bg-soft)]" style={{ borderColor: statusHex }} />
                         </div>
                         {zoom !== "quarter" && (
                           <span

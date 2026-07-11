@@ -22,6 +22,8 @@ export {
   PROJECT_ICONS,
   DEFAULT_PROJECT_COLOR,
   DEFAULT_PROJECT_ICON,
+  PROJECT_STATUS_HEX,
+  DEFAULT_STATUS_HEX,
 } from "@/lib/projects";
 
 import {

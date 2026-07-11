@@ -72,6 +72,19 @@ export const PROJECT_STATUSES = [
   "Wstrzymane",
 ] as const;
 
+/** Kolor (hex) przypisany do statusu projektu — każdy status ma własną barwę,
+ * żeby z daleka na osi czasu rozpoznać stan projektu (pasek jest kolorowany wg
+ * statusu). Używane też do obramowania i gradientowego wypełnienia paska. */
+export const PROJECT_STATUS_HEX: Record<string, string> = {
+  Pomysł: "#64748b", // szary — luźny pomysł
+  Planowanie: "#8b5cf6", // fiolet — planowanie
+  "W trakcie": "#4ea7fc", // niebieski — w realizacji
+  "Testy / review": "#E0A93B", // złoto — testy/review
+  Wdrożone: "#10b981", // zielony — zrobione
+  Wstrzymane: "#f97316", // pomarańcz — pauza
+};
+export const DEFAULT_STATUS_HEX = "#8a8f98";
+
 export const PROJECT_PRIORITIES = ["Niski", "Normalny", "Wysoki", "Krytyczny"] as const;
 
 /** Szablon projektu — powtarzalna struktura zlecenia (kamienie milowe z
