@@ -2,20 +2,87 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { Locale } from "@/i18n/config";
 import {
-  type Project,
-  PROJECT_STATUSES,
-  PROJECT_STATUS_DOT,
-  PROJECT_HEALTH_CLASS,
-  isProjectOverdue,
-  ProjectStatusTag,
-  formatPlDate,
-} from "./shared";
+  IconCircleDashed,
+  IconCircle,
+  IconProgress,
+  IconProgressCheck,
+  IconCircleCheckFilled,
+  IconCircleMinus,
+  IconPointFilled,
+  IconAlertTriangleFilled,
+  type Icon as TablerIcon,
+} from "@tabler/icons-react";
+import type { Locale } from "@/i18n/config";
+import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate, ProjectIcon } from "./shared";
+import { PropertyMenu, type MenuOption } from "../Menu";
+
+// Status jako ikona (styl Linear) — kształt koła oddaje etap, nie słowo.
+const STATUS_ICON: Record<string, { icon: TablerIcon; className: string }> = {
+  "Pomysł": { icon: IconCircleDashed, className: "text-[#8a8f98]" },
+  "Planowanie": { icon: IconCircle, className: "text-[#8a8f98]" },
+  "W trakcie": { icon: IconProgress, className: "text-[#e2a336]" },
+  "Testy / review": { icon: IconProgressCheck, className: "text-[#4ea7fc]" },
+  "Wdrożone": { icon: IconCircleCheckFilled, className: "text-[#3fb987]" },
+  "Wstrzymane": { icon: IconCircleMinus, className: "text-[#8a8f98]" },
+};
+
+// Priorytet jako słupki sygnału (jak w Linear), Krytyczny = ostrzeżenie.
+export function PriorityIcon({ priorytet }: { priorytet: string }) {
+  if (priorytet === "Krytyczny") {
+    return <IconAlertTriangleFilled size={13} className="shrink-0 text-[#e5484d]" title="Priorytet: Krytyczny" />;
+  }
+  const level = priorytet === "Niski" ? 1 : priorytet === "Normalny" ? 2 : priorytet === "Wysoki" ? 3 : 0;
+  if (level === 0) return null;
+  return (
+    <span className="flex shrink-0 items-end gap-[1.5px]" title={`Priorytet: ${priorytet}`}>
+      {[1, 2, 3].map((i) => (
+        <span
+          key={i}
+          className={`w-[2.5px] rounded-[1px] ${i <= level ? "bg-[#8a8f98]" : "bg-[#2a2b2f]"}`}
+          style={{ height: `${3 + i * 2}px` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+export const HEALTH_COLOR: Record<string, string> = {
+  "Na dobrej drodze": "text-[#3fb987]",
+  "Zagrożony": "text-[#e2a336]",
+  "Zerwany": "text-[#e5484d]",
+};
+const HEALTH_DOT: Record<string, string> = {
+  "Zagrożony": "text-[#e2a336]",
+  "Zerwany": "text-[#e5484d]",
+};
+
+export function statusIconEl(status: string, size = 15) {
+  const st = STATUS_ICON[status];
+  const Ico = st?.icon ?? IconCircle;
+  return <Ico size={size} className={st?.className ?? "text-muted"} />;
+}
+
+// Listy opcji do menu (z ikonami) — budowane raz, współdzielone z panelem
+// szczegółów, żeby wygląd właściwości był identyczny wszędzie.
+export const STATUS_OPTS: MenuOption<string>[] = PROJECT_STATUSES.map((s) => ({
+  value: s,
+  label: s,
+  icon: statusIconEl(s, 15),
+}));
+export const PRIORITY_OPTS: MenuOption<string>[] = PROJECT_PRIORITIES.map((p) => ({
+  value: p,
+  label: p,
+  icon: <PriorityIcon priorytet={p} />,
+}));
+export const HEALTH_OPTS: MenuOption<string>[] = PROJECT_HEALTHS.map((h) => ({
+  value: h,
+  label: h,
+  icon: <IconPointFilled size={12} className={HEALTH_COLOR[h] ?? "text-muted"} />,
+}));
 
 export function ProjectKanban({
   projects,
-  lang,
   selectedIds,
   onToggleSelect,
   onUpdate,
@@ -32,6 +99,7 @@ export function ProjectKanban({
 }) {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const anySelected = selectedIds.size > 0;
 
   const columns = PROJECT_STATUSES.map((status) => ({
     status,
@@ -39,136 +107,156 @@ export function ProjectKanban({
   }));
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4">
-      {columns.map((col) => (
-        <div
-          key={col.status}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOverStatus(col.status);
-          }}
-          onDragLeave={() => setDragOverStatus((s) => (s === col.status ? null : s))}
-          onDrop={(e) => {
-            e.preventDefault();
-            const id = e.dataTransfer.getData("text/project-id");
-            if (id) onUpdate(id, "status", col.status);
-            setDragOverStatus(null);
-            setDraggingId(null);
-          }}
-          className={`w-72 shrink-0 rounded-2xl border p-2 transition-colors ${
-            dragOverStatus === col.status
-              ? "border-brand-cyan/50 bg-brand-cyan/[0.05]"
-              : "border hairline bg-[var(--bg-soft)]/60"
-          }`}
-        >
-          <div className="mb-2 flex items-center gap-2 px-1">
-            <span className={`h-2 w-2 rounded-full ${PROJECT_STATUS_DOT[col.status] ?? "bg-[var(--fg-muted)]"}`} />
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{col.status}</h3>
-            <span className="ml-auto rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted">
-              {col.items.length}
-            </span>
-          </div>
+    <div className="flex gap-4 overflow-x-auto pb-4">
+      {columns.map((col) => {
+        const st = STATUS_ICON[col.status];
+        const StatusIco = st?.icon ?? IconCircle;
+        return (
+          <div
+            key={col.status}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverStatus(col.status);
+            }}
+            onDragLeave={() => setDragOverStatus((s) => (s === col.status ? null : s))}
+            onDrop={(e) => {
+              e.preventDefault();
+              const id = e.dataTransfer.getData("text/project-id");
+              if (id) onUpdate(id, "status", col.status);
+              setDragOverStatus(null);
+              setDraggingId(null);
+            }}
+            className={`w-[300px] shrink-0 rounded-lg transition-colors ${
+              dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.04]" : ""
+            }`}
+          >
+            {/* Nagłówek kolumny — ikona statusu + nazwa + licznik, bez ramki */}
+            <div className="mb-1 flex items-center gap-2 px-1 py-1.5">
+              <StatusIco size={14} className={st?.className ?? "text-muted"} />
+              <h3 className="text-[13px] font-medium text-[var(--fg)]">{col.status}</h3>
+              <span className="text-[12px] text-muted">{col.items.length}</span>
+            </div>
 
-          <div className="flex min-h-[40px] flex-col gap-2">
-            <AnimatePresence initial={false}>
-            {col.items.map((p) => {
-              const overdue = isProjectOverdue(p);
-              return (
-                <motion.div
-                  key={p.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.94 }}
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                  draggable
-                  onDragStart={(e) => {
-                    (e as unknown as React.DragEvent).dataTransfer.setData("text/project-id", p.id);
-                    setDraggingId(p.id);
-                  }}
-                  onDragEnd={() => setDraggingId(null)}
-                  onClick={() => onOpen(p.id)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") onOpen(p.id);
-                  }}
-                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-brand-cyan/30 active:cursor-grabbing ${
-                    draggingId === p.id ? "opacity-40" : ""
-                  } ${overdue ? "border-orange-500/40" : ""} ${
-                    selectedIds.has(p.id) ? "border-brand-purple/50 bg-brand-purple/[0.06]" : ""
-                  }`}
-                >
-                  <div className="mb-1 flex items-start justify-between gap-2">
-                    <span className="flex min-w-0 items-start gap-1.5">
+            <div className="flex min-h-[8px] flex-col gap-1.5">
+              <AnimatePresence initial={false}>
+                {col.items.map((p) => {
+                  const overdue = isProjectOverdue(p);
+                  const selected = selectedIds.has(p.id);
+                  const showRisk = p.zdrowie && HEALTH_DOT[p.zdrowie];
+                  const hasTasks = typeof p.task_total === "number" && p.task_total > 0;
+                  return (
+                    <motion.div
+                      key={p.id}
+                      layout
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.97 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                      draggable
+                      onDragStart={(e) => {
+                        (e as unknown as React.DragEvent).dataTransfer.setData("text/project-id", p.id);
+                        setDraggingId(p.id);
+                      }}
+                      onDragEnd={() => setDraggingId(null)}
+                      onClick={() => onOpen(p.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") onOpen(p.id);
+                      }}
+                      className={`group relative cursor-pointer rounded-lg border bg-[var(--bg-soft)] px-3 py-2.5 transition-colors hover:border-[#3a3b40] active:cursor-grabbing ${
+                        draggingId === p.id ? "opacity-40" : ""
+                      } ${
+                        selected ? "border-[#4ea7fc]/60 bg-[#4ea7fc]/[0.06]" : "border-[var(--hairline)]"
+                      }`}
+                    >
+                      {/* Checkbox — na hover (lub gdy coś zaznaczone), lewy górny róg */}
                       <input
                         type="checkbox"
-                        checked={selectedIds.has(p.id)}
+                        checked={selected}
                         onChange={(e) => {
                           e.stopPropagation();
                           onToggleSelect(p.id);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-cyan"
                         aria-label={`Zaznacz ${p.tytul}`}
+                        className={`absolute left-2 top-2.5 h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc] transition-opacity ${
+                          anySelected || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        }`}
                       />
-                      <span className="text-xs font-medium leading-snug">{p.tytul}</span>
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(p.id, p.tytul);
-                      }}
-                      className="shrink-0 text-muted hover:text-red-400"
-                      aria-label={`Usuń ${p.tytul}`}
-                      title="Usuń"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                    {p.zdrowie && p.zdrowie !== "Na dobrej drodze" && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${PROJECT_HEALTH_CLASS[p.zdrowie] ?? ""}`}>
-                        {p.zdrowie}
-                      </span>
-                    )}
-                    {p.priorytet && <span className="text-[11px] text-muted">Priorytet: {p.priorytet}</span>}
-                  </div>
-                  {typeof p.task_total === "number" && p.task_total > 0 && (
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-brand-purple to-brand-cyan transition-all"
-                          style={{ width: `${Math.round(((p.task_done ?? 0) / p.task_total) * 100)}%` }}
-                        />
+
+                      {/* Tytuł ze statusem-ikoną (klikalną); przesuwa się gdy widać checkbox */}
+                      <div
+                        className={`flex items-start gap-2 transition-[margin] ${
+                          anySelected ? "ml-5" : "group-hover:ml-5"
+                        }`}
+                      >
+                        <span className="mt-[1px] shrink-0">
+                          <PropertyMenu
+                            value={p.status}
+                            options={STATUS_OPTS}
+                            onChange={(v) => onUpdate(p.id, "status", v)}
+                            title="Zmień status"
+                          >
+                            {statusIconEl(p.status, 15)}
+                          </PropertyMenu>
+                        </span>
+                        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] font-medium leading-snug text-[var(--fg)]">
+                          <ProjectIcon kolor={p.kolor} ikona={p.ikona} size={16} />
+                          <span className="min-w-0 flex-1">{p.tytul}</span>
+                        </span>
                       </div>
-                      <span className="shrink-0 text-[10px] text-muted">{p.task_done ?? 0}/{p.task_total}</span>
-                    </div>
-                  )}
-                  <div className="mt-1.5 flex items-center justify-between gap-2">
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <ProjectStatusTag status={p.status} onChange={(v) => onUpdate(p.id, "status", v)} />
-                    </span>
-                    {p.termin && (
-                      <span className={`shrink-0 text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
-                        termin: {formatPlDate(p.termin)}
-                      </span>
-                    )}
-                  </div>
-                </motion.div>
-              );
-            })}
-            </AnimatePresence>
-            {col.items.length === 0 && (
-              <div className="rounded-xl border border-dashed hairline p-3 text-center text-[11px] text-muted opacity-50">
-                🌤️ Pusto
-              </div>
-            )}
+
+                      {/* Wiersz meta — każda właściwość klikalna osobno (menu), ikony zamiast słów */}
+                      <div className="mt-2 flex items-center gap-2 text-muted">
+                        <PropertyMenu
+                          value={p.priorytet}
+                          options={PRIORITY_OPTS}
+                          onChange={(v) => onUpdate(p.id, "priorytet", v)}
+                          title={`Priorytet: ${p.priorytet}`}
+                        >
+                          <PriorityIcon priorytet={p.priorytet} />
+                        </PropertyMenu>
+                        <PropertyMenu
+                          value={p.zdrowie}
+                          options={HEALTH_OPTS}
+                          onChange={(v) => onUpdate(p.id, "zdrowie", v)}
+                          title={`Zdrowie: ${p.zdrowie}`}
+                        >
+                          <IconPointFilled
+                            size={12}
+                            className={`${HEALTH_COLOR[p.zdrowie] ?? "text-[#3a3b40]"} ${
+                              showRisk ? "" : "opacity-40 group-hover:opacity-100"
+                            }`}
+                          />
+                        </PropertyMenu>
+                        {hasTasks && (
+                          <span className="flex items-center gap-1">
+                            <span className="h-1 w-8 overflow-hidden rounded-full bg-[#2a2b2f]">
+                              <span
+                                className="block h-full rounded-full bg-[#4ea7fc]"
+                                style={{ width: `${Math.round(((p.task_done ?? 0) / (p.task_total ?? 1)) * 100)}%` }}
+                              />
+                            </span>
+                            <span className="text-[11px]">{p.task_done ?? 0}/{p.task_total}</span>
+                          </span>
+                        )}
+                        <span className="flex-1" />
+                        {p.termin && (
+                          <span className={`text-[11px] ${overdue ? "text-[#e5484d]" : "text-muted"}`}>
+                            {formatPlDate(p.termin)}
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
+

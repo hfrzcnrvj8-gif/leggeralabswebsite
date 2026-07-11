@@ -1,19 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
   type ProjectActivity,
   type ProjectMilestone,
   type ProjectResource,
-  PROJECT_PRIORITIES,
-  ProjectStatusTag,
-  ProjectHealthTag,
   progressOf,
   isPlausibleDateString,
+  relativeDeadline,
+  daysFromToday,
+  ProjectIconPicker,
 } from "./shared";
 import { EditableText, EditableTextarea } from "../components";
+import { PropertyMenu, Popover, MenuRow, type MenuOption } from "../Menu";
+import { DateField } from "../DatePicker";
+import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
 import { useUI } from "../ui";
 import type { Lead } from "@/lib/leads";
 
@@ -41,9 +45,13 @@ export function ProjectDetailPanel({
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const savedTimer = useRef<number | null>(null);
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [newResourceLabel, setNewResourceLabel] = useState("");
   const [newResourceUrl, setNewResourceUrl] = useState("");
+  const [dependencies, setDependencies] = useState<string[]>([]);
+  const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`);
@@ -61,12 +69,14 @@ export function ProjectDetailPanel({
       activity: ProjectActivity[];
       milestones: ProjectMilestone[];
       resources: ProjectResource[];
+      dependencies?: { depends_on_id: string }[];
     };
     setProject(data.project);
     setTasks(data.tasks);
     setActivity(data.activity);
     setMilestones(data.milestones);
     setResources(data.resources);
+    setDependencies((data.dependencies ?? []).map((d) => d.depends_on_id));
   }, [id]);
 
   useEffect(() => {
@@ -77,7 +87,33 @@ export function ProjectDetailPanel({
 
   useEffect(() => {
     fetch("/api/leads").then((r) => (r.ok ? r.json() : null)).then((d) => d && setLeads(d.leads));
+    fetch("/api/projects").then((r) => (r.ok ? r.json() : null)).then((d) => d && setAllProjects(d.projects.map((p: { id: string; tytul: string }) => ({ id: p.id, tytul: p.tytul }))));
   }, []);
+
+  const addDependency = async (dependsOnId: string) => {
+    const res = await fetch(`/api/projects/${id}/dependencies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ depends_on_id: dependsOnId }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(d.error ?? "Nie udało się dodać zależności.", "error");
+      return;
+    }
+    setDependencies((prev) => [...new Set([...prev, dependsOnId])]);
+    onFieldChange?.(id, "dependencies", "");
+  };
+
+  const removeDependency = async (dependsOnId: string) => {
+    const res = await fetch(`/api/projects/${id}/dependencies?depends_on_id=${encodeURIComponent(dependsOnId)}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast("Nie udało się usunąć zależności.", "error");
+      return;
+    }
+    setDependencies((prev) => prev.filter((x) => x !== dependsOnId));
+    onFieldChange?.(id, "dependencies", "");
+  };
 
   const updateProject = async (field: string, value: string) => {
     // Natywne <input type="date"> potrafi zapisać niepełny rok (np. "0202"
@@ -89,13 +125,28 @@ export function ProjectDetailPanel({
       return;
     }
     setProject((prev) => (prev ? { ...prev, [field]: value } : prev));
-    onFieldChange?.(id, field, value);
+    setSaveState("saving");
     const res = await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
     });
-    if (!res.ok) toast("Nie udało się zapisać zmiany.", "error");
+    if (!res.ok) {
+      setSaveState("idle");
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    setSaveState("saved");
+    if (savedTimer.current) window.clearTimeout(savedTimer.current);
+    savedTimer.current = window.setTimeout(() => setSaveState("idle"), 1800);
+    // Serwer dopisuje automatyczny wpis „system" do logu (audyt zmiany) i
+    // zwraca świeżą listę — pokaż ją od razu, bez ponownego pobierania.
+    const data = (await res.json().catch(() => null)) as { activity?: ProjectActivity[] } | null;
+    if (data?.activity) setActivity(data.activity);
+    // Dopiero PO potwierdzonym zapisie w bazie — inaczej oś czasu (która
+    // odświeża się na ten sygnał) potrafiła pobrać dane zanim PATCH się
+    // faktycznie zapisał (wyścig: refetch wygrywał z zapisem).
+    onFieldChange?.(id, field, value);
   };
 
   const deleteProject = async () => {
@@ -263,40 +314,68 @@ export function ProjectDetailPanel({
   }
 
   const unmilestoned = tasks.filter((t) => !t.milestone_id);
+  const overall = progressOf(tasks);
+  const leadOptions: MenuOption<string>[] = [
+    { value: "", label: "— brak —" },
+    ...(leads ?? []).map((l) => ({ value: l.id, label: l.firma })),
+  ];
 
   return (
     <div>
-      <PanelHeader onClose={onClose} tytul={project.tytul} />
+      <PanelHeader onClose={onClose} tytul={project.tytul} saveState={saveState} />
 
-      <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_280px]">
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* Kolumna główna: treść, kamienie milowe, log aktywności */}
-        <div className="min-w-0 space-y-6">
-          <div className="card-paper rounded-3xl p-6 sm:p-8">
-            <input
-              value={project.tytul}
-              onChange={(e) => setProject((prev) => (prev ? { ...prev, tytul: e.target.value } : prev))}
-              onBlur={(e) => updateProject("tytul", e.target.value)}
-              className="w-full bg-transparent font-serif text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
-            />
-            <div className="mt-4">
+        <div className="min-w-0 space-y-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <ProjectIconPicker
+                kolor={project.kolor}
+                ikona={project.ikona}
+                onChange={(patch) => {
+                  if (patch.kolor !== undefined) updateProject("kolor", patch.kolor);
+                  if (patch.ikona !== undefined) updateProject("ikona", patch.ikona);
+                }}
+              />
+              <input
+                value={project.tytul}
+                onChange={(e) => setProject((prev) => (prev ? { ...prev, tytul: e.target.value } : prev))}
+                onBlur={(e) => updateProject("tytul", e.target.value)}
+                className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
+              />
+            </div>
+            <div className="mt-2">
               <EditableTextarea value={project.opis} onSave={(v) => updateProject("opis", v)} />
             </div>
+            {overall.total > 0 && (
+              <div className="mt-3 flex items-center gap-2.5">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
+                  <div className="h-full rounded-full bg-[#4ea7fc] transition-all" style={{ width: `${overall.pct}%` }} />
+                </div>
+                <span className="shrink-0 text-[11px] text-muted tabular-nums">
+                  {overall.pct}% · {overall.done}/{overall.total}
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="card-paper rounded-3xl p-6 sm:p-8">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-lg font-semibold">Kamienie milowe</h2>
+          <div className="card-paper rounded-xl border hairline p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[14px] font-medium">Kamienie milowe</h2>
               <button onClick={addMilestone} className="rounded-full border hairline px-3 py-1 text-xs">
                 + Nowy kamień milowy
               </button>
             </div>
 
             {milestones.length === 0 && unmilestoned.length === 0 ? (
-              <div className="text-sm text-muted opacity-60">
-                🗒️ Brak zadań — dodaj kamień milowy powyżej albo pojedyncze zadanie:{" "}
-                <button onClick={() => addTask(null)} className="text-[var(--fg)] underline underline-offset-2 opacity-100">
-                  + dodaj zadanie
-                </button>
+              <div className="flex items-start gap-2 text-sm text-muted opacity-60">
+                <IconClipboardList size={15} className="mt-0.5 shrink-0" />
+                <span>
+                  Brak zadań — dodaj kamień milowy powyżej albo pojedyncze zadanie:{" "}
+                  <button onClick={() => addTask(null)} className="text-[var(--fg)] underline underline-offset-2 opacity-100">
+                    + dodaj zadanie
+                  </button>
+                </span>
               </div>
             ) : (
               <div className="space-y-5">
@@ -307,19 +386,14 @@ export function ProjectDetailPanel({
                     <div key={m.id}>
                       <div className="mb-1.5 flex items-center justify-between gap-2">
                         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-brand-gold" />
+                          <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-[#4ea7fc]" />
                           <div className="min-w-0 flex-1">
                             <EditableText value={m.nazwa} onSave={(v) => updateMilestone(m.id, "nazwa", v)} />
                           </div>
                         </div>
-                        <input
-                          type="date"
-                          min="2000-01-01"
-                          max="2100-12-31"
-                          value={m.termin ?? ""}
-                          onChange={(e) => updateMilestone(m.id, "termin", e.target.value)}
-                          className="shrink-0 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
-                        />
+                        <span className="shrink-0 text-[12px] text-muted">
+                          <DateField value={m.termin ?? ""} onChange={(v) => updateMilestone(m.id, "termin", v)} placeholder="Termin" />
+                        </span>
                         <span className="shrink-0 text-[11px] text-muted">{pct}% z {total}</span>
                         <button
                           onClick={() => deleteMilestone(m.id)}
@@ -327,12 +401,12 @@ export function ProjectDetailPanel({
                           aria-label="Usuń kamień milowy"
                           title="Usuń"
                         >
-                          ✕
+                          <IconX size={14} />
                         </button>
                       </div>
                       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--hairline)]">
                         <div
-                          className="h-full rounded-full bg-brand-cyan transition-all"
+                          className="h-full rounded-full bg-[#4ea7fc] transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -367,8 +441,8 @@ export function ProjectDetailPanel({
             )}
           </div>
 
-          <div className="card-paper rounded-3xl p-6 sm:p-8">
-            <h2 className="mb-4 font-serif text-lg font-semibold">Log aktywności</h2>
+          <div className="card-paper rounded-xl border hairline p-4">
+            <h2 className="mb-3 text-[14px] font-medium">Log aktywności</h2>
             <form onSubmit={submitNote} className="mb-6 space-y-2">
               <textarea
                 value={noteText}
@@ -387,22 +461,30 @@ export function ProjectDetailPanel({
                 <button
                   type="submit"
                   disabled={saving || !noteText.trim()}
-                  className="btn-primary rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                  className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? "Zapisuję…" : "Dodaj wpis"}
                 </button>
               </div>
             </form>
             {activity.length === 0 ? (
-              <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
+              <p className="flex items-center gap-2 text-sm text-muted opacity-60"><IconInbox size={15} className="shrink-0" /> Brak wpisów — dodaj pierwszy powyżej.</p>
             ) : (
-              <ul className="space-y-3">
-                {activity.map((a) => (
-                  <li key={a.id} className="rounded-xl border hairline p-3 text-sm">
-                    <span className="text-[11px] text-muted">{formatDate(a.created_at)}</span>
-                    <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
-                  </li>
-                ))}
+              <ul className="space-y-2">
+                {activity.map((a) =>
+                  a.kind === "system" ? (
+                    <li key={a.id} className="flex items-center gap-2 px-1 py-0.5 text-[12.5px] text-muted">
+                      <IconArrowRight size={13} className="shrink-0 opacity-60" />
+                      <span className="min-w-0 flex-1 truncate">{a.text}</span>
+                      <span className="shrink-0 text-[11px] opacity-70">{formatDate(a.created_at)}</span>
+                    </li>
+                  ) : (
+                    <li key={a.id} className="rounded-xl border hairline p-3 text-sm">
+                      <span className="text-[11px] text-muted">{formatDate(a.created_at)}</span>
+                      <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
+                    </li>
+                  )
+                )}
               </ul>
             )}
           </div>
@@ -412,44 +494,85 @@ export function ProjectDetailPanel({
             bez kart/etykiet nad polem, zamiast formularza. */}
         <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           <div>
-            <MetaRow icon="🩺" title="Zdrowie">
-              <ProjectHealthTag zdrowie={project.zdrowie} onChange={(v) => updateProject("zdrowie", v)} />
+            <MetaRow icon={<IconHeartbeat size={15} />} title="Zdrowie">
+              <PropertyMenu value={project.zdrowie} options={HEALTH_OPTS} onChange={(v) => updateProject("zdrowie", v)} title="Zdrowie" full>
+                <PropTrigger icon={<IconPointFilled size={10} className={HEALTH_COLOR[project.zdrowie] ?? "text-muted"} />} label={project.zdrowie} />
+              </PropertyMenu>
             </MetaRow>
-            <MetaRow icon="◔" title="Status">
-              <ProjectStatusTag status={project.status} onChange={(v) => updateProject("status", v)} />
+            <MetaRow icon={statusIconEl(project.status, 15)} title="Status">
+              <PropertyMenu value={project.status} options={STATUS_OPTS} onChange={(v) => updateProject("status", v)} title="Status" full>
+                <PropTrigger icon={statusIconEl(project.status, 14)} label={project.status} />
+              </PropertyMenu>
             </MetaRow>
-            <MetaRow icon="▮▯" title="Priorytet">
-              <select
-                value={project.priorytet}
-                onChange={(e) => updateProject("priorytet", e.target.value)}
-                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
-              >
-                {PROJECT_PRIORITIES.map((p) => (
-                  <option key={p} value={p} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-                    {p}
-                  </option>
-                ))}
-              </select>
+            <MetaRow icon={<IconChartBar size={15} />} title="Priorytet">
+              <PropertyMenu value={project.priorytet} options={PRIORITY_OPTS} onChange={(v) => updateProject("priorytet", v)} title="Priorytet" full>
+                <PropTrigger icon={<PriorityIcon priorytet={project.priorytet} />} label={project.priorytet} />
+              </PropertyMenu>
             </MetaRow>
-            <MetaRow icon="📅" title="Start → Termin">
-              <DateRangeField
-                start={project.start ?? ""}
-                termin={project.termin ?? ""}
-                onSave={(field, value) => updateProject(field, value)}
-              />
+            <MetaRow icon={<IconCalendar size={15} />} title="Daty">
+              <div>
+                <DateRangeField
+                  start={project.start ?? ""}
+                  termin={project.termin ?? ""}
+                  onSave={(field, value) => updateProject(field, value)}
+                />
+                <DeadlineHint termin={project.termin} closed={project.status === "Wdrożone"} />
+              </div>
             </MetaRow>
-            <MetaRow icon="🎯" title="Powiązany lead">
-              <select
+            <MetaRow icon={<IconTargetArrow size={15} />} title="Lead">
+              <PropertyMenu
                 value={project.lead_id ?? ""}
-                onChange={(e) => updateProject("lead_id", e.target.value)}
-                className="w-full rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
+                options={leadOptions}
+                onChange={(v) => updateProject("lead_id", v)}
+                title="Powiązany lead"
+                full
               >
-                <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">— brak —</option>
-                {(leads ?? []).map((l) => (
-                  <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{l.firma}</option>
-                ))}
-              </select>
+                <PropTrigger label={project.lead_id ? (leads?.find((l) => l.id === project.lead_id)?.firma ?? "—") : "— brak —"} />
+              </PropertyMenu>
             </MetaRow>
+          </div>
+
+          <div className="border-t hairline pt-4">
+            <h3 className="mb-2 text-[11px] text-muted opacity-70">Zależy od</h3>
+            {dependencies.length > 0 && (
+              <ul className="mb-2 space-y-1">
+                {dependencies.map((depId) => (
+                  <li key={depId} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-1.5 truncate">
+                      <IconArrowRight size={13} className="shrink-0 text-muted" />
+                      <span className="truncate">{allProjects.find((p) => p.id === depId)?.tytul ?? "—"}</span>
+                    </span>
+                    <button onClick={() => removeDependency(depId)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń zależność" title="Usuń">
+                      <IconX size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Popover
+              align="left"
+              width={240}
+              trigger={(open) => (
+                <button onClick={open} className="w-full rounded-lg border hairline px-2 py-1 text-xs text-muted hover:text-[var(--fg)]">
+                  + Dodaj zależność
+                </button>
+              )}
+            >
+              {(close) => {
+                const opts = allProjects.filter((p) => p.id !== id && !dependencies.includes(p.id));
+                return (
+                  <div className="max-h-[50vh] overflow-y-auto">
+                    {opts.length === 0 ? (
+                      <div className="px-2.5 py-2 text-[12px] text-muted">Brak innych projektów.</div>
+                    ) : (
+                      opts.map((p) => (
+                        <MenuRow key={p.id} label={p.tytul} onClick={() => { addDependency(p.id); close(); }} />
+                      ))
+                    )}
+                  </div>
+                );
+              }}
+            </Popover>
           </div>
 
           <div className="border-t hairline pt-4">
@@ -458,8 +581,8 @@ export function ProjectDetailPanel({
               <ul className="mb-2 space-y-1">
                 {resources.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                    <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-liquid hover:underline">
-                      <span className="shrink-0 opacity-70">🔗</span>
+                    <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-[#4ea7fc] hover:underline">
+                      <IconLink size={13} className="shrink-0 opacity-70" />
                       <span className="truncate">{r.etykieta}</span>
                     </a>
                     <button
@@ -468,7 +591,7 @@ export function ProjectDetailPanel({
                       aria-label="Usuń zasób"
                       title="Usuń"
                     >
-                      ✕
+                      <IconX size={14} />
                     </button>
                   </li>
                 ))}
@@ -518,7 +641,7 @@ function TaskList({
   onToggle: (id: string, done: boolean) => void;
   onDelete: (id: string) => void;
 }) {
-  if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">🗒️ Brak zadań.</p>;
+  if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">Brak zadań.</p>;
   return (
     <ul className="space-y-1">
       {tasks.map((t) => (
@@ -527,7 +650,7 @@ function TaskList({
             type="checkbox"
             checked={t.done}
             onChange={(e) => onToggle(t.id, e.target.checked)}
-            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-cyan"
+            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
           />
           <span className={`flex-1 text-sm ${t.done ? "text-muted line-through" : ""}`}>{t.text}</span>
           <button
@@ -536,7 +659,7 @@ function TaskList({
             aria-label="Usuń zadanie"
             title="Usuń"
           >
-            ✕
+            <IconX size={14} />
           </button>
         </li>
       ))}
@@ -544,44 +667,100 @@ function TaskList({
   );
 }
 
-function PanelHeader({ onClose, tytul }: { onClose?: () => void; tytul?: string }) {
+function PanelHeader({ onClose, tytul, saveState = "idle" }: { onClose?: () => void; tytul?: string; saveState?: "idle" | "saving" | "saved" }) {
   if (!onClose) return null;
   return (
     <div className="flex items-center justify-between">
       <span className="truncate text-xs text-muted">
         Projekty {tytul ? <>/ <span className="text-[var(--fg)]">{tytul}</span></> : null}
       </span>
-      <button
-        onClick={onClose}
-        className="shrink-0 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
-        aria-label="Zamknij"
-        title="Zamknij (Esc)"
-      >
-        ✕ Zamknij
-      </button>
+      <div className="flex shrink-0 items-center gap-3">
+        <SaveIndicator state={saveState} />
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
+          aria-label="Zamknij"
+          title="Zamknij (Esc)"
+        >
+          <IconX size={13} /> Zamknij
+        </button>
+      </div>
     </div>
+  );
+}
+
+/** Dyskretny wskaźnik autozapisu (styl Linear — zmiany zapisują się od razu,
+ * bez przycisku „Zapisz"). „Zapisywanie…" podczas PATCH, potem „Zapisano ✓"
+ * które po chwili znika. Daje pewność, że zmiana trafiła do bazy. */
+function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {
+  return (
+    <span
+      className={`flex items-center gap-1.5 text-[11px] transition-opacity duration-300 ${
+        state === "idle" ? "opacity-0" : "opacity-100"
+      } ${state === "saved" ? "text-emerald-400" : "text-muted"}`}
+      aria-live="polite"
+    >
+      {state === "saving" ? (
+        <>
+          <IconLoader2 size={12} className="animate-spin" />
+          Zapisywanie…
+        </>
+      ) : (
+        <>
+          <IconCheck size={12} />
+          Zapisano
+        </>
+      )}
+    </span>
   );
 }
 
 /** Płaski wiersz właściwości w bocznym pasku — ikona po lewej, kontrolka
  * zajmuje resztę szerokości, bez etykiety nad polem i bez obramowania karty
  * (styl Linear: lista właściwości, nie formularz). */
-function MetaRow({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+/** Wartość właściwości jako klikalny wiersz (styl Linear): [ikona] etykieta,
+ * chevron pojawia się na hover. Trigger dla PropertyMenu w panelu szczegółów. */
+function PropTrigger({ icon, label }: { icon?: React.ReactNode; label: string }) {
   return (
-    <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-[var(--hairline)]/30" title={title}>
-      <span className="w-4 shrink-0 text-center text-xs text-muted opacity-80">{icon}</span>
+    <span className="group/pt flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)]">
+      {icon && <span className="flex w-4 shrink-0 justify-center">{icon}</span>}
+      <span className="flex-1 truncate text-left">{label}</span>
+      <IconChevronDown size={13} className="shrink-0 text-muted opacity-0 group-hover/pt:opacity-100" />
+    </span>
+  );
+}
+
+/** Względna podpowiedź terminu pod polami dat: „za 3 dni" (wyszarzone),
+ * „jutro/dziś" (bursztyn) lub „2 dni po terminie" (czerwień) — chyba że projekt
+ * jest już Wdrożony (wtedy termin nie „pali"). */
+function DeadlineHint({ termin, closed }: { termin: string | null | undefined; closed: boolean }) {
+  const label = relativeDeadline(termin);
+  if (!label) return null;
+  const d = daysFromToday(termin);
+  const color =
+    !closed && d != null && d < 0
+      ? "text-red-400"
+      : !closed && d != null && d <= 2
+      ? "text-amber-400"
+      : "text-muted";
+  return <div className={`mt-0.5 pl-1.5 text-[11px] ${color}`}>{label}</div>;
+}
+
+function MetaRow({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <span className="flex w-24 shrink-0 items-center gap-2 text-[12.5px] text-muted" title={title}>
+        <span className="flex w-4 justify-center">{icon}</span>
+        <span className="truncate">{title}</span>
+      </span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
 
 /** Para pól start/termin z jawnym przyciskiem "Zapisz" zamiast polegania
- * wyłącznie na zdarzeniu onChange natywnego <input type="date">. Przeglądarka
- * zgłasza zmianę dopiero gdy wszystkie trzy segmenty (dzień/miesiąc/rok) są
- * wypełnione — jeśli użytkownik kliknie gdzie indziej w trakcie wpisywania
- * roku, onChange nigdy się nie odpali i nic się nie zapisze, bez żadnego
- * komunikatu. Lokalny "draft" + widoczny przycisk, gdy coś się różni od
- * zapisanej wartości, daje pewne, jawne wyjście awaryjne. */
+ * apple'owy wheel picker (DateField), który zmienia datę od razu przy
+ * przewinięciu koła — bez natywnego <input> i bez ryzyka niepełnego roku. */
 function DateRangeField({
   start,
   termin,
@@ -591,48 +770,11 @@ function DateRangeField({
   termin: string;
   onSave: (field: "start" | "termin", value: string) => void;
 }) {
-  const [draftStart, setDraftStart] = useState(start);
-  const [draftTermin, setDraftTermin] = useState(termin);
-
-  useEffect(() => setDraftStart(start), [start]);
-  useEffect(() => setDraftTermin(termin), [termin]);
-
-  const dirty = draftStart !== start || draftTermin !== termin;
-
-  const save = () => {
-    if (draftStart !== start) onSave("start", draftStart);
-    if (draftTermin !== termin) onSave("termin", draftTermin);
-  };
-
   return (
-    <div className="flex items-center gap-1.5">
-      <input
-        type="date"
-        min="2000-01-01"
-        max="2100-12-31"
-        value={draftStart}
-        onChange={(e) => setDraftStart(e.target.value)}
-        onBlur={() => draftStart !== start && onSave("start", draftStart)}
-        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
-      />
+    <div className="flex items-center gap-1">
+      <DateField value={start} onChange={(v) => onSave("start", v)} placeholder="Start" />
       <span className="shrink-0 text-muted">→</span>
-      <input
-        type="date"
-        min="2000-01-01"
-        max="2100-12-31"
-        value={draftTermin}
-        onChange={(e) => setDraftTermin(e.target.value)}
-        onBlur={() => draftTermin !== termin && onSave("termin", draftTermin)}
-        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent py-1 text-sm text-[var(--fg)] hover:border-[var(--hairline)] focus:border-brand-cyan/60 focus:outline-none"
-      />
-      {dirty && (
-        <button
-          onClick={save}
-          className="shrink-0 rounded-full bg-brand-cyan px-2 py-1 text-[10px] font-semibold text-[var(--bg)]"
-        >
-          Zapisz
-        </button>
-      )}
+      <DateField value={termin} onChange={(v) => onSave("termin", v)} placeholder="Termin" />
     </div>
   );
 }

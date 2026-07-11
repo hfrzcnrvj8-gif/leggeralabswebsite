@@ -15,7 +15,7 @@ export async function GET() {
   const sql = getSql();
   const rows = await sql`
     SELECT
-      p.id, p.tytul, p.status, p.zdrowie, p.priorytet, p.start, p.termin, p.created_at,
+      p.id, p.tytul, p.status, p.zdrowie, p.priorytet, p.start, p.termin, p.created_at, p.kolor, p.ikona,
       COALESCE(
         json_agg(
           json_build_object('id', m.id, 'nazwa', m.nazwa, 'termin', m.termin)
@@ -28,5 +28,6 @@ export async function GET() {
     GROUP BY p.id
     ORDER BY p.start ASC NULLS LAST, p.termin ASC NULLS LAST, p.created_at DESC;
   `;
-  return NextResponse.json({ projects: rows });
+  const dependencies = await sql`SELECT project_id, depends_on_id FROM project_dependencies;`;
+  return NextResponse.json({ projects: rows, dependencies });
 }

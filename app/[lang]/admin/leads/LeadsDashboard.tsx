@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, SEED, SummaryCard, isOverdue, overdueReason } from "./shared";
+import { type Lead, STATUSES, SEED, isOverdue, overdueReason } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
 import { SavedViews } from "../components";
+import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
 
 type ViewMode = "kanban" | "table";
@@ -180,6 +182,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   }, [selectedIds, confirm, toast, clearSelection]);
 
   const zrodla = useMemo(() => [...new Set((leads ?? []).map((l) => l.zrodlo))], [leads]);
+  const activeFilterCount = (filterStatus ? 1 : 0) + (filterZrodlo ? 1 : 0);
 
   const filtered = useMemo(() => {
     let list = leads ?? [];
@@ -268,36 +271,132 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   }
 
   const overdue = leads.filter(isOverdue);
-  const counts = Object.fromEntries(STATUSES.map((s) => [s, leads.filter((l) => l.status === s).length]));
   const selectedId = view === "table" ? filtered[selectedIndex]?.id ?? null : null;
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-          Rejestr <span className="text-liquid">leadów</span>
-        </h1>
-        <p className="text-sm text-muted">Zgłoszenia z formularza na stronie trafiają tu automatycznie.</p>
+    <div className="-mx-4 sm:-mx-6">
+      {/* Kompaktowy pasek — zakładki widoku + filtry + akcje jako małe ikony,
+          bez dużego nagłówka strony i bez kolorowych kart statystyk. */}
+      <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+        <button
+          onClick={() => switchView("kanban")}
+          className={`relative flex h-full items-center px-1 text-[13px] ${
+            view === "kanban" ? "text-[var(--fg)]" : "text-muted"
+          }`}
+        >
+          Tablica
+          {view === "kanban" && (
+            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
+          )}
+        </button>
+        <button
+          onClick={() => switchView("table")}
+          className={`relative flex h-full items-center px-1 text-[13px] ${
+            view === "table" ? "text-[var(--fg)]" : "text-muted"
+          }`}
+        >
+          Tabela
+          {view === "table" && (
+            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
+          )}
+        </button>
+        <span className="flex-1" />
+        <input
+          ref={searchRef}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Szukaj… (/)"
+          className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+        />
+        <Popover
+          align="right"
+          width={240}
+          trigger={(open) => (
+            <button
+              onClick={open}
+              className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+              title="Filtry"
+            >
+              <IconFilter size={14} /> Filtry
+              {activeFilterCount > 0 && (
+                <span className="ml-0.5 rounded-full bg-[#4ea7fc]/20 px-1.5 text-[10px] font-medium text-[#4ea7fc]">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
+        >
+          {() => (
+            <div className="max-h-[60vh] overflow-y-auto">
+              <MenuLabel>Status</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterStatus} onClick={() => setFilterStatus("")} />
+              {STATUSES.map((s) => (
+                <MenuRow key={s} label={s} selected={filterStatus === s} onClick={() => setFilterStatus(filterStatus === s ? "" : s)} />
+              ))}
+              <MenuDivider />
+              <MenuLabel>Źródło</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterZrodlo} onClick={() => setFilterZrodlo("")} />
+              {zrodla.map((z) => (
+                <MenuRow key={z} label={z} selected={filterZrodlo === z} onClick={() => setFilterZrodlo(filterZrodlo === z ? "" : z)} />
+              ))}
+              {activeFilterCount > 0 && (
+                <>
+                  <MenuDivider />
+                  <button
+                    onClick={() => {
+                      setFilterStatus("");
+                      setFilterZrodlo("");
+                    }}
+                    className="w-full px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-[#232327]"
+                  >
+                    Wyczyść filtry
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </Popover>
+        <button
+          onClick={() => setDiscoverOpen(true)}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Znajdź nowe leady"
+        >
+          <IconSparkles size={15} />
+        </button>
+        <button
+          onClick={sendReportNow}
+          disabled={sendingReport}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
+          title="Wyślij raport teraz"
+        >
+          <IconMailForward size={15} />
+        </button>
+        <button
+          onClick={seedInitial}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Wczytaj listę startową"
+        >
+          <IconDownload size={15} />
+        </button>
+        <button
+          onClick={addLead}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Dodaj leada"
+        >
+          <IconPlus size={16} />
+        </button>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <SummaryCard label="Wszystkie" value={leads.length} />
-        <SummaryCard label="Nowe ze strony" value={counts["Nowe zgłoszenie ze strony"]} />
-        <SummaryCard label="Do kontaktu" value={counts["Do kontaktu"]} />
-        <SummaryCard label="Czeka na odpowiedź" value={counts["Napisano - czeka na odpowiedź"]} />
-        <SummaryCard label="Rozmowa umówiona" value={counts["Rozmowa umówiona"]} />
-        <SummaryCard label="Pilotaż w trakcie" value={counts["Pilotaż w trakcie"]} />
-        <SummaryCard label="Zamknięte sukcesem" value={counts["Zamknięte - sukces"]} />
-        <SummaryCard label="Wymaga działania" value={overdue.length} alert />
-      </div>
+      <DiscoverPanel open={discoverOpen} onOpenChange={setDiscoverOpen} onDiscovered={load} />
 
+      <div className="px-4 py-4 sm:px-6">
       {overdue.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-orange-500/30 bg-orange-500/[0.05] p-4">
-          <h2 className="mb-2 text-sm font-semibold text-orange-400">⚠ Wymaga działania dziś</h2>
+        <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
+          <h2 className="mb-1.5 text-[12.5px] font-medium text-orange-400">Wymaga działania dziś</h2>
           {overdue.map((l) => (
             <div
               key={l.id}
-              className="flex items-center justify-between border-b border-orange-500/15 py-1.5 text-sm last:border-0"
+              className="flex items-center justify-between border-b border-orange-500/10 py-1 text-[13px] last:border-0"
             >
               <span>
                 <b>{l.firma}</b> — {overdueReason(l)}
@@ -307,7 +406,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
                   await updateLead(l.id, "status", "Przypomnienie wysłane");
                   await updateLead(l.id, "ostatni_kontakt", new Date().toISOString().slice(0, 10));
                 }}
-                className="rounded-full border border-orange-500/40 px-2 py-1 text-xs text-orange-400"
+                className="rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
               >
                 Oznacz jako obsłużone
               </button>
@@ -316,82 +415,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button onClick={addLead} className="btn-primary rounded-full px-3 py-1.5 text-xs font-semibold">
-          + Dodaj lead
-        </button>
-        <DiscoverPanel open={discoverOpen} onOpenChange={setDiscoverOpen} onDiscovered={load} />
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-full border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
-            Wszystkie statusy
-          </option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={filterZrodlo}
-          onChange={(e) => setFilterZrodlo(e.target.value)}
-          className="rounded-full border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
-            Wszystkie źródła
-          </option>
-          {zrodla.map((z) => (
-            <option key={z} value={z} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-              {z}
-            </option>
-          ))}
-        </select>
-        <input
-          ref={searchRef}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj po nazwie firmy… (/)"
-          className="rounded-full border hairline bg-transparent px-3 py-1.5 text-xs text-[var(--fg)] placeholder:text-muted"
-        />
-        <span className="flex-1" />
-        <div className="flex overflow-hidden rounded-full border hairline text-xs">
-          <button
-            onClick={() => switchView("kanban")}
-            className={
-              view === "kanban"
-                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
-                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
-            }
-          >
-            Tablica
-          </button>
-          <button
-            onClick={() => switchView("table")}
-            className={
-              view === "table"
-                ? "bg-[var(--fg)] px-3 py-1.5 font-medium text-[var(--bg)]"
-                : "px-3 py-1.5 text-muted hover:text-[var(--fg)]"
-            }
-          >
-            Tabela
-          </button>
-        </div>
-        <button
-          onClick={sendReportNow}
-          disabled={sendingReport}
-          className="rounded-full border hairline px-3 py-1.5 text-xs disabled:opacity-50"
-        >
-          {sendingReport ? "Wysyłam…" : "Wyślij raport teraz"}
-        </button>
-        <button onClick={seedInitial} className="rounded-full border hairline px-3 py-1.5 text-xs">
-          Wczytaj listę startową
-        </button>
-      </div>
-
-      <div className="mb-4">
+      <div className="mb-3">
         <SavedViews
           storageKey="leggera_leads_saved_views"
           currentFilters={{ status: filterStatus, zrodlo: filterZrodlo }}
@@ -405,30 +429,40 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       {selectedIds.size > 0 && (
         <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
           <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
-          <select
-            disabled={bulkBusy}
-            defaultValue=""
-            onChange={(e) => {
-              if (e.target.value) bulkUpdateStatus(e.target.value);
-              e.target.value = "";
-            }}
-            className="rounded-full border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] disabled:opacity-50"
+          <Popover
+            align="left"
+            width={240}
+            trigger={(open) => (
+              <button
+                onClick={open}
+                disabled={bulkBusy}
+                className="rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)] disabled:opacity-50"
+              >
+                Zmień status na…
+              </button>
+            )}
           >
-            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">
-              Zmień status na…
-            </option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-                {s}
-              </option>
-            ))}
-          </select>
+            {(close) => (
+              <div className="max-h-[60vh] overflow-y-auto">
+                {STATUSES.map((s) => (
+                  <MenuRow
+                    key={s}
+                    label={s}
+                    onClick={() => {
+                      bulkUpdateStatus(s);
+                      close();
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </Popover>
           <button
             onClick={bulkDelete}
             disabled={bulkBusy}
-            className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-full border border-red-500/40 px-3 py-1 text-red-400 disabled:opacity-50"
           >
-            ✕ Usuń zaznaczone
+            <IconX size={13} /> Usuń zaznaczone
           </button>
           <span className="flex-1" />
           <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
@@ -460,6 +494,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenLeadId}
         />
       )}
+      </div>
 
       {/* Wysuwany panel szczegółów leada — "peek", bez opuszczania listy. */}
       <AnimatePresence>

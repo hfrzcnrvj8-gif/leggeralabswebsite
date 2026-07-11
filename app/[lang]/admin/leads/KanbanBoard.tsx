@@ -49,7 +49,7 @@ export function KanbanBoard({
           }}
           className={`w-72 shrink-0 rounded-2xl border p-2 transition-colors ${
             dragOverStatus === col.status
-              ? "border-brand-cyan/50 bg-brand-cyan/[0.05]"
+              ? "border-[#4ea7fc]/50 bg-[#4ea7fc]/[0.05]"
               : "border hairline bg-[var(--bg-soft)]/60"
           }`}
         >
@@ -88,10 +88,10 @@ export function KanbanBoard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onOpen(lead.id);
                   }}
-                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-brand-cyan/30 active:cursor-grabbing ${
+                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-[#4ea7fc]/30 active:cursor-grabbing ${
                     draggingId === lead.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""} ${
-                    selectedIds.has(lead.id) ? "border-brand-purple/50 bg-brand-purple/[0.06]" : ""
+                    selectedIds.has(lead.id) ? "border-[#4ea7fc]/50 bg-[#4ea7fc]/[0.06]" : ""
                   }`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
@@ -104,7 +104,7 @@ export function KanbanBoard({
                           onToggleSelect(lead.id);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-cyan"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
                         aria-label={`Zaznacz ${lead.firma}`}
                       />
                       <span className="text-xs font-medium leading-snug">{lead.firma}</span>

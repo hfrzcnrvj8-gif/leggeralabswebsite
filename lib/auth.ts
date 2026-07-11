@@ -44,6 +44,16 @@ export async function destroySession(): Promise<void> {
 }
 
 export async function isAuthed(): Promise<boolean> {
+  // Dev-only obejście logowania — POTRÓJNIE zabezpieczone, żeby nigdy nie
+  // zadziałało na produkcji: (1) NODE_ENV musi być "development" (Vercel
+  // zawsze ustawia "production"), (2) jawna zgoda przez DEV_ADMIN_BYPASS=1,
+  // (3) ta zmienna żyje tylko w .env.local, który jest w .gitignore i nie
+  // jest deployowany. Pozwala widzieć zalogowany panel na localhost bez
+  // hasła — samo logowanie na http://localhost i tak nie działa, bo cookie
+  // sesji ma secure:true (wymaga HTTPS).
+  if (process.env.NODE_ENV === "development" && process.env.DEV_ADMIN_BYPASS === "1") {
+    return true;
+  }
   const expected = sessionToken();
   if (!expected) return false;
   const jar = await cookies();

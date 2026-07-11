@@ -12,6 +12,10 @@ export type Project = {
   start: string | null;
   termin: string | null;
   lead_id: string | null;
+  /** Kolor akcentu projektu (hex) — tożsamość w listach/tablicy/osi czasu. */
+  kolor: string | null;
+  /** Ikona projektu (emoji) — jak w Linear/Notion. */
+  ikona: string | null;
   created_at: string;
   updated_at: string;
   /** Agregat z listy /api/projects — liczba zadań łącznie/ukończonych.
@@ -35,6 +39,9 @@ export type ProjectActivity = {
   id: string;
   project_id: string;
   text: string;
+  /** "note" = ręczny wpis użytkownika, "system" = automatyczny log zmiany
+   * (status/priorytet/zdrowie/data), renderowany dyskretnie. */
+  kind: "note" | "system";
   created_at: string;
 };
 
@@ -67,6 +74,83 @@ export const PROJECT_STATUSES = [
 
 export const PROJECT_PRIORITIES = ["Niski", "Normalny", "Wysoki", "Krytyczny"] as const;
 
+/** Szablon projektu — powtarzalna struktura zlecenia (kamienie milowe z
+ * przesunięciami dni od startu + zadania pod każdym). Tworzy gotowy projekt
+ * jednym kliknięciem zamiast klepania tego samego za każdym razem. Używane
+ * przez POST /api/projects (rozwijane po stronie serwera) i przez picker w UI. */
+export type ProjectTemplateMilestone = { nazwa: string; dayOffset: number; tasks: string[] };
+export type ProjectTemplate = {
+  id: string;
+  name: string;
+  emoji: string;
+  opis: string;
+  milestones: ProjectTemplateMilestone[];
+};
+
+export const PROJECT_TEMPLATES: ProjectTemplate[] = [
+  {
+    id: "www",
+    name: "Wdrożenie strony WWW",
+    emoji: "🌐",
+    opis: "Projekt i wdrożenie strony internetowej dla klienta.",
+    milestones: [
+      { nazwa: "Discovery / brief", dayOffset: 7, tasks: ["Spotkanie kickoff", "Zebranie wymagań", "Analiza konkurencji"] },
+      { nazwa: "Projekt (design)", dayOffset: 21, tasks: ["Wireframe", "Projekt UI", "Akceptacja klienta"] },
+      { nazwa: "Wdrożenie", dayOffset: 42, tasks: ["Frontend", "Integracje / CMS", "Treści"] },
+      { nazwa: "Testy / review", dayOffset: 49, tasks: ["QA", "Poprawki", "Akceptacja"] },
+      { nazwa: "Launch", dayOffset: 56, tasks: ["Wdrożenie produkcyjne", "Analytics", "Przekazanie klientowi"] },
+    ],
+  },
+  {
+    id: "automatyzacja",
+    name: "Automatyzacja / integracja",
+    emoji: "⚙️",
+    opis: "Automatyzacja procesu lub integracja systemów.",
+    milestones: [
+      { nazwa: "Analiza procesu", dayOffset: 7, tasks: ["Mapowanie procesu", "Identyfikacja wąskich gardeł", "Zakres MVP"] },
+      { nazwa: "Proof of Concept", dayOffset: 21, tasks: ["Prototyp", "Test na danych", "Prezentacja PoC"] },
+      { nazwa: "Wdrożenie", dayOffset: 42, tasks: ["Integracje API", "Automatyzacja", "Obsługa błędów"] },
+      { nazwa: "Uruchomienie", dayOffset: 49, tasks: ["Testy end-to-end", "Szkolenie", "Dokumentacja"] },
+    ],
+  },
+  {
+    id: "audyt",
+    name: "Audyt / konsultacja",
+    emoji: "🔍",
+    opis: "Audyt i rekomendacje dla klienta.",
+    milestones: [
+      { nazwa: "Zebranie danych", dayOffset: 5, tasks: ["Wywiady", "Dostęp do systemów", "Zebranie materiałów"] },
+      { nazwa: "Analiza", dayOffset: 12, tasks: ["Analiza stanu obecnego", "Identyfikacja szans", "Benchmark"] },
+      { nazwa: "Raport i rekomendacje", dayOffset: 18, tasks: ["Raport", "Rekomendacje", "Prezentacja dla klienta"] },
+    ],
+  },
+];
+
+export function getProjectTemplate(id: string): ProjectTemplate | undefined {
+  return PROJECT_TEMPLATES.find((t) => t.id === id);
+}
+
+/** Paleta kolorów akcentu projektu (hex) — kilka spójnych, żywych barw jak w
+ * Linear/Notion; wybierane ręcznie w panelu szczegółów. */
+export const PROJECT_COLORS = [
+  "#7C3AED", // fiolet (marka)
+  "#E0A93B", // złoto (marka)
+  "#4ea7fc", // niebieski
+  "#22D3EE", // cyan
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ef4444", // czerwony
+  "#ec4899", // różowy
+  "#8b5cf6", // fioletowy jasny
+  "#64748b", // szary
+] as const;
+
+/** Zestaw emoji-ikon projektu do szybkiego wyboru. */
+export const PROJECT_ICONS = ["📁", "🌐", "⚙️", "🔍", "🚀", "📊", "💼", "🎨", "📝", "🤖", "💡", "🔧", "📦", "🎯", "🛠️", "📈"] as const;
+
+export const DEFAULT_PROJECT_COLOR = "#4ea7fc";
+export const DEFAULT_PROJECT_ICON = "📁";
+
 export const PROJECT_STATUS_CLASS: Record<string, string> = {
   Pomysł: "bg-[var(--hairline)] text-muted",
   Planowanie: "bg-brand-gold/15 text-brand-gold",
@@ -94,6 +178,29 @@ export function isProjectOverdue(p: Project): boolean {
   if (!p.termin) return false;
   const today = new Date().toISOString().slice(0, 10);
   return p.termin <= today;
+}
+
+/** Liczba dni od dziś do daty (dodatnia = przyszłość, 0 = dziś, ujemna =
+ * przeszłość). null gdy brak/niepoprawna data. */
+export function daysFromToday(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const target = new Date(`${s.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+/** Krótka etykieta względna terminu: „dziś", „jutro", „za 3 dni", „wczoraj",
+ * „3 dni po terminie". Pusty string gdy brak daty. */
+export function relativeDeadline(s: string | null | undefined): string {
+  const d = daysFromToday(s);
+  if (d == null) return "";
+  if (d === 0) return "dziś";
+  if (d === 1) return "jutro";
+  if (d === -1) return "wczoraj";
+  if (d > 1) return `za ${d} dni`;
+  return `${-d} dni po terminie`;
 }
 
 // "Zdrowie" — ręcznie ustawiana ocena, niezależna od statusu na tablicy

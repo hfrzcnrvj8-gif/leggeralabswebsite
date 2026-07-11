@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
+    "@tabler/icons-react": "^3.44.0",
     "framer-motion": "^12.40.0",
     "gray-matter": "^4.0.3",
     "next": "^16.2.9",
@@ -21,6 +22,7 @@
     "remark-html": "^16.0.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^20.14.11",
     "@types/react": "^19.2.17",

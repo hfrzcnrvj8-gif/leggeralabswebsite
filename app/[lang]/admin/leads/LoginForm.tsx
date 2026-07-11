@@ -25,8 +25,8 @@ export function LoginForm() {
   };
 
   return (
-    <div className="glass mx-auto mt-24 max-w-sm rounded-3xl p-8">
-      <h1 className="font-serif text-xl font-semibold tracking-tight">Rejestr leadów</h1>
+    <div className="card-paper mx-auto mt-24 max-w-sm rounded-2xl border hairline p-8">
+      <h1 className="text-lg font-semibold tracking-tight">Leggera Labs</h1>
       <p className="mb-6 mt-1 text-sm text-muted">Dostęp tylko dla Leggera Labs.</p>
       <form onSubmit={submit} className="space-y-3">
         <input
@@ -35,13 +35,13 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Hasło"
           autoFocus
-          className="w-full rounded-2xl border hairline bg-transparent px-4 py-3 text-sm text-[var(--fg)] outline-none transition-colors focus:border-brand-cyan/60"
+          className="w-full rounded-lg border hairline bg-transparent px-4 py-3 text-sm text-[var(--fg)] outline-none transition-colors focus:border-[#4ea7fc]/60"
         />
         {error && <p className="text-xs text-red-400">Błędne hasło.</p>}
         <button
           type="submit"
           disabled={loading || !password}
-          className="btn-primary w-full rounded-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-md bg-[var(--fg)] px-4 py-3 text-sm font-medium text-[var(--bg)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "Sprawdzam…" : "Zaloguj"}
         </button>

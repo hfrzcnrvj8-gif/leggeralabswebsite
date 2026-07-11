@@ -131,19 +131,16 @@ export function CalendarView() {
   const projectName = (id: string | null) => (id ? projects?.find((p) => p.id === id)?.tytul : null);
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-          Kalendarz <span className="text-liquid">i terminy</span>
-        </h1>
-        <div className="flex items-center gap-2">
-          <button onClick={() => changeMonth(-1)} className="rounded-full border hairline px-2.5 py-1 text-xs">←</button>
-          <span className="min-w-[140px] text-center text-sm font-medium">{MONTH_NAMES[monthIdx]} {year}</span>
-          <button onClick={() => changeMonth(1)} className="rounded-full border hairline px-2.5 py-1 text-xs">→</button>
-        </div>
+    <div className="-mx-4 sm:-mx-6">
+      <div className="flex items-center gap-2 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+        <span className="text-[13px] text-muted">Kalendarz</span>
+        <span className="flex-1" />
+        <button onClick={() => changeMonth(-1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">←</button>
+        <span className="min-w-[120px] text-center text-[13px] font-medium">{MONTH_NAMES[monthIdx]} {year}</span>
+        <button onClick={() => changeMonth(1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">→</button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[1fr_320px]">
         <div className="card-paper rounded-2xl p-3">
           <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-muted">
             {WEEKDAYS.map((w) => (
@@ -161,14 +158,14 @@ export function CalendarView() {
                   key={day}
                   onClick={() => setSelectedDay(day)}
                   className={`flex min-h-[64px] flex-col items-start gap-1 rounded-lg p-1.5 text-left text-xs transition-colors ${
-                    isSelected ? "bg-brand-cyan/[0.12] ring-1 ring-brand-cyan/40" : "hover:bg-[var(--hairline)]"
+                    isSelected ? "bg-[#4ea7fc]/[0.12] ring-1 ring-[#4ea7fc]/40" : "hover:bg-[var(--hairline)]"
                   }`}
                 >
                   <span className={`text-[11px] ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)]" : "text-muted"}`}>
                     {Number(day.slice(-2))}
                   </span>
                   {dayEvents.slice(0, 2).map((e) => (
-                    <span key={e.id} className="w-full truncate rounded bg-brand-cyan/15 px-1 text-[10px] text-brand-cyan">
+                    <span key={e.id} className="w-full truncate rounded bg-[#4ea7fc]/15 px-1 text-[10px] text-[#4ea7fc]">
                       {e.tytul}
                     </span>
                   ))}
@@ -182,7 +179,7 @@ export function CalendarView() {
         </div>
 
         <div className="card-paper rounded-2xl p-4">
-          <h2 className="mb-3 font-serif text-sm font-semibold">{selectedDay}</h2>
+          <h2 className="mb-3 text-[13px] font-medium">{selectedDay}</h2>
           {selectedEvents.length === 0 ? (
             <p className="mb-3 text-sm text-muted opacity-60">🗓️ Brak wydarzeń tego dnia.</p>
           ) : (
@@ -230,7 +227,7 @@ export function CalendarView() {
               <button
                 onClick={addEvent}
                 disabled={!newTitle.trim()}
-                className="btn-primary ml-auto rounded-full px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                className="ml-auto rounded-md border hairline px-3 py-1.5 text-[12.5px] font-medium text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Dodaj
               </button>

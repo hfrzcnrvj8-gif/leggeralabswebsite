@@ -24,9 +24,31 @@ function connectionString(): string {
   return cs;
 }
 
-/** Lazily creates (and caches) the Neon HTTP query client for this instance. */
+/** Lazily creates (and caches) the Neon HTTP query client for this instance.
+ *
+ * W trybie deweloperskim BEZ prawdziwej bazy (brak DATABASE_URL/POSTGRES_URL)
+ * używamy lokalnego PGlite (Postgres w WASM) z danymi testowymi — patrz
+ * dev-db.ts. Pozwala to na `npm run dev` z w pełni działającym panelem bez
+ * podłączania Neona. Na produkcji ten warunek nigdy nie jest spełniony
+ * (NODE_ENV=production + realny DATABASE_URL). */
 export function getSql(): Sql {
-  if (!client) client = neon(connectionString());
+  if (client) return client;
+
+  const hasRealDb = Boolean(
+    process.env.DATABASE_URL ??
+      process.env.POSTGRES_URL ??
+      process.env.DATABASE_URL_UNPOOLED ??
+      process.env.POSTGRES_URL_NON_POOLING
+  );
+  if (process.env.NODE_ENV === "development" && !hasRealDb) {
+    // Import wewnątrz warunku, żeby PGlite nie trafił do bundla produkcyjnego.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getDevSql } = require("./dev-db") as typeof import("./dev-db");
+    client = getDevSql() as unknown as Sql;
+    return client;
+  }
+
+  client = neon(connectionString());
   return client;
 }
 
@@ -81,6 +103,13 @@ export async function ensureLeadsSchema(): Promise<void> {
 }
 
 async function createHubSchema(): Promise<void> {
+  // `projects.lead_id` odwołuje się kluczem obcym do `leads(id)`, więc tabela
+  // leadów musi istnieć PRZED tworzeniem projektów. Na ciepłej instancji
+  // produkcyjnej leady zwykle już były, ale na świeżej bazie (nowy deploy,
+  // lokalny dev) kolejność ma znaczenie — dlatego jawnie zapewniamy schemat
+  // leadów jako pierwszy.
+  await ensureLeadsSchema();
+
   const sql = getSql();
 
   // Projekty/wdrożenia — druga tablica obok leadów, z tym samym duchem
@@ -118,12 +147,17 @@ async function createHubSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS project_activity_project_id_idx ON project_activity(project_id);`;
+  // Rodzaj wpisu: "note" (ręczny) vs "system" (automatyczny log zmiany pola).
+  await sql`ALTER TABLE project_activity ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'note';`;
 
   // Zdrowie projektu (Na dobrej drodze/Zagrożony/Zerwany) — ustawiane ręcznie,
   // niezależne od statusu na tablicy, styl Linear. Data startu potrzebna do
   // widoku osi czasu (pasek projektu rysuje się między start a termin).
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS zdrowie TEXT NOT NULL DEFAULT 'Na dobrej drodze';`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS start DATE;`;
+  // Kolor akcentu (hex) i ikona (emoji) — tożsamość projektu w listach/osi czasu.
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS kolor TEXT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS ikona TEXT;`;
 
   // Kamienie milowe — grupują zadania z checklisty i pokazują postęp
   // ("Core 100% z 73") osobno dla każdego etapu projektu, nie tylko całości.
@@ -153,6 +187,20 @@ async function createHubSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS project_resources_project_id_idx ON project_resources(project_id);`;
+
+  // Zależności między projektami (styl Linear Roadmap): project_id "zależy od"
+  // depends_on_id (poprzednik musi się skończyć wcześniej) — rysowane jako
+  // krzywe łączące koniec poprzednika ze startem następnika na osi czasu.
+  await sql`
+    CREATE TABLE IF NOT EXISTS project_dependencies (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      depends_on_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (project_id, depends_on_id)
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_dependencies_project_id_idx ON project_dependencies(project_id);`;
 
   // Notatnik — szybkie zapisywanie pomysłów, z tagami (proste CSV zamiast
   // typu tablicowego — mniej niespodzianek przy odczycie przez neon-http).
@@ -198,4 +246,72 @@ async function createHubSchema(): Promise<void> {
 export async function ensureHubSchema(): Promise<void> {
   if (!hubSchemaReady) hubSchemaReady = createHubSchema();
   await hubSchemaReady;
+}
+
+let invoicesSchemaReady: Promise<void> | null = null;
+
+async function createInvoicesSchema(): Promise<void> {
+  const sql = getSql();
+  // Faktura odwołuje się do leadów/projektów (FK) — upewnij się, że istnieją.
+  await ensureLeadsSchema();
+  await ensureHubSchema();
+
+  // Dane sprzedawcy + tryb VAT — pojedynczy wiersz (singleton, id='default').
+  await sql`
+    CREATE TABLE IF NOT EXISTS company_settings (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      nazwa TEXT NOT NULL DEFAULT '',
+      nip TEXT NOT NULL DEFAULT '',
+      adres TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      telefon TEXT NOT NULL DEFAULT '',
+      konto TEXT NOT NULL DEFAULT '',
+      vat_payer BOOLEAN NOT NULL DEFAULT true,
+      zwolnienie_podstawa TEXT NOT NULL DEFAULT '',
+      domyslny_termin_dni INTEGER NOT NULL DEFAULT 14,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`INSERT INTO company_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoices (
+      id TEXT PRIMARY KEY,
+      numer TEXT,
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      klient_nazwa TEXT NOT NULL DEFAULT '',
+      klient_nip TEXT NOT NULL DEFAULT '',
+      klient_adres TEXT NOT NULL DEFAULT '',
+      data_wystawienia DATE,
+      data_sprzedazy DATE,
+      termin_platnosci DATE,
+      status TEXT NOT NULL DEFAULT 'Szkic',
+      waluta TEXT NOT NULL DEFAULT 'PLN',
+      uwagi TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS invoices_status_idx ON invoices(status);`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoice_items (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      nazwa TEXT NOT NULL DEFAULT '',
+      ilosc NUMERIC NOT NULL DEFAULT 1,
+      jednostka TEXT NOT NULL DEFAULT 'szt.',
+      cena_netto NUMERIC NOT NULL DEFAULT 0,
+      vat_stawka TEXT NOT NULL DEFAULT '23',
+      position INTEGER NOT NULL DEFAULT 0
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS invoice_items_invoice_id_idx ON invoice_items(invoice_id);`;
+}
+
+/** Lazily tworzy tabele modułu Faktur (ustawienia firmy, faktury, pozycje). */
+export async function ensureInvoicesSchema(): Promise<void> {
+  if (!invoicesSchemaReady) invoicesSchemaReady = createInvoicesSchema();
+  await invoicesSchemaReady;
 }

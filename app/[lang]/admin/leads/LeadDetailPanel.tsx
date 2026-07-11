@@ -154,7 +154,7 @@ export function LeadDetailPanel({
             value={lead.firma}
             onChange={(e) => setLead((prev) => (prev ? { ...prev, firma: e.target.value } : prev))}
             onBlur={(e) => updateLead("firma", e.target.value)}
-            className="w-full bg-transparent font-serif text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
+            className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
           />
           <button
             onClick={deleteLead}
@@ -209,7 +209,7 @@ export function LeadDetailPanel({
       </div>
 
       <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
-        <h2 className="mb-4 font-serif text-lg font-semibold">Log aktywności</h2>
+        <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
 
         <form onSubmit={submitNote} className="mb-6 space-y-2">
           <textarea
@@ -246,7 +246,7 @@ export function LeadDetailPanel({
             <button
               type="submit"
               disabled={saving || !noteText.trim()}
-              className="btn-primary ml-auto rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 ml-auto rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Zapisuję…" : "Dodaj wpis"}
             </button>

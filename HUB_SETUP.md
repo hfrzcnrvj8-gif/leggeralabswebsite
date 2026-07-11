@@ -2,6 +2,27 @@
 
 Rozszerzenie rejestru leadów (`LEADS_SETUP.md`) o pełny "command center" w
 stylu Linear — jedno miejsce spinające wszystko, o czym warto pamiętać.
+
+## Wygląd — świadomie 1:1 z Linear, nie z resztą strony
+
+Na wyraźną prośbę właściciela panel `/admin` ma teraz odrębny, w pełni
+neutralny system wizualny skopiowany z prawdziwego interfejsu Linear —
+**celowo bez palety marki** (brak `brand-purple/pink/gold/cyan`,
+`text-liquid`, `btn-primary`, `font-serif`), które nadal obowiązują na
+stronie publicznej. Scoped przez klasę `.admin-linear` na korzeniu
+`AppShell.tsx` (w `globals.css`) — nadpisuje `--bg/--bg-soft/--fg/--fg-
+muted/--hairline` tylko wewnątrz panelu, strona publiczna korzysta z
+własnych tokenów `:root`/`.dark` bez zmian. Kluczowe elementy:
+- Ikony: `@tabler/icons-react` (nie emoji, świadome odejście od
+  wcześniejszej decyzji z uwagi na wymóg wizualnej wierności Linear).
+- Jeden akcent: `#4ea7fc` (niebieski) — zamiast gradientów marki.
+- Kompaktowy, jednowierszowy pasek górny w każdym module (zakładki +
+  filtry + małe ikony akcji) zamiast dużego nagłówka h1/podtytułu i
+  kolorowych kart statystyk — dokładnie jak realny układ Linear (filtry/
+  opcje wyświetlania w prawym górnym rogu, bez dużego tytułu strony).
+- Aktywna pozycja w sidebarze: niebieski obrys, nie wypełniona pigułka.
+- Jeśli w przyszłości ktoś poprosi o coś nowego w panelu, trzymaj się tego
+  neutralnego systemu (nie wracaj do gradientów/emoji bez wyraźnej prośby).
 Bez dodatkowej konfiguracji: te same zmienne środowiskowe co dla leadów
 (`DATABASE_URL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`) obsługują cały
 panel. Wszystkie tabele (`leads`, `projects`, `project_tasks`,
