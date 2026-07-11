@@ -117,15 +117,20 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-          Notatnik <span className="text-liquid">/ pomysły</span>
-        </h1>
-        <p className="text-sm text-muted">Zapisz szybko, uporządkuj później. Pomysł możesz przekuć w projekt jednym klikiem.</p>
+    <div className="-mx-4 sm:-mx-6">
+      <div className="flex items-center gap-2 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+        <span className="text-[13px] text-muted">Notatnik · {notes.length}</span>
+        <span className="flex-1" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Szukaj…"
+          className="w-40 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+        />
       </div>
 
-      <div className="card-paper mb-6 rounded-2xl p-4">
+      <div className="px-4 py-4 sm:px-6">
+      <div className="card-paper mb-6 rounded-xl border hairline p-4">
         <textarea
           ref={newTextRef}
           value={newText}
@@ -138,26 +143,17 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
           }}
           placeholder="Nowy pomysł / notatka… pierwsza linia stanie się tytułem. (Cmd+Enter, by zapisać)"
           rows={3}
-          className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+          className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
         />
         <div className="mt-2 flex justify-end">
           <button
             onClick={addNote}
             disabled={!newText.trim()}
-            className="btn-primary rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border hairline px-3 py-1.5 text-[12.5px] font-medium text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Zapisz notatkę
           </button>
         </div>
-      </div>
-
-      <div className="mb-4">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj w notatkach…"
-          className="w-full max-w-xs rounded-full border hairline bg-transparent px-3 py-1.5 text-xs text-[var(--fg)] placeholder:text-muted"
-        />
       </div>
 
       {allTags.length > 0 && (
@@ -203,7 +199,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
                 <button
                   onClick={() => promoteToProject(n)}
                   disabled={promoting === n.id}
-                  className="rounded-full border hairline px-2.5 py-1 text-[11px] text-liquid disabled:opacity-50"
+                  className="rounded-md border hairline px-2.5 py-1 text-[11px] text-[#4ea7fc] disabled:opacity-50"
                 >
                   {promoting === n.id ? "Tworzę…" : "→ Przekuj w projekt"}
                 </button>
@@ -221,6 +217,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

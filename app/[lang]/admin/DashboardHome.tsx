@@ -92,22 +92,19 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   const totalActionable = data.overdueLeads.length + data.dueProjects.length;
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl">
-          Dzień dobry, <span className="text-liquid">Patryk</span>
-        </h1>
-        <p className="text-sm text-muted">
+    <div className="-mx-4 sm:-mx-6">
+      <div className="flex items-center border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+        <span className="text-[13px] text-muted">
           {totalActionable === 0
-            ? "Nic pilnego dziś nie czeka — dobry moment na rozwój, nie tylko gaszenie."
-            : `${totalActionable} ${totalActionable === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania.`}
-        </p>
+            ? "Pulpit — nic pilnego dziś nie czeka."
+            : `Pulpit — ${totalActionable} ${totalActionable === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania.`}
+        </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="card-paper rounded-2xl p-5">
+      <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-2">
+        <section className="card-paper rounded-xl border hairline p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-serif text-sm font-semibold">⚠ Leady wymagające działania</h2>
+            <h2 className="text-[13px] font-medium">Leady wymagające działania</h2>
             <Link href={`/${lang}/admin/leads`} className="text-xs text-muted hover:text-[var(--fg)]">
               Zobacz wszystkie →
             </Link>
@@ -136,9 +133,9 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-2xl p-5">
+        <section className="card-paper rounded-xl border hairline p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-serif text-sm font-semibold">⚠ Projekty z minionym terminem</h2>
+            <h2 className="text-[13px] font-medium">Projekty z minionym terminem</h2>
             <Link href={`/${lang}/admin/projects`} className="text-xs text-muted hover:text-[var(--fg)]">
               Zobacz wszystkie →
             </Link>
@@ -167,9 +164,9 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-2xl p-5">
+        <section className="card-paper rounded-xl border hairline p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-serif text-sm font-semibold">Dziś w kalendarzu</h2>
+            <h2 className="text-[13px] font-medium">Dziś w kalendarzu</h2>
             <Link href={`/${lang}/admin/calendar`} className="text-xs text-muted hover:text-[var(--fg)]">
               Otwórz kalendarz →
             </Link>
@@ -198,9 +195,9 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-2xl p-5">
+        <section className="card-paper rounded-xl border hairline p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-serif text-sm font-semibold">Ostatnie notatki</h2>
+            <h2 className="text-[13px] font-medium">Ostatnie notatki</h2>
             <Link href={`/${lang}/admin/notes`} className="text-xs text-muted hover:text-[var(--fg)]">
               Otwórz notatnik →
             </Link>
@@ -220,7 +217,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         </section>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2 text-xs text-muted">
+      <div className="flex flex-wrap gap-2 px-4 pb-4 text-xs text-muted sm:px-6">
         <span>W rejestrze: {data.counts.leads} leadów, {data.counts.projects} projektów.</span>
       </div>
     </div>
