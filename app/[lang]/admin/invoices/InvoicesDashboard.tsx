@@ -432,7 +432,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.14, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-3xl rounded-2xl border hairline p-5 sm:p-6"
+              className="card-paper my-auto w-full max-w-5xl rounded-2xl border hairline p-5 sm:p-6"
             >
               <InvoiceEditor
                 id={openId}

@@ -125,13 +125,23 @@ function isoKraj(kraj: string): string {
   return k.toUpperCase().slice(0, 2);
 }
 
-/** Adres nabywcy jako pojedyncza linia AdresL1 FA(3) (ulica, kod miasto). */
-function buyerAdresL1(inv: Invoice): string {
-  const parts = [inv.klient_ulica, [inv.klient_kod, inv.klient_miasto].filter(Boolean).join(" ")]
+/** Składa pojedynczą linię AdresL1 FA(3) z ulicy + "kod miasto". */
+function joinAdresL1(ulica: string, kod: string, miasto: string, fallback: string): string {
+  const parts = [ulica, [kod, miasto].filter(Boolean).join(" ")]
     .map((p) => (p || "").trim())
     .filter(Boolean);
-  const joined = parts.join(", ");
-  return joined || inv.klient_adres || "";
+  return parts.join(", ") || fallback || "";
+}
+
+/** Adres nabywcy jako pojedyncza linia AdresL1 FA(3) (ulica, kod miasto). */
+function buyerAdresL1(inv: Invoice): string {
+  return joinAdresL1(inv.klient_ulica, inv.klient_kod, inv.klient_miasto, inv.klient_adres);
+}
+
+/** Adres sprzedawcy jako pojedyncza linia AdresL1 FA(3) — preferuje pola
+ * strukturalne, spada na stare jednoliniowe `adres`. */
+function companyAdresL1(company: CompanySettings): string {
+  return joinAdresL1(company.ulica, company.kod, company.miasto, company.adres);
 }
 
 /** Pojedynczy węzeł XML z wcięciem (pomija puste wartości opcjonalne). */
@@ -191,8 +201,8 @@ export function buildFA3Xml(
   lines.push(tag("Nazwa", company.nazwa, L3));
   lines.push(`${L2}</DaneIdentyfikacyjne>`);
   lines.push(`${L2}<Adres>`);
-  lines.push(tag("KodKraju", "PL", L3));
-  lines.push(tag("AdresL1", company.adres, L3));
+  lines.push(tag("KodKraju", isoKraj(company.kraj), L3));
+  lines.push(tag("AdresL1", companyAdresL1(company), L3));
   lines.push(`${L2}</Adres>`);
   lines.push(`${L1}</Podmiot1>`);
 
@@ -296,7 +306,7 @@ export function validateForFA3(
   if (!nipDigits(company.nip)) errors.push("Brak NIP sprzedawcy (Ustawienia firmy).");
   else if (nipDigits(company.nip).length !== 10) errors.push("NIP sprzedawcy musi mieć 10 cyfr.");
   if (!company.nazwa.trim()) errors.push("Brak nazwy sprzedawcy (Ustawienia firmy).");
-  if (!company.adres.trim()) errors.push("Brak adresu sprzedawcy (Ustawienia firmy).");
+  if (!companyAdresL1(company).trim()) errors.push("Brak adresu sprzedawcy (Ustawienia firmy).");
 
   // Nabywca (Podmiot2).
   if (!inv.klient_nazwa.trim()) errors.push("Brak nazwy nabywcy.");

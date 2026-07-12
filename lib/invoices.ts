@@ -14,7 +14,15 @@ export { addDaysISO } from "./documents";
 export type CompanySettings = {
   nazwa: string;
   nip: string;
+  /** @deprecated jedno pole adresowe sprzed rozbicia na ulicę/kod/miasto/kraj
+   * — trzymane dla wstecznej zgodności (fallback na wydruku i w FA(3), gdy pola
+   * strukturalne są puste). Nowe dane wpisuj w ulica/kod/miasto/kraj. */
   adres: string;
+  ulica: string;
+  kod: string;
+  miasto: string;
+  /** Kod/nazwa kraju sprzedawcy (domyślnie PL) — na FA(3) mapowane na KodKraju. */
+  kraj: string;
   email: string;
   telefon: string;
   konto: string; // numer konta / IBAN
@@ -34,6 +42,10 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   nazwa: "",
   nip: "",
   adres: "",
+  ulica: "",
+  kod: "",
+  miasto: "",
+  kraj: "PL",
   email: "",
   telefon: "",
   konto: "",
@@ -238,6 +250,22 @@ export function clientAddressLines(
   inv: Pick<Invoice, "klient_ulica" | "klient_kod" | "klient_miasto" | "klient_kraj" | "klient_adres">
 ): string[] {
   return sharedClientAddressLines(inv);
+}
+
+/** Adres sprzedawcy jako linie do wydruku — preferuje pola strukturalne
+ * (ulica / kod+miasto / kraj≠PL), a dla starszych danych bez nich spada na
+ * zlepione, jednoliniowe pole `adres`. Kraj PL świadomie pomijamy na wydruku
+ * krajowym (pokazujemy tylko przy zagranicznym sprzedawcy). */
+export function companyAddressLines(
+  c: Pick<CompanySettings, "ulica" | "kod" | "miasto" | "kraj" | "adres">
+): string[] {
+  const lines: string[] = [];
+  if (c.ulica) lines.push(c.ulica);
+  const kodMiasto = [c.kod, c.miasto].filter(Boolean).join(" ");
+  if (kodMiasto) lines.push(kodMiasto);
+  if (c.kraj && c.kraj.trim().toUpperCase() !== "PL") lines.push(c.kraj);
+  if (lines.length > 0) return lines;
+  return c.adres ? c.adres.split("\n").filter(Boolean) : [];
 }
 
 /** Adres odbiorcy (jeśli inny niż nabywca) jako linie do wydruku. */

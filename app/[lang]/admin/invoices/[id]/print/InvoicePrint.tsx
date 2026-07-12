@@ -14,6 +14,7 @@ import {
   amountInWords,
   clientAddressLines,
   recipientAddressLines,
+  companyAddressLines,
   vatBreakdown,
   round2,
 } from "@/lib/invoices";
@@ -460,7 +461,9 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
             <div>
               <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.seller}</div>
               <div className="whitespace-pre-line font-medium text-neutral-900">{settings.nazwa || "—"}</div>
-              {settings.adres && <div className="mt-0.5 whitespace-pre-line text-neutral-500">{settings.adres}</div>}
+              {companyAddressLines(settings).map((line, i) => (
+                <div key={i} className="mt-0.5 text-neutral-500">{line}</div>
+              ))}
               {settings.nip && (
                 <div className="mt-0.5 text-neutral-500">
                   {t.taxId}: {settings.nip}
@@ -688,7 +691,9 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
               <div>
                 <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerCompany}</div>
                 <div className="font-medium text-neutral-700">{settings.nazwa || "—"}</div>
-                {settings.adres && <div className="whitespace-pre-line">{settings.adres}</div>}
+                {companyAddressLines(settings).map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
                 {settings.nip && <div>{t.taxId}: {settings.nip}</div>}
               </div>
               <div>

@@ -524,10 +524,11 @@ export function InvoiceEditor({
               <div className="space-y-1.5">
                 <div className="flex gap-1.5 px-1 text-[10px] uppercase tracking-wide text-muted">
                   <span className="flex-1">Nazwa</span>
-                  <span className="w-12 text-right">Ilość</span>
-                  <span className="w-20 text-right">Cena netto</span>
-                  <span className="w-14 text-center">VAT</span>
-                  <span className="w-20 text-right">Brutto</span>
+                  <span className="w-14 text-right">Ilość</span>
+                  <span className="w-16 text-center">Jedn.</span>
+                  <span className="w-24 text-right">Cena netto</span>
+                  <span className="w-16 text-center">VAT</span>
+                  <span className="w-24 text-right">Brutto</span>
                   <span className="w-5" />
                 </div>
                 {items.map((it) => (
@@ -544,7 +545,14 @@ export function InvoiceEditor({
                       value={it.ilosc}
                       onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, ilosc: Number(e.target.value) } : x)))}
                       onBlur={(e) => patchItem(it.id, { ilosc: Number(e.target.value) })}
-                      className="w-12 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+                      className="w-14 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+                    />
+                    <input
+                      value={it.jednostka}
+                      onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, jednostka: e.target.value } : x)))}
+                      onBlur={(e) => patchItem(it.id, { jednostka: e.target.value })}
+                      placeholder="szt."
+                      className="w-16 rounded-md border hairline bg-transparent px-1.5 py-1 text-center text-[13px] text-[var(--fg)] placeholder:text-muted"
                     />
                     <input
                       type="number"
@@ -552,9 +560,9 @@ export function InvoiceEditor({
                       value={it.cena_netto}
                       onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, cena_netto: Number(e.target.value) } : x)))}
                       onBlur={(e) => patchItem(it.id, { cena_netto: Number(e.target.value) })}
-                      className="w-20 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+                      className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
                     />
-                    <div className="w-14 text-center">
+                    <div className="w-16 text-center">
                       <PropertyMenu
                         value={it.vat_stawka}
                         options={VAT_RATES.map((r) => ({ value: r, label: r === "zw" || r === "np" ? r : `${r}%` }))}
@@ -566,7 +574,7 @@ export function InvoiceEditor({
                         </span>
                       </PropertyMenu>
                     </div>
-                    <span className="w-20 text-right text-[13px] tabular-nums">{formatMoney(itemBrutto(it))}</span>
+                    <span className="w-24 text-right text-[13px] tabular-nums">{formatMoney(itemBrutto(it))}</span>
                     <button onClick={() => deleteItem(it.id)} className="flex w-5 justify-center text-muted hover:text-red-400" title="Usuń pozycję">
                       <IconTrash size={13} />
                     </button>

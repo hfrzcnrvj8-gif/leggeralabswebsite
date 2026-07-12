@@ -27,6 +27,10 @@ export async function PATCH(req: NextRequest) {
     if ("nazwa" in body) await sql`UPDATE company_settings SET nazwa = ${str(body.nazwa, 300)}, updated_at = now() WHERE id = 'default';`;
     if ("nip" in body) await sql`UPDATE company_settings SET nip = ${str(body.nip, 30)}, updated_at = now() WHERE id = 'default';`;
     if ("adres" in body) await sql`UPDATE company_settings SET adres = ${str(body.adres, 500)}, updated_at = now() WHERE id = 'default';`;
+    if ("ulica" in body) await sql`UPDATE company_settings SET ulica = ${str(body.ulica, 200)}, updated_at = now() WHERE id = 'default';`;
+    if ("kod" in body) await sql`UPDATE company_settings SET kod = ${str(body.kod, 20)}, updated_at = now() WHERE id = 'default';`;
+    if ("miasto" in body) await sql`UPDATE company_settings SET miasto = ${str(body.miasto, 120)}, updated_at = now() WHERE id = 'default';`;
+    if ("kraj" in body) await sql`UPDATE company_settings SET kraj = ${str(body.kraj, 60)}, updated_at = now() WHERE id = 'default';`;
     if ("email" in body) await sql`UPDATE company_settings SET email = ${str(body.email, 200)}, updated_at = now() WHERE id = 'default';`;
     if ("telefon" in body) await sql`UPDATE company_settings SET telefon = ${str(body.telefon, 60)}, updated_at = now() WHERE id = 'default';`;
     if ("konto" in body) await sql`UPDATE company_settings SET konto = ${str(body.konto, 60)}, updated_at = now() WHERE id = 'default';`;

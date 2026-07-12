@@ -45,7 +45,17 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
           <SField label="NIP" value={s.nip} onSave={(v) => patch({ nip: v })} placeholder="0000000000" />
           <SField label="Telefon" value={s.telefon} onSave={(v) => patch({ telefon: v })} placeholder="+48 …" />
         </div>
-        <SField label="Adres" value={s.adres} onSave={(v) => patch({ adres: v })} placeholder="ul. …, 00-000 Miasto" />
+        <SField label="Ulica i numer" value={s.ulica} onSave={(v) => patch({ ulica: v })} placeholder="ul. Przykładowa 12/3" />
+        <div className="grid grid-cols-[110px_1fr] gap-2.5">
+          <SField label="Kod pocztowy" value={s.kod} onSave={(v) => patch({ kod: v })} placeholder="00-000" />
+          <SField label="Miasto" value={s.miasto} onSave={(v) => patch({ miasto: v })} placeholder="Warszawa" />
+        </div>
+        <SField label="Kraj" value={s.kraj} onSave={(v) => patch({ kraj: v })} placeholder="PL" />
+        {s.adres.trim() && !s.ulica && !s.miasto && (
+          <p className="rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
+            Stary, jednoliniowy adres: <span className="text-[var(--fg)]">{s.adres}</span> — przepisz go do pól powyżej, żeby poprawnie trafił na fakturę i do KSeF.
+          </p>
+        )}
         <SField label="E-mail" value={s.email} onSave={(v) => patch({ email: v })} placeholder="kontakt@…" />
         <SField label="Nr konta (do przelewu)" value={s.konto} onSave={(v) => patch({ konto: v })} placeholder="PL00 0000 0000 0000 0000 0000 0000" />
         <div className="grid grid-cols-2 gap-2.5">

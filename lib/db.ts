@@ -278,6 +278,13 @@ async function createInvoicesSchema(): Promise<void> {
   // wydruku (przydatne zwłaszcza zagranicznym klientom płacącym SWIFT/SEPA).
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_nazwa TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS swift TEXT NOT NULL DEFAULT '';`;
+  // Adres sprzedawcy rozbity na pola strukturalne (jak u nabywcy) — potrzebne
+  // do FA(3)/KSeF (KodKraju + AdresL1) i czytelniejszego wydruku. Stare `adres`
+  // zostaje jako fallback. `kraj` domyślnie PL (najczęstszy przypadek).
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS ulica TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS kod TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS miasto TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS kraj TEXT NOT NULL DEFAULT 'PL';`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
