@@ -698,8 +698,7 @@ let costsSchemaReady: Promise<void> | null = null;
  * odróżnieniu od `invoices` (wyłącznie WYCHODZĄCE, sprzedażowe). Opcjonalny
  * `project_id` pozwala liczyć prostą rentowność projektu (przychód z
  * faktur projektu − koszty projektu) — patrz GET /api/projects/[id]. Świadomie
- * tylko PLN w v1 i bez uploadu załączników (skan faktury od dostawcy to nowa
- * zdolność panelu, odłożona na później — patrz memory koszty-module-candidate). */
+ * tylko PLN w v1. */
 async function createCostsSchema(): Promise<void> {
   // Koszt może być podpięty do projektu (FK) — upewnij się, że istnieje.
   await ensureHubSchema();
@@ -726,6 +725,16 @@ async function createCostsSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS costs_status_idx ON costs(status);`;
   await sql`CREATE INDEX IF NOT EXISTS costs_project_id_idx ON costs(project_id);`;
+  // Skan/PDF faktury od dostawcy (Faza 3 mapy drogowej ERP) — świadomie
+  // zapisany WPROST w bazie jako base64 (`zalacznik_dane`), nie w zewnętrznym
+  // blob storage: brak nowej usługi/env do skonfigurowania (ten panel go
+  // NIGDZIE indziej nie ma), a skan faktury/paragonu to pojedyncze pliki
+  // rzędu KB–kilku MB, więc TEXT w Postgresie wystarcza z zapasem. Limit
+  // rozmiaru pilnowany w API (patrz app/api/costs/[id]/attachment). Pusty
+  // `zalacznik_dane` (NULL) = brak załącznika.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS zalacznik_nazwa TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS zalacznik_typ TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS zalacznik_dane TEXT;`;
 }
 
 /** Lazily tworzy tabelę modułu Koszty. */

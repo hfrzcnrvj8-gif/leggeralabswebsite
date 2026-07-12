@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2 } from "@tabler/icons-react";
-import { type Cost, COST_CATEGORIES, VAT_RATES, costBrutto, formatMoney } from "@/lib/costs";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconPaperclip, IconExternalLink, IconUpload } from "@tabler/icons-react";
+import { type Cost, COST_CATEGORIES, VAT_RATES, ATTACHMENT_MIME_TYPES, costBrutto, formatMoney } from "@/lib/costs";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow } from "../Menu";
@@ -26,6 +26,8 @@ export function CostEditor({
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const savedTimer = useRef<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     const [costRes, projectsRes] = await Promise.all([fetch(`/api/costs/${id}`), fetch("/api/projects")]);
@@ -86,6 +88,38 @@ export function CostEditor({
     toast("Koszt usunięty.");
     onDeleted?.(id);
   }, [id, cost, confirm, toast, onDeleted]);
+
+  const uploadAttachment = useCallback(
+    async (file: File) => {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/costs/${id}/attachment`, { method: "POST", body: formData });
+      setUploading(false);
+      if (res.ok) {
+        const data = (await res.json()) as { zalacznik_nazwa: string; zalacznik_typ: string };
+        setCost((prev) => (prev ? { ...prev, zalacznik_nazwa: data.zalacznik_nazwa, zalacznik_typ: data.zalacznik_typ } : prev));
+        toast("Załącznik zapisany.");
+        onChange?.();
+      } else {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast(data.error ?? "Nie udało się wgrać pliku.", "error");
+      }
+    },
+    [id, toast, onChange]
+  );
+
+  const removeAttachment = useCallback(async () => {
+    const ok = await confirm("Usunąć załącznik?", { danger: true });
+    if (!ok) return;
+    const res = await fetch(`/api/costs/${id}/attachment`, { method: "DELETE" });
+    if (res.ok) {
+      setCost((prev) => (prev ? { ...prev, zalacznik_nazwa: "", zalacznik_typ: "" } : prev));
+      onChange?.();
+    } else {
+      toast("Nie udało się usunąć załącznika.", "error");
+    }
+  }, [id, confirm, toast, onChange]);
 
   if (!cost) {
     return (
@@ -246,6 +280,48 @@ export function CostEditor({
             placeholder="Notatka o wydatku…"
           />
         </label>
+
+        <div className="col-span-full">
+          <span className="mb-1 block text-[11px] text-muted">Załącznik (skan / PDF faktury)</span>
+          {cost.zalacznik_nazwa ? (
+            <div className="flex items-center gap-2 rounded-md border hairline px-2.5 py-1.5 text-[13px]">
+              <IconPaperclip size={14} className="shrink-0 text-muted" />
+              <a
+                href={`/api/costs/${id}/attachment`}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 flex-1 truncate text-[var(--fg)] hover:underline"
+                title="Otwórz załącznik w nowej karcie"
+              >
+                {cost.zalacznik_nazwa}
+              </a>
+              <IconExternalLink size={12} className="shrink-0 text-muted" />
+              <button onClick={removeAttachment} className="shrink-0 text-muted hover:text-red-400" title="Usuń załącznik">
+                <IconTrash size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 rounded-md border hairline px-2.5 py-1.5 text-[13px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? <IconLoader2 size={14} className="animate-spin" /> : <IconUpload size={14} />}
+              {uploading ? "Wgrywanie…" : "Wgraj skan / PDF (max 8 MB)"}
+            </button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ATTACHMENT_MIME_TYPES.join(",")}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadAttachment(file);
+              e.target.value = "";
+            }}
+            className="hidden"
+          />
+        </div>
       </div>
     </div>
   );

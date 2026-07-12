@@ -12,7 +12,10 @@ export async function GET() {
   await ensureCostsSchema();
   const sql = getSql();
   const rows = await sql`
-    SELECT c.*, p.tytul AS project_tytul
+    SELECT c.id, c.dostawca_nazwa, c.dostawca_nip, c.kategoria, c.opis, c.data_wydatku,
+      c.kwota_netto, c.vat_stawka, c.kwota_brutto, c.status, c.data_platnosci, c.project_id,
+      c.created_at, c.updated_at, c.zalacznik_nazwa, c.zalacznik_typ,
+      p.tytul AS project_tytul
     FROM costs c
     LEFT JOIN projects p ON p.id = c.project_id
     ORDER BY c.data_wydatku DESC, c.created_at DESC;

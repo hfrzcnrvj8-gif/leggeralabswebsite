@@ -13,7 +13,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   await ensureCostsSchema();
   const sql = getSql();
-  const rows = await sql`SELECT * FROM costs WHERE id = ${id};`;
+  const rows = await sql`
+    SELECT id, dostawca_nazwa, dostawca_nip, kategoria, opis, data_wydatku,
+      kwota_netto, vat_stawka, kwota_brutto, status, data_platnosci, project_id,
+      created_at, updated_at, zalacznik_nazwa, zalacznik_typ
+    FROM costs WHERE id = ${id};
+  `;
   const cost = rows[0];
   if (!cost) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ cost: { ...cost, kwota_netto: Number(cost.kwota_netto), kwota_brutto: Number(cost.kwota_brutto) } });

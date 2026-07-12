@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconX } from "@tabler/icons-react";
+import { IconPlus, IconX, IconPaperclip } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Cost, COST_STATUSES, COST_CATEGORIES, formatMoney } from "@/lib/costs";
 import { formatPlDate } from "@/lib/projects";
@@ -199,7 +199,12 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                     onClick={() => setOpenId(c.id)}
                     className="cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40"
                   >
-                    <td className="p-2.5 font-medium text-[var(--fg)]">{c.dostawca_nazwa || <span className="text-muted">bez nazwy</span>}</td>
+                    <td className="p-2.5 font-medium text-[var(--fg)]">
+                      <span className="flex items-center gap-1.5">
+                        {c.dostawca_nazwa || <span className="text-muted">bez nazwy</span>}
+                        {c.zalacznik_nazwa && <IconPaperclip size={12} className="shrink-0 text-muted" title="Ma załącznik" />}
+                      </span>
+                    </td>
                     <td className="p-2.5 text-muted">{c.kategoria}</td>
                     <td className="p-2.5 text-muted">{c.project_tytul ?? "—"}</td>
                     <td className="p-2.5 text-right tabular-nums">{formatMoney(c.kwota_brutto)}</td>
