@@ -6,51 +6,46 @@ szybki punkt startowy). Pełny opis funkcjonalności: `HUB_SETUP.md`.
 
 ## Stan: kod gotowy lokalnie, NIEZACOMMITOWANY
 
-Faza H (ważony pipeline ofert + link do karty klienta z edytorów) zbudowana
-i przetestowana lokalnie (przeglądarka, PGlite) w tej sesji, zaraz po Fazie
-G (moduł Koszty). `npx tsc --noEmit` czysty. Zmiany jeszcze nie są w git —
-`git status` pokaże zmiany w `lib/offers.ts`, `app/api/hub/today/route.ts`,
-`app/[lang]/admin/DashboardHome.tsx`, `app/[lang]/admin/offers/
-OffersDashboard.tsx`, `app/[lang]/admin/offers/OfferEditor.tsx`,
-`app/[lang]/admin/invoices/InvoiceEditor.tsx`, `app/[lang]/admin/projects/
-ProjectDetailPanel.tsx`, `app/[lang]/admin/components.tsx`. **Zapytaj
-właściciela, czy commitować i pushować** (usuń najpierw `.git/index.lock`,
-jeśli obecny).
+Faza I (e-podpis akceptacji oferty na publicznej stronie `/oferta/[token]`)
+zbudowana i przetestowana lokalnie (przeglądarka, PGlite) w tej sesji, po
+Fazie G (Koszty) i Fazie H (ważony pipeline + link do klienta). `npx tsc
+--noEmit` czysty. Zmiany jeszcze nie są w git — nowe pliki `lib/offerAccept.ts`,
+`app/api/offers/public/[token]/accept/route.ts`, zmiany w `lib/db.ts`,
+`lib/offers.ts`, `app/api/offers/[id]/accept/route.ts`, `OfferPrint.tsx`,
+`OfferEditor.tsx`. **Zapytaj właściciela, czy commitować i pushować** (usuń
+najpierw `.git/index.lock`, jeśli obecny).
 
 ## Co zrobiono w tej sesji
 
-**Faza G — Koszty/wydatki + rentowność** (patrz pamięć
-`virtual-company-roadmap` dla szczegółów) — ✅ zacommitowane i wypchnięte
-(`0ad4716`).
-
-**Faza H — Ważony pipeline + link do klienta.** `OFFER_STATUS_WEIGHT` w
-`lib/offers.ts` (Szkic 20%, Wysłana 50%) — Pulpit i Oferty pokazują tę samą
-ważoną liczbę pipeline'u. Nowy `ClientLinkChip` w `components.tsx` — link
-"→ Karta klienta" w edytorze oferty/faktury i na karcie projektu.
-Przetestowane end-to-end.
+- **Faza G — Koszty/wydatki + rentowność** — ✅ zacommitowane (`0ad4716`).
+- **Faza H — Ważony pipeline + link do klienta** — ✅ zacommitowane (`60412d9`).
+- **Faza I — e-podpis akceptacji oferty** (patrz pamięć
+  `virtual-company-roadmap` dla pełnych szczegółów). Świadomie zawężony
+  zakres — formularz akceptacji na istniejącej stronie `/oferta/[token]`,
+  NIE pełny portal klienta z osobnym logowaniem (potwierdzone z
+  właścicielem). Przetestowane end-to-end.
 
 ## Gdzie jesteśmy w planie
 
-- Fazy A–G + audyt bezpieczeństwa — ✅ zrobione
-- **Faza H (ważony pipeline + link do klienta) — ✅ (właśnie dokończone, do
-  commitowania)**
-- Faza D (Mail) — odłożone do przemyślenia na nowo
-- **Faza I (portal klienta + e-podpis akceptacji oferty) — NASTĘPNA,
-  jeszcze nie zaczęta**
+Wszystkie fazy z pierwotnej mapy drogowej (A–I) są zrobione. Jedyna
+odłożona pozycja:
 
-## Pierwsza rzecz do zrobienia w nowym czacie
-
-1. Jeśli właściciel jeszcze nie potwierdził commitowania Fazy H — zapytać.
-2. Potem zapytać, czy zaczynamy **Fazę I** zgodnie z ustaloną kolejnością.
+- **Faza D (Mail)** — odłożone "do przemyślenia na nowo" jeszcze przed
+  Fazą F. Po Fazach F/G/H/I większość pierwotnych potrzeb (wysyłka ofert/
+  faktur, przypomnienia, teraz e-podpis) jest już załatwiona bez pełnej
+  skrzynki OAuth. **Pierwsza rzecz do zrobienia w nowym czacie: zapytać
+  właściciela, czy jest jeszcze coś w "Mailu", co realnie brakuje, czy
+  panel może wejść w tryb utrzymania/dopracowywania szczegółów zamiast
+  kolejnej dużej fazy.**
 
 ## Zasady na przyszłość (nie renegocjować bez wyraźnego powodu)
 
-- **Mentor, nie tylko baza danych** — każda nowa faza: "czy to pomaga
+- **Mentor, nie tylko baza danych** — każda nowa funkcja: "czy to pomaga
   właścicielowi wiedzieć co robić dalej", nie tylko "czy dane się zapisują".
 - **Miękkie podpowiedzi, nigdy twarde blokady.**
 - **Bez AI/LLM w logice** — deterministyczne reguły, statyczne teksty.
-- KSeF: przy każdej fazie dotykającej faktur sprawdź, czy próg/przepisy się
-  nie zmieniły (obowiązek już trwa, mikrofirmy mają zwolnienie do 10k
+- KSeF: przy każdej zmianie dotykającej faktur sprawdź, czy próg/przepisy
+  się nie zmieniły (obowiązek już trwa, mikrofirmy mają zwolnienie do 10k
   zł/mies. tylko do końca 2026).
 
 ## Znane pułapki środowiska (pełna lista w `CLAUDE.md`)
@@ -59,7 +54,9 @@ Przetestowane end-to-end.
 - Dev-baza PGlite resetuje się przy restarcie serwera dev — to normalne, nie
   błąd (dane testowe znikają, trzeba je odtworzyć).
 - Konsola przeglądarki bywa cache'owana i pokazuje stare błędy kompilacji —
-  ufaj `npx tsc --noEmit -p tsconfig.json`, nie historii konsoli.
+  ufaj `npx tsc --noEmit -p tsconfig.json`, nie historii konsoli. Podobnie
+  pojedyncze 500-ki na endpointach w trakcie hot-reloadu Turbopacka to
+  szum, nie realny błąd — jeśli się nie powtarzają po chwili, ignoruj.
 - W repo równolegle może działać dev-server innego czatu — do podglądu
   wizualnego używaj `preview_start` z `{url: "http://localhost:3000/..."}`,
   nie `{name: "dev"}` (ten drugi próbuje odpalić nowy serwer i się wywala).

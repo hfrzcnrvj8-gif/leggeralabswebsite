@@ -5,7 +5,7 @@ import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternal
 import type { Locale } from "@/i18n/config";
 import { type Offer, type OfferItem, OFFER_LANGS, OFFER_LANG_LABEL, offerTotal, itemKwota } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
-import { PROJECT_TEMPLATES } from "@/lib/projects";
+import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
@@ -399,6 +399,11 @@ export function OfferEditor({
                     faktura
                   </a>
                 </>
+              )}
+              {offer.accepted_by_name && (
+                <div className="mt-1 text-[11px] text-muted">
+                  Zaakceptowano samodzielnie przez klienta: {offer.accepted_by_name}, {formatPlDate(offer.accepted_at)}
+                </div>
               )}
             </div>
           ) : (

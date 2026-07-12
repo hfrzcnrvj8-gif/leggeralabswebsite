@@ -60,6 +60,12 @@ export type Offer = {
   status: OfferStatus;
   jezyk: OfferLang;
   uwagi: string;
+  /** E-podpis akceptacji (Faza I) — patrz lib/offerAccept.ts. Puste
+   * accepted_by_name = zaakceptowano ręcznie w panelu, nie przez klienta. */
+  accepted_at: string | null;
+  accepted_by_name: string | null;
+  accepted_ip: string | null;
+  accepted_user_agent: string | null;
   created_at: string;
   updated_at: string;
 };

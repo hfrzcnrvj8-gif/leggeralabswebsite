@@ -448,6 +448,14 @@ async function createOffersSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_email TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS share_token TEXT;`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS offers_share_token_idx ON offers(share_token);`;
+  // E-podpis akceptacji (Faza I) — dowód, że KLIENT (nie właściciel z
+  // panelu) samodzielnie zaakceptował ofertę przez publiczny link.
+  // accepted_by_name puste = zaakceptowano ręcznie w panelu (dotychczasowy
+  // admin flow), wypełnione = klient podpisał się sam przez /oferta/[token].
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS accepted_by_name TEXT;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS accepted_ip TEXT;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS accepted_user_agent TEXT;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (

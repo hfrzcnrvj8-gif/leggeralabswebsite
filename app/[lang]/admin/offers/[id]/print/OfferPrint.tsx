@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type Offer, type OfferItem, type OfferLang, offerTotal, itemKwota, clientAddressLines, offerReference } from "@/lib/offers";
+import { type Offer, type OfferItem, type OfferLang, offerTotal, itemKwota, clientAddressLines, offerReference, isOfferExpired } from "@/lib/offers";
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
@@ -35,6 +35,15 @@ type Dict = {
   draft: string;
   footerCompany: string;
   footerContact: string;
+  acceptTitle: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  confirmLabel: string;
+  acceptButton: string;
+  accepting: string;
+  acceptedByLabel: string;
+  acceptedNoNameLabel: string;
+  expiredLabel: string;
 };
 
 const DICT: Record<OfferLang, Dict> = {
@@ -62,6 +71,15 @@ const DICT: Record<OfferLang, Dict> = {
     draft: "szkic",
     footerCompany: "Firma",
     footerContact: "Kontakt",
+    acceptTitle: "Akceptacja oferty",
+    nameLabel: "Imię i nazwisko",
+    namePlaceholder: "Jan Kowalski",
+    confirmLabel: "Potwierdzam, że zapoznałem/-am się z ofertą i ją akceptuję.",
+    acceptButton: "Akceptuję ofertę",
+    accepting: "Zapisywanie…",
+    acceptedByLabel: "Zaakceptowano przez",
+    acceptedNoNameLabel: "Oferta zaakceptowana.",
+    expiredLabel: "Ta oferta wygasła. Skontaktuj się z nadawcą, aby ustalić dalsze kroki.",
   },
   en: {
     doc: "Quote",
@@ -87,6 +105,15 @@ const DICT: Record<OfferLang, Dict> = {
     draft: "draft",
     footerCompany: "Company",
     footerContact: "Contact",
+    acceptTitle: "Accept this quote",
+    nameLabel: "Full name",
+    namePlaceholder: "John Smith",
+    confirmLabel: "I confirm I have reviewed this quote and accept it.",
+    acceptButton: "Accept quote",
+    accepting: "Saving…",
+    acceptedByLabel: "Accepted by",
+    acceptedNoNameLabel: "Quote accepted.",
+    expiredLabel: "This quote has expired. Please contact the sender to discuss next steps.",
   },
   de: {
     doc: "Angebot",
@@ -112,6 +139,15 @@ const DICT: Record<OfferLang, Dict> = {
     draft: "Entwurf",
     footerCompany: "Firma",
     footerContact: "Kontakt",
+    acceptTitle: "Angebot annehmen",
+    nameLabel: "Vor- und Nachname",
+    namePlaceholder: "Max Mustermann",
+    confirmLabel: "Ich bestätige, dass ich dieses Angebot geprüft habe und es annehme.",
+    acceptButton: "Angebot annehmen",
+    accepting: "Wird gespeichert…",
+    acceptedByLabel: "Angenommen von",
+    acceptedNoNameLabel: "Angebot angenommen.",
+    expiredLabel: "Dieses Angebot ist abgelaufen. Bitte kontaktieren Sie den Absender für die nächsten Schritte.",
   },
 };
 
@@ -123,6 +159,10 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   const [items, setItems] = useState<OfferItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [signName, setSignName] = useState("");
+  const [signConfirm, setSignConfirm] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -155,6 +195,26 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   if (!offer) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 
   const total = offerTotal(items);
+
+  const submitAcceptance = async () => {
+    if (!token || !signName.trim() || !signConfirm || accepting) return;
+    setAccepting(true);
+    setAcceptError(null);
+    const res = await fetch(`/api/offers/public/${token}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: signName.trim() }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; acceptedByName?: string };
+    setAccepting(false);
+    if (!res.ok) {
+      setAcceptError(data.error ?? "Nie udało się zapisać akceptacji.");
+      return;
+    }
+    setOffer((prev) =>
+      prev ? { ...prev, status: "Zaakceptowana", accepted_by_name: data.acceptedByName ?? signName.trim(), accepted_at: new Date().toISOString() } : prev
+    );
+  };
 
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
@@ -314,6 +374,46 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
           </div>
         </div>
       </div>
+
+      {/* E-podpis akceptacji (Faza I) — tylko na publicznej stronie
+          (token ustawiony), nie w podglądzie adminowym. */}
+      {token && (
+        <div className="mx-auto mt-4 max-w-[794px] px-4 print:hidden">
+          {offer.status === "Zaakceptowana" ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+              ✓ {offer.accepted_by_name ? `${t.acceptedByLabel} ${offer.accepted_by_name}, ${docDate(offer.accepted_at, lang)}` : t.acceptedNoNameLabel}
+            </div>
+          ) : isOfferExpired(offer) ? (
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600">{t.expiredLabel}</div>
+          ) : (
+            <div className="rounded-xl border border-neutral-200 bg-white p-4">
+              <h2 className="mb-3 text-sm font-semibold text-neutral-900">{t.acceptTitle}</h2>
+              <div className="space-y-2.5">
+                <input
+                  value={signName}
+                  onChange={(e) => setSignName(e.target.value)}
+                  placeholder={t.namePlaceholder}
+                  aria-label={t.nameLabel}
+                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+                <label className="flex items-start gap-2 text-[13px] text-neutral-600">
+                  <input type="checkbox" checked={signConfirm} onChange={(e) => setSignConfirm(e.target.checked)} className="mt-0.5" />
+                  {t.confirmLabel}
+                </label>
+                {acceptError && <div className="text-[13px] text-red-600">{acceptError}</div>}
+                <button
+                  onClick={submitAcceptance}
+                  disabled={!signName.trim() || !signConfirm || accepting}
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: DOC_GRADIENT }}
+                >
+                  {accepting ? t.accepting : t.acceptButton}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
