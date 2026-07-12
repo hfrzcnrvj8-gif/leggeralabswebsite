@@ -5,13 +5,12 @@ import { getKsefConfig, authenticateWithToken } from "@/lib/ksef-api";
 export const runtime = "nodejs";
 
 /**
- * POST /api/ksef/auth/test — sprawdza uwierzytelnienie na środowisku TESTOWYM
- * KSeF (Krok 3). Odpala pełen handshake i zwraca CZYTELNY wynik. Świadomie NIE
- * zwraca surowych tokenów do przeglądarki — tylko potwierdzenie, że się udało.
- * Bramka test/prod jest w getKsefConfig/authenticateWithToken; produkcja jest
- * technicznie niedostępna.
+ * Sprawdza uwierzytelnienie na środowisku TESTOWYM KSeF (Krok 3). Odpala pełen
+ * handshake i zwraca CZYTELNY wynik. Świadomie NIE zwraca surowych tokenów do
+ * przeglądarki — tylko potwierdzenie, że się udało. Bramka test/prod jest w
+ * getKsefConfig/authenticateWithToken; produkcja jest technicznie niedostępna.
  */
-export async function POST() {
+async function runAuthTest() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const cfg = getKsefConfig();
@@ -27,4 +26,15 @@ export async function POST() {
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Nieznany błąd." }, { status: 400 });
   }
+}
+
+/** POST — docelowe wywołanie (z przycisku w UI, Krok 6). */
+export async function POST() {
+  return runAuthTest();
+}
+
+/** GET — wygodna wersja „do kliknięcia w przeglądarce" (diagnostyka Kroku 3),
+ * chroniona tym samym hasłem admina. Środowisko wyłącznie testowe. */
+export async function GET() {
+  return runAuthTest();
 }
