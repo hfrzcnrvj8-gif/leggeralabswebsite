@@ -799,7 +799,7 @@ export function InvoiceEditor({
                             return next;
                           });
                         }}
-                        title={`Cena netto: ${formatMoney(it.cena_netto)}`}
+                        title={`Cena netto: ${formatMoney(it.cena_netto, invoice.waluta || "PLN")}`}
                         className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
                       />
                     ) : (
@@ -821,7 +821,7 @@ export function InvoiceEditor({
                       onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, rabat_procent: Number(e.target.value) } : x)))}
                       onBlur={(e) => patchItem(it.id, { rabat_procent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
                       placeholder="0"
-                      title={it.rabat_procent ? `Rabat ${it.rabat_procent}% = -${formatMoney(itemDiscountAmount(it))}` : "Rabat %"}
+                      title={it.rabat_procent ? `Rabat ${it.rabat_procent}% = -${formatMoney(itemDiscountAmount(it), invoice.waluta || "PLN")}` : "Rabat %"}
                       className="w-14 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)] placeholder:text-muted"
                     />
                     <div className="w-16 text-center">
@@ -836,7 +836,7 @@ export function InvoiceEditor({
                         </span>
                       </PropertyMenu>
                     </div>
-                    <span className="w-24 text-right text-[13px] tabular-nums">{formatMoney(itemBrutto(it))}</span>
+                    <span className="w-24 text-right text-[13px] tabular-nums">{formatMoney(itemBrutto(it), invoice.waluta || "PLN")}</span>
                     <div className="flex w-11 justify-end gap-1">
                       <button onClick={() => saveToCatalog(it)} className="flex text-muted hover:text-brand-purple" title="Zapisz tę pozycję do katalogu">
                         <IconBookmarkPlus size={13} />
@@ -854,17 +854,17 @@ export function InvoiceEditor({
             <div className="mt-3 flex flex-col items-end gap-0.5 border-t hairline pt-3 text-[13px]">
               <div className="flex w-48 justify-between text-muted">
                 <span>Netto</span>
-                <span className="tabular-nums text-[var(--fg)]">{formatMoney(totals.netto)}</span>
+                <span className="tabular-nums text-[var(--fg)]">{formatMoney(totals.netto, invoice.waluta || "PLN")}</span>
               </div>
               {vatPayer && (
                 <div className="flex w-48 justify-between text-muted">
                   <span>VAT</span>
-                  <span className="tabular-nums text-[var(--fg)]">{formatMoney(totals.vat)}</span>
+                  <span className="tabular-nums text-[var(--fg)]">{formatMoney(totals.vat, invoice.waluta || "PLN")}</span>
                 </div>
               )}
               <div className="flex w-48 justify-between font-semibold">
                 <span>Do zapłaty</span>
-                <span className="tabular-nums text-[var(--fg)]">{formatMoney(vatPayer ? totals.brutto : totals.netto)}</span>
+                <span className="tabular-nums text-[var(--fg)]">{formatMoney(vatPayer ? totals.brutto : totals.netto, invoice.waluta || "PLN")}</span>
               </div>
             </div>
           </div>
