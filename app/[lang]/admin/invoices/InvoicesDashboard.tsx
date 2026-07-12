@@ -13,6 +13,7 @@ import {
   formatMoney,
   isInvoiceOverdue,
 } from "@/lib/invoices";
+import { KSEF_STATUS_CLASS, KSEF_STATUS_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
@@ -369,6 +370,14 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                           {inv.typ_dokumentu !== "faktura" && (
                             <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-gold" title="Typ dokumentu">
                               {INVOICE_TYPE_LABEL[inv.typ_dokumentu]}
+                            </span>
+                          )}
+                          {inv.ksef_status && inv.ksef_status !== "nie_wyslano" && (
+                            <span
+                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${KSEF_STATUS_CLASS[inv.ksef_status]}`}
+                              title={`KSeF: ${KSEF_STATUS_LABEL[inv.ksef_status]}${inv.ksef_numer ? ` — ${inv.ksef_numer}` : ""}`}
+                            >
+                              KSeF{inv.ksef_status === "przyjeto" ? " ✓" : inv.ksef_status === "odrzucono" ? " ✕" : " …"}
                             </span>
                           )}
                         </span>
