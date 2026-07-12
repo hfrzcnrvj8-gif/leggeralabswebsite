@@ -298,7 +298,7 @@
   "impressum": {
     "title": "Nota prawna",
     "back": "Powrót na stronę główną",
-    "intro": "Informacje zgodnie z § 5 niemieckiej ustawy DDG (Digitale-Dienste-Gesetz).",
+    "intro": "Dane zgodnie z art. 5 ustawy z dnia 18 lipca 2002 r. o świadczeniu usług drogą elektroniczną oraz art. 20 ust. 3 ustawy Prawo przedsiębiorców.",
     "labels": {
       "provider": "Usługodawca",
       "represented": "Reprezentowany przez",
@@ -307,7 +307,7 @@
       "vat": "Numer identyfikacji podatkowej (NIP / VAT)",
       "responsible": "Odpowiedzialny za treść"
     },
-    "responsibleNote": "Odpowiedzialny za treść zgodnie z § 18 ust. 2 MStV.",
+    "responsibleNote": "",
     "disclaimerTitle": "Odpowiedzialność za treść",
     "disclaimer": "Treści na naszych stronach zostały przygotowane z najwyższą starannością. Nie możemy jednak zagwarantować ich poprawności, kompletności ani aktualności. Jako usługodawca odpowiadamy za własne treści na tych stronach zgodnie z ogólnymi przepisami prawa."
   },

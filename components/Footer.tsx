@@ -39,13 +39,11 @@ export function Footer({
           >
             {dict.privacy}
           </Link>
-          <Link
-            href={`/${lang}/impressum`}
-            className="transition-opacity hover:opacity-70"
-            style={{ color: "var(--fg-invert-muted)" }}
-          >
-            {dict.impressum}
-          </Link>
+          {/* Nota prawna odlinkowana do czasu rejestracji działalności —
+              strona /impressum istnieje z poprawnym (polskim) cytatem, ale
+              pokazuje dane-zaślepki, dopóki nie ma realnego NIP/nazwy/adresu.
+              Po rejestracji: wpisać dane w app/[lang]/impressum/page.tsx i
+              przywrócić ten link (oraz wpis w components/Header.tsx). */}
           <p className="text-xs" style={{ color: "var(--fg-invert-muted)" }}>
             {dict.madeIn}
           </p>

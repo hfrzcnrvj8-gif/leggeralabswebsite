@@ -298,7 +298,7 @@
   "impressum": {
     "title": "Legal Notice",
     "back": "Back to home",
-    "intro": "Information pursuant to § 5 DDG (German Digital Services Act).",
+    "intro": "Information pursuant to Art. 5 of the Polish Act on Providing Services by Electronic Means and Art. 20(3) of the Polish Entrepreneurs' Act.",
     "labels": {
       "provider": "Service provider",
       "represented": "Represented by",
@@ -307,7 +307,7 @@
       "vat": "VAT identification number",
       "responsible": "Responsible for content"
     },
-    "responsibleNote": "Responsible for content pursuant to § 18 (2) MStV.",
+    "responsibleNote": "",
     "disclaimerTitle": "Liability for content",
     "disclaimer": "The contents of our pages were created with the greatest care. However, we cannot guarantee the accuracy, completeness or timeliness of the content. As a service provider we are responsible for our own content on these pages under general law."
   },

@@ -37,7 +37,8 @@ export function Header({
   const pages = [
     { href: `/${lang}/blog`, label: nav.blog },
     { href: `/${lang}/privacy`, label: footer.privacy },
-    { href: `/${lang}/impressum`, label: footer.impressum },
+    // Nota prawna odlinkowana do czasu rejestracji działalności (dane-zaślepki).
+    // Po rejestracji przywrócić: { href: `/${lang}/impressum`, label: footer.impressum },
   ];
 
   return (

@@ -298,7 +298,7 @@
   "impressum": {
     "title": "Impressum",
     "back": "Zurück zur Startseite",
-    "intro": "Angaben gemäß § 5 DDG (Digitale-Dienste-Gesetz).",
+    "intro": "Angaben gemäß Art. 5 des polnischen Gesetzes über die Erbringung von Dienstleistungen auf elektronischem Wege sowie Art. 20 Abs. 3 des polnischen Unternehmergesetzes.",
     "labels": {
       "provider": "Diensteanbieter",
       "represented": "Vertreten durch",
@@ -307,7 +307,7 @@
       "vat": "Umsatzsteuer-Identifikationsnummer",
       "responsible": "Verantwortlich für den Inhalt"
     },
-    "responsibleNote": "Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV.",
+    "responsibleNote": "",
     "disclaimerTitle": "Haftung für Inhalte",
     "disclaimer": "Die Inhalte unserer Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich."
   },
