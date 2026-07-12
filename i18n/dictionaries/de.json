@@ -261,31 +261,35 @@
   },
   "privacy": {
     "title": "Datenschutzerklärung",
-    "updated": "Zuletzt aktualisiert: 13. Juni 2026",
-    "intro": "Diese Datenschutzerklärung erläutert, wie Leggera Labs („wir“) personenbezogene Daten gemäß der Verordnung (EU) 2016/679 (DSGVO) verarbeitet. Dieses Dokument ist eine Mustervorlage und sollte vor der Veröffentlichung von qualifizierten Rechtsberatern geprüft werden.",
+    "updated": "Zuletzt aktualisiert: 12. Juli 2026",
+    "intro": "Diese Datenschutzerklärung erläutert, wie Leggera Labs („wir“) personenbezogene Daten gemäß der Verordnung (EU) 2016/679 (DSGVO) verarbeitet. Dieses Dokument ist eine Mustervorlage und sollte vor der Veröffentlichung von qualifizierten Rechtsberatern geprüft und um die formalen Registrierungsdaten des Verantwortlichen ergänzt werden.",
     "sections": [
       {
         "heading": "1. Verantwortlicher",
-        "body": "Leggera Labs ist der Verantwortliche für die über diese Website erhobenen personenbezogenen Daten. Für datenschutzbezogene Anfragen kontaktieren Sie uns bitte über die in der Fußzeile genannte Adresse."
+        "body": "Leggera Labs ist der Verantwortliche für die über diese Website sowie im Rahmen der Bearbeitung von Anfragen und Angeboten erhobenen personenbezogenen Daten. Für datenschutzbezogene Anfragen kontaktieren Sie uns bitte über die in der Fußzeile genannte Adresse."
       },
       {
         "heading": "2. Welche Daten wir erheben",
-        "body": "Wir verarbeiten freiwillig angegebene Kontaktdaten (wie Name, E-Mail und Nachricht) sowie begrenzte technische Daten (wie Server-Logs), die für den Betrieb und die Sicherheit der Website erforderlich sind. Wir nutzen Cloudflare Web Analytics — ein Tool, das keine Cookies oder andere Tracking-Kennungen verwendet und einzelne Besucher nicht profiliert; es erfasst ausschließlich aggregierte, anonyme Besuchsstatistiken."
+        "body": "Wir verarbeiten: (a) freiwillig über das Kontaktformular angegebene Kontaktdaten (Name oder Firmenname, E-Mail, Telefon und Nachricht); (b) Daten, die bei der elektronischen Annahme eines Angebots durch einen Kunden anfallen — den Namen der annehmenden Person sowie, als Nachweis der Willenserklärung, deren IP-Adresse und Browserinformationen (User-Agent) samt Datum und Uhrzeit; (c) begrenzte technische Daten (wie Server-Logs), die für den Betrieb und die Sicherheit der Website erforderlich sind. Wir nutzen Cloudflare Web Analytics — ein Tool, das keine Cookies oder andere Tracking-Kennungen verwendet und einzelne Besucher nicht profiliert; es erfasst ausschließlich aggregierte, anonyme Besuchsstatistiken."
       },
       {
         "heading": "3. Zweck und Rechtsgrundlage",
-        "body": "Wir verarbeiten Ihre Daten zur Beantwortung von Anfragen (Art. 6 Abs. 1 lit. b DSGVO), zum Betrieb und zur Verbesserung der Website (Art. 6 Abs. 1 lit. f DSGVO — berechtigtes Interesse) und auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO)."
+        "body": "Wir verarbeiten Ihre Daten zur Beantwortung von Anfragen und zur Erfüllung eines Vertrags oder vorvertraglicher Maßnahmen (Art. 6 Abs. 1 lit. b DSGVO); zum Nachweis der Angebotsannahme sowie zum Betrieb und zur Sicherheit der Website (Art. 6 Abs. 1 lit. f DSGVO — berechtigtes Interesse); zur Erfüllung rechtlicher Verpflichtungen, einschließlich steuer- und buchhaltungsrechtlicher Pflichten (Art. 6 Abs. 1 lit. c DSGVO); sowie auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO)."
       },
       {
-        "heading": "4. Speicherdauer",
-        "body": "Wir speichern personenbezogene Daten nur so lange, wie es für die genannten Zwecke erforderlich oder gesetzlich vorgeschrieben ist; danach werden sie sicher gelöscht."
+        "heading": "4. Empfänger und Übermittlung außerhalb des EWR",
+        "body": "Zur Erbringung unserer Leistungen übermitteln wir Daten an vertrauenswürdige Dienstleister, die sie ausschließlich in unserem Auftrag verarbeiten: Anbieter für Anwendungs-Hosting und Infrastruktur, Datenbank-Hosting, E-Mail-Versand und anonyme Besuchsanalyse. Einige von ihnen haben ihren Sitz außerhalb des Europäischen Wirtschaftsraums (u. a. in den USA); in diesen Fällen erfolgt die Übermittlung auf Grundlage geeigneter Garantien, etwa der von der Europäischen Kommission genehmigten Standardvertragsklauseln. Eine aktuelle Liste der Auftragsverarbeiter stellen wir auf Anfrage bereit. Wir verkaufen keine personenbezogenen Daten."
       },
       {
-        "heading": "5. Ihre Rechte",
-        "body": "Nach der DSGVO haben Sie das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung und Übertragbarkeit Ihrer Daten sowie ein Widerspruchsrecht. Sie können zudem Beschwerde bei einer Aufsichtsbehörde einlegen."
+        "heading": "5. Speicherdauer",
+        "body": "Kontakt- und Geschäftsdaten speichern wir, solange der Kontakt oder die Zusammenarbeit besteht, und löschen oder anonymisieren sie anschließend, sofern keine längere Aufbewahrung gesetzlich vorgeschrieben ist. Buchhaltungsunterlagen (etwa Rechnungen) bewahren wir für den steuer- und handelsrechtlich vorgeschriebenen Zeitraum auf."
       },
       {
-        "heading": "6. Kontakt",
+        "heading": "6. Ihre Rechte",
+        "body": "Nach der DSGVO haben Sie das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung und Übertragbarkeit Ihrer Daten, ein Widerspruchsrecht sowie das Recht, eine Einwilligung jederzeit zu widerrufen (unbeschadet der Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung). Sie können zudem Beschwerde bei einer Aufsichtsbehörde einlegen."
+      },
+      {
+        "heading": "7. Kontakt",
         "body": "Um eines dieser Rechte auszuüben, kontaktieren Sie Leggera Labs bitte über die auf dieser Website angegebenen Kontaktdaten."
       }
     ],

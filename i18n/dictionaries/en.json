@@ -261,31 +261,35 @@
   },
   "privacy": {
     "title": "Privacy Policy",
-    "updated": "Last updated: 13 June 2026",
-    "intro": "This Privacy Policy explains how Leggera Labs (\"we\", \"us\") processes personal data in accordance with Regulation (EU) 2016/679 (GDPR). This document is a placeholder template and should be reviewed by qualified legal counsel before publication.",
+    "updated": "Last updated: 12 July 2026",
+    "intro": "This Privacy Policy explains how Leggera Labs (\"we\", \"us\") processes personal data in accordance with Regulation (EU) 2016/679 (GDPR). This document is a placeholder template and should be reviewed by qualified legal counsel before publication and completed with the controller's formal registration details.",
     "sections": [
       {
         "heading": "1. Data Controller",
-        "body": "Leggera Labs is the controller of personal data collected through this website. For any privacy-related request, contact us at the address listed in the footer."
+        "body": "Leggera Labs is the controller of personal data collected through this website and when handling enquiries and quotes. For any privacy-related request, contact us at the address listed in the footer."
       },
       {
         "heading": "2. What data we collect",
-        "body": "We process contact details you voluntarily provide (such as your name, email and message) and limited technical data (such as server logs) required to operate and secure the site. We use Cloudflare Web Analytics — a tool that doesn't use cookies or other tracking identifiers and doesn't profile individual visitors; it only collects aggregated, anonymous visit statistics."
+        "body": "We process: (a) contact details you voluntarily provide through the contact form (your name or company name, email, phone and message); (b) data provided when a client accepts a quote electronically — the accepting person's name and, as evidence of the declaration, their IP address and browser information (user-agent) together with the date and time; (c) limited technical data (such as server logs) required to operate and secure the site. We use Cloudflare Web Analytics — a tool that doesn't use cookies or other tracking identifiers and doesn't profile individual visitors; it only collects aggregated, anonymous visit statistics."
       },
       {
         "heading": "3. Purpose and legal basis",
-        "body": "We process your data to respond to enquiries (Art. 6(1)(b) GDPR), to operate and improve the website (Art. 6(1)(f) GDPR — legitimate interest), and where you have given consent (Art. 6(1)(a) GDPR)."
+        "body": "We process your data to respond to enquiries and to perform a contract or take steps prior to it (Art. 6(1)(b) GDPR); to evidence acceptance of a quote and to operate and secure the website (Art. 6(1)(f) GDPR — legitimate interest); to comply with legal obligations, including tax and accounting duties (Art. 6(1)(c) GDPR); and where you have given consent (Art. 6(1)(a) GDPR)."
       },
       {
-        "heading": "4. Data retention",
-        "body": "We retain personal data only for as long as necessary for the purposes described above or as required by applicable law, after which it is securely deleted."
+        "heading": "4. Recipients and transfers outside the EEA",
+        "body": "To provide our services we entrust data to trusted providers who process it only on our instructions: providers of application hosting and infrastructure, database hosting, email delivery, and anonymous visit analytics. Some of them are based outside the European Economic Area (including in the USA); in such cases transfers rely on appropriate safeguards, such as the Standard Contractual Clauses approved by the European Commission. A current list of processors is available on request. We do not sell personal data."
       },
       {
-        "heading": "5. Your rights",
-        "body": "Under the GDPR you have the right to access, rectify, erase, restrict and port your data, and to object to processing. You may also lodge a complaint with your supervisory authority."
+        "heading": "5. Data retention",
+        "body": "We retain contact and commercial data for as long as our contact or cooperation lasts, after which we delete or anonymise it, unless longer retention is required by law. Accounting documents (such as invoices) are retained for the period required by tax and accounting regulations."
       },
       {
-        "heading": "6. Contact",
+        "heading": "6. Your rights",
+        "body": "Under the GDPR you have the right to access, rectify, erase, restrict and port your data, to object to processing, and to withdraw consent at any time (without affecting the lawfulness of processing before withdrawal). You may also lodge a complaint with your supervisory authority."
+      },
+      {
+        "heading": "7. Contact",
         "body": "To exercise any of these rights, please contact Leggera Labs using the contact details provided on this website."
       }
     ],

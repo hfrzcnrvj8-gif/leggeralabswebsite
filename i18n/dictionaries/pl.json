@@ -261,31 +261,35 @@
   },
   "privacy": {
     "title": "Polityka Prywatności",
-    "updated": "Ostatnia aktualizacja: 13 czerwca 2026",
-    "intro": "Niniejsza Polityka Prywatności wyjaśnia, w jaki sposób Leggera Labs („my”) przetwarza dane osobowe zgodnie z Rozporządzeniem (UE) 2016/679 (RODO). Dokument ten stanowi szablon poglądowy i przed publikacją powinien zostać zweryfikowany przez wykwalifikowanego prawnika.",
+    "updated": "Ostatnia aktualizacja: 12 lipca 2026",
+    "intro": "Niniejsza Polityka Prywatności wyjaśnia, w jaki sposób Leggera Labs („my”) przetwarza dane osobowe zgodnie z Rozporządzeniem (UE) 2016/679 (RODO). Dokument ten stanowi szablon poglądowy i przed publikacją powinien zostać zweryfikowany przez wykwalifikowanego prawnika oraz uzupełniony o formalne dane rejestrowe administratora.",
     "sections": [
       {
         "heading": "1. Administrator danych",
-        "body": "Leggera Labs jest administratorem danych osobowych zbieranych za pośrednictwem tej strony. We wszelkich sprawach dotyczących prywatności prosimy o kontakt pod adresem wskazanym w stopce."
+        "body": "Leggera Labs jest administratorem danych osobowych zbieranych za pośrednictwem tej strony oraz w ramach obsługi zapytań i ofert. We wszelkich sprawach dotyczących prywatności prosimy o kontakt pod adresem wskazanym w stopce."
       },
       {
         "heading": "2. Jakie dane zbieramy",
-        "body": "Przetwarzamy dane kontaktowe podane dobrowolnie (takie jak imię, adres e-mail i treść wiadomości) oraz ograniczone dane techniczne (takie jak logi serwera) niezbędne do działania i zabezpieczenia strony. Korzystamy z Cloudflare Web Analytics — narzędzia, które nie używa plików cookie ani innych identyfikatorów śledzących i nie profiluje pojedynczych odwiedzających; zbiera wyłącznie zagregowane, anonimowe statystyki odwiedzin strony."
+        "body": "Przetwarzamy: (a) dane kontaktowe podane dobrowolnie w formularzu kontaktowym (imię lub nazwa firmy, adres e-mail, telefon, treść wiadomości); (b) dane podane przy elektronicznej akceptacji oferty przez klienta — imię i nazwisko osoby akceptującej oraz, jako dowód złożenia oświadczenia woli, jej adres IP i informacje o przeglądarce (user-agent) wraz z datą i godziną; (c) ograniczone dane techniczne (logi serwera) niezbędne do działania i bezpieczeństwa strony. Korzystamy z Cloudflare Web Analytics — narzędzia, które nie używa plików cookie ani innych identyfikatorów śledzących i nie profiluje pojedynczych odwiedzających; zbiera wyłącznie zagregowane, anonimowe statystyki odwiedzin."
       },
       {
         "heading": "3. Cel i podstawa prawna",
-        "body": "Przetwarzamy dane w celu odpowiedzi na zapytania (art. 6 ust. 1 lit. b RODO), obsługi i ulepszania strony (art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes) oraz na podstawie udzielonej zgody (art. 6 ust. 1 lit. a RODO)."
+        "body": "Dane przetwarzamy w celu: odpowiedzi na zapytania i realizacji umowy lub działań przed jej zawarciem (art. 6 ust. 1 lit. b RODO); udokumentowania akceptacji oferty oraz zapewnienia działania i bezpieczeństwa strony (art. 6 ust. 1 lit. f RODO — prawnie uzasadniony interes); wypełnienia obowiązków prawnych, w tym podatkowych i rachunkowych (art. 6 ust. 1 lit. c RODO); a także na podstawie udzielonej zgody (art. 6 ust. 1 lit. a RODO)."
       },
       {
-        "heading": "4. Okres przechowywania",
-        "body": "Przechowujemy dane osobowe wyłącznie tak długo, jak jest to niezbędne do realizacji powyższych celów lub wymagane przepisami prawa, po czym są one bezpiecznie usuwane."
+        "heading": "4. Odbiorcy danych i przekazywanie poza EOG",
+        "body": "W celu świadczenia usług powierzamy dane zaufanym dostawcom, którzy przetwarzają je wyłącznie na nasze polecenie: dostawcom hostingu i infrastruktury aplikacji, hostingu bazy danych, obsługi wysyłki wiadomości e-mail oraz anonimowej analityki odwiedzin. Część z nich ma siedzibę poza Europejskim Obszarem Gospodarczym (m.in. w USA) — w takich przypadkach przekazanie danych odbywa się na podstawie odpowiednich zabezpieczeń, np. standardowych klauzul umownych zatwierdzonych przez Komisję Europejską. Aktualną listę podmiotów przetwarzających udostępniamy na żądanie. Nie sprzedajemy danych osobowych."
       },
       {
-        "heading": "5. Twoje prawa",
-        "body": "Na mocy RODO masz prawo dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania oraz przenoszenia, a także prawo sprzeciwu. Możesz również wnieść skargę do organu nadzorczego (PUODO)."
+        "heading": "5. Okres przechowywania",
+        "body": "Dane kontaktowe i handlowe przechowujemy tak długo, jak trwa kontakt lub współpraca, a następnie usuwamy je lub anonimizujemy, chyba że dłuższe przechowywanie jest wymagane przepisami prawa. Dokumenty księgowe (np. faktury) przechowujemy przez okres wymagany przepisami podatkowymi i o rachunkowości."
       },
       {
-        "heading": "6. Kontakt",
+        "heading": "6. Twoje prawa",
+        "body": "Na mocy RODO masz prawo dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania oraz przenoszenia, a także prawo sprzeciwu i prawo do wycofania zgody w dowolnym momencie (bez wpływu na zgodność z prawem przetwarzania sprzed wycofania). Możesz również wnieść skargę do organu nadzorczego (PUODO)."
+      },
+      {
+        "heading": "7. Kontakt",
         "body": "Aby skorzystać z któregokolwiek z tych praw, prosimy o kontakt z Leggera Labs z wykorzystaniem danych kontaktowych podanych na tej stronie."
       }
     ],
