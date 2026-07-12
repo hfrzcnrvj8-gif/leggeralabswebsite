@@ -43,6 +43,7 @@ import {
 } from "@/lib/invoices";
 import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL } from "@/lib/ksef";
 import type { Client } from "@/lib/clients";
+import { VIES_COUNTRY_CODES } from "@/lib/vies";
 import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -298,22 +299,58 @@ export function InvoiceEditor({
   }, [invoice, confirm, patchInvoice]);
 
   const lookupNip = useCallback(async () => {
-    if (!invoice?.klient_nip) {
-      toast("Wpisz najpierw NIP.", "error");
+    const raw = (invoice?.klient_nip ?? "").replace(/\s+/g, "").toUpperCase();
+    if (!raw) {
+      toast("Wpisz najpierw NIP lub numer VAT-UE.", "error");
       return;
     }
+    // Prefiks 2-literowy kraju UE (poza PL) → VIES; PL lub same cyfry → Biała
+    // Lista MF. „EL" = Grecja, „XI" = Irlandia Płn. (osobliwości VIES).
+    const prefix = /^([A-Z]{2})(.+)$/.exec(raw);
+    const useVies = Boolean(prefix && prefix[1] !== "PL" && VIES_COUNTRY_CODES.has(prefix[1]));
     setNipLoading(true);
-    const res = await fetch(`/api/mf/nip/${invoice.klient_nip.replace(/\D/g, "")}`);
-    setNipLoading(false);
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(data.error ?? "Nie znaleziono podmiotu o tym NIP.", "error");
-      return;
+    try {
+      if (useVies && prefix) {
+        const res = await fetch(`/api/vies/${prefix[1]}/${encodeURIComponent(prefix[2])}`);
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          toast(data.error ?? "Nie udało się zweryfikować w VIES.", "error");
+          return;
+        }
+        const { subject } = (await res.json()) as {
+          subject: { nazwa: string; ulica: string; kod: string; miasto: string; kraj: string };
+        };
+        const patch = {
+          klient_nazwa: subject.nazwa,
+          klient_ulica: subject.ulica,
+          klient_kod: subject.kod,
+          klient_miasto: subject.miasto,
+          klient_kraj: subject.kraj,
+        };
+        setInvoice((p) => (p ? { ...p, ...patch } : p));
+        await patchInvoice(patch);
+        toast(
+          subject.nazwa
+            ? "Uzupełniono dane z VIES."
+            : "Numer VAT-UE jest ważny, ale ten kraj nie udostępnia nazwy/adresu — uzupełnij ręcznie.",
+        );
+      } else {
+        const nip = raw.replace(/^PL/, "").replace(/\D/g, "");
+        const res = await fetch(`/api/mf/nip/${nip}`);
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          toast(data.error ?? "Nie znaleziono podmiotu o tym NIP.", "error");
+          return;
+        }
+        const { subject } = (await res.json()) as { subject: { nazwa: string; ulica: string; kod: string; miasto: string } };
+        const patch = { klient_nazwa: subject.nazwa, klient_ulica: subject.ulica, klient_kod: subject.kod, klient_miasto: subject.miasto };
+        setInvoice((p) => (p ? { ...p, ...patch } : p));
+        await patchInvoice(patch);
+        toast("Uzupełniono dane z Białej Listy MF.");
+      }
+    } finally {
+      setNipLoading(false);
     }
-    const { subject } = (await res.json()) as { subject: { nazwa: string; ulica: string; kod: string; miasto: string } };
-    setInvoice((p) => (p ? { ...p, klient_nazwa: subject.nazwa, klient_ulica: subject.ulica, klient_kod: subject.kod, klient_miasto: subject.miasto } : p));
-    await patchInvoice({ klient_nazwa: subject.nazwa, klient_ulica: subject.ulica, klient_kod: subject.kod, klient_miasto: subject.miasto });
-    toast("Uzupełniono dane z Białej Listy MF.");
   }, [invoice?.klient_nip, patchInvoice, toast]);
 
   const duplicateInvoice = useCallback(async () => {
@@ -536,17 +573,17 @@ export function InvoiceEditor({
                 value={invoice.klient_nip}
                 onChange={(e) => setInvoice((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
                 onBlur={(e) => patchInvoice({ klient_nip: e.target.value })}
-                placeholder="NIP"
+                placeholder="NIP lub VAT-UE (np. DE123456789)"
                 className="min-w-0 flex-1 rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
               />
               <button
                 onClick={lookupNip}
                 disabled={nipLoading}
-                title="Uzupełnij nazwę i adres z Białej Listy MF po NIP"
+                title="Polski NIP → Biała Lista MF; numer z prefiksem kraju UE (np. DE, IE) → VIES"
                 className="flex shrink-0 items-center gap-1 rounded-lg border hairline px-2.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
               >
                 {nipLoading ? <IconLoader2 size={13} className="animate-spin" /> : <IconSearch size={13} />}
-                Szukaj po NIP
+                Szukaj po NIP / VAT-UE
               </button>
             </div>
             </div>
