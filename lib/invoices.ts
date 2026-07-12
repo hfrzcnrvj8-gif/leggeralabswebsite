@@ -4,6 +4,9 @@
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
 import { todayLocalISO } from "./dates";
+// Type-only (erased przy kompilacji) — bez cyklu w runtime: wartości płyną
+// tylko z invoices.ts do ksef.ts, nigdy w drugą stronę.
+import type { KsefStatus, KsefTryb } from "./ksef";
 
 export type InvoiceLang = DocLang;
 export { addDaysISO } from "./documents";
@@ -157,6 +160,14 @@ export type Invoice = {
   jezyk: InvoiceLang;
   sposob_platnosci: PaymentMethod;
   uwagi: string;
+  /** Stan integracji z KSeF (Faza 2). Puste/`nie_wyslano` dla faktur, których
+   * nie dotknął KSeF. Typy i logika w lib/ksef.ts. */
+  ksef_status: KsefStatus;
+  ksef_tryb: KsefTryb | null;
+  ksef_numer: string | null;
+  ksef_upo: string | null;
+  ksef_blad: string;
+  ksef_wyslano_at: string | null;
   created_at: string;
   updated_at: string;
 };

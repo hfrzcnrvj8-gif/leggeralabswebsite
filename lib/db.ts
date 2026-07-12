@@ -342,6 +342,22 @@ async function createInvoicesSchema(): Promise<void> {
   // Sposób zapłaty na wydruku — wybieralny w edytorze (przelew/gotówka/
   // karta), domyślnie przelew (jak dotąd, gdy pole było zahardkodowane).
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sposob_platnosci TEXT NOT NULL DEFAULT 'przelew';`;
+  // --- KSeF (Faza 2) — fundament pod natywną integrację z Krajowym Systemem
+  // e-Faktur. Na tym etapie tylko przechowywanie stanu; żadne z tych pól nie
+  // łączy się z siecią (generacja/wysyłka to osobne kroki). Faktura powstaje i
+  // żyje bez KSeF — te pola są puste, dopóki właściciel świadomie nie wyśle.
+  //   ksef_status  — nie_wyslano / wyslano / przyjeto / odrzucono (patrz lib/ksef.ts)
+  //   ksef_tryb    — 'test' | 'prod', ustawiane przy wysyłce (NULL = nigdy nie wysłano)
+  //   ksef_numer   — numer KSeF nadany po przyjęciu dokumentu
+  //   ksef_upo     — treść UPO (XML) — urzędowe potwierdzenie odbioru
+  //   ksef_blad    — czytelny komunikat przy odrzuceniu (które pole i dlaczego)
+  //   ksef_wyslano_at — moment wysyłki do systemu
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_status TEXT NOT NULL DEFAULT 'nie_wyslano';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_tryb TEXT;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_numer TEXT;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_upo TEXT;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_blad TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_wyslano_at TIMESTAMPTZ;`;
   // Ubezpieczenie na poziomie bazy przeciwko wyścigowi przy nadawaniu numeru
   // (dwa równoczesne "Wystaw fakturę" nie mogą dać tej samej faktury dwa
   // razy ten sam numer — drugi UPDATE dostanie unique violation i ponowi
