@@ -17,7 +17,6 @@ import {
   IconBuildingBank,
   IconBookmark,
   IconBookmarkPlus,
-  IconUsers,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
@@ -48,7 +47,7 @@ import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
-import { ClientLinkChip } from "../components";
+import { ClientLinkChip, ClientPickerButton } from "../components";
 
 export function InvoiceEditor({
   id,
@@ -522,30 +521,7 @@ export function InvoiceEditor({
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-[13px] font-medium">Nabywca</h2>
-              {!locked && clients.length > 0 && (
-                <Popover
-                  width={320}
-                  trigger={(open) => (
-                    <button
-                      onClick={open}
-                      className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
-                      title="Wypełnij danymi zapisanego klienta z bazy"
-                    >
-                      <IconUsers size={12} /> Z bazy klientów
-                    </button>
-                  )}
-                >
-                  {(close) => (
-                    <ClientPicker
-                      clients={clients}
-                      onPick={(c) => {
-                        pickClient(c);
-                        close();
-                      }}
-                    />
-                  )}
-                </Popover>
-              )}
+              {!locked && <ClientPickerButton clients={clients} onPick={pickClient} />}
             </div>
             <div className={lockCls}>
             <input
@@ -1143,43 +1119,6 @@ export function InvoiceEditor({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function ClientPicker({ clients, onPick }: { clients: Client[]; onPick: (c: Client) => void }) {
-  const [q, setQ] = useState("");
-  const needle = q.trim().toLowerCase();
-  const filtered = needle
-    ? clients.filter((c) => `${c.nazwa} ${c.nip} ${c.miasto}`.toLowerCase().includes(needle))
-    : clients;
-  return (
-    <div className="max-h-72 overflow-y-auto">
-      <div className="p-1.5">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Szukaj klienta (nazwa / NIP / miasto)…"
-          autoFocus
-          className="w-full rounded-md border hairline bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
-        />
-      </div>
-      {filtered.length === 0 ? (
-        <p className="px-3 py-3 text-center text-[12px] text-muted">Brak dopasowań.</p>
-      ) : (
-        filtered.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onPick(c)}
-            className="flex w-full flex-col px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]"
-          >
-            <span className="truncate text-[13px] text-[var(--fg)]">{c.nazwa || "(bez nazwy)"}</span>
-            <span className="truncate text-[11px] text-muted">
-              {[c.nip && `NIP ${c.nip}`, [c.kod, c.miasto].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
-            </span>
-          </button>
-        ))
-      )}
     </div>
   );
 }

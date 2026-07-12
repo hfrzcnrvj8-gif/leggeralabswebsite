@@ -50,6 +50,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("klient_miasto" in body) await sql`UPDATE offers SET klient_miasto = ${str(body.klient_miasto, 200)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_kraj" in body) await sql`UPDATE offers SET klient_kraj = ${str(body.klient_kraj, 100)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_email" in body) await sql`UPDATE offers SET klient_email = ${str(body.klient_email, 200)}, updated_at = now() WHERE id = ${id};`;
+    if ("client_id" in body) {
+      const cid = typeof body.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+      await sql`UPDATE offers SET client_id = ${cid}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("uwagi" in body) await sql`UPDATE offers SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
     if ("status" in body) await sql`UPDATE offers SET status = ${str(body.status, 40)}, updated_at = now() WHERE id = ${id};`;
     if ("jezyk" in body) {

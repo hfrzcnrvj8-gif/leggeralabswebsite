@@ -9,7 +9,8 @@ import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
-import { ClientLinkChip } from "../components";
+import { ClientLinkChip, ClientPickerButton } from "../components";
+import type { Client } from "@/lib/clients";
 
 export function OfferEditor({
   id,
@@ -32,6 +33,14 @@ export function OfferEditor({
   const [accepting, setAccepting] = useState(false);
   const [sending, setSending] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  useEffect(() => {
+    fetch("/api/clients")
+      .then((r) => (r.ok ? r.json() : { clients: [] }))
+      .then((d) => setClients((d.clients ?? []) as Client[]))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/offers/${id}`);
@@ -69,6 +78,24 @@ export function OfferEditor({
       }
     },
     [id, flashSaved, onChange, toast]
+  );
+
+  const pickClient = useCallback(
+    (c: Client) => {
+      const patch: Partial<Offer> = {
+        client_id: c.id,
+        klient_nazwa: c.nazwa ?? "",
+        klient_nip: c.nip ?? "",
+        klient_ulica: c.ulica ?? "",
+        klient_kod: c.kod ?? "",
+        klient_miasto: c.miasto ?? "",
+        klient_kraj: c.kraj ?? "",
+        klient_email: c.email ?? "",
+      };
+      setOffer((prev) => (prev ? { ...prev, ...patch } : prev));
+      patchOffer(patch);
+    },
+    [patchOffer]
   );
 
   const addItem = useCallback(async () => {
@@ -215,7 +242,10 @@ export function OfferEditor({
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="min-w-0 space-y-4">
           <div className="card-paper rounded-xl border hairline p-4">
-            <h2 className="mb-2 text-[13px] font-medium">Oferta</h2>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-[13px] font-medium">Oferta</h2>
+              <ClientPickerButton clients={clients} onPick={pickClient} />
+            </div>
             <input
               value={offer.tytul}
               onChange={(e) => setOffer((p) => (p ? { ...p, tytul: e.target.value } : p))}

@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { IconUsers } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
+import type { Client } from "@/lib/clients";
 import { useUI } from "./ui";
-import { PropertyMenu } from "./Menu";
+import { PropertyMenu, Popover } from "./Menu";
 
 // Generyczne komponenty UI współdzielone przez wszystkie moduły panelu
 // (leady, projekty, notatnik, kalendarz) — jedno miejsce zamiast kopiowania
@@ -228,5 +230,73 @@ export function ClientLinkChip({
     >
       → Karta klienta
     </Link>
+  );
+}
+
+/** Przycisk „Z bazy klientów" + rozwijana lista z wyszukiwarką — wypełnia dane
+ * nabywcy zapisanym klientem. Współdzielony przez edytory Faktur i Ofert (te
+ * same pola: nazwa/NIP/adres/e-mail). Zwraca null przy pustej bazie klientów. */
+export function ClientPickerButton({ clients, onPick }: { clients: Client[]; onPick: (c: Client) => void }) {
+  if (clients.length === 0) return null;
+  return (
+    <Popover
+      width={320}
+      trigger={(open) => (
+        <button
+          onClick={open}
+          className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+          title="Wypełnij danymi zapisanego klienta z bazy"
+        >
+          <IconUsers size={12} /> Z bazy klientów
+        </button>
+      )}
+    >
+      {(close) => (
+        <ClientPickerList
+          clients={clients}
+          onPick={(c) => {
+            onPick(c);
+            close();
+          }}
+        />
+      )}
+    </Popover>
+  );
+}
+
+function ClientPickerList({ clients, onPick }: { clients: Client[]; onPick: (c: Client) => void }) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const filtered = needle
+    ? clients.filter((c) => `${c.nazwa} ${c.nip} ${c.miasto}`.toLowerCase().includes(needle))
+    : clients;
+  return (
+    <div className="max-h-72 overflow-y-auto">
+      <div className="p-1.5">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Szukaj klienta (nazwa / NIP / miasto)…"
+          autoFocus
+          className="w-full rounded-md border hairline bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+        />
+      </div>
+      {filtered.length === 0 ? (
+        <p className="px-3 py-3 text-center text-[12px] text-muted">Brak dopasowań.</p>
+      ) : (
+        filtered.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => onPick(c)}
+            className="flex w-full flex-col px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]"
+          >
+            <span className="truncate text-[13px] text-[var(--fg)]">{c.nazwa || "(bez nazwy)"}</span>
+            <span className="truncate text-[11px] text-muted">
+              {[c.nip && `NIP ${c.nip}`, [c.kod, c.miasto].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
+            </span>
+          </button>
+        ))
+      )}
+    </div>
   );
 }
