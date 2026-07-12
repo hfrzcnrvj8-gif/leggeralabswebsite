@@ -292,6 +292,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [ksefQrUrl, setKsefQrUrl] = useState<string | null>(null);
   const [original, setOriginal] = useState<{ invoice: Invoice; items: InvoiceItem[] } | null>(null);
   const [zaliczka, setZaliczka] = useState<{ numer: string | null; brutto: number } | null>(null);
 
@@ -376,6 +377,22 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoice?.id, invoice?.numer, settings?.konto, settings?.swift, settings?.nazwa, currency, finalDue]);
+
+  // Kod QR KOD I (weryfikacja faktury w KSeF) — z gotowego linku zapisanego przy
+  // przyjęciu (lib/ksef-api buduje {baza}/invoice/{NIP}/{data}/{hash}).
+  useEffect(() => {
+    if (!invoice?.ksef_qr) {
+      setKsefQrUrl(null);
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(invoice.ksef_qr, { margin: 0, width: 200 })
+      .then((url) => !cancelled && setKsefQrUrl(url))
+      .catch(() => !cancelled && setKsefQrUrl(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [invoice?.ksef_qr]);
 
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!invoice || !settings) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
@@ -687,6 +704,26 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
               QR do przelewu (tylko EUR/SEPA) — mt-auto trzyma ją przy dole
               strony niezależnie od długości faktury. */}
           <div className="mt-auto pt-10">
+            {invoice.ksef_numer && (
+              <div className="mb-4 flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                {ksefQrUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={ksefQrUrl} alt="Kod QR KSeF" width={72} height={72} className="shrink-0" />
+                )}
+                <div className="text-[10.5px] leading-tight text-neutral-500">
+                  <div className="mb-0.5 font-semibold uppercase tracking-wide text-neutral-400">
+                    {invoice.ksef_tryb === "test" ? "KSeF — środowisko testowe" : "Krajowy System e-Faktur"}
+                  </div>
+                  <div>
+                    Numer KSeF: <span className="font-medium text-neutral-800">{invoice.ksef_numer}</span>
+                  </div>
+                  {ksefQrUrl && <div className="mt-0.5 text-neutral-400">Zeskanuj kod, aby zweryfikować fakturę w KSeF.</div>}
+                  {invoice.ksef_tryb === "test" && (
+                    <div className="mt-0.5 text-neutral-400">Dokument testowy — bez mocy prawnej.</div>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-6 border-t border-neutral-100 pt-4 text-[10.5px] text-neutral-500">
               <div>
                 <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerCompany}</div>

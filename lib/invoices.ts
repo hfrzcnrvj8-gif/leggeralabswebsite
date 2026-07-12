@@ -180,6 +180,9 @@ export type Invoice = {
   ksef_upo: string | null;
   ksef_blad: string;
   ksef_wyslano_at: string | null;
+  /** Link KOD I (weryfikujący) do kodu QR na wizualizacji — ustawiany po
+   * przyjęciu faktury przez KSeF. Null, dopóki nie przyjęto. */
+  ksef_qr: string | null;
   created_at: string;
   updated_at: string;
 };

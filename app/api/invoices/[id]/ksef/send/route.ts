@@ -2,10 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { DEFAULT_COMPANY_SETTINGS, type Invoice, type InvoiceItem, type CompanySettings } from "@/lib/invoices";
-import { buildFA3Xml, validateForFA3, type KsefStatus } from "@/lib/ksef";
+import { buildFA3Xml, validateForFA3, nipDigits, type KsefStatus } from "@/lib/ksef";
 import { getKsefConfig, sendInvoiceToKsef } from "@/lib/ksef-api";
 
 export const runtime = "nodejs";
+
+/** Data wystawienia w formacie DD-MM-RRRR wymaganym w linku kodu QR KSeF.
+ * Odporna na to, że baza zwraca kolumnę DATE jako string albo jako Date. */
+function ddMmRrrr(v: unknown): string {
+  if (v == null) return "";
+  if (v instanceof Date) {
+    return `${String(v.getDate()).padStart(2, "0")}-${String(v.getMonth() + 1).padStart(2, "0")}-${v.getFullYear()}`;
+  }
+  const [y, m, d] = String(v).slice(0, 10).split("-");
+  return d && m && y ? `${d}-${m}-${y}` : "";
+}
 // Pełna rozmowa z KSeF (uwierzytelnienie + sesja + wysyłka + polling statusu +
 // UPO) bywa dłuższa niż domyślny limit funkcji — podnosimy go, żeby nie ucięło
 // jej w połowie (co dawało pustą odpowiedź i „nieznany powód" w UI).
@@ -105,6 +116,14 @@ async function runSend(id: string) {
         : "wyslano";
     const blad = result.accepted ? "" : `${result.statusText} (kod ${result.statusCode})`;
 
+    // Link KOD I (weryfikujący) do kodu QR na wizualizacji — tylko dla przyjętej
+    // faktury: {baza}/invoice/{NIP sprzedawcy}/{DD-MM-RRRR}/{SHA-256 XML Base64URL}.
+    // Baza testowa/produkcyjna wg środowiska (qr-test vs qr).
+    const qrBase = cfg.env === "test" ? "https://qr-test.ksef.mf.gov.pl/invoice" : "https://qr.ksef.mf.gov.pl/invoice";
+    const ksefQr = result.accepted
+      ? `${qrBase}/${nipDigits(company.nip)}/${ddMmRrrr(invoice.data_wystawienia)}/${result.invoiceHashUrl}`
+      : null;
+
     await sql`
       UPDATE invoices SET
         ksef_status = ${status},
@@ -112,6 +131,7 @@ async function runSend(id: string) {
         ksef_numer = ${result.ksefNumber},
         ksef_upo = ${result.upo},
         ksef_blad = ${blad},
+        ksef_qr = ${ksefQr},
         ksef_wyslano_at = NOW()
       WHERE id = ${id};
     `;

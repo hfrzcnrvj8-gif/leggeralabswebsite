@@ -365,6 +365,9 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_upo TEXT;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_blad TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_wyslano_at TIMESTAMPTZ;`;
+  //   ksef_qr — link KOD I (weryfikujący) do kodu QR na wizualizacji faktury,
+  //   budowany po przyjęciu: {baza}/invoice/{NIP}/{DD-MM-RRRR}/{hash Base64URL}
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_qr TEXT;`;
   // Ubezpieczenie na poziomie bazy przeciwko wyścigowi przy nadawaniu numeru
   // (dwa równoczesne "Wystaw fakturę" nie mogą dać tej samej faktury dwa
   // razy ten sam numer — drugi UPDATE dostanie unique violation i ponowi

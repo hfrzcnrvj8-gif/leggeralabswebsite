@@ -291,8 +291,16 @@ export type KsefSendResult = {
   statusText: string;
   /** UPO (XML) — urzędowe poświadczenie odbioru; null, gdy niedostępne. */
   upo: string | null;
+  /** SHA-256 wysłanego pliku XML w Base64URL — „wyróżnik pliku" do kodu QR
+   * KOD I (weryfikacja faktury w KSeF). */
+  invoiceHashUrl: string;
   accepted: boolean;
 };
+
+/** Zamienia Base64 na Base64URL (bezpieczne w URL): +→-, /→_, bez „=". */
+function base64ToUrl(b64: string): string {
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
 /**
  * Pełna wysyłka JEDNEJ faktury FA(3) do KSeF przez sesję online (środowisko
@@ -376,6 +384,7 @@ export async function sendInvoiceToKsef(cfg: KsefConfig, xml: string): Promise<K
       statusCode,
       statusText: statusText || (accepted ? "Sukces" : `Kod ${statusCode}`),
       upo,
+      invoiceHashUrl: base64ToUrl(payload.invoiceHash),
       accepted,
     };
   } finally {
