@@ -119,6 +119,16 @@ export type KsefAuthResult = {
   status: string;
 };
 
+/** Wyciąga surowy token z pola TokenInfo `{ token, validUntil }` zwracanego
+ * przez API KSeF. Toleruje też goły string (odporność na drobne różnice). */
+function readTokenInfo(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v && typeof v === "object" && typeof (v as { token?: unknown }).token === "string") {
+    return (v as { token: string }).token;
+  }
+  return "";
+}
+
 async function postJson(url: string, body: unknown, bearer?: string): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
     method: "POST",
@@ -168,7 +178,9 @@ export async function authenticateWithToken(cfg: KsefConfig): Promise<KsefAuthRe
     encryptedToken,
   });
   const referenceNumber = String(authRes.referenceNumber || "");
-  const authenticationToken = String(authRes.authenticationToken || "");
+  // authenticationToken to obiekt TokenInfo { token, validUntil } — bierzemy
+  // samo `token` (tak samo accessToken/refreshToken niżej).
+  const authenticationToken = readTokenInfo(authRes.authenticationToken);
   if (!referenceNumber || !authenticationToken) {
     throw new Error("KSeF: niekompletna odpowiedź /auth/ksef-token.");
   }
@@ -188,10 +200,10 @@ export async function authenticateWithToken(cfg: KsefConfig): Promise<KsefAuthRe
     await new Promise((r) => setTimeout(r, 1500));
   }
 
-  // 6: wymiana na właściwe tokeny operacyjne.
+  // 6: wymiana na właściwe tokeny operacyjne (też TokenInfo { token, ... }).
   const redeem = await postJson(`${cfg.baseUrl}/auth/token/redeem`, {}, authenticationToken);
-  const accessToken = String(redeem.accessToken || "");
-  const refreshToken = String(redeem.refreshToken || "");
+  const accessToken = readTokenInfo(redeem.accessToken);
+  const refreshToken = readTokenInfo(redeem.refreshToken);
   if (!accessToken) throw new Error("KSeF: /auth/token/redeem nie zwrócił accessToken.");
 
   return { referenceNumber, accessToken, refreshToken, status: statusText || "OK" };
