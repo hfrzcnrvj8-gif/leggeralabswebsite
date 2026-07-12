@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { DEFAULT_COMPANY_SETTINGS, type Invoice, type InvoiceItem, type CompanySettings } from "@/lib/invoices";
-import { buildFA3Xml, validateForFA3, nipDigits, type KsefStatus, type CorrectionContext } from "@/lib/ksef";
+import { DEFAULT_COMPANY_SETTINGS, invoiceTotals, type Invoice, type InvoiceItem, type CompanySettings } from "@/lib/invoices";
+import { buildFA3Xml, validateForFA3, nipDigits, type KsefStatus, type CorrectionContext, type AdvanceContext } from "@/lib/ksef";
 import { getKsefConfig, sendInvoiceToKsef } from "@/lib/ksef-api";
 import type { Sql } from "@/lib/db";
 
@@ -34,6 +34,23 @@ async function loadCorrection(sql: Sql, inv: Invoice): Promise<CorrectionContext
     originalKsefNumber: original.ksef_status === "przyjeto" ? original.ksef_numer : null,
     originalItems: await loadItems(sql, original.id),
     typKorekty: inv.typ_korekty || "1",
+  };
+}
+
+/** Buduje kontekst zaliczki z rozliczanej faktury (rozlicza_zaliczke_id): jej
+ * numer, numer KSeF (jeśli była przyjęta) i kwotę brutto — do wyliczenia P_15
+ * (kwota pozostała do zapłaty) i bloku FakturaZaliczkowa na fakturze
+ * rozliczeniowej (ROZ/KOR_ROZ). */
+async function loadAdvance(sql: Sql, inv: Invoice): Promise<AdvanceContext | undefined> {
+  if (!inv.rozlicza_zaliczke_id) return undefined;
+  const rows = await sql`SELECT * FROM invoices WHERE id = ${inv.rozlicza_zaliczke_id};`;
+  const zaliczka = rows[0] as unknown as Invoice | undefined;
+  if (!zaliczka) return undefined;
+  const items = await loadItems(sql, zaliczka.id);
+  return {
+    numer: zaliczka.numer || "",
+    ksefNumber: zaliczka.ksef_status === "przyjeto" ? zaliczka.ksef_numer : null,
+    brutto: invoiceTotals(items).brutto,
   };
 }
 
@@ -85,8 +102,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const settingsRows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
   const company = (settingsRows[0] as unknown as CompanySettings) ?? DEFAULT_COMPANY_SETTINGS;
   const correction = await loadCorrection(sql, invoice);
-  const validation = validateForFA3(invoice, items, company, correction);
-  const xml = buildFA3Xml(invoice, items, company, correction);
+  const advance = await loadAdvance(sql, invoice);
+  const validation = validateForFA3(invoice, items, company, correction, advance);
+  const xml = buildFA3Xml(invoice, items, company, correction, advance);
   return NextResponse.json({
     dryRun: true,
     hint: "To tylko podgląd. Aby NAPRAWDĘ wysłać fakturę na środowisko testowe KSeF, dodaj do adresu ?send=1.",
@@ -118,14 +136,16 @@ async function runSend(id: string) {
 
     // Korekta? Wczytaj dane faktury korygowanej (numer/data/numer KSeF/pozycje).
     const correction = await loadCorrection(sql, invoice);
+    // Rozlicza zaliczkę? Wczytaj dane zaliczki (numer/numer KSeF/kwota brutto).
+    const advance = await loadAdvance(sql, invoice);
 
     // Walidacja lokalna — błędy blokują wysyłkę (ostrzeżenia tylko informują).
-    const validation = validateForFA3(invoice, items, company, correction);
+    const validation = validateForFA3(invoice, items, company, correction, advance);
     if (validation.errors.length) {
       return NextResponse.json({ ok: false, stage: "walidacja", validation }, { status: 400 });
     }
 
-    const xml = buildFA3Xml(invoice, items, company, correction);
+    const xml = buildFA3Xml(invoice, items, company, correction, advance);
     const cfg = getKsefConfig();
     const result = await sendInvoiceToKsef(cfg, xml);
 

@@ -26,19 +26,26 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const newId = randomUUID();
     const shareToken = randomUUID().replace(/-/g, "");
+    // typ_dokumentu i rozlicza_zaliczke_id kopiujemy Z ORYGINAŁU (nie
+    // hardkodujemy 'faktura') — inaczej korekta faktury zaliczkowej albo
+    // rozliczeniowej trafiłaby do KSeF jako zwykłe RodzajFaktury=KOR zamiast
+    // KOR_ZAL/KOR_ROZ (patrz rodzajFaktury() w lib/ksef.ts, które czyta te
+    // pola z samej korekty). zamowienie_* kopiujemy też, dla KOR_ZAL.
     await sql`
       INSERT INTO invoices (
         id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres,
         klient_ulica, klient_kod, klient_miasto, klient_kraj,
         odbiorca_nazwa, odbiorca_ulica, odbiorca_kod, odbiorca_miasto, odbiorca_kraj,
-        klient_email, share_token, typ_dokumentu, waluta, jezyk, koryguje_id,
+        klient_email, share_token, typ_dokumentu, rozlicza_zaliczke_id,
+        zamowienie_wartosc, zamowienie_opis, waluta, jezyk, koryguje_id,
         data_wystawienia, data_sprzedazy, termin_platnosci, ceny_brutto
       )
       VALUES (
         ${newId}, ${src.lead_id}, ${src.project_id}, ${src.klient_nazwa}, ${src.klient_nip}, ${src.klient_adres},
         ${src.klient_ulica}, ${src.klient_kod}, ${src.klient_miasto}, ${src.klient_kraj},
         ${src.odbiorca_nazwa}, ${src.odbiorca_ulica}, ${src.odbiorca_kod}, ${src.odbiorca_miasto}, ${src.odbiorca_kraj},
-        ${src.klient_email}, ${shareToken}, 'faktura', ${src.waluta}, ${src.jezyk}, ${id},
+        ${src.klient_email}, ${shareToken}, ${src.typ_dokumentu}, ${src.rozlicza_zaliczke_id},
+        ${src.zamowienie_wartosc}, ${src.zamowienie_opis}, ${src.waluta}, ${src.jezyk}, ${id},
         ${src.data_wystawienia}, ${src.data_sprzedazy}, ${src.termin_platnosci}, ${src.ceny_brutto}
       );
     `;

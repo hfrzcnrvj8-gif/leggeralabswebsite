@@ -5,7 +5,16 @@ import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-/** GET /api/invoices — lista faktur z sumą brutto (do listy). Admin-only. */
+/** GET /api/invoices — lista faktur z sumą brutto (do listy + KPI). Admin-only.
+ *
+ * `brutto` = "kwota należności z TEGO dokumentu": dla zwykłej faktury pełna
+ * wartość pozycji; dla faktury ROZLICZENIOWEJ (rozlicza_zaliczke_id ustawione)
+ * PEŁNA wartość MINUS brutto rozliczanej zaliczki — czyli dokładnie to, co
+ * faktycznie trzeba jeszcze zebrać od klienta (FA(3) P_15, patrz lib/ksef.ts).
+ * To świadomie INNA liczba niż w eksporcie CSV dla księgowej (który pokazuje
+ * pełną wartość z dokumentu, bez odjęcia — zgodnie z tym, co widnieje na
+ * fakturze): tu chodzi o ściągalność należności i próg KSeF bez podwójnego
+ * liczenia przychodu już zafakturowanego zaliczką. */
 export async function GET() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureInvoicesSchema();
@@ -14,7 +23,7 @@ export async function GET() {
     SELECT i.*,
       COALESCE(t.netto, 0)::float8 AS netto,
       COALESCE(t.vat, 0)::float8 AS vat,
-      COALESCE(t.brutto, 0)::float8 AS brutto,
+      (COALESCE(t.brutto, 0) - COALESCE(z.brutto, 0))::float8 AS brutto,
       COALESCE(p.zaplacono, 0)::float8 AS zaplacono
     FROM invoices i
     LEFT JOIN (
@@ -24,6 +33,11 @@ export async function GET() {
         SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
       FROM invoice_items GROUP BY invoice_id
     ) t ON t.invoice_id = i.id
+    LEFT JOIN (
+      SELECT invoice_id,
+        SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
+      FROM invoice_items GROUP BY invoice_id
+    ) z ON z.invoice_id = i.rozlicza_zaliczke_id
     LEFT JOIN (
       SELECT invoice_id, SUM(kwota) AS zaplacono FROM invoice_payments GROUP BY invoice_id
     ) p ON p.invoice_id = i.id
@@ -59,9 +73,14 @@ export async function POST(req: NextRequest) {
   const settingsRows = await sql`SELECT domyslne_uwagi FROM company_settings WHERE id = 'default';`;
   const domyslneUwagi = typeof settingsRows[0]?.domyslne_uwagi === "string" ? settingsRows[0].domyslne_uwagi : "";
 
+  // Zaliczka to naturalnie kwota BRUTTO (tyle płaci klient) — domyślnie
+  // przełącz tryb wpisywania ceny na brutto, żeby nie trzeba było ręcznie
+  // przeliczać na netto. Można nadpisać w edytorze jak każdą inną fakturę.
+  const cenyBrutto = typ === "zaliczkowa";
+
   await sql`
-    INSERT INTO invoices (id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres, share_token, typ_dokumentu, uwagi)
-    VALUES (${id}, ${leadId}, ${projectId}, ${klientNazwa}, ${str(body?.klient_nip, 30)}, ${str(body?.klient_adres, 500)}, ${shareToken}, ${typ}, ${domyslneUwagi});
+    INSERT INTO invoices (id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres, share_token, typ_dokumentu, uwagi, ceny_brutto)
+    VALUES (${id}, ${leadId}, ${projectId}, ${klientNazwa}, ${str(body?.klient_nip, 30)}, ${str(body?.klient_adres, 500)}, ${shareToken}, ${typ}, ${domyslneUwagi}, ${cenyBrutto});
   `;
   return NextResponse.json({ ok: true, id });
 }

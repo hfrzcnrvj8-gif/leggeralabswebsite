@@ -87,6 +87,17 @@ export function InvoiceEditor({
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
   const [korekty, setKorekty] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; status?: string }[]>([]);
   const [koryguje, setKoryguje] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null>(null);
+  // Zaliczka rozliczana TĄ fakturą (gdy invoice.rozlicza_zaliczke_id ustawione,
+  // czyli ta faktura jest ROZLICZENIOWA/ROZ) — do wyliczenia kwoty pozostałej
+  // do zapłaty (patrz dueAmount niżej) i pokazania jej właścicielowi.
+  const [zaliczka, setZaliczka] = useState<{
+    id: string;
+    numer: string | null;
+    status?: string;
+    ksef_status?: string;
+    ksef_numer?: string | null;
+    brutto: number;
+  } | null>(null);
   const [nipLoading, setNipLoading] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [correcting, setCorrecting] = useState(false);
@@ -114,6 +125,7 @@ export function InvoiceEditor({
       payments: InvoicePayment[];
       korekty: { id: string; numer: string | null; data_wystawienia: string | null; status?: string }[];
       koryguje: { id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null;
+      zaliczka: { id: string; numer: string | null; status?: string; ksef_status?: string; ksef_numer?: string | null; brutto: number } | null;
     };
     setInvoice(data.invoice);
     setItems(data.items);
@@ -122,6 +134,7 @@ export function InvoiceEditor({
     setPayments(data.payments ?? []);
     setKorekty(data.korekty ?? []);
     setKoryguje(data.koryguje ?? null);
+    setZaliczka(data.zaliczka ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -469,7 +482,9 @@ export function InvoiceEditor({
     const used = new Set(data.invoices.map((i) => i.rozlicza_zaliczke_id).filter(Boolean));
     setZaliczkoweOptions(
       data.invoices
-        .filter((i) => i.typ_dokumentu === "zaliczkowa" && i.status !== "Szkic" && i.id !== id && !used.has(i.id))
+        .filter(
+          (i) => i.typ_dokumentu === "zaliczkowa" && i.status !== "Szkic" && i.status !== "Anulowana" && i.id !== id && !used.has(i.id)
+        )
         .map((i) => ({ id: i.id, numer: i.numer, klient_nazwa: i.klient_nazwa, brutto: i.brutto }))
     );
   }, [id]);
@@ -497,7 +512,12 @@ export function InvoiceEditor({
   lockedRef.current = locked;
   const lockCls = locked ? "pointer-events-none opacity-60" : "";
   const vatPayer = settings?.vat_payer ?? true;
-  const dueAmount = vatPayer ? totals.brutto : totals.netto;
+  // Faktura ROZLICZENIOWA (rozlicza_zaliczke_id ustawione): klient już
+  // zapłacił zaliczkę osobno (przy wysyłce zaliczkowej) — kwota do zebrania
+  // TĄ fakturą to pełna wartość MINUS już rozliczona zaliczka (FA(3) P_15,
+  // patrz lib/ksef.ts). Bez tego faktura nigdy nie domknęłaby się wpłatami.
+  const zaliczkaBrutto = invoice.rozlicza_zaliczke_id && zaliczka ? zaliczka.brutto : 0;
+  const dueAmount = Math.max(0, (vatPayer ? totals.brutto : totals.netto) - zaliczkaBrutto);
   const paid = totalPaid(payments);
   const overdue = isInvoiceOverdue(invoice);
 
@@ -863,9 +883,21 @@ export function InvoiceEditor({
                 </div>
               )}
               <div className="flex w-48 justify-between font-semibold">
-                <span>Do zapłaty</span>
+                <span>{invoice.rozlicza_zaliczke_id ? "Wartość zamówienia" : "Do zapłaty"}</span>
                 <span className="tabular-nums text-[var(--fg)]">{formatMoney(vatPayer ? totals.brutto : totals.netto, invoice.waluta || "PLN")}</span>
               </div>
+              {invoice.rozlicza_zaliczke_id && (
+                <>
+                  <div className="flex w-48 justify-between text-muted">
+                    <span>Zaliczka {zaliczka?.numer ?? "…"}</span>
+                    <span className="tabular-nums">-{formatMoney(zaliczkaBrutto, invoice.waluta || "PLN")}</span>
+                  </div>
+                  <div className="flex w-48 justify-between font-semibold">
+                    <span>Do zapłaty</span>
+                    <span className="tabular-nums text-[var(--fg)]">{formatMoney(dueAmount, invoice.waluta || "PLN")}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -984,6 +1016,33 @@ export function InvoiceEditor({
               </div>
             )}
 
+            {invoice.typ_dokumentu === "zaliczkowa" && (
+              <div className="mt-2 space-y-2">
+                <Field label="Zamówienie">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={invoice.zamowienie_wartosc ?? ""}
+                    onChange={(e) =>
+                      setInvoice((p) => (p ? { ...p, zamowienie_wartosc: e.target.value === "" ? null : Number(e.target.value) } : p))
+                    }
+                    onBlur={(e) => patchInvoice({ zamowienie_wartosc: e.target.value === "" ? null : Number(e.target.value) })}
+                    placeholder="Wartość zamówienia brutto"
+                    className="w-full bg-transparent text-[13px] text-[var(--fg)] placeholder:text-muted outline-none"
+                  />
+                </Field>
+                <textarea
+                  value={invoice.zamowienie_opis}
+                  onChange={(e) => setInvoice((p) => (p ? { ...p, zamowienie_opis: e.target.value } : p))}
+                  onBlur={(e) => patchInvoice({ zamowienie_opis: e.target.value })}
+                  rows={2}
+                  placeholder='Opis zamówienia/umowy (np. "Wdrożenie systemu CRM") — zalecane dla KSeF, całość widoczna dopiero na fakturze rozliczeniowej'
+                  className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                />
+              </div>
+            )}
+
             {invoice.typ_dokumentu === "faktura" && !koryguje && (
               <div className="mt-2">
                 <Popover
@@ -996,7 +1055,7 @@ export function InvoiceEditor({
                       }}
                       className="w-full rounded-lg border hairline px-2.5 py-1.5 text-left text-[12.5px] text-muted hover:text-[var(--fg)]"
                     >
-                      {invoice.rozlicza_zaliczke_id ? `Rozlicza zaliczkę ✓` : "Rozlicza zaliczkę (opcjonalnie)"}
+                      {invoice.rozlicza_zaliczke_id ? `Rozlicza zaliczkę ${zaliczka?.numer ?? "✓"}` : "Rozlicza zaliczkę (opcjonalnie)"}
                     </button>
                   )}
                 >
@@ -1007,6 +1066,7 @@ export function InvoiceEditor({
                           label="— nie rozlicza żadnej —"
                           onClick={() => {
                             close();
+                            setZaliczka(null);
                             patchInvoice({ rozlicza_zaliczke_id: null });
                           }}
                         />
@@ -1023,6 +1083,10 @@ export function InvoiceEditor({
                             selected={invoice.rozlicza_zaliczke_id === z.id}
                             onClick={() => {
                               close();
+                              // Ustaw od razu z danych już dostępnych w pickerze — bez
+                              // tego banner "Do zapłaty" pokazywałby zaliczkę -0,00 zł
+                              // (przestarzałe dane) do czasu ponownego otwarcia edytora.
+                              setZaliczka({ id: z.id, numer: z.numer, brutto: z.brutto });
                               patchInvoice({ rozlicza_zaliczke_id: z.id });
                             }}
                           />
@@ -1131,10 +1195,13 @@ export function InvoiceEditor({
             </div>
           )}
 
-          {!isDraft && invoice.typ_dokumentu === "faktura" && (
+          {!isDraft && (invoice.typ_dokumentu === "faktura" || invoice.typ_dokumentu === "zaliczkowa") && (
             <div className="card-paper rounded-xl border hairline p-4">
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-[11px] uppercase tracking-wide text-muted">KSeF{koryguje ? " — korekta" : ""}</h3>
+                <h3 className="text-[11px] uppercase tracking-wide text-muted">
+                  KSeF
+                  {koryguje ? " — korekta" : invoice.typ_dokumentu === "zaliczkowa" ? " — zaliczkowa" : invoice.rozlicza_zaliczke_id ? " — rozliczeniowa" : ""}
+                </h3>
                 <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-brand-gold">
                   Środowisko testowe
                 </span>

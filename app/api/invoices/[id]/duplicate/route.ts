@@ -26,18 +26,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const typOverride = typeof body.typ_dokumentu === "string" && ["faktura", "proforma", "zaliczkowa"].includes(body.typ_dokumentu) ? body.typ_dokumentu : src.typ_dokumentu;
     const newId = randomUUID();
     const shareToken = randomUUID().replace(/-/g, "");
+    // Świadomie NIE kopiujemy koryguje_id ani rozlicza_zaliczke_id — duplikat
+    // to nowy, niezależny dokument (ta konkretna zaliczka/oryginał są już
+    // powiązane gdzie indziej). zamowienie_* kopiujemy — sensowny punkt
+    // startowy przy duplikowaniu faktury zaliczkowej na kolejną ratę.
     await sql`
       INSERT INTO invoices (
         id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres,
         klient_ulica, klient_kod, klient_miasto, klient_kraj,
         odbiorca_nazwa, odbiorca_ulica, odbiorca_kod, odbiorca_miasto, odbiorca_kraj,
-        klient_email, share_token, typ_dokumentu, waluta, jezyk, uwagi, ceny_brutto
+        klient_email, share_token, typ_dokumentu, zamowienie_wartosc, zamowienie_opis,
+        waluta, jezyk, uwagi, ceny_brutto
       )
       VALUES (
         ${newId}, ${src.lead_id}, ${src.project_id}, ${src.klient_nazwa}, ${src.klient_nip}, ${src.klient_adres},
         ${src.klient_ulica}, ${src.klient_kod}, ${src.klient_miasto}, ${src.klient_kraj},
         ${src.odbiorca_nazwa}, ${src.odbiorca_ulica}, ${src.odbiorca_kod}, ${src.odbiorca_miasto}, ${src.odbiorca_kraj},
-        ${src.klient_email}, ${shareToken}, ${typOverride}, ${src.waluta}, ${src.jezyk}, ${src.uwagi}, ${src.ceny_brutto}
+        ${src.klient_email}, ${shareToken}, ${typOverride}, ${src.zamowienie_wartosc}, ${src.zamowienie_opis},
+        ${src.waluta}, ${src.jezyk}, ${src.uwagi}, ${src.ceny_brutto}
       );
     `;
 

@@ -25,9 +25,18 @@ export async function GET(req: NextRequest) {
   const from = fromParam && isPlausibleDateString(fromParam) ? fromParam : defaults.from;
   const to = toParam && isPlausibleDateString(toParam) ? toParam : defaults.to;
 
+  // Netto/VAT/brutto to ZAWSZE wartości z pozycji TEGO dokumentu (bez odjęcia
+  // rozliczanej zaliczki) — dokładnie to, co widnieje na fakturze/w XML FA(3)
+  // (dla faktury rozliczeniowej to PEŁNA wartość zamówienia, nie "kwota
+  // pozostała do zapłaty" z P_15). Świadomie: to jest rejestr sprzedaży dla
+  // księgowej, ma zgadzać się z wystawionymi dokumentami — netowanie
+  // zaliczka↔rozliczenie (żeby nie liczyć przychodu podwójnie) to standardowa
+  // czynność księgowego przy rozliczaniu VAT, stąd kolumna "Rozlicza
+  // zaliczkę" ułatwiająca powiązanie dokumentów.
   const rows = await sql`
     SELECT i.numer, i.typ_dokumentu, i.data_wystawienia, i.data_sprzedazy, i.termin_platnosci,
       i.klient_nazwa, i.klient_nip, i.klient_kraj, i.waluta, i.status, i.ksef_numer,
+      z.numer AS rozlicza_zaliczke_numer,
       COALESCE(t.netto, 0)::float8 AS netto,
       COALESCE(t.vat, 0)::float8 AS vat,
       COALESCE(t.brutto, 0)::float8 AS brutto
@@ -39,13 +48,14 @@ export async function GET(req: NextRequest) {
         SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
       FROM invoice_items GROUP BY invoice_id
     ) t ON t.invoice_id = i.id
+    LEFT JOIN invoices z ON z.id = i.rozlicza_zaliczke_id
     WHERE i.status != 'Szkic' AND i.data_wystawienia BETWEEN ${from} AND ${to}
     ORDER BY i.data_wystawienia ASC, i.numer ASC;
   `;
 
   const header = [
     "Numer", "Typ", "Data wystawienia", "Data sprzedaży", "Termin płatności",
-    "Kontrahent", "NIP", "Kraj", "Netto", "VAT", "Brutto", "Waluta", "Status", "Numer KSeF",
+    "Kontrahent", "NIP", "Kraj", "Netto", "VAT", "Brutto", "Waluta", "Status", "Numer KSeF", "Rozlicza zaliczkę",
   ];
   const body = rows.map((r) => [
     String(r.numer ?? ""),
@@ -62,6 +72,7 @@ export async function GET(req: NextRequest) {
     String(r.waluta ?? ""),
     String(r.status ?? ""),
     String(r.ksef_numer ?? ""),
+    String(r.rozlicza_zaliczke_numer ?? ""),
   ]);
 
   const csv = toCsv([header, ...body]);

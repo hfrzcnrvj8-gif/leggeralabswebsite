@@ -34,6 +34,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       koryguje = { ...kr, brutto: invoiceTotals(kItems as unknown as InvoiceItem[]).brutto };
     }
   }
+  // Dla faktury ROZLICZENIOWEJ dołączamy dane rozliczanej zaliczki — edytor
+  // pokazuje na ich podstawie "kwota pozostała do zapłaty" (pełna wartość
+  // minus brutto zaliczki), tak jak liczy to lib/ksef.ts (P_15 dla ROZ).
+  let zaliczka = null;
+  if (invoice.rozlicza_zaliczke_id) {
+    const zr = (await sql`SELECT id, numer, status, ksef_status, ksef_numer FROM invoices WHERE id = ${invoice.rozlicza_zaliczke_id};`)[0] ?? null;
+    if (zr) {
+      const zItems = numItems(await sql`SELECT * FROM invoice_items WHERE invoice_id = ${invoice.rozlicza_zaliczke_id} ORDER BY position ASC;`);
+      zaliczka = { ...zr, brutto: invoiceTotals(zItems as unknown as InvoiceItem[]).brutto };
+    }
+  }
   return NextResponse.json({
     invoice,
     items: numItems(items),
@@ -41,6 +52,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     payments: payments.map((p) => ({ ...p, kwota: Number(p.kwota) })),
     korekty,
     koryguje,
+    zaliczka,
   });
 }
 
@@ -79,6 +91,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE invoices SET client_id = ${cid}, updated_at = now() WHERE id = ${id};`;
     }
     if ("przyczyna_korekty" in body) await sql`UPDATE invoices SET przyczyna_korekty = ${str(body.przyczyna_korekty, 500)}, updated_at = now() WHERE id = ${id};`;
+    // Faktura ta ROZLICZA wskazaną zaliczkową (FA(3) RodzajFaktury=ROZ) — link
+    // był tworzony w edytorze (picker "Rozlicza zaliczkę"), ale PATCH go dotąd
+    // po cichu ignorował (pole nigdy nie trafiało do bazy). null = odepnij.
+    if ("rozlicza_zaliczke_id" in body) {
+      const v = typeof body.rozlicza_zaliczke_id === "string" && body.rozlicza_zaliczke_id.trim() ? body.rozlicza_zaliczke_id : null;
+      await sql`UPDATE invoices SET rozlicza_zaliczke_id = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    // Zamówienie/umowa (FA(3) Zamowienie) — tylko dla faktur zaliczkowych.
+    if ("zamowienie_wartosc" in body) {
+      const n = Number(body.zamowienie_wartosc);
+      const v = Number.isFinite(n) && n > 0 ? n : null;
+      await sql`UPDATE invoices SET zamowienie_wartosc = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    if ("zamowienie_opis" in body) await sql`UPDATE invoices SET zamowienie_opis = ${str(body.zamowienie_opis, 500)}, updated_at = now() WHERE id = ${id};`;
     if ("typ_korekty" in body) {
       const v = typeof body.typ_korekty === "string" && ["1", "2", "3"].includes(body.typ_korekty) ? body.typ_korekty : "1";
       await sql`UPDATE invoices SET typ_korekty = ${v}, updated_at = now() WHERE id = ${id};`;

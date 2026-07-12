@@ -390,6 +390,14 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                               {INVOICE_TYPE_LABEL[inv.typ_dokumentu]}
                             </span>
                           )}
+                          {inv.typ_dokumentu === "faktura" && inv.rozlicza_zaliczke_id && (
+                            <span
+                              className="rounded-full bg-brand-purple/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-purple"
+                              title="Faktura rozliczeniowa — rozlicza wcześniejszą zaliczkę (kwota w tabeli to reszta do zapłaty)"
+                            >
+                              Rozliczenie zaliczki
+                            </span>
+                          )}
                           {inv.ksef_status && inv.ksef_status !== "nie_wyslano" && (
                             <span
                               className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${KSEF_STATUS_CLASS[inv.ksef_status]}`}

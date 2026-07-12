@@ -178,8 +178,16 @@ export type Invoice = {
   /** Typ skutku korekty w ewidencji VAT (FA(3) TypKorekty): "1"/"2"/"3".
    * Znaczenie ma tylko dla korekty (koryguje_id ustawione). */
   typ_korekty: string;
-  /** Ustawione na fakturze KOŃCOWEJ, która rozlicza wskazaną zaliczkową. */
+  /** Ustawione na fakturze KOŃCOWEJ ("rozliczeniowej", FA(3) RodzajFaktury=ROZ),
+   * która rozlicza wskazaną zaliczkową — odejmuje jej kwotę od pełnej wartości. */
   rozlicza_zaliczke_id: string | null;
+  /** Pełna wartość BRUTTO zamówienia/umowy (FA(3) Zamowienie/WartoscZamowienia)
+   * — tylko dla faktur zaliczkowych, większa niż sama zaliczka. Null = nie
+   * uzupełniono (XML nadal poprawny wg XSD, ale bez pełnego kontekstu). */
+  zamowienie_wartosc: number | null;
+  /** Krótki opis zamówienia/umowy — staje się jedynym wierszem Zamowienie
+   * (P_7Z) w XML. Dotyczy tylko faktur zaliczkowych. */
+  zamowienie_opis: string;
   kurs_nbp: number | null;
   kurs_nbp_data: string | null;
   kurs_nbp_tabela: string | null;

@@ -408,9 +408,19 @@ async function createInvoicesSchema(): Promise<void> {
   // korekty (przyczyna zaistniała później, np. rabat/zwrot), '3' = inna data.
   // Domyślnie '1'. Dotyczy tylko faktur z koryguje_id.
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS typ_korekty TEXT NOT NULL DEFAULT '1';`;
-  // Rozliczenie zaliczki — ta faktura (końcowa) odejmuje od sumy kwotę
-  // wskazanej wcześniej faktury zaliczkowej.
+  // Rozliczenie zaliczki — ta faktura (końcowa/"rozliczeniowa", FA(3)
+  // RodzajFaktury=ROZ) odejmuje od pełnej wartości zamówienia kwotę wskazanej
+  // wcześniej faktury zaliczkowej (P_15 = kwota POZOSTAŁA do zapłaty).
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS rozlicza_zaliczke_id TEXT REFERENCES invoices(id) ON DELETE SET NULL;`;
+  // Zamówienie/umowa (FA(3) <Zamowienie>, wymagane strukturalnie tylko przy
+  // RodzajFaktury=ZAL) — pełna wartość BRUTTO całego zlecenia, którego ta
+  // faktura zaliczkowa dotyczy (większa niż sama zaliczka), + krótki opis
+  // (staje się jedynym <ZamowienieWiersz>/P_7Z). Dotyczy tylko faktur
+  // zaliczkowych (typ_dokumentu='zaliczkowa'); opcjonalne — bez wypełnienia
+  // XML nadal jest poprawny wg XSD (blok Zamowienie ma minOccurs=0), ale
+  // walidacja przypomina o uzupełnieniu.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS zamowienie_wartosc NUMERIC;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS zamowienie_opis TEXT NOT NULL DEFAULT '';`;
   // Kurs NBP zastosowany do VAT na fakturze w walucie obcej (wymóg ustawy o
   // VAT — kwota VAT musi być dodatkowo wyrażona w PLN wg kursu z dnia
   // poprzedzającego wystawienie). Zapisywany raz, przy wystawieniu.

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!Number.isFinite(kwota) || kwota <= 0) return NextResponse.json({ error: "Nieprawidłowa kwota wpłaty." }, { status: 400 });
     const data = typeof body.data === "string" && isPlausibleDateString(body.data) ? body.data : todayLocalISO();
 
-    const inv = await sql`SELECT id, status, numer, client_id, waluta FROM invoices WHERE id = ${id};`;
+    const inv = await sql`SELECT id, status, numer, client_id, waluta, rozlicza_zaliczke_id FROM invoices WHERE id = ${id};`;
     if (!inv[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
     const clientId = typeof inv[0].client_id === "string" ? inv[0].client_id : null;
 
@@ -44,7 +44,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         SELECT COALESCE(SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)), 0)::float8 AS brutto
         FROM invoice_items WHERE invoice_id = ${id};
       `;
-      const brutto = Number(totals[0]?.brutto ?? 0);
+      let brutto = Number(totals[0]?.brutto ?? 0);
+      // Faktura ROZLICZENIOWA: klient już zapłacił zaliczkę osobno (przy
+      // wysyłce zaliczkowej) — próg "w pełni opłacona" to kwota POZOSTAŁA do
+      // zapłaty (pełna wartość minus zaliczka), nie cała wartość zamówienia
+      // jeszcze raz (inaczej ta faktura nigdy by się nie domknęła wpłatami).
+      const rozliczaZaliczkeId = typeof inv[0].rozlicza_zaliczke_id === "string" ? inv[0].rozlicza_zaliczke_id : null;
+      if (rozliczaZaliczkeId) {
+        const zTotals = await sql`
+          SELECT COALESCE(SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)), 0)::float8 AS brutto
+          FROM invoice_items WHERE invoice_id = ${rozliczaZaliczkeId};
+        `;
+        brutto = Math.max(0, brutto - Number(zTotals[0]?.brutto ?? 0));
+      }
       if (brutto > 0 && totalPaid(paymentsNum) >= brutto) {
         await sql`UPDATE invoices SET status = 'Opłacona', updated_at = now() WHERE id = ${id};`;
         status = "Opłacona";

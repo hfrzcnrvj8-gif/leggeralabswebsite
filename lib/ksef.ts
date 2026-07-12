@@ -89,6 +89,42 @@ export type CorrectionContext = {
 };
 
 // ---------------------------------------------------------------------------
+// Zaliczki (RodzajFaktury = ZAL / ROZ / KOR_ZAL / KOR_ROZ)
+// ---------------------------------------------------------------------------
+
+/** Dane faktury zaliczkowej potrzebne do zbudowania faktury rozliczeniowej
+ * (ROZ) — wypełniane przez route wysyłki z `rozlicza_zaliczke_id`. Ten sam
+ * kontekst obsługuje też KOR_ROZ (korektę faktury rozliczeniowej), bo w
+ * różnicy przed/po kwota zaliczki się znosi — patrz p15 w buildFA3Xml. */
+export type AdvanceContext = {
+  /** Numer faktury zaliczkowej (nasz, wewnętrzny) — FA(3) NrFaZaliczkowej,
+   * używany tylko gdy zaliczka NIE była wysłana przez KSeF. */
+  numer: string;
+  /** Numer KSeF faktury zaliczkowej, jeśli została przyjęta w KSeF — FA(3)
+   * NrKSeFFaZaliczkowej. Null = zaliczka poza KSeF → znacznik NrKSeFZN. */
+  ksefNumber: string | null;
+  /** Kwota brutto zaliczki — odejmowana od pełnej wartości zamówienia przy
+   * wyliczaniu P_15 (kwota POZOSTAŁA do zapłaty) na fakturze rozliczeniowej. */
+  brutto: number;
+};
+
+/** Rodzaj faktury (FA(3) <RodzajFaktury>) wyznaczany z typu dokumentu i relacji
+ * do innych faktur. Korekta czyta typ z WŁASNYCH pól (typ_dokumentu,
+ * rozlicza_zaliczke_id) — `/api/invoices/:id/correct` kopiuje je z oryginału
+ * na nową fakturę właśnie po to, żeby to działało bez osobnego kontekstu. */
+export type RodzajFaktury = "VAT" | "ZAL" | "ROZ" | "KOR" | "KOR_ZAL" | "KOR_ROZ";
+function rodzajFaktury(inv: Invoice, isCorrection: boolean): RodzajFaktury {
+  if (isCorrection) {
+    if (inv.typ_dokumentu === "zaliczkowa") return "KOR_ZAL";
+    if (inv.rozlicza_zaliczke_id) return "KOR_ROZ";
+    return "KOR";
+  }
+  if (inv.typ_dokumentu === "zaliczkowa") return "ZAL";
+  if (inv.rozlicza_zaliczke_id) return "ROZ";
+  return "VAT";
+}
+
+// ---------------------------------------------------------------------------
 // Krok 2 — generowanie pliku FA(3) (offline) + walidacja lokalna
 // ---------------------------------------------------------------------------
 
@@ -213,8 +249,11 @@ export function buildFA3Xml(
   inv: Invoice,
   items: InvoiceItem[],
   company: CompanySettings,
-  correction?: CorrectionContext
+  correction?: CorrectionContext,
+  advance?: AdvanceContext
 ): string {
+  const rodzaj = rodzajFaktury(inv, Boolean(correction));
+
   // Dla korekty sumy P_13/P_14/P_15 to RÓŻNICA (po − przed): pozycje faktury
   // korygującej dodajemy ze znakiem +, pozycje faktury korygowanej ze znakiem −.
   // Dla zwykłej faktury po prostu sumujemy pozycje (bez odejmowania).
@@ -235,10 +274,16 @@ export function buildFA3Xml(
   accumulate(items, 1);
   if (correction) accumulate(correction.originalItems, -1);
 
-  // P_15: dla korekty różnica brutto (po − przed), inaczej suma brutto faktury.
+  // P_15: dla korekty różnica brutto (po − przed — kwota zaliczki znosi się
+  // w odejmowaniu, więc KOR_ROZ liczy się identycznie jak KOR). Dla faktury
+  // rozliczeniowej (ROZ, bez korekty) — kwota POZOSTAŁA do zapłaty: pełna
+  // wartość minus już rozliczona zaliczka (art. 106f ust. 3 ustawy). Inaczej
+  // po prostu suma brutto faktury.
   const p15 = correction
     ? round2(invoiceTotals(items).brutto - invoiceTotals(correction.originalItems).brutto)
-    : invoiceTotals(items).brutto;
+    : advance
+      ? round2(invoiceTotals(items).brutto - advance.brutto)
+      : invoiceTotals(items).brutto;
 
   // Faktura w walucie obcej: kwota VAT musi być dodatkowo wyrażona w PLN wg
   // średniego kursu NBP (art. 106e ust. 11 ustawy o VAT). W FA(3) pola P_13/P_14
@@ -256,6 +301,7 @@ export function buildFA3Xml(
   const L1 = "  ";
   const L2 = "    ";
   const L3 = "      ";
+  const L4 = "        ";
 
   const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
@@ -347,11 +393,11 @@ export function buildFA3Xml(
   lines.push(`${L3}</PMarzy>`);
   lines.push(`${L2}</Adnotacje>`);
 
-  lines.push(tag("RodzajFaktury", correction ? "KOR" : "VAT", L2));
+  lines.push(tag("RodzajFaktury", rodzaj, L2));
 
   // Blok korekty (po RodzajFaktury, przed wierszami) — wymagany przez FA(3),
-  // gdy RodzajFaktury=KOR. Kolejność elementów wg XSD: PrzyczynaKorekty,
-  // TypKorekty, DaneFaKorygowanej.
+  // gdy RodzajFaktury=KOR/KOR_ZAL/KOR_ROZ. Kolejność elementów wg XSD:
+  // PrzyczynaKorekty, TypKorekty, DaneFaKorygowanej.
   if (correction) {
     if (inv.przyczyna_korekty.trim()) lines.push(tag("PrzyczynaKorekty", inv.przyczyna_korekty.trim(), L2));
     lines.push(tag("TypKorekty", correction.typKorekty || "1", L2));
@@ -367,6 +413,22 @@ export function buildFA3Xml(
       lines.push(tag("NrKSeFN", 1, L3));
     }
     lines.push(`${L2}</DaneFaKorygowanej>`);
+  }
+
+  // FakturaZaliczkowa — referencja do zaliczki rozliczanej tą fakturą (ROZ i
+  // KOR_ROZ wskazują na tę samą, oryginalną zaliczkę). Wg XSD idzie zaraz po
+  // bloku korekty, przed wierszami. Choice: numer KSeF (gdy zaliczka była
+  // przyjęta w KSeF) albo NrKSeFZN=1 + nasz numer (gdy zaliczka poza KSeF) —
+  // ta sama konstrukcja co NrKSeF/NrKSeFN w DaneFaKorygowanej wyżej.
+  if (advance) {
+    lines.push(`${L2}<FakturaZaliczkowa>`);
+    if (advance.ksefNumber) {
+      lines.push(tag("NrKSeFFaZaliczkowej", advance.ksefNumber, L3));
+    } else {
+      lines.push(tag("NrKSeFZN", 1, L3));
+      lines.push(tag("NrFaZaliczkowej", advance.numer, L3));
+    }
+    lines.push(`${L2}</FakturaZaliczkowa>`);
   }
 
   // Wiersze faktury. Zwykły dokument = same pozycje. Korekta metodą „przed/po":
@@ -394,6 +456,21 @@ export function buildFA3Xml(
   }
   for (const it of items) emitWiersz(it, nrWiersza++, false);
 
+  // Zamowienie — pełna wartość zamówienia/umowy, którego dotyczy zaliczka
+  // (art. 106f ust. 1 pkt 4 ustawy). Strukturalnie opcjonalne w XSD (nawet dla
+  // ZAL) — emitujemy tylko gdy właściciel uzupełnił `zamowienie_wartosc`
+  // (walidacja niżej tylko ostrzega, jeśli brak). Jedyny wiersz ZamowienieWiersz
+  // ma wszystkie pola poza numerem opcjonalne — wystarczy krótki opis (P_7Z).
+  if ((rodzaj === "ZAL" || rodzaj === "KOR_ZAL") && inv.zamowienie_wartosc != null) {
+    lines.push(`${L2}<Zamowienie>`);
+    lines.push(tag("WartoscZamowienia", kwota(inv.zamowienie_wartosc), L3));
+    lines.push(`${L3}<ZamowienieWiersz>`);
+    lines.push(tag("NrWierszaZam", 1, L4));
+    if (inv.zamowienie_opis.trim()) lines.push(tag("P_7Z", inv.zamowienie_opis.trim(), L4));
+    lines.push(`${L3}</ZamowienieWiersz>`);
+    lines.push(`${L2}</Zamowienie>`);
+  }
+
   lines.push(`${L1}</Fa>`);
   lines.push(`</Faktura>`);
   return lines.join("\n");
@@ -415,7 +492,8 @@ export function validateForFA3(
   inv: Invoice,
   items: InvoiceItem[],
   company: CompanySettings,
-  correction?: CorrectionContext
+  correction?: CorrectionContext,
+  advance?: AdvanceContext
 ): FA3Validation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -478,9 +556,33 @@ export function validateForFA3(
     }
   }
 
-  // Przypadki poza zakresem v1 (RodzajFaktury = VAT).
-  if (inv.typ_dokumentu !== "faktura") {
-    warnings.push(`Typ "${inv.typ_dokumentu}" (proforma/zaliczkowa) nie jest jeszcze mapowany na FA(3) — v1 obejmuje zwykłą fakturę.`);
+  // Przypadki poza zakresem v1 (RodzajFaktury = VAT/ZAL/ROZ obsłużone;
+  // proforma z definicji nie idzie do KSeF — to dokument niefiskalny).
+  if (inv.typ_dokumentu === "proforma") {
+    errors.push("Proforma nie jest dokumentem fiskalnym — nie wysyła się jej do KSeF.");
+  }
+
+  // Faktura zaliczkowa (ZAL/KOR_ZAL) — Zamowienie jest strukturalnie
+  // opcjonalne w XSD, ale bez niego brakuje kontekstu "na poczet czego" jest
+  // zaliczka (art. 106f ust. 1 pkt 4) — tylko ostrzeżenie, nie blokujemy.
+  if (inv.typ_dokumentu === "zaliczkowa") {
+    if (inv.zamowienie_wartosc == null) {
+      warnings.push('Brak "Wartości zamówienia" — zalecane dla faktury zaliczkowej (opisuje, na poczet czego jest zaliczka), ale wysyłka zadziała bez tego.');
+    } else if (round2(Number(inv.zamowienie_wartosc)) < invoiceTotals(items).brutto) {
+      warnings.push("Wartość zamówienia jest mniejsza niż kwota tej zaliczki — sprawdź, czy to na pewno zaliczka na poczet tego zamówienia.");
+    }
+  }
+
+  // Faktura rozliczeniowa (ROZ/KOR_ROZ) — wymaga danych rozliczanej zaliczki.
+  if (inv.rozlicza_zaliczke_id) {
+    if (!advance) {
+      errors.push("Brak danych rozliczanej faktury zaliczkowej — nie można zbudować faktury rozliczeniowej do KSeF.");
+    } else {
+      if (!advance.numer.trim()) errors.push("Rozliczana faktura zaliczkowa nie ma numeru.");
+      if (!correction && advance.brutto > invoiceTotals(items).brutto) {
+        errors.push("Kwota zaliczki jest większa niż wartość tej faktury — sprawdź pozycje (kwota pozostała do zapłaty nie może być ujemna).");
+      }
+    }
   }
   // Waluta obca: gdy na fakturze jest VAT do przeliczenia (stawka numeryczna),
   // FA(3) wymaga kwoty podatku w PLN (P_14_xW) — a tę liczymy z kursu NBP, który
