@@ -44,7 +44,7 @@ import {
   unitBrutto,
   nettoFromUnitBrutto,
 } from "@/lib/invoices";
-import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL } from "@/lib/ksef";
+import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL, KOREKTA_TYPY, KOREKTA_TYP_LABEL } from "@/lib/ksef";
 import type { Client } from "@/lib/clients";
 import { lookupClientByNip } from "@/lib/vies";
 import { formatPlDate } from "@/lib/projects";
@@ -917,15 +917,28 @@ export function InvoiceEditor({
             </Field>
 
             {koryguje && (
-              <div className="mt-2">
+              <div className="mt-2 space-y-2">
                 <textarea
                   value={invoice.przyczyna_korekty}
                   onChange={(e) => setInvoice((p) => (p ? { ...p, przyczyna_korekty: e.target.value } : p))}
                   onBlur={(e) => patchInvoice({ przyczyna_korekty: e.target.value })}
                   rows={2}
-                  placeholder="Przyczyna korekty"
+                  placeholder="Przyczyna korekty (wymagana przez KSeF)"
                   className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
                 />
+                <Field label="Typ korekty (KSeF)">
+                  <PropertyMenu
+                    value={invoice.typ_korekty || "1"}
+                    options={KOREKTA_TYPY.map((t) => ({ value: t, label: KOREKTA_TYP_LABEL[t] }))}
+                    onChange={(v) => patchInvoice({ typ_korekty: v })}
+                    title="Typ skutku korekty w ewidencji VAT"
+                    full
+                  >
+                    <span className="text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)] rounded-md px-1.5 py-1 -mx-1.5">
+                      {KOREKTA_TYP_LABEL[(invoice.typ_korekty || "1") as (typeof KOREKTA_TYPY)[number]] ?? invoice.typ_korekty}
+                    </span>
+                  </PropertyMenu>
+                </Field>
               </div>
             )}
 
@@ -1071,10 +1084,10 @@ export function InvoiceEditor({
             </div>
           )}
 
-          {!isDraft && invoice.typ_dokumentu === "faktura" && !koryguje && (
+          {!isDraft && invoice.typ_dokumentu === "faktura" && (
             <div className="card-paper rounded-xl border hairline p-4">
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-[11px] uppercase tracking-wide text-muted">KSeF</h3>
+                <h3 className="text-[11px] uppercase tracking-wide text-muted">KSeF{koryguje ? " — korekta" : ""}</h3>
                 <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-brand-gold">
                   Środowisko testowe
                 </span>

@@ -56,6 +56,39 @@ export const KSEF_TRYB_LABEL: Record<KsefTryb, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Korekty (RodzajFaktury = KOR)
+// ---------------------------------------------------------------------------
+
+/** Typ skutku korekty w ewidencji VAT (FA(3) <TypKorekty>). Wybór ma
+ * konsekwencje księgowe — dlatego jawny, z opisem po polsku dla właściciela. */
+export const KOREKTA_TYPY = ["1", "2", "3"] as const;
+export type KorektaTyp = (typeof KOREKTA_TYPY)[number];
+
+export const KOREKTA_TYP_LABEL: Record<KorektaTyp, string> = {
+  "1": "W dacie faktury pierwotnej (korekta błędu)",
+  "2": "W dacie wystawienia korekty (przyczyna późniejsza — rabat, zwrot)",
+  "3": "W innej dacie",
+};
+
+/** Dane faktury korygowanej potrzebne do zbudowania korekty FA(3). Wypełniane
+ * przez route wysyłki z oryginalnej faktury (koryguje_id). */
+export type CorrectionContext = {
+  /** Numer faktury korygowanej — FA(3) NrFaKorygowanej. */
+  originalNumer: string;
+  /** Data wystawienia faktury korygowanej — FA(3) DataWystFaKorygowanej.
+   * Może przyjść z bazy jako Date lub string (obsłużone przez dateStr). */
+  originalDataWystawienia: unknown;
+  /** Numer KSeF faktury korygowanej, jeśli była w KSeF (przyjęta). Null =
+   * wystawiona poza KSeF → znacznik NrKSeFN. */
+  originalKsefNumber: string | null;
+  /** Pozycje faktury korygowanej (stan PRZED korektą) — do wierszy StanPrzed
+   * oraz do wyliczenia RÓŻNICY w sumach P_13/P_14/P_15. */
+  originalItems: InvoiceItem[];
+  /** Typ skutku korekty (FA(3) TypKorekty): "1"/"2"/"3". */
+  typKorekty: string;
+};
+
+// ---------------------------------------------------------------------------
 // Krok 2 — generowanie pliku FA(3) (offline) + walidacja lokalna
 // ---------------------------------------------------------------------------
 
@@ -179,20 +212,33 @@ function tag(name: string, value: string | number, indent: string): string {
 export function buildFA3Xml(
   inv: Invoice,
   items: InvoiceItem[],
-  company: CompanySettings
+  company: CompanySettings,
+  correction?: CorrectionContext
 ): string {
-  const totals = invoiceTotals(items);
-
-  // Sumy podstaw (P_13_x) i podatku (P_14_x) pogrupowane wg pola FA(3).
+  // Dla korekty sumy P_13/P_14/P_15 to RÓŻNICA (po − przed): pozycje faktury
+  // korygującej dodajemy ze znakiem +, pozycje faktury korygowanej ze znakiem −.
+  // Dla zwykłej faktury po prostu sumujemy pozycje (bez odejmowania).
   const netByField = new Map<string, number>();
   const vatByField = new Map<string, number>();
-  for (const it of items) {
-    const slot = FA3_RATE_SLOT[it.vat_stawka] ?? FA3_RATE_SLOT["23"];
-    netByField.set(slot.pFieldNetto, (netByField.get(slot.pFieldNetto) ?? 0) + itemNetto(it));
-    if (slot.pFieldVat) {
-      vatByField.set(slot.pFieldVat, (vatByField.get(slot.pFieldVat) ?? 0) + itemVat(it));
+  const touched = new Set<string>();
+  const accumulate = (list: InvoiceItem[], sign: number) => {
+    for (const it of list) {
+      const slot = FA3_RATE_SLOT[it.vat_stawka] ?? FA3_RATE_SLOT["23"];
+      netByField.set(slot.pFieldNetto, (netByField.get(slot.pFieldNetto) ?? 0) + sign * itemNetto(it));
+      touched.add(slot.pFieldNetto);
+      if (slot.pFieldVat) {
+        vatByField.set(slot.pFieldVat, (vatByField.get(slot.pFieldVat) ?? 0) + sign * itemVat(it));
+        touched.add(slot.pFieldVat);
+      }
     }
-  }
+  };
+  accumulate(items, 1);
+  if (correction) accumulate(correction.originalItems, -1);
+
+  // P_15: dla korekty różnica brutto (po − przed), inaczej suma brutto faktury.
+  const p15 = correction
+    ? round2(invoiceTotals(items).brutto - invoiceTotals(correction.originalItems).brutto)
+    : invoiceTotals(items).brutto;
 
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const L1 = "  ";
@@ -257,13 +303,16 @@ export function buildFA3Xml(
   lines.push(tag("P_2", inv.numer || "", L2));
   if (inv.data_sprzedazy) lines.push(tag("P_6", dateStr(inv.data_sprzedazy), L2));
 
-  // Podstawy i kwoty VAT w ustalonej kolejności pól FA(3).
+  // Podstawy i kwoty VAT w ustalonej kolejności pól FA(3). Emitujemy każde
+  // pole „dotknięte" przez pozycje (dla korekty także z wartością 0.00, gdy
+  // różnica wychodzi zerowa dla danej stawki — pole i tak wystąpiło).
   for (const f of ["P_13_1", "P_14_1", "P_13_2", "P_14_2", "P_13_3", "P_14_3", "P_13_4", "P_13_6", "P_13_7"]) {
+    if (!touched.has(f)) continue;
     const isVat = f.startsWith("P_14");
-    const val = isVat ? vatByField.get(f) : netByField.get(f);
-    if (val !== undefined) lines.push(tag(f, kwota(val), L2));
+    const val = (isVat ? vatByField.get(f) : netByField.get(f)) ?? 0;
+    lines.push(tag(f, kwota(val), L2));
   }
-  lines.push(tag("P_15", kwota(totals.brutto), L2));
+  lines.push(tag("P_15", kwota(p15), L2));
 
   // Adnotacje — komplet obowiązkowych znaczników. Domyślnie "nie dotyczy" (2)
   // / znaczniki negatywne (1) dla zwykłej faktury krajowej v1.
@@ -284,20 +333,49 @@ export function buildFA3Xml(
   lines.push(`${L3}</PMarzy>`);
   lines.push(`${L2}</Adnotacje>`);
 
-  lines.push(tag("RodzajFaktury", "VAT", L2));
+  lines.push(tag("RodzajFaktury", correction ? "KOR" : "VAT", L2));
 
-  // Wiersze faktury.
-  items.forEach((it, i) => {
+  // Blok korekty (po RodzajFaktury, przed wierszami) — wymagany przez FA(3),
+  // gdy RodzajFaktury=KOR. Kolejność elementów wg XSD: PrzyczynaKorekty,
+  // TypKorekty, DaneFaKorygowanej.
+  if (correction) {
+    if (inv.przyczyna_korekty.trim()) lines.push(tag("PrzyczynaKorekty", inv.przyczyna_korekty.trim(), L2));
+    lines.push(tag("TypKorekty", correction.typKorekty || "1", L2));
+    lines.push(`${L2}<DaneFaKorygowanej>`);
+    lines.push(tag("DataWystFaKorygowanej", dateStr(correction.originalDataWystawienia), L3));
+    lines.push(tag("NrFaKorygowanej", correction.originalNumer, L3));
+    if (correction.originalKsefNumber) {
+      // Faktura korygowana była w KSeF: znacznik NrKSeF=1 + jej numer KSeF.
+      lines.push(tag("NrKSeF", 1, L3));
+      lines.push(tag("NrKSeFFaKorygowanej", correction.originalKsefNumber, L3));
+    } else {
+      // Faktura korygowana wystawiona poza KSeF.
+      lines.push(tag("NrKSeFN", 1, L3));
+    }
+    lines.push(`${L2}</DaneFaKorygowanej>`);
+  }
+
+  // Wiersze faktury. Zwykły dokument = same pozycje. Korekta metodą „przed/po":
+  // najpierw pozycje faktury korygowanej ze znacznikiem StanPrzed=1, potem
+  // pozycje po korekcie — ciągła numeracja NrWierszaFa.
+  const emitWiersz = (it: InvoiceItem, nr: number, stanPrzed: boolean) => {
     lines.push(`${L2}<FaWiersz>`);
-    lines.push(tag("NrWierszaFa", i + 1, L3));
+    lines.push(tag("NrWierszaFa", nr, L3));
     lines.push(tag("P_7", it.nazwa, L3));
     lines.push(tag("P_8A", it.jednostka || "szt.", L3));
     lines.push(tag("P_8B", ilosc(it.ilosc), L3));
     lines.push(tag("P_9A", kwota(it.cena_netto), L3));
     lines.push(tag("P_11", kwota(itemNetto(it)), L3));
     lines.push(tag("P_12", p12Value(it.vat_stawka), L3));
+    if (stanPrzed) lines.push(tag("StanPrzed", 1, L3));
     lines.push(`${L2}</FaWiersz>`);
-  });
+  };
+
+  let nrWiersza = 1;
+  if (correction) {
+    for (const it of correction.originalItems) emitWiersz(it, nrWiersza++, true);
+  }
+  for (const it of items) emitWiersz(it, nrWiersza++, false);
 
   lines.push(`${L1}</Fa>`);
   lines.push(`</Faktura>`);
@@ -319,7 +397,8 @@ export type FA3Validation = { errors: string[]; warnings: string[] };
 export function validateForFA3(
   inv: Invoice,
   items: InvoiceItem[],
-  company: CompanySettings
+  company: CompanySettings,
+  correction?: CorrectionContext
 ): FA3Validation {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -356,18 +435,29 @@ export function validateForFA3(
     });
   }
 
-  // Spójność sum: P_15 = netto + VAT.
+  // Spójność sum: P_15 = netto + VAT (osobno dla stanu po korekcie / faktury).
   const totals = invoiceTotals(items);
   if (round2(totals.netto + totals.vat) !== totals.brutto) {
     errors.push("Suma brutto (P_15) nie zgadza się z sumą netto + VAT.");
   }
 
+  // Korekta (RodzajFaktury = KOR) — wymagane dane faktury korygowanej.
+  if (inv.koryguje_id) {
+    if (!correction) {
+      errors.push("Brak danych faktury korygowanej — nie można zbudować korekty do KSeF.");
+    } else {
+      if (!inv.przyczyna_korekty.trim()) errors.push("Podaj przyczynę korekty (wymagana przez KSeF).");
+      if (!correction.originalNumer.trim()) errors.push("Faktura korygowana nie ma numeru.");
+      if (!correction.originalDataWystawienia) errors.push("Brak daty wystawienia faktury korygowanej.");
+      if (!(KOREKTA_TYPY as readonly string[]).includes(correction.typKorekty)) {
+        errors.push("Nieprawidłowy typ korekty.");
+      }
+    }
+  }
+
   // Przypadki poza zakresem v1 (RodzajFaktury = VAT).
   if (inv.typ_dokumentu !== "faktura") {
     warnings.push(`Typ "${inv.typ_dokumentu}" (proforma/zaliczkowa) nie jest jeszcze mapowany na FA(3) — v1 obejmuje zwykłą fakturę.`);
-  }
-  if (inv.koryguje_id) {
-    warnings.push("To korekta — FA(3) korekt (RodzajFaktury=KOR) dokładamy poza v1.");
   }
   if ((inv.waluta || "PLN") !== "PLN") {
     warnings.push("Faktura w walucie obcej — kurs NBP i pola przeliczeniowe FA(3) dokładamy poza v1.");

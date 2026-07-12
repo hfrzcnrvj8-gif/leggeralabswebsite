@@ -171,6 +171,9 @@ export type Invoice = {
    * stan PO korekcie, oryginał (koryguje_id) zostaje nienaruszony. */
   koryguje_id: string | null;
   przyczyna_korekty: string;
+  /** Typ skutku korekty w ewidencji VAT (FA(3) TypKorekty): "1"/"2"/"3".
+   * Znaczenie ma tylko dla korekty (koryguje_id ustawione). */
+  typ_korekty: string;
   /** Ustawione na fakturze KOŃCOWEJ, która rozlicza wskazaną zaliczkową. */
   rozlicza_zaliczke_id: string | null;
   kurs_nbp: number | null;

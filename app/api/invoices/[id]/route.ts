@@ -72,6 +72,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE invoices SET client_id = ${cid}, updated_at = now() WHERE id = ${id};`;
     }
     if ("przyczyna_korekty" in body) await sql`UPDATE invoices SET przyczyna_korekty = ${str(body.przyczyna_korekty, 500)}, updated_at = now() WHERE id = ${id};`;
+    if ("typ_korekty" in body) {
+      const v = typeof body.typ_korekty === "string" && ["1", "2", "3"].includes(body.typ_korekty) ? body.typ_korekty : "1";
+      await sql`UPDATE invoices SET typ_korekty = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("typ_dokumentu" in body) {
       const v = typeof body.typ_dokumentu === "string" && ["faktura", "proforma", "zaliczkowa"].includes(body.typ_dokumentu) ? body.typ_dokumentu : "faktura";
       await sql`UPDATE invoices SET typ_dokumentu = ${v}, updated_at = now() WHERE id = ${id};`;

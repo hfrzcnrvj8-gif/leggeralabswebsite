@@ -2,10 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { DEFAULT_COMPANY_SETTINGS, type Invoice, type InvoiceItem, type CompanySettings } from "@/lib/invoices";
-import { buildFA3Xml, validateForFA3, nipDigits, type KsefStatus } from "@/lib/ksef";
+import { buildFA3Xml, validateForFA3, nipDigits, type KsefStatus, type CorrectionContext } from "@/lib/ksef";
 import { getKsefConfig, sendInvoiceToKsef } from "@/lib/ksef-api";
+import type { Sql } from "@/lib/db";
 
 export const runtime = "nodejs";
+
+/** Wczytuje pozycje faktury i normalizuje pola liczbowe (baza zwraca NUMERIC
+ * jako string). Wspólne dla faktury głównej i korygowanej. */
+async function loadItems(sql: Sql, invoiceId: string): Promise<InvoiceItem[]> {
+  const rows = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${invoiceId} ORDER BY position ASC;`;
+  return rows.map((r) => ({
+    ...(r as Record<string, unknown>),
+    ilosc: Number((r as Record<string, unknown>).ilosc),
+    cena_netto: Number((r as Record<string, unknown>).cena_netto),
+    rabat_procent: Number((r as Record<string, unknown>).rabat_procent ?? 0),
+  })) as unknown as InvoiceItem[];
+}
+
+/** Buduje kontekst korekty z faktury korygowanej (koryguje_id): jej numer,
+ * data wystawienia, numer KSeF (jeśli była w KSeF) i pozycje sprzed korekty. */
+async function loadCorrection(sql: Sql, inv: Invoice): Promise<CorrectionContext | undefined> {
+  if (!inv.koryguje_id) return undefined;
+  const rows = await sql`SELECT * FROM invoices WHERE id = ${inv.koryguje_id};`;
+  const original = rows[0] as unknown as Invoice | undefined;
+  if (!original) return undefined;
+  return {
+    originalNumer: original.numer || "",
+    originalDataWystawienia: original.data_wystawienia,
+    // Numer KSeF faktury korygowanej tylko gdy została przyjęta w KSeF.
+    originalKsefNumber: original.ksef_status === "przyjeto" ? original.ksef_numer : null,
+    originalItems: await loadItems(sql, original.id),
+    typKorekty: inv.typ_korekty || "1",
+  };
+}
 
 /** Data wystawienia w formacie DD-MM-RRRR wymaganym w linku kodu QR KSeF.
  * Odporna na to, że baza zwraca kolumnę DATE jako string albo jako Date. */
@@ -51,17 +81,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const rows = await sql`SELECT * FROM invoices WHERE id = ${id};`;
   const invoice = rows[0] as unknown as Invoice | undefined;
   if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const itemRows = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
-  const items = itemRows.map((r) => ({
-    ...(r as Record<string, unknown>),
-    ilosc: Number((r as Record<string, unknown>).ilosc),
-    cena_netto: Number((r as Record<string, unknown>).cena_netto),
-    rabat_procent: Number((r as Record<string, unknown>).rabat_procent),
-  })) as unknown as InvoiceItem[];
+  const items = await loadItems(sql, id);
   const settingsRows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
   const company = (settingsRows[0] as unknown as CompanySettings) ?? DEFAULT_COMPANY_SETTINGS;
-  const validation = validateForFA3(invoice, items, company);
-  const xml = buildFA3Xml(invoice, items, company);
+  const correction = await loadCorrection(sql, invoice);
+  const validation = validateForFA3(invoice, items, company, correction);
+  const xml = buildFA3Xml(invoice, items, company, correction);
   return NextResponse.json({
     dryRun: true,
     hint: "To tylko podgląd. Aby NAPRAWDĘ wysłać fakturę na środowisko testowe KSeF, dodaj do adresu ?send=1.",
@@ -86,23 +111,21 @@ async function runSend(id: string) {
     const invoice = rows[0] as unknown as Invoice | undefined;
     if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-    const itemRows = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
-    const items = itemRows.map((r) => ({
-      ...(r as Record<string, unknown>),
-      ilosc: Number((r as Record<string, unknown>).ilosc),
-      cena_netto: Number((r as Record<string, unknown>).cena_netto),
-    })) as unknown as InvoiceItem[];
+    const items = await loadItems(sql, id);
 
     const settingsRows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
     const company = (settingsRows[0] as unknown as CompanySettings) ?? DEFAULT_COMPANY_SETTINGS;
 
+    // Korekta? Wczytaj dane faktury korygowanej (numer/data/numer KSeF/pozycje).
+    const correction = await loadCorrection(sql, invoice);
+
     // Walidacja lokalna — błędy blokują wysyłkę (ostrzeżenia tylko informują).
-    const validation = validateForFA3(invoice, items, company);
+    const validation = validateForFA3(invoice, items, company, correction);
     if (validation.errors.length) {
       return NextResponse.json({ ok: false, stage: "walidacja", validation }, { status: 400 });
     }
 
-    const xml = buildFA3Xml(invoice, items, company);
+    const xml = buildFA3Xml(invoice, items, company, correction);
     const cfg = getKsefConfig();
     const result = await sendInvoiceToKsef(cfg, xml);
 
