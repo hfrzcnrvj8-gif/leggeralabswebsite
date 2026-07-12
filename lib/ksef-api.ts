@@ -151,8 +151,14 @@ export async function authenticateWithToken(cfg: KsefConfig): Promise<KsefAuthRe
   const key = await fetchTokenEncryptionKey(cfg.baseUrl);
   const challengeRes = await postJson(`${cfg.baseUrl}/auth/challenge`, {});
   const challenge = String(challengeRes.challenge || "");
-  const timestamp = Number(challengeRes.timestamp || challengeRes.timestampMs || 0);
-  if (!challenge || !timestamp) throw new Error("KSeF: niekompletna odpowiedź /auth/challenge.");
+  // API zwraca `timestampMs` (liczba ms) oraz `timestamp` (tekst ISO). Do
+  // szyfrowania potrzebujemy milisekund — bierzemy timestampMs, a gdyby go
+  // brakło, parsujemy ISO na ms.
+  const rawTs = challengeRes.timestampMs ?? challengeRes.timestamp;
+  const timestamp = typeof rawTs === "number" ? rawTs : Date.parse(String(rawTs));
+  if (!challenge || !Number.isFinite(timestamp) || timestamp <= 0) {
+    throw new Error("KSeF: niekompletna odpowiedź /auth/challenge.");
+  }
 
   // 3–4: szyfrujemy token i wysyłamy żądanie uwierzytelnienia.
   const encryptedToken = encryptKsefToken(cfg.token, timestamp, key);
