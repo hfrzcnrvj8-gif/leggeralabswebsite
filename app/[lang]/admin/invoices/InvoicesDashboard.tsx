@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconBuildingStore, IconExternalLink, IconX, IconRepeat } from "@tabler/icons-react";
+import { IconPlus, IconBuildingStore, IconExternalLink, IconX, IconRepeat, IconBan } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Invoice,
@@ -87,6 +87,22 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       if (!res.ok) toast("Nie udało się zapisać.", "error");
     },
     [toast]
+  );
+
+  // Wystawionej faktury nie da się usunąć (zostawiłoby dziurę w numeracji) —
+  // zamiast tego oznaczamy ją jako „Anulowana". Osobna akcja od „Usuń", żeby
+  // przycisk na wierszu nie prowadził donikąd dla wystawionych faktur.
+  const cancelInvoice = useCallback(
+    async (id: string, numer: string | null) => {
+      const ok = await confirm(
+        `Anulować fakturę ${numer ?? ""}? Zostanie oznaczona jako „Anulowana" (numeru nie da się usunąć).`,
+        { danger: true }
+      );
+      if (!ok) return;
+      await updateStatus(id, "Anulowana");
+      toast("Faktura anulowana.");
+    },
+    [confirm, updateStatus, toast]
   );
 
   const toggleSelect = useCallback((id: string) => {
@@ -409,13 +425,23 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                               <IconExternalLink size={15} />
                             </a>
                           )}
-                          <button
-                            onClick={() => deleteInvoice(inv.id, inv.numer)}
-                            className="flex text-muted hover:text-red-400"
-                            title="Usuń"
-                          >
-                            <IconX size={15} />
-                          </button>
+                          {!inv.numer ? (
+                            <button
+                              onClick={() => deleteInvoice(inv.id, inv.numer)}
+                              className="flex text-muted hover:text-red-400"
+                              title="Usuń szkic"
+                            >
+                              <IconX size={15} />
+                            </button>
+                          ) : inv.status !== "Anulowana" ? (
+                            <button
+                              onClick={() => cancelInvoice(inv.id, inv.numer)}
+                              className="flex text-muted hover:text-red-400"
+                              title="Anuluj fakturę"
+                            >
+                              <IconBan size={15} />
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
