@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy } from "@tabler/icons-react";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy, IconSearch } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, type OfferItem, OFFER_LANGS, OFFER_LANG_LABEL, offerTotal, itemKwota } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
@@ -11,6 +11,7 @@ import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
 import { ClientLinkChip, ClientPickerButton } from "../components";
 import type { Client } from "@/lib/clients";
+import { lookupClientByNip } from "@/lib/vies";
 
 export function OfferEditor({
   id,
@@ -34,6 +35,7 @@ export function OfferEditor({
   const [sending, setSending] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
+  const [nipLoading, setNipLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -97,6 +99,19 @@ export function OfferEditor({
     },
     [patchOffer]
   );
+
+  const lookupNip = useCallback(async () => {
+    setNipLoading(true);
+    const r = await lookupClientByNip(offer?.klient_nip ?? "");
+    setNipLoading(false);
+    if (!r.ok) {
+      toast(r.message, "error");
+      return;
+    }
+    setOffer((p) => (p ? { ...p, ...r.fields } : p));
+    await patchOffer(r.fields);
+    toast(r.message);
+  }, [offer?.klient_nip, patchOffer, toast]);
 
   const addItem = useCallback(async () => {
     const res = await fetch(`/api/offers/${id}/items`, { method: "POST" });
@@ -260,13 +275,24 @@ export function OfferEditor({
               placeholder="Nazwa klienta / firmy"
               className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
-            <input
-              value={offer.klient_nip}
-              onChange={(e) => setOffer((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
-              onBlur={(e) => patchOffer({ klient_nip: e.target.value })}
-              placeholder="NIP"
-              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-            />
+            <div className="mb-2 flex gap-1.5">
+              <input
+                value={offer.klient_nip}
+                onChange={(e) => setOffer((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
+                onBlur={(e) => patchOffer({ klient_nip: e.target.value })}
+                placeholder="NIP lub VAT-UE (np. DE123456789)"
+                className="min-w-0 flex-1 rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+              />
+              <button
+                onClick={lookupNip}
+                disabled={nipLoading}
+                title="Polski NIP → Biała Lista MF; numer z prefiksem kraju UE (np. DE, IE) → VIES"
+                className="flex shrink-0 items-center gap-1 rounded-lg border hairline px-2.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
+              >
+                {nipLoading ? <IconLoader2 size={13} className="animate-spin" /> : <IconSearch size={13} />}
+                Szukaj po NIP / VAT-UE
+              </button>
+            </div>
             <input
               value={offer.klient_email}
               onChange={(e) => setOffer((p) => (p ? { ...p, klient_email: e.target.value } : p))}

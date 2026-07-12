@@ -37,6 +37,71 @@ function splitViesAddress(address: string): { ulica: string; kod: string; miasto
   return { ulica: flat, kod: "", miasto: "" };
 }
 
+// ---------------------------------------------------------------------------
+// Klient (przeglądarka): jeden helper dla przycisku „Szukaj po NIP / VAT-UE"
+// w edytorach Faktur i Ofert. Rozgałęzia PL → Biała Lista MF, reszta UE →
+// VIES, i zwraca gotowe pola nabywcy + komunikat. Uderza wyłącznie w wewnętrzne
+// route'y (/api/mf, /api/vies), nie w zewnętrzne API bezpośrednio.
+// ---------------------------------------------------------------------------
+
+export type NipLookupFields = {
+  klient_nazwa: string;
+  klient_ulica: string;
+  klient_kod: string;
+  klient_miasto: string;
+  klient_kraj?: string;
+};
+
+export type NipLookupResult =
+  | { ok: true; fields: NipLookupFields; message: string }
+  | { ok: false; message: string };
+
+export async function lookupClientByNip(nipRaw: string): Promise<NipLookupResult> {
+  const raw = (nipRaw ?? "").replace(/\s+/g, "").toUpperCase();
+  if (!raw) return { ok: false, message: "Wpisz najpierw NIP lub numer VAT-UE." };
+  const prefix = /^([A-Z]{2})(.+)$/.exec(raw);
+  const useVies = Boolean(prefix && prefix[1] !== "PL" && VIES_COUNTRY_CODES.has(prefix[1]));
+  try {
+    if (useVies && prefix) {
+      const res = await fetch(`/api/vies/${prefix[1]}/${encodeURIComponent(prefix[2])}`);
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        return { ok: false, message: d.error ?? "Nie udało się zweryfikować w VIES." };
+      }
+      const { subject } = (await res.json()) as {
+        subject: { nazwa: string; ulica: string; kod: string; miasto: string; kraj: string };
+      };
+      return {
+        ok: true,
+        fields: {
+          klient_nazwa: subject.nazwa,
+          klient_ulica: subject.ulica,
+          klient_kod: subject.kod,
+          klient_miasto: subject.miasto,
+          klient_kraj: subject.kraj,
+        },
+        message: subject.nazwa
+          ? "Uzupełniono dane z VIES."
+          : "Numer VAT-UE jest ważny, ale ten kraj nie udostępnia nazwy/adresu — uzupełnij ręcznie.",
+      };
+    }
+    const nip = raw.replace(/^PL/, "").replace(/\D/g, "");
+    const res = await fetch(`/api/mf/nip/${nip}`);
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, message: d.error ?? "Nie znaleziono podmiotu o tym NIP." };
+    }
+    const { subject } = (await res.json()) as { subject: { nazwa: string; ulica: string; kod: string; miasto: string } };
+    return {
+      ok: true,
+      fields: { klient_nazwa: subject.nazwa, klient_ulica: subject.ulica, klient_kod: subject.kod, klient_miasto: subject.miasto },
+      message: "Uzupełniono dane z Białej Listy MF.",
+    };
+  } catch {
+    return { ok: false, message: "Błąd połączenia przy wyszukiwaniu podmiotu." };
+  }
+}
+
 /** Sprawdza numer VAT-UE w VIES i zwraca dane podmiotu. Zwraca null przy
  * błędzie połączenia/nieprawidłowym wejściu; `valid=false`, gdy numer istnieje
  * w zapytaniu, ale VIES uznał go za nieaktywny. */

@@ -43,7 +43,7 @@ import {
 } from "@/lib/invoices";
 import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL } from "@/lib/ksef";
 import type { Client } from "@/lib/clients";
-import { VIES_COUNTRY_CODES } from "@/lib/vies";
+import { lookupClientByNip } from "@/lib/vies";
 import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -299,58 +299,16 @@ export function InvoiceEditor({
   }, [invoice, confirm, patchInvoice]);
 
   const lookupNip = useCallback(async () => {
-    const raw = (invoice?.klient_nip ?? "").replace(/\s+/g, "").toUpperCase();
-    if (!raw) {
-      toast("Wpisz najpierw NIP lub numer VAT-UE.", "error");
+    setNipLoading(true);
+    const r = await lookupClientByNip(invoice?.klient_nip ?? "");
+    setNipLoading(false);
+    if (!r.ok) {
+      toast(r.message, "error");
       return;
     }
-    // Prefiks 2-literowy kraju UE (poza PL) → VIES; PL lub same cyfry → Biała
-    // Lista MF. „EL" = Grecja, „XI" = Irlandia Płn. (osobliwości VIES).
-    const prefix = /^([A-Z]{2})(.+)$/.exec(raw);
-    const useVies = Boolean(prefix && prefix[1] !== "PL" && VIES_COUNTRY_CODES.has(prefix[1]));
-    setNipLoading(true);
-    try {
-      if (useVies && prefix) {
-        const res = await fetch(`/api/vies/${prefix[1]}/${encodeURIComponent(prefix[2])}`);
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          toast(data.error ?? "Nie udało się zweryfikować w VIES.", "error");
-          return;
-        }
-        const { subject } = (await res.json()) as {
-          subject: { nazwa: string; ulica: string; kod: string; miasto: string; kraj: string };
-        };
-        const patch = {
-          klient_nazwa: subject.nazwa,
-          klient_ulica: subject.ulica,
-          klient_kod: subject.kod,
-          klient_miasto: subject.miasto,
-          klient_kraj: subject.kraj,
-        };
-        setInvoice((p) => (p ? { ...p, ...patch } : p));
-        await patchInvoice(patch);
-        toast(
-          subject.nazwa
-            ? "Uzupełniono dane z VIES."
-            : "Numer VAT-UE jest ważny, ale ten kraj nie udostępnia nazwy/adresu — uzupełnij ręcznie.",
-        );
-      } else {
-        const nip = raw.replace(/^PL/, "").replace(/\D/g, "");
-        const res = await fetch(`/api/mf/nip/${nip}`);
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          toast(data.error ?? "Nie znaleziono podmiotu o tym NIP.", "error");
-          return;
-        }
-        const { subject } = (await res.json()) as { subject: { nazwa: string; ulica: string; kod: string; miasto: string } };
-        const patch = { klient_nazwa: subject.nazwa, klient_ulica: subject.ulica, klient_kod: subject.kod, klient_miasto: subject.miasto };
-        setInvoice((p) => (p ? { ...p, ...patch } : p));
-        await patchInvoice(patch);
-        toast("Uzupełniono dane z Białej Listy MF.");
-      }
-    } finally {
-      setNipLoading(false);
-    }
+    setInvoice((p) => (p ? { ...p, ...r.fields } : p));
+    await patchInvoice(r.fields);
+    toast(r.message);
   }, [invoice?.klient_nip, patchInvoice, toast]);
 
   const duplicateInvoice = useCallback(async () => {
