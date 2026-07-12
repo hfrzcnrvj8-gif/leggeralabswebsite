@@ -480,6 +480,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                   setInvoices((prev) => prev?.filter((i) => i.id !== id) ?? prev);
                   setOpenId(null);
                 }}
+                onOpenInvoice={(rid) => setOpenId(rid)}
               />
             </motion.div>
           </motion.div>

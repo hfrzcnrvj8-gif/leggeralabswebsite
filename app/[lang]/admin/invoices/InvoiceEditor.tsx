@@ -38,6 +38,7 @@ import {
   itemNetto,
   itemBrutto,
   formatMoney,
+  INVOICE_STATUS_CLASS,
   totalPaid,
   isInvoiceOverdue,
   itemDiscountAmount,
@@ -59,12 +60,15 @@ export function InvoiceEditor({
   onClose,
   onChange,
   onDeleted,
+  onOpenInvoice,
 }: {
   id: string;
   lang: Locale;
   onClose: () => void;
   onChange?: () => void;
   onDeleted?: (id: string) => void;
+  /** Przeskok do powiązanej faktury (oryginał ↔ korekta) bez zamykania modalu. */
+  onOpenInvoice?: (id: string) => void;
 }) {
   const { toast, confirm } = useUI();
   // Po wystawieniu faktura jest dokumentem urzędowym — nie wolno jej edytować
@@ -81,8 +85,8 @@ export function InvoiceEditor({
   const [issuing, setIssuing] = useState(false);
   const [showOdbiorca, setShowOdbiorca] = useState(false);
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
-  const [korekty, setKorekty] = useState<{ id: string; numer: string | null; data_wystawienia: string | null }[]>([]);
-  const [koryguje, setKoryguje] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; brutto?: number } | null>(null);
+  const [korekty, setKorekty] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; status?: string }[]>([]);
+  const [koryguje, setKoryguje] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null>(null);
   const [nipLoading, setNipLoading] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [correcting, setCorrecting] = useState(false);
@@ -108,8 +112,8 @@ export function InvoiceEditor({
       items: InvoiceItem[];
       settings: CompanySettings;
       payments: InvoicePayment[];
-      korekty: { id: string; numer: string | null; data_wystawienia: string | null }[];
-      koryguje: { id: string; numer: string | null; data_wystawienia: string | null; brutto?: number } | null;
+      korekty: { id: string; numer: string | null; data_wystawienia: string | null; status?: string }[];
+      koryguje: { id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null;
     };
     setInvoice(data.invoice);
     setItems(data.items);
@@ -883,9 +887,22 @@ export function InvoiceEditor({
           <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
             <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Dokument</h3>
             {koryguje ? (
-              <p className="mb-2 rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11.5px] text-muted">
-                Korekta faktury <span className="font-medium text-[var(--fg)]">{koryguje.numer ?? "…"}</span>
-              </p>
+              <button
+                type="button"
+                onClick={() => onOpenInvoice?.(koryguje.id)}
+                disabled={!onOpenInvoice}
+                title={onOpenInvoice ? "Otwórz fakturę pierwotną" : undefined}
+                className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11.5px] text-muted enabled:hover:bg-[var(--hairline)] disabled:cursor-default"
+              >
+                <span>
+                  Korekta faktury <span className="font-medium text-[var(--fg)]">{koryguje.numer ?? "…"}</span>
+                </span>
+                {koryguje.status && (
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${INVOICE_STATUS_CLASS[koryguje.status] ?? ""}`}>
+                    {koryguje.status}
+                  </span>
+                )}
+              </button>
             ) : (
               <Field label="Typ">
                 <PropertyMenu
@@ -1157,12 +1174,26 @@ export function InvoiceEditor({
 
           {korekty.length > 0 && (
             <div className="card-paper rounded-xl border hairline p-4">
-              <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Korekty</h3>
-              {korekty.map((k) => (
-                <div key={k.id} className="text-[12.5px] text-muted">
-                  {k.numer ?? "(szkic)"}
-                </div>
-              ))}
+              <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Korekty tej faktury</h3>
+              <div className="space-y-1">
+                {korekty.map((k) => (
+                  <button
+                    key={k.id}
+                    type="button"
+                    onClick={() => onOpenInvoice?.(k.id)}
+                    disabled={!onOpenInvoice}
+                    title={onOpenInvoice ? "Otwórz korektę" : undefined}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1 text-[12.5px] text-[var(--fg)] enabled:hover:bg-[var(--hairline)] disabled:cursor-default"
+                  >
+                    <span>{k.numer ?? "(szkic)"}</span>
+                    {k.status && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${INVOICE_STATUS_CLASS[k.status] ?? ""}`}>
+                        {k.status}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
