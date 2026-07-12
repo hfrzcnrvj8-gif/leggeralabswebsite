@@ -53,8 +53,18 @@ export type NipLookupFields = {
 };
 
 export type NipLookupResult =
-  | { ok: true; fields: NipLookupFields; message: string }
+  | { ok: true; fields: Partial<NipLookupFields>; message: string }
   | { ok: false; message: string };
+
+/** Zostawia tylko niepuste pola — żeby wynik lookupu (np. VIES z krajów, które
+ * ukrywają nazwę/adres) NIE kasował danych już wpisanych ręcznie na dokumencie. */
+function nonEmpty(fields: NipLookupFields): Partial<NipLookupFields> {
+  const out: Partial<NipLookupFields> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (typeof v === "string" && v.trim()) out[k as keyof NipLookupFields] = v;
+  }
+  return out;
+}
 
 export async function lookupClientByNip(nipRaw: string): Promise<NipLookupResult> {
   const raw = (nipRaw ?? "").replace(/\s+/g, "").toUpperCase();
@@ -73,16 +83,16 @@ export async function lookupClientByNip(nipRaw: string): Promise<NipLookupResult
       };
       return {
         ok: true,
-        fields: {
+        fields: nonEmpty({
           klient_nazwa: subject.nazwa,
           klient_ulica: subject.ulica,
           klient_kod: subject.kod,
           klient_miasto: subject.miasto,
           klient_kraj: subject.kraj,
-        },
+        }),
         message: subject.nazwa
           ? "Uzupełniono dane z VIES."
-          : "Numer VAT-UE jest ważny, ale ten kraj nie udostępnia nazwy/adresu — uzupełnij ręcznie.",
+          : `✓ Numer VAT-UE (${prefix[1]}) potwierdzony jako ważny. Ten kraj nie udostępnia przez VIES nazwy ani adresu — wpisz je ręcznie.`,
       };
     }
     const nip = raw.replace(/^PL/, "").replace(/\D/g, "");
@@ -94,7 +104,7 @@ export async function lookupClientByNip(nipRaw: string): Promise<NipLookupResult
     const { subject } = (await res.json()) as { subject: { nazwa: string; ulica: string; kod: string; miasto: string } };
     return {
       ok: true,
-      fields: { klient_nazwa: subject.nazwa, klient_ulica: subject.ulica, klient_kod: subject.kod, klient_miasto: subject.miasto },
+      fields: nonEmpty({ klient_nazwa: subject.nazwa, klient_ulica: subject.ulica, klient_kod: subject.kod, klient_miasto: subject.miasto }),
       message: "Uzupełniono dane z Białej Listy MF.",
     };
   } catch {
