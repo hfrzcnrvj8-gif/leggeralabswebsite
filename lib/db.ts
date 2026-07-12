@@ -1,4 +1,4 @@
-import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import { neon, Pool, type NeonQueryFunction } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 
 export type Sql = NeonQueryFunction<false, false>;
@@ -51,6 +51,69 @@ export function getSql(): Sql {
 
   client = neon(connectionString());
   return client;
+}
+
+/** Zamienia tagged-template `sql\`...${x}...\`` na sparametryzowane
+ * zapytanie ($1, $2, …) — jak w dev-db.ts, potrzebne do wystawienia tej
+ * samej sygnatury `Sql` na klientach, które (w przeciwieństwie do neon-http)
+ * nie robią tego same. */
+function toParamQuery(strings: TemplateStringsArray, values: unknown[]): { text: string; params: unknown[] } {
+  let text = "";
+  strings.forEach((part, i) => {
+    text += part;
+    if (i < values.length) text += `$${i + 1}`;
+  });
+  return { text, params: values };
+}
+
+/**
+ * Uruchamia `fn` w jednej prawdziwej transakcji SQL (BEGIN/COMMIT/ROLLBACK) —
+ * do miejsc, gdzie kilka zapisów musi przejść razem albo wcale (np. akceptacja
+ * oferty: projekt + faktura + oznaczenie oferty jako zaakceptowanej —
+ * awaria/wyścig w środku nie może zostawić osieroconych rekordów).
+ *
+ * `getSql()` (neon-http) to bezstanowe zapytania po HTTP — nie wspiera
+ * interaktywnych transakcji między wieloma zapytaniami. Tu na czas jednej
+ * transakcji łączymy się przez `Pool` (WebSocket, ten sam pakiet
+ * `@neondatabase/serverless`, oficjalnie zalecany do transakcji). W dev
+ * (PGlite) korzysta z wbudowanej `db.transaction()`. Rzuć błąd w `fn`, żeby
+ * wymusić ROLLBACK — inaczej COMMIT po zwróceniu wyniku.
+ */
+export async function withTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T> {
+  const hasRealDb = Boolean(
+    process.env.DATABASE_URL ??
+      process.env.POSTGRES_URL ??
+      process.env.DATABASE_URL_UNPOOLED ??
+      process.env.POSTGRES_URL_NON_POOLING
+  );
+  if (process.env.NODE_ENV === "development" && !hasRealDb) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { withDevTransaction } = require("./dev-db") as typeof import("./dev-db");
+    return withDevTransaction<T>(fn as unknown as Parameters<typeof withDevTransaction<T>>[0]);
+  }
+
+  const pool = new Pool({ connectionString: connectionString() });
+  try {
+    const poolClient = await pool.connect();
+    try {
+      await poolClient.query("BEGIN");
+      const txSql = (async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const { text, params } = toParamQuery(strings, values);
+        const res = await poolClient.query(text, params);
+        return res.rows;
+      }) as unknown as Sql;
+      const result = await fn(txSql);
+      await poolClient.query("COMMIT");
+      return result;
+    } catch (err) {
+      await poolClient.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      poolClient.release();
+    }
+  } finally {
+    await pool.end();
+  }
 }
 
 async function createSchema(): Promise<void> {

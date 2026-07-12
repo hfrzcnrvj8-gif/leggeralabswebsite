@@ -155,3 +155,18 @@ export function getDevSql(): Sql {
   };
   return tag;
 }
+
+/** Odpowiednik `withTransaction()` z db.ts, ale na PGlite — używa wbudowanej
+ * `db.transaction()` (prawdziwy BEGIN/COMMIT/ROLLBACK, PGlite to realny
+ * silnik Postgresa w WASM, nie atrapa). */
+export async function withDevTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T> {
+  await ensureSeeded();
+  return getDb().transaction(async (tx) => {
+    const txSql: Sql = async (strings, ...values) => {
+      const { text, params } = buildQuery(strings, values);
+      const res = await tx.query(text, params);
+      return res.rows as Row[];
+    };
+    return fn(txSql);
+  });
+}

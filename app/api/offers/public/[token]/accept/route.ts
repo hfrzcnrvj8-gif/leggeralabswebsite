@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = req.headers.get("user-agent") ?? null;
 
-  const result = await acceptOffer(sql, offer, items as { nazwa: string; ilosc: number; jednostka: string; cena: number }[], {
+  const result = await acceptOffer(offer, items as { nazwa: string; ilosc: number; jednostka: string; cena: number }[], {
     allowExpired: false,
     acceptedByName: name,
     acceptedIp: ip,

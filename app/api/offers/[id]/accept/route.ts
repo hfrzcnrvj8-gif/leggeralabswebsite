@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
 
-  const result = await acceptOffer(sql, offer, items as { nazwa: string; ilosc: number; jednostka: string; cena: number }[], {
+  const result = await acceptOffer(offer, items as { nazwa: string; ilosc: number; jednostka: string; cena: number }[], {
     template: typeof body.template === "string" ? body.template : undefined,
     allowExpired: body.confirmExpired === true,
     acceptedByName: null,

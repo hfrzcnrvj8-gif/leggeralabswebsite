@@ -28,6 +28,10 @@ export async function POST(req: NextRequest) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   await ensureOffersSchema();
+  // INSERT poniżej zawsze zapisuje client_id (nawet gdy oferta nie wchodzi z
+  // leada) — kolumna żyje w migracji ensureClientsSchema, więc musi się
+  // wykonać bezwarunkowo, nie tylko w gałęzi `if (leadId)`.
+  await ensureClientsSchema();
   const sql = getSql();
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
@@ -49,7 +53,6 @@ export async function POST(req: NextRequest) {
     // lib/clients.ts). Jeśli lead ma już podpiętego klienta (np. przez ręczne
     // "Utwórz klienta" albo poprzednią ofertę), używamy tego samego rekordu
     // zamiast tworzyć duplikat.
-    await ensureClientsSchema();
     if (lead?.client_id) {
       clientId = String(lead.client_id);
     } else if (lead) {
