@@ -343,7 +343,10 @@ export async function sendInvoiceToKsef(cfg: KsefConfig, xml: string): Promise<K
       const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       const status = (json.status || {}) as Record<string, unknown>;
       statusCode = Number(status.code || 0);
-      statusText = String(status.description || "");
+      // description = ogólny opis kodu; details[] = konkretny powód (np. które
+      // pole XML / reguła XSD zawiodła). Sklejamy oba, żeby błąd był czytelny.
+      const details = Array.isArray(status.details) ? (status.details as unknown[]).map(String) : [];
+      statusText = [String(status.description || ""), ...details].filter(Boolean).join(" — ");
       ksefNumber = (json.ksefNumber as string | null) ?? null;
       if (statusCode === 200) break;
       if (statusCode >= 400) break;

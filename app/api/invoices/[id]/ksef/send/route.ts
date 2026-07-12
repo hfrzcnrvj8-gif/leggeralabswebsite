@@ -6,6 +6,10 @@ import { buildFA3Xml, validateForFA3, type KsefStatus } from "@/lib/ksef";
 import { getKsefConfig, sendInvoiceToKsef } from "@/lib/ksef-api";
 
 export const runtime = "nodejs";
+// Pełna rozmowa z KSeF (uwierzytelnienie + sesja + wysyłka + polling statusu +
+// UPO) bywa dłuższa niż domyślny limit funkcji — podnosimy go, żeby nie ucięło
+// jej w połowie (co dawało pustą odpowiedź i „nieznany powód" w UI).
+export const maxDuration = 60;
 
 /**
  * POST /api/invoices/:id/ksef/send — Krok 4 Fazy 2: realna wysyłka faktury
@@ -58,75 +62,85 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 async function runSend(id: string) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  await ensureInvoicesSchema();
-  const sql = getSql();
 
-  const rows = await sql`SELECT * FROM invoices WHERE id = ${id};`;
-  const invoice = rows[0] as unknown as Invoice | undefined;
-  if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
-
-  const itemRows = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
-  const items = itemRows.map((r) => ({
-    ...(r as Record<string, unknown>),
-    ilosc: Number((r as Record<string, unknown>).ilosc),
-    cena_netto: Number((r as Record<string, unknown>).cena_netto),
-  })) as unknown as InvoiceItem[];
-
-  const settingsRows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
-  const company = (settingsRows[0] as unknown as CompanySettings) ?? DEFAULT_COMPANY_SETTINGS;
-
-  // Walidacja lokalna — błędy blokują wysyłkę (ostrzeżenia tylko informują).
-  const validation = validateForFA3(invoice, items, company);
-  if (validation.errors.length) {
-    return NextResponse.json({ ok: false, stage: "walidacja", validation }, { status: 400 });
-  }
-
-  const xml = buildFA3Xml(invoice, items, company);
-
-  let result;
+  // CAŁOŚĆ w try/catch — żeby ŻADEN błąd (env, sieć, DB, nieoczekiwany wyjątek)
+  // nie skończył się pustą odpowiedzią 500. Zawsze zwracamy czytelny komunikat
+  // i zapisujemy go na fakturze (ksef_blad), żeby był widoczny w karcie KSeF.
   try {
+    await ensureInvoicesSchema();
+    const sql = getSql();
+
+    const rows = await sql`SELECT * FROM invoices WHERE id = ${id};`;
+    const invoice = rows[0] as unknown as Invoice | undefined;
+    if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+    const itemRows = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
+    const items = itemRows.map((r) => ({
+      ...(r as Record<string, unknown>),
+      ilosc: Number((r as Record<string, unknown>).ilosc),
+      cena_netto: Number((r as Record<string, unknown>).cena_netto),
+    })) as unknown as InvoiceItem[];
+
+    const settingsRows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
+    const company = (settingsRows[0] as unknown as CompanySettings) ?? DEFAULT_COMPANY_SETTINGS;
+
+    // Walidacja lokalna — błędy blokują wysyłkę (ostrzeżenia tylko informują).
+    const validation = validateForFA3(invoice, items, company);
+    if (validation.errors.length) {
+      return NextResponse.json({ ok: false, stage: "walidacja", validation }, { status: 400 });
+    }
+
+    const xml = buildFA3Xml(invoice, items, company);
     const cfg = getKsefConfig();
-    result = await sendInvoiceToKsef(cfg, xml);
+    const result = await sendInvoiceToKsef(cfg, xml);
+
+    // Mapowanie wyniku KSeF na status dokumentu.
+    //   200         → przyjeto (numer KSeF nadany)
+    //   ≥400        → odrzucono (powód w ksef_blad)
+    //   100/150     → wyslano (nadal przetwarzane; numer dojdzie później)
+    const status: KsefStatus = result.accepted
+      ? "przyjeto"
+      : result.statusCode >= 400
+        ? "odrzucono"
+        : "wyslano";
+    const blad = result.accepted ? "" : `${result.statusText} (kod ${result.statusCode})`;
+
+    await sql`
+      UPDATE invoices SET
+        ksef_status = ${status},
+        ksef_tryb = 'test',
+        ksef_numer = ${result.ksefNumber},
+        ksef_upo = ${result.upo},
+        ksef_blad = ${blad},
+        ksef_wyslano_at = NOW()
+      WHERE id = ${id};
+    `;
+
+    return NextResponse.json({
+      ok: result.accepted,
+      status,
+      env: "test",
+      ksefNumber: result.ksefNumber,
+      statusCode: result.statusCode,
+      statusText: result.statusText,
+      error: result.accepted ? undefined : blad,
+      hasUpo: Boolean(result.upo),
+      sessionReference: result.sessionReference,
+      invoiceReference: result.invoiceReference,
+      validation,
+    });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Nieznany błąd wysyłki do KSeF.";
-    // Zapisujemy powód niepowodzenia, ale nie zmieniamy statusu na „odrzucono"
-    // — dokument nie dotarł do przetworzenia (błąd połączenia/uwierzytelnienia).
-    await sql`UPDATE invoices SET ksef_blad = ${msg} WHERE id = ${id};`;
-    return NextResponse.json({ ok: false, stage: "wysyłka", error: msg }, { status: 502 });
+    const msg = (e instanceof Error ? e.message : String(e)) || "Nieznany błąd wysyłki do KSeF.";
+    console.error("[POST /api/invoices/:id/ksef/send] failed", e);
+    // Best-effort zapis powodu na fakturze (status zostaje bez zmian — dokument
+    // nie dotarł do przetworzenia w KSeF, to błąd po drodze).
+    try {
+      await getSql()`UPDATE invoices SET ksef_blad = ${msg} WHERE id = ${id};`;
+    } catch {
+      // jeśli i to padnie, komunikat i tak wraca w odpowiedzi poniżej
+    }
+    // 200 z ok:false — żeby przeglądarka na pewno odczytała JSON z komunikatem
+    // (a nie potraktowała tego jako pustą odpowiedź błędu).
+    return NextResponse.json({ ok: false, stage: "wysyłka", error: msg });
   }
-
-  // Mapowanie wyniku KSeF na status dokumentu.
-  //   200         → przyjeto (numer KSeF nadany)
-  //   ≥400        → odrzucono (powód w ksef_blad)
-  //   100/150     → wyslano (nadal przetwarzane; numer dojdzie później)
-  const status: KsefStatus = result.accepted
-    ? "przyjeto"
-    : result.statusCode >= 400
-      ? "odrzucono"
-      : "wyslano";
-  const blad = result.accepted ? "" : `${result.statusText} (kod ${result.statusCode})`;
-
-  await sql`
-    UPDATE invoices SET
-      ksef_status = ${status},
-      ksef_tryb = 'test',
-      ksef_numer = ${result.ksefNumber},
-      ksef_upo = ${result.upo},
-      ksef_blad = ${blad},
-      ksef_wyslano_at = NOW()
-    WHERE id = ${id};
-  `;
-
-  return NextResponse.json({
-    ok: result.accepted,
-    status,
-    env: "test",
-    ksefNumber: result.ksefNumber,
-    statusCode: result.statusCode,
-    statusText: result.statusText,
-    hasUpo: Boolean(result.upo),
-    sessionReference: result.sessionReference,
-    invoiceReference: result.invoiceReference,
-    validation,
-  });
 }

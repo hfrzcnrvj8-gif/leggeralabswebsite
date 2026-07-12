@@ -306,10 +306,8 @@ export function InvoiceEditor({
       toast(`Przyjęto w KSeF — numer ${data.ksefNumber ?? "(brak)"}.`);
     } else if (data.stage === "walidacja") {
       toast(`Faktura nie przeszła walidacji: ${(data.validation?.errors ?? []).join(" ") || "sprawdź dane."}`, "error");
-    } else if (data.stage === "wysyłka") {
-      toast(data.error ?? "Nie udało się połączyć z KSeF.", "error");
     } else {
-      toast(`KSeF odrzucił fakturę: ${data.statusText ?? "nieznany powód"}.`, "error");
+      toast(`KSeF: ${data.error || data.statusText || "nie udało się wysłać (nieznany powód)."}`, "error");
     }
     await load();
     onChange?.();
