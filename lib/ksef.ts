@@ -242,10 +242,12 @@ export function buildFA3Xml(
     lines.push(tag("AdresL1", buyerL1, L3));
     lines.push(`${L2}</Adres>`);
   }
-  // JST — wymagany w FA(3) znacznik „nabywca jest jednostką podrzędną
-  // samorządu (JST)": 1 = tak, 2 = nie. Dla zwykłego nabywcy = 2. Bez tego
-  // pola MF odrzuca dokument (kod 450, „Podmiot2 has incomplete content").
+  // Wymagane w FA(3) znaczniki nabywcy (bez nich MF odrzuca — kod 450,
+  // „Podmiot2 has incomplete content"). Oba dla zwykłego nabywcy = 2 („nie"):
+  //   JST — czy nabywca jest jednostką podrzędną samorządu (1=tak, 2=nie)
+  //   GV  — czy nabywca jest członkiem grupy VAT       (1=tak, 2=nie)
   lines.push(tag("JST", 2, L2));
+  lines.push(tag("GV", 2, L2));
   lines.push(`${L1}</Podmiot2>`);
 
   // --- Fa (dane faktury) ---
