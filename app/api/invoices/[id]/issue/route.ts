@@ -32,20 +32,17 @@ function normalizeDbDate(v: unknown): string | null {
 // kończy się błędem 23505, a nie cichym duplikatem — POST wtedy ponawia
 // próbę z przeliczonym numerem.
 async function computeNextNumer(sql: Sql, inv: Record<string, unknown>, year: number): Promise<string> {
-  const prefix = inv.koryguje_id ? "KOR " : inv.typ_dokumentu === "proforma" ? "PF " : "";
-  const numbered = await sql`SELECT numer FROM invoices WHERE numer IS NOT NULL AND numer LIKE ${"%/" + year};`;
+  // Każdy typ dokumentu ma własną serię z prefiksem: zwykła/zaliczkowa faktura
+  // → "FV ", korekta → "KOR ", proforma → "PF ". Numeracja ciągła w obrębie
+  // roku, liczona tylko w ramach danej serii (prefiksu).
+  const prefix = inv.koryguje_id ? "KOR " : inv.typ_dokumentu === "proforma" ? "PF " : "FV ";
+  const numbered = await sql`SELECT numer FROM invoices WHERE numer IS NOT NULL AND numer LIKE ${prefix + "%/" + year};`;
   let maxSeq = 0;
   for (const r of numbered) {
     const raw = String(r.numer);
-    if (prefix) {
-      if (!raw.startsWith(prefix)) continue;
-      const m = /^(\d+)\//.exec(raw.slice(prefix.length));
-      if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
-    } else {
-      if (raw.startsWith("KOR ") || raw.startsWith("PF ")) continue;
-      const m = /^(\d+)\//.exec(raw);
-      if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
-    }
+    if (!raw.startsWith(prefix)) continue;
+    const m = /^(\d+)\//.exec(raw.slice(prefix.length));
+    if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
   }
   return prefix + formatInvoiceNumber(maxSeq + 1, year);
 }
@@ -53,8 +50,8 @@ async function computeNextNumer(sql: Sql, inv: Record<string, unknown>, year: nu
 /** POST /api/invoices/:id/issue — "wystaw fakturę": nadaje numer, ustawia
  * daty (jeśli puste), status "Wystawiona" i (dla faktur w walucie obcej)
  * kurs NBP do VAT. Numer nadawany dopiero tu, żeby szkice nie zużywały
- * numeracji — i z osobnej sekwencji dla korekt ("KOR n/rok") i proform
- * ("PF n/rok"), żeby nie mieszały się ze zwykłą numeracją fiskalną. Admin-only. */
+ * numeracji — każdy typ ma własną serię z prefiksem: faktura/zaliczkowa
+ * ("FV n/rok"), korekta ("KOR n/rok"), proforma ("PF n/rok"). Admin-only. */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
