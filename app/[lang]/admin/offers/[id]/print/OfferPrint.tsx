@@ -44,6 +44,8 @@ type Dict = {
   acceptedByLabel: string;
   acceptedNoNameLabel: string;
   expiredLabel: string;
+  privacyNote: string;
+  privacyLink: string;
 };
 
 const DICT: Record<OfferLang, Dict> = {
@@ -80,6 +82,8 @@ const DICT: Record<OfferLang, Dict> = {
     acceptedByLabel: "Zaakceptowano przez",
     acceptedNoNameLabel: "Oferta zaakceptowana.",
     expiredLabel: "Ta oferta wygasła. Skontaktuj się z nadawcą, aby ustalić dalsze kroki.",
+    privacyNote: "Akceptując, zapisujemy Twoje imię i nazwisko, adres IP oraz datę i godzinę — jako dowód złożenia oświadczenia woli. Szczegóły przetwarzania danych: ",
+    privacyLink: "Polityka Prywatności",
   },
   en: {
     doc: "Quote",
@@ -114,6 +118,8 @@ const DICT: Record<OfferLang, Dict> = {
     acceptedByLabel: "Accepted by",
     acceptedNoNameLabel: "Quote accepted.",
     expiredLabel: "This quote has expired. Please contact the sender to discuss next steps.",
+    privacyNote: "When you accept, we record your name, IP address and the date and time as proof of your declaration. Details on data processing: ",
+    privacyLink: "Privacy Policy",
   },
   de: {
     doc: "Angebot",
@@ -148,6 +154,8 @@ const DICT: Record<OfferLang, Dict> = {
     acceptedByLabel: "Angenommen von",
     acceptedNoNameLabel: "Angebot angenommen.",
     expiredLabel: "Dieses Angebot ist abgelaufen. Bitte kontaktieren Sie den Absender für die nächsten Schritte.",
+    privacyNote: "Bei der Annahme speichern wir Ihren Namen, Ihre IP-Adresse sowie Datum und Uhrzeit als Nachweis Ihrer Willenserklärung. Einzelheiten zur Datenverarbeitung: ",
+    privacyLink: "Datenschutzerklärung",
   },
 };
 
@@ -400,6 +408,17 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
                   <input type="checkbox" checked={signConfirm} onChange={(e) => setSignConfirm(e.target.checked)} className="mt-0.5" />
                   {t.confirmLabel}
                 </label>
+                <p className="text-[11px] leading-relaxed text-neutral-400">
+                  {t.privacyNote}
+                  <a
+                    href={`/${lang}/privacy`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-neutral-600"
+                  >
+                    {t.privacyLink}
+                  </a>
+                </p>
                 {acceptError && <div className="text-[13px] text-red-600">{acceptError}</div>}
                 <button
                   onClick={submitAcceptance}
