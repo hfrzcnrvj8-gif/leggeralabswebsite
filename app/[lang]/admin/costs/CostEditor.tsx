@@ -136,6 +136,14 @@ export function CostEditor({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <StatusTag status={cost.status} onChange={(v) => patch({ status: v as Cost["status"] })} />
+          {cost.ksef_numer && (
+            <span
+              className="rounded-md bg-brand-cyan/15 px-1.5 py-0.5 text-[10.5px] font-medium text-brand-cyan"
+              title={`Faktura pobrana z KSeF — numer ${cost.ksef_numer}`}
+            >
+              z KSeF{cost.ksef_tryb === "test" ? " (test)" : ""}
+            </span>
+          )}
           {saveState === "saving" && <IconLoader2 className="animate-spin text-muted" size={14} />}
           {saveState === "saved" && <IconCheck className="text-emerald-400" size={14} />}
         </div>

@@ -399,3 +399,101 @@ export async function sendInvoiceToKsef(cfg: KsefConfig, xml: string): Promise<K
     }
   }
 }
+
+// ===========================================================================
+// Faza 3, część 2 — KSeF PRZYCHODZĄCY (faktury zakupowe → moduł Koszty)
+// ===========================================================================
+//
+// KSeF przechowuje wszystkie faktury, także te wystawione NA nasz NIP (gdzie
+// jesteśmy nabywcą — Podmiot2). Ta ścieżka je odpytuje i pobiera, żeby panel
+// mógł z nich automatycznie utworzyć wpisy w Kosztach:
+//   1. POST /invoices/query/metadata  → lista metadanych faktur zakupowych
+//        (subjectType=Subject2), paginacja pageOffset/pageSize
+//   2. GET  /invoices/ksef/{ksefNumber} → pełny XML danej faktury (do archiwum)
+//
+// Bramka assertTestOnly (przez getKsefConfig/authenticateWithToken) gwarantuje
+// działanie wyłącznie na środowisku testowym MF.
+
+/** Metadane jednej faktury zakupowej pobrane z KSeF — komplet potrzebny do
+ * utworzenia kosztu bez parsowania całego XML (kwoty są już w metadanych). */
+export type PurchaseInvoiceMeta = {
+  ksefNumber: string;
+  invoiceNumber: string;
+  issueDate: string; // YYYY-MM-DD
+  sellerNip: string;
+  sellerName: string;
+  netAmount: number;
+  vatAmount: number;
+  grossAmount: number;
+  currency: string;
+  invoiceType: string;
+};
+
+function toNum(v: unknown): number {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Odpytuje KSeF o WSZYSTKIE faktury, w których jesteśmy nabywcą, w danym
+ * zakresie dat wystawienia (max 3 miesiące — ograniczenie API). Sam się
+ * uwierzytelnia i przechodzi przez paginację. `from`/`to` w formacie
+ * ISO-8601; bez offsetu = czas lokalny Europe/Warsaw (tak przyjmuje API). */
+export async function queryPurchaseInvoices(
+  cfg: KsefConfig,
+  from: string,
+  to: string
+): Promise<{ bearer: string; invoices: PurchaseInvoiceMeta[] }> {
+  assertTestOnly(cfg.env);
+  const auth = await authenticateWithToken(cfg);
+  const bearer = auth.accessToken;
+
+  const pageSize = 100;
+  const out: PurchaseInvoiceMeta[] = [];
+  for (let pageOffset = 0; pageOffset < 100; pageOffset++) {
+    const url = `${cfg.baseUrl}/invoices/query/metadata?pageSize=${pageSize}&pageOffset=${pageOffset}`;
+    const json = await postJson(
+      url,
+      { subjectType: "Subject2", dateRange: { dateType: "Issue", from, to } },
+      bearer
+    );
+    const invoices = Array.isArray(json.invoices) ? (json.invoices as Record<string, unknown>[]) : [];
+    for (const inv of invoices) {
+      const seller = (inv.seller || {}) as Record<string, unknown>;
+      out.push({
+        ksefNumber: String(inv.ksefNumber || ""),
+        invoiceNumber: String(inv.invoiceNumber || ""),
+        issueDate: String(inv.issueDate || "").slice(0, 10),
+        sellerNip: String(seller.nip || ""),
+        sellerName: String(seller.name || ""),
+        netAmount: toNum(inv.netAmount),
+        vatAmount: toNum(inv.vatAmount),
+        grossAmount: toNum(inv.grossAmount),
+        currency: String(inv.currency || "PLN"),
+        invoiceType: String(inv.invoiceType || ""),
+      });
+    }
+    if (!json.hasMore) break;
+  }
+  return { bearer, invoices: out.filter((m) => m.ksefNumber) };
+}
+
+/** Pobiera pełny XML faktury po jej numerze KSeF (do zapisania jako załącznik
+ * kosztu). Wymaga własnego uwierzytelnienia — używane po `queryPurchaseInvoices`,
+ * które zwraca numery. Zwraca surowy XML albo null, gdy pobranie się nie udało
+ * (brak XML nie powinien blokować importu samych danych). */
+export async function downloadInvoiceXml(
+  cfg: KsefConfig,
+  bearer: string,
+  ksefNumber: string
+): Promise<string | null> {
+  assertTestOnly(cfg.env);
+  try {
+    const res = await fetch(`${cfg.baseUrl}/invoices/ksef/${encodeURIComponent(ksefNumber)}`, {
+      headers: { Accept: "application/xml", Authorization: `Bearer ${bearer}` },
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconX, IconPaperclip } from "@tabler/icons-react";
+import { IconPlus, IconX, IconPaperclip, IconCloudDownload } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Cost, COST_STATUSES, COST_CATEGORIES, formatMoney } from "@/lib/costs";
 import { formatPlDate } from "@/lib/projects";
@@ -11,8 +11,93 @@ import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { ExportCsvButton } from "../components";
+import { DateField } from "../DatePicker";
 import { StatusTag } from "./shared";
 import { CostEditor } from "./CostEditor";
+
+/** Import faktur zakupowych z KSeF (Faza 3, część 2). Odpytuje rządowy KSeF o
+ * faktury, gdzie jesteśmy nabywcą, i tworzy z nich gotowe wpisy w Kosztach.
+ * Wyłącznie środowisko testowe MF — bramka po stronie API. */
+function ImportKsefButton({ onImported }: { onImported: () => void }) {
+  const { toast } = useUI();
+  const today = todayLocalISO();
+  const [from, setFrom] = useState(`${today.slice(0, 7)}-01`);
+  const [to, setTo] = useState(today);
+  const [busy, setBusy] = useState(false);
+
+  const run = useCallback(
+    async (close: () => void) => {
+      setBusy(true);
+      try {
+        const res = await fetch("/api/costs/import-ksef", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from, to }),
+        });
+        const data = (await res.json().catch(() => null)) as
+          | { ok: boolean; imported?: number; skipped?: number; found?: number; error?: string }
+          | null;
+        if (!data?.ok) {
+          toast(data?.error || "Nie udało się pobrać faktur z KSeF.", "error");
+          return;
+        }
+        const imp = data.imported ?? 0;
+        const skip = data.skipped ?? 0;
+        if (imp === 0 && (data.found ?? 0) === 0) {
+          toast("Brak faktur zakupowych w KSeF w tym zakresie.");
+        } else if (imp === 0) {
+          toast(`Brak nowych faktur (${skip} już zaimportowanych).`);
+        } else {
+          toast(`Pobrano ${imp} ${imp === 1 ? "fakturę" : "faktur"} z KSeF${skip ? `, pominięto ${skip} już zaimportowanych` : ""}.`);
+        }
+        onImported();
+        close();
+      } catch {
+        toast("Nie udało się połączyć z KSeF.", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [from, to, toast, onImported]
+  );
+
+  return (
+    <Popover
+      align="right"
+      width={260}
+      trigger={(open) => (
+        <button
+          onClick={open}
+          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Pobierz faktury zakupowe z KSeF"
+        >
+          <IconCloudDownload size={14} /> Pobierz z KSeF
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="space-y-2.5 p-3">
+          <p className="text-[11px] text-muted">Zakres dat wystawienia (max 3 miesiące)</p>
+          <div className="flex items-center gap-1.5">
+            <DateField value={from} onChange={setFrom} placeholder="Od" />
+            <span className="text-[11px] text-muted">–</span>
+            <DateField value={to} onChange={setTo} placeholder="Do" />
+          </div>
+          <p className="text-[10.5px] leading-snug text-muted">
+            Faktury, na których jesteś nabywcą, trafią do Kosztów jako gotowe wpisy z załączonym oryginałem. Środowisko testowe.
+          </p>
+          <button
+            onClick={() => run(close)}
+            disabled={busy}
+            className="btn-primary flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
+          >
+            <IconCloudDownload size={13} /> {busy ? "Pobieram…" : "Pobierz i zaimportuj"}
+          </button>
+        </div>
+      )}
+    </Popover>
+  );
+}
 
 export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
@@ -149,6 +234,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
+        <ImportKsefButton onImported={load} />
         <ExportCsvButton endpoint="/api/costs/export" title="Rejestr zakupów" />
         <button
           onClick={createCost}

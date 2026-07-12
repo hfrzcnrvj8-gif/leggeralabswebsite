@@ -403,6 +403,11 @@ async function createInvoicesSchema(): Promise<void> {
   // liczy różnicę przez porównanie pozycji obu dokumentów).
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS koryguje_id TEXT REFERENCES invoices(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS przyczyna_korekty TEXT NOT NULL DEFAULT '';`;
+  // Typ skutku korekty w ewidencji VAT (FA(3) <TypKorekty>): '1' = w dacie
+  // ujęcia faktury pierwotnej (błąd na fakturze), '2' = w dacie wystawienia
+  // korekty (przyczyna zaistniała później, np. rabat/zwrot), '3' = inna data.
+  // Domyślnie '1'. Dotyczy tylko faktur z koryguje_id.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS typ_korekty TEXT NOT NULL DEFAULT '1';`;
   // Rozliczenie zaliczki — ta faktura (końcowa) odejmuje od sumy kwotę
   // wskazanej wcześniej faktury zaliczkowej.
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS rozlicza_zaliczke_id TEXT REFERENCES invoices(id) ON DELETE SET NULL;`;
@@ -735,6 +740,18 @@ async function createCostsSchema(): Promise<void> {
   await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS zalacznik_nazwa TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS zalacznik_typ TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS zalacznik_dane TEXT;`;
+  // KSeF przychodzący (Faza 3, część 2): koszt utworzony automatycznie z
+  // faktury zakupowej pobranej z KSeF. `ksef_numer` = unikalny numer KSeF
+  // faktury (klucz deduplikacji — nie importujemy tej samej faktury dwa razy),
+  // `ksef_tryb` = środowisko, z którego pobrano (test/prod). NULL = koszt
+  // wprowadzony ręcznie, nie z KSeF.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS ksef_numer TEXT;`;
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS ksef_tryb TEXT;`;
+  // Unikalny numer KSeF = dedup importu. Zwykły UNIQUE (nie częściowy): Postgres
+  // traktuje NULL-e jako różne, więc koszty wprowadzane ręcznie (ksef_numer =
+  // NULL) współistnieją bez ograniczeń, a `ON CONFLICT (ksef_numer)` przy
+  // imporcie działa niezawodnie (arbiter to ten indeks).
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS costs_ksef_numer_idx ON costs(ksef_numer);`;
 }
 
 /** Lazily tworzy tabelę modułu Koszty. */

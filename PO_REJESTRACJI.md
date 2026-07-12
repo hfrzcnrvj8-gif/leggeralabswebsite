@@ -42,5 +42,15 @@ zostały przygotowane, ale nie wypełnione. **Po rejestracji przejść całą li
   konto/IBAN, ewentualnie bank + SWIFT), status VAT (płatnik/zwolniony)
   i podstawę zwolnienia, jeśli dotyczy.
 
+## 5. KSeF przychodzący (moduł Koszty) — rozważyć automatyczny import
+- Dziś import faktur zakupowych z KSeF (Koszty → „Pobierz z KSeF") jest
+  **ręczny** — świadomie, bo na środowisku testowym i przy zero prawdziwych
+  faktur automat mieliłby na próżno.
+- Po przełączeniu KSeF na produkcję (pkt 3) i pojawieniu się realnych faktur
+  kosztowych warto dodać **automatyczny codzienny import** przez istniejący
+  dzienny cron (bez nowego wpisu w `vercel.json` — dołożyć wywołanie w
+  `app/api/leads/notify`, wzorem automatycznych przypomnień o zaległościach).
+  Wtedy panel sam dociąga nowe faktury zakupowe; dziś to funkcja „na zapas".
+
 ---
 _Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`._

@@ -53,7 +53,22 @@ export type Cost = {
    * GET /api/costs/:id/attachment. Pusta nazwa = brak załącznika. */
   zalacznik_nazwa: string;
   zalacznik_typ: string;
+  /** Numer KSeF faktury zakupowej, gdy koszt powstał z automatycznego importu
+   * z KSeF (Faza 3, część 2). NULL = koszt wprowadzony ręcznie. */
+  ksef_numer: string | null;
+  ksef_tryb: string | null;
 };
+
+/** Odgaduje etykietę stawki VAT (jedną z VAT_RATES) z kwot netto/VAT pobranych
+ * z KSeF — do wyświetlenia w edytorze. Faktura zakupowa może mieszać stawki;
+ * w bazie i tak trzymamy dokładne kwoty netto/brutto z KSeF, a ta etykieta jest
+ * tylko poglądowa (właściciel może ją poprawić). */
+export function guessVatRate(netto: number, vat: number): VatRate {
+  if (!(netto > 0)) return vat > 0 ? "23" : "zw";
+  const pct = Math.round((vat / netto) * 100);
+  const match = (VAT_RATES as readonly string[]).find((r) => r === String(pct));
+  return (match as VatRate) ?? "23";
+}
 
 /** Kwota brutto z netto + stawki VAT (np. dla auto-przeliczenia w edytorze). */
 export function costBrutto(netto: number, vatStawka: string): number {
