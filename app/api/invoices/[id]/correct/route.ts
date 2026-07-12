@@ -32,14 +32,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         klient_ulica, klient_kod, klient_miasto, klient_kraj,
         odbiorca_nazwa, odbiorca_ulica, odbiorca_kod, odbiorca_miasto, odbiorca_kraj,
         klient_email, share_token, typ_dokumentu, waluta, jezyk, koryguje_id,
-        data_wystawienia, data_sprzedazy, termin_platnosci
+        data_wystawienia, data_sprzedazy, termin_platnosci, ceny_brutto
       )
       VALUES (
         ${newId}, ${src.lead_id}, ${src.project_id}, ${src.klient_nazwa}, ${src.klient_nip}, ${src.klient_adres},
         ${src.klient_ulica}, ${src.klient_kod}, ${src.klient_miasto}, ${src.klient_kraj},
         ${src.odbiorca_nazwa}, ${src.odbiorca_ulica}, ${src.odbiorca_kod}, ${src.odbiorca_miasto}, ${src.odbiorca_kraj},
         ${src.klient_email}, ${shareToken}, 'faktura', ${src.waluta}, ${src.jezyk}, ${id},
-        ${src.data_wystawienia}, ${src.data_sprzedazy}, ${src.termin_platnosci}
+        ${src.data_wystawienia}, ${src.data_sprzedazy}, ${src.termin_platnosci}, ${src.ceny_brutto}
       );
     `;
 

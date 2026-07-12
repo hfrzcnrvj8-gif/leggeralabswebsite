@@ -41,6 +41,8 @@ import {
   totalPaid,
   isInvoiceOverdue,
   itemDiscountAmount,
+  unitBrutto,
+  nettoFromUnitBrutto,
 } from "@/lib/invoices";
 import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL } from "@/lib/ksef";
 import type { Client } from "@/lib/clients";
@@ -90,6 +92,11 @@ export function InvoiceEditor({
   const [converting, setConverting] = useState(false);
   const [newPaymentKwota, setNewPaymentKwota] = useState("");
   const [newPaymentData, setNewPaymentData] = useState("");
+  // Gdy faktura ma włączone `ceny_brutto`, pole ceny w wierszu pokazuje/
+  // przyjmuje kwotę brutto — surowy tekst trzymamy tu do czasu onBlur (blur
+  // przelicza na netto i wywołuje patchItem), żeby nie "skakać" po zaokrągleniu
+  // przy każdym znaku wpisywanym w polu.
+  const [bruttoDrafts, setBruttoDrafts] = useState<Record<string, string>>({});
   const [zaliczkoweOptions, setZaliczkoweOptions] = useState<{ id: string; numer: string | null; klient_nazwa: string; brutto: number }[] | null>(null);
 
   const load = useCallback(async () => {
@@ -658,6 +665,16 @@ export function InvoiceEditor({
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-[13px] font-medium">Pozycje</h2>
               <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    setBruttoDrafts({});
+                    patchInvoice({ ceny_brutto: !invoice.ceny_brutto });
+                  }}
+                  title="Przełącz, czy pole ceny w wierszach przyjmuje kwotę netto czy brutto (na fakturze zawsze pokazujemy obie)"
+                  className="rounded-full border hairline px-3 py-1 text-xs text-muted hover:text-[var(--fg)]"
+                >
+                  Wpisuję ceny: <span className="font-medium text-[var(--fg)]">{invoice.ceny_brutto ? "brutto" : "netto"}</span>
+                </button>
                 <Popover
                   width={320}
                   trigger={(open) => (
@@ -695,7 +712,7 @@ export function InvoiceEditor({
                   <span className="flex-1">Nazwa</span>
                   <span className="w-14 text-right">Ilość</span>
                   <span className="w-16 text-center">Jedn.</span>
-                  <span className="w-24 text-right">Cena netto</span>
+                  <span className="w-24 text-right">{invoice.ceny_brutto ? "Cena brutto" : "Cena netto"}</span>
                   <span className="w-14 text-center">Rabat</span>
                   <span className="w-16 text-center">VAT</span>
                   <span className="w-24 text-right">Brutto</span>
@@ -724,14 +741,34 @@ export function InvoiceEditor({
                       placeholder="szt."
                       className="w-16 rounded-md border hairline bg-transparent px-1.5 py-1 text-center text-[13px] text-[var(--fg)] placeholder:text-muted"
                     />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={it.cena_netto}
-                      onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, cena_netto: Number(e.target.value) } : x)))}
-                      onBlur={(e) => patchItem(it.id, { cena_netto: Number(e.target.value) })}
-                      className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
-                    />
+                    {invoice.ceny_brutto ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={bruttoDrafts[it.id] ?? unitBrutto(it)}
+                        onChange={(e) => setBruttoDrafts((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                        onBlur={(e) => {
+                          const netto = nettoFromUnitBrutto(Number(e.target.value) || 0, it.vat_stawka);
+                          patchItem(it.id, { cena_netto: netto });
+                          setBruttoDrafts((prev) => {
+                            const next = { ...prev };
+                            delete next[it.id];
+                            return next;
+                          });
+                        }}
+                        title={`Cena netto: ${formatMoney(it.cena_netto)}`}
+                        className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={it.cena_netto}
+                        onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, cena_netto: Number(e.target.value) } : x)))}
+                        onBlur={(e) => patchItem(it.id, { cena_netto: Number(e.target.value) })}
+                        className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+                      />
+                    )}
                     <input
                       type="number"
                       min={0}

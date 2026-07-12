@@ -177,6 +177,11 @@ export type Invoice = {
   waluta: string;
   jezyk: InvoiceLang;
   sposob_platnosci: PaymentMethod;
+  /** Tryb wpisywania cen pozycji w edytorze: false = netto (domyślnie,
+   * jak dotąd), true = brutto (właściciel wpisuje kwotę, którą ma zapłacić
+   * klient — netto liczone wstecz). Wpływa WYŁĄCZNIE na UI edytora; w bazie
+   * i na wydruku/w XML KSeF zawsze jest cena netto (`cena_netto`). */
+  ceny_brutto: boolean;
   uwagi: string;
   /** Stan integracji z KSeF (Faza 2). Puste/`nie_wyslano` dla faktur, których
    * nie dotknął KSeF. Typy i logika w lib/ksef.ts. */
@@ -244,6 +249,19 @@ export function itemBrutto(it: { ilosc: number; cena_netto: number; vat_stawka: 
 export function itemDiscountAmount(it: { ilosc: number; cena_netto: number; rabat_procent?: number }): number {
   if (!it.rabat_procent) return 0;
   return round2(it.ilosc * it.cena_netto * (it.rabat_procent / 100));
+}
+
+/** Cena jednostkowa BRUTTO — tylko do wygodnego wpisywania w edytorze, gdy
+ * faktura ma włączone `ceny_brutto` (właściciel zna kwotę, którą ma zapłacić
+ * klient, nie netto). W bazie zawsze trzymamy cenę netto (`cena_netto`) —
+ * ten toggle zmienia wyłącznie sposób wpisywania, nie schemat ani wydruk. */
+export function unitBrutto(it: { cena_netto: number; vat_stawka: string }): number {
+  return round2(it.cena_netto * (1 + vatFraction(it.vat_stawka)));
+}
+/** Odwrotność `unitBrutto` — przelicza wpisaną cenę brutto z powrotem na
+ * netto do zapisania w bazie. */
+export function nettoFromUnitBrutto(brutto: number, vat_stawka: string): number {
+  return round2(brutto / (1 + vatFraction(vat_stawka)));
 }
 
 /** Sumy faktury: netto, VAT, brutto (zaokrąglone do groszy). */

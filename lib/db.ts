@@ -368,6 +368,9 @@ async function createInvoicesSchema(): Promise<void> {
   //   ksef_qr — link KOD I (weryfikujący) do kodu QR na wizualizacji faktury,
   //   budowany po przyjęciu: {baza}/invoice/{NIP}/{DD-MM-RRRR}/{hash Base64URL}
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_qr TEXT;`;
+  // Tryb wpisywania cen w edytorze (netto/brutto) — patrz komentarz przy
+  // Invoice.ceny_brutto w lib/invoices.ts. Wyłącznie UI, baza zawsze netto.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ceny_brutto BOOLEAN NOT NULL DEFAULT false;`;
   // Ubezpieczenie na poziomie bazy przeciwko wyścigowi przy nadawaniu numeru
   // (dwa równoczesne "Wystaw fakturę" nie mogą dać tej samej faktury dwa
   // razy ten sam numer — drugi UPDATE dostanie unique violation i ponowi

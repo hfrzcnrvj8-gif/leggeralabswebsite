@@ -77,6 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE invoices SET typ_dokumentu = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("uwagi" in body) await sql`UPDATE invoices SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
+    if ("ceny_brutto" in body) await sql`UPDATE invoices SET ceny_brutto = ${Boolean(body.ceny_brutto)}, updated_at = now() WHERE id = ${id};`;
     if ("waluta" in body) await sql`UPDATE invoices SET waluta = ${str(body.waluta, 10) || "PLN"}, updated_at = now() WHERE id = ${id};`;
     if ("sposob_platnosci" in body) {
       const v = typeof body.sposob_platnosci === "string" && (PAYMENT_METHODS as readonly string[]).includes(body.sposob_platnosci) ? body.sposob_platnosci : "przelew";
