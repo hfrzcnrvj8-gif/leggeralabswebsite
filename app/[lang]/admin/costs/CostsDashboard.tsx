@@ -10,6 +10,7 @@ import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { ExportCsvButton } from "../components";
 import { StatusTag } from "./shared";
 import { CostEditor } from "./CostEditor";
 
@@ -148,6 +149,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
+        <ExportCsvButton endpoint="/api/costs/export" title="Rejestr zakupów" />
         <button
           onClick={createCost}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"

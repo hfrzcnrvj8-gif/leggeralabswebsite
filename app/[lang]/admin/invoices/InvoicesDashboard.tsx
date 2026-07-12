@@ -18,6 +18,7 @@ import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { ExportCsvButton } from "../components";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { CompanySettingsPanel } from "./CompanySettingsPanel";
 import { RecurringPanel } from "./RecurringPanel";
@@ -218,6 +219,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
+        <ExportCsvButton endpoint="/api/invoices/export" title="Rejestr sprzedaży" />
         <button
           onClick={() => setRecurringOpen(true)}
           className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"

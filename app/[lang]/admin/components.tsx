@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { IconUsers } from "@tabler/icons-react";
+import { IconUsers, IconDownload } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Client } from "@/lib/clients";
+import { todayLocalISO } from "@/lib/dates";
+import { currentMonthRange } from "@/lib/export";
 import { useUI } from "./ui";
 import { PropertyMenu, Popover } from "./Menu";
+import { DateField } from "./DatePicker";
 
 // Generyczne komponenty UI współdzielone przez wszystkie moduły panelu
 // (leady, projekty, notatnik, kalendarz) — jedno miejsce zamiast kopiowania
@@ -298,5 +301,52 @@ function ClientPickerList({ clients, onPick }: { clients: Client[]; onPick: (c: 
         ))
       )}
     </div>
+  );
+}
+
+/** Przycisk „Eksport CSV" z wyborem zakresu dat — rejestr dla księgowej.
+ * `endpoint` to ścieżka API zwracająca CSV (np. `/api/invoices/export`),
+ * współdzielona przez Faktury i Koszty (Faza 4 mapy drogowej ERP). Domyślny
+ * zakres: bieżący miesiąc. Pobieranie przez zwykły link `<a>` (GET z ciasteczkiem
+ * sesji, przeglądarka sama obsłuży `Content-Disposition: attachment`) — bez
+ * fetch+blob, bo to zbędna komplikacja dla prostego pobrania pliku. */
+export function ExportCsvButton({ endpoint, title = "Eksport CSV" }: { endpoint: string; title?: string }) {
+  const defaults = currentMonthRange(todayLocalISO());
+  const [from, setFrom] = useState(defaults.from);
+  const [to, setTo] = useState(defaults.to);
+  return (
+    <Popover
+      align="right"
+      width={240}
+      trigger={(open) => (
+        <button
+          onClick={open}
+          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title={`${title} dla księgowej`}
+        >
+          <IconDownload size={14} /> Eksport CSV
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="space-y-2.5 p-3">
+          <p className="text-[11px] text-muted">Zakres dat (wg daty wystawienia/wydatku)</p>
+          <div className="flex items-center gap-1.5">
+            <DateField value={from} onChange={setFrom} placeholder="Od" />
+            <span className="text-[11px] text-muted">–</span>
+            <DateField value={to} onChange={setTo} placeholder="Do" />
+          </div>
+          <a
+            href={`${endpoint}?from=${from}&to=${to}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={close}
+            className="btn-primary flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+          >
+            <IconDownload size={13} /> Pobierz CSV
+          </a>
+        </div>
+      )}
+    </Popover>
   );
 }
