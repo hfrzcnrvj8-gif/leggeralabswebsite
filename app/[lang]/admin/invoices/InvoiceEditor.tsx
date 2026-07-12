@@ -40,6 +40,7 @@ import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { ClientLinkChip } from "../components";
 
 export function InvoiceEditor({
   id,
@@ -351,8 +352,9 @@ export function InvoiceEditor({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted">
+        <span className="flex items-center gap-2 text-xs text-muted">
           Faktury / <span className="text-[var(--fg)]">{invoice.numer ?? "Szkic"}</span>
+          <ClientLinkChip clientId={invoice.client_id} lang={lang} />
         </span>
         <div className="flex items-center gap-3">
           <SaveIndicator state={saveState} />

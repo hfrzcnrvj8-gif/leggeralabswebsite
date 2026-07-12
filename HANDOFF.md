@@ -6,38 +6,42 @@ szybki punkt startowy). Pełny opis funkcjonalności: `HUB_SETUP.md`.
 
 ## Stan: kod gotowy lokalnie, NIEZACOMMITOWANY
 
-Faza G (moduł Koszty + rentowność projektu) zbudowana i przetestowana
-lokalnie (przeglądarka, PGlite) w tej sesji. `npx tsc --noEmit` czysty.
-Zmiany jeszcze nie są w git — `git status` pokaże nowe/zmienione pliki
-(`lib/costs.ts`, `app/api/costs/**`, `app/[lang]/admin/costs/**`,
-`lib/db.ts`, `app/api/projects/[id]/route.ts`,
-`app/[lang]/admin/projects/ProjectDetailPanel.tsx`,
-`app/[lang]/admin/AppShell.tsx`). **Zapytaj właściciela, czy commitować i
-pushować** (usuń najpierw `.git/index.lock`, jeśli obecny).
+Faza H (ważony pipeline ofert + link do karty klienta z edytorów) zbudowana
+i przetestowana lokalnie (przeglądarka, PGlite) w tej sesji, zaraz po Fazie
+G (moduł Koszty). `npx tsc --noEmit` czysty. Zmiany jeszcze nie są w git —
+`git status` pokaże zmiany w `lib/offers.ts`, `app/api/hub/today/route.ts`,
+`app/[lang]/admin/DashboardHome.tsx`, `app/[lang]/admin/offers/
+OffersDashboard.tsx`, `app/[lang]/admin/offers/OfferEditor.tsx`,
+`app/[lang]/admin/invoices/InvoiceEditor.tsx`, `app/[lang]/admin/projects/
+ProjectDetailPanel.tsx`, `app/[lang]/admin/components.tsx`. **Zapytaj
+właściciela, czy commitować i pushować** (usuń najpierw `.git/index.lock`,
+jeśli obecny).
 
 ## Co zrobiono w tej sesji
 
-**Faza G — Koszty/wydatki + rentowność.** Nowy moduł "Koszty" — ewidencja
-faktur PRZYCHODZĄCYCH od dostawców (dostawca, kategoria, kwota
-netto/VAT/brutto, status Nieopłacony/Opłacony z auto-datą płatności,
-opcjonalny `project_id`). Świadomie: tylko PLN, bez uploadu załączników na
-start. Widget "Rentowność" na karcie projektu (przychód netto z faktur −
-koszty netto = zysk netto) z linkiem filtrującym listę kosztów po
-projekcie. Szczegóły w pamięci `virtual-company-roadmap`.
+**Faza G — Koszty/wydatki + rentowność** (patrz pamięć
+`virtual-company-roadmap` dla szczegółów) — ✅ zacommitowane i wypchnięte
+(`0ad4716`).
+
+**Faza H — Ważony pipeline + link do klienta.** `OFFER_STATUS_WEIGHT` w
+`lib/offers.ts` (Szkic 20%, Wysłana 50%) — Pulpit i Oferty pokazują tę samą
+ważoną liczbę pipeline'u. Nowy `ClientLinkChip` w `components.tsx` — link
+"→ Karta klienta" w edytorze oferty/faktury i na karcie projektu.
+Przetestowane end-to-end.
 
 ## Gdzie jesteśmy w planie
 
-- Fazy A–F + audyt bezpieczeństwa — ✅ dawno zrobione
-- **Faza G (Koszty + rentowność) — ✅ (właśnie dokończone, do commitowania)**
+- Fazy A–G + audyt bezpieczeństwa — ✅ zrobione
+- **Faza H (ważony pipeline + link do klienta) — ✅ (właśnie dokończone, do
+  commitowania)**
 - Faza D (Mail) — odłożone do przemyślenia na nowo
-- **Faza H (ważony pipeline ofert + link do karty klienta wprost z edytora
-  oferty/faktury/projektu) — NASTĘPNA, jeszcze nie zaczęta**
-- Faza I (portal klienta + e-podpis akceptacji oferty)
+- **Faza I (portal klienta + e-podpis akceptacji oferty) — NASTĘPNA,
+  jeszcze nie zaczęta**
 
 ## Pierwsza rzecz do zrobienia w nowym czacie
 
-1. Jeśli właściciel jeszcze nie potwierdził commitowania Fazy G — zapytać.
-2. Potem zapytać, czy zaczynamy **Fazę H** zgodnie z ustaloną kolejnością.
+1. Jeśli właściciel jeszcze nie potwierdził commitowania Fazy H — zapytać.
+2. Potem zapytać, czy zaczynamy **Fazę I** zgodnie z ustaloną kolejnością.
 
 ## Zasady na przyszłość (nie renegocjować bez wyraźnego powodu)
 

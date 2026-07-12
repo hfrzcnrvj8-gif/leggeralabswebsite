@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconX, IconExternalLink } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, isOfferExpired } from "@/lib/offers";
+import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, isOfferExpired, weightedOfferValue } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
@@ -131,11 +131,13 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     const list = offers ?? [];
     let wToku = 0;
     let zaakceptowane = 0;
+    let wazony = 0;
     for (const o of list) {
       if (o.status === "Wysłana" || o.status === "Szkic") wToku += o.kwota;
       if (o.status === "Zaakceptowana") zaakceptowane += o.kwota;
+      wazony += weightedOfferValue(o.status, o.kwota);
     }
-    return { wToku, zaakceptowane };
+    return { wToku, zaakceptowane, wazony };
   }, [offers]);
 
   if (!offers) {
@@ -182,7 +184,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       </div>
 
       <div className="px-4 py-4 sm:px-6">
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-2xl sm:grid-cols-3">
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">W toku</div>
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.wToku)}</div>
@@ -190,6 +192,10 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Zaakceptowane</div>
             <div className="mt-0.5 text-lg font-semibold text-emerald-400">{formatMoney(kpi.zaakceptowane)}</div>
+          </div>
+          <div className="card-paper rounded-xl border hairline p-3" title="Suma otwartych ofert ważona szacowanym prawdopodobieństwem zamknięcia wg statusu — ta sama liczba co „Pipeline ofert” na Pulpicie.">
+            <div className="text-[11px] text-muted">Ważony pipeline</div>
+            <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.wazony)}</div>
           </div>
         </div>
 

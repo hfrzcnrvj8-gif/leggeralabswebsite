@@ -73,13 +73,36 @@ export function offerTotal(items: { ilosc: number; cena: number }[]): number {
   return round2(items.reduce((sum, it) => sum + itemKwota(it), 0));
 }
 
-const CLOSED_OFFER_STATUSES = new Set<string>(["Zaakceptowana", "Odrzucona", "Wygasła"]);
+/** Statusy zamknięte — oferta w jednym z nich nie jest już "w grze" (ani do
+ * licznika przeterminowania, ani do pipeline'u). Eksportowane, żeby
+ * app/api/hub/today/route.ts nie trzymał własnej zduplikowanej kopii. */
+export const CLOSED_OFFER_STATUSES = new Set<OfferStatus>(["Zaakceptowana", "Odrzucona", "Wygasła"]);
 
 /** Czy oferta przeterminowała się (minęła ważność, a status wciąż otwarty). */
 export function isOfferExpired(offer: Pick<Offer, "status" | "wazna_do">): boolean {
   if (CLOSED_OFFER_STATUSES.has(offer.status)) return false;
   if (!offer.wazna_do) return false;
   return offer.wazna_do < todayLocalISO();
+}
+
+/** Szacunkowe prawdopodobieństwo zamknięcia wg statusu — do ważonego
+ * pipeline'u. Świadomie statyczne (bez AI/danych historycznych, panel
+ * dopiero startuje) — łatwo skorygować tu jedną liczbę, gdy będzie więcej
+ * danych o realnej konwersji. Zamknięte statusy nie mają wpisu — nie
+ * wchodzą do pipeline'u w ogóle (patrz weightedOfferValue). */
+export const OFFER_STATUS_WEIGHT: Partial<Record<OfferStatus, number>> = {
+  Szkic: 0.2,
+  Wysłana: 0.5,
+};
+
+/** Wartość oferty do ważonego pipeline'u: 0 dla zamkniętych, kwota × waga
+ * statusu dla otwartych (domyślnie waga 1, gdyby pojawił się status bez
+ * wpisu w mapie — bezpieczny fallback zamiast cichego zera). `kwota` nie
+ * jest polem `Offer` (liczona w SQL z JOIN na offer_items), stąd osobny
+ * parametr zamiast Pick<Offer, ...>. */
+export function weightedOfferValue(status: OfferStatus, kwota: number): number {
+  if (CLOSED_OFFER_STATUSES.has(status)) return 0;
+  return kwota * (OFFER_STATUS_WEIGHT[status] ?? 1);
 }
 
 /** Adres klienta jako linie do wydruku (patrz lib/documents.ts). */

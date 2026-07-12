@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import type { Locale } from "@/i18n/config";
 import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical } from "@tabler/icons-react";
 import {
   type Project,
@@ -15,7 +16,7 @@ import {
   daysFromToday,
   ProjectIconPicker,
 } from "./shared";
-import { EditableText, EditableTextarea } from "../components";
+import { EditableText, EditableTextarea, ClientLinkChip } from "../components";
 import { PropertyMenu, Popover, MenuRow, type MenuOption } from "../Menu";
 import { DateField } from "../DatePicker";
 import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
@@ -389,6 +390,7 @@ export function ProjectDetailPanel({
                 className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
               />
             </div>
+            <ClientLinkChip clientId={project.client_id} lang={langPrefix as Locale} className="mt-1 inline-block" />
             <div className="mt-2">
               <EditableTextarea value={project.opis} onSave={(v) => updateProject("opis", v)} />
             </div>

@@ -22,6 +22,7 @@ type Kpi = {
   revenueLastMonth: [string, number][];
   outstanding: [string, number][];
   pipeline: number;
+  pipelineRaw: number;
 };
 
 type TodayData = {
@@ -182,9 +183,9 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           </div>
         </div>
         <div className="card-paper rounded-xl border hairline p-4">
-          <div className="text-[11px] text-muted">Pipeline ofert</div>
+          <div className="text-[11px] text-muted">Pipeline ofert (ważony)</div>
           <div className="mt-1 text-lg font-semibold">{formatMoney(data.kpi.pipeline)}</div>
-          <div className="mt-0.5 text-[11px] text-muted">otwarte oferty</div>
+          <div className="mt-0.5 text-[11px] text-muted">{formatMoney(data.kpi.pipelineRaw)} otwartych ofert (nieważone)</div>
         </div>
         <div className="card-paper rounded-xl border hairline p-4">
           <div className="text-[11px] text-muted">Wymaga działania dziś</div>

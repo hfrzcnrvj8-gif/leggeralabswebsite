@@ -9,6 +9,7 @@ import { PROJECT_TEMPLATES } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
+import { ClientLinkChip } from "../components";
 
 export function OfferEditor({
   id,
@@ -191,8 +192,9 @@ export function OfferEditor({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted">
+        <span className="flex items-center gap-2 text-xs text-muted">
           Oferty / <span className="text-[var(--fg)]">{offer.tytul || "(bez tytułu)"}</span>
+          <ClientLinkChip clientId={offer.client_id} lang={lang} />
         </span>
         <div className="flex items-center gap-3">
           <SaveIndicator state={saveState} />

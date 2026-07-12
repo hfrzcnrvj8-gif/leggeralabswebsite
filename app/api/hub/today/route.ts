@@ -4,7 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
 import { isInvoiceOverdue, type Invoice } from "@/lib/invoices";
-import { isOfferExpired, type Offer } from "@/lib/offers";
+import { isOfferExpired, weightedOfferValue, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
 import { isClientOverdue, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
@@ -14,8 +14,6 @@ export const runtime = "nodejs";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
-
-const CLOSED_OFFER_STATUSES = new Set<string>(["Zaakceptowana", "Odrzucona", "Wygasła"]);
 
 function addToCurrencyMap(map: Map<string, number>, currency: string, amount: number) {
   map.set(currency, (map.get(currency) ?? 0) + amount);
@@ -101,8 +99,11 @@ export async function GET() {
     addToCurrencyMap(outstanding, inv.waluta || "PLN", inv.brutto - inv.zaplacono);
   }
 
-  // Wartość pipeline'u — oferty jeszcze nie zamknięte (oferty są wyłącznie w PLN, bez pola waluty).
-  const pipeline = offers.reduce((sum, o) => (CLOSED_OFFER_STATUSES.has(o.status) ? sum : sum + o.kwota), 0);
+  // Wartość pipeline'u — oferty jeszcze nie zamknięte (oferty są wyłącznie w PLN, bez pola waluty),
+  // ważona szacowanym prawdopodobieństwem zamknięcia wg statusu (patrz OFFER_STATUS_WEIGHT).
+  const pipeline = offers.reduce((sum, o) => sum + weightedOfferValue(o.status, o.kwota), 0);
+  // Surowa (nieważona) suma otwartych ofert — do podpisu KPI, dla przejrzystości.
+  const pipelineRaw = offers.reduce((sum, o) => (CLOSED_OFFER_STATUSES.has(o.status) ? sum : sum + o.kwota), 0);
 
   return NextResponse.json({
     overdueLeads,
@@ -117,6 +118,7 @@ export async function GET() {
       revenueLastMonth: Array.from(revenueLastMonth.entries()),
       outstanding: Array.from(outstanding.entries()),
       pipeline,
+      pipelineRaw,
     },
     counts: {
       leads: leads.length,

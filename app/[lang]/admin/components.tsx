@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import type { Locale } from "@/i18n/config";
 import { useUI } from "./ui";
 import { PropertyMenu } from "./Menu";
 
@@ -203,5 +205,28 @@ export function SavedViews({
         + Zapisz widok
       </button>
     </div>
+  );
+}
+
+/** Link "→ Karta klienta", jeśli rekord ma podpiętego klienta (patrz
+ * lib/clients.ts) — wzorem LeadDetailPanel.tsx, wydzielony żeby nie kopiować
+ * tego samego znacznika w OfferEditor/InvoiceEditor/ProjectDetailPanel. */
+export function ClientLinkChip({
+  clientId,
+  lang,
+  className = "",
+}: {
+  clientId: string | null;
+  lang: Locale;
+  className?: string;
+}) {
+  if (!clientId) return null;
+  return (
+    <Link
+      href={`/${lang}/admin/clients/${clientId}`}
+      className={`text-[12.5px] text-muted hover:text-[var(--fg)] hover:underline ${className}`}
+    >
+      → Karta klienta
+    </Link>
   );
 }
