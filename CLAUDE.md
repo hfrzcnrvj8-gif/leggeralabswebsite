@@ -140,3 +140,8 @@ czekaj na Vercel → zgaduj"):
 - `LEADS_SETUP.md` — moduł Leady (pierwszy zbudowany, najbardziej dojrzały)
 - `HUB_SETUP.md` — Pulpit/Projekty/Notatnik/Kalendarz — aktualizuj przy
   każdej większej zmianie funkcjonalności panelu
+- `PO_REJESTRACJI.md` — **checklista prawna do wykonania PO rejestracji
+  działalności** (nota prawna z prawdziwymi danymi + link, dane administratora
+  w polityce prywatności, przełączenie KSeF test→produkcja, ustawienia
+  sprzedawcy). Firma NIE jest jeszcze zarejestrowana — te elementy świadomie
+  odłożone; NIE traktować jako braki do „naprawienia" przed rejestracją.
