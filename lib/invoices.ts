@@ -184,6 +184,17 @@ export type Invoice = {
   updated_at: string;
 };
 
+/** Zapisana pozycja katalogu usług/produktów — do szybkiego wstawiania na
+ * fakturę bez przepisywania. */
+export type CatalogItem = {
+  id: string;
+  nazwa: string;
+  cena_netto: number;
+  vat_stawka: string;
+  jednostka: string;
+  created_at: string;
+};
+
 export type InvoicePayment = {
   id: string;
   invoice_id: string;

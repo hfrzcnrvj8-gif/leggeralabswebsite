@@ -15,6 +15,8 @@ import {
   IconArrowUpRight,
   IconLock,
   IconBuildingBank,
+  IconBookmark,
+  IconBookmarkPlus,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
@@ -22,6 +24,7 @@ import {
   type InvoiceItem,
   type InvoicePayment,
   type CompanySettings,
+  type CatalogItem,
   VAT_RATES,
   INVOICE_LANGS,
   INVOICE_LANG_LABEL,
@@ -66,6 +69,7 @@ export function InvoiceEditor({
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const savedTimer = useRef<number | null>(null);
   const [issuing, setIssuing] = useState(false);
@@ -138,15 +142,63 @@ export function InvoiceEditor({
     [id, flashSaved, onChange, toast]
   );
 
-  const addItem = useCallback(async () => {
-    if (lockedRef.current) return;
-    const res = await fetch(`/api/invoices/${id}/items`, { method: "POST" });
-    if (res.ok) {
-      const data = (await res.json()) as { items: InvoiceItem[] };
-      setItems(data.items);
-      onChange?.();
-    }
-  }, [id, onChange]);
+  const addItem = useCallback(
+    async (prefill?: Partial<Pick<InvoiceItem, "nazwa" | "cena_netto" | "vat_stawka" | "jednostka" | "ilosc">>) => {
+      if (lockedRef.current) return;
+      const res = await fetch(`/api/invoices/${id}/items`, {
+        method: "POST",
+        headers: prefill ? { "Content-Type": "application/json" } : {},
+        body: prefill ? JSON.stringify(prefill) : undefined,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { items: InvoiceItem[] };
+        setItems(data.items);
+        onChange?.();
+      }
+    },
+    [id, onChange]
+  );
+
+  // --- Katalog usług/produktów ---
+  const loadCatalog = useCallback(async () => {
+    const res = await fetch("/api/catalog");
+    if (res.ok) setCatalog(((await res.json()) as { items: CatalogItem[] }).items);
+  }, []);
+
+  useEffect(() => {
+    loadCatalog();
+  }, [loadCatalog]);
+
+  const addFromCatalog = useCallback(
+    (c: CatalogItem) => addItem({ nazwa: c.nazwa, cena_netto: c.cena_netto, vat_stawka: c.vat_stawka, jednostka: c.jednostka }),
+    [addItem]
+  );
+
+  const saveToCatalog = useCallback(
+    async (it: InvoiceItem) => {
+      if (!it.nazwa.trim()) {
+        toast("Pozycja bez nazwy — nie zapiszę do katalogu.", "error");
+        return;
+      }
+      const res = await fetch("/api/catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nazwa: it.nazwa, cena_netto: it.cena_netto, vat_stawka: it.vat_stawka, jednostka: it.jednostka }),
+      });
+      if (res.ok) {
+        setCatalog(((await res.json()) as { items: CatalogItem[] }).items);
+        toast(`Zapisano „${it.nazwa}" do katalogu.`);
+      } else {
+        toast("Nie udało się zapisać do katalogu.", "error");
+      }
+    },
+    [toast]
+  );
+
+  const deleteFromCatalog = useCallback(async (catId: string) => {
+    setCatalog((prev) => prev.filter((c) => c.id !== catId));
+    await fetch(`/api/catalog/${catId}`, { method: "DELETE" });
+  }, []);
 
   const patchItem = useCallback(
     async (itemId: string, patch: Partial<InvoiceItem>) => {
@@ -575,9 +627,34 @@ export function InvoiceEditor({
           <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-[13px] font-medium">Pozycje</h2>
-              <button onClick={addItem} className="rounded-full border hairline px-3 py-1 text-xs">
-                + Pozycja
-              </button>
+              <div className="flex items-center gap-1.5">
+                <Popover
+                  width={320}
+                  trigger={(open) => (
+                    <button
+                      onClick={open}
+                      className="flex items-center gap-1 rounded-full border hairline px-3 py-1 text-xs text-muted hover:text-[var(--fg)]"
+                      title="Wstaw zapisaną pozycję z katalogu"
+                    >
+                      <IconBookmark size={13} /> Z katalogu
+                    </button>
+                  )}
+                >
+                  {(close) => (
+                    <CatalogPicker
+                      catalog={catalog}
+                      onPick={(c) => {
+                        addFromCatalog(c);
+                        close();
+                      }}
+                      onDelete={deleteFromCatalog}
+                    />
+                  )}
+                </Popover>
+                <button onClick={() => addItem()} className="rounded-full border hairline px-3 py-1 text-xs">
+                  + Pozycja
+                </button>
+              </div>
             </div>
 
             {items.length === 0 ? (
@@ -591,7 +668,7 @@ export function InvoiceEditor({
                   <span className="w-24 text-right">Cena netto</span>
                   <span className="w-16 text-center">VAT</span>
                   <span className="w-24 text-right">Brutto</span>
-                  <span className="w-5" />
+                  <span className="w-11" />
                 </div>
                 {items.map((it) => (
                   <div key={it.id} className="flex items-center gap-1.5">
@@ -637,9 +714,14 @@ export function InvoiceEditor({
                       </PropertyMenu>
                     </div>
                     <span className="w-24 text-right text-[13px] tabular-nums">{formatMoney(itemBrutto(it))}</span>
-                    <button onClick={() => deleteItem(it.id)} className="flex w-5 justify-center text-muted hover:text-red-400" title="Usuń pozycję">
-                      <IconTrash size={13} />
-                    </button>
+                    <div className="flex w-11 justify-end gap-1">
+                      <button onClick={() => saveToCatalog(it)} className="flex text-muted hover:text-brand-purple" title="Zapisz tę pozycję do katalogu">
+                        <IconBookmarkPlus size={13} />
+                      </button>
+                      <button onClick={() => deleteItem(it.id)} className="flex text-muted hover:text-red-400" title="Usuń pozycję">
+                        <IconTrash size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1003,6 +1085,60 @@ export function InvoiceEditor({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CatalogPicker({
+  catalog,
+  onPick,
+  onDelete,
+}: {
+  catalog: CatalogItem[];
+  onPick: (c: CatalogItem) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const filtered = needle ? catalog.filter((c) => c.nazwa.toLowerCase().includes(needle)) : catalog;
+  return (
+    <div className="max-h-72 overflow-y-auto">
+      {catalog.length > 0 && (
+        <div className="p-1.5">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Szukaj w katalogu…"
+            autoFocus
+            className="w-full rounded-md border hairline bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+          />
+        </div>
+      )}
+      {catalog.length === 0 ? (
+        <p className="px-3 py-4 text-center text-[12px] text-muted">
+          Katalog jest pusty. Zapisz pozycję ikoną zakładki <IconBookmarkPlus size={12} className="inline" /> obok wiersza faktury, żeby móc ją stąd szybko wstawiać.
+        </p>
+      ) : filtered.length === 0 ? (
+        <p className="px-3 py-3 text-center text-[12px] text-muted">Brak dopasowań.</p>
+      ) : (
+        filtered.map((c) => (
+          <div key={c.id} className="group flex items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--hairline)]">
+            <button onClick={() => onPick(c)} className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-[13px] text-[var(--fg)]">{c.nazwa}</span>
+              <span className="block text-[11px] text-muted">
+                {formatMoney(c.cena_netto)} / {c.jednostka} · VAT {c.vat_stawka === "zw" || c.vat_stawka === "np" ? c.vat_stawka : `${c.vat_stawka}%`}
+              </span>
+            </button>
+            <button
+              onClick={() => onDelete(c.id)}
+              className="shrink-0 text-muted opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+              title="Usuń z katalogu"
+            >
+              <IconTrash size={13} />
+            </button>
+          </div>
+        ))
+      )}
     </div>
   );
 }

@@ -423,6 +423,20 @@ async function createInvoicesSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS invoice_items_invoice_id_idx ON invoice_items(invoice_id);`;
+
+  // Katalog usług/produktów — zapisane pozycje do szybkiego wstawiania na
+  // fakturę (nazwa + cena + VAT + jednostka), żeby nie przepisywać ich za
+  // każdym razem. Niezależny od faktur, jednoosobowy (bez właściciela/ról).
+  await sql`
+    CREATE TABLE IF NOT EXISTS service_catalog (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL DEFAULT '',
+      cena_netto NUMERIC NOT NULL DEFAULT 0,
+      vat_stawka TEXT NOT NULL DEFAULT '23',
+      jednostka TEXT NOT NULL DEFAULT 'szt.',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
 }
 
 /** Lazily tworzy tabele modułu Faktur (ustawienia firmy, faktury, pozycje). */
