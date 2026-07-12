@@ -144,9 +144,25 @@ function companyAdresL1(company: CompanySettings): string {
   return joinAdresL1(company.ulica, company.kod, company.miasto, company.adres);
 }
 
-/** Pojedynczy węzeł XML z wcięciem (pomija puste wartości opcjonalne). */
+/** Data do FA(3) w formacie YYYY-MM-DD. Odporna na to, że sterownik bazy
+ * potrafi zwrócić kolumnę DATE jako obiekt `Date` (produkcja/neon), a nie jako
+ * string (lokalny PGlite) — inaczej `xmlEscape` wywalał się na `Date.replace`. */
+function dateStr(v: unknown): string {
+  if (v == null) return "";
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return String(v).slice(0, 10);
+}
+
+/** Pojedynczy węzeł XML z wcięciem (pomija puste wartości opcjonalne).
+ * `String(value)` chroni przed wartościami nie-stringowymi z bazy (np. Date),
+ * które inaczej wywalałyby `xmlEscape`. */
 function tag(name: string, value: string | number, indent: string): string {
-  return `${indent}<${name}>${typeof value === "number" ? value : xmlEscape(value)}</${name}>`;
+  return `${indent}<${name}>${typeof value === "number" ? value : xmlEscape(String(value))}</${name}>`;
 }
 
 /**
@@ -231,9 +247,9 @@ export function buildFA3Xml(
   // --- Fa (dane faktury) ---
   lines.push(`${L1}<Fa>`);
   lines.push(tag("KodWaluty", inv.waluta || "PLN", L2));
-  lines.push(tag("P_1", inv.data_wystawienia || "", L2));
+  lines.push(tag("P_1", dateStr(inv.data_wystawienia), L2));
   lines.push(tag("P_2", inv.numer || "", L2));
-  if (inv.data_sprzedazy) lines.push(tag("P_6", inv.data_sprzedazy, L2));
+  if (inv.data_sprzedazy) lines.push(tag("P_6", dateStr(inv.data_sprzedazy), L2));
 
   // Podstawy i kwoty VAT w ustalonej kolejności pól FA(3).
   for (const f of ["P_13_1", "P_14_1", "P_13_2", "P_14_2", "P_13_3", "P_14_3", "P_13_4", "P_13_6", "P_13_7"]) {
