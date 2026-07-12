@@ -13,6 +13,8 @@ import {
   IconMail,
   IconBellRinging,
   IconArrowUpRight,
+  IconLock,
+  IconBuildingBank,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
@@ -36,6 +38,7 @@ import {
   totalPaid,
   isInvoiceOverdue,
 } from "@/lib/invoices";
+import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -56,6 +59,10 @@ export function InvoiceEditor({
   onDeleted?: (id: string) => void;
 }) {
   const { toast, confirm } = useUI();
+  // Po wystawieniu faktura jest dokumentem urzędowym — nie wolno jej edytować
+  // (zmiany wyłącznie przez korektę). Ref trzyma aktualny stan blokady, żeby
+  // funkcje zapisu mogły odmówić edycji nawet gdyby ominąć blokadę w UI.
+  const lockedRef = useRef(false);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
@@ -70,6 +77,7 @@ export function InvoiceEditor({
   const [duplicating, setDuplicating] = useState(false);
   const [correcting, setCorrecting] = useState(false);
   const [sending, setSending] = useState(false);
+  const [ksefSending, setKsefSending] = useState(false);
   const [reminding, setReminding] = useState(false);
   const [converting, setConverting] = useState(false);
   const [newPaymentKwota, setNewPaymentKwota] = useState("");
@@ -108,6 +116,10 @@ export function InvoiceEditor({
 
   const patchInvoice = useCallback(
     async (patch: Partial<Invoice>) => {
+      // Zablokowana faktura: przepuszczamy tylko zmianę statusu (np. anulowanie)
+      // oraz e-mail nabywcy (potrzebny do wysyłki/przypomnień po wystawieniu) —
+      // resztę pól dokumentu odrzucamy, bo edycja treści idzie przez korektę.
+      if (lockedRef.current && !("status" in patch) && !("klient_email" in patch)) return;
       setInvoice((prev) => (prev ? { ...prev, ...patch } : prev));
       setSaveState("saving");
       const res = await fetch(`/api/invoices/${id}`, {
@@ -127,6 +139,7 @@ export function InvoiceEditor({
   );
 
   const addItem = useCallback(async () => {
+    if (lockedRef.current) return;
     const res = await fetch(`/api/invoices/${id}/items`, { method: "POST" });
     if (res.ok) {
       const data = (await res.json()) as { items: InvoiceItem[] };
@@ -137,6 +150,7 @@ export function InvoiceEditor({
 
   const patchItem = useCallback(
     async (itemId: string, patch: Partial<InvoiceItem>) => {
+      if (lockedRef.current) return;
       setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, ...patch } : it)));
       setSaveState("saving");
       const res = await fetch(`/api/invoices/${id}/items/${itemId}`, {
@@ -156,6 +170,7 @@ export function InvoiceEditor({
 
   const deleteItem = useCallback(
     async (itemId: string) => {
+      if (lockedRef.current) return;
       setItems((prev) => prev.filter((it) => it.id !== itemId));
       await fetch(`/api/invoices/${id}/items/${itemId}`, { method: "DELETE" });
       onChange?.();
@@ -271,6 +286,35 @@ export function InvoiceEditor({
     }
   }, [id, toast]);
 
+  const sendToKsef = useCallback(async () => {
+    const ok = await confirm(
+      "Wysłać fakturę do KSeF na środowisko TESTOWE? To bezpieczne — faktura testowa nie ma mocy prawnej i nie idzie do prawdziwego urzędu."
+    );
+    if (!ok) return;
+    setKsefSending(true);
+    const res = await fetch(`/api/invoices/${id}/ksef/send`, { method: "POST" });
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      stage?: string;
+      ksefNumber?: string | null;
+      statusText?: string;
+      error?: string;
+      validation?: { errors: string[] };
+    };
+    setKsefSending(false);
+    if (data.ok) {
+      toast(`Przyjęto w KSeF — numer ${data.ksefNumber ?? "(brak)"}.`);
+    } else if (data.stage === "walidacja") {
+      toast(`Faktura nie przeszła walidacji: ${(data.validation?.errors ?? []).join(" ") || "sprawdź dane."}`, "error");
+    } else if (data.stage === "wysyłka") {
+      toast(data.error ?? "Nie udało się połączyć z KSeF.", "error");
+    } else {
+      toast(`KSeF odrzucił fakturę: ${data.statusText ?? "nieznany powód"}.`, "error");
+    }
+    await load();
+    onChange?.();
+  }, [id, confirm, toast, load, onChange]);
+
   const sendReminder = useCallback(async () => {
     setReminding(true);
     const res = await fetch(`/api/invoices/${id}/remind`, { method: "POST" });
@@ -344,6 +388,12 @@ export function InvoiceEditor({
 
   const totals = invoiceTotals(items);
   const isDraft = invoice.status === "Szkic";
+  // Blokada edycji wystawionego dokumentu. `lockCls` wygasza i wyłącza
+  // kliknięcia w sekcjach z danymi faktury; e-mail nabywcy i akcje (płatności,
+  // wysyłka, korekta, anulowanie) zostają aktywne poza tą blokadą.
+  const locked = !isDraft;
+  lockedRef.current = locked;
+  const lockCls = locked ? "pointer-events-none opacity-60" : "";
   const vatPayer = settings?.vat_payer ?? true;
   const dueAmount = vatPayer ? totals.brutto : totals.netto;
   const paid = totalPaid(payments);
@@ -374,11 +424,22 @@ export function InvoiceEditor({
         </div>
       </div>
 
+      {locked && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border hairline bg-[var(--hairline)]/40 px-3 py-2 text-[12px] text-muted">
+          <IconLock size={14} className="shrink-0" />
+          <span>
+            Faktura wystawiona (<span className="font-medium text-[var(--fg)]">{invoice.numer}</span>) — dane są zablokowane, żeby nie zmienić dokumentu przez pomyłkę.
+            Aby coś poprawić, użyj <span className="font-medium text-[var(--fg)]">„Wystaw korektę"</span>.
+          </span>
+        </div>
+      )}
+
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         {/* Główna kolumna: klient + pozycje */}
         <div className="min-w-0 space-y-4">
           <div className="card-paper rounded-xl border hairline p-4">
             <h2 className="mb-2 text-[13px] font-medium">Nabywca</h2>
+            <div className={lockCls}>
             <input
               value={invoice.klient_nazwa}
               onChange={(e) => setInvoice((p) => (p ? { ...p, klient_nazwa: e.target.value } : p))}
@@ -404,6 +465,7 @@ export function InvoiceEditor({
                 Szukaj po NIP
               </button>
             </div>
+            </div>
             <input
               value={invoice.klient_email}
               onChange={(e) => setInvoice((p) => (p ? { ...p, klient_email: e.target.value } : p))}
@@ -411,6 +473,7 @@ export function InvoiceEditor({
               placeholder="E-mail nabywcy (do wysyłki faktury / przypomnień)"
               className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
+            <div className={lockCls}>
             <input
               value={invoice.klient_ulica}
               onChange={(e) => setInvoice((p) => (p ? { ...p, klient_ulica: e.target.value } : p))}
@@ -446,9 +509,10 @@ export function InvoiceEditor({
                 Stary adres (sprzed rozbicia na pola): {invoice.klient_adres}
               </p>
             )}
+            </div>
           </div>
 
-          <div className="card-paper rounded-xl border hairline p-4">
+          <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
             <label className="flex cursor-pointer items-center justify-between gap-3">
               <span>
                 <span className="block text-[13px] font-medium">Inny odbiorca niż nabywca</span>
@@ -510,7 +574,7 @@ export function InvoiceEditor({
             )}
           </div>
 
-          <div className="card-paper rounded-xl border hairline p-4">
+          <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-[13px] font-medium">Pozycje</h2>
               <button onClick={addItem} className="rounded-full border hairline px-3 py-1 text-xs">
@@ -602,7 +666,7 @@ export function InvoiceEditor({
             </div>
           </div>
 
-          <div className="card-paper rounded-xl border hairline p-4">
+          <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
             <h2 className="mb-2 text-[13px] font-medium">Uwagi</h2>
             <textarea
               value={invoice.uwagi}
@@ -617,7 +681,7 @@ export function InvoiceEditor({
 
         {/* Boczny pasek: daty, status, akcje */}
         <div className="space-y-4">
-          <div className="card-paper rounded-xl border hairline p-4">
+          <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
             <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Dokument</h3>
             {koryguje ? (
               <p className="mb-2 rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11.5px] text-muted">
@@ -742,7 +806,7 @@ export function InvoiceEditor({
             )}
           </div>
 
-          <div className="card-paper rounded-xl border hairline p-4">
+          <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
             <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Daty</h3>
             <Field label="Wystawienia">
               <DateField value={invoice.data_wystawienia ?? ""} onChange={(v) => patchInvoice({ data_wystawienia: v || null })} placeholder="—" />
@@ -819,6 +883,47 @@ export function InvoiceEditor({
                   + Wpłata
                 </button>
               </div>
+            </div>
+          )}
+
+          {!isDraft && invoice.typ_dokumentu === "faktura" && !koryguje && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-[11px] uppercase tracking-wide text-muted">KSeF</h3>
+                <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-brand-gold">
+                  Środowisko testowe
+                </span>
+              </div>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[11px] ${KSEF_STATUS_CLASS[invoice.ksef_status]}`}>
+                  {KSEF_STATUS_LABEL[invoice.ksef_status]}
+                </span>
+                {invoice.ksef_tryb && (
+                  <span className="rounded-full bg-[var(--hairline)] px-2 py-0.5 text-[11px] text-muted">
+                    {KSEF_TRYB_LABEL[invoice.ksef_tryb]}
+                  </span>
+                )}
+              </div>
+              {invoice.ksef_numer && (
+                <p className="mb-2 break-all text-[12px] text-muted">
+                  Numer KSeF: <span className="font-medium text-[var(--fg)]">{invoice.ksef_numer}</span>
+                </p>
+              )}
+              {invoice.ksef_blad && (
+                <p className="mb-2 rounded-lg bg-red-500/10 px-2 py-1 text-[11.5px] text-red-400">{invoice.ksef_blad}</p>
+              )}
+              <button
+                onClick={sendToKsef}
+                disabled={ksefSending || invoice.ksef_status === "przyjeto"}
+                className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {ksefSending ? <IconLoader2 size={13} className="animate-spin" /> : <IconBuildingBank size={13} />}
+                {invoice.ksef_status === "przyjeto"
+                  ? "Wysłano do KSeF ✓"
+                  : invoice.ksef_status === "nie_wyslano"
+                    ? "Wyślij do KSeF (test)"
+                    : "Wyślij ponownie do KSeF"}
+              </button>
             </div>
           )}
 
