@@ -101,15 +101,21 @@ export async function fetchTokenEncryptionKey(baseUrl: string): Promise<crypto.K
   return toPublicKey(cert);
 }
 
+/** Szyfruje surowe bajty algorytmem RSA-OAEP (SHA-256, MGF1-SHA256) i zwraca
+ * Base64 — jedyny algorytm asymetryczny, którego używa API KSeF 2.0 (zarówno
+ * do tokena uwierzytelniającego, jak i do klucza symetrycznego sesji). */
+function rsaEncryptToBase64(data: Buffer, key: crypto.KeyObject): string {
+  const encrypted = crypto.publicEncrypt(
+    { key, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
+    data
+  );
+  return encrypted.toString("base64");
+}
+
 /** Szyfruje ciąg `{token}|{timestamp}` algorytmem RSA-OAEP (SHA-256, MGF1-
  * SHA256) i zwraca Base64 — dokładnie jak wymaga API KSeF 2.0. */
 export function encryptKsefToken(token: string, timestampMs: number, key: crypto.KeyObject): string {
-  const plaintext = Buffer.from(`${token}|${timestampMs}`, "utf8");
-  const encrypted = crypto.publicEncrypt(
-    { key, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
-    plaintext
-  );
-  return encrypted.toString("base64");
+  return rsaEncryptToBase64(Buffer.from(`${token}|${timestampMs}`, "utf8"), key);
 }
 
 export type KsefAuthResult = {
@@ -207,4 +213,177 @@ export async function authenticateWithToken(cfg: KsefConfig): Promise<KsefAuthRe
   if (!accessToken) throw new Error("KSeF: /auth/token/redeem nie zwrócił accessToken.");
 
   return { referenceNumber, accessToken, refreshToken, status: statusText || "OK" };
+}
+
+// ===========================================================================
+// Krok 4 — sesja interaktywna (online) + szyfrowana wysyłka faktury FA(3)
+// ===========================================================================
+//
+// Przepływ sesji online wg OpenAPI KSeF 2.0 (środowisko testowe):
+//   1. GET  /security/public-key-certificates → cert do szyfrowania klucza
+//        symetrycznego (usage: SymmetricKeyEncryption) + jego publicKeyId
+//   2. losujemy klucz AES-256 (32 B) i IV (16 B); klucz szyfrujemy RSA-OAEP
+//   3. POST /sessions/online                  → otwarcie sesji (formCode FA(3)
+//        + EncryptionInfo) → referenceNumber sesji
+//   4. XML faktury szyfrujemy AES-256-CBC (PKCS#7) i wysyłamy z hashami:
+//        POST /sessions/online/{ref}/invoices  → referenceNumber faktury
+//   5. GET  /sessions/{ref}/invoices/{invRef}  → polling statusu → numer KSeF
+//   6. GET  /sessions/{ref}/invoices/{invRef}/upo → UPO (best-effort)
+//   7. POST /sessions/online/{ref}/close       → zamknięcie sesji
+//
+// Cała ścieżka przechodzi przez getKsefConfig/authenticateWithToken → bramka
+// assertTestOnly gwarantuje, że nic nie wyjdzie na produkcję.
+
+/** Kod formularza FA(3) — musi zgadzać się z <KodFormularza> w generowanym XML
+ * (patrz buildFA3Xml w lib/ksef.ts). */
+const FA3_FORM_CODE = { systemCode: "FA (3)", schemaVersion: "1-0E", value: "FA" } as const;
+
+/** Cert do szyfrowania klucza symetrycznego sesji (usage SymmetricKeyEncryption).
+ * Zwraca też publicKeyId, którym API rozpozna, którego klucza użyliśmy. */
+async function fetchSymmetricKeyEncryptionCert(
+  baseUrl: string
+): Promise<{ key: crypto.KeyObject; publicKeyId: string }> {
+  const res = await fetch(`${baseUrl}/security/public-key-certificates`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`KSeF: nie udało się pobrać certyfikatów (HTTP ${res.status}).`);
+  const data = (await res.json()) as PublicKeyCertificate[] | { certificates?: PublicKeyCertificate[] };
+  const list = Array.isArray(data) ? data : data.certificates ?? [];
+  const cert = list.find((c) => (c.usage || []).includes("SymmetricKeyEncryption"));
+  if (!cert) throw new Error("KSeF: brak certyfikatu z przeznaczeniem SymmetricKeyEncryption.");
+  return { key: toPublicKey(cert), publicKeyId: (cert as { publicKeyId?: string }).publicKeyId || "" };
+}
+
+/** SHA-256 danych zakodowany Base64 — format hashy wymagany przez API KSeF. */
+function sha256Base64(data: Buffer): string {
+  return crypto.createHash("sha256").update(data).digest("base64");
+}
+
+/** Materiał szyfrujący jednej sesji: losowy klucz AES-256 + IV. */
+export type SessionCrypto = { aesKey: Buffer; iv: Buffer };
+
+function newSessionCrypto(): SessionCrypto {
+  return { aesKey: crypto.randomBytes(32), iv: crypto.randomBytes(16) };
+}
+
+/** Szyfruje XML faktury AES-256-CBC z dopełnianiem PKCS#7 (domyślne w node)
+ * i zwraca komplet metadanych wymaganych przez SendInvoiceRequest. */
+function encryptInvoiceXml(xml: string, sc: SessionCrypto) {
+  const plain = Buffer.from(xml, "utf8");
+  const cipher = crypto.createCipheriv("aes-256-cbc", sc.aesKey, sc.iv);
+  const encrypted = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return {
+    invoiceHash: sha256Base64(plain),
+    invoiceSize: plain.length,
+    encryptedInvoiceHash: sha256Base64(encrypted),
+    encryptedInvoiceSize: encrypted.length,
+    encryptedInvoiceContent: encrypted.toString("base64"),
+  };
+}
+
+export type KsefSendResult = {
+  sessionReference: string;
+  invoiceReference: string;
+  /** Numer KSeF nadany po przyjęciu (null, gdy odrzucono). */
+  ksefNumber: string | null;
+  /** Kod statusu przetwarzania faktury (200 = sukces, ≥400 = błąd). */
+  statusCode: number;
+  statusText: string;
+  /** UPO (XML) — urzędowe poświadczenie odbioru; null, gdy niedostępne. */
+  upo: string | null;
+  accepted: boolean;
+};
+
+/**
+ * Pełna wysyłka JEDNEJ faktury FA(3) do KSeF przez sesję online (środowisko
+ * TESTOWE). Sam otwiera sesję, szyfruje i wysyła dokument, odpytuje o status,
+ * pobiera UPO i zamyka sesję. Zwraca czytelny wynik — numer KSeF albo powód
+ * odrzucenia. NIE zapisuje niczego do bazy; to robi route.
+ */
+export async function sendInvoiceToKsef(cfg: KsefConfig, xml: string): Promise<KsefSendResult> {
+  assertTestOnly(cfg.env);
+
+  // Uwierzytelnienie → accessToken do dalszych, autoryzowanych operacji.
+  const auth = await authenticateWithToken(cfg);
+  const bearer = auth.accessToken;
+
+  // Klucz sesji: losowy AES-256 zaszyfrowany kluczem publicznym MF.
+  const { key: rsaKey, publicKeyId } = await fetchSymmetricKeyEncryptionCert(cfg.baseUrl);
+  const sc = newSessionCrypto();
+  const encryption: Record<string, string> = {
+    encryptedSymmetricKey: rsaEncryptToBase64(sc.aesKey, rsaKey),
+    initializationVector: sc.iv.toString("base64"),
+  };
+  if (publicKeyId) encryption.publicKeyId = publicKeyId;
+
+  // 3: otwarcie sesji online.
+  const openRes = await postJson(`${cfg.baseUrl}/sessions/online`, {
+    formCode: FA3_FORM_CODE,
+    encryption,
+  }, bearer);
+  const sessionReference = String(openRes.referenceNumber || "");
+  if (!sessionReference) throw new Error("KSeF: /sessions/online nie zwrócił numeru referencyjnego sesji.");
+
+  try {
+    // 4: szyfrujemy i wysyłamy fakturę.
+    const payload = encryptInvoiceXml(xml, sc);
+    const sendRes = await postJson(`${cfg.baseUrl}/sessions/online/${sessionReference}/invoices`, payload, bearer);
+    const invoiceReference = String(sendRes.referenceNumber || "");
+    if (!invoiceReference) throw new Error("KSeF: wysyłka faktury nie zwróciła numeru referencyjnego.");
+
+    // 5: polling statusu przetwarzania (100/150 = w toku, 200 = sukces, ≥400 = błąd).
+    let statusCode = 0;
+    let statusText = "";
+    let ksefNumber: string | null = null;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const res = await fetch(
+        `${cfg.baseUrl}/sessions/${sessionReference}/invoices/${invoiceReference}`,
+        { headers: { Accept: "application/json", Authorization: `Bearer ${bearer}` } }
+      );
+      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const status = (json.status || {}) as Record<string, unknown>;
+      statusCode = Number(status.code || 0);
+      statusText = String(status.description || "");
+      ksefNumber = (json.ksefNumber as string | null) ?? null;
+      if (statusCode === 200) break;
+      if (statusCode >= 400) break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
+    const accepted = statusCode === 200;
+
+    // 6: UPO faktury (best-effort — brak nie unieważnia przyjęcia).
+    let upo: string | null = null;
+    if (accepted) {
+      try {
+        const upoRes = await fetch(
+          `${cfg.baseUrl}/sessions/${sessionReference}/invoices/${invoiceReference}/upo`,
+          { headers: { Accept: "application/xml", Authorization: `Bearer ${bearer}` } }
+        );
+        if (upoRes.ok) upo = await upoRes.text();
+      } catch {
+        // UPO można dobrać później; nie przerywamy z tego powodu.
+      }
+    }
+
+    return {
+      sessionReference,
+      invoiceReference,
+      ksefNumber,
+      statusCode,
+      statusText: statusText || (accepted ? "Sukces" : `Kod ${statusCode}`),
+      upo,
+      accepted,
+    };
+  } finally {
+    // 7: zamknięcie sesji — best-effort, żeby nie zostawiać otwartej sesji.
+    try {
+      await fetch(`${cfg.baseUrl}/sessions/online/${sessionReference}/close`, {
+        method: "POST",
+        headers: { Accept: "application/json", Authorization: `Bearer ${bearer}` },
+      });
+    } catch {
+      // Sesja i tak wygaśnie automatycznie; brak zamknięcia nie jest błędem krytycznym.
+    }
+  }
 }
