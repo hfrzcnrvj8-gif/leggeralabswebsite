@@ -82,7 +82,7 @@ export function InvoiceEditor({
   const [showOdbiorca, setShowOdbiorca] = useState(false);
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
   const [korekty, setKorekty] = useState<{ id: string; numer: string | null; data_wystawienia: string | null }[]>([]);
-  const [koryguje, setKoryguje] = useState<{ id: string; numer: string | null; data_wystawienia: string | null } | null>(null);
+  const [koryguje, setKoryguje] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; brutto?: number } | null>(null);
   const [nipLoading, setNipLoading] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [correcting, setCorrecting] = useState(false);
@@ -109,7 +109,7 @@ export function InvoiceEditor({
       settings: CompanySettings;
       payments: InvoicePayment[];
       korekty: { id: string; numer: string | null; data_wystawienia: string | null }[];
-      koryguje: { id: string; numer: string | null; data_wystawienia: string | null } | null;
+      koryguje: { id: string; numer: string | null; data_wystawienia: string | null; brutto?: number } | null;
     };
     setInvoice(data.invoice);
     setItems(data.items);
@@ -718,6 +718,31 @@ export function InvoiceEditor({
               </div>
             </div>
 
+            {koryguje && isDraft && (
+              <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-400/10 px-3 py-2 text-[11.5px] leading-relaxed text-amber-600 dark:text-amber-400">
+                <p className="mb-1 font-medium">Jak działa korekta</p>
+                <p className="text-[var(--fg)]/80">
+                  Popraw pozycje tak, jak faktura <span className="font-medium">powinna wyglądać po zmianie</span> (stan
+                  docelowy). Usługę niewykonaną <span className="font-medium">usuń</span> (🗑). Aby zmniejszyć ilość lub cenę —
+                  wpisz nową, <span className="font-medium">dodatnią</span> wartość. Nie wpisuj ilości ujemnej ani{" "}
+                  <span className="font-medium">0</span>. System sam policzy różnicę względem faktury pierwotnej{" "}
+                  <span className="font-medium">{koryguje.numer ?? "…"}</span> i wyśle ją do KSeF.
+                </p>
+                {typeof koryguje.brutto === "number" && (
+                  <p className="mt-1.5 text-[var(--fg)]">
+                    Pierwotnie{" "}
+                    <span className="tabular-nums">{formatMoney(koryguje.brutto, invoice.waluta || "PLN")}</span> → po korekcie{" "}
+                    <span className="tabular-nums">{formatMoney(totals.brutto, invoice.waluta || "PLN")}</span> ={" "}
+                    <span className="font-semibold tabular-nums">
+                      {totals.brutto - koryguje.brutto >= 0 ? "+" : ""}
+                      {formatMoney(totals.brutto - koryguje.brutto, invoice.waluta || "PLN")}
+                    </span>{" "}
+                    <span className="text-muted">(różnica do KSeF)</span>
+                  </p>
+                )}
+              </div>
+            )}
+
             {items.length === 0 ? (
               <p className="py-3 text-center text-xs text-muted opacity-60">Brak pozycji — dodaj pierwszą.</p>
             ) : (
@@ -1029,9 +1054,14 @@ export function InvoiceEditor({
                 />
                 Zapłacono od razu (gotówka)
               </label>
+              {invoice.koryguje_id && !invoice.przyczyna_korekty.trim() && (
+                <p className="px-1 text-[11px] text-amber-500">
+                  Podaj przyczynę korekty (wymagana do wystawienia i wysyłki do KSeF).
+                </p>
+              )}
               <button
                 onClick={issue}
-                disabled={issuing || items.length === 0}
+                disabled={issuing || items.length === 0 || (!!invoice.koryguje_id && !invoice.przyczyna_korekty.trim())}
                 className="btn-primary flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {issuing ? <IconLoader2 size={15} className="animate-spin" /> : <IconCheck size={15} />}

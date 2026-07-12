@@ -68,6 +68,34 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Faktura bez pozycji — dodaj co najmniej jedną pozycję." }, { status: 400 });
     }
 
+    // Korekta bez przyczyny jest bezużyteczna — KSeF (FA(3)) wymaga
+    // PrzyczynaKorekty, więc blokujemy już na wystawieniu, żeby nie powstała
+    // korekta, której potem nie da się wysłać. Guard po stronie serwera jest
+    // autorytatywny (UI też wyłącza przycisk, ale to tylko wygoda).
+    if (inv.koryguje_id && !String(inv.przyczyna_korekty ?? "").trim()) {
+      return NextResponse.json(
+        { error: "Podaj przyczynę korekty — jest wymagana do wystawienia i wysyłki do KSeF." },
+        { status: 400 }
+      );
+    }
+
+    // Pozycja z ilością 0/ujemną jest niepoprawna w FA(3) (P_8B > 0) i zostałaby
+    // odrzucona przez KSeF. W korekcie usunięcie usługi robi się przez skasowanie
+    // pozycji (🗑), nie przez wyzerowanie ilości — blokujemy, żeby nie powstała
+    // wystawiona (i już niezmienna) korekta, której nie da się wysłać.
+    const badQty = await sql`SELECT nazwa FROM invoice_items WHERE invoice_id = ${id} AND ilosc <= 0 LIMIT 1;`;
+    if (badQty[0]) {
+      const nazwa = String(badQty[0].nazwa || "?");
+      return NextResponse.json(
+        {
+          error: inv.koryguje_id
+            ? `Pozycja „${nazwa}" ma ilość 0 — w korekcie usuń taką pozycję (🗑) zamiast zerować ilość.`
+            : `Pozycja „${nazwa}" ma ilość 0 — ustaw ilość większą od zera.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const today = new Date();
     const year = today.getFullYear();
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
-import { INVOICE_LANGS, PAYMENT_METHODS } from "@/lib/invoices";
+import { INVOICE_LANGS, PAYMENT_METHODS, invoiceTotals, type InvoiceItem } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 
@@ -24,9 +24,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
   const payments = await sql`SELECT * FROM invoice_payments WHERE invoice_id = ${id} ORDER BY data ASC;`;
   const korekty = await sql`SELECT id, numer, data_wystawienia FROM invoices WHERE koryguje_id = ${id} ORDER BY created_at ASC;`;
-  const koryguje = invoice.koryguje_id
-    ? (await sql`SELECT id, numer, data_wystawienia FROM invoices WHERE id = ${invoice.koryguje_id};`)[0] ?? null
-    : null;
+  // Dla korekty dołączamy brutto faktury pierwotnej — edytor pokazuje na jego
+  // podstawie różnicę (stan po korekcie − stan pierwotny), którą wyśle do KSeF.
+  let koryguje = null;
+  if (invoice.koryguje_id) {
+    const kr = (await sql`SELECT id, numer, data_wystawienia FROM invoices WHERE id = ${invoice.koryguje_id};`)[0] ?? null;
+    if (kr) {
+      const kItems = numItems(await sql`SELECT * FROM invoice_items WHERE invoice_id = ${invoice.koryguje_id} ORDER BY position ASC;`);
+      koryguje = { ...kr, brutto: invoiceTotals(kItems as unknown as InvoiceItem[]).brutto };
+    }
+  }
   return NextResponse.json({
     invoice,
     items: numItems(items),

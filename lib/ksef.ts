@@ -240,6 +240,18 @@ export function buildFA3Xml(
     ? round2(invoiceTotals(items).brutto - invoiceTotals(correction.originalItems).brutto)
     : invoiceTotals(items).brutto;
 
+  // Faktura w walucie obcej: kwota VAT musi być dodatkowo wyrażona w PLN wg
+  // średniego kursu NBP (art. 106e ust. 11 ustawy o VAT). W FA(3) pola P_13/P_14
+  // zostają w walucie faktury, a przeliczony na PLN podatek idzie w P_14_1W/2W/3W
+  // (zaraz po każdym P_14_x), zaś sam kurs — w KursWaluty na każdym FaWiersz.
+  // Kurs pobieramy raz przy wystawieniu (kolumna kurs_nbp, patrz lib/nbp.ts);
+  // gdy waluta = PLN lub brak kursu, całość pomijamy. Uwaga: KursWalutyZ (po P_15)
+  // dotyczy WYŁĄCZNIE faktur zaliczkowych, więc tu go nie emitujemy.
+  const kursRaw = inv.kurs_nbp != null ? Number(inv.kurs_nbp) : NaN;
+  const kursNum =
+    (inv.waluta || "PLN") !== "PLN" && Number.isFinite(kursRaw) && kursRaw > 0 ? kursRaw : null;
+  const kursFmt = (k: number): string => k.toFixed(4);
+
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const L1 = "  ";
   const L2 = "    ";
@@ -311,6 +323,8 @@ export function buildFA3Xml(
     const isVat = f.startsWith("P_14");
     const val = (isVat ? vatByField.get(f) : netByField.get(f)) ?? 0;
     lines.push(tag(f, kwota(val), L2));
+    // Kwota VAT przeliczona na PLN — dokładnie po odpowiadającym jej P_14_x.
+    if (isVat && kursNum != null) lines.push(tag(`${f}W`, kwota(val * kursNum), L2));
   }
   lines.push(tag("P_15", kwota(p15), L2));
 
@@ -367,6 +381,9 @@ export function buildFA3Xml(
     lines.push(tag("P_9A", kwota(it.cena_netto), L3));
     lines.push(tag("P_11", kwota(itemNetto(it)), L3));
     lines.push(tag("P_12", p12Value(it.vat_stawka), L3));
+    // Kurs waluty na pozycji (dział VI ustawy) — tylko dla faktur walutowych.
+    // Wg XSD FaWiersz: między P_12 a StanPrzed.
+    if (kursNum != null) lines.push(tag("KursWaluty", kursFmt(kursNum), L3));
     if (stanPrzed) lines.push(tag("StanPrzed", 1, L3));
     lines.push(`${L2}</FaWiersz>`);
   };
@@ -428,7 +445,13 @@ export function validateForFA3(
     items.forEach((it, i) => {
       const n = i + 1;
       if (!it.nazwa.trim()) errors.push(`Pozycja ${n}: brak nazwy (P_7).`);
-      if (!(it.ilosc > 0)) errors.push(`Pozycja ${n}: ilość musi być większa od zera (P_8B).`);
+      if (!(it.ilosc > 0)) {
+        errors.push(
+          correction
+            ? `Pozycja ${n} ("${it.nazwa || "?"}"): w korekcie usuń pozycję (🗑) zamiast dawać jej ilość 0 — usunięta pozycja zostanie sama wykazana jako różnica.`
+            : `Pozycja ${n}: ilość musi być większa od zera (P_8B).`
+        );
+      }
       if (!FA3_RATE_SLOT[it.vat_stawka]) {
         warnings.push(`Pozycja ${n}: stawka "${it.vat_stawka}" wykracza poza zakres v1 — zweryfikuj ręcznie.`);
       }
@@ -459,8 +482,18 @@ export function validateForFA3(
   if (inv.typ_dokumentu !== "faktura") {
     warnings.push(`Typ "${inv.typ_dokumentu}" (proforma/zaliczkowa) nie jest jeszcze mapowany na FA(3) — v1 obejmuje zwykłą fakturę.`);
   }
+  // Waluta obca: gdy na fakturze jest VAT do przeliczenia (stawka numeryczna),
+  // FA(3) wymaga kwoty podatku w PLN (P_14_xW) — a tę liczymy z kursu NBP, który
+  // pobiera się automatycznie przy wystawieniu. Brak kursu = twardy błąd (bez
+  // niego dokument byłby niekompletny). Faktury bez VAT (zw/np/0%) kursu nie
+  // potrzebują — nie blokujemy ich.
   if ((inv.waluta || "PLN") !== "PLN") {
-    warnings.push("Faktura w walucie obcej — kurs NBP i pola przeliczeniowe FA(3) dokładamy poza v1.");
+    const hasVat = items.some((it) => FA3_RATE_SLOT[it.vat_stawka]?.pFieldVat);
+    if (hasVat && inv.kurs_nbp == null) {
+      errors.push(
+        "Faktura w walucie obcej z VAT wymaga kursu NBP (kwota VAT w PLN) — kurs pobiera się automatycznie przy wystawieniu; jeśli go brak, wystaw fakturę ponownie."
+      );
+    }
   }
 
   return { errors, warnings };

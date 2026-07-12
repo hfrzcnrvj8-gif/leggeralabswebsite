@@ -72,12 +72,16 @@ export const INVOICE_LANG_LABEL = DOC_LANG_LABEL;
 export type InvoiceStatus = "Szkic" | "Wystawiona" | "Opłacona" | "Po terminie" | "Anulowana";
 export const INVOICE_STATUSES: InvoiceStatus[] = ["Szkic", "Wystawiona", "Opłacona", "Po terminie", "Anulowana"];
 
+// Każdy status ma własny, wyraźnie inny kolor — żeby na liście dało się je
+// rozróżnić rzutem oka. Szkic (bursztyn = w przygotowaniu), Wystawiona (cyan =
+// w obiegu), Opłacona (zieleń = zamknięta pozytywnie), Po terminie (czerwień =
+// wymaga akcji), Anulowana (szary + przekreślenie = unieważniona).
 export const INVOICE_STATUS_CLASS: Record<string, string> = {
-  Szkic: "bg-[var(--hairline)] text-muted",
+  Szkic: "bg-amber-400/15 text-amber-500",
   Wystawiona: "bg-brand-cyan/15 text-brand-cyan",
   Opłacona: "bg-emerald-500/20 text-emerald-400 font-semibold",
   "Po terminie": "bg-red-500/15 text-red-400",
-  Anulowana: "bg-[var(--hairline)] text-muted opacity-70",
+  Anulowana: "bg-[var(--hairline)] text-muted line-through opacity-70",
 };
 
 /** Stawki VAT dostępne na pozycji faktury (numeryczne w %, plus "zw" zwolniony
