@@ -242,6 +242,10 @@ export function buildFA3Xml(
     lines.push(tag("AdresL1", buyerL1, L3));
     lines.push(`${L2}</Adres>`);
   }
+  // JST — wymagany w FA(3) znacznik „nabywca jest jednostką podrzędną
+  // samorządu (JST)": 1 = tak, 2 = nie. Dla zwykłego nabywcy = 2. Bez tego
+  // pola MF odrzuca dokument (kod 450, „Podmiot2 has incomplete content").
+  lines.push(tag("JST", 2, L2));
   lines.push(`${L1}</Podmiot2>`);
 
   // --- Fa (dane faktury) ---
