@@ -1,82 +1,88 @@
 {
-  "generatedAt": "2026-07-11T05:00:01.300Z",
+  "generatedAt": "2026-07-12T05:00:05.382Z",
   "pricingSourceDate": "2026-07-04",
-  "daysCovered": 8,
+  "daysCovered": 9,
   "grandTotal": {
-    "requests": 1299,
-    "tokensTotal": 5704159,
+    "requests": 1411,
+    "tokensTotal": 6338695,
     "costUsdByTier": {
-      "mini": 0.47,
-      "gpt4o": 29.46,
-      "sonnet": 42.7
+      "mini": 0.52,
+      "gpt4o": 33.43,
+      "sonnet": 48.55
     }
   },
   "byDomain": [
     {
       "label": "Rynki krypto",
-      "requests": 48,
-      "tokensTotal": 530385,
-      "costUsd": 5.44
+      "requests": 56,
+      "tokensTotal": 617517,
+      "costUsd": 6.32
     },
     {
       "label": "Rynek akcji",
-      "requests": 46,
-      "tokensTotal": 548776,
-      "costUsd": 4.6
+      "requests": 54,
+      "tokensTotal": 650423,
+      "costUsd": 5.51
     },
     {
       "label": "Bezpieczeństwo / CVE",
-      "requests": 24,
-      "tokensTotal": 220737,
-      "costUsd": 2.01
-    },
-    {
-      "label": "Sieci",
-      "requests": 24,
-      "tokensTotal": 225203,
-      "costUsd": 1.93
-    },
-    {
-      "label": "ERP",
-      "requests": 24,
-      "tokensTotal": 197841,
-      "costUsd": 1.87
+      "requests": 28,
+      "tokensTotal": 260988,
+      "costUsd": 2.39
     },
     {
       "label": "Insider Trading (korporacyjny)",
-      "requests": 20,
-      "tokensTotal": 210264,
-      "costUsd": 1.85
+      "requests": 24,
+      "tokensTotal": 256512,
+      "costUsd": 2.28
+    },
+    {
+      "label": "Sieci",
+      "requests": 28,
+      "tokensTotal": 258700,
+      "costUsd": 2.21
     },
     {
       "label": "Produkcja muzyczna",
-      "requests": 24,
-      "tokensTotal": 188990,
-      "costUsd": 1.83
+      "requests": 28,
+      "tokensTotal": 224302,
+      "costUsd": 2.18
+    },
+    {
+      "label": "ERP",
+      "requests": 28,
+      "tokensTotal": 226805,
+      "costUsd": 2.15
     },
     {
       "label": "Homelab",
-      "requests": 24,
-      "tokensTotal": 191217,
-      "costUsd": 1.81
+      "requests": 28,
+      "tokensTotal": 221730,
+      "costUsd": 2.1
     },
     {
       "label": "Sprzęt pod AI",
-      "requests": 20,
-      "tokensTotal": 186158,
-      "costUsd": 1.74
-    },
-    {
-      "label": "Self-hosted LLM / RAG",
       "requests": 24,
-      "tokensTotal": 170219,
-      "costUsd": 1.67
+      "tokensTotal": 213972,
+      "costUsd": 1.98
     },
     {
       "label": "Asystent AI / Agenci",
-      "requests": 20,
-      "tokensTotal": 172393,
-      "costUsd": 1.61
+      "requests": 24,
+      "tokensTotal": 209325,
+      "costUsd": 1.97
+    },
+    {
+      "label": "Self-hosted LLM / RAG",
+      "requests": 28,
+      "tokensTotal": 195957,
+      "costUsd": 1.93
+    },
+    {
+      "label": "BI / Analityka",
+      "requests": 16,
+      "tokensTotal": 116271,
+      "costUsd": 1.16
     },
     {
       "label": "Ochrona kapitału",
@@ -85,10 +91,10 @@
       "costUsd": 0.85
     },
     {
-      "label": "BI / Analityka",
-      "requests": 12,
-      "tokensTotal": 85724,
-      "costUsd": 0.84
+      "label": "Agile / Scrum",
+      "requests": 8,
+      "tokensTotal": 65991,
+      "costUsd": 0.63
     },
     {
       "label": "Kalendarz makro",
@@ -107,12 +113,6 @@
       "requests": 4,
       "tokensTotal": 39984,
       "costUsd": 0.36
-    },
-    {
-      "label": "Agile / Scrum",
-      "requests": 4,
-      "tokensTotal": 33049,
-      "costUsd": 0.31
     }
   ]
 }
