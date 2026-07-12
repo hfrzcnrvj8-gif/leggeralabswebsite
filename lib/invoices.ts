@@ -36,6 +36,11 @@ export type CompanySettings = {
   zwolnienie_podstawa: string;
   /** Domyślny termin płatności w dniach (np. 14). */
   domyslny_termin_dni: number;
+  /** Domyślna treść pola "Uwagi" — auto-wstawiana przy tworzeniu nowej
+   * faktury (szkicu), żeby nie przepisywać za każdym razem tej samej
+   * formułki (np. "Dziękuję za współpracę. Płatność przelewem."). Można
+   * potem nadpisać per faktura jak dotąd. */
+  domyslne_uwagi: string;
 };
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
@@ -54,6 +59,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   vat_payer: true,
   zwolnienie_podstawa: "art. 113 ust. 1 ustawy o VAT",
   domyslny_termin_dni: 14,
+  domyslne_uwagi: "",
 };
 
 /** Język wydruku faktury — niezależny od języka panelu (klient może być

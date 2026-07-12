@@ -285,6 +285,9 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS kod TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS miasto TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS kraj TEXT NOT NULL DEFAULT 'PL';`;
+  // Domyślna treść "Uwag" — auto-wstawiana przy tworzeniu nowej faktury,
+  // patrz komentarz przy CompanySettings.domyslne_uwagi w lib/invoices.ts.
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS domyslne_uwagi TEXT NOT NULL DEFAULT '';`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (

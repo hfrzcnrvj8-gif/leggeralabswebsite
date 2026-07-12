@@ -100,6 +100,18 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
             />
           </div>
         </div>
+
+        <div>
+          <label className="mb-1 block text-[11px] text-muted">Domyślne uwagi na nowej fakturze</label>
+          <SField
+            textarea
+            label=""
+            value={s.domyslne_uwagi}
+            onSave={(v) => patch({ domyslne_uwagi: v })}
+            placeholder="np. Dziękuję za współpracę. Płatność przelewem."
+          />
+          <p className="mt-1 text-[11px] text-muted">Wstawiana automatycznie przy tworzeniu nowej faktury — nadal można ją zmienić na konkretnej fakturze.</p>
+        </div>
       </div>
     </div>
   );
@@ -110,24 +122,38 @@ function SField({
   value,
   onSave,
   placeholder,
+  textarea,
 }: {
   label: string;
   value: string;
   onSave: (v: string) => void;
   placeholder?: string;
+  textarea?: boolean;
 }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
+  const className = "w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted";
   return (
     <div>
-      <label className="mb-1 block text-[11px] text-muted">{label}</label>
-      <input
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={() => v !== value && onSave(v)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-      />
+      {label && <label className="mb-1 block text-[11px] text-muted">{label}</label>}
+      {textarea ? (
+        <textarea
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          onBlur={() => v !== value && onSave(v)}
+          placeholder={placeholder}
+          rows={2}
+          className={className}
+        />
+      ) : (
+        <input
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          onBlur={() => v !== value && onSave(v)}
+          placeholder={placeholder}
+          className={className}
+        />
+      )}
     </div>
   );
 }

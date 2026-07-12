@@ -97,6 +97,7 @@ export function InvoiceEditor({
   // przelicza na netto i wywołuje patchItem), żeby nie "skakać" po zaokrągleniu
   // przy każdym znaku wpisywanym w polu.
   const [bruttoDrafts, setBruttoDrafts] = useState<Record<string, string>>({});
+  const [paidNow, setPaidNow] = useState(false);
   const [zaliczkoweOptions, setZaliczkoweOptions] = useState<{ id: string; numer: string | null; klient_nazwa: string; brutto: number }[] | null>(null);
 
   const load = useCallback(async () => {
@@ -273,17 +274,30 @@ export function InvoiceEditor({
   const issue = useCallback(async () => {
     setIssuing(true);
     const res = await fetch(`/api/invoices/${id}/issue`, { method: "POST" });
-    setIssuing(false);
     if (res.ok) {
       const { numer } = (await res.json()) as { numer: string };
-      toast(`Wystawiono fakturę ${numer}.`);
+      // "Zapłacono od razu" — sprzedaż gotówkowa: jeden klik zamiast osobnego
+      // wejścia do sekcji Płatności po wystawieniu, żeby dopisać tę samą kwotę.
+      if (paidNow) {
+        const kwota = (settings?.vat_payer ?? true) ? invoiceTotals(items).brutto : invoiceTotals(items).netto;
+        if (kwota > 0) {
+          await fetch(`/api/invoices/${id}/payments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kwota }),
+          });
+        }
+      }
+      setIssuing(false);
+      toast(`Wystawiono fakturę ${numer}${paidNow ? " — oznaczona jako opłacona." : "."}`);
       await load();
       onChange?.();
     } else {
+      setIssuing(false);
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       toast(data.error ?? "Nie udało się wystawić faktury.", "error");
     }
-  }, [id, load, onChange, toast]);
+  }, [id, load, onChange, toast, paidNow, items, settings]);
 
   const remove = useCallback(async () => {
     if (!invoice) return;
@@ -992,14 +1006,25 @@ export function InvoiceEditor({
           </div>
 
           {isDraft ? (
-            <button
-              onClick={issue}
-              disabled={issuing || items.length === 0}
-              className="btn-primary flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {issuing ? <IconLoader2 size={15} className="animate-spin" /> : <IconCheck size={15} />}
-              Wystaw fakturę
-            </button>
+            <div className="space-y-1.5">
+              <label className="flex cursor-pointer items-center gap-2 px-1 text-[12px] text-muted">
+                <input
+                  type="checkbox"
+                  checked={paidNow}
+                  onChange={(e) => setPaidNow(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer accent-[#7C3AED]"
+                />
+                Zapłacono od razu (gotówka)
+              </label>
+              <button
+                onClick={issue}
+                disabled={issuing || items.length === 0}
+                className="btn-primary flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {issuing ? <IconLoader2 size={15} className="animate-spin" /> : <IconCheck size={15} />}
+                Wystaw fakturę
+              </button>
+            </div>
           ) : (
             <div className="card-paper rounded-xl border hairline p-3 text-center text-[12px] text-muted">
               Wystawiona jako <span className="font-medium text-[var(--fg)]">{invoice.numer}</span>

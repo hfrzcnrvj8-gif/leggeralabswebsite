@@ -54,9 +54,14 @@ export async function POST(req: NextRequest) {
     klientNazwa = typeof lead[0]?.firma === "string" ? lead[0].firma : "";
   }
 
+  // Domyślne uwagi z Danych firmy — wygodne, żeby nie przepisywać tej samej
+  // formułki na każdej nowej fakturze (można nadpisać w edytorze jak dotąd).
+  const settingsRows = await sql`SELECT domyslne_uwagi FROM company_settings WHERE id = 'default';`;
+  const domyslneUwagi = typeof settingsRows[0]?.domyslne_uwagi === "string" ? settingsRows[0].domyslne_uwagi : "";
+
   await sql`
-    INSERT INTO invoices (id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres, share_token, typ_dokumentu)
-    VALUES (${id}, ${leadId}, ${projectId}, ${klientNazwa}, ${str(body?.klient_nip, 30)}, ${str(body?.klient_adres, 500)}, ${shareToken}, ${typ});
+    INSERT INTO invoices (id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres, share_token, typ_dokumentu, uwagi)
+    VALUES (${id}, ${leadId}, ${projectId}, ${klientNazwa}, ${str(body?.klient_nip, 30)}, ${str(body?.klient_adres, 500)}, ${shareToken}, ${typ}, ${domyslneUwagi});
   `;
   return NextResponse.json({ ok: true, id });
 }
