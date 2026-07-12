@@ -40,6 +40,7 @@ import {
   formatMoney,
   totalPaid,
   isInvoiceOverdue,
+  itemDiscountAmount,
 } from "@/lib/invoices";
 import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL } from "@/lib/ksef";
 import type { Client } from "@/lib/clients";
@@ -695,6 +696,7 @@ export function InvoiceEditor({
                   <span className="w-14 text-right">Ilość</span>
                   <span className="w-16 text-center">Jedn.</span>
                   <span className="w-24 text-right">Cena netto</span>
+                  <span className="w-14 text-center">Rabat</span>
                   <span className="w-16 text-center">VAT</span>
                   <span className="w-24 text-right">Brutto</span>
                   <span className="w-11" />
@@ -729,6 +731,18 @@ export function InvoiceEditor({
                       onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, cena_netto: Number(e.target.value) } : x)))}
                       onBlur={(e) => patchItem(it.id, { cena_netto: Number(e.target.value) })}
                       className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      value={it.rabat_procent || ""}
+                      onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, rabat_procent: Number(e.target.value) } : x)))}
+                      onBlur={(e) => patchItem(it.id, { rabat_procent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
+                      placeholder="0"
+                      title={it.rabat_procent ? `Rabat ${it.rabat_procent}% = -${formatMoney(itemDiscountAmount(it))}` : "Rabat %"}
+                      className="w-14 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)] placeholder:text-muted"
                     />
                     <div className="w-16 text-center">
                       <PropertyMenu

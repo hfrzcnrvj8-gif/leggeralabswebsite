@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       SELECT i.*, COALESCE(t.brutto, 0)::float8 AS brutto
       FROM invoices i
       LEFT JOIN (
-        SELECT invoice_id, SUM(ilosc * cena_netto * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
+        SELECT invoice_id, SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
         FROM invoice_items GROUP BY invoice_id
       ) t ON t.invoice_id = i.id
       WHERE i.id = ${id};

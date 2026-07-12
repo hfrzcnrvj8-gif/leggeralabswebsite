@@ -40,5 +40,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     VALUES (${itemId}, ${id}, ${nazwa}, ${ilosc}, ${jednostka}, ${cena}, ${vat}, ${pos});
   `;
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
-  return NextResponse.json({ ok: true, items: items.map((r) => ({ ...r, ilosc: Number(r.ilosc), cena_netto: Number(r.cena_netto) })) });
+  return NextResponse.json({
+    ok: true,
+    items: items.map((r) => ({ ...r, ilosc: Number(r.ilosc), cena_netto: Number(r.cena_netto), rabat_procent: Number(r.rabat_procent) })),
+  });
 }

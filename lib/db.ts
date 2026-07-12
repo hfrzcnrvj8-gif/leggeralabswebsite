@@ -426,6 +426,9 @@ async function createInvoicesSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS invoice_items_invoice_id_idx ON invoice_items(invoice_id);`;
+  // Rabat na pozycji (procentowy, naliczany przed VAT) — dodane po pierwszym
+  // wdrożeniu modułu.
+  await sql`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS rabat_procent NUMERIC NOT NULL DEFAULT 0;`;
 
   // Katalog usług/produktów — zapisane pozycje do szybkiego wstawiania na
   // fakturę (nazwa + cena + VAT + jednostka), żeby nie przepisywać ich za

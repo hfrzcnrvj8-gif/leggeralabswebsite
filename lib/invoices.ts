@@ -121,6 +121,12 @@ export type InvoiceItem = {
   jednostka: string;
   cena_netto: number;
   vat_stawka: string;
+  /** Rabat na pozycję w procentach (0-100), naliczany od cena_netto × ilość
+   * PRZED VAT — jak w Fakturowni/inFakt. Świadomie tylko %, bez osobnej
+   * kwoty rabatu (dwa równoległe pola byłyby mylące), i tylko na pozycji,
+   * bez osobnego rabatu na całą fakturę (ten sam efekt daje wpisanie tego
+   * samego % na każdej pozycji). */
+  rabat_procent: number;
   position: number;
 };
 
@@ -222,18 +228,26 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-export function itemNetto(it: { ilosc: number; cena_netto: number }): number {
-  return round2(it.ilosc * it.cena_netto);
+export function itemNetto(it: { ilosc: number; cena_netto: number; rabat_procent?: number }): number {
+  const wartosc = it.ilosc * it.cena_netto;
+  const rabat = it.rabat_procent ? wartosc * (it.rabat_procent / 100) : 0;
+  return round2(wartosc - rabat);
 }
-export function itemVat(it: { ilosc: number; cena_netto: number; vat_stawka: string }): number {
-  return round2(it.ilosc * it.cena_netto * vatFraction(it.vat_stawka));
+export function itemVat(it: { ilosc: number; cena_netto: number; vat_stawka: string; rabat_procent?: number }): number {
+  return round2(itemNetto(it) * vatFraction(it.vat_stawka));
 }
-export function itemBrutto(it: { ilosc: number; cena_netto: number; vat_stawka: string }): number {
+export function itemBrutto(it: { ilosc: number; cena_netto: number; vat_stawka: string; rabat_procent?: number }): number {
   return round2(itemNetto(it) + itemVat(it));
+}
+/** Kwota rabatu na pozycji (różnica między wartością przed i po rabacie) —
+ * do pokazania na wydruku/w edytorze obok wartości netto. */
+export function itemDiscountAmount(it: { ilosc: number; cena_netto: number; rabat_procent?: number }): number {
+  if (!it.rabat_procent) return 0;
+  return round2(it.ilosc * it.cena_netto * (it.rabat_procent / 100));
 }
 
 /** Sumy faktury: netto, VAT, brutto (zaokrąglone do groszy). */
-export function invoiceTotals(items: { ilosc: number; cena_netto: number; vat_stawka: string }[]): {
+export function invoiceTotals(items: { ilosc: number; cena_netto: number; vat_stawka: string; rabat_procent?: number }[]): {
   netto: number;
   vat: number;
   brutto: number;
@@ -300,7 +314,7 @@ export function recipientAddressLines(
  * (styl znany z faktur Apple/dużych firm). Zwraca tylko stawki faktycznie
  * użyte na fakturze, posortowane malejąco wg wysokości stawki. */
 export function vatBreakdown(
-  items: { ilosc: number; cena_netto: number; vat_stawka: string }[]
+  items: { ilosc: number; cena_netto: number; vat_stawka: string; rabat_procent?: number }[]
 ): { stawka: string; netto: number; vat: number; brutto: number }[] {
   const byRate = new Map<string, { netto: number; vat: number }>();
   for (const it of items) {

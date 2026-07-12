@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 
 type Row = Record<string, unknown>;
 function numItems(rows: Row[]): Row[] {
-  return rows.map((r) => ({ ...r, ilosc: Number(r.ilosc), cena_netto: Number(r.cena_netto) }));
+  return rows.map((r) => ({ ...r, ilosc: Number(r.ilosc), cena_netto: Number(r.cena_netto), rabat_procent: Number(r.rabat_procent) }));
 }
 
 /** GET /api/invoices/public/:token — podgląd faktury dla KLIENTA, bez

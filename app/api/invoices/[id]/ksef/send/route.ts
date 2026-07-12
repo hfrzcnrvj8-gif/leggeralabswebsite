@@ -56,6 +56,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ...(r as Record<string, unknown>),
     ilosc: Number((r as Record<string, unknown>).ilosc),
     cena_netto: Number((r as Record<string, unknown>).cena_netto),
+    rabat_procent: Number((r as Record<string, unknown>).rabat_procent),
   })) as unknown as InvoiceItem[];
   const settingsRows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
   const company = (settingsRows[0] as unknown as CompanySettings) ?? DEFAULT_COMPANY_SETTINGS;

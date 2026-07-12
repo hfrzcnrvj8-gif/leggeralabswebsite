@@ -28,6 +28,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const v = typeof body.vat_stawka === "string" && (VAT_RATES as readonly string[]).includes(body.vat_stawka) ? body.vat_stawka : "23";
     await sql`UPDATE invoice_items SET vat_stawka = ${v} WHERE id = ${itemId};`;
   }
+  if ("rabat_procent" in body) {
+    const n = Number(body.rabat_procent);
+    const clamped = Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+    await sql`UPDATE invoice_items SET rabat_procent = ${clamped} WHERE id = ${itemId};`;
+  }
   return NextResponse.json({ ok: true });
 }
 

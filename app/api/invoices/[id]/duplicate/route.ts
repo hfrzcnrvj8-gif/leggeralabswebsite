@@ -44,8 +44,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let pos = 0;
     for (const it of items) {
       await sql`
-        INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
-        VALUES (${randomUUID()}, ${newId}, ${it.nazwa}, ${it.ilosc}, ${it.jednostka}, ${it.cena_netto}, ${it.vat_stawka}, ${pos});
+        INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, rabat_procent, position)
+        VALUES (${randomUUID()}, ${newId}, ${it.nazwa}, ${it.ilosc}, ${it.jednostka}, ${it.cena_netto}, ${it.vat_stawka}, ${it.rabat_procent}, ${pos});
       `;
       pos += 1;
     }

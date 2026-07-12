@@ -83,6 +83,7 @@ type Dict = {
   qty: string;
   unit: string;
   unitPrice: string;
+  discount: string;
   vatRate: string;
   netValue: string;
   vatAmount: string;
@@ -131,6 +132,7 @@ const DICT: Record<InvoiceLang, Dict> = {
     qty: "Ilość",
     unit: "J.m.",
     unitPrice: "Cena netto",
+    discount: "Rabat",
     vatRate: "VAT",
     netValue: "Wartość netto",
     vatAmount: "Kwota VAT",
@@ -177,6 +179,7 @@ const DICT: Record<InvoiceLang, Dict> = {
     qty: "Qty",
     unit: "Unit",
     unitPrice: "Unit price (net)",
+    discount: "Discount",
     vatRate: "VAT",
     netValue: "Net amount",
     vatAmount: "VAT amount",
@@ -223,6 +226,7 @@ const DICT: Record<InvoiceLang, Dict> = {
     qty: "Menge",
     unit: "Einheit",
     unitPrice: "Einzelpreis (netto)",
+    discount: "Rabatt",
     vatRate: "USt.",
     netValue: "Nettobetrag",
     vatAmount: "USt.-Betrag",
@@ -403,6 +407,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   const hasReverseCharge = hasNpItems && isEuCountry(buyerCountry);
   const hasOutsideVatScope = hasNpItems && !isEuCountry(buyerCountry);
   const hasExemptItems = items.some((it) => it.vat_stawka === "zw");
+  const hasDiscount = items.some((it) => it.rabat_procent > 0);
   const paymentMethodLabel =
     invoice.sposob_platnosci === "gotowka" ? t.cash : invoice.sposob_platnosci === "karta" ? t.card : t.bankTransfer;
   const docTitle = DOC_TITLE_OVERRIDE[lang][invoice.typ_dokumentu] ?? t.doc;
@@ -544,6 +549,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
                 <th className="py-2 pr-2 text-right">{t.qty}</th>
                 <th className="py-2 pr-2">{t.unit}</th>
                 <th className="py-2 pr-2 text-right">{t.unitPrice}</th>
+                {hasDiscount && <th className="py-2 pr-2 text-right">{t.discount}</th>}
                 {vat && <th className="py-2 pr-2 text-center">{t.vatRate}</th>}
                 <th className="py-2 pr-2 text-right">{t.netValue}</th>
                 {vat && <th className="py-2 pr-2 text-right">{t.vatAmount}</th>}
@@ -558,6 +564,9 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
                   <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{it.ilosc}</td>
                   <td className="py-2.5 pr-2 text-neutral-500">{it.jednostka}</td>
                   <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{money(it.cena_netto, lang, currency)}</td>
+                  {hasDiscount && (
+                    <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-500">{it.rabat_procent > 0 ? `-${it.rabat_procent}%` : "—"}</td>
+                  )}
                   {vat && (
                     <td className="py-2.5 pr-2 text-center text-neutral-500">
                       {it.vat_stawka === "zw" || it.vat_stawka === "np" ? it.vat_stawka : `${it.vat_stawka}%`}

@@ -19,9 +19,9 @@ export async function GET() {
     FROM invoices i
     LEFT JOIN (
       SELECT invoice_id,
-        SUM(ilosc * cena_netto) AS netto,
-        SUM(ilosc * cena_netto * CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END) AS vat,
-        SUM(ilosc * cena_netto * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
+        SUM(ilosc * cena_netto * (1 - rabat_procent / 100)) AS netto,
+        SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END) AS vat,
+        SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
       FROM invoice_items GROUP BY invoice_id
     ) t ON t.invoice_id = i.id
     LEFT JOIN (

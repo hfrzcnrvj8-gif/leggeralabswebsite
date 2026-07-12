@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let status = String(inv[0].status);
     if (OPEN_STATUSES.has(status)) {
       const totals = await sql`
-        SELECT COALESCE(SUM(ilosc * cena_netto * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)), 0)::float8 AS brutto
+        SELECT COALESCE(SUM(ilosc * cena_netto * (1 - rabat_procent / 100) * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)), 0)::float8 AS brutto
         FROM invoice_items WHERE invoice_id = ${id};
       `;
       const brutto = Number(totals[0]?.brutto ?? 0);
