@@ -664,6 +664,23 @@ od "zero AI w logice panelu").
   ten sam wzorzec naprawy (jawny literałowy import zamiast pozwalać
   pdfjs szukać czegoś samemu w runtime) powinien się powtórzyć.
 
+  **Trzecia runda**: PDF wreszcie się skonwertował, ale wyskoczył
+  `Model AI niedostępny` — log pokazał `AbortError: This operation was
+  aborted` (nasz własny timeout 60s w `OCR_TIMEOUT_MS`, nie błąd Ollamy).
+  `ollama ps` na Macu właściciela pokazał przyczynę: `qwen3-vl:8b` był
+  załadowany z oknem kontekstu **262144** tokenów, co samo w sobie zajmowało
+  **44 GB** (KV-cache rośnie z rozmiarem kontekstu, niezależnie od tego, że
+  model to tylko 8B parametrów) — długie ładowanie/wolna odpowiedź na
+  współdzielonym sprzęcie. Naprawa: `ollamaGenerateWithImage()`
+  (`lib/ollama.ts`) przyjmuje teraz opcjonalny `numCtx`, wysyłany jako
+  `options.num_ctx` do Ollamy; `/api/costs/[id]/ocr` jawnie ustawia
+  `OCR_NUM_CTX = 8192` — z dużym zapasem wystarczające na jeden obraz
+  paragonu + krótki prompt/JSON, a drastycznie mniejsze niż domyślne
+  262144. Jeśli po tym nadal będzie za wolno/timeout, kolejny krok to
+  albo dalsze zmniejszenie `OCR_NUM_CTX`, albo podniesienie
+  `OCR_TIMEOUT_MS` (+ `maxDuration` na route'cie, w granicach planu
+  Vercela).
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z

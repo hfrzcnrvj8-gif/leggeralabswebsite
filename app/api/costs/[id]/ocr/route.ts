@@ -8,6 +8,11 @@ import { renderFirstPdfPageToPng } from "@/lib/pdf-render";
 export const runtime = "nodejs";
 
 const OCR_TIMEOUT_MS = 60_000; // model wizyjny na Macu odpowiada wolniej niż tekstowy — dłuższy timeout niż domyślny w lib/ollama.ts
+// Bez jawnego num_ctx Ollama potrafi załadować qwen3-vl z domyślnym, ogromnym
+// oknem kontekstu (obserwowane: 262144 → 44 GB samego KV-cache) — długie
+// ładowanie/timeout na współdzielonym sprzęcie właściciela. Jeden obraz
+// paragonu + krótki prompt/JSON mieszczą się z dużym zapasem w 8192.
+const OCR_NUM_CTX = 8192;
 
 /** POST /api/costs/:id/ocr — odczytuje załącznik (skan/PDF) kosztu modelem
  * wizyjnym przez Ollamę i zwraca PROPOZYCJĘ wartości pól formularza. Nigdy
@@ -49,6 +54,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     system: OCR_SYSTEM,
     imageBase64,
     timeoutMs: OCR_TIMEOUT_MS,
+    numCtx: OCR_NUM_CTX,
   });
 
   if (raw == null) {

@@ -70,6 +70,13 @@ export async function ollamaGenerateWithImage(opts: {
   imageBase64: string;
   system?: string;
   timeoutMs?: number;
+  /** Okno kontekstu (Ollama `options.num_ctx`) — modele wizyjne (np.
+   * qwen3-vl) potrafią domyślnie ładować się z ogromnym kontekstem
+   * (dziesiątki GB pamięci na sam KV-cache, zanim jeszcze cokolwiek
+   * wygenerują), co na współdzielonym sprzęcie właściciela prowadzi do
+   * długiego ładowania/timeoutu. Do jednego obrazu + krótkiego promptu
+   * OCR wystarczy dużo mniejsze okno — podawaj jawnie z miejsca wywołania. */
+  numCtx?: number;
 }): Promise<string | null> {
   const url = baseUrl();
   if (!url) {
@@ -89,6 +96,7 @@ export async function ollamaGenerateWithImage(opts: {
         prompt: opts.prompt,
         images: [opts.imageBase64],
         ...(opts.system ? { system: opts.system } : {}),
+        ...(opts.numCtx ? { options: { num_ctx: opts.numCtx } } : {}),
         stream: false,
       }),
       signal: controller.signal,
