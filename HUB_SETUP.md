@@ -599,6 +599,22 @@ od "zero AI w logice panelu").
   wyłączonej/niedostępnej Ollamie. Rzeczywisty odczyt obrazu (jakość modelu
   na prawdziwych polskich paragonach) do zweryfikowania na produkcji z
   żywym Mac Studio właściciela.
+- **Naprawa (2026-07-14, po pierwszym realnym teście PDF na produkcji)**:
+  pierwszy wgrany PDF od razu dawał błąd "nie można odczytać" — `pdf-to-img`
+  renderuje strony przez natywny dodatek binarny `@napi-rs/canvas`, ładowany
+  dynamicznym `require()` w czasie działania. Next.js nie widzi takiego
+  requiru przy statycznej analizie zależności (file tracing), więc binarka
+  (i katalogi `cmaps`/`standard_fonts` z `pdfjs-dist`, potrzebne do
+  renderowania czcionek) nie trafiały do paczki funkcji serverless na
+  Vercelu — konwersja PDF→PNG rzucała błąd zanim doszło do wywołania modelu
+  AI (kontrolowany fallback zadziałał poprawnie, po prostu nie miał czego
+  użyć). Naprawione w `next.config.mjs`: `serverExternalPackages` (żeby Next
+  nie próbował bundlować `@napi-rs/canvas`/`pdf-to-img`/`pdfjs-dist` przez
+  webpack, tylko zostawił je jako zwykłe `node_modules` w runtime) +
+  `outputFileTracingIncludes` dla `/api/costs/[id]/ocr` z jawnym dopisaniem
+  `cmaps`/`standard_fonts` i natywnej binarki dla Linuksa (x64/arm64 gnu —
+  architektury używane przez funkcje serverless Vercela). Do potwierdzenia
+  po najbliższym deployu: ponowny upload tego samego PDF-a.
 
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
