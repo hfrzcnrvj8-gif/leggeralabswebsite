@@ -1,8 +1,10 @@
-# Plany modułów — kolejne kroki panelu (po audycie przepływów 2026-07-13)
+# Plany modułów — kolejne kroki Leggera Hub (po audycie przepływów 2026-07-13)
 
-Ten folder to zestaw **briefów wdrożeniowych**, po jednym na moduł. Każdy moduł
-robimy w **osobnym czacie**, żeby zaczynać ze świeżym kontekstem. Plik danego
-modułu jest samowystarczalny — nowy czat nie musi znać poprzednich rozmów.
+**Leggera Hub** = wszechogarniający program do prowadzenia firmy (leady, klienci,
+projekty, faktury, koszty, poczta, kalendarz — w jednym miejscu, docelowo także na
+telefonie). Ten folder to zestaw **briefów wdrożeniowych**, po jednym na moduł.
+Każdy moduł robimy w **osobnym czacie**, żeby zaczynać ze świeżym kontekstem. Plik
+danego modułu jest samowystarczalny — nowy czat nie musi znać poprzednich rozmów.
 
 ## Jak używać (dla właściciela)
 
@@ -24,10 +26,12 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 2 | Nurture — automatyczne przypomnienia po zamknięciu (⑥) | mały/średni | [02-nurture-automatyczny.md](02-nurture-automatyczny.md) |
 | 3 | Kanały kontaktu — telefon/WhatsApp/LinkedIn (⑦a) | średni | [03-kanaly-kontaktu.md](03-kanaly-kontaktu.md) |
 | 4 | Natywna poczta w panelu (IMAP/SMTP az.pl) — podgląd, auto-przypisanie, odpowiadanie, lista „do obsłużenia” (⑦b) | duży | [04-skrzynka-mailowa.md](04-skrzynka-mailowa.md) |
+| 5 | Leggera Hub jako aplikacja mobilna (PWA) — cała apka na telefonie | duży | [05-mobilna-aplikacja.md](05-mobilna-aplikacja.md) |
 
-Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 jest
-największy i wymaga osobnej decyzji o rejestracji aplikacji Google/Microsoft;
-warto go robić na końcu.
+Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
+jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM
+KOŃCU** — mobilny sens ma dopiero to, co realnie jest już w Leggera Hub, a duża
+część tej pracy to doprowadzenie każdego widoku do używalności na wąskim ekranie.
 
 ## Zasady wspólne dla WSZYSTKICH modułów (nie łamać bez pytania)
 
