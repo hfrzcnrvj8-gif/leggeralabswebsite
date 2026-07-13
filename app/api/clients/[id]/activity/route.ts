@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
+import { CONTACT_CHANNELS, CONTACT_DIRECTIONS } from "@/lib/contact";
 
 export const runtime = "nodejs";
 
@@ -15,10 +16,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   const body = (await req.json().catch(() => null)) as
-    | { text?: unknown; ostatni_kontakt?: unknown; next_followup?: unknown }
+    | {
+        text?: unknown;
+        ostatni_kontakt?: unknown;
+        next_followup?: unknown;
+        next_action?: unknown;
+        kanal?: unknown;
+        kierunek?: unknown;
+      }
     | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
+  const kanal = (CONTACT_CHANNELS as readonly string[]).includes(body?.kanal as string) ? (body!.kanal as string) : null;
+  const kierunek = (CONTACT_DIRECTIONS as readonly string[]).includes(body?.kierunek as string) ? (body!.kierunek as string) : null;
 
   await ensureClientsSchema();
   const sql = getSql();
@@ -27,21 +37,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!clientRows[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const activityId = randomUUID();
-  await sql`INSERT INTO client_activity (id, client_id, text) VALUES (${activityId}, ${id}, ${text.slice(0, 4000)});`;
+  await sql`INSERT INTO client_activity (id, client_id, text, kanal, kierunek) VALUES (${activityId}, ${id}, ${text.slice(0, 4000)}, ${kanal}, ${kierunek});`;
 
   if (typeof body?.ostatni_kontakt === "string" && body.ostatni_kontakt.trim()) {
     const trimmed = body.ostatni_kontakt.trim();
     if (isPlausibleDateString(trimmed)) {
-      await sql`UPDATE clients SET ostatni_kontakt = ${trimmed}, updated_at = now() WHERE id = ${id};`;
+      await sql`UPDATE clients SET ostatni_kontakt = ${trimmed}, ostatni_kanal = COALESCE(${kanal}, ostatni_kanal), updated_at = now() WHERE id = ${id};`;
     }
   }
   if ("next_followup" in (body ?? {})) {
     const raw = body?.next_followup;
     const trimmed = typeof raw === "string" ? raw.trim() : "";
     if (!trimmed) {
-      await sql`UPDATE clients SET next_followup = NULL, updated_at = now() WHERE id = ${id};`;
+      await sql`UPDATE clients SET next_followup = NULL, next_action = '', updated_at = now() WHERE id = ${id};`;
     } else if (isPlausibleDateString(trimmed)) {
-      await sql`UPDATE clients SET next_followup = ${trimmed}, updated_at = now() WHERE id = ${id};`;
+      const nextAction = typeof body?.next_action === "string" ? body.next_action.trim().slice(0, 500) : "";
+      await sql`UPDATE clients SET next_followup = ${trimmed}, next_action = ${nextAction}, updated_at = now() WHERE id = ${id};`;
     }
   }
 

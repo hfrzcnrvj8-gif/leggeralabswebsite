@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue, leadSourceLabel, StatusTag } from "./shared";
+import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue, leadSourceLabel, CONTACT_CHANNEL_ICON, CONTACT_CHANNEL_LABEL, StatusTag } from "./shared";
 
 export function KanbanBoard({
   leads,
@@ -137,11 +137,21 @@ export function KanbanBoard({
                     <span onClick={(e) => e.stopPropagation()}>
                       <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
                     </span>
-                    {d !== null && (
-                      <span className={`shrink-0 text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
-                        {d} dni temu
-                      </span>
-                    )}
+                    <span className="flex shrink-0 items-center gap-1">
+                      {lead.ostatni_kanal && (
+                        <span
+                          aria-hidden
+                          title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? lead.ostatni_kanal}`}
+                        >
+                          {CONTACT_CHANNEL_ICON[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
+                        </span>
+                      )}
+                      {d !== null && (
+                        <span className={`text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>
+                          {d} dni temu
+                        </span>
+                      )}
+                    </span>
                   </div>
                   <div className="mt-1 truncate text-[10px] text-muted opacity-70">{leadSourceLabel(lead)}</div>
                 </motion.div>

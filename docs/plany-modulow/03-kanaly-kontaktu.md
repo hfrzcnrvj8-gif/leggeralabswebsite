@@ -1,5 +1,10 @@
 # Moduł 3 — Kanały kontaktu: telefon / WhatsApp / LinkedIn (luka ⑦a)
 
+> ✅ ZROBIONE (2026-07-14) — szczegóły w `HUB_SETUP.md` → „Moduł 3 — Kanały
+> kontaktu”. Dodatkowo ponad pierwotny plan: kierunek kontaktu (Ja→oni/Oni→ja)
+> na każdym wpisie osi, tekstowy „następny krok” (`next_action`) obok daty
+> przypomnienia, ikona ostatniego kanału na kartach kanban.
+
 > Przeczytaj najpierw `docs/plany-modulow/README.md` (zasady wspólne) i `CLAUDE.md`.
 > Architektura zdecydowana — patrz „DECYZJA”. Zaprojektowane od razu pod telefon
 > (patrz [05-mobilna-aplikacja.md](05-mobilna-aplikacja.md)): na komórce te akcje

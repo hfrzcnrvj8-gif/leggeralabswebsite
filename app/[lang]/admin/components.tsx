@@ -7,11 +7,12 @@ import { IconUsers, IconDownload } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Client } from "@/lib/clients";
 import { PROCESS_STEPS } from "@/lib/process";
-import { todayLocalISO } from "@/lib/dates";
+import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
 import { currentMonthRange } from "@/lib/export";
 import { useUI } from "./ui";
 import { PropertyMenu, Popover } from "./Menu";
 import { DateField } from "./DatePicker";
+import { waLink, linkedinLink } from "@/lib/contact";
 
 // Generyczne komponenty UI współdzielone przez wszystkie moduły panelu
 // (leady, projekty, notatnik, kalendarz) — jedno miejsce zamiast kopiowania
@@ -130,6 +131,80 @@ export function StatusPill({
         {value}
       </span>
     </PropertyMenu>
+  );
+}
+
+/** Rząd dużych, dotykowych przycisków szybkiego kontaktu (Moduł 3, kanały
+ * kontaktu) — na telefonie każdy z nich otwiera od razu właściwą aplikację
+ * (dzwoni / SMS-owy klient mail / WhatsApp / LinkedIn), na desktopie
+ * domyślny program pocztowy / WhatsApp Web / przeglądarkę. Panel niczego nie
+ * wysyła sam — to zwykłe linki `tel:`/`mailto:`/`wa.me`. Cele dotykowe min.
+ * ~44px (`min-h-[44px]`) — istotne na wąskim ekranie, patrz Moduł 5. */
+export function ContactQuickActions({
+  telefon,
+  email,
+  linkedinUrl,
+}: {
+  telefon: string;
+  email: string;
+  linkedinUrl: string;
+}) {
+  const wa = waLink(telefon);
+  const li = linkedinLink(linkedinUrl);
+  if (!telefon && !email && !wa && !li) return null;
+
+  const cls =
+    "flex min-h-[44px] items-center gap-1.5 rounded-full border hairline px-3.5 py-2 text-[13px] font-medium text-[var(--fg)] hover:bg-[var(--hairline)]";
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {telefon && (
+        <a href={`tel:${telefon}`} className={cls} title="Zadzwoń">
+          📞 Zadzwoń
+        </a>
+      )}
+      {email && (
+        <a href={`mailto:${email}`} className={cls} title="Napisz maila">
+          ✉️ Mail
+        </a>
+      )}
+      {wa && (
+        <a href={wa} target="_blank" rel="noopener noreferrer" className={cls} title="Otwórz WhatsApp">
+          💬 WhatsApp
+        </a>
+      )}
+      {li && (
+        <a href={li} target="_blank" rel="noopener noreferrer" className={cls} title="Otwórz profil LinkedIn">
+          🔗 LinkedIn
+        </a>
+      )}
+    </div>
+  );
+}
+
+/** Szybkie chipy najczęstszych przypomnień (jutro/za 3 dni/za tydzień) —
+ * szybsze na telefonie niż kręcenie kołem daty za każdym razem, wzorem
+ * Front/Close.com. Nie zastępuje DateField (dowolna data), tylko go
+ * uzupełnia dla najczęstszych przypadków. */
+export function QuickDateChips({ onPick }: { onPick: (iso: string) => void }) {
+  const options: { label: string; days: number }[] = [
+    { label: "Jutro", days: 1 },
+    { label: "Za 3 dni", days: 3 },
+    { label: "Za tydzień", days: 7 },
+  ];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => (
+        <button
+          key={o.days}
+          type="button"
+          onClick={() => onPick(addDaysLocalISO(o.days))}
+          className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

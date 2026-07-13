@@ -22,10 +22,17 @@ export type Client = {
   email: string;
   telefon: string;
   www: string;
+  /** Link do profilu LinkedIn — osobne pole, patrz lib/contact.ts linkedinLink(). */
+  linkedin_url: string;
   branza: string;
   status: ClientStatus;
   ostatni_kontakt: string | null;
   next_followup: string | null;
+  /** Tekstowy "następny krok" obok next_followup — PO CO jest przypomnienie. */
+  next_action: string;
+  /** Kanał ostatniego wpisu na osi (denormalizacja z client_activity.kanal) —
+   * do ikony na karcie kanban bez dociągania całej historii. */
+  ostatni_kanal: string | null;
   notatki: string;
   lead_id: string | null;
   created_at: string;
@@ -36,6 +43,11 @@ export type ClientActivity = {
   id: string;
   client_id: string;
   text: string;
+  /** Kanał tego wpisu (CONTACT_CHANNELS w lib/contact.ts) — null gdy
+   * nieokreślony (wpisy sprzed Modułu 3). */
+  kanal: string | null;
+  /** Kierunek: kto zainicjował ten kontakt (CONTACT_DIRECTIONS). */
+  kierunek: string | null;
   created_at: string;
 };
 
@@ -164,8 +176,9 @@ export function isClientOverdue(client: Pick<Client, "status" | "next_followup">
   return client.next_followup <= todayLocalISO();
 }
 
-export function clientOverdueReason(client: Pick<Client, "next_followup">): string {
-  return `ustawione przypomnienie na ${client.next_followup}`;
+export function clientOverdueReason(client: Pick<Client, "next_followup" | "next_action">): string {
+  const action = client.next_action?.trim();
+  return `ustawione przypomnienie na ${client.next_followup}${action ? ` — ${action}` : ""}`;
 }
 
 export { daysSince as clientDaysSince };

@@ -161,6 +161,16 @@ async function createSchema(): Promise<void> {
   // nieustrukturyzowane stare `zrodlo`.
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS zrodlo_kategoria TEXT NOT NULL DEFAULT '';`;
 
+  // Moduł 3 — kanały kontaktu (docs/plany-modulow/03-kanaly-kontaktu.md):
+  // link LinkedIn (osobne pole, świadomie nie wykrywane z `www`), tekstowy
+  // "następny krok" obok next_followup (PO CO jest przypomnienie, nie tylko
+  // KIEDY), i `ostatni_kanal` — zdenormalizowana kopia kanału z ostatniego
+  // wpisu na osi (patrz .../activity POST), żeby kartom kanban nie trzeba
+  // było dociągać całej historii tylko po ikonkę.
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS linkedin_url TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_action TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS ostatni_kanal TEXT;`;
+
   // Chronologiczny log aktywności per lead — w przeciwieństwie do jednego
   // nadpisywanego pola notatek, każdy wpis zostaje na zawsze.
   await sql`
@@ -172,6 +182,11 @@ async function createSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS lead_activity_lead_id_idx ON lead_activity(lead_id);`;
+  // kanal: jedna z CONTACT_CHANNELS (lib/contact.ts), null = nieokreślony
+  // (wpisy sprzed Modułu 3). kierunek: jedna z CONTACT_DIRECTIONS, null =
+  // nieokreślony.
+  await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS kanal TEXT;`;
+  await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS kierunek TEXT;`;
 }
 
 /**
@@ -665,6 +680,11 @@ async function createClientsSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS clients_status_idx ON clients(status);`;
 
+  // Moduł 3 — kanały kontaktu, patrz analogiczny komentarz przy leads wyżej.
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS linkedin_url TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS next_action TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ostatni_kanal TEXT;`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS client_activity (
       id TEXT PRIMARY KEY,
@@ -674,6 +694,8 @@ async function createClientsSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS client_activity_client_id_idx ON client_activity(client_id);`;
+  await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS kanal TEXT;`;
+  await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS kierunek TEXT;`;
 
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;

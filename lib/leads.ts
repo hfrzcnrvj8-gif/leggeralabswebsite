@@ -16,6 +16,9 @@ export type Lead = {
   telefon: string;
   email: string;
   www: string;
+  /** Link do profilu LinkedIn — osobne pole (nie wykrywane z `www`), patrz
+   * lib/contact.ts linkedinLink(). Puste = brak przycisku szybkiego kontaktu. */
+  linkedin_url: string;
   ulica: string;
   kod: string;
   miasto: string;
@@ -29,6 +32,13 @@ export type Lead = {
   status: string;
   ostatni_kontakt: string | null;
   next_followup: string | null;
+  /** Tekstowy opis PO CO jest next_followup, np. "oddzwonić, spytać o
+   * budżet" — samo "kiedy" bez "po co" gubi kontekst po tygodniu. */
+  next_action: string;
+  /** Kanał ostatniego wpisu na osi (denormalizacja z lead_activity.kanal,
+   * patrz app/api/leads/[id]/activity), do ikony na karcie kanban bez
+   * dociągania całej historii. Null = nieokreślony. */
+  ostatni_kanal: string | null;
   notatki: string;
   /** Ustawiony, gdy lead "awansował" na Klienta — automatycznie przy
    * pierwszej ofercie, albo ręcznie przyciskiem "Utwórz klienta" (patrz
@@ -42,6 +52,12 @@ export type Activity = {
   id: string;
   lead_id: string;
   text: string;
+  /** Kanał tego konkretnego wpisu (CONTACT_CHANNELS w lib/contact.ts) —
+   * null dla wpisów sprzed Modułu 3. */
+  kanal: string | null;
+  /** Kierunek: kto zainicjował ten kontakt (CONTACT_DIRECTIONS) — null gdy
+   * nieokreślony. */
+  kierunek: string | null;
   created_at: string;
 };
 
@@ -253,7 +269,8 @@ export function overdueReason(lead: Lead): string {
     return "nowe zgłoszenie ze strony, jeszcze nieobsłużone";
   }
   if (lead.next_followup) {
-    return `ustawione przypomnienie na ${lead.next_followup}`;
+    const action = lead.next_action?.trim();
+    return `ustawione przypomnienie na ${lead.next_followup}${action ? ` — ${action}` : ""}`;
   }
   const d = daysSince(lead.ostatni_kontakt);
   return `napisano ${d} dni temu, brak odpowiedzi`;

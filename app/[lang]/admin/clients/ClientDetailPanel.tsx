@@ -3,8 +3,23 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { type Client, CLIENT_STATUS_HINT, CLIENT_STATUS_STEP, CLIENT_EVENT_ICON, EditableText, EditableTextarea, StatusTag } from "./shared";
-import { ProcessMap } from "../components";
+import {
+  type Client,
+  CLIENT_STATUS_HINT,
+  CLIENT_STATUS_STEP,
+  CLIENT_EVENT_ICON,
+  CONTACT_CHANNELS,
+  CONTACT_CHANNEL_LABEL,
+  CONTACT_CHANNEL_ICON,
+  CONTACT_DIRECTIONS,
+  CONTACT_DIRECTION_LABEL,
+  ContactQuickActions,
+  QuickDateChips,
+  EditableText,
+  EditableTextarea,
+  StatusTag,
+} from "./shared";
+import { ProcessMap, PillPicker } from "../components";
 import { formatPlDate } from "@/lib/projects";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
@@ -25,6 +40,8 @@ type FeedItem = {
   kind: string;
   text: string;
   amount: number | null;
+  kanal: string | null;
+  kierunek: string | null;
   source: "client" | "lead" | "system";
 };
 
@@ -56,6 +73,9 @@ export function ClientDetailPanel({
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteFollowup, setNoteFollowup] = useState("");
+  const [noteAction, setNoteAction] = useState("");
+  const [noteChannel, setNoteChannel] = useState("");
+  const [noteDirection, setNoteDirection] = useState("wychodzacy");
   const [markContacted, setMarkContacted] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -82,6 +102,7 @@ export function ClientDetailPanel({
     setInvoices(data.invoices);
     setProjects(data.projects);
     setNoteFollowup(data.client.next_followup ?? "");
+    setNoteAction(data.client.next_action ?? "");
   }, [id]);
 
   useEffect(() => {
@@ -125,7 +146,10 @@ export function ClientDetailPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: noteText.trim(),
+        kanal: noteChannel || null,
+        kierunek: noteDirection || null,
         next_followup: noteFollowup || null,
+        next_action: noteAction || null,
         ...(markContacted ? { ostatni_kontakt: todayLocalISO() } : {}),
       }),
     });
@@ -200,6 +224,10 @@ export function ClientDetailPanel({
         </div>
         <p className="mt-2 text-[12.5px] text-muted opacity-80">{CLIENT_STATUS_HINT[client.status]}</p>
 
+        <div className="mt-4">
+          <ContactQuickActions telefon={client.telefon} email={client.email} linkedinUrl={client.linkedin_url} />
+        </div>
+
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Field label="NIP">
             <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
@@ -215,6 +243,9 @@ export function ClientDetailPanel({
           </Field>
           <Field label="WWW">
             <EditableText value={client.www} onSave={(v) => updateClient("www", v)} />
+          </Field>
+          <Field label="LinkedIn">
+            <EditableText value={client.linkedin_url} onSave={(v) => updateClient("linkedin_url", v)} />
           </Field>
           <Field label="Ulica">
             <EditableText value={client.ulica} onSave={(v) => updateClient("ulica", v)} />
@@ -234,6 +265,11 @@ export function ClientDetailPanel({
           <Field label="Przypomnij mi">
             <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
           </Field>
+          {client.next_followup && (
+            <Field label="Następny krok (po co przypomnienie)">
+              <EditableText value={client.next_action} onSave={(v) => updateClient("next_action", v)} />
+            </Field>
+          )}
         </div>
 
         <div className="mt-4">
@@ -306,6 +342,34 @@ export function ClientDetailPanel({
             rows={3}
             className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
           />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <PillPicker
+              value={noteChannel ? CONTACT_CHANNEL_LABEL[noteChannel as keyof typeof CONTACT_CHANNEL_LABEL] : ""}
+              options={CONTACT_CHANNELS.map((c) => CONTACT_CHANNEL_LABEL[c])}
+              onChange={(label) => {
+                const found = CONTACT_CHANNELS.find((c) => CONTACT_CHANNEL_LABEL[c] === label);
+                setNoteChannel(found ?? "");
+              }}
+              placeholder="Kanał — wybierz"
+              title="Jakim kanałem?"
+            />
+            <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+              {CONTACT_DIRECTIONS.map((dir) => (
+                <button
+                  key={dir}
+                  type="button"
+                  onClick={() => setNoteDirection(dir)}
+                  className={`min-h-[30px] px-2.5 ${
+                    noteDirection === dir ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
+                  }`}
+                >
+                  {CONTACT_DIRECTION_LABEL[dir]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-muted">
               <input type="checkbox" checked={markContacted} onChange={(e) => setMarkContacted(e.target.checked)} />
@@ -315,10 +379,21 @@ export function ClientDetailPanel({
               Przypomnij mi:
               <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
             </label>
+            <QuickDateChips onPick={setNoteFollowup} />
+          </div>
+          {noteFollowup && (
+            <input
+              value={noteAction}
+              onChange={(e) => setNoteAction(e.target.value)}
+              placeholder="Następny krok — po co to przypomnienie? np. wysłać ofertę po demo"
+              className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-xs text-[var(--fg)] placeholder:text-muted"
+            />
+          )}
+          <div className="flex justify-end">
             <button
               type="submit"
               disabled={saving || !noteText.trim()}
-              className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 ml-auto rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Zapisuję…" : "Dodaj wpis"}
             </button>
@@ -333,8 +408,19 @@ export function ClientDetailPanel({
               <li key={`${f.source}:${f.id}`} className="rounded-xl border hairline p-3 text-sm">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                    <span aria-hidden>{f.kind === "note" ? "💬" : CLIENT_EVENT_ICON[f.kind] ?? "•"}</span>
+                    <span aria-hidden>
+                      {f.kanal
+                        ? CONTACT_CHANNEL_ICON[f.kanal as keyof typeof CONTACT_CHANNEL_ICON]
+                        : f.kind === "note"
+                          ? "💬"
+                          : (CLIENT_EVENT_ICON[f.kind] ?? "•")}
+                    </span>
                     {formatDate(f.created_at)}
+                    {f.kierunek && (
+                      <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
+                        {CONTACT_DIRECTION_LABEL[f.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
+                      </span>
+                    )}
                     {f.source === "lead" && (
                       <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted" title="Wpis sprzed awansu na klienta">
                         z etapu leada

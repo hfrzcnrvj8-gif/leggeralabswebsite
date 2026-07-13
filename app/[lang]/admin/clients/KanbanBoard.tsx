@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-import { type Client, CLIENT_STATUSES, CLIENT_STATUS_DOT, clientDaysSince, isClientOverdue, StatusTag } from "./shared";
+import { type Client, CLIENT_STATUSES, CLIENT_STATUS_DOT, clientDaysSince, isClientOverdue, CONTACT_CHANNEL_ICON, CONTACT_CHANNEL_LABEL, StatusTag } from "./shared";
 
 export function KanbanBoard({
   clients,
@@ -133,11 +133,21 @@ export function KanbanBoard({
                     <span onClick={(e) => e.stopPropagation()}>
                       <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
                     </span>
-                    {overdue ? (
-                      <span className="shrink-0 text-[10px] font-medium text-orange-400">przypomnienie dziś</span>
-                    ) : (
-                      d !== null && <span className="shrink-0 text-[10px] text-muted">{d} dni temu</span>
-                    )}
+                    <span className="flex shrink-0 items-center gap-1">
+                      {client.ostatni_kanal && (
+                        <span
+                          aria-hidden
+                          title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? client.ostatni_kanal}`}
+                        >
+                          {CONTACT_CHANNEL_ICON[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
+                        </span>
+                      )}
+                      {overdue ? (
+                        <span className="text-[10px] font-medium text-orange-400">przypomnienie dziś</span>
+                      ) : (
+                        d !== null && <span className="text-[10px] text-muted">{d} dni temu</span>
+                      )}
+                    </span>
                   </div>
                 </motion.div>
               );

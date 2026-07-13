@@ -17,3 +17,13 @@ export function todayLocalISO(): string {
     day: "2-digit",
   }).format(new Date());
 }
+
+/** "Dziś + N dni" jako "YYYY-MM-DD" — do szybkich chipów przypomnień
+ * (jutro/za 3 dni/za tydzień). Liczy na znormalizowanej dacie kalendarzowej
+ * w UTC (nie realnym zegarze), więc jest odporne na przesunięcia stref/DST —
+ * to czysta arytmetyka dat, nie moment w czasie. */
+export function addDaysLocalISO(days: number): string {
+  const [y, m, d] = todayLocalISO().split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(dt);
+}

@@ -723,6 +723,60 @@ Ollamą, ale warte odnotowania:
   tego owinięcia). Jeśli w przyszłości pojawi się podobny crash na innym
   polu typu `DATE` z bazy — to ten sam wzorzec do zastosowania.
 
+## Moduł 3 — Kanały kontaktu: telefon/WhatsApp/LinkedIn (2026-07-14)
+
+Realizacja `docs/plany-modulow/03-kanaly-kontaktu.md`, zaprojektowana od razu
+pod desktop + mobile (przed Modułem 5, PWA) i pod pełną integrację z kartą
+klienta ("nic nie zginęło, co zostało zrobione i co trzeba zrobić").
+Rejestr i szybkie odnośniki — panel niczego nie wysyła sam (żadnej bramki
+SMS/WhatsApp Business API), tylko `tel:`/`mailto:`/`wa.me`/link LinkedIn.
+Zero AI.
+
+- `lib/contact.ts` — wspólny moduł dla leadów i klientów: `CONTACT_CHANNELS`
+  (telefon/email/whatsapp/linkedin/spotkanie/inne) + ikony/etykiety,
+  `CONTACT_DIRECTIONS` (`wychodzacy`/`przychodzacy` — kto zainicjował dany
+  kontakt), `waLink()` (normalizacja numeru do `https://wa.me/…`, domyślny
+  kod kraju +48 dla numerów 9-cyfrowych bez prefiksu, zwraca `null` gdy nie
+  da się jednoznacznie znormalizować — wtedy przycisk po prostu się nie
+  pokazuje), `linkedinLink()` (dokłada `https://` jeśli brakuje).
+- **Nowe kolumny** (`leads`/`clients`): `linkedin_url` (osobne pole, świadomie
+  NIE wykrywane z `www`), `next_action` (tekstowy "następny krok" obok
+  `next_followup` — PO CO jest przypomnienie, nie tylko KIEDY; widoczny w
+  panelu tylko gdy `next_followup` ustawiony, i doklejany do
+  `overdueReason()`/`clientOverdueReason()` widocznych na Pulpicie),
+  `ostatni_kanal` (denormalizacja z ostatniego wpisu na osi — ikona na
+  karcie kanban bez dociągania całej historii). Na `lead_activity`/
+  `client_activity`: `kanal`, `kierunek` (oba nullable, null = wpis sprzed
+  Modułu 3).
+- **Kierunek kontaktu** (`Ja → oni` / `Oni → ja`) — dodany przy każdym
+  wpisie na osi, żeby reguła "czeka na odpowiedź" (`isOverdue`) miała ten
+  sam sygnał dla telefonu/WhatsAppu co dziś dla maila (samo `ostatni_kontakt`
+  jest już kanało-agnostyczne — aktualizuje się przy KAŻDYM wpisie
+  niezależnie od kanału, więc próg 4 dni działał od razu tak samo dla
+  wszystkich kanałów; kierunek to dodatkowy, widoczny w UI kontekst).
+- **UI** (`LeadDetailPanel.tsx`, `ClientDetailPanel.tsx`, wspólne komponenty
+  w `components.tsx`): `ContactQuickActions` — rząd dużych przycisków
+  (min. 44px wysokości, zweryfikowane na wąskim viewporcie) 📞 Zadzwoń /
+  ✉️ Mail / 💬 WhatsApp / 🔗 LinkedIn pod nagłówkiem karty, warunkowe na
+  wypełnione pola. `QuickDateChips` (Jutro/Za 3 dni/Za tydzień,
+  `addDaysLocalISO()` w `lib/dates.ts`) obok `DateField` przy ustawianiu
+  przypomnienia w formularzu osi. Formularz osi ma dodatkowo `PillPicker`
+  kanału i przełącznik kierunku; wpisy na liście pokazują ikonę kanału +
+  plakietkę kierunku.
+- **Karty kanban** (Leady, Klienci) — ikona `ostatni_kanal` obok "X dni
+  temu"/statusu overdue.
+- **Scalony feed klienta** (`GET /api/clients/[id]`) rozszerzony o
+  `kanal`/`kierunek` z obu źródeł (`client_activity` i dociągnięty
+  `lead_activity` sprzed awansu na klienta) — kanał widoczny w historii
+  klienta nawet dla wpisów sprzed powstania rekordu klienta.
+- Przetestowane end-to-end lokalnie (PGlite): dodanie wpisu telefonicznego
+  z kierunkiem i przypomnieniem "jutro" + tekstem następnego kroku →
+  poprawna ikona/tag na osi, poprawna denormalizacja `ostatni_kanal` na
+  karcie kanban, poprawne przeniesienie kanału do scalonego feedu po
+  awansie leada na klienta. Zweryfikowane też na wąskim viewporcie (375px) —
+  przyciski szybkiego kontaktu i formularz osi zawijają się czytelnie,
+  cele dotykowe 44px.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

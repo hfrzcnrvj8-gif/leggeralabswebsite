@@ -69,6 +69,12 @@ export async function PATCH(
   if ("www" in body) {
     await sql`UPDATE leads SET www = ${str(body.www)}, updated_at = now() WHERE id = ${id};`;
   }
+  if ("linkedin_url" in body) {
+    await sql`UPDATE leads SET linkedin_url = ${str(body.linkedin_url)}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("next_action" in body) {
+    await sql`UPDATE leads SET next_action = ${str(body.next_action).slice(0, 500)}, updated_at = now() WHERE id = ${id};`;
+  }
   if ("ulica" in body) {
     await sql`UPDATE leads SET ulica = ${str(body.ulica)}, updated_at = now() WHERE id = ${id};`;
   }

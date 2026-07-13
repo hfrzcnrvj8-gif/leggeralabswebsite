@@ -18,7 +18,19 @@ export {
   clientOverdueReason,
 } from "@/lib/clients";
 
-export { SummaryCard, EditableText, EditableTextarea } from "../components";
+export {
+  type ContactChannel,
+  type ContactDirection,
+  CONTACT_CHANNELS,
+  CONTACT_CHANNEL_LABEL,
+  CONTACT_CHANNEL_ICON,
+  CONTACT_DIRECTIONS,
+  CONTACT_DIRECTION_LABEL,
+  waLink,
+  linkedinLink,
+} from "@/lib/contact";
+
+export { SummaryCard, EditableText, EditableTextarea, ContactQuickActions, QuickDateChips } from "../components";
 
 import { CLIENT_STATUSES, CLIENT_STATUS_CLASS, type ClientStatus } from "@/lib/clients";
 import { StatusPill } from "../components";

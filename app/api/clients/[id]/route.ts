@@ -23,12 +23,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const leadId = typeof client.lead_id === "string" ? client.lead_id : null;
 
   const [clientActivity, leadActivity, events, offers, invoices, projects] = await Promise.all([
-    sql`SELECT id, text, created_at FROM client_activity WHERE client_id = ${id};`,
+    sql`SELECT id, text, kanal, kierunek, created_at FROM client_activity WHERE client_id = ${id};`,
     leadId
-      ? (sql`SELECT id, text, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<
-          { id: string; text: string; created_at: string }[]
+      ? (sql`SELECT id, text, kanal, kierunek, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<
+          { id: string; text: string; kanal: string | null; kierunek: string | null; created_at: string }[]
         >)
-      : Promise.resolve([] as { id: string; text: string; created_at: string }[]),
+      : Promise.resolve([] as { id: string; text: string; kanal: string | null; kierunek: string | null; created_at: string }[]),
     sql`SELECT id, kind, text, amount, created_at FROM client_events WHERE client_id = ${id};`,
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
@@ -46,6 +46,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       kind: "note" as const,
       text: a.text as string,
       amount: null as number | null,
+      kanal: (a.kanal as string | null) ?? null,
+      kierunek: (a.kierunek as string | null) ?? null,
       source: "client" as const,
     })),
     ...leadActivity.map((a) => ({
@@ -54,6 +56,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       kind: "note" as const,
       text: a.text,
       amount: null as number | null,
+      kanal: a.kanal ?? null,
+      kierunek: a.kierunek ?? null,
       source: "lead" as const,
     })),
     ...events.map((e) => ({
@@ -62,6 +66,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       kind: e.kind as string,
       text: e.text as string,
       amount: e.amount != null ? Number(e.amount) : null,
+      kanal: null as string | null,
+      kierunek: null as string | null,
       source: "system" as const,
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -95,6 +101,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("email" in body) await sql`UPDATE clients SET email = ${str(body.email, 200)}, updated_at = now() WHERE id = ${id};`;
   if ("telefon" in body) await sql`UPDATE clients SET telefon = ${str(body.telefon, 100)}, updated_at = now() WHERE id = ${id};`;
   if ("www" in body) await sql`UPDATE clients SET www = ${str(body.www, 200)}, updated_at = now() WHERE id = ${id};`;
+  if ("linkedin_url" in body) await sql`UPDATE clients SET linkedin_url = ${str(body.linkedin_url, 300)}, updated_at = now() WHERE id = ${id};`;
+  if ("next_action" in body) await sql`UPDATE clients SET next_action = ${str(body.next_action, 500)}, updated_at = now() WHERE id = ${id};`;
   if ("branza" in body) await sql`UPDATE clients SET branza = ${str(body.branza, 200)}, updated_at = now() WHERE id = ${id};`;
   if ("notatki" in body) await sql`UPDATE clients SET notatki = ${str(body.notatki, 4000)}, updated_at = now() WHERE id = ${id};`;
   if ("status" in body) {

@@ -24,7 +24,19 @@ export {
   findSimilarLead,
 } from "@/lib/leads";
 
-export { SummaryCard, EditableText, EditableTextarea } from "../components";
+export {
+  type ContactChannel,
+  type ContactDirection,
+  CONTACT_CHANNELS,
+  CONTACT_CHANNEL_LABEL,
+  CONTACT_CHANNEL_ICON,
+  CONTACT_DIRECTIONS,
+  CONTACT_DIRECTION_LABEL,
+  waLink,
+  linkedinLink,
+} from "@/lib/contact";
+
+export { SummaryCard, EditableText, EditableTextarea, ContactQuickActions, QuickDateChips } from "../components";
 
 import { STATUSES, STATUS_CLASS } from "@/lib/leads";
 import { StatusPill } from "../components";
