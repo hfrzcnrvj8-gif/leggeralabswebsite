@@ -59,17 +59,25 @@ function sumPln(entries: [string, number][]): number {
 export function DashboardHome({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [data, setData] = useState<TodayData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadToday = () => {
+    setLoadError(null);
     fetch("/api/hub/today")
       .then((res) => {
         if (res.status === 401) {
           window.location.reload();
           return null;
         }
+        if (!res.ok) throw new Error(`Serwer zwrócił błąd ${res.status}.`);
         return res.json();
       })
-      .then((d) => d && setData(d));
+      .then((d) => d && setData(d))
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Nie udało się wczytać pulpitu."));
+  };
+
+  useEffect(() => {
+    loadToday();
   }, []);
 
   const markLeadHandled = async (id: string) => {
@@ -147,6 +155,18 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     }
     toast(`Przypomnienie wysłane${numer ? ` (${numer})` : ""}.`);
   };
+
+  if (loadError) {
+    return (
+      <div className="card-paper rounded-2xl p-6">
+        <p className="font-medium">Nie udało się wczytać pulpitu.</p>
+        <p className="mt-1 text-sm opacity-70">{loadError}</p>
+        <button className="btn-primary mt-4" onClick={loadToday}>
+          Spróbuj ponownie
+        </button>
+      </div>
+    );
+  }
 
   if (!data) {
     return (
