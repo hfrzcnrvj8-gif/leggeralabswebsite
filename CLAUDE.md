@@ -130,9 +130,15 @@ czekaj na Vercel → zgaduj"):
 
 ## Świadome decyzje produktowe (nie cofaj bez pytania)
 
-- Brak jakiegokolwiek modelu AI/LLM w logice przypominacza czy sugestii —
-  wyłącznie deterministyczne reguły (np. "termin minął i status ≠
-  Wdrożone"). To wprost wybrane przez właściciela.
+- Brak jakiegokolwiek modelu AI/LLM w logice przypominacza, podpowiedzi,
+  dopasowań czy kolejkowania — wyłącznie deterministyczne reguły (np.
+  "termin minął i status ≠ Wdrożone"). To wprost wybrane przez właściciela.
+  **Wyjątek od 2026-07-14** (patrz `docs/plany-modulow/06-08-ai-*.md`):
+  punktowe, jawnie klikane użycia **lokalnego** modelu (Ollama na własnym
+  Mac Studio właściciela, NIGDY chmurowe API) do generowania treści-do-
+  zatwierdzenia (szkic maila, odczyt paragonu) — model zawsze proponuje,
+  właściciel zawsze zatwierdza; nigdy nie decyduje/wysyła/zapisuje sam.
+  Nie rozszerzaj tego wyjątku na inne miejsca bez wyraźnej prośby.
 - "Zdrowie" projektu (Na dobrej drodze/Zagrożony/Zerwany) jest ręczne i
   niezależne od statusu na tablicy — dwie osobne osie, tak jak w Linear.
 - "Cykle" w Osi czasu (`ProjectTimeline.tsx`) są WYŁĄCZNIE wizualnym

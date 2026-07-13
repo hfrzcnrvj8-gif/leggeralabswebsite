@@ -27,11 +27,20 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 3 | Kanały kontaktu — telefon/WhatsApp/LinkedIn (⑦a) | średni | [03-kanaly-kontaktu.md](03-kanaly-kontaktu.md) |
 | 4 | Natywna poczta w panelu (IMAP/SMTP az.pl) — podgląd, auto-przypisanie, odpowiadanie, lista „do obsłużenia” (⑦b) | duży | [04-skrzynka-mailowa.md](04-skrzynka-mailowa.md) |
 | 5 | Leggera Hub jako aplikacja mobilna (PWA) — cała apka na telefonie | duży | [05-mobilna-aplikacja.md](05-mobilna-aplikacja.md) |
+| 6 | AI: infrastruktura Ollama (fundament pod 7 i 8, nie samodzielna funkcja) | mały | [06-ai-infrastruktura-ollama.md](06-ai-infrastruktura-ollama.md) |
+| 7 | AI: szkice odpowiedzi mailowych (wymaga 4 i 6) | średni | [07-ai-szkice-mailowe.md](07-ai-szkice-mailowe.md) |
+| 8 | AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
 jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM
 KOŃCU** — mobilny sens ma dopiero to, co realnie jest już w Leggera Hub, a duża
 część tej pracy to doprowadzenie każdego widoku do używalności na wąskim ekranie.
+
+**Moduły 6–8 (AI, lokalne modele przez Ollamę)** to osobna, młodsza gałąź
+(decyzja 2026-07-14, patrz niżej) — Moduł 6 to fundament (musi być pierwszy z
+tej trójki), Moduł 8 jest od niego zależny ale niezależny od poczty, więc może
+powstać wcześniej niż Moduł 4. Moduł 7 wymaga zarówno Modułu 4 (poczta musi
+istnieć), jak i Modułu 6.
 
 ## Zasady wspólne dla WSZYSTKICH modułów (nie łamać bez pytania)
 
@@ -39,8 +48,14 @@ Zebrane z `CLAUDE.md` i pamięci projektu — każdy czat MUSI ich przestrzegać
 
 - **Panel jednoosobowy** — jedno hasło, brak ról/wielu użytkowników. To świadomy
   wybór, nie luka.
-- **Zero AI/LLM w logice** przypominaczy i podpowiedzi — wyłącznie deterministyczne
-  reguły i statyczny tekst zapisany w kodzie.
+- **Zero AI/LLM w logice** przypominaczy, podpowiedzi, dopasowań i kolejkowania —
+  to zawsze deterministyczne reguły i statyczny tekst w kodzie, bez wyjątków.
+  **Wyjątek, świadomie dodany 2026-07-14** (patrz Moduły 6–8): punktowe,
+  jawnie zainicjowane kliknięciem użycia **lokalnego** modelu (przez Ollamę na
+  własnym sprzęcie właściciela, NIGDY chmurowe API) do generowania treści do
+  zaakceptowania — np. szkic odpowiedzi mailowej, odczyt paragonu. Model
+  zawsze proponuje, właściciel zawsze zatwierdza/edytuje/wysyła ręcznie; model
+  nigdy nie decyduje, nie wysyła, nie zapisuje niczego bez tego kroku.
 - **Tylko miękkie podpowiedzi, nigdy twarde bramki** — nic nie może blokować
   właścicielowi przejścia dalej. Podpowiedź informuje, nie zabrania.
 - **Właściciel nie czyta kodu** — każdą decyzję nietechniczną zadaj wprost przez
@@ -73,6 +88,15 @@ kamienie po terminie, zaległe faktury, faktury-szkice do wystawienia, wygasłe
 oferty, kalendarz z nakładką realnych terminów. Mail dzienny (`app/api/leads/notify`,
 cron 06:00) raportuje to samo + wysyła przypomnienia + generuje faktury cykliczne.
 
-**Moduły w tym folderze to trzy luki świadomie odłożone podczas audytu 2026-07-13**
-(⑤ mentor nierówny, ⑥ nurture ręczny, ⑦ komunikacja jednokanałowa) — nie nowe
-pomysły, tylko domknięcie procesu.
+**Moduły 1–5 w tym folderze to trzy luki świadomie odłożone podczas audytu
+2026-07-13** (⑤ mentor nierówny, ⑥ nurture ręczny, ⑦ komunikacja
+jednokanałowa) + mobilna wersja — nie nowe pomysły, tylko domknięcie procesu.
+
+**Moduły 6–8 (AI)** mają inne pochodzenie: pytanie właściciela 2026-07-14
+"czy warto dodać lokalne AI (Ollama), żeby jeszcze bardziej usprawnić pracę".
+Odpowiedź nie jest "wsadź AI wszędzie" — świadomie tylko dwa konkretne, wąskie
+miejsca (szkice mailowe, OCR paragonów), tam gdzie oszczędność czasu jest
+namacalna i ryzyko pomyłki niskie (wszystko do zatwierdzenia przez
+właściciela). Podpowiedzi w Leadach/Klientach (treść kontaktu) i logika
+dopasowań/przypominaczy pozostają świadomie bez AI — to nie miejsca, gdzie
+brakuje czasu, tylko gdzie liczy się przewidywalność.
