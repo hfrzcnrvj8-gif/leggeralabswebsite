@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   let clientId: string | null = null;
 
   if (leadId) {
-    const lead = (await sql`SELECT firma, branza, telefon, email, www, client_id FROM leads WHERE id = ${leadId};`)[0];
+    const lead = (await sql`SELECT firma, branza, telefon, email, www, ulica, kod, miasto, kraj, client_id FROM leads WHERE id = ${leadId};`)[0];
     const firma = typeof lead?.firma === "string" ? lead.firma : "";
     if (!klientNazwa) klientNazwa = firma;
     if (!tytul) tytul = firma ? `Oferta — ${firma}` : "";
@@ -58,8 +58,8 @@ export async function POST(req: NextRequest) {
     } else if (lead) {
       clientId = randomUUID();
       await sql`
-        INSERT INTO clients (id, nazwa, branza, telefon, email, www, lead_id)
-        VALUES (${clientId}, ${firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${leadId});
+        INSERT INTO clients (id, nazwa, branza, telefon, email, www, ulica, kod, miasto, kraj, lead_id)
+        VALUES (${clientId}, ${firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${lead.ulica}, ${lead.kod}, ${lead.miasto}, ${lead.kraj}, ${leadId});
       `;
       await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${leadId};`;
       await logClientEvent(sql, clientId, "client_created", "Awansował z leada przy tworzeniu pierwszej oferty");

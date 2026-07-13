@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, SEED, isOverdue, overdueReason } from "./shared";
+import { type Lead, STATUSES, SEED, isOverdue, overdueReason, leadSourceLabel } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
@@ -74,7 +74,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma, zrodlo: "Ręcznie dodane", status: "Do kontaktu" }),
+      body: JSON.stringify({ firma, zrodlo_kategoria: "Ręcznie dodane", status: "Do kontaktu" }),
     });
     if (res.ok) {
       toast("Dodano leada.");
@@ -176,13 +176,13 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     clearSelection();
   }, [selectedIds, confirm, toast, clearSelection]);
 
-  const zrodla = useMemo(() => [...new Set((leads ?? []).map((l) => l.zrodlo))], [leads]);
+  const zrodla = useMemo(() => [...new Set((leads ?? []).map(leadSourceLabel))], [leads]);
   const activeFilterCount = (filterStatus ? 1 : 0) + (filterZrodlo ? 1 : 0);
 
   const filtered = useMemo(() => {
     let list = leads ?? [];
     if (filterStatus) list = list.filter((l) => l.status === filterStatus);
-    if (filterZrodlo) list = list.filter((l) => l.zrodlo === filterZrodlo);
+    if (filterZrodlo) list = list.filter((l) => leadSourceLabel(l) === filterZrodlo);
     if (search) list = list.filter((l) => l.firma.toLowerCase().includes(search.toLowerCase()));
     return [...list].sort((a, b) => {
       const ao = isOverdue(a) ? 0 : 1;

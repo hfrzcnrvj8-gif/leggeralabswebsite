@@ -8,12 +8,21 @@ import {
   type Lead,
   daysSince,
   isOverdue,
-  EditableText,
-  EditableTextarea,
+  leadSourceLabel,
   StatusTag,
 } from "./shared";
-import { DateField } from "../DatePicker";
+import { Truncate } from "../components";
+import { formatPlDate } from "@/lib/projects";
 
+/**
+ * Lista = tylko podgląd. Dane stałe leada (nazwa, kontakt, adres, źródło)
+ * edytuje się wyłącznie w profilu (LeadDetailPanel, otwierany klikiem w
+ * nazwę firmy albo ikoną obok) — status zostaje edytowalny bezpośrednio w
+ * wierszu, bo to główna akcja robocza dnia codziennego, nie dana stała.
+ * `table-fixed` + kolumny procentowe zamiast sztywnych `min-w-[]px`, żeby
+ * tabela realnie wykorzystywała całą dostępną szerokość ekranu, a nie tylko
+ * sumę minimalnych szerokości kolumn.
+ */
 export function TableView({
   leads,
   lang,
@@ -49,7 +58,7 @@ export function TableView({
   return (
     <div className="card-paper relative rounded-2xl">
       {/* Cienie sygnalizujące, że w poziomie jest jeszcze coś do przewinięcia
-          (styl Linear) — bez tego nie było widać, że tabela w ogóle scrolluje. */}
+          (styl Linear) — na wąskich ekranach tabela wciąż może scrollować. */}
       <div
         className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-8 rounded-l-2xl bg-gradient-to-r from-[var(--bg-soft)] to-transparent transition-opacity ${
           canScrollLeft ? "opacity-100" : "opacity-0"
@@ -65,9 +74,21 @@ export function TableView({
       <div
         ref={scrollRef}
         onScroll={updateScrollShadows}
-        className="max-h-[70vh] overflow-auto rounded-2xl"
+        className="max-h-[70vh] min-w-full overflow-auto rounded-2xl"
       >
-        <table className="w-full text-xs">
+        <table className="w-full min-w-[900px] table-fixed text-xs">
+          <colgroup>
+            <col className="w-9" />
+            <col className="w-[20%]" />
+            <col className="w-[10%]" />
+            <col className="w-[16%]" />
+            <col className="w-[10%]" />
+            <col className="w-[15%]" />
+            <col className="w-[13%]" />
+            <col className="w-[9%]" />
+            <col className="w-7" />
+            <col className="w-14" />
+          </colgroup>
           <thead>
             <tr className="sticky top-0 z-10 border-b hairline bg-[var(--bg-soft)] text-left uppercase tracking-wide text-muted">
               <th className="bg-[var(--bg-soft)] p-2">
@@ -79,23 +100,21 @@ export function TableView({
                   aria-label="Zaznacz wszystkie"
                 />
               </th>
-              <th className="min-w-[140px] bg-[var(--bg-soft)] p-2">Firma</th>
-              <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Branża</th>
-              <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Telefon</th>
-              <th className="min-w-[150px] bg-[var(--bg-soft)] p-2">Email</th>
-              <th className="min-w-[130px] bg-[var(--bg-soft)] p-2">WWW</th>
-              <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Źródło</th>
-              <th className="min-w-[100px] bg-[var(--bg-soft)] p-2">Status</th>
-              <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Ostatni kontakt</th>
+              <th className="bg-[var(--bg-soft)] p-2">Firma</th>
+              <th className="bg-[var(--bg-soft)] p-2">Branża</th>
+              <th className="bg-[var(--bg-soft)] p-2">Kontakt</th>
+              <th className="bg-[var(--bg-soft)] p-2">Miasto</th>
+              <th className="bg-[var(--bg-soft)] p-2">Źródło</th>
+              <th className="bg-[var(--bg-soft)] p-2">Status</th>
+              <th className="bg-[var(--bg-soft)] p-2">Ostatni kontakt</th>
               <th className="bg-[var(--bg-soft)] p-2">Dni</th>
-              <th className="min-w-[220px] bg-[var(--bg-soft)] p-2">Notatki</th>
               <th className="bg-[var(--bg-soft)] p-2"></th>
             </tr>
           </thead>
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={12} className="p-8 text-center text-sm text-muted opacity-60">
+                <td colSpan={10} className="p-8 text-center text-sm text-muted opacity-60">
                   <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
                   Brak leadów pasujących do filtrów.
                 </td>
@@ -106,6 +125,7 @@ export function TableView({
               const overdueRow = isOverdue(lead);
               const selected = selectedId === lead.id;
               const checked = selectedIds.has(lead.id);
+              const kontakt = [lead.telefon, lead.email].filter(Boolean);
               return (
                 <tr
                   key={lead.id}
@@ -123,38 +143,45 @@ export function TableView({
                     />
                   </td>
                   <td className="p-2">
-                    <EditableText value={lead.firma} onSave={(v) => onUpdate(lead.id, "firma", v)} />
+                    <button
+                      onClick={() => onOpen(lead.id)}
+                      className="block w-full truncate text-left font-medium text-[var(--fg)] hover:underline"
+                      title={lead.firma}
+                    >
+                      {lead.firma}
+                    </button>
+                    {lead.osoba_kontaktowa && (
+                      <Truncate value={lead.osoba_kontaktowa} className="text-[11px] text-muted opacity-80" />
+                    )}
                   </td>
                   <td className="p-2">
-                    <EditableText value={lead.branza} onSave={(v) => onUpdate(lead.id, "branza", v)} />
+                    <Truncate value={lead.branza} />
                   </td>
                   <td className="p-2">
-                    <EditableText value={lead.telefon} onSave={(v) => onUpdate(lead.id, "telefon", v)} />
+                    {kontakt.length === 0 ? (
+                      <span className="text-muted opacity-40">—</span>
+                    ) : (
+                      kontakt.map((c) => <Truncate key={c} value={c} />)
+                    )}
                   </td>
                   <td className="p-2">
-                    <EditableText value={lead.email} onSave={(v) => onUpdate(lead.id, "email", v)} />
+                    <Truncate value={lead.miasto} />
                   </td>
                   <td className="p-2">
-                    <EditableText value={lead.www} onSave={(v) => onUpdate(lead.id, "www", v)} />
-                  </td>
-                  <td className="p-2">
-                    <EditableText value={lead.zrodlo} onSave={(v) => onUpdate(lead.id, "zrodlo", v)} />
+                    <Truncate value={leadSourceLabel(lead)} />
                   </td>
                   <td className="p-2">
                     <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
                   </td>
                   <td className="p-2">
-                    <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => onUpdate(lead.id, "ostatni_kontakt", v)} placeholder="—" />
+                    <Truncate value={formatPlDate(lead.ostatni_kontakt)} />
                   </td>
                   <td className="p-2">
                     {d === null ? (
                       "—"
                     ) : (
-                      <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>{d} dni</span>
+                      <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>{d}</span>
                     )}
-                  </td>
-                  <td className="p-2">
-                    <EditableTextarea value={lead.notatki} onSave={(v) => onUpdate(lead.id, "notatki", v)} />
                   </td>
                   <td className="p-2">
                     <div className="flex items-center gap-2">
@@ -166,7 +193,7 @@ export function TableView({
                           onOpen(lead.id);
                         }}
                         className="flex text-muted hover:text-[var(--fg)]"
-                        title="Otwórz szczegóły"
+                        title="Otwórz profil"
                       >
                         <IconArrowUpRight size={15} />
                       </Link>

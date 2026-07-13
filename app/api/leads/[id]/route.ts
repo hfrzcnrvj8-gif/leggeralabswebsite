@@ -51,6 +51,9 @@ export async function PATCH(
   if ("firma" in body) {
     await sql`UPDATE leads SET firma = ${str(body.firma)}, updated_at = now() WHERE id = ${id};`;
   }
+  if ("osoba_kontaktowa" in body) {
+    await sql`UPDATE leads SET osoba_kontaktowa = ${str(body.osoba_kontaktowa)}, updated_at = now() WHERE id = ${id};`;
+  }
   if ("branza" in body) {
     await sql`UPDATE leads SET branza = ${str(body.branza)}, updated_at = now() WHERE id = ${id};`;
   }
@@ -65,6 +68,21 @@ export async function PATCH(
   }
   if ("www" in body) {
     await sql`UPDATE leads SET www = ${str(body.www)}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("ulica" in body) {
+    await sql`UPDATE leads SET ulica = ${str(body.ulica)}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("kod" in body) {
+    await sql`UPDATE leads SET kod = ${str(body.kod)}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("miasto" in body) {
+    await sql`UPDATE leads SET miasto = ${str(body.miasto)}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("kraj" in body) {
+    await sql`UPDATE leads SET kraj = ${str(body.kraj)}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("zrodlo_kategoria" in body) {
+    await sql`UPDATE leads SET zrodlo_kategoria = ${str(body.zrodlo_kategoria)}, updated_at = now() WHERE id = ${id};`;
   }
   if ("zrodlo" in body) {
     await sql`UPDATE leads SET zrodlo = ${str(body.zrodlo)}, updated_at = now() WHERE id = ${id};`;

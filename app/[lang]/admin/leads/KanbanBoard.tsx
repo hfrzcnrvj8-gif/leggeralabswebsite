@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue, StatusTag } from "./shared";
+import { type Lead, STATUSES, STATUS_DOT, daysSince, isOverdue, leadSourceLabel, StatusTag } from "./shared";
 
 export function KanbanBoard({
   leads,
@@ -121,12 +121,16 @@ export function KanbanBoard({
                       ✕
                     </button>
                   </div>
-                  {lead.branza && <div className="text-[11px] text-muted">{lead.branza}</div>}
-                  {(lead.telefon || lead.email || lead.www) && (
+                  {(lead.branza || lead.osoba_kontaktowa) && (
+                    <div className="text-[11px] text-muted">
+                      {[lead.branza, lead.osoba_kontaktowa].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                  {(lead.telefon || lead.email || lead.miasto) && (
                     <div className="mt-1 space-y-0.5 text-[11px] text-muted opacity-80">
                       {lead.telefon && <div className="break-words">{lead.telefon}</div>}
                       {lead.email && <div className="break-all">{lead.email}</div>}
-                      {lead.www && <div className="break-all">{lead.www}</div>}
+                      {lead.miasto && <div className="break-words">{lead.miasto}</div>}
                     </div>
                   )}
                   <div className="mt-1.5 flex items-center justify-between gap-2">
@@ -139,7 +143,7 @@ export function KanbanBoard({
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 text-[10px] text-muted opacity-70">{lead.zrodlo}</div>
+                  <div className="mt-1 truncate text-[10px] text-muted opacity-70">{leadSourceLabel(lead)}</div>
                 </motion.div>
               );
             })}

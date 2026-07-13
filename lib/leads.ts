@@ -9,12 +9,22 @@ import { todayLocalISO } from "./dates";
 export type Lead = {
   id: string;
   firma: string;
+  osoba_kontaktowa: string;
   branza: string;
   /** @deprecated zlepione pole z czasów przed rozbiciem na telefon/email/www — trzymane tylko dla wstecznej zgodności ze starymi wpisami */
   kontakt: string;
   telefon: string;
   email: string;
   www: string;
+  ulica: string;
+  kod: string;
+  miasto: string;
+  kraj: string;
+  /** Kategoria źródła (stała lista, patrz SOURCE_CATEGORIES) — puste dla
+   * leadów sprzed rozbicia źródła na kategorię+szczegóły. */
+  zrodlo_kategoria: string;
+  /** Szczegóły źródła (wolny tekst, np. "Wilanów", numer polecającego) —
+   * dla starych leadów to wciąż całe, nieustrukturyzowane pole źródła. */
   zrodlo: string;
   status: string;
   ostatni_kontakt: string | null;
@@ -75,6 +85,29 @@ export const STATUS_DOT: Record<string, string> = {
   "Zamknięte - sukces": "bg-emerald-600",
   "Odrzucone / brak zainteresowania": "bg-[var(--hairline)]",
 };
+
+/** Stała lista kategorii źródła leada — zastępuje dawne jedno pole
+ * "Źródło", które mieszało kategorię z dopiskiem (np. "Przysucha - ciepły?").
+ * Kategoria + wolne "Szczegóły źródła" (pole `zrodlo`) to teraz dwie osobne
+ * rzeczy. Puste `zrodlo_kategoria` = lead sprzed tej zmiany, patrz
+ * leadSourceLabel(). */
+export const SOURCE_CATEGORIES = [
+  "WWW",
+  "Polecenie",
+  "Networking",
+  "Zimny telefon",
+  "Formularz na stronie",
+  "Automatyczne wyszukiwanie",
+  "Ręcznie dodane",
+  "Inne",
+] as const;
+
+/** Etykieta źródła do wyświetlenia/filtrowania — dla nowych leadów to
+ * kategoria, dla starych (bez kategorii) surowe, nieustrukturyzowane
+ * `zrodlo`, żeby nic nie znikało z filtrów mimo braku migracji. */
+export function leadSourceLabel(lead: Pick<Lead, "zrodlo_kategoria" | "zrodlo">): string {
+  return lead.zrodlo_kategoria || lead.zrodlo || "—";
+}
 
 /** Miękkie, statyczne podpowiedzi "co zwykle dalej" per status — mentor
  * bez LLM (zgodne z zasadą "brak AI w logice przypominacza"). Czysto

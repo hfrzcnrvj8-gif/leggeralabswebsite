@@ -331,6 +331,52 @@ podpowiedź per status (`CLIENT_STATUS_HINT`), leady nie miały żadnej — mimo
   rekordzie, nie osobny widok). Wyłącznie informacyjny, nigdy nie blokuje.
 - Pełny brief: `docs/plany-modulow/01-podpowiedzi-leadow.md`.
 
+## Leady: ustrukturyzowane dane + lista tylko-do-podglądu (2026-07-13)
+
+Kontynuacja Modułu 1 po rozmowie z właścicielem o realnych problemach z
+listą leadów: pola obcinane w wąskich kolumnach, adres upychany w
+notatkach, pole "Źródło" mieszające kategorię z dopiskiem (np. "Przysucha -
+ciepły?"). Trzy decyzje właściciela (2026-07-13): kategorie źródła + wolne
+pole "szczegóły" (nie tagi, nie jedno pole), stare wpisy `zrodlo` NIE są
+migrowane (świadomie zostają nieustrukturyzowane), dodać pole "Osoba
+kontaktowa".
+
+- **Nowe kolumny leada** (`lib/db.ts` `createSchema()`, ALTER TABLE
+  idempotentne jak zawsze): `osoba_kontaktowa`, `ulica`/`kod`/`miasto`/`kraj`
+  (adres, wzorem `clients`), `zrodlo_kategoria`. Kolumna `zrodlo` ZMIENIA
+  znaczenie na "szczegóły źródła" (wolny tekst) — nazwa w bazie zostaje,
+  żeby nie ruszać istniejących zapisów/wstawień.
+- `SOURCE_CATEGORIES` (`lib/leads.ts`) — stała lista 8 kategorii (WWW,
+  Polecenie, Networking, Zimny telefon, Formularz na stronie, Automatyczne
+  wyszukiwanie, Ręcznie dodane, Inne). `leadSourceLabel()` zwraca kategorię,
+  a dla starych leadów bez kategorii (`zrodlo_kategoria` puste) surowe stare
+  `zrodlo` — nic nie znika z list/filtrów mimo braku migracji.
+- Automatyczne źródła leadów zapisują teraz PRAWDZIWE dane do właściwych pól
+  zamiast upychać je w `notatki`: `ContactForm.tsx` (formularz na stronie)
+  zapisuje `osoba_kontaktowa` zamiast dopisku "Osoba kontaktowa: X" w
+  notatkach; `app/api/leads/discover/route.ts` (auto-wyszukiwanie po OSM)
+  zapisuje `ulica`/`kod`/`miasto` z tagów `addr:*` zamiast jednego bloba
+  adresu w notatkach.
+- Adres kopiuje się teraz też przy awansie leada na klienta — zarówno przy
+  ręcznym „+ Utwórz klienta” (`app/api/leads/[id]/promote/route.ts`), jak i
+  automatycznie przy pierwszej ofercie (`app/api/offers/route.ts`).
+- **Lista = tylko podgląd, profil = edycja.** `TableView.tsx` i
+  `KanbanBoard.tsx` nie mają już edytowalnych pól dla danych stałych (nazwa,
+  branża, kontakt, adres, źródło) — to zwykły tekst z tooltipem pełnej
+  treści (`Truncate`, `components.tsx`). Jedyna edycja wprost z listy to
+  status (`StatusTag`), bo to codzienna czynność robocza, nie dana stała.
+  Klik w nazwę firmy (albo ikona „Otwórz profil”) otwiera `LeadDetailPanel`
+  (peek panel lub podstrona `/admin/leads/[id]`), gdzie wszystko jest
+  edytowalne — łącznie z nowymi polami i kategorią źródła przez `PillPicker`
+  (`components.tsx`, neutralna wersja `StatusPill` bez kolorowania per
+  wartość).
+- **Tabela wykorzystuje pełną szerokość**: `table-fixed` + `<colgroup>` z
+  szerokościami procentowymi zamiast sztywnych `min-w-[]px` na każdej
+  kolumnie — wcześniej tabela nie rozciągała się na dostępną szerokość
+  ekranu, tylko sumowała minimalne szerokości kolumn. Kolumny "WWW" i
+  "Notatki" zniknęły z listy (długie/rzadko potrzebne od razu) — dostępne w
+  profilu.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

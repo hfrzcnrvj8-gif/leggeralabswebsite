@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { type Lead, type Activity, LEAD_STATUS_HINT, LEAD_STATUS_STEP, EditableText, EditableTextarea, StatusTag } from "./shared";
-import { ProcessMap } from "../components";
+import { type Lead, type Activity, SOURCE_CATEGORIES, LEAD_STATUS_HINT, LEAD_STATUS_STEP, EditableText, EditableTextarea, StatusTag } from "./shared";
+import { ProcessMap, PillPicker } from "../components";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { todayLocalISO } from "@/lib/dates";
@@ -185,6 +185,13 @@ export function LeadDetailPanel({
             Usuń leada
           </button>
         </div>
+        <input
+          value={lead.osoba_kontaktowa}
+          onChange={(e) => setLead((prev) => (prev ? { ...prev, osoba_kontaktowa: e.target.value } : prev))}
+          onBlur={(e) => updateLead("osoba_kontaktowa", e.target.value)}
+          placeholder="Osoba kontaktowa (imię i nazwisko)"
+          className="mt-0.5 w-full bg-transparent text-sm text-muted outline-none placeholder:text-muted placeholder:opacity-60"
+        />
 
         <div className="mt-2 flex items-center gap-2">
           <StatusTag status={lead.status} onChange={(v) => updateLead("status", v)} />
@@ -218,7 +225,28 @@ export function LeadDetailPanel({
           <Field label="WWW">
             <EditableText value={lead.www} onSave={(v) => updateLead("www", v)} />
           </Field>
+          <Field label="Ulica">
+            <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
+          </Field>
+          <Field label="Kod / Miasto">
+            <div className="flex gap-2">
+              <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
+              <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
+            </div>
+          </Field>
+          <Field label="Kraj">
+            <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />
+          </Field>
           <Field label="Źródło">
+            <PillPicker
+              value={lead.zrodlo_kategoria}
+              options={SOURCE_CATEGORIES}
+              onChange={(v) => updateLead("zrodlo_kategoria", v)}
+              placeholder="— wybierz kategorię —"
+              title="Zmień kategorię źródła"
+            />
+          </Field>
+          <Field label="Szczegóły źródła">
             <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
           </Field>
           <Field label="Ostatni kontakt">

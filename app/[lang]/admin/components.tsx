@@ -168,6 +168,44 @@ export function ProcessMap({ currentStep }: { currentStep: number }) {
   );
 }
 
+/** Neutralna klikalna pigułka do wyboru z ustalonej listy opcji, bez
+ * kolorowania per wartość (w przeciwieństwie do StatusPill) — np. kategoria
+ * źródła leada. Puste `value` pokazuje `placeholder`. */
+export function PillPicker({
+  value,
+  options,
+  onChange,
+  placeholder = "— wybierz —",
+  title = "Zmień",
+}: {
+  value: string;
+  options: readonly string[];
+  onChange: (v: string) => void;
+  placeholder?: string;
+  title?: string;
+}) {
+  return (
+    <PropertyMenu value={value} options={options.map((s) => ({ value: s, label: s }))} onChange={onChange} title={title}>
+      <span className="cursor-pointer rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]">
+        {value || placeholder}
+      </span>
+    </PropertyMenu>
+  );
+}
+
+/** Jednolinijkowy tekst z wielokropkiem, gdy nie mieści się w kolumnie —
+ * pełna treść zostaje dostępna przez natywny tooltip (title). Zastępuje
+ * zwykłe <input>/<span>, które w wąskich kolumnach tabeli po prostu ucinały
+ * tekst bez żadnego śladu, że coś jest ukryte. */
+export function Truncate({ value, className = "" }: { value: string; className?: string }) {
+  if (!value) return <span className="text-muted opacity-40">—</span>;
+  return (
+    <span className={`block truncate ${className}`} title={value}>
+      {value}
+    </span>
+  );
+}
+
 type SavedView = { id: string; name: string; filters: Record<string, string> };
 
 /** Nazwane, zapisane kombinacje filtrów (np. "Leady gorące", "Projekty

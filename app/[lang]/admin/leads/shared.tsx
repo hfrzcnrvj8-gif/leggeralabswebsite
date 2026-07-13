@@ -13,11 +13,13 @@ export {
   STATUS_CLASS,
   STATUS_DOT,
   SEED,
+  SOURCE_CATEGORIES,
   LEAD_STATUS_HINT,
   LEAD_STATUS_STEP,
   daysSince,
   isOverdue,
   overdueReason,
+  leadSourceLabel,
 } from "@/lib/leads";
 
 export { SummaryCard, EditableText, EditableTextarea } from "../components";

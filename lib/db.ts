@@ -144,6 +144,23 @@ async function createSchema(): Promise<void> {
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS www TEXT NOT NULL DEFAULT '';`;
 
+  // Osoba kontaktowa i adres — wcześniej leady nie miały żadnego z tych pól,
+  // oba lądowały (jeśli w ogóle) upchane w wolnym tekście notatek. Wzorem
+  // adresu klienta (ulica/kod/miasto/kraj, patrz createClientsSchema niżej).
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS osoba_kontaktowa TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS ulica TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS kod TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS miasto TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS kraj TEXT NOT NULL DEFAULT '';`;
+
+  // Rozbicie "źródła" na kategorię (stała lista, SOURCE_CATEGORIES w
+  // lib/leads.ts) i szczegóły (istniejące pole `zrodlo`, teraz czysty wolny
+  // tekst doprecyzowujący kategorię, zamiast mieszanki obu jak wcześniej).
+  // Puste dla leadów sprzed tej zmiany — świadomie NIE migrujemy starych
+  // wpisów (decyzja właściciela 2026-07-13); UI dla nich pokazuje surowe,
+  // nieustrukturyzowane stare `zrodlo`.
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS zrodlo_kategoria TEXT NOT NULL DEFAULT '';`;
+
   // Chronologiczny log aktywności per lead — w przeciwieństwie do jednego
   // nadpisywanego pola notatek, każdy wpis zostaje na zawsze.
   await sql`

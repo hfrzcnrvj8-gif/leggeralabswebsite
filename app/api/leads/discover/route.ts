@@ -133,14 +133,18 @@ out center ${ile * 3};`;
     const telefon = (t.phone || t["contact:phone"] || "").slice(0, 100);
     const website = (t.website || t["contact:website"] || "").slice(0, 200);
     const email = (t.email || t["contact:email"] || "").slice(0, 200);
-    const addrParts = [t["addr:street"], t["addr:housenumber"], t["addr:city"]].filter(Boolean);
-    const notatki = addrParts.join(" ").slice(0, 1000);
-    const zrodlo = `Auto-wyszukane (OSM): ${lokalizacja}`;
+    // Adres z OSM trafia od razu do ustrukturyzowanych pól zamiast (jak
+    // wcześniej) jednym blobem do notatek.
+    const ulica = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ").slice(0, 300);
+    const kod = (t["addr:postcode"] || "").slice(0, 20);
+    const miasto = (t["addr:city"] || "").slice(0, 200);
+    const zrodloKategoria = "Automatyczne wyszukiwanie";
+    const zrodlo = lokalizacja.slice(0, 200);
     const id = randomUUID();
 
     await sql`
-      INSERT INTO leads (id, firma, branza, telefon, email, www, zrodlo, status, notatki)
-      VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${telefon}, ${email}, ${website}, ${zrodlo}, 'Do kontaktu', ${notatki});
+      INSERT INTO leads (id, firma, branza, telefon, email, www, ulica, kod, miasto, zrodlo_kategoria, zrodlo, status)
+      VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${telefon}, ${email}, ${website}, ${ulica}, ${kod}, ${miasto}, ${zrodloKategoria}, ${zrodlo}, 'Do kontaktu');
     `;
     added++;
     insertedLeads.push({ firma });

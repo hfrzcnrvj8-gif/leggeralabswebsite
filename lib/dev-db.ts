@@ -81,11 +81,11 @@ async function ensureSeeded(): Promise<void> {
       const leadA = randomUUID();
       const leadB = randomUUID();
       await raw(
-        `INSERT INTO leads (id, firma, branza, telefon, email, www, zrodlo, status, ostatni_kontakt, notatki)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10),($11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+        `INSERT INTO leads (id, firma, osoba_kontaktowa, branza, telefon, email, www, miasto, zrodlo_kategoria, zrodlo, status, ostatni_kontakt, notatki)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13),($14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
         [
-          leadA, "Kancelaria Kowalski", "Prawo", "600100200", "biuro@kowalski.pl", "kowalski.pl", "Polecenie", "Rozmowa umówiona", iso(-2), "Zainteresowani automatyzacją umów.",
-          leadB, "Piekarnia Złoty Kłos", "Gastronomia", "500300400", "kontakt@zlotyklos.pl", "zlotyklos.pl", "Formularz", "Nowe zgłoszenie ze strony", iso(-6), "",
+          leadA, "Kancelaria Kowalski", "Marek Kowalski", "Prawo", "600100200", "biuro@kowalski.pl", "kowalski.pl", "Warszawa", "Polecenie", "", "Rozmowa umówiona", iso(-2), "Zainteresowani automatyzacją umów.",
+          leadB, "Piekarnia Złoty Kłos", "", "Gastronomia", "500300400", "kontakt@zlotyklos.pl", "zlotyklos.pl", "Wilanów", "Formularz na stronie", "", "Nowe zgłoszenie ze strony", iso(-6), "",
         ]
       );
 
