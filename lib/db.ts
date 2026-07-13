@@ -341,6 +341,16 @@ async function createHubSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS events_data_idx ON events(data);`;
+
+  // Moduł 10 — wydarzenia wielodniowe (np. urlop, wyjazd): NULL = wydarzenie
+  // jednodniowe (dotychczasowe zachowanie), wypełnione = zakres [data,
+  // data_koniec] włącznie.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS data_koniec DATE;`;
+
+  // Moduł 10, druga tura — czas trwania (minuty), tylko gdy `godzina`
+  // ustawiona; NULL = nieznany/całodniowe. Napędza siatkę godzinową
+  // (bloki wysokość=czas trwania) w widokach Dzień/Tydzień.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS czas_trwania_min INTEGER;`;
 }
 
 /** Lazily creates projects/notes/events tables (i tabele pomocnicze) na
@@ -709,6 +719,7 @@ async function createClientsSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
 
   // Zdarzenia systemowe (oferta wysłana, faktura wystawiona, wpłata itd.) —
   // osobno od `client_activity` (ręczne notatki właściciela), bo mają inny

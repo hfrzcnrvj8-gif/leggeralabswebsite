@@ -83,9 +83,15 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
   aktywność przy leadach/projektach, ale lżejszy — bez osobnej podstrony,
   bo notatki nie mają peek panelu/detail page) do zapisywania kolejnych
   ustaleń bez nadpisywania treści notatki.
-- **Kalendarz** (`/admin/calendar`) — widok miesiąca, klik w dzień pokazuje
-  listę wydarzeń i formularz dodawania nowego (tytuł + opcjonalna godzina,
-  opcjonalne powiązanie z leadem lub projektem).
+- **Kalendarz** (`/admin/calendar`) — przełącznik widoku Miesiąc/Tydzień/
+  Dzień, filtr po kliencie, klik w dzień (miesiąc) otwiera modal z pełną
+  listą wydarzeń i formularzem dodawania nowego (tytuł + opcjonalna
+  godzina, opcjonalne powiązanie z leadem/projektem/klientem, opcjonalny
+  zakres wielodniowy). Wydarzenia da się przeciągnąć na inny dzień, tytuł
+  rozpoznaje szybkie frazy typu "jutro 14:00" (bez AI — patrz Moduł 10),
+  agregacja obejmuje telefon i mail, eksport/subskrypcja ICS (przycisk
+  "📅 Subskrybuj", gdy skonfigurowany `CALENDAR_ICS_SECRET`) — patrz
+  Moduł 10 niżej.
 - **Leady** (`/admin/leads`) — opisane w `LEADS_SETUP.md`, teraz też w
   ramach wspólnego sidebaru i palety poleceń.
 - **Klienci** (`/admin/clients`, Faza F, 2026-07-12) — fundament CRM: Lead to
@@ -1083,6 +1089,176 @@ dzwonienia z komputera w Hub, natywna apka-towarzysz do CallKit) są
 praca nad agregacją w Kalendarzu ("wszystkie działania z tagami,
 dopasowaniem do klienta") kontynuowana w Module 10, patrz
 `docs/plany-modulow/10-kalendarz-dopracowanie.md`.
+
+### Moduł 10 — dopracowanie Kalendarza (2026-07-14)
+
+Odpowiedź na `docs/plany-modulow/10-kalendarz-dopracowanie.md` — właściciel
+zdecydował: zakres agregacji zostaje na razie tylko przy telefonie (bez
+maili/WhatsApp/notatek), "dopasowanie do klienta" oznacza I powiązanie
+ręcznego wydarzenia z klientem I filtrowanie kalendarza po kliencie, tagi
+to nadal kolory (bez nowej struktury), a limit 2+"więcej" na dzień zastąpiony
+— dodano modal dnia (pełna lista) oraz widoki Tydzień/Dzień.
+
+- `events.client_id` (nowa kolumna, `ALTER TABLE ... ADD COLUMN IF NOT
+  EXISTS`, wzorem `leads`/`offers`/`invoices`/`projects` — nullable,
+  `ON DELETE SET NULL`) — ręczne wydarzenie może teraz być powiązane z
+  klientem, obok istniejącego leada/projektu. `POST`/`PATCH /api/events`
+  obsługują nowe pole; `PATCH` dostał też brakujące wcześniej
+  `lead_id`/`project_id`.
+- `Deadline.client_id` (`app/api/events/deadlines/route.ts`) — każdy
+  wyliczony termin (faktura/projekt/kamień/lead/klient/połączenie) niesie
+  teraz `client_id`, ustalony bezpośrednio albo przez powiązany
+  lead/projekt — żeby filtr po kliencie działał jednolicie na ręcznych
+  wydarzeniach i wyliczonych terminach, niezależnie od typu.
+- **Filtr po kliencie** — dropdown w pasku górnym (`Wszyscy klienci` +
+  lista), filtruje jednocześnie wydarzenia i terminy w bieżącym widoku po
+  stronie klienta (dane już wczytane w danym miesiącu, bez dodatkowego
+  zapytania).
+- **Modal dnia** (wzorem `LeadDetailPanel.tsx` — wyśrodkowany,
+  backdrop-blur, `framer-motion`) zastępuje sztywny limit 2 pozycji +
+  "więcej" w widoku miesiąca: klik w dzień pokazuje PEŁNĄ, przewijalną
+  listę wydarzeń i terminów tego dnia plus formularz dodawania (z
+  wyborem klienta/leada/projektu). Podgląd w komórce siatki miesiąca
+  nadal skraca do 2 pozycji + "+N więcej" — to celowe, dotyczy tylko
+  gęstości siatki, nie danych.
+- **Widoki Tydzień/Dzień** — przełącznik obok "Miesiąc" w pasku górnym.
+  Tydzień: 7 kolumn (Pon–Nie), każda z pełną, przewijalną listą (bez
+  limitu) i przyciskiem "+" otwierającym ten sam modal dnia. Dzień:
+  pojedyncza kolumna z pełną agendą i formularzem dodawania wbudowanym
+  bezpośrednio w widok (bez modala). Nawigacja ←/→ przełącza
+  miesiąc/tydzień/dzień zależnie od aktywnego widoku; dane spoza
+  aktualnie wczytanego miesiąca (np. tydzień na przełomie miesięcy)
+  dociągane są automatycznie dla brakujących miesięcy.
+- Przetestowane lokalnie (PGlite): modal dnia otwiera się z poprawną datą
+  i pełną listą, formularz dodaje wydarzenie z powiązaniem
+  klient/lead/projekt, widok Tydzień poprawnie renderuje 7 kolumn z
+  przyciskiem "+" per dzień, widok Dzień renderuje pojedynczą agendę.
+
+### Moduł 10 — druga tura: maile, wielodniowe, przeciąganie, ICS, szybkie dodawanie (2026-07-14)
+
+Właściciel poprosił o rozszerzenie: dołożyć maile do agregacji (teraz, gdy
+modal/widoki bez limitu robią gęstość dnia mniej dotkliwą) oraz wszystkie
+pomysły zainspirowane innymi kalendarzami (drag&drop, wydarzenia
+wielodniowe, eksport ICS, szybkie dodawanie tekstem). Zero AI/LLM
+zachowane — szybkie dodawanie jest w pełni deterministyczne (regexy), nie
+model językowy.
+
+- **Maile w agregacji** — `app/api/events/deadlines/route.ts` dokłada
+  `kanal='email'` z `lead_activity`/`client_activity` jako nowy
+  `DeadlineKind: "email"` (kolor indygo, odróżniony od złotej "Płatność" i
+  turkusowego "Połączenie"). Bez rozróżnienia wynik/nieodebrany (dotyczy
+  tylko telefonu) — tytuł pokazuje tylko kierunek ("Email do —"/"Email
+  od —").
+- **Wydarzenia wielodniowe** — nowa kolumna `events.data_koniec` (DATE,
+  nullable, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` w `createHubSchema()`
+  w `lib/db.ts`). `null`/wcześniejsza niż `data` = wydarzenie jednodniowe
+  (zachowanie sprzed zmiany). `expandEventDays()` (`lib/events.ts`) zwraca
+  wszystkie dni zakresu włącznie (limit 366 dni jako zabezpieczenie) —
+  używane przy budowaniu mapy dzień→wydarzenia w siatce/tygodniu/dniu/
+  modalu, więc wielodniowe wydarzenie pojawia się w każdym dniu zakresu.
+  `GET /api/events` filtruje po **nakładaniu się** z miesiącem
+  (`data <= koniec_miesiąca AND COALESCE(data_koniec, data) >=
+  początek_miesiąca`), nie po samej `data` — inaczej wydarzenie zaczęte w
+  poprzednim miesiącu zniknęłoby z widoku miesiąca, w którym realnie
+  trwa. Formularz dodawania: przycisk "Wielodniowe" odsłania pole "Do dnia".
+- **Przeciąganie (drag&drop)** — natywne HTML5 D&D (`draggable`,
+  `onDragStart`/`onDragOver`/`onDrop`), bez biblioteki. Działa na chipach
+  ręcznych wydarzeń w siatce miesiąca i na pozycjach w widoku
+  Tydzień/modalu/widoku Dnia (`DayAgendaList`); upuszczenie na inny dzień
+  (komórka miesiąca albo kolumna tygodnia) wywołuje `PATCH /api/events/:id`
+  z nową `data` — dla wydarzeń wielodniowych `data_koniec` przesuwa się o
+  tyle samo, żeby zachować długość zakresu (`moveEvent()` w
+  `CalendarView.tsx`). Wyliczone terminy (deadlines) nie są przeciągalne —
+  żyją w swoich modułach, kalendarz ich nie zapisuje.
+- **Eksport/subskrypcja ICS** — `GET /api/calendar/ics?token=...`
+  (`app/api/calendar/ics/route.ts`) zwraca plik `.ics` (RFC 5545) z
+  ręcznych wydarzeń (nie z wyliczonych terminów — te żyją w swoich
+  modułach). Fail-closed wzorem `TELEFONIA_WEBHOOK_SECRET`
+  (`app/api/telefonia/webhook/route.ts`): jeśli `CALENDAR_ICS_SECRET` nie
+  jest ustawiony w env, endpoint zwraca 500 zamiast być cicho publiczny.
+  Wszystkie wpisy jako całodniowe (`DTSTART;VALUE=DATE`), godzina (jeśli
+  ustawiona) ląduje w tytule — świadomie unikamy obsługi stref czasowych w
+  ICS. `GET /api/calendar/ics-info` (admin-only, `isAuthed()`) mówi
+  panelowi, czy sekret jest ustawiony, i zwraca go, żeby
+  `IcsSubscribeButton` w `CalendarView.tsx` mogło złożyć gotowy do
+  skopiowania link — przycisk "📅 Subskrybuj" w pasku górnym pojawia się
+  tylko, gdy skonfigurowane. **Żeby włączyć**: ustaw `CALENDAR_ICS_SECRET`
+  (dowolny losowy string) w zmiennych środowiskowych Vercela — wtedy link
+  można wkleić jako subskrypcję w Apple Calendar ("Dodaj kalendarz →
+  Subskrybuj") albo Google Calendar ("Z adresu URL").
+- **Szybkie dodawanie tekstem** — `parseQuickAdd()` (`lib/events.ts`),
+  w pełni deterministyczne (regexy, zero AI/LLM, zgodnie z zasadą
+  projektu). Rozpoznaje na początku tekstu: "dziś"/"dzisiaj", "jutro",
+  "pojutrze", "za N dni/tydzień/tygodni", "w/we <dzień tygodnia>",
+  "DD.MM"/"DD.MM.RRRR" (bez roku = najbliższe wystąpienie tej daty, rok do
+  przodu jeśli już minęła); godzinę rozpoznaje gdziekolwiek w tekście
+  ("o 14", "14:00"). Rozpoznane frazy są usuwane z tekstu — reszta staje
+  się tytułem. Pole formularza dodawania działa więc jak zwykłe pole
+  tytułu ORAZ jak szybki wpis — użytkownik nie musi wybierać trybu.
+  Świadomy kompromis: literalny tytuł zaczynający się od jednego z tych
+  słów (np. wydarzenie faktycznie nazwane "Wtorek — przegląd zarządu")
+  zostanie błędnie zinterpretowany jako data; w praktyce rzadkie i łatwe
+  do poprawienia (usunięcie wydarzenia i dodanie ponownie z innym
+  sformułowaniem).
+- Przetestowane: `npx tsc --noEmit` czysty po całej turze zmian (schema,
+  API, deadlines route, CalendarView, ICS). Weryfikacja w przeglądarce nie
+  była możliwa w tej sesji (port 3000 zajęty przez serwer dev innej sesji
+  równoległej) — logika pokrywa się wzorcowo z już zweryfikowaną pierwszą
+  turą Modułu 10 (modal/widoki/formularz), nowe funkcje (drag&drop, ICS,
+  quick-add, wielodniowe) warto przeklikać przy najbliższej okazji w
+  przeglądarce.
+
+### Moduł 10 — trzecia tura: siatka godzinowa, łączone filtry, "Dziś", pełny ekran (2026-07-14)
+
+Właściciel poprosił o dorzucenie reszty wzorców z topowych kalendarzy
+(Notion Calendar/Cron, Google Calendar) — bloki o wysokości = czas trwania,
+łączone filtry, szybki skok "Dziś", tryb pełnoekranowy.
+
+- **Czas trwania + siatka godzinowa** — nowa kolumna
+  `events.czas_trwania_min` (INTEGER, nullable, ma sens tylko z ustawioną
+  `godzina`). Widoki Dzień/Tydzień renderują teraz prawdziwą siatkę godzin
+  (`TimelineGridRow`/`HourLabels`/`WeekTimeline`/`DayTimeline` w
+  `CalendarView.tsx`, zakres domyślnie 7–21, rozszerzany, gdy wydarzenie
+  wystaje poza — `timelineRange()`): wydarzenia z godziną są blokami o
+  wysokości = czas trwania (domyślnie 60 min, gdy nieustawiony), nakładające
+  się dostają równe kolumny obok siebie (`layoutTimedEvents()` w
+  `lib/events.ts` — klasyczny algorytm "sweep" z Google/Notion Calendar).
+  Wydarzenia bez godziny + wyliczone terminy dalej renderują się w pasku
+  "cały dzień" nad siatką (`DayAgendaList`, bez zmian). Czerwona linia "teraz"
+  w kolumnie dzisiejszego dnia. Przeciąganie bloku w pionie zmienia godzinę
+  (zaokrąglone do 15 min, `moveEventToTime()`), przeciąganie na inną kolumnę
+  dnia (widok Tydzień) zmienia też dzień. Formularz dodawania: pole godziny
+  odsłania dodatkowy `<select>` czasu trwania (15 min – 3 godz.).
+- **ICS z realną godziną** — `buildICS()` (`lib/events.ts`) używa teraz
+  DATE-TIME (floating local, bez `Z`/`TZID`) z `czas_trwania_min`, gdy
+  `godzina` ustawiona, zamiast zawsze całodniowego wpisu z godziną w
+  tytule — subskrybowany kalendarz pokazuje realne bloki czasu, nie tylko
+  całodniowe paski.
+- **Łączone filtry** — obok filtra klienta doszły filtry leada i projektu
+  (AND: pozycja musi pasować do KAŻDEGO ustawionego filtra). `Deadline`
+  (`app/api/events/deadlines/route.ts`) dostał `lead_id`/`project_id` obok
+  istniejącego `client_id` (ustalane bezpośrednio albo przez
+  `projects.lead_id`), żeby filtrowanie działało jednolicie na wszystkich
+  typach wpisów, nie tylko ręcznych wydarzeniach.
+- **Przycisk "Dziś"** — obok przełącznika widoku, skacze do dzisiejszego
+  dnia niezależnie od aktywnego widoku (miesiąc/tydzień/dzień) i tego, jak
+  daleko się nawigowało.
+- **Tryb pełnego ekranu** — natywne Fullscreen API (`requestFullscreen()`/
+  `document.fullscreenElement`/zdarzenie `fullscreenchange`) na kontenerze
+  całego widoku kalendarza — bez żadnej biblioteki. Przycisk "⛶"/"⤡" w
+  pasku górnym. **Nie dało się zweryfikować w tej sesji** — Browser pane
+  używane do podglądu działa we `<iframe>` bez `allow="fullscreen"`, więc
+  `requestFullscreen()` odrzuca się z "Permissions check failed" (sprawdzone
+  bezpośrednio w konsoli) — to ograniczenie środowiska podglądu, nie kodu;
+  w prawdziwej karcie przeglądarki (Vercel/produkcja) zadziała standardowo.
+  Warto przeklikać na żywej stronie przy najbliższej okazji.
+- Przetestowane w przeglądarce (lokalny podgląd, port zwolniony przez
+  równoległą sesję): siatka godzinowa Tydzień/Dzień renderuje poprawnie
+  wyrównane rzędy godzin, dodanie wydarzenia z godziną 11:30/60 min pokazało
+  poprawnie pozycjonowany i wysokościowo skalowany blok, usunięcie z bloku
+  zadziałało, `Dziś`/łączone filtry/pasek narzędzi renderują się poprawnie,
+  `GET /api/calendar/ics-info` poprawnie zwraca `configured:false` (brak
+  `CALENDAR_ICS_SECRET` lokalnie) — przycisk "Subskrybuj" poprawnie ukryty.
 
 ## Czego świadomie nie ma (na razie)
 

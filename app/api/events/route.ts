@@ -17,9 +17,16 @@ export async function GET(req: NextRequest) {
 
   const month = req.nextUrl.searchParams.get("month");
   const prefix = month && /^\d{4}-\d{2}$/.test(month) ? month : todayLocalISO().slice(0, 7);
+  const monthStart = `${prefix}-01`;
 
+  // Zakres nakładania się z miesiącem, nie dopasowanie samej `data` — inaczej
+  // wielodniowe wydarzenie (data_koniec) rozpoczęte w poprzednim miesiącu
+  // zniknęłoby z widoku miesiąca, w którym realnie trwa.
   const rows = await sql`
-    SELECT * FROM events WHERE to_char(data, 'YYYY-MM') = ${prefix} ORDER BY data ASC, godzina ASC NULLS LAST;
+    SELECT * FROM events
+    WHERE data <= (date_trunc('month', ${monthStart}::date) + interval '1 month' - interval '1 day')::date
+      AND COALESCE(data_koniec, data) >= ${monthStart}::date
+    ORDER BY data ASC, godzina ASC NULLS LAST;
   `;
   return NextResponse.json({ events: rows });
 }
@@ -38,6 +45,13 @@ export async function POST(req: NextRequest) {
   if (!isPlausibleDateString(data)) {
     return NextResponse.json({ error: "invalid data" }, { status: 400 });
   }
+  const dataKoniecRaw = typeof body?.data_koniec === "string" ? body.data_koniec.trim() : "";
+  if (dataKoniecRaw && !isPlausibleDateString(dataKoniecRaw)) {
+    return NextResponse.json({ error: "invalid data_koniec" }, { status: 400 });
+  }
+  if (dataKoniecRaw && dataKoniecRaw < data) {
+    return NextResponse.json({ error: "data_koniec must not be before data" }, { status: 400 });
+  }
 
   await ensureHubSchema();
   const sql = getSql();
@@ -47,10 +61,17 @@ export async function POST(req: NextRequest) {
   const godzina = typeof body?.godzina === "string" && body.godzina.trim() ? body.godzina.trim() : null;
   const leadId = typeof body?.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;
   const projectId = typeof body?.project_id === "string" && body.project_id.trim() ? body.project_id : null;
+  const clientId = typeof body?.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+  const dataKoniec = dataKoniecRaw || null;
+  const durationRaw = body?.czas_trwania_min;
+  const czasTrwaniaMin =
+    typeof durationRaw === "number" && Number.isFinite(durationRaw) && durationRaw > 0 && durationRaw <= 1440
+      ? Math.round(durationRaw)
+      : null;
 
   await sql`
-    INSERT INTO events (id, tytul, opis, data, godzina, lead_id, project_id)
-    VALUES (${id}, ${tytul.slice(0, 300)}, ${opis}, ${data}, ${godzina}, ${leadId}, ${projectId});
+    INSERT INTO events (id, tytul, opis, data, godzina, lead_id, project_id, client_id, data_koniec, czas_trwania_min)
+    VALUES (${id}, ${tytul.slice(0, 300)}, ${opis}, ${data}, ${godzina}, ${leadId}, ${projectId}, ${clientId}, ${dataKoniec}, ${czasTrwaniaMin});
   `;
 
   return NextResponse.json({ ok: true, id });

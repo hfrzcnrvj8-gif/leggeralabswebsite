@@ -41,6 +41,35 @@ export async function PATCH(
     const value = typeof raw === "string" && raw.trim() ? raw.trim() : null;
     await sql`UPDATE events SET godzina = ${value} WHERE id = ${id};`;
   }
+  if ("lead_id" in body) {
+    const value = typeof body.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;
+    await sql`UPDATE events SET lead_id = ${value} WHERE id = ${id};`;
+  }
+  if ("project_id" in body) {
+    const value = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id : null;
+    await sql`UPDATE events SET project_id = ${value} WHERE id = ${id};`;
+  }
+  if ("client_id" in body) {
+    const value = typeof body.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+    await sql`UPDATE events SET client_id = ${value} WHERE id = ${id};`;
+  }
+  if ("data_koniec" in body) {
+    const raw = body.data_koniec;
+    if (typeof raw === "string" && raw.trim()) {
+      const trimmed = raw.trim();
+      if (!isPlausibleDateString(trimmed)) {
+        return NextResponse.json({ error: "invalid data_koniec" }, { status: 400 });
+      }
+      await sql`UPDATE events SET data_koniec = ${trimmed} WHERE id = ${id};`;
+    } else {
+      await sql`UPDATE events SET data_koniec = NULL WHERE id = ${id};`;
+    }
+  }
+  if ("czas_trwania_min" in body) {
+    const raw = body.czas_trwania_min;
+    const value = typeof raw === "number" && Number.isFinite(raw) && raw > 0 && raw <= 1440 ? Math.round(raw) : null;
+    await sql`UPDATE events SET czas_trwania_min = ${value} WHERE id = ${id};`;
+  }
 
   return NextResponse.json({ ok: true });
 }

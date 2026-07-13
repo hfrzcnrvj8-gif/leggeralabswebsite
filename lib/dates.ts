@@ -18,12 +18,18 @@ export function todayLocalISO(): string {
   }).format(new Date());
 }
 
-/** "Dziś + N dni" jako "YYYY-MM-DD" — do szybkich chipów przypomnień
- * (jutro/za 3 dni/za tydzień). Liczy na znormalizowanej dacie kalendarzowej
- * w UTC (nie realnym zegarze), więc jest odporne na przesunięcia stref/DST —
- * to czysta arytmetyka dat, nie moment w czasie. */
-export function addDaysLocalISO(days: number): string {
-  const [y, m, d] = todayLocalISO().split("-").map(Number);
+/** "dateStr + N dni" jako "YYYY-MM-DD" — czysta arytmetyka dat w UTC (nie
+ * realny zegar), więc odporne na przesunięcia stref/DST. Współdzielone przez
+ * `addDaysLocalISO` (poniżej) i kalendarz (nawigacja tydzień/dzień, zakresy
+ * wydarzeń wielodniowych). */
+export function addDaysToISO(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + days));
   return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(dt);
+}
+
+/** "Dziś + N dni" jako "YYYY-MM-DD" — do szybkich chipów przypomnień
+ * (jutro/za 3 dni/za tydzień). */
+export function addDaysLocalISO(days: number): string {
+  return addDaysToISO(todayLocalISO(), days);
 }
