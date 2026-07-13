@@ -121,7 +121,15 @@ export function CostEditor({
     try {
       const res = await fetch(`/api/costs/${id}/ocr`, { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as {
-        suggestion?: { dostawca_nazwa: string; dostawca_nip: string; kwota_netto: number | null; vat_stawka: string | null; data_wydatku: string; opis: string };
+        suggestion?: {
+          dostawca_nazwa: string;
+          dostawca_nip: string;
+          kwota_netto: number | null;
+          vat_stawka: string | null;
+          data_wydatku: string;
+          data_platnosci: string;
+          opis: string;
+        };
         error?: string;
       };
       if (!res.ok || !data.suggestion) {
@@ -135,6 +143,7 @@ export function CostEditor({
       if (s.kwota_netto != null) patchBody.kwota_netto = s.kwota_netto;
       if (s.vat_stawka) patchBody.vat_stawka = s.vat_stawka;
       if (s.data_wydatku) patchBody.data_wydatku = s.data_wydatku;
+      if (s.data_platnosci) patchBody.data_platnosci = s.data_platnosci;
       if (s.opis) patchBody.opis = s.opis;
       if (Object.keys(patchBody).length === 0) {
         toast("Model nie rozpoznał żadnych pól — wpisz dane ręcznie.", "error");

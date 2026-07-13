@@ -742,6 +742,29 @@ od "zero AI w logice panelu").
     polskich dokumentach do dalszej obserwacji w praktyce (mieszane stawki
     VAT to znany, świadomy kompromis — pojedyncza stawka na wpis kosztu).
 
+  **Szósta runda — matematyczne dopasowanie VAT + termin płatności**:
+  właściciel zapytał, czy z rozróżnianiem VAT przy mieszanych stawkach da
+  się zrobić coś lepszego niż "zgadywanie dominującej stawki przez model".
+  Tak — model i tak zwykle widzi na dokumencie sumę "Do zapłaty" (kwotę
+  brutto), więc zamiast ufać, którą stawkę VAT model *uzna* za dominującą,
+  każemy mu zwrócić też `kwota_brutto`, a `bestFitVatRate()`
+  (`lib/costs-ocr.ts`) dobiera z `VAT_RATES` tę stawkę, która
+  MATEMATYCZNIE najlepiej odtwarza `kwota_brutto` z `kwota_netto` (najmniejsza
+  różnica) — niezależnie od tego, co model "myślał". Test na tej samej
+  fakturze z modułu potwierdza: nawet gdy model błędnie wskazał `"23"`
+  wprost, dopasowanie po kwotach poprawnie skorygowało na `"8"` (właściwa
+  dominująca stawka). Brak `kwota_brutto` w odpowiedzi → fallback do
+  wyboru modelu jak wcześniej (nadal tylko przybliżenie, świadomy limit
+  jednej stawki VAT na wpis kosztu — dwóch stawek nie da się zapisać bez
+  większej zmiany schematu, nierozważanej teraz).
+
+  Przy okazji: `termin_platnosci` dodany do schematu OCR i mapowany na
+  `data_platnosci` kosztu (wcześniej OCR wypełniał tylko datę
+  wystawienia/`data_wydatku`, termin płatności trzeba było wpisywać
+  ręcznie mimo że jest wprost na dokumencie). Zweryfikowane lokalnie:
+  `tsc` czysty, `parseOcrResponse` przetestowany na przykładzie z realną
+  fakturą (z i bez `kwota_brutto`).
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z
