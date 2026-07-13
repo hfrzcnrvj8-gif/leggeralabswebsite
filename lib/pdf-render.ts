@@ -75,8 +75,27 @@ class HttpBinaryDataFactory {
   }
 }
 
+// pdfjs-dist w Node zawsze próbuje uruchomić swój "worker" (nawet jeśli to
+// tylko atrapa w tym samym wątku) doładowując GO SAM osobnym plikiem
+// (`pdf.worker.mjs`) przez `import(this.workerSrc)` z runtime'owym stringiem
+// — znów nietraceable dla bundlera, znów `Cannot find module` na Vercelu.
+// pdfjs sprawdza NAJPIERW `globalThis.pdfjsWorker?.WorkerMessageHandler` i
+// pomija swój import, jeśli go tam znajdzie — więc doładowujemy worker
+// jawnym, statycznym (literałowym) dynamicznym importem tutaj, tak samo jak
+// przy `@napi-rs/canvas` wyżej.
+let pdfWorkerReady = false;
+async function ensurePdfWorkerGlobal() {
+  if (pdfWorkerReady) return;
+  const workerModule = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  (globalThis as unknown as { pdfjsWorker?: { WorkerMessageHandler: unknown } }).pdfjsWorker = {
+    WorkerMessageHandler: workerModule.WorkerMessageHandler,
+  };
+  pdfWorkerReady = true;
+}
+
 /** Renderuje pierwszą stronę PDF-a (Buffer) do PNG (Buffer). */
 export async function renderFirstPdfPageToPng(pdfBuf: Buffer, scale = 2): Promise<Buffer> {
+  await ensurePdfWorkerGlobal();
   const { pdf } = await import("pdf-to-img");
   const doc = await pdf(pdfBuf, {
     scale,

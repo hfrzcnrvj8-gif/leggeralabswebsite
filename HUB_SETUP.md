@@ -639,9 +639,30 @@ od "zero AI w logice panelu").
     `cmaps`/`standard_fonts` (bo te idą przez sieć), bezpośredni test
     `renderFirstPdfPageToPng()` na testowym PDF-ie działa, fetch z
     jsdelivr do prawdziwych plików cmap/font (`78-EUC-H.bcmap`,
-    `LiberationSans-Regular.ttf`) zwraca `200`. Do ostatecznego
-    potwierdzenia po najbliższym deployu: ponowny upload tego samego
-    PDF-a na produkcji.
+    `LiberationSans-Regular.ttf`) zwraca `200`.
+
+  **Druga runda (ten sam dzień, po deployu pierwszej naprawy)**: błąd
+  `@napi-rs/canvas` zniknął, ale wyszedł kolejny, tej samej natury —
+  `Setting up fake worker failed: Cannot find module
+  '.../pdfjs-dist/legacy/build/pdf.worker.mjs'`. pdfjs-dist w Node ZAWSZE
+  próbuje uruchomić swój "worker" (nawet jako atrapa w tym samym wątku) i
+  SAM doładowuje ten plik przez `import(this.workerSrc)` z runtime'owym
+  stringiem — identyczny problem nietraceable-dynamic-require jak z
+  `@napi-rs/canvas`, tylko w innym miejscu kodu pdfjs. Naprawa tym samym
+  wzorcem: `lib/pdf-render.ts` doładowuje `pdf.worker.mjs` JAWNYM,
+  literałowym dynamicznym importem (`import("pdfjs-dist/legacy/build/
+  pdf.worker.mjs")` — literał w kodzie źródłowym, więc traceable) i
+  ustawia `globalThis.pdfjsWorker = { WorkerMessageHandler }` PRZED
+  wywołaniem `pdf()` — pdfjs sprawdza ten global jako pierwszy i pomija
+  swój własny, nietraceable import, jeśli go znajdzie. Typy dla tego
+  pod-modułu (którego pdfjs-dist nie publikuje) w `lib/pdfjs-worker.d.ts`.
+  Zweryfikowane tak samo jak wyżej: `tsc` czysty, `npx next build`
+  przechodzi, `pdf.worker.mjs` teraz widoczny w `.nft.json` śladzie
+  funkcji `/api/costs/[id]/ocr`. Do ostatecznego potwierdzenia po
+  najbliższym deployu: ponowny upload tego samego PDF-a na produkcji —
+  jeśli wyskoczy KOLEJNY "Cannot find module" dla innego pliku pdfjs, to
+  ten sam wzorzec naprawy (jawny literałowy import zamiast pozwalać
+  pdfjs szukać czegoś samemu w runtime) powinien się powtórzyć.
 
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
