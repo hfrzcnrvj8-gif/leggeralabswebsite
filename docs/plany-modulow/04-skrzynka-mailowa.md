@@ -1,154 +1,155 @@
-# Moduł 4 — Poczta przychodząca: auto-przypisanie do klienta + lista „do obsłużenia” (luka ⑦b)
+# Moduł 4 — Natywna poczta w panelu (IMAP/SMTP, skrzynka az.pl) (luka ⑦b)
 
 > Przeczytaj najpierw `docs/plany-modulow/README.md` (zasady wspólne) i `CLAUDE.md`.
-> Właściciel doprecyzował cel: **żeby maile przychodzące dobrze się integrowały,
-> automatycznie przypisywały do właściwego klienta i (ewentualnie) trafiały na
-> listę „do przerobienia/zrobienia”.** Poniżej rekomendowana ścieżka + pomysły na
-> wykorzystanie. Przed startem potwierdź z właścicielem tylko dostawcę i retencję.
+> Architektura ustalona z właścicielem 2026-07-13 — patrz „DECYZJA” niżej. To
+> NAJWIĘKSZY moduł; przed budową potwierdź tylko szczegóły z „Otwarte decyzje”.
 
-## Problem (nietechnicznie)
+## Czego chce właściciel (jego słowami, doprecyzowane)
 
-Panel wysyła maile, ale jest jednokierunkowy — **odpowiedzi klientów są niewidoczne
-w panelu**, lądują w zwykłym Gmailu/Outlooku. Żeby zobaczyć całą rozmowę, trzeba
-otwierać drugą aplikację. Dlatego panel nie jest jeszcze jedyną apką do firmy.
-Do tego maile klientów często zawierają **prośby/zmiany** („zmieńcie X”,
-„dodajcie Y”) — a nie ma jak zamienić ich w konkretne zadanie do zrobienia.
+> „Dostaję maila → chcę to widzieć w aplikacji, z podglądem, dopasowane do
+> klienta. Klikam Odpisz → prowadzę korespondencję.”
 
-## DECYZJA: idziemy w automatyczny ODBIÓR i przypisanie (nie pełny klient pocztowy)
+Kontekst techniczny (kluczowy): poczta właściciela jest hostowana na **az.pl**
+(zwykła skrzynka **IMAP/SMTP**). Outlook to tylko program-czytnik tej skrzynki —
+**NIE ma konta Microsoft 365 / Exchange**, więc Microsoft Graph/OAuth NIE wchodzi
+w grę i nie jest potrzebny.
 
-Cel właściciela to **integracja + auto-przypisanie + to-do**, a nie zastąpienie
-Gmaila do pisania. Więc rekomendowana ścieżka to **odbiór przychodzących przez
-webhook**, z automatycznym dopięciem do klienta/leada i listą „do obsłużenia”.
-Pisanie/odpowiadanie zostaje na razie w zwykłej poczcie (albo istniejąca wysyłka
-z panelu). Pełny dwukierunkowy klient OAuth (Gmail/Outlook w panelu) to możliwe
-przyszłe rozszerzenie, ale NIE jest potrzebne, żeby zrealizować cel — i jest
-znacznie droższe w utrzymaniu.
+## DECYZJA: natywny moduł poczty przez IMAP/SMTP do skrzynki az.pl
 
-Zachowana zasada **zero AI**: przypisanie po adresie to dopasowanie deterministyczne;
-„to-do” nie jest zgadywane z treści przez model — patrz sekcja o liście niżej.
+Skoro to zwykła skrzynka IMAP/SMTP, panel łączy się z nią bezpośrednio:
+- **Odczyt (IMAP):** pobiera przychodzące, podgląd, auto-dopasowanie do klienta.
+- **Wysyłka/odpowiedź (SMTP az.pl):** odpowiadamy Twoim adresem z poprawnymi
+  nagłówkami wątku (`In-Reply-To`/`References`) → odpowiedź **trafia w ten sam
+  wątek**; kopię dopisujemy do folderu „Sent” przez IMAP APPEND, więc widać ją
+  też w Outlooku.
 
-## Jak działa auto-przypisanie (sedno)
+**Dlaczego natywnie, a nie „przenieś do Outlooka”:** to ta SAMA skrzynka az.pl,
+którą czyta Outlook — panel i Outlook są spójne (odpiszesz w jednym, widać w
+drugim). Nie trzeba OAuth ani przekierowań. To najczystsze rozwiązanie dla tego
+setupu. Odpowiadanie z panelu jest rekomendowane; „otwórz w Outlooku” zostaje jako
+opcjonalny skrót.
 
-1. Klient odpisuje na maila (albo pisze pierwszy raz) na firmowy adres.
-2. Dostawca poczty przekazuje maila na `POST /api/mail/inbound` (webhook).
-3. Panel dopina maila do rekordu po **adresie nadawcy**:
-   - `clients.email` == from → dopnij do klienta (+ wpis w jego osi kontaktu),
-   - inaczej `leads.email` == from → dopnij do leada,
-   - inaczej → **kolejka „Nieprzypisane”** (nic nie ginie; jedno kliknięcie
-     przypisuje ręcznie albo tworzy z tego nowego leada).
-4. Dedup po `message_id` (ten sam mail nie wpadnie dwa razy).
+**Zero AI** — dopasowanie po adresie jest deterministyczne; „to-do” nie jest
+zgadywane z treści przez model (patrz sekcja o liście).
 
-Wzmocnienia dopasowania (deterministyczne, opcjonalne): jeśli w temacie/treści
-jest numer faktury (`FV/…`) albo token linku publicznego — dopnij też do
-konkretnej faktury/oferty (masz już `share_token` i numerację).
+## Uczciwe ograniczenia (nie blokery, ale trzeba je znać)
+
+1. **Dane logowania do skrzynki.** Panel potrzebuje IMAP/SMTP host + login +
+   hasło az.pl (najlepiej osobne „hasło aplikacji”, jeśli az.pl oferuje). Trzymane
+   WYŁĄCZNIE po stronie serwera (env Vercela: `MAIL_IMAP_HOST/PORT/USER/PASS`,
+   `MAIL_SMTP_HOST/PORT`), nigdy w przeglądarce. To ten sam poziom zaufania co
+   `DATABASE_URL`. Powiedzieć właścicielowi wprost: panel zyskuje dostęp do poczty.
+2. **Brak natychmiastowego push na Vercelu.** Funkcje serverless są krótkie i nie
+   utrzymują stałego połączenia IMAP. Model = **polling**: pobieramy nowe maile
+   (a) przy otwarciu widoku poczty (on-demand: połącz IMAP → pobierz od ostatniego
+   UID → zapisz → rozłącz), (b) okresowo w istniejącym dziennym cronie
+   (`app/api/leads/notify`). Nie ma „dinga” w sekundę — od tego jest Outlook.
+3. **Czym wysyłać.** Faktury/oferty mogą dalej iść przez Resend (dostarczalność),
+   a osobiste odpowiedzi do klientów — przez SMTP az.pl (żeby wątkowały się i
+   lądowały w „Sent”). Do ustalenia (patrz „Otwarte decyzje”).
+4. **Runtime = nodejs** dla wszystkich tras poczty (IMAP/SMTP to TCP, nie Edge).
+
+## Auto-przypisanie do klienta (sedno)
+
+Dla każdego pobranego maila dopnij po **adresie nadawcy**:
+- `clients.email` == from → klient (+ wpis w jego osi kontaktu),
+- inaczej `leads.email` == from → lead,
+- inaczej → **kolejka „Nieprzypisane”** (nic nie ginie; klik przypisuje ręcznie
+  albo tworzy nowego leada).
+Dedup po `message_id`. Wzmocnienie (opcjonalne, deterministyczne): numer faktury
+(`FV/…`) lub `share_token` w temacie/treści → dopnij też do faktury/oferty.
 
 ## Lista „do obsłużenia / do przerobienia” (to, o co prosił właściciel)
 
-Bez AI, dwie deterministyczne warstwy:
-
+Bez AI, dwie warstwy:
 - **Warstwa 1 — „Wiadomości do odpowiedzi” (automatyczna).** Każdy przychodzący
-  mail jest „do obsłużenia”, dopóki właściciel go nie oznaczy jako załatwiony
-  (albo nie odpowie). Pokazujemy je na Pulpicie jako nową sekcję — dokładnie w
-  duchu istniejącego „co dziś trzeba zrobić”. To jest ta lista „trzeba przerobić”:
-  wpada prośba klienta → widnieje na Pulpicie → znika, gdy ją obsłużysz.
-- **Warstwa 2 — „Z maila → zadanie” (jeden klik, ręczne).** Przy mailu przycisk
-  „Utwórz zadanie w projekcie” — bierze treść maila jako opis zadania i dokłada
-  je do kamienia/projektu danego klienta. Dzięki temu prośba „zmieńcie X” staje
-  się konkretnym zadaniem w realizacji, bez zgadywania przez AI (to właściciel
-  decyduje jednym kliknięciem, co jest zadaniem).
+  mail jest „do obsłużenia”, dopóki go nie oznaczysz/nie odpowiesz. Pokazujemy na
+  Pulpicie jako nową sekcję — w duchu „co dziś trzeba zrobić”.
+- **Warstwa 2 — „Z maila → zadanie” (jeden klik).** Przycisk zamienia treść maila
+  w zadanie/kamień w projekcie danego klienta. Prośba „zmieńcie X” staje się
+  konkretnym zadaniem — bez zgadywania przez AI (Ty decydujesz kliknięciem).
 
-## Pomysły, jak to wykorzystać (propozycje — do wyboru przez właściciela)
+## Pomysły na wykorzystanie (do wyboru; rekomendacja startowa: 1 + 2 + 4)
+1. **Pełny wątek na karcie klienta** — wysłane + przychodzące w jednej osi.
+2. **Pulpit „Wiadomości do odpowiedzi”** — inbound bez reakcji ≥ np. 2 dni podbijany.
+3. **„To pyta o płatność”** — inbound od klienta z zaległą fakturą pokazuje skrót
+   „→ Faktura FV/…” (po powiązaniu, bez czytania treści AI).
+4. **Inbound = nowy lead** — mail z nieznanego adresu → klik „Utwórz leada”.
+5. **Odezwał się uśpiony klient** — inbound od „Uśpionego” podbija go na Pulpicie.
+6. **Załączniki od klienta** — zapis PDF/plików przy kliencie/projekcie (RODO!).
+7. **Wyciszenie szumu** — reguły „ignoruj” (newslettery/no-reply), by lista „do
+   obsłużenia” miała tylko realne rozmowy.
 
-1. **Pełny wątek na karcie klienta** — wysłane (już mamy) + przychodzące w jednej
-   osi czasu. Koniec z przeskakiwaniem do Gmaila, żeby przypomnieć sobie ustalenia.
-2. **Pulpit „Wiadomości do odpowiedzi”** — inbound bez reakcji ≥ np. 2 dni
-   podbijane jako pilne (ta sama filozofia co zaległe faktury/leady).
-3. **Auto-wykrycie „to pyta o płatność”** — jeśli inbound dopięty do klienta z
-   zaległą fakturą, pokaż przy mailu skrót „→ Faktura FV/…” (deterministycznie po
-   powiązaniu, bez czytania treści AI).
-4. **Inbound = nowy lead** — mail z nieznanego adresu: jeden klik „Utwórz leada”
-   (przechwytywanie zapytań, które dziś giną w skrzynce).
-5. **„Odezwał się uśpiony klient”** — inbound od klienta w statusie „Uśpiony”
-   automatycznie podbija go na Pulpicie (sam się reaktywował — reaguj szybko).
-6. **Załączniki od klienta** — zapis PDF/plików z maila przy kliencie/projekcie
-   (np. podpisana umowa, dane wejściowe do automatyzacji). Uwaga na RODO/retencję.
-7. **Wyciszenie szumu** — proste reguły „ignoruj” (newslettery, no-reply), żeby
-   lista „do obsłużenia” zawierała tylko realne rozmowy.
+## Plan techniczny
 
-Rekomendacja startowa (najwięcej wartości najmniejszym kosztem): **1 + 2 + 4**
-(wątek na karcie, Pulpit „do odpowiedzi”, one-click „nowy lead”). Reszta jako
-kolejne małe kroki.
-
-## Plan techniczny (odbiór przez webhook)
-
-### Krok 1 — dostawca odbioru (decyzja właściciela)
-Odbiór wymaga dostawcy z **inbound parsing / email routing**. Endpoint trzymamy
-**provider-agnostyczny** (parsujemy znormalizowany JSON), żeby dało się zmienić
-dostawcę bez przepisywania logiki. Kandydaci (zweryfikuj aktualne możliwości i
-koszt przy budowie — NIE zakładaj z pamięci):
-- **Cloudflare Email Routing → Worker/webhook** (zwykle darmowe, dobre gdy domena
-  jest na Cloudflare),
-- **Postmark Inbound** / **SendGrid Inbound Parse** (dojrzałe inbound),
-- sprawdź, czy obecny dostawca wysyłki (`RESEND_API_KEY`) oferuje już inbound —
-  jeśli tak, najmniej ruchomych części.
+### Krok 1 — biblioteki i konfiguracja
+- Zależności (node-only): `imapflow` (IMAP), `mailparser` (parsowanie MIME),
+  `nodemailer` (SMTP). Wszystkie trasy poczty `export const runtime = "nodejs"`.
+- Env w Vercelu: `MAIL_IMAP_HOST`, `MAIL_IMAP_PORT` (993), `MAIL_USER`,
+  `MAIL_PASS`, `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT` (465/587). Wartości z panelu
+  az.pl (host typu `imap.az.pl`/`serwerXXX.az.pl` — właściciel poda z panelu az.pl).
+- `lib/mail.ts` — cienka warstwa: `fetchNewMessages(sinceUid)`, `sendReply(...)`,
+  `appendToSent(...)`. Czysta, server-only, bez `"use client"`.
 
 ### Krok 2 — schemat
-- `lib/db.ts` (idempotentnie): `mail_messages` (id, kierunek 'in'/'out', client_id
-  NULL, lead_id NULL, invoice_id NULL, from_addr, to_addr, subject, body_text,
-  body_html, message_id UNIQUE, in_reply_to, status 'nowy'/'obsłużony', received_at,
-  handled_at). Indeksy: client_id, lead_id, message_id (unik = dedup), status.
+- `lib/db.ts` (idempotentnie): `mail_messages` (id, uid INTEGER, kierunek
+  'in'/'out', client_id NULL, lead_id NULL, invoice_id NULL, from_addr, to_addr,
+  subject, body_text, body_html, message_id UNIQUE, in_reply_to, references,
+  status 'nowy'/'obsłużony', received_at, handled_at). Indeksy: client_id,
+  lead_id, message_id (unik = dedup), status. Zapamiętaj `last_seen_uid` (np. w
+  `company_settings` lub własnej 1-wierszowej tabeli) do pobierania przyrostowego.
 
-### Krok 3 — endpoint inbound
-- `app/api/mail/inbound/route.ts` — **publiczny** webhook, chroniony sekretem w
-  nagłówku (wzorem `CRON_SECRET`: fail-closed bez sekretu; jeśli dostawca podpisuje
-  payload — zweryfikuj podpis). Parsuje, dedup po `message_id`, dopina po adresie
-  (klient → lead → nieprzypisane), zapisuje wpis w osi kontaktu
-  (`client_activity`/`lead_activity` lub `logClientEvent`), status `nowy`.
+### Krok 3 — pobieranie (IMAP)
+- `POST /api/mail/sync` (admin-only): połącz IMAP → pobierz wiadomości > `last_seen_uid`
+  → parsuj → dopnij do klienta/leada → zapisz → zaktualizuj `last_seen_uid` →
+  rozłącz. Wywoływane: przy otwarciu widoku poczty i z crona `leads/notify`.
+- Idempotentne dzięki `message_id UNIQUE` (podwójny sync nie duplikuje).
 
-### Krok 4 — UI
-- **Karta klienta/leada:** sekcja „Wiadomości” — wątek in/out chronologicznie
-  (dopnij do istniejącej osi kontaktu).
-- **Pulpit:** sekcja „Wiadomości do odpowiedzi” (`status='nowy'`), z przyciskiem
-  „Obsłużone” (jak przy leadach/klientach) → `status='obsłużony'`, `handled_at`.
-- **Kolejka „Nieprzypisane”:** lista maili bez dopasowania + akcje „Przypisz do…”
-  / „Utwórz leada”.
-- **„Z maila → zadanie”:** przycisk tworzący `project_tasks`/kamień z treści maila
-  dla projektu klienta.
+### Krok 4 — odpowiadanie (SMTP)
+- `POST /api/mail/[id]/reply` (admin-only): wyślij przez SMTP az.pl z
+  `In-Reply-To`/`References` oryginału → dopisz kopię do „Sent” (IMAP APPEND) →
+  zapisz jako `mail_messages` kierunek 'out' → oznacz oryginał `obsłużony`.
 
-### Krok 5 — weryfikacja
+### Krok 5 — UI
+- Nowa pozycja nawigacji „Poczta” (`AppShell.tsx`, skrót `g m` lub wolny) —
+  lista wiadomości + podgląd + odpowiadanie w panelu (albo skrót „otwórz w
+  Outlooku”). Design system jak reszta (`.card-paper`, `.hairline`, `useUI()`).
+- **Karta klienta/leada:** sekcja „Wiadomości” (wątek in/out).
+- **Pulpit:** sekcja „Wiadomości do odpowiedzi” (`status='nowy'`), „Obsłużone”
+  jak przy leadach/klientach.
+- **Kolejka „Nieprzypisane”** + akcje „Przypisz do…”/„Utwórz leada”.
+- **„Z maila → zadanie”** — tworzy `project_tasks`/kamień z treści.
+
+### Krok 6 — weryfikacja
 - `npx tsc --noEmit -p tsconfig.json`.
-- Dev: zasymuluj payload inbound (POST przykładowego maila) → dopięcie do
-  właściwego klienta + wpis w osi + pozycja na Pulpicie „do odpowiedzi”. Drugi POST
-  z tym samym `message_id` → brak duplikatu. Mail z nieznanego adresu → kolejka
-  „Nieprzypisane” + „Utwórz leada”. Zrzut/log dla właściciela.
+- Dev: bez realnego IMAP zasymuluj wiadomość (wstaw wprost do `mail_messages` w
+  seedzie PGlite albo mockiem `fetchNewMessages`) → sprawdź dopasowanie do klienta,
+  podgląd, pozycję na Pulpicie „do odpowiedzi”, „Obsłużone”, „Utwórz leada”,
+  „z maila → zadanie”. Realny IMAP/SMTP testuje się dopiero z env az.pl na Vercelu
+  (ten sam handoff co przy KSeF — dev nie ma dostępu do skrzynki).
 
 ## RODO / prawo (skonsultuj z sekcją prawną projektu)
-Przechowywanie treści maili to przetwarzanie danych osobowych:
-- Zaktualizuj politykę prywatności (kategoria: korespondencja) — patrz
-  `PO_REJESTRACJI.md` i obecna polityka.
+Przechowywanie treści maili = przetwarzanie danych osobowych:
+- Zaktualizuj politykę prywatności (kategoria: korespondencja) — `PO_REJESTRACJI.md`.
 - Ustal **retencję** (jak długo trzymamy treści/załączniki) i usuwanie na żądanie.
-- Mniej przechowywanych danych = mniej ryzyka — nie zapisuj więcej, niż potrzeba
-  do obsługi rozmowy.
+- Nie zapisuj więcej, niż trzeba do obsługi rozmowy.
 
 ## Otwarte decyzje (zapytaj właściciela)
-1. **Dostawca odbioru** — Cloudflare Email Routing (darmowe, jeśli domena na CF)
-   / Postmark / SendGrid / (sprawdzić Resend inbound)? To determinuje konfigurację.
-2. **Które pomysły z listy** wdrażamy w pierwszej wersji? (rekomendacja: 1 + 2 + 4).
-3. **Retencja** treści maili i załączników (RODO).
-4. Czy w tej wersji potrzebujesz odpowiadania Z panelu, czy odbiór + „do
-   obsłużenia” + istniejąca wysyłka wystarczy na start? (rekomendacja: na start bez
-   pełnego pisania).
+1. **Hasło aplikacji az.pl** — czy az.pl oferuje osobne hasło aplikacji dla IMAP/
+   SMTP? (bezpieczniejsze niż główne hasło). Właściciel poda host IMAP/SMTP z
+   panelu az.pl.
+2. **Ścieżka wysyłki** — odpowiedzi przez SMTP az.pl (wątkowanie + „Sent”), a
+   faktury/oferty dalej Resend? Czy wszystko przez az.pl?
+3. **Które pomysły z listy** w pierwszej wersji (rekomendacja 1 + 2 + 4).
+4. **Retencja** treści i załączników (RODO).
+5. **Częstotliwość auto-syncu** w cronie (przy otwarciu widoku i raz dziennie?
+   częściej?).
 
 ## Definicja ukończenia (wersja startowa)
-- Przychodzący mail automatycznie dopina się do właściwego klienta/leada (albo do
-  kolejki „Nieprzypisane”), z dedupem, widoczny w osi kontaktu.
-- Pulpit pokazuje „Wiadomości do odpowiedzi”; „Obsłużone” je zdejmuje.
-- Jeden klik: mail nieznany → nowy lead; mail klienta → zadanie w projekcie.
+- Przychodzące maile z az.pl pobierają się (on-demand + cron), auto-dopinają do
+  klienta/leada (lub „Nieprzypisane”), z dedupem, widoczne z podglądem.
+- Odpowiedź z panelu wątkuje się poprawnie i pojawia w „Sent”/Outlooku.
+- Pulpit „Wiadomości do odpowiedzi”; „Obsłużone” zdejmuje. Klik: nieznany → lead,
+  klient → zadanie w projekcie.
 - Polityka prywatności zaktualizowana (retencja ustalona).
-- `tsc` czysty, zweryfikowane na dev, zrzut dla właściciela, `HUB_SETUP.md`
-  zaktualizowany.
-
-## Fallback, jeśli odbiór okaże się za dużym krokiem
-Wariant minimalny bez webhooka: maile z panelu mają `Reply-To` na prawdziwą
-skrzynkę właściciela (odpowiedzi lądują tam, gdzie zagląda) + ręczne pole „wklej
-odpowiedź klienta” w osi kontaktu. Daje część wartości bez integracji.
+- `tsc` czysty, zweryfikowane na dev (mock/seed), `HUB_SETUP.md` zaktualizowany.
