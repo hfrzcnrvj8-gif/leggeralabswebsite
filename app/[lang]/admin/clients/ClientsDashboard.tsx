@@ -390,22 +390,25 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
         )}
       </div>
 
+      {/* Wyśrodkowany, szeroki modal (wzorem edytora faktury/oferty) —
+          zastąpił dawny wąski panel wysuwany z prawej, ten sam zabieg co w
+          Leadach (LeadsDashboard.tsx), bo to identyczny wzorzec komponentu. */}
       <AnimatePresence>
         {openClientId && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] bg-black/30 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
             onClick={() => setOpenClientId(null)}
           >
             <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 340, damping: 34 }}
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className="glass ml-auto h-full w-full max-w-2xl overflow-y-auto p-4 sm:p-6"
+              className="my-auto w-full max-w-4xl"
             >
               <ClientDetailPanel
                 id={openClientId}

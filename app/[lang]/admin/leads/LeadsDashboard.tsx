@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX } from "@tabler/icons-react";
+import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, SEED, isOverdue, overdueReason, leadSourceLabel } from "./shared";
+import { type Lead, STATUSES, SEED, isOverdue, overdueReason, leadSourceLabel, guessSourceCategory } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
@@ -29,6 +29,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [sendingReport, setSendingReport] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [tidyingSources, setTidyingSources] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -116,6 +117,30 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     toast(`Dodano ${toAdd.length} firm.`);
     load();
   }, [leads, confirm, toast, load]);
+
+  /** Jednorazowe (ale bezpieczne do powtarzania — idempotentne, dotyka
+   * tylko leadów bez kategorii) doklasyfikowanie starych leadów sprzed
+   * rozbicia "Źródła" na kategorię+szczegóły (patrz guessSourceCategory,
+   * lib/leads.ts) — deterministyczne dopasowanie po słowach kluczowych,
+   * zero AI/LLM. Sam tekst `zrodlo` zostaje nietknięty. */
+  const tidySources = useCallback(async () => {
+    if (!leads) return;
+    const targets = leads.filter((l) => !l.zrodlo_kategoria);
+    if (targets.length === 0) {
+      toast("Wszystkie leady mają już przypisaną kategorię źródła.");
+      return;
+    }
+    const ok = await confirm(
+      `Automatycznie przypisać kategorię źródła dla ${targets.length} leadów, które jej jeszcze nie mają (na podstawie dotychczasowego tekstu w polu „Źródło")? Sam tekst zostaje bez zmian, tylko dojdzie kategoria.`
+    );
+    if (!ok) return;
+    setTidyingSources(true);
+    for (const l of targets) {
+      await updateLead(l.id, "zrodlo_kategoria", guessSourceCategory(l.zrodlo));
+    }
+    setTidyingSources(false);
+    toast(`Uporządkowano źródło dla ${targets.length} leadów.`);
+  }, [leads, confirm, toast, updateLead]);
 
   const sendReportNow = useCallback(async () => {
     setSendingReport(true);
@@ -247,8 +272,9 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       { id: "table", label: "Widok: Tabela", run: () => switchView("table") },
       { id: "discover", label: "✨ Znajdź nowe leady", run: () => setDiscoverOpen(true) },
       { id: "report", label: "Wyślij dzienny raport teraz", run: sendReportNow },
+      { id: "tidy-sources", label: "🏷️ Uporządkuj źródła (auto-kategoryzacja)", run: tidySources },
     ],
-    [addLead, switchView, sendReportNow]
+    [addLead, switchView, sendReportNow, tidySources]
   );
 
   if (!leads) {
@@ -374,6 +400,14 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           <IconDownload size={15} />
         </button>
         <button
+          onClick={tidySources}
+          disabled={tidyingSources}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
+          title="Uporządkuj źródła (auto-kategoryzacja starych leadów)"
+        >
+          <IconTag size={15} />
+        </button>
+        <button
           onClick={addLead}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
           title="Dodaj leada"
@@ -491,23 +525,26 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       )}
       </div>
 
-      {/* Wysuwany panel szczegółów leada — "peek", bez opuszczania listy. */}
+      {/* Wyśrodkowany, szeroki modal szczegółów leada (wzorem edytora
+          faktury/oferty) — zastąpił dawny wąski panel wysuwany z prawej,
+          który był zbyt ciasny na gęstą treść profilu (dane + adres +
+          źródło + log aktywności + mapa procesu). */}
       <AnimatePresence>
         {openLeadId && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] bg-black/30 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
             onClick={() => setOpenLeadId(null)}
           >
             <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 340, damping: 34 }}
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className="glass ml-auto h-full w-full max-w-2xl overflow-y-auto p-4 sm:p-6"
+              className="my-auto w-full max-w-4xl"
             >
               <LeadDetailPanel
                 id={openLeadId}

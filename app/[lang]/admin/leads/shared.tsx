@@ -20,6 +20,7 @@ export {
   isOverdue,
   overdueReason,
   leadSourceLabel,
+  guessSourceCategory,
 } from "@/lib/leads";
 
 export { SummaryCard, EditableText, EditableTextarea } from "../components";

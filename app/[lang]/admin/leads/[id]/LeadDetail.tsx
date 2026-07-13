@@ -12,8 +12,8 @@ import { LeadDetailPanel } from "../LeadDetailPanel";
 export function LeadDetail({ id, lang }: { id: string; lang: Locale }) {
   const router = useRouter();
   return (
-    <div className="mx-auto max-w-3xl">
-      <Link href={`/${lang}/admin/leads`} className="text-sm text-muted hover:text-[var(--fg)]">
+    <div className="mx-auto max-w-4xl">
+      <Link href={`/${lang}/admin/leads`} className="mb-3 inline-block text-sm text-muted hover:text-[var(--fg)]">
         ← Wróć do tablicy
       </Link>
       <LeadDetailPanel id={id} lang={lang} onDeleted={() => router.push(`/${lang}/admin/leads`)} />

@@ -77,17 +77,20 @@ export function TableView({
         className="max-h-[70vh] min-w-full overflow-auto rounded-2xl"
       >
         <table className="w-full min-w-[900px] table-fixed text-xs">
+          {/* Wszystkie kolumny w procentach (sumujące się do 100%), żaden
+              px-owy wyjątek — inaczej table-fixed nie rozciąga tabeli na
+              całą dostępną szerokość, tylko zostawia martwe miejsce z boku. */}
           <colgroup>
-            <col className="w-9" />
-            <col className="w-[20%]" />
-            <col className="w-[10%]" />
-            <col className="w-[16%]" />
-            <col className="w-[10%]" />
-            <col className="w-[15%]" />
-            <col className="w-[13%]" />
+            <col className="w-[3%]" />
+            <col className="w-[22%]" />
             <col className="w-[9%]" />
-            <col className="w-7" />
-            <col className="w-14" />
+            <col className="w-[15%]" />
+            <col className="w-[8%]" />
+            <col className="w-[13%]" />
+            <col className="w-[12%]" />
+            <col className="w-[9%]" />
+            <col className="w-[4%]" />
+            <col className="w-[5%]" />
           </colgroup>
           <thead>
             <tr className="sticky top-0 z-10 border-b hairline bg-[var(--bg-soft)] text-left uppercase tracking-wide text-muted">

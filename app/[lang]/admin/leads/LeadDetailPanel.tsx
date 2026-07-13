@@ -142,7 +142,7 @@ export function LeadDetailPanel({
 
   if (notFound) {
     return (
-      <div>
+      <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
         <PanelHeader onClose={onClose} />
         <p className="mt-6 text-sm text-muted">Nie znaleziono takiego leada — może został usunięty.</p>
       </div>
@@ -151,7 +151,7 @@ export function LeadDetailPanel({
 
   if (!lead) {
     return (
-      <div>
+      <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
         <PanelHeader onClose={onClose} />
         <div className="mt-6 space-y-3">
           <div className="h-6 w-2/3 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -167,10 +167,10 @@ export function LeadDetailPanel({
   }
 
   return (
-    <div>
+    <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
       <PanelHeader onClose={onClose} />
 
-      <div className="card-paper mt-4 rounded-3xl p-6 sm:p-8">
+      <div className={onClose ? "mt-4" : ""}>
         <div className="flex items-start justify-between gap-4">
           <input
             value={lead.firma}
@@ -263,7 +263,7 @@ export function LeadDetailPanel({
         </div>
       </div>
 
-      <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
+      <div className="mt-6 border-t hairline pt-6">
         <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
 
         <form onSubmit={submitNote} className="mb-6 space-y-2">
@@ -327,7 +327,7 @@ export function LeadDetailPanel({
         )}
       </div>
 
-      <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
+      <div className="mt-6 border-t hairline pt-6">
         <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
         <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
       </div>

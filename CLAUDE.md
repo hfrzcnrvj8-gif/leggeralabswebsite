@@ -48,16 +48,20 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
 - `app/api/<moduł>/...` — REST-owe route'y, zawsze zaczynające się od
   sprawdzenia `isAuthed()`
 - Widoki: Kanban/Tablica + alternatywny widok (Tabela dla leadów, Oś czasu
-  dla projektów), peek panel (wysuwany z prawej) ORAZ osobna podstrona
-  `[id]/page.tsx` dla bezpośrednich linków — obie renderują ten sam
-  `*DetailPanel.tsx`/`*Detail.tsx` komponent
-- **Wyjątek — Faktury/Oferty/Projekty**: edytor otwiera się jako wyśrodkowany
-  modal (`InvoiceEditor.tsx`/`OfferEditor.tsx` w `InvoicesDashboard.tsx`/
-  `OffersDashboard.tsx`/`ProjectsDashboard.tsx`), NIE jako wysuwany panel z
-  prawej jak w Leadach. To świadoma decyzja, nie przeoczenie — te edytory
-  mają dużo pól (daty, kwoty, pozycje, status dokumentu) i potrzebują
-  szerszej, wyśrodkowanej przestrzeni; wąski panel z prawej byłby dla nich
-  zbyt ciasny. Nie ujednolicaj tego bez wyraźnej prośby właściciela.
+  dla projektów), profil rekordu ORAZ osobna podstrona `[id]/page.tsx` dla
+  bezpośrednich linków — obie renderują ten sam `*DetailPanel.tsx`/
+  `*Detail.tsx` komponent.
+- **Profil rekordu = wyśrodkowany, szeroki modal** (`max-w-4xl`), NIE wąski
+  panel wysuwany z prawej — dotyczy WSZYSTKICH modułów (Leady, Klienci,
+  Faktury, Oferty, Projekty). Do 2026-07-14 Leady/Klienci używały węższego
+  `max-w-2xl` panelu z prawej (`.glass` tło) — zmienione na wyraźną prośbę
+  właściciela, bo gęsta treść profilu (dane + adres + źródło + log + mapa
+  procesu) nie mieściła się wygodnie. Wzorzec: `fixed inset-0 ... flex
+  items-start justify-center` overlay + `card-paper max-h-[85vh]
+  overflow-y-auto rounded-2xl` karta wewnątrz samego `*DetailPanel.tsx`
+  (nie w wrapperze dashboardu) — patrz `LeadDetailPanel.tsx`/
+  `InvoiceEditor.tsx` jako referencja. Nie wracaj do wąskiego panelu z prawej
+  bez wyraźnej prośby.
 
 ## Design system (trzymaj się tego)
 

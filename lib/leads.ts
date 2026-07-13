@@ -109,6 +109,25 @@ export function leadSourceLabel(lead: Pick<Lead, "zrodlo_kategoria" | "zrodlo">)
   return lead.zrodlo_kategoria || lead.zrodlo || "—";
 }
 
+/** Deterministyczne (bez AI/LLM) dopasowanie starego, nieustrukturyzowanego
+ * `zrodlo` do jednej z SOURCE_CATEGORIES — używane przez akcję "Uporządkuj
+ * źródła" (LeadsDashboard.tsx), która jednorazowo doklasyfikowuje leady
+ * sprzed rozbicia źródła na kategorię+szczegóły. Dopasowanie po słowach
+ * kluczowych w surowym tekście; niejednoznaczne przypadki świadomie lądują
+ * w "Inne" zamiast zgadywać — sam tekst zostaje nietknięty w "Szczegóły
+ * źródła", więc kontekst się nie gubi. */
+export function guessSourceCategory(zrodlo: string): string {
+  const t = zrodlo.toLowerCase();
+  if (t.includes("osm") || t.includes("auto-wyszuk") || t.includes("automatyczne")) return "Automatyczne wyszukiwanie";
+  if (t.includes("formularz")) return "Formularz na stronie";
+  if (t.includes("polecenie") || t.includes("polecił")) return "Polecenie";
+  if (t.includes("ręcznie") || t.includes("recznie")) return "Ręcznie dodane";
+  if (t.includes("networking") || t.includes("spotkanie") || t.includes("event") || t.includes("konferencj")) return "Networking";
+  if (t.includes("zimny") || t.includes("cold call")) return "Zimny telefon";
+  if (t.includes("www") || t.includes("http") || t.includes("strona")) return "WWW";
+  return "Inne";
+}
+
 /** Miękkie, statyczne podpowiedzi "co zwykle dalej" per status — mentor
  * bez LLM (zgodne z zasadą "brak AI w logice przypominacza"). Czysto
  * informacyjne, nigdy nie blokują żadnej akcji. Wzorem CLIENT_STATUS_HINT

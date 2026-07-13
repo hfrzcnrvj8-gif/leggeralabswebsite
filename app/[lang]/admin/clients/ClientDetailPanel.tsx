@@ -152,7 +152,7 @@ export function ClientDetailPanel({
 
   if (notFound) {
     return (
-      <div>
+      <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
         <PanelHeader onClose={onClose} />
         <p className="mt-6 text-sm text-muted">Nie znaleziono takiego klienta — może został usunięty.</p>
       </div>
@@ -161,7 +161,7 @@ export function ClientDetailPanel({
 
   if (!client) {
     return (
-      <div>
+      <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
         <PanelHeader onClose={onClose} />
         <div className="mt-6 space-y-3">
           <div className="h-6 w-2/3 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -179,10 +179,10 @@ export function ClientDetailPanel({
   const linkedCount = offers.length + invoices.length + projects.length;
 
   return (
-    <div>
+    <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
       <PanelHeader onClose={onClose} />
 
-      <div className="card-paper mt-4 rounded-3xl p-6 sm:p-8">
+      <div className={onClose ? "mt-4" : ""}>
         <div className="flex items-start justify-between gap-4">
           <input
             value={client.nazwa}
@@ -243,7 +243,7 @@ export function ClientDetailPanel({
       </div>
 
       {linkedCount > 0 && (
-        <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
+        <div className="mt-6 border-t hairline pt-6">
           <h2 className="mb-4 text-lg font-semibold">Powiązane</h2>
           <div className="space-y-4">
             {offers.length > 0 && (
@@ -286,7 +286,7 @@ export function ClientDetailPanel({
         </div>
       )}
 
-      <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
+      <div className="mt-6 border-t hairline pt-6">
         <h2 className="mb-1 text-lg font-semibold">Pełna historia</h2>
         <p className="mb-4 text-[12px] text-muted opacity-70">
           Notatki i zdarzenia systemowe (oferty, faktury, wpłaty) w jednej chronologicznej osi.
@@ -357,7 +357,7 @@ export function ClientDetailPanel({
         )}
       </div>
 
-      <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
+      <div className="mt-6 border-t hairline pt-6">
         <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
         <ProcessMap currentStep={CLIENT_STATUS_STEP[client.status] ?? 3} />
       </div>

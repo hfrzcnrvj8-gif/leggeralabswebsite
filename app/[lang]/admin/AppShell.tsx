@@ -31,16 +31,20 @@ import { formatPlDate } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
 import type { HubEvent } from "@/lib/events";
 
+// Kolejność wg realnej ścieżki pracy (lib/process.ts, 12 kroków), nie
+// alfabetu/daty dodania: Pulpit (start dnia) → Leady → Klienci → Oferty →
+// Projekty → Faktury → Koszty (cały lejek sprzedaż→realizacja→rozliczenie)
+// → Kalendarz/Notatnik (narzędzia pomocnicze, nie przypięte do etapu).
 const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "", label: "Pulpit", icon: IconHome },
-  { href: "/projects", label: "Projekty", icon: IconFolder },
-  { href: "/notes", label: "Notatnik", icon: IconNotes },
-  { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
   { href: "/leads", label: "Leady", icon: IconTarget },
   { href: "/clients", label: "Klienci", icon: IconUsers },
   { href: "/offers", label: "Oferty", icon: IconFileText },
+  { href: "/projects", label: "Projekty", icon: IconFolder },
   { href: "/invoices", label: "Faktury", icon: IconReceipt },
   { href: "/costs", label: "Koszty", icon: IconReportMoney },
+  { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
+  { href: "/notes", label: "Notatnik", icon: IconNotes },
 ];
 
 // Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
@@ -221,7 +225,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
             {!collapsed && (
               <span className="flex items-center gap-1.5 text-[13px] font-semibold">
                 <IconSlash size={15} stroke={2} />
-                Leggera Labs
+                <span className="text-liquid tracking-wide">LEGGERA HUB</span>
               </span>
             )}
             <button

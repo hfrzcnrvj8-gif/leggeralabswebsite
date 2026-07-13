@@ -377,6 +377,53 @@ kontaktowa".
   "Notatki" zniknęły z listy (długie/rzadko potrzebne od razu) — dostępne w
   profilu.
 
+## Uporządkuj źródła — auto-kategoryzacja starych leadów (2026-07-14)
+
+Jednoprzyciskowa akcja w toolbarze `/admin/leads` (ikona 🏷️, `IconTag`) i w
+palecie poleceń — doklasyfikowuje WSZYSTKIE leady z pustym
+`zrodlo_kategoria` (czyli sprzed rozbicia źródła na kategorię+szczegóły)
+przez deterministyczne dopasowanie słów kluczowych w starym `zrodlo`
+(`guessSourceCategory()`, `lib/leads.ts`) — zero AI/LLM, zgodnie z zasadą
+"Zero AI w logice przypominaczy/podpowiedzi". Niejednoznaczne przypadki
+(np. "Przysucha - ciepły?") świadomie lądują w kategorii "Inne" zamiast
+zgadywać — sam tekst `zrodlo` zostaje nietknięty jako "Szczegóły źródła" w
+profilu, więc kontekst się nie gubi. Idempotentne i bezpieczne do
+wielokrotnego klikania: dotyka tylko leadów, które jeszcze nie mają
+kategorii (przyszłe automatyczne źródła — formularz, discover — już
+zapisują kategorię od razu, więc to głównie dla importów/starych danych).
+`LeadsDashboard.tsx` → `tidySources()`.
+
+## Profil leada/klienta jako wyśrodkowany modal (2026-07-14)
+
+Na wyraźną prośbę właściciela: dawny wąski panel "peek" wysuwany z prawej
+(`max-w-2xl` na `.glass` tle) był za ciasny na gęstą treść profilu (dane +
+adres + źródło + log + mapa procesu). Zamieniony na wyśrodkowany, znacznie
+szerszy modal (`max-w-4xl`) — dokładnie ten sam wzorzec co
+`InvoiceEditor.tsx`/`OfferEditor.tsx` (patrz `## Architektura modułów` w
+`CLAUDE.md` — WYJĄTEK od zasady "peek panel z prawej" teraz obejmuje też
+Leady i Klientów, nie tylko Faktury/Oferty/Projekty). Dotyczy obu:
+`LeadDetailPanel.tsx`/`ClientDetailPanel.tsx` (ten sam komponent renderuje
+się w peek-modalu z `LeadsDashboard.tsx`/`ClientsDashboard.tsx` ORAZ w
+samodzielnej podstronie `[id]/page.tsx`, więc zmiana objęła oba miejsca
+naraz). Wewnątrz komponentu trzy dawne zagnieżdżone karty (`card-paper
+rounded-3xl`) scalone w jedną ramkę z separatorami (`border-t hairline`) —
+mniej wizualnego szumu, więcej miejsca na treść.
+
+## Branding panelu: "LEGGERA HUB" + kolejność nawigacji wg procesu (2026-07-14)
+
+- Logo w sidebarze zmienione z "Leggera Labs" (nazwa firmy) na "LEGGERA HUB"
+  (nazwa produktu/panelu, zgodnie z tym jak panel jest nazywany w `CLAUDE.md`)
+  z gradientem `.text-liquid` (purpurowo-złoty, `app/globals.css`) — jedyne
+  świadome odejście od neutralnej palety panelu, bo to wyraźna prośba
+  właściciela (patrz `## Wygląd` wyżej: "trzymaj się neutralnego systemu,
+  chyba że wyraźna prośba"). Nazwa firmy w ustawieniach/loginie zostaje
+  "Leggera Labs" bez zmian — to dwie różne rzeczy (produkt vs. firma).
+- Kolejność `NAV` w `AppShell.tsx` zmieniona z alfabetyczno-historycznej na
+  zgodną z realną ścieżką pracy (`lib/process.ts`): Pulpit → Leady → Klienci
+  → Oferty → Projekty → Faktury → Koszty → Kalendarz → Notatnik. Klawiszowe
+  skróty `g` + litera (`GO_CHORDS`) bez zmian, bo są przypisane do `href`,
+  nie do pozycji na liście.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

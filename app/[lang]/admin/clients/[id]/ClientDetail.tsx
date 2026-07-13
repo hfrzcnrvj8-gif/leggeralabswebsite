@@ -10,8 +10,8 @@ import { ClientDetailPanel } from "../ClientDetailPanel";
 export function ClientDetail({ id, lang }: { id: string; lang: Locale }) {
   const router = useRouter();
   return (
-    <div className="mx-auto max-w-3xl">
-      <Link href={`/${lang}/admin/clients`} className="text-sm text-muted hover:text-[var(--fg)]">
+    <div className="mx-auto max-w-4xl">
+      <Link href={`/${lang}/admin/clients`} className="mb-3 inline-block text-sm text-muted hover:text-[var(--fg)]">
         ← Wróć do tablicy
       </Link>
       <ClientDetailPanel id={id} lang={lang} onDeleted={() => router.push(`/${lang}/admin/clients`)} />
