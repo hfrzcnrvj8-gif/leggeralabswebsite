@@ -17,6 +17,7 @@ import {
   itemVat,
   round2,
 } from "./invoices";
+import { VIES_COUNTRY_CODES } from "./vies";
 
 // ---------------------------------------------------------------------------
 // Krok 1 — fundament: stan KSeF przy fakturze
@@ -184,6 +185,23 @@ export function nipDigits(nip: string): string {
   return (nip || "").replace(/[^0-9]/g, "");
 }
 
+/** Wykrywa numer VAT-UE kontrahenta zagranicznego (prefiks kraju UE ≠ PL, np.
+ * "DE265685242" — dokładnie ten format, który sugeruje placeholder pola i
+ * zwraca lookup VIES). FA(3) wymaga takiego numeru jako OSOBNEJ pary
+ * KodUE+NrVatUE w Podmiot2, NIE jako polski NIP (10 cyfr) — inaczej walidacja
+ * mylnie żąda 10 cyfr od numeru, który nigdy nie będzie polskim NIP-em. Zwraca
+ * null dla zwykłego polskiego NIP, pustego pola albo nierozpoznanego prefiksu
+ * (np. numeru spoza UE — poza v1, zostaje jako BrakID). Lista krajów dzielona
+ * z lib/vies.ts (ta sama, której używa lookup VIES w edytorze). */
+function parseForeignVat(raw: string): { kodUE: string; nrVatUE: string } | null {
+  const clean = (raw || "").replace(/[\s-]/g, "").toUpperCase();
+  // TNrVatUE (XSD): 1-12 znaków, cyfry/wielkie litery/+/* — dokładnie to po
+  // odcięciu 2-literowego prefiksu kraju.
+  const m = /^([A-Z]{2})([0-9A-Z+*]{1,12})$/.exec(clean);
+  if (!m || !VIES_COUNTRY_CODES.has(m[1])) return null;
+  return { kodUE: m[1], nrVatUE: m[2] };
+}
+
 /** Kod kraju ISO 3166 z pola tekstowego (np. "Polska" → "PL"). Domyślnie PL,
  * gdy puste — najczęstszy przypadek dla v1 (faktury krajowe). */
 function isoKraj(kraj: string): string {
@@ -329,12 +347,18 @@ export function buildFA3Xml(
   // --- Podmiot2 (nabywca) ---
   lines.push(`${L1}<Podmiot2>`);
   lines.push(`${L2}<DaneIdentyfikacyjne>`);
+  const buyerForeignVat = parseForeignVat(inv.klient_nip);
   const buyerNip = nipDigits(inv.klient_nip);
-  if (buyerNip) {
+  if (buyerForeignVat) {
+    // Kontrahent z UE (np. "DE265685242") — FA(3) chce KodUE+NrVatUE, nie
+    // polski NIP.
+    lines.push(tag("KodUE", buyerForeignVat.kodUE, L3));
+    lines.push(tag("NrVatUE", buyerForeignVat.nrVatUE, L3));
+  } else if (buyerNip) {
     lines.push(tag("NIP", buyerNip, L3));
   } else {
     // Brak identyfikatora podatkowego (np. osoba prywatna) — FA(3) dopuszcza
-    // znacznik BrakID. Nabywcy zagranicznych z NrVatUE dołożymy poza v1.
+    // znacznik BrakID.
     lines.push(tag("BrakID", 1, L3));
   }
   lines.push(tag("Nazwa", inv.klient_nazwa, L3));
@@ -504,11 +528,16 @@ export function validateForFA3(
   if (!company.nazwa.trim()) errors.push("Brak nazwy sprzedawcy (Ustawienia firmy).");
   if (!companyAdresL1(company).trim()) errors.push("Brak adresu sprzedawcy (Ustawienia firmy).");
 
-  // Nabywca (Podmiot2).
+  // Nabywca (Podmiot2). Numer VAT-UE zagranicznego kontrahenta (np.
+  // "DE265685242") NIE podlega regule "10 cyfr" — to nie polski NIP.
   if (!inv.klient_nazwa.trim()) errors.push("Brak nazwy nabywcy.");
-  const buyerNip = nipDigits(inv.klient_nip);
-  if (buyerNip && buyerNip.length !== 10) {
-    errors.push("NIP nabywcy musi mieć 10 cyfr (albo zostaw puste dla osoby prywatnej).");
+  if (!parseForeignVat(inv.klient_nip)) {
+    const buyerNip = nipDigits(inv.klient_nip);
+    if (buyerNip && buyerNip.length !== 10) {
+      errors.push(
+        "NIP nabywcy musi mieć 10 cyfr — dla kontrahenta z UE podaj numer VAT-UE z prefiksem kraju (np. DE265685242), albo zostaw puste dla osoby prywatnej."
+      );
+    }
   }
 
   // Nagłówek faktury.
