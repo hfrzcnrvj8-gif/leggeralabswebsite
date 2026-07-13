@@ -78,6 +78,7 @@ export function ClientDetailPanel({
   const [noteDirection, setNoteDirection] = useState("wychodzacy");
   const [markContacted, setMarkContacted] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [feedFilter, setFeedFilter] = useState<"all" | "calls" | "system" | "notes">("all");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/clients/${id}`);
@@ -201,6 +202,19 @@ export function ClientDetailPanel({
   }
 
   const linkedCount = offers.length + invoices.length + projects.length;
+
+  const FEED_FILTERS: { value: typeof feedFilter; label: string }[] = [
+    { value: "all", label: "Wszystko" },
+    { value: "calls", label: "📞 Połączenia" },
+    { value: "system", label: "Systemowe" },
+    { value: "notes", label: "Notatki" },
+  ];
+  const filteredFeed = feed.filter((f) => {
+    if (feedFilter === "all") return true;
+    if (feedFilter === "calls") return f.kanal === "telefon";
+    if (feedFilter === "system") return f.source === "system";
+    return f.kind === "note" && f.kanal !== "telefon";
+  });
 
   return (
     <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
@@ -400,11 +414,30 @@ export function ClientDetailPanel({
           </div>
         </form>
 
+        {feed.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {FEED_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setFeedFilter(f.value)}
+                className={`rounded-full border hairline px-2.5 py-1 text-[11px] ${
+                  feedFilter === f.value ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {feed.length === 0 ? (
           <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
+        ) : filteredFeed.length === 0 ? (
+          <p className="text-sm text-muted opacity-60">Brak wpisów w tym filtrze.</p>
         ) : (
           <ul className="space-y-3">
-            {feed.map((f) => (
+            {filteredFeed.map((f) => (
               <li key={`${f.source}:${f.id}`} className="rounded-xl border hairline p-3 text-sm">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-[11px] text-muted">
