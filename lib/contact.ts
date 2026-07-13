@@ -106,6 +106,15 @@ export function waLink(telefon: string): string | null {
   return null;
 }
 
+/** Ostatnie N cyfr numeru (domyślnie 9 — długość polskiego numeru
+ * komórkowego) po odrzuceniu wszystkiego poza cyframi — do dopasowania
+ * leada/klienta po numerze niezależnie od formatu zapisu (spacje, myślniki,
+ * prefiks +48/48/0). Używane przez `/api/contacts/lookup` (Opcja A —
+ * szybka notatka) i przyszły webhook VoIP (Moduł 3, Faza 2 telefonii). */
+export function lastPhoneDigits(phone: string, n = 9): string {
+  return (phone || "").replace(/\D/g, "").slice(-n);
+}
+
 /** Dokłada https:// do zapisanego linku LinkedIn, jeśli go brakuje — właściciel
  * wpisuje często sam "linkedin.com/in/..." bez protokołu. Puste pole = brak
  * linku, UI po prostu nie pokazuje przycisku. */

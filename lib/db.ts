@@ -844,6 +844,11 @@ async function createCostsSchema(): Promise<void> {
   // NULL) współistnieją bez ograniczeń, a `ON CONFLICT (ksef_numer)` przy
   // imporcie działa niezawodnie (arbiter to ten indeks).
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS costs_ksef_numer_idx ON costs(ksef_numer);`;
+  // Moduł 9 (branżowy standard): metoda płatności (etykieta jak w
+  // Ramp/Expensify — nie inicjuje płatności) + numer konta dostawcy (do
+  // „Kopiuj dane do przelewu"). NULL/'' = nieustawiona.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS metoda_platnosci TEXT;`;
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS dostawca_konto TEXT NOT NULL DEFAULT '';`;
 }
 
 /** Lazily tworzy tabelę modułu Koszty. */

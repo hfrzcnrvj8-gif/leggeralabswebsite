@@ -907,6 +907,62 @@ zagłuszyłaby ważniejsze terminy (płatności, kamienie milowe).
   bocznym z poprawnymi kolorami/tytułami, klik w "Połączenie — …" prowadzi
   do właściwego leada.
 
+### Moduł 3 — czwarta tura: szybka notatka z telefonu + gotowość pod VoIP (2026-07-14)
+
+Domknięcie modułu: "Opcja A" z pliku modułu (mobilna szybka notatka) +
+przygotowanie generycznego webhooka pod przyszłe konto VoIP (właściciel
+jeszcze go nie założył — patrz [[telefonia-voip-plan]] w pamięci projektu).
+
+- **`lib/contactLookup.ts`** — nowy, serwerowy moduł: `findContactsByPhone()`
+  dopasowuje leada/klienta po ostatnich 9 cyfrach numeru (niezależnie od
+  formatu zapisu — spacje, myślniki, prefiks). Jedno wspólne miejsce
+  dopasowania numeru, użyte i przez ręczną ścieżkę (quick-log), i przez
+  przyszłą automatyczną (webhook) — żeby obie się zgadzały.
+- **`GET /api/contacts/lookup?telefon=...`** — cienki wrapper na
+  `findContactsByPhone()`, zwraca listę dopasowań `{type: "lead"|"client",
+  id, nazwa}`.
+- **`/admin/quick-log`** (`QuickLogView.tsx`) — mobilna "szybka notatka":
+  wklej/wpisz numer → "Szukaj" → automatyczny skok do formularza przy
+  jednym dopasowaniu (albo lista do wyboru przy kilku, albo komunikat "nie
+  znaleziono" z linkiem do Leadów) → notatka (dyktowana głosem przez
+  wbudowany mikrofon klawiatury iOS, nic specjalnego nie trzeba
+  konfigurować) + kanał/kierunek/wynik/czas trwania (te same kontrolki co w
+  `LeadDetailPanel`/`ClientDetailPanel`) → zapis przez te same, istniejące
+  endpointy `.../activity` (zero nowej logiki zapisu). Po zapisie — "Zaloguj
+  kolejny kontakt" zamiast wracać do zera. Pomyślana pod "Dodaj do ekranu
+  początkowego" w Safari — otwiera się jak osobna apka, korzysta z tej samej
+  sesji logowania co reszta panelu (żadnego nowego uwierzytelniania).
+- **`POST /api/telefonia/webhook?token=...`** — gotowy, ale **jeszcze
+  NIEUŻYWANY naprawdę** (fail-closed: 500 dopóki `TELEFONIA_WEBHOOK_SECRET`
+  nie jest ustawiony w env, wzorem `CRON_SECRET` w
+  `app/api/leads/notify/route.ts`). Token w query string, nie w nagłówku —
+  większość dostawców VoIP pozwala skonfigurować tylko URL webhooka.
+  Generyczny payload (`telefon`, opcjonalnie `kierunek`/`wynik`/
+  `czas_trwania_sek`/`opis`) — gdy właściciel założy konto (rozważana
+  Zadarma), trzeba będzie dopasować tylko NAZWY pól do tego, co faktycznie
+  wysyła webhook danego dostawcy; cała logika dopasowania numeru i zapisu
+  wpisu już działa i jest przetestowana. Numer niepasujący do żadnego
+  leada/klienta → `200 {matched: false}`, nie błąd (webhook VoIP nie
+  powinien dostawać błędu za zdarzenie, które nas nie dotyczy).
+- **Kolorowa odznaka kanału na kartach kanban i w widoku Tabela**
+  (Leady/Klienci) — `ostatni_kanal` renderuje się teraz jako małe kolorowe
+  kółko (`CONTACT_CHANNEL_CLASS`) zamiast płaskiej emoji inline, spójnie z
+  osią kontaktu. Widok Tabela dostał też widoczny link LinkedIn (gdy
+  wypełniony) obok telefonu/maila.
+- Przetestowane end-to-end lokalnie (PGlite): lookup po numerze ze
+  spacjami trafia poprawny lead; pełny przepływ quick-log (numer → wybór →
+  notatka + odebrane → zapis) tworzy poprawny wpis na osi z kanałem/
+  kierunkiem/wynikiem; webhook bez `TELEFONIA_WEBHOOK_SECRET` poprawnie
+  odrzuca żądanie (500, czytelny komunikat); kolorowa odznaka widoczna w
+  Tabeli po zalogowaniu połączenia.
+
+**Moduł 3 jest tym samym w pełni zamknięty** — dalsze pomysły (widżet do
+dzwonienia z komputera w Hub, natywna apka-towarzysz do CallKit) są
+świadomie odłożone na przyszłość, patrz [[telefonia-voip-plan]]. Dalsza
+praca nad agregacją w Kalendarzu ("wszystkie działania z tagami,
+dopasowaniem do klienta") kontynuowana w Module 10, patrz
+`docs/plany-modulow/10-kalendarz-dopracowanie.md`.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

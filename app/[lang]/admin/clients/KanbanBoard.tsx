@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
-import { type Client, CLIENT_STATUSES, CLIENT_STATUS_DOT, clientDaysSince, isClientOverdue, CONTACT_CHANNEL_ICON, CONTACT_CHANNEL_LABEL, StatusTag } from "./shared";
+import {
+  type Client,
+  CLIENT_STATUSES,
+  CLIENT_STATUS_DOT,
+  clientDaysSince,
+  isClientOverdue,
+  CONTACT_CHANNEL_ICON,
+  CONTACT_CHANNEL_LABEL,
+  CONTACT_CHANNEL_CLASS,
+  StatusTag,
+} from "./shared";
 
 export function KanbanBoard({
   clients,
@@ -138,6 +148,9 @@ export function KanbanBoard({
                         <span
                           aria-hidden
                           title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? client.ostatni_kanal}`}
+                          className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
+                            CONTACT_CHANNEL_CLASS[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
+                          }`}
                         >
                           {CONTACT_CHANNEL_ICON[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
                         </span>

@@ -31,6 +31,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 7 | AI: szkice odpowiedzi mailowych (wymaga 4 i 6) | średni | [07-ai-szkice-mailowe.md](07-ai-szkice-mailowe.md) |
 | 8 | ✅ AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
 | 9 | Koszty jako branżowy standard — metoda płatności, inspiracje z liderów (wymaga 8) | duży, wieloetapowy | [09-koszty-branzowy-standard.md](09-koszty-branzowy-standard.md) |
+| 10 | Dopracowanie Kalendarza — agregacja działań, tagi, dopasowanie do klienta | otwarty zakres, zacznij od pytań | [10-kalendarz-dopracowanie.md](10-kalendarz-dopracowanie.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
 jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM
@@ -120,3 +121,10 @@ narzędzi (Ramp, Expensify, QuickBooks, wFirma/ifirma), nie tylko
 (plakietki metody płatności, kopiowanie danych do przelewu, i dalsze pomysły
 z rynku do priorytetyzacji z właścicielem) — patrz plik modułu po pełny
 kontekst i wyniki wstępnego researchu konkurencji.
+
+**Moduł 10** wypączkował z Modułu 3 (kanały kontaktu, 2026-07-14) — przy
+okazji dołożono do Kalendarza agregację połączeń telefonicznych, a
+właściciel zasygnalizował, że chce więcej ("wszystkie działania z
+odpowiednimi tagami, dopasowaniem do klienta"). Świadomie NIE dociągnięte w
+tej samej sesji (żeby nie rozjeżdżać się w nieskończoność) — zakres
+celowo otwarty, plik modułu zaczyna się od pytań, nie od gotowej decyzji.

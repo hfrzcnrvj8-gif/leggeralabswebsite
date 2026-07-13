@@ -9,6 +9,9 @@ import {
   daysSince,
   isOverdue,
   leadSourceLabel,
+  CONTACT_CHANNEL_ICON,
+  CONTACT_CHANNEL_LABEL,
+  CONTACT_CHANNEL_CLASS,
   StatusTag,
 } from "./shared";
 import { Truncate } from "../components";
@@ -146,13 +149,26 @@ export function TableView({
                     />
                   </td>
                   <td className="p-2">
-                    <button
-                      onClick={() => onOpen(lead.id)}
-                      className="block w-full truncate text-left font-medium text-[var(--fg)] hover:underline"
-                      title={lead.firma}
-                    >
-                      {lead.firma}
-                    </button>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <button
+                        onClick={() => onOpen(lead.id)}
+                        className="block min-w-0 flex-1 truncate text-left font-medium text-[var(--fg)] hover:underline"
+                        title={lead.firma}
+                      >
+                        {lead.firma}
+                      </button>
+                      {lead.ostatni_kanal && (
+                        <span
+                          aria-hidden
+                          title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? lead.ostatni_kanal}`}
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${
+                            CONTACT_CHANNEL_CLASS[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
+                          }`}
+                        >
+                          {CONTACT_CHANNEL_ICON[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
+                        </span>
+                      )}
+                    </div>
                     {lead.osoba_kontaktowa && (
                       <Truncate value={lead.osoba_kontaktowa} className="text-[11px] text-muted opacity-80" />
                     )}
@@ -166,6 +182,7 @@ export function TableView({
                     ) : (
                       kontakt.map((c) => <Truncate key={c} value={c} />)
                     )}
+                    {lead.linkedin_url && <Truncate value={`🔗 ${lead.linkedin_url}`} className="text-[11px] text-muted opacity-80" />}
                   </td>
                   <td className="p-2">
                     <Truncate value={lead.miasto} />

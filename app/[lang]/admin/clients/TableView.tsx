@@ -8,6 +8,9 @@ import {
   type Client,
   clientDaysSince,
   isClientOverdue,
+  CONTACT_CHANNEL_ICON,
+  CONTACT_CHANNEL_LABEL,
+  CONTACT_CHANNEL_CLASS,
   EditableText,
   EditableTextarea,
   StatusTag,
@@ -115,7 +118,22 @@ export function TableView({
                     />
                   </td>
                   <td className="p-2">
-                    <EditableText value={client.nazwa} onSave={(v) => onUpdate(client.id, "nazwa", v)} />
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <EditableText value={client.nazwa} onSave={(v) => onUpdate(client.id, "nazwa", v)} />
+                      </div>
+                      {client.ostatni_kanal && (
+                        <span
+                          aria-hidden
+                          title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? client.ostatni_kanal}`}
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${
+                            CONTACT_CHANNEL_CLASS[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
+                          }`}
+                        >
+                          {CONTACT_CHANNEL_ICON[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-2">
                     <EditableText value={client.branza} onSave={(v) => onUpdate(client.id, "branza", v)} />
@@ -125,6 +143,7 @@ export function TableView({
                   </td>
                   <td className="p-2">
                     <EditableText value={client.email} onSave={(v) => onUpdate(client.id, "email", v)} />
+                    {client.linkedin_url && <div className="mt-0.5 truncate text-[11px] text-muted opacity-80">🔗 {client.linkedin_url}</div>}
                   </td>
                   <td className="p-2">
                     <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />

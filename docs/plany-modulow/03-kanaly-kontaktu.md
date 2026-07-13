@@ -1,9 +1,15 @@
 # Moduł 3 — Kanały kontaktu: telefon / WhatsApp / LinkedIn (luka ⑦a)
 
-> ✅ ZROBIONE (2026-07-14) — szczegóły w `HUB_SETUP.md` → „Moduł 3 — Kanały
-> kontaktu”. Dodatkowo ponad pierwotny plan: kierunek kontaktu (Ja→oni/Oni→ja)
-> na każdym wpisie osi, tekstowy „następny krok” (`next_action`) obok daty
-> przypomnienia, ikona ostatniego kanału na kartach kanban.
+> ✅ ZROBIONE i DOMKNIĘTE (2026-07-14) — szczegóły w `HUB_SETUP.md` → „Moduł 3 —
+> Kanały kontaktu” (trzy tury: podstawa, premium UX, integracja z Kalendarzem)
+> + [[telefonia-voip-plan]] w pamięci projektu. Dodatkowo ponad pierwotny plan:
+> kierunek kontaktu (Ja→oni/Oni→ja), wynik połączenia (odebrane/nieodebrane) +
+> czas trwania, kolorowe tagi kanałów, grupowanie osi po dniach, miękka
+> podpowiedź przypomnienia przy nieodebranym połączeniu, agregacja połączeń w
+> Kalendarzu, mobilna "szybka notatka" (`/admin/quick-log`), i gotowy (ale
+> jeszcze niepodłączony — brak konta VoIP) generyczny webhook
+> `/api/telefonia/webhook` do przyszłej automatyzacji. Nic więcej nie zostało
+> tu świadomie odłożone — ten moduł jest kompletny.
 
 > Przeczytaj najpierw `docs/plany-modulow/README.md` (zasady wspólne) i `CLAUDE.md`.
 > Architektura zdecydowana — patrz „DECYZJA”. Zaprojektowane od razu pod telefon
