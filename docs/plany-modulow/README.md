@@ -27,9 +27,9 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 3 | Kanały kontaktu — telefon/WhatsApp/LinkedIn (⑦a) | średni | [03-kanaly-kontaktu.md](03-kanaly-kontaktu.md) |
 | 4 | Natywna poczta w panelu (IMAP/SMTP az.pl) — podgląd, auto-przypisanie, odpowiadanie, lista „do obsłużenia” (⑦b) | duży | [04-skrzynka-mailowa.md](04-skrzynka-mailowa.md) |
 | 5 | Leggera Hub jako aplikacja mobilna (PWA) — cała apka na telefonie | duży | [05-mobilna-aplikacja.md](05-mobilna-aplikacja.md) |
-| 6 | AI: infrastruktura Ollama (fundament pod 7 i 8, nie samodzielna funkcja) | mały | [06-ai-infrastruktura-ollama.md](06-ai-infrastruktura-ollama.md) |
+| 6 | ✅ AI: infrastruktura Ollama (fundament pod 7 i 8, nie samodzielna funkcja) | mały | [06-ai-infrastruktura-ollama.md](06-ai-infrastruktura-ollama.md) |
 | 7 | AI: szkice odpowiedzi mailowych (wymaga 4 i 6) | średni | [07-ai-szkice-mailowe.md](07-ai-szkice-mailowe.md) |
-| 8 | AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
+| 8 | AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6 — **gotowe, można zaczynać**) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
 jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM
@@ -100,3 +100,13 @@ namacalna i ryzyko pomyłki niskie (wszystko do zatwierdzenia przez
 właściciela). Podpowiedzi w Leadach/Klientach (treść kontaktu) i logika
 dopasowań/przypominaczy pozostają świadomie bez AI — to nie miejsca, gdzie
 brakuje czasu, tylko gdzie liczy się przewidywalność.
+
+**Moduł 6 zbudowany i zweryfikowany end-to-end (2026-07-14)** — Tailscale
+Funnel na Mac Studio właściciela (publiczny adres `*.ts.net`, świadomie nie
+zapisywany tutaj w repo — patrz `OLLAMA_API_URL`/`OLLAMA_API_SECRET` w env
+Vercela), `lib/ollama.ts`
+(tylko tekstowy `ollamaGenerate`/`ollamaHealth`, **bez obsługi obrazów jeszcze**),
+`GET /api/ai/health` potwierdza żywe połączenie z modelami na Macu (lista
+dostępna w `HUB_SETUP.md`, m.in. warianty `qwen2.5vl`/`qwen3-vl` z
+`"capabilities": ["vision", ...]` — kandydaci na model OCR w Module 8).
+Szczegóły w `HUB_SETUP.md` → sekcja "Infrastruktura AI".

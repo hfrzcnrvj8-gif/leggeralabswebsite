@@ -540,6 +540,29 @@ własnym proxy na porcie **11435** (nie domyślny port Ollamy 11434).
   przypominacze pozostają w 100% deterministyczne — to punktowe, jawnie
   klikane użycie modelu do treści-do-zatwierdzenia (Moduł 7/8), nie ogólny
   mechanizm AI w panelu.
+- **Zweryfikowane end-to-end (2026-07-14)**: Funnel włączony na Mac Studio
+  (publiczny adres `*.ts.net` — patrz `OLLAMA_API_URL` w env Vercela, świadomie
+  nie powielany tutaj w repo), `GET /api/ai/health` z produkcji zwraca
+  `available: true` i pełną listę modeli, w tym warianty wizyjne przydatne
+  pod Moduł 8 (OCR): `qwen2.5vl:7b`, `qwen2.5vl:32b`, `qwen3-vl:8b`.
+  `lib/ollama.ts` na razie obsługuje tylko tekst (`ollamaGenerate`/
+  `ollamaHealth`) — obsługa obrazów (pole `images` w `/api/generate`) do
+  dodania przy Module 8.
+
+## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
+
+Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z
+Ollamą, ale warte odnotowania:
+- `DashboardHome.tsx` — `fetch("/api/hub/today")` nie miał `.catch()`; błąd
+  sieci/serwera zostawiał `data=null` na zawsze, więc UI pokazywał animowany
+  szkielet ładowania w nieskończoność zamiast informacji o błędzie. Dodany
+  stan błędu z przyciskiem "Spróbuj ponownie".
+- `app/api/hub/today/route.ts` — `inv.data_wystawienia.slice(0, 7)` crashował
+  całym endpointem 500-tką, bo kolumna typu `DATE` bywa zwracana przez driver
+  Neona jako obiekt `Date`, nie string (ten sam problem już wcześniej
+  załatany w `invoices/export/route.ts` przez `String(...)`, tu brakowało
+  tego owinięcia). Jeśli w przyszłości pojawi się podobny crash na innym
+  polu typu `DATE` z bazy — to ten sam wzorzec do zastosowania.
 
 ## Czego świadomie nie ma (na razie)
 
