@@ -3,6 +3,7 @@ import { getSql, ensureCostsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { ollamaGenerateWithImage } from "@/lib/ollama";
 import { OCR_MODEL, OCR_SYSTEM, OCR_PROMPT, parseOcrResponse } from "@/lib/costs-ocr";
+import { renderFirstPdfPageToPng } from "@/lib/pdf-render";
 
 export const runtime = "nodejs";
 
@@ -29,10 +30,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   if (mime === "application/pdf") {
     try {
-      const { pdf } = await import("pdf-to-img");
       const buf = Buffer.from(String(row.zalacznik_dane), "base64");
-      const doc = await pdf(buf, { scale: 2 });
-      const pageBuf = await doc.getPage(1);
+      const pageBuf = await renderFirstPdfPageToPng(buf);
       imageBase64 = pageBuf.toString("base64");
     } catch (err) {
       console.error("[costs/ocr] konwersja PDF→PNG nieudana", err);

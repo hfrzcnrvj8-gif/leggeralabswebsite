@@ -599,22 +599,49 @@ od "zero AI w logice panelu").
   wyłączonej/niedostępnej Ollamie. Rzeczywisty odczyt obrazu (jakość modelu
   na prawdziwych polskich paragonach) do zweryfikowania na produkcji z
   żywym Mac Studio właściciela.
-- **Naprawa (2026-07-14, po pierwszym realnym teście PDF na produkcji)**:
-  pierwszy wgrany PDF od razu dawał błąd "nie można odczytać" — `pdf-to-img`
-  renderuje strony przez natywny dodatek binarny `@napi-rs/canvas`, ładowany
-  dynamicznym `require()` w czasie działania. Next.js nie widzi takiego
-  requiru przy statycznej analizie zależności (file tracing), więc binarka
-  (i katalogi `cmaps`/`standard_fonts` z `pdfjs-dist`, potrzebne do
-  renderowania czcionek) nie trafiały do paczki funkcji serverless na
-  Vercelu — konwersja PDF→PNG rzucała błąd zanim doszło do wywołania modelu
-  AI (kontrolowany fallback zadziałał poprawnie, po prostu nie miał czego
-  użyć). Naprawione w `next.config.mjs`: `serverExternalPackages` (żeby Next
-  nie próbował bundlować `@napi-rs/canvas`/`pdf-to-img`/`pdfjs-dist` przez
-  webpack, tylko zostawił je jako zwykłe `node_modules` w runtime) +
-  `outputFileTracingIncludes` dla `/api/costs/[id]/ocr` z jawnym dopisaniem
-  `cmaps`/`standard_fonts` i natywnej binarki dla Linuksa (x64/arm64 gnu —
-  architektury używane przez funkcje serverless Vercela). Do potwierdzenia
-  po najbliższym deployu: ponowny upload tego samego PDF-a.
+- **Naprawa PDF na produkcji (2026-07-14, po dwóch nieudanych realnych
+  testach)**: pierwszy wgrany PDF od razu dawał błąd "nie można odczytać".
+  Log z produkcji (`vercel logs`, dostępne z tego środowiska — CLI jest
+  zalogowane) pokazał dokładną przyczynę: `Cannot find module
+  '@napi-rs/canvas'`. `pdf-to-img`/`pdfjs-dist` w Node SAME próbują w
+  runtime `require("@napi-rs/canvas")` (natywny dodatek binarny do
+  renderowania) — to głęboko zagnieżdżony, dynamiczny require, którego
+  Next.js/Turbopack nie widzi przy statycznej analizie zależności, więc
+  binarka nie trafiała do paczki funkcji serverless. Pierwsza próba naprawy
+  samą konfiguracją (`serverExternalPackages` +
+  `outputFileTracingIncludes`) NIE wystarczyła — w tej wersji
+  Next/Turbopacka `outputFileTracingIncludes` okazał się bez efektu dla
+  zwykłych route'ów API (zweryfikowane lokalnie: `npx next build` działa
+  tu w tym środowisku, więc dało się to sprawdzić bez czekania na deploy —
+  tylko literalne ścieżki w wywołaniach `fs.readFile`/`require.resolve` są
+  śledzone automatycznie, patrz `app/[lang]/opengraph-image.tsx` jako
+  działający wzorzec). Docelowa naprawa w **`lib/pdf-render.ts`**:
+  - jawny, statyczny `import ... from "@napi-rs/canvas"` na górze pliku —
+    bundler to widzi i poprawnie dołącza (potwierdzone w
+    `.next/.../route.js.nft.json` po lokalnym buildzie: pliki
+    `@napi-rs/canvas/*.js` i natywna binarka są w śladzie);
+  - `globalThis.DOMMatrix/ImageData/Path2D` ustawiane z tego importu PRZED
+    załadowaniem `pdf-to-img` — pdfjs sprawdza `if (!globalThis.X)` i
+    pomija swój wewnętrzny, nietraceable `require()`, jeśli globalne już
+    istnieją;
+  - własna `CanvasFactory` (`docInitParams.CanvasFactory`) oparta o ten sam
+    jawny import — omija wewnętrzną fabrykę pdfjs, która i tak próbowałaby
+    swojego requira;
+  - dane `cMap`/czcionek standardowych (`pdfjs-dist/cmaps`,
+    `standard_fonts` — czytane z dysku dynamiczną ścieżką, też
+    nietraceable) zamienione na `BinaryDataFactory` pobierający je przez
+    HTTPS z jsdelivr (`cdn.jsdelivr.net/npm/pdfjs-dist@5.6.205/...` — numer
+    wersji zsynchronizowany z zainstalowaną `pdfjs-dist`, podbić razem przy
+    aktualizacji). Funkcja i tak ma dostęp do internetu (woła Ollamę przez
+    Tailscale Funnel), więc to nie nowa kategoria zależności.
+  - Zweryfikowane lokalnie: `tsc` czysty, `npx next build` przechodzi,
+    ślad pliku (`.nft.json`) zawiera `@napi-rs/canvas` i NIE zawiera już
+    `cmaps`/`standard_fonts` (bo te idą przez sieć), bezpośredni test
+    `renderFirstPdfPageToPng()` na testowym PDF-ie działa, fetch z
+    jsdelivr do prawdziwych plików cmap/font (`78-EUC-H.bcmap`,
+    `LiberationSans-Regular.ttf`) zwraca `200`. Do ostatecznego
+    potwierdzenia po najbliższym deployu: ponowny upload tego samego
+    PDF-a na produkcji.
 
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
