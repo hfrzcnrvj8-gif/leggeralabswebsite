@@ -695,6 +695,19 @@ od "zero AI w logice panelu").
     nie informowało; teraz `CostEditor` zgłasza rodzicowi `onBusyChange`,
     dodatkowo pokazuje toast "Odczytuję załącznik…" na starcie.
 
+  **Czwarta runda**: nawet z `OCR_NUM_CTX = 8192` (zamiast 262144) dwie
+  kolejne próby na produkcji dalej kończyły się `AbortError` po pełnych 60s
+  — czyli sam rozmiar kontekstu nie był (jedyną) przyczyną, to realne
+  obciążenie/rywalizacja o zasoby na Macu właściciela (inna automatyzacja
+  dzieli ten sam sprzęt). Podniesione `OCR_TIMEOUT_MS` z 60s na 100s +
+  jawne `export const maxDuration = 120` na route'cie (bez tego domyślny
+  limit czasu funkcji na Vercelu mógłby uciąć wywołanie SAM, zanim zdąży
+  zadziałać nasz kontrolowany timeout/komunikat błędu) — na wypadek gdyby
+  to była kwestia chwilowego, a nie trwałego obciążenia. Jeśli to nie
+  pomoże, prawdziwy problem jest po stronie zasobów Maca (RAM/GPU zajęte
+  przez inny proces), nie kodu panelu — do zdiagnozowania przez właściciela
+  (`ollama ps`, Monitor Aktywności) w momencie próby.
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z

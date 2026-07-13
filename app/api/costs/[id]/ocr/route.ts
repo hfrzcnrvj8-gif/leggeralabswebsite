@@ -6,8 +6,13 @@ import { OCR_MODEL, OCR_SYSTEM, OCR_PROMPT, parseOcrResponse } from "@/lib/costs
 import { renderFirstPdfPageToPng } from "@/lib/pdf-render";
 
 export const runtime = "nodejs";
+// Domyślny limit czasu funkcji na Vercelu bez tego byłby krótszy niż nasz
+// własny OCR_TIMEOUT_MS poniżej — musi być dłuższy, żeby to NASZ timeout
+// (kontrolowany komunikat błędu) zdążył zadziałać pierwszy, a nie Vercel
+// samo ucinające funkcję.
+export const maxDuration = 120;
 
-const OCR_TIMEOUT_MS = 60_000; // model wizyjny na Macu odpowiada wolniej niż tekstowy — dłuższy timeout niż domyślny w lib/ollama.ts
+const OCR_TIMEOUT_MS = 100_000; // model wizyjny na Macu odpowiada wolniej niż tekstowy — dłuższy timeout niż domyślny w lib/ollama.ts. Podniesione ze 60s po dwóch timeoutach na produkcji nawet z mniejszym num_ctx (patrz HUB_SETUP.md) — daje modelowi więcej czasu, gdyby to była kwestia chwilowego obciążenia, nie twardej blokady.
 // Bez jawnego num_ctx Ollama potrafi załadować qwen3-vl z domyślnym, ogromnym
 // oknem kontekstu (obserwowane: 262144 → 44 GB samego KV-cache) — długie
 // ładowanie/timeout na współdzielonym sprzęcie właściciela. Jeden obraz
