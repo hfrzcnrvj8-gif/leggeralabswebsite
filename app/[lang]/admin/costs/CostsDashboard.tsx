@@ -104,6 +104,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
   const searchParams = useSearchParams();
   const [costs, setCosts] = useState<Cost[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [editorBusy, setEditorBusy] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterKategoria, setFilterKategoria] = useState("");
   const projectFilter = searchParams.get("project");
@@ -320,7 +321,13 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setOpenId(null)}
+            onClick={() => {
+              if (editorBusy) {
+                toast("Trwa odczyt AI — poczekaj na zakończenie przed zamknięciem.");
+                return;
+              }
+              setOpenId(null);
+            }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.98, y: 8 }}
@@ -332,12 +339,19 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
             >
               <CostEditor
                 id={openId}
-                onClose={() => setOpenId(null)}
+                onClose={() => {
+                  if (editorBusy) {
+                    toast("Trwa odczyt AI — poczekaj na zakończenie przed zamknięciem.");
+                    return;
+                  }
+                  setOpenId(null);
+                }}
                 onChange={load}
                 onDeleted={(id) => {
                   setCosts((prev) => prev?.filter((c) => c.id !== id) ?? prev);
                   setOpenId(null);
                 }}
+                onBusyChange={setEditorBusy}
               />
             </motion.div>
           </motion.div>

@@ -77,6 +77,12 @@ export async function ollamaGenerateWithImage(opts: {
    * długiego ładowania/timeoutu. Do jednego obrazu + krótkiego promptu
    * OCR wystarczy dużo mniejsze okno — podawaj jawnie z miejsca wywołania. */
   numCtx?: number;
+  /** Ollama `keep_alive` — jak długo model zostaje załadowany w pamięci po
+   * tym zapytaniu, zanim się sam zwolni. Domyślnie w Ollamie to 5 minut;
+   * dla rzadko klikanego OCR (nie potrzebujemy modelu "na ciepło") warto
+   * podać coś krótszego, żeby szybciej oddać RAM innym procesom na Macu
+   * właściciela — podawaj jawnie z miejsca wywołania. */
+  keepAlive?: string;
 }): Promise<string | null> {
   const url = baseUrl();
   if (!url) {
@@ -97,6 +103,7 @@ export async function ollamaGenerateWithImage(opts: {
         images: [opts.imageBase64],
         ...(opts.system ? { system: opts.system } : {}),
         ...(opts.numCtx ? { options: { num_ctx: opts.numCtx } } : {}),
+        ...(opts.keepAlive ? { keep_alive: opts.keepAlive } : {}),
         stream: false,
       }),
       signal: controller.signal,

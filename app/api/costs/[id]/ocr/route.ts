@@ -13,6 +13,10 @@ const OCR_TIMEOUT_MS = 60_000; // model wizyjny na Macu odpowiada wolniej niż t
 // ładowanie/timeout na współdzielonym sprzęcie właściciela. Jeden obraz
 // paragonu + krótki prompt/JSON mieszczą się z dużym zapasem w 8192.
 const OCR_NUM_CTX = 8192;
+// OCR klika się rzadko i pojedynczo — nie warto trzymać modelu "na ciepło"
+// (domyślne 5 minut w Ollamie), żeby szybciej oddać RAM innym procesom na
+// tym samym Macu (patrz HUB_SETUP.md — inna automatyzacja dzieli ten sprzęt).
+const OCR_KEEP_ALIVE = "30s";
 
 /** POST /api/costs/:id/ocr — odczytuje załącznik (skan/PDF) kosztu modelem
  * wizyjnym przez Ollamę i zwraca PROPOZYCJĘ wartości pól formularza. Nigdy
@@ -55,6 +59,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     imageBase64,
     timeoutMs: OCR_TIMEOUT_MS,
     numCtx: OCR_NUM_CTX,
+    keepAlive: OCR_KEEP_ALIVE,
   });
 
   if (raw == null) {

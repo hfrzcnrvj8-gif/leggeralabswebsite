@@ -15,11 +15,15 @@ export function CostEditor({
   onClose,
   onChange,
   onDeleted,
+  onBusyChange,
 }: {
   id: string;
   onClose: () => void;
   onChange?: () => void;
   onDeleted?: (id: string) => void;
+  /** Informuje rodzica, że trwa odczyt AI — okno nie powinno się dać
+   * przypadkiem zamknąć kliknięciem w tło, dopóki zapytanie nie skończy. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { toast, confirm } = useUI();
   const [cost, setCost] = useState<Cost | null>(null);
@@ -112,30 +116,38 @@ export function CostEditor({
 
   const readWithOcr = useCallback(async () => {
     setOcrLoading(true);
-    const res = await fetch(`/api/costs/${id}/ocr`, { method: "POST" });
-    const data = (await res.json().catch(() => ({}))) as {
-      suggestion?: { dostawca_nazwa: string; kwota_netto: number | null; vat_stawka: string | null; data_wydatku: string; opis: string };
-      error?: string;
-    };
-    setOcrLoading(false);
-    if (!res.ok || !data.suggestion) {
-      toast(data.error ?? "Nie udało się odczytać załącznika. Wpisz dane ręcznie.", "error");
-      return;
+    onBusyChange?.(true);
+    toast("Odczytuję załącznik przez model AI — to może potrwać do minuty…");
+    try {
+      const res = await fetch(`/api/costs/${id}/ocr`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        suggestion?: { dostawca_nazwa: string; kwota_netto: number | null; vat_stawka: string | null; data_wydatku: string; opis: string };
+        error?: string;
+      };
+      if (!res.ok || !data.suggestion) {
+        toast(data.error ?? "Nie udało się odczytać załącznika. Wpisz dane ręcznie.", "error");
+        return;
+      }
+      const s = data.suggestion;
+      const patchBody: Record<string, unknown> = {};
+      if (s.dostawca_nazwa) patchBody.dostawca_nazwa = s.dostawca_nazwa;
+      if (s.kwota_netto != null) patchBody.kwota_netto = s.kwota_netto;
+      if (s.vat_stawka) patchBody.vat_stawka = s.vat_stawka;
+      if (s.data_wydatku) patchBody.data_wydatku = s.data_wydatku;
+      if (s.opis) patchBody.opis = s.opis;
+      if (Object.keys(patchBody).length === 0) {
+        toast("Model nie rozpoznał żadnych pól — wpisz dane ręcznie.", "error");
+        return;
+      }
+      await patch(patchBody);
+      toast("Odczytano załącznik — sprawdź i popraw dane przed zapisem.");
+    } finally {
+      setOcrLoading(false);
+      onBusyChange?.(false);
     }
-    const s = data.suggestion;
-    const patchBody: Record<string, unknown> = {};
-    if (s.dostawca_nazwa) patchBody.dostawca_nazwa = s.dostawca_nazwa;
-    if (s.kwota_netto != null) patchBody.kwota_netto = s.kwota_netto;
-    if (s.vat_stawka) patchBody.vat_stawka = s.vat_stawka;
-    if (s.data_wydatku) patchBody.data_wydatku = s.data_wydatku;
-    if (s.opis) patchBody.opis = s.opis;
-    if (Object.keys(patchBody).length === 0) {
-      toast("Model nie rozpoznał żadnych pól — wpisz dane ręcznie.", "error");
-      return;
-    }
-    await patch(patchBody);
-    toast("Odczytano załącznik — sprawdź i popraw dane przed zapisem.");
-  }, [id, toast, patch]);
+  }, [id, toast, patch, onBusyChange]);
+
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
   const removeAttachment = useCallback(async () => {
     const ok = await confirm("Usunąć załącznik?", { danger: true });

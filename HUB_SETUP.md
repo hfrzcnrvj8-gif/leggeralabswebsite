@@ -681,6 +681,20 @@ od "zero AI w logice panelu").
   `OCR_TIMEOUT_MS` (+ `maxDuration` na route'cie, w granicach planu
   Vercela).
 
+  Przy tej samej okazji dwa mniejsze usprawnienia UX/zasobów:
+  - `ollamaGenerateWithImage()` przyjmuje teraz też opcjonalny `keepAlive`
+    (Ollama `keep_alive`) — `/api/costs/[id]/ocr` ustawia `"30s"` zamiast
+    domyślnych 5 minut w Ollamie, żeby model szybciej oddawał RAM na
+    współdzielonym Macu (właściciel woła z tego samego sprzętu inną,
+    niezależną automatyzację).
+  - `CostEditor`/`CostsDashboard` (moduł Koszty): okno edytora nie da się
+    już przypadkiem zamknąć (kliknięciem w tło ani przyciskiem X) w trakcie
+    trwania zapytania OCR — zgłoszone przez właściciela jako "kliknąłem w
+    tło i nie wiem czy się odczytuje". Zapytanie leciało dalej w tle nawet
+    wcześniej (fetch niezwiązany z cyklem życia komponentu), ale nic o tym
+    nie informowało; teraz `CostEditor` zgłasza rodzicowi `onBusyChange`,
+    dodatkowo pokazuje toast "Odczytuję załącznik…" na starcie.
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z
