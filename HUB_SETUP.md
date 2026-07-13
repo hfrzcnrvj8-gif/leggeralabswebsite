@@ -892,6 +892,85 @@ Właściciel zatwierdził wszystkie trzy zestawy do zbudowania w jednej sesji.
   cykliczne/subskrypcje, analityka/trendy wydatków (wykres per kategoria) —
   oba to większy, osobny zakres (nowe UI/tabela), świadomie odłożone.
 
+**Krok 3 (zbudowany i zweryfikowany lokalnie 2026-07-14): domknięcie
+Kroku 2 (własne konto, OCR konta) + oba odłożone większe elementy (koszty
+cykliczne, analityka).** Właściciel poprosił o realizację wszystkich
+czterech pomysłów z poprzedniej rozmowy naraz — wszystkie ocenione jako
+dające realną wartość, nie tylko kosmetyczne.
+
+- **Ostrzeżenie o własnym koncie** — `CostEditor.tsx` dociąga
+  `company_settings.konto` (`GET /api/settings`, już istniejące od
+  faktur) przy otwarciu kosztu i porównuje znormalizowany numer z
+  `dostawca_konto`; zgodność → żółte ostrzeżenie "To wygląda na numer
+  konta Twojej własnej firmy…" (typowa pomyłka przy kopiowaniu danych z
+  faktury). Priorytet wyższy niż ostrzeżenie Białej Listy (bardziej
+  podstawowy błąd).
+- **OCR wyciąga numer konta dostawcy** — `lib/costs-ocr.ts`: prompt i
+  schemat JSON modelu rozszerzone o `numer_konta`, `parseOcrResponse`
+  akceptuje wynik tylko gdy po usunięciu spacji/prefiksu `PL` zostaje
+  dokładnie 26 cyfr (wiarygodna długość polskiego IBAN-u) — inaczej pusty
+  string zamiast zgadywania. W `CostEditor.tsx` sugestia wypełnia
+  `dostawca_konto` TYLKO gdy pole jest jeszcze puste (świadomie NIE
+  nadpisuje cicho czegoś, co właściciel już ręcznie sprawdził — pole
+  steruje przelewem).
+- **Koszty cykliczne** (abonamenty/subskrypcje) — wzorem `recurring_invoices`
+  (`lib/recurring.ts`, `RecurringPanel.tsx`), ale generuje SZKICE KOSZTÓW,
+  nie faktur:
+  - Nowa tabela `recurring_costs` (`lib/db.ts`) — szablon: dane dostawcy,
+    kategoria, kwota netto/VAT, metoda płatności, projekt, `cykl`
+    (re-used `RECURRING_CYCLES`/`RECURRING_CYCLE_LABEL`/`nextRunAfter`
+    z `lib/recurring.ts` — bez duplikowania logiki), `next_run`, `active`.
+  - `app/api/recurring-costs/route.ts` + `[id]/route.ts` — CRUD wzorem
+    `app/api/recurring/*`.
+  - `generateDueRecurringCosts()` w `app/api/leads/notify/route.ts`
+    (ten sam dzienny raport co faktury cykliczne i przypomnienia o
+    płatnościach) — dla każdego aktywnego szablonu z `next_run <= dziś`
+    tworzy nowy koszt "Nieopłacony" ze skopiowanymi danymi (opis:
+    "Wygenerowano automatycznie z cyklicznego szablonu „X”."), przesuwa
+    `next_run` o kalendarzowy cykl. Właściciel i tak musi ręcznie
+    sprawdzić kwotę (mogła się zmienić) i oznaczyć jako opłacony — zero
+    automatycznych płatności. Linia w mailu dziennym: "Wygenerowane dziś
+    szkice kosztów cyklicznych: N".
+  - `RecurringCostsPanel.tsx` (nowy plik, wzorem `RecurringPanel.tsx`) +
+    przycisk "🔁 Cykliczne" w `CostsDashboard.tsx` obok eksportu CSV.
+  - **Nie zweryfikowane w tej sesji**: samo wywołanie
+    `generateDueRecurringCosts()` przez `POST /api/leads/notify` — ten
+    endpoint wysyła też prawdziwego maila (`sendEmail`), który w dev bez
+    `RESEND_API_KEY` rzuca błędem przed dotarciem do sekcji kosztów
+    cyklicznych (to samo ograniczenie dotyczy już istniejącej generacji
+    faktur cyklicznych — nic nowego). Logika jest bezpośrednią kopią
+    już działającego na produkcji wzorca `generateDueRecurringInvoices()`
+    (te same zapytania SQL, ten sam `nextRunAfter`) — do potwierdzenia
+    przy najbliższym uruchomieniu dziennego crona na produkcji.
+- **Analityka/trendy wydatków** — `GET /api/costs/analytics?months=N`
+  (`app/api/costs/analytics/route.ts`): czyste `SUM/GROUP BY` po
+  `to_char(data_wydatku,'YYYY-MM')` i kategorii, zero AI. `SpendTrendChart.tsx`
+  (nowy plik) — wykres słupkowy skumulowany (jeden słupek = miesiąc,
+  segmenty = 7 kategorii `COST_CATEGORIES` w stałej kolejności), wbudowany
+  w `CostsDashboard.tsx` nad tabelą (ukryty przy filtrze projektu — wtedy
+  trend całej firmy nie ma sensu). Zbudowany wg `dataviz` skill:
+  - Paleta = pierwsze 7 slotów zwalidowanej domyślnej palety kategorycznej
+    (`node scripts/validate_palette.js` — PASS light i dark, worst-case
+    CVD w paśmie WARN 8–12 dla trybu ciemnego, więc zgodnie z regułą
+    dodane relief: liczbowa etykieta sumy nad każdym słupkiem + legenda z
+    nazwą i sumą kategorii, nigdy sam kolor).
+  - Kolory jako CSS custom properties (`--s1`…`--s7`) osobno dla jasnego i
+    `.dark` (ten sam mechanizm co `globals.css`), 2 px odstęp między
+    segmentami stosu, zaokrąglony górny segment.
+  - Hover na segmencie → tooltip (kategoria + dokładna kwota za miesiąc) +
+    przyciemnienie pozostałych segmentów tego słupka; przełącznik
+    6/12 miesięcy.
+- **Zweryfikowane na żywo na dev (PGlite, 9 testowych kosztów w 3
+  miesiącach)**: wykres poprawnie agreguje i stackuje (sumy legendy zgodne
+  z ręcznym przeliczeniem brutto), przełącznik 6↔12 miesięcy działa,
+  hover pokazuje poprawny tooltip i przyciemnia resztę słupka; panel
+  Koszty cykliczne — utworzenie szablonu, edycja pól (dostawca, kwota →
+  automatyczne przeliczenie brutto), przełącznik "Aktywny" — wszystko
+  potwierdzone zapisane w bazie przez bezpośrednie odpytanie API po
+  interakcji w przeglądarce; ostrzeżenie o własnym koncie — potwierdzone
+  wizualnie po ustawieniu `company_settings.konto` i dopasowaniu numeru
+  konta kosztu. `tsc --noEmit` czysty po każdej paczce zmian.
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z

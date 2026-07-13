@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconX, IconPaperclip, IconCloudDownload } from "@tabler/icons-react";
+import { IconPlus, IconX, IconPaperclip, IconCloudDownload, IconRepeat } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Cost, type PaymentMethod, COST_STATUSES, COST_CATEGORIES, PAYMENT_METHOD_ICON, PAYMENT_METHOD_LABEL, formatMoney } from "@/lib/costs";
 import { formatPlDate } from "@/lib/projects";
@@ -14,6 +14,8 @@ import { ExportCsvButton } from "../components";
 import { DateField } from "../DatePicker";
 import { StatusTag } from "./shared";
 import { CostEditor } from "./CostEditor";
+import { RecurringCostsPanel } from "./RecurringCostsPanel";
+import { SpendTrendChart } from "./SpendTrendChart";
 
 /** Import faktur zakupowych z KSeF (Faza 3, część 2). Odpytuje rządowy KSeF o
  * faktury, gdzie jesteśmy nabywcą, i tworzy z nich gotowe wpisy w Kosztach.
@@ -107,6 +109,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
   const [editorBusy, setEditorBusy] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterKategoria, setFilterKategoria] = useState("");
+  const [recurringOpen, setRecurringOpen] = useState(false);
   const projectFilter = searchParams.get("project");
 
   const load = useCallback(async () => {
@@ -238,6 +241,13 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
         <ImportKsefButton onImported={load} />
         <ExportCsvButton endpoint="/api/costs/export" title="Rejestr zakupów" />
         <button
+          onClick={() => setRecurringOpen(true)}
+          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Koszty cykliczne"
+        >
+          <IconRepeat size={14} /> Cykliczne
+        </button>
+        <button
           onClick={createCost}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
           title="Dodaj koszt"
@@ -259,6 +269,12 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
             </div>
           </div>
         </div>
+
+        {costs.length > 0 && !projectFilter && (
+          <div className="card-paper mb-4 rounded-2xl border hairline p-4">
+            <SpendTrendChart />
+          </div>
+        )}
 
         {rows.length === 0 ? (
           <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
@@ -357,6 +373,29 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                 }}
                 onBusyChange={setEditorBusy}
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {recurringOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
+            onClick={() => setRecurringOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
+            >
+              <RecurringCostsPanel onClose={() => setRecurringOpen(false)} />
             </motion.div>
           </motion.div>
         )}

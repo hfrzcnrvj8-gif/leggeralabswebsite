@@ -72,6 +72,10 @@ export function CostEditor({
     duplicate: { id: string; dostawca_nazwa: string; kwota_brutto: number; data_wydatku: string } | null;
     suggestion: { kategoria: string; project_id: string | null; project_tytul: string | null } | null;
   } | null>(null);
+  /** Numer konta własnej firmy (ustawienia sprzedawcy) — do ostrzeżenia,
+   * gdy ktoś przez pomyłkę wpisze własne konto jako konto dostawcy. `null`
+   * dopóki ustawienia się nie wczytają albo firma nie ma ustawionego konta. */
+  const [companyKonto, setCompanyKonto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -93,7 +97,11 @@ export function CostEditor({
   }, []);
 
   const load = useCallback(async () => {
-    const [costRes, projectsRes] = await Promise.all([fetch(`/api/costs/${id}`), fetch("/api/projects")]);
+    const [costRes, projectsRes, settingsRes] = await Promise.all([
+      fetch(`/api/costs/${id}`),
+      fetch("/api/projects"),
+      fetch("/api/settings"),
+    ]);
     if (!costRes.ok) return;
     const data = (await costRes.json()) as { cost: Cost };
     setCost(data.cost);
@@ -101,6 +109,10 @@ export function CostEditor({
     if (projectsRes.ok) {
       const pdata = (await projectsRes.json()) as { projects: ProjectOption[] };
       setProjects(pdata.projects);
+    }
+    if (settingsRes.ok) {
+      const sdata = (await settingsRes.json()) as { settings: { konto?: string } | null };
+      setCompanyKonto(sdata.settings?.konto?.trim() || null);
     }
   }, [id, refreshHints]);
 
@@ -199,6 +211,7 @@ export function CostEditor({
           dostawca_nazwa: string;
           dostawca_nip: string;
           numer_faktury: string;
+          dostawca_konto: string;
           kwota_netto: number | null;
           vat_stawka: string | null;
           data_wydatku: string;
@@ -216,6 +229,9 @@ export function CostEditor({
       if (s.dostawca_nazwa) patchBody.dostawca_nazwa = s.dostawca_nazwa;
       if (s.dostawca_nip) patchBody.dostawca_nip = s.dostawca_nip;
       if (s.numer_faktury) patchBody.numer_faktury = s.numer_faktury;
+      // Numer konta dostawcy tylko gdy jeszcze puste — to pole steruje
+      // przelewem, nie nadpisujemy cicho czegoś, co właściciel już sprawdził.
+      if (s.dostawca_konto && !cost?.dostawca_konto) patchBody.dostawca_konto = s.dostawca_konto;
       if (s.kwota_netto != null) patchBody.kwota_netto = s.kwota_netto;
       if (s.vat_stawka) patchBody.vat_stawka = s.vat_stawka;
       if (s.data_wydatku) patchBody.data_wydatku = s.data_wydatku;
@@ -231,7 +247,7 @@ export function CostEditor({
       setOcrLoading(false);
       onBusyChange?.(false);
     }
-  }, [id, toast, patch, onBusyChange]);
+  }, [id, toast, patch, onBusyChange, cost]);
 
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
@@ -407,7 +423,11 @@ export function CostEditor({
               <IconCopy size={13} /> Kopiuj
             </button>
           </div>
-          {supplierAccounts !== null && cost.dostawca_konto && (
+          {companyKonto && cost.dostawca_konto && normalizeAccountNumber(companyKonto) === normalizeAccountNumber(cost.dostawca_konto) ? (
+            <p className="mt-1 flex items-center gap-1 text-[10.5px] text-amber-400">
+              <IconAlertTriangleFilled size={12} /> To wygląda na numer konta Twojej własnej firmy — sprawdź, czy nie pomyliłeś się z kontem dostawcy.
+            </p>
+          ) : supplierAccounts !== null && cost.dostawca_konto && (
             supplierAccounts.length === 0 ? (
               <p className="mt-1 text-[10.5px] text-muted">Biała Lista MF nie zwróciła numerów kont dla tego NIP-u.</p>
             ) : supplierAccounts.some((a) => normalizeAccountNumber(a) === normalizeAccountNumber(cost.dostawca_konto)) ? (

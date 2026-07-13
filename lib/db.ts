@@ -879,6 +879,34 @@ async function createCostsSchema(): Promise<void> {
   // świadomie wyciszyć, żeby miękkie ostrzeżenie nie wracało przy każdym
   // otwarciu tego samego kosztu.
   await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS duplikat_potwierdzony BOOLEAN NOT NULL DEFAULT false;`;
+
+  // Moduł 9, koszty cykliczne (2026-07-14) — wzorem `recurring_invoices`
+  // (lib/recurring.ts): szablon, z którego dzienny raport (ten sam co
+  // faktury cykliczne, app/api/leads/notify) generuje kolejny koszt-SZKIC,
+  // gdy nadejdzie `next_run`. Właściciel i tak musi ręcznie sprawdzić i
+  // oznaczyć jako opłacony — to tylko oszczędza przepisywanie tych samych
+  // danych co miesiąc dla abonamentów/subskrypcji.
+  await sql`
+    CREATE TABLE IF NOT EXISTS recurring_costs (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL DEFAULT '',
+      dostawca_nazwa TEXT NOT NULL DEFAULT '',
+      dostawca_nip TEXT NOT NULL DEFAULT '',
+      dostawca_konto TEXT NOT NULL DEFAULT '',
+      kategoria TEXT NOT NULL DEFAULT 'Inne',
+      opis TEXT NOT NULL DEFAULT '',
+      kwota_netto NUMERIC NOT NULL DEFAULT 0,
+      vat_stawka TEXT NOT NULL DEFAULT '23',
+      metoda_platnosci TEXT,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      cykl TEXT NOT NULL DEFAULT 'miesiecznie',
+      next_run DATE NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS recurring_costs_active_idx ON recurring_costs(active, next_run);`;
 }
 
 /** Lazily tworzy tabelę modułu Koszty. */

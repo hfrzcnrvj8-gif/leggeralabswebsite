@@ -154,8 +154,30 @@ generowanie/wysyłka JPK_VAT i tak zostaje po stronie księgowej (patrz
 `PO_REJESTRACJI.md`)** — CSV do księgowej ma teraz komplet pól, których
 potrzebuje jej oprogramowanie.
 
-**Nieuzgodnione jeszcze z właścicielem** (do zapytania na starcie kolejnej
-sesji tego modułu, patrz sekcja "Dodatkowe pomysły z rynku" wyżej) — oba to
-większy, osobny zakres (nowe UI/tabela), świadomie odłożone:
-1. Koszty cykliczne/subskrypcje.
-2. Analityka/trendy wydatków (wykres miesięczny per kategoria).
+## Stan po trzeciej sesji (2026-07-14) — pełne domknięcie
+
+Właściciel poprosił o realizację wszystkich czterech pomysłów z poprzedniej
+rozmowy naraz ("wszystkie jeżeli dadzą realną wartość"). Zbudowane i
+zweryfikowane na żywo na dev — szczegóły implementacji w `HUB_SETUP.md` →
+sekcja "Moduł 9", "Krok 3":
+
+1. Ostrzeżenie, gdy "Numer konta dostawcy" wygląda na konto własnej firmy.
+2. OCR wyciąga też numer konta dostawcy z faktury (nie tylko dostawcę/NIP/
+   kwoty/numer faktury jak dotąd).
+3. Koszty cykliczne/subskrypcje — szablon generujący codziennie (przez ten
+   sam raport co faktury cykliczne) nowy koszt-szkic, gdy nadejdzie termin.
+4. Analityka/trendy wydatków — wykres słupkowy skumulowany, miesięczny per
+   kategoria, z przełącznikiem 6/12 miesięcy, zbudowany wg zasad `dataviz`
+   skill (zwalidowana paleta, hover-tooltip, legenda z liczbami).
+
+**Moduł 9 (Koszty jako branżowy standard) jest tym samym kompletny** —
+wszystkie pomysły z pierwotnego researchu (fundamenty zgodności prawnej,
+ostrzeżenia podatkowe, dobre praktyki rynkowe, integracja z Białą Listą/
+OCR/ustawieniami firmy) zostały zbudowane. Jedyny niezweryfikowany na żywo
+element: rzeczywiste zadziałanie `generateDueRecurringCosts()` przez
+codzienny cron (`POST /api/leads/notify`) — blokowane w dev brakiem
+`RESEND_API_KEY` (to samo dotyczy już istniejącej generacji faktur
+cyklicznych), do potwierdzenia przy najbliższym uruchomieniu na produkcji.
+
+Dalsze pomysły wymagałyby nowego, osobnego researchu/rozmowy z właścicielem
+— nic nie zostało świadomie odłożone z bieżącego zakresu.

@@ -7,6 +7,7 @@ export {
   type CostCategory,
   type CostStatus,
   type PaymentMethod,
+  type RecurringCost,
   COST_CATEGORIES,
   COST_STATUSES,
   COST_STATUS_CLASS,

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureInvoiceShareToken, ensureClientsSchema, ensureFollowupsSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureInvoiceShareToken, ensureClientsSchema, ensureFollowupsSchema, ensureCostsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
 import { isClientOverdue, clientOverdueReason, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
 import { isInvoiceOverdue, formatMoney, addDaysISO, type Invoice } from "@/lib/invoices";
+import { costBrutto, type RecurringCost } from "@/lib/costs";
 import { sendEmail } from "@/lib/email";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO } from "@/lib/dates";
@@ -131,10 +132,51 @@ async function generateDueRecurringInvoices(): Promise<{ generated: number; fail
   return { generated, failed };
 }
 
+/** Analogicznie do `generateDueRecurringInvoices`, ale dla kosztów cyklicznych
+ * (Moduł 9, koszty cykliczne — abonamenty/subskrypcje). Tworzy nowy koszt
+ * "Nieopłacony" ze skopiowanymi danymi szablonu; właściciel i tak musi
+ * ręcznie sprawdzić kwotę (może się zmienić od poprzedniego miesiąca) i
+ * oznaczyć jako opłacony po zapłaceniu. */
+async function generateDueRecurringCosts(): Promise<{ generated: number; failed: number }> {
+  await ensureCostsSchema();
+  const sql = getSql();
+  const today = todayISO();
+  const rows = (await sql`
+    SELECT * FROM recurring_costs WHERE active = true AND next_run <= ${today};
+  `) as unknown as (Omit<RecurringCost, "kwota_netto"> & { kwota_netto: unknown })[];
+
+  let generated = 0;
+  let failed = 0;
+  for (const r of rows) {
+    try {
+      const kwotaNetto = Number(r.kwota_netto);
+      const kwotaBrutto = costBrutto(kwotaNetto, r.vat_stawka);
+      const newId = randomUUID();
+      const opis = `Wygenerowano automatycznie z cyklicznego szablonu „${r.nazwa}”.`;
+      await sql`
+        INSERT INTO costs (
+          id, dostawca_nazwa, dostawca_nip, dostawca_konto, kategoria, opis, data_wydatku,
+          kwota_netto, vat_stawka, kwota_brutto, status, metoda_platnosci, project_id
+        ) VALUES (
+          ${newId}, ${r.dostawca_nazwa}, ${r.dostawca_nip}, ${r.dostawca_konto}, ${r.kategoria}, ${opis}, ${today},
+          ${kwotaNetto}, ${r.vat_stawka}, ${kwotaBrutto}, 'Nieopłacony', ${r.metoda_platnosci}, ${r.project_id}
+        );
+      `;
+      const next = nextRunAfter(r.next_run <= today ? today : r.next_run, r.cykl);
+      await sql`UPDATE recurring_costs SET next_run = ${next}, updated_at = now() WHERE id = ${r.id};`;
+      generated += 1;
+    } catch (e) {
+      console.error("[generateDueRecurringCosts] failed for", r.id, e);
+      failed += 1;
+    }
+  }
+  return { generated, failed };
+}
+
 /** Dzienny raport ze wszystkich modułów panelu (leady + projekty +
  * dzisiejszy kalendarz), nie tylko z rejestru leadów — jeden mail spinający
  * całość, zamiast osobnych powiadomień per moduł. */
-async function buildAndSendDigest(): Promise<{ overdue: number; total: number; invoiceReminders: number; recurringGenerated: number }> {
+async function buildAndSendDigest(): Promise<{ overdue: number; total: number; invoiceReminders: number; recurringGenerated: number; recurringCostsGenerated: number }> {
   await ensureLeadsSchema();
   await ensureHubSchema();
   await ensureClientsSchema();
@@ -142,7 +184,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   const sql = getSql();
   const today = todayLocalISO();
 
-  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, invoiceReminders, recurring] = await Promise.all([
+  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, invoiceReminders, recurring, recurringCosts] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
@@ -180,6 +222,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     ` as unknown as Promise<{ id: string }[]>,
     sendOverdueInvoiceReminders(),
     generateDueRecurringInvoices(),
+    generateDueRecurringCosts(),
   ]);
 
   const overdueLeads = leads.filter(isOverdue);
@@ -252,6 +295,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     `Wygenerowane dziś szkice faktur cyklicznych: ${recurring.generated}` +
       (recurring.failed ? ` (${recurring.failed} nieudanych)` : ""),
     "",
+    `Wygenerowane dziś szkice kosztów cyklicznych: ${recurringCosts.generated}` +
+      (recurringCosts.failed ? ` (${recurringCosts.failed} nieudanych)` : ""),
+    "",
     `Łącznie: ${leads.length} leadów, ${projects.length} projektów.`,
     "",
     "— automatyczny raport z /admin",
@@ -270,6 +316,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     total: leads.length + projects.length,
     invoiceReminders: invoiceReminders.sent,
     recurringGenerated: recurring.generated,
+    recurringCostsGenerated: recurringCosts.generated,
   };
 }
 

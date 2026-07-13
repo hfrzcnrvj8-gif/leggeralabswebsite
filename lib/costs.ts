@@ -9,6 +9,7 @@ export const ATTACHMENT_MIME_TYPES = ["application/pdf", "image/jpeg", "image/pn
 export const ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024; // 8 MB — skan/PDF faktury, nie duży plik
 
 import { formatMoney, round2, VAT_RATES, vatFraction, type VatRate } from "./invoices";
+import type { RecurringCycle } from "./recurring";
 
 export { formatMoney, round2, VAT_RATES, type VatRate };
 
@@ -152,3 +153,26 @@ export function vatDoOdliczenia(netto: number, vatStawka: string, procent: numbe
   const kwotaVat = costBrutto(netto, vatStawka) - netto;
   return round2((kwotaVat * procent) / 100);
 }
+
+/** Szablon kosztu cyklicznego (abonament/subskrypcja) — wzorem
+ * `RecurringInvoice` (lib/recurring.ts), ale generuje SZKICE kosztów, nie
+ * faktur. Dzienny raport (app/api/leads/notify) tworzy nowy koszt-szkic, gdy
+ * nadejdzie `next_run`; właściciel i tak musi ręcznie sprawdzić/opłacić. */
+export type RecurringCost = {
+  id: string;
+  nazwa: string;
+  dostawca_nazwa: string;
+  dostawca_nip: string;
+  dostawca_konto: string;
+  kategoria: CostCategory | string;
+  opis: string;
+  kwota_netto: number;
+  vat_stawka: VatRate | string;
+  metoda_platnosci: PaymentMethod | string | null;
+  project_id: string | null;
+  cykl: RecurringCycle;
+  next_run: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
