@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconPaperclip, IconExternalLink, IconUpload } from "@tabler/icons-react";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconPaperclip, IconExternalLink, IconUpload, IconCamera } from "@tabler/icons-react";
 import { type Cost, COST_CATEGORIES, VAT_RATES, ATTACHMENT_MIME_TYPES, costBrutto, formatMoney } from "@/lib/costs";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -27,6 +27,7 @@ export function CostEditor({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const savedTimer = useRef<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -108,6 +109,33 @@ export function CostEditor({
     },
     [id, toast, onChange]
   );
+
+  const readWithOcr = useCallback(async () => {
+    setOcrLoading(true);
+    const res = await fetch(`/api/costs/${id}/ocr`, { method: "POST" });
+    const data = (await res.json().catch(() => ({}))) as {
+      suggestion?: { dostawca_nazwa: string; kwota_netto: number | null; vat_stawka: string | null; data_wydatku: string; opis: string };
+      error?: string;
+    };
+    setOcrLoading(false);
+    if (!res.ok || !data.suggestion) {
+      toast(data.error ?? "Nie udało się odczytać załącznika. Wpisz dane ręcznie.", "error");
+      return;
+    }
+    const s = data.suggestion;
+    const patchBody: Record<string, unknown> = {};
+    if (s.dostawca_nazwa) patchBody.dostawca_nazwa = s.dostawca_nazwa;
+    if (s.kwota_netto != null) patchBody.kwota_netto = s.kwota_netto;
+    if (s.vat_stawka) patchBody.vat_stawka = s.vat_stawka;
+    if (s.data_wydatku) patchBody.data_wydatku = s.data_wydatku;
+    if (s.opis) patchBody.opis = s.opis;
+    if (Object.keys(patchBody).length === 0) {
+      toast("Model nie rozpoznał żadnych pól — wpisz dane ręcznie.", "error");
+      return;
+    }
+    await patch(patchBody);
+    toast("Odczytano załącznik — sprawdź i popraw dane przed zapisem.");
+  }, [id, toast, patch]);
 
   const removeAttachment = useCallback(async () => {
     const ok = await confirm("Usunąć załącznik?", { danger: true });
@@ -304,6 +332,15 @@ export function CostEditor({
                 {cost.zalacznik_nazwa}
               </a>
               <IconExternalLink size={12} className="shrink-0 text-muted" />
+              <button
+                onClick={readWithOcr}
+                disabled={ocrLoading}
+                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
+                title="Odczytaj dane z załącznika modelem AI (propozycja do sprawdzenia)"
+              >
+                {ocrLoading ? <IconLoader2 size={14} className="animate-spin" /> : <IconCamera size={14} />}
+                {ocrLoading ? "Odczytuję…" : "Odczytaj z załącznika"}
+              </button>
               <button onClick={removeAttachment} className="shrink-0 text-muted hover:text-red-400" title="Usuń załącznik">
                 <IconTrash size={14} />
               </button>

@@ -1,0 +1,61 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSql, ensureCostsSchema } from "@/lib/db";
+import { isAuthed } from "@/lib/auth";
+import { ollamaGenerateWithImage } from "@/lib/ollama";
+import { OCR_MODEL, OCR_SYSTEM, OCR_PROMPT, parseOcrResponse } from "@/lib/costs-ocr";
+
+export const runtime = "nodejs";
+
+const OCR_TIMEOUT_MS = 60_000; // model wizyjny na Macu odpowiada wolniej niż tekstowy — dłuższy timeout niż domyślny w lib/ollama.ts
+
+/** POST /api/costs/:id/ocr — odczytuje załącznik (skan/PDF) kosztu modelem
+ * wizyjnym przez Ollamę i zwraca PROPOZYCJĘ wartości pól formularza. Nigdy
+ * nie zapisuje nic do bazy — właściciel widzi sugestie w edytorze, poprawia
+ * i zapisuje ręcznie (patrz CLAUDE.md, docs/plany-modulow/08-ai-ocr-koszty.md). */
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { id } = await params;
+  await ensureCostsSchema();
+  const sql = getSql();
+
+  const rows = await sql`SELECT zalacznik_nazwa, zalacznik_typ, zalacznik_dane FROM costs WHERE id = ${id};`;
+  const row = rows[0];
+  if (!row || !row.zalacznik_dane) {
+    return NextResponse.json({ error: "Brak załącznika do odczytania." }, { status: 400 });
+  }
+
+  const mime = String(row.zalacznik_typ || "");
+  let imageBase64: string;
+
+  if (mime === "application/pdf") {
+    try {
+      const { pdf } = await import("pdf-to-img");
+      const buf = Buffer.from(String(row.zalacznik_dane), "base64");
+      const doc = await pdf(buf, { scale: 2 });
+      const pageBuf = await doc.getPage(1);
+      imageBase64 = pageBuf.toString("base64");
+    } catch (err) {
+      console.error("[costs/ocr] konwersja PDF→PNG nieudana", err);
+      return NextResponse.json({ error: "Nie udało się przetworzyć PDF-a. Wpisz dane ręcznie." }, { status: 422 });
+    }
+  } else if (mime === "image/jpeg" || mime === "image/png" || mime === "image/webp") {
+    imageBase64 = String(row.zalacznik_dane);
+  } else {
+    return NextResponse.json({ error: "Nierozpoznany typ pliku. Wpisz dane ręcznie." }, { status: 422 });
+  }
+
+  const raw = await ollamaGenerateWithImage({
+    model: OCR_MODEL,
+    prompt: OCR_PROMPT,
+    system: OCR_SYSTEM,
+    imageBase64,
+    timeoutMs: OCR_TIMEOUT_MS,
+  });
+
+  if (raw == null) {
+    return NextResponse.json({ error: "Model AI niedostępny. Wpisz dane ręcznie." }, { status: 503 });
+  }
+
+  const suggestion = parseOcrResponse(raw);
+  return NextResponse.json({ suggestion });
+}

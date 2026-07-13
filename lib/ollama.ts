@@ -60,6 +60,53 @@ export async function ollamaGenerate(opts: {
   }
 }
 
+/** Jak ollamaGenerate, ale dla modeli wizyjnych — obraz jako base64 (bez
+ * prefiksu "data:...") w polu `images` (Ollama /api/generate). Używane np.
+ * do OCR paragonów/faktur (Moduł 8) — model tylko proponuje, nigdy nie
+ * zapisuje/decyduje sam. */
+export async function ollamaGenerateWithImage(opts: {
+  model: string;
+  prompt: string;
+  imageBase64: string;
+  system?: string;
+  timeoutMs?: number;
+}): Promise<string | null> {
+  const url = baseUrl();
+  if (!url) {
+    console.error("[ollamaGenerateWithImage] brak OLLAMA_API_URL w env — pomijam wywołanie");
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${url}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({
+        model: opts.model,
+        prompt: opts.prompt,
+        images: [opts.imageBase64],
+        ...(opts.system ? { system: opts.system } : {}),
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      console.error(`[ollamaGenerateWithImage] proxy zwrócił ${res.status}`);
+      return null;
+    }
+    const data = (await res.json().catch(() => null)) as { response?: string } | null;
+    return typeof data?.response === "string" ? data.response : null;
+  } catch (err) {
+    console.error("[ollamaGenerateWithImage] błąd wywołania", err);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Sprawdza dostępność proxy/Ollamy i listę modeli. Nigdy nie rzuca. */
 export async function ollamaHealth(timeoutMs = 6_000): Promise<{ available: boolean; models: string[] }> {
   const url = baseUrl();

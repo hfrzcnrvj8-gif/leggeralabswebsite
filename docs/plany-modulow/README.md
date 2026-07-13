@@ -29,7 +29,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 5 | Leggera Hub jako aplikacja mobilna (PWA) — cała apka na telefonie | duży | [05-mobilna-aplikacja.md](05-mobilna-aplikacja.md) |
 | 6 | ✅ AI: infrastruktura Ollama (fundament pod 7 i 8, nie samodzielna funkcja) | mały | [06-ai-infrastruktura-ollama.md](06-ai-infrastruktura-ollama.md) |
 | 7 | AI: szkice odpowiedzi mailowych (wymaga 4 i 6) | średni | [07-ai-szkice-mailowe.md](07-ai-szkice-mailowe.md) |
-| 8 | AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6 — **gotowe, można zaczynać**) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
+| 8 | ✅ AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
 jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM

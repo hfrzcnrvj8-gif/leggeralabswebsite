@@ -549,6 +549,57 @@ własnym proxy na porcie **11435** (nie domyślny port Ollamy 11434).
   `ollamaHealth`) — obsługa obrazów (pole `images` w `/api/generate`) do
   dodania przy Module 8.
 
+## Moduł 8 — OCR paragonów/faktur zakupowych w Kosztach (2026-07-14)
+
+Przy dodawaniu kosztu: po wgraniu załącznika (skan/PDF) pojawia się przycisk
+"📷 Odczytaj z załącznika" — model wizyjny analizuje plik i **proponuje**
+wartości pól (dostawca, kwota netto, VAT, data, opis); wszystkie pola
+zostają normalnie edytowalne, właściciel poprawia i zapisuje ręcznie. Model
+nigdy nie zapisuje kosztu sam (patrz CLAUDE.md — jedyny dopuszczony wyjątek
+od "zero AI w logice panelu").
+
+- **`lib/ollama.ts`** rozszerzony o `ollamaGenerateWithImage({ model, prompt,
+  imageBase64, system?, timeoutMs? })` — jak `ollamaGenerate`, ale wysyła
+  obraz base64 w polu `images` (Ollama `/api/generate`). Też nigdy nie
+  rzuca — `null` przy błędzie/timeoucie/braku konfiguracji.
+- **`lib/costs-ocr.ts`** — czysta logika: `OCR_MODEL` (`qwen3-vl:8b`,
+  najmniejszy/najszybszy z dostępnych modeli wizyjnych — świadomy wybór dla
+  krótszego czasu oczekiwania przy klikanym OCR; łatwo zmienić na
+  `qwen2.5vl:32b` w jednej stałej, jeśli jakość na polskich paragonach
+  zawiedzie), prompt systemowy każący modelowi zwrócić czysty JSON
+  `{dostawca, kwota_netto, vat_stawka, data, opis}`, oraz
+  `parseOcrResponse()` — parsuje i WALIDUJE każde pole osobno (kwota musi
+  być liczbą > 0, VAT musi być z `VAT_RATES`, data musi przejść
+  `isPlausibleDateString()`) — pole, które nie przejdzie walidacji, zostaje
+  puste/null zamiast wpisywać śmieciową wartość do formularza.
+- **`POST /api/costs/:id/ocr`** (admin-only, `runtime = "nodejs"`): czyta
+  `zalacznik_dane` kosztu. Dla PDF: konwertuje pierwszą stronę do PNG przez
+  `pdf-to-img` (czysty JS/`pdfjs-dist`, bez zależności binarnych typu
+  poppler — bezpieczne na Vercelu), dla JPEG/PNG/WEBP używa pliku wprost.
+  Woła `ollamaGenerateWithImage` z timeoutem 60s (dłuższy niż domyślny w
+  `lib/ollama.ts` — model wizyjny odpowiada wolniej niż tekstowy), zwraca
+  `{ suggestion }` albo czytelny błąd (`400` brak załącznika, `422`
+  nierozpoznany typ/nieudana konwersja PDF, `503` model niedostępny).
+  Endpoint nigdy nic nie zapisuje do bazy.
+- **UI** (`CostEditor.tsx`): przycisk "Odczytaj z załącznika" pojawia się
+  obok już wgranego załącznika. Klik → `POST .../ocr` → wypełnia pola
+  formularza tymi z sugestii, które przeszły walidację (puste pola sugestii
+  są pomijane, nie nadpisują niczego pustym stringiem) → toast potwierdzenia
+  z przypomnieniem, żeby sprawdzić dane przed zapisem. Błąd (model
+  niedostępny, PDF nieczytelny, nic nie rozpoznano) → czytelny toast błędu,
+  formularz zostaje w pełni używalny do ręcznego wpisania jak dziś.
+- **Zweryfikowane lokalnie (2026-07-14)**: `tsc` czysty; `parseOcrResponse`
+  poprawnie parsuje dobrą odpowiedź modelu (w tym owiniętą w ```json) i
+  poprawnie odrzuca pojedyncze niepewne/błędne pola (zła data, VAT spoza
+  `VAT_RATES`, ujemna kwota) zamiast zgadywać; `pdf-to-img` poprawnie
+  renderuje pierwszą stronę testowego PDF do PNG w Node bez błędów; w
+  przeglądarce (dev, bez `OLLAMA_API_URL` lokalnie) przycisk "Odczytaj z
+  załącznika" pokazuje kontrolowany toast "Model AI niedostępny. Wpisz dane
+  ręcznie." zamiast zawieszać UI — dokładnie zachowanie wymagane przy
+  wyłączonej/niedostępnej Ollamie. Rzeczywisty odczyt obrazu (jakość modelu
+  na prawdziwych polskich paragonach) do zweryfikowania na produkcji z
+  żywym Mac Studio właściciela.
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z
