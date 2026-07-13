@@ -23,7 +23,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 1 | Podpowiedzi dla leadów + mapa procesu (⑤) | mały | [01-podpowiedzi-leadow.md](01-podpowiedzi-leadow.md) |
 | 2 | Nurture — automatyczne przypomnienia po zamknięciu (⑥) | mały/średni | [02-nurture-automatyczny.md](02-nurture-automatyczny.md) |
 | 3 | Kanały kontaktu — telefon/WhatsApp/LinkedIn (⑦a) | średni | [03-kanaly-kontaktu.md](03-kanaly-kontaktu.md) |
-| 4 | Skrzynka mailowa dwukierunkowa — OAuth (⑦b) | duży | [04-skrzynka-mailowa.md](04-skrzynka-mailowa.md) |
+| 4 | Poczta przychodząca — auto-przypisanie do klienta + lista „do obsłużenia” (⑦b) | duży | [04-skrzynka-mailowa.md](04-skrzynka-mailowa.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 jest
 największy i wymaga osobnej decyzji o rejestracji aplikacji Google/Microsoft;
