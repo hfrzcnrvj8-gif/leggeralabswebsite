@@ -11,6 +11,7 @@ export {
   CLIENT_STATUS_CLASS,
   CLIENT_STATUS_DOT,
   CLIENT_STATUS_HINT,
+  CLIENT_STATUS_STEP,
   CLIENT_EVENT_ICON,
   clientDaysSince,
   isClientOverdue,

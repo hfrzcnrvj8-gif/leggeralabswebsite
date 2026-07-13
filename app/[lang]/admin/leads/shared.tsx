@@ -13,6 +13,8 @@ export {
   STATUS_CLASS,
   STATUS_DOT,
   SEED,
+  LEAD_STATUS_HINT,
+  LEAD_STATUS_STEP,
   daysSince,
   isOverdue,
   overdueReason,

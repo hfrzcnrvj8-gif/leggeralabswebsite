@@ -108,6 +108,18 @@ export const CLIENT_STATUS_HINT: Record<ClientStatus, string> = {
   Stracony: "Odrzucił lub nieaktualne — warto zanotować dlaczego, przyda się przy następnej okazji.",
 };
 
+/** Mapowanie statusu klienta na krok uzgodnionego 12-krokowego procesu
+ * (lib/process.ts) — status klienta to relacyjna oś (Prospekt/Aktywny/...),
+ * nie proces krok po kroku, więc to przybliżenie: "Uśpiony"/"Stracony" oba
+ * ląduje na kroku Nurture, bo w obu przypadkach właściwa akcja to ustawić
+ * przypomnienie na później, zgodnie z CLIENT_STATUS_HINT powyżej. */
+export const CLIENT_STATUS_STEP: Record<ClientStatus, number> = {
+  Prospekt: 3,
+  Aktywny: 8,
+  Uśpiony: 12,
+  Stracony: 12,
+};
+
 function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);

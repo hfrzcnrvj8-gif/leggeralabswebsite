@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { type Lead, type Activity, EditableText, EditableTextarea, StatusTag } from "./shared";
+import { type Lead, type Activity, LEAD_STATUS_HINT, LEAD_STATUS_STEP, EditableText, EditableTextarea, StatusTag } from "./shared";
+import { ProcessMap } from "../components";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { todayLocalISO } from "@/lib/dates";
@@ -202,6 +203,7 @@ export function LeadDetailPanel({
             </button>
           )}
         </div>
+        <p className="mt-2 text-[12.5px] text-muted opacity-80">{LEAD_STATUS_HINT[lead.status]}</p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <Field label="Branża">
@@ -295,6 +297,11 @@ export function LeadDetailPanel({
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
+        <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
+        <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
       </div>
     </div>
   );

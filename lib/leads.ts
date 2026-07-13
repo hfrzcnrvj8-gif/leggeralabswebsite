@@ -76,6 +76,36 @@ export const STATUS_DOT: Record<string, string> = {
   "Odrzucone / brak zainteresowania": "bg-[var(--hairline)]",
 };
 
+/** Miękkie, statyczne podpowiedzi "co zwykle dalej" per status — mentor
+ * bez LLM (zgodne z zasadą "brak AI w logice przypominacza"). Czysto
+ * informacyjne, nigdy nie blokują żadnej akcji. Wzorem CLIENT_STATUS_HINT
+ * w lib/clients.ts. */
+export const LEAD_STATUS_HINT: Record<string, string> = {
+  "Nowe zgłoszenie ze strony": "Ktoś sam się zgłosił — odezwij się dziś, póki gorące. Zadzwoń albo napisz i zmień status.",
+  "Do kontaktu": "Zrób pierwszy ruch: telefon lub krótki, spersonalizowany mail. Wspomnij, co konkretnie możesz zautomatyzować w ich branży.",
+  "Napisano - czeka na odpowiedź": "Piłka po ich stronie. Jeśli cisza ~4 dni, panel przypomni o follow-upie.",
+  "Przypomnienie wysłane": "Drugi kontakt poszedł. Brak odpowiedzi po kolejnym tygodniu? Rozważ zamknięcie albo zmianę kanału (telefon zamiast maila).",
+  "Rozmowa umówiona": "Przygotuj kwalifikację: jaki problem, jaka skala, jaki budżet. Cel rozmowy = zgoda na PoC, nie od razu duży kontrakt.",
+  "Pilotaż w trakcie": "PoC leci. Umów termin pokazania wyniku — to on domyka sprzedaż. Gdy klient powie „tak”, zrób z leada ofertę.",
+  "Zamknięte - sukces": "Wygrane. Klient i projekt już są — pilnuj realizacji i poproś o referencję po wdrożeniu.",
+  "Odrzucone / brak zainteresowania": "Zamknięte. Warto ustawić przypomnienie za parę miesięcy — sytuacja klienta się zmienia.",
+};
+
+/** Mapowanie statusu leada na krok uzgodnionego 12-krokowego procesu
+ * (lib/process.ts) — do podświetlenia "jesteś tu" w ProcessMap. Przybliżone
+ * z natury (kilka statusów kontaktowych mieści się w jednym kroku "Pierwszy
+ * kontakt"), to miękka ściągawka, nie precyzyjny stan maszyny. */
+export const LEAD_STATUS_STEP: Record<string, number> = {
+  "Nowe zgłoszenie ze strony": 2,
+  "Do kontaktu": 2,
+  "Napisano - czeka na odpowiedź": 2,
+  "Przypomnienie wysłane": 2,
+  "Rozmowa umówiona": 3,
+  "Pilotaż w trakcie": 4,
+  "Zamknięte - sukces": 6,
+  "Odrzucone / brak zainteresowania": 12,
+};
+
 // Startowa pula leadów zebrana ręcznie (Wilanów + Przysucha/Radom), z
 // telefonem/mailem/www rozbitymi na osobne pola u źródła.
 export const SEED: SeedLead[] = [

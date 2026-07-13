@@ -6,6 +6,7 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { IconUsers, IconDownload } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Client } from "@/lib/clients";
+import { PROCESS_STEPS } from "@/lib/process";
 import { todayLocalISO } from "@/lib/dates";
 import { currentMonthRange } from "@/lib/export";
 import { useUI } from "./ui";
@@ -129,6 +130,41 @@ export function StatusPill({
         {value}
       </span>
     </PropertyMenu>
+  );
+}
+
+/** Miękka ściągawka 12-krokowego procesu (lib/process.ts) — wyłącznie
+ * informacyjna, nigdy nie blokuje przejścia dalej. Renderowana na dole
+ * panelu leada/klienta, podświetla krok wg statusu (LEAD_STATUS_STEP /
+ * CLIENT_STATUS_STEP). Kroki przed aktualnym są "odhaczone", po — wyszarzone. */
+export function ProcessMap({ currentStep }: { currentStep: number }) {
+  return (
+    <div className="overflow-x-auto">
+      <ol className="flex min-w-max items-center gap-1.5">
+        {PROCESS_STEPS.map(({ step, label }, i) => {
+          const isCurrent = step === currentStep;
+          const isDone = step < currentStep;
+          return (
+            <li key={step} className="flex items-center gap-1.5">
+              <span
+                title={label}
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] whitespace-nowrap ${
+                  isCurrent
+                    ? "bg-gradient-to-r from-brand-purple to-brand-pink font-semibold text-white"
+                    : isDone
+                      ? "text-muted opacity-60"
+                      : "text-muted opacity-35"
+                }`}
+              >
+                <span aria-hidden>{isCurrent ? "●" : isDone ? "✓" : "○"}</span>
+                {label}
+              </span>
+              {i < PROCESS_STEPS.length - 1 && <span className="text-muted opacity-30">→</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 

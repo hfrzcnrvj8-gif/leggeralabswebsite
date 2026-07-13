@@ -304,6 +304,33 @@ duch co przy leadach:
   dzisiejsze wydarzenia z kalendarza — jeden mail na kontakt@leggeralabs.pl
   zamiast osobnych powiadomień per moduł.
 
+## Mentor: podpowiedzi dla leadów + mapa 12-krokowego procesu (Moduł 1, 2026-07-13)
+
+Domknięcie luki ⑤ z audytu przepływów: karty klientów miały miękką
+podpowiedź per status (`CLIENT_STATUS_HINT`), leady nie miały żadnej — mimo
+że to początek lejka, gdzie podpowiedź jest najcenniejsza.
+
+- `LEAD_STATUS_HINT` (`lib/leads.ts`) — jedno zdanie „co teraz zrobić” per
+  status leada, 1:1 wzorem `CLIENT_STATUS_HINT`. Renderowane w
+  `LeadDetailPanel.tsx` pod `StatusTag` (peek panel i podstrona
+  `/admin/leads/[id]` dzielą ten sam komponent, więc obie miejsca dostają
+  podpowiedź automatycznie).
+- `lib/process.ts` — jedna wspólna lista uzgodnionego 12-krokowego procesu
+  (znalezienie leada → pierwszy kontakt → … → nurture), czysta stała bez
+  logiki AI/LLM.
+- `LEAD_STATUS_STEP` (`lib/leads.ts`) i `CLIENT_STATUS_STEP` (`lib/clients.ts`)
+  — statyczne mapowanie status→krok. Przybliżone z natury: kilka statusów
+  kontaktowych leada mieści się w jednym kroku „Pierwszy kontakt”; status
+  klienta to osobna oś (relacja, nie proces), więc „Uśpiony”/„Stracony” oba
+  lądują na kroku „Nurture” (ten sam duch co ich hint — ustaw przypomnienie
+  na później).
+- `ProcessMap` (`app/[lang]/admin/components.tsx`) — generyczny komponent
+  współdzielony przez Leady i Klientów: 12 kroków w poziomie, aktualny krok
+  podświetlony gradientem marki, wcześniejsze odhaczone. Renderowany na dole
+  panelu leada/klienta (Wariant A z briefu — „jesteś tu” przy konkretnym
+  rekordzie, nie osobny widok). Wyłącznie informacyjny, nigdy nie blokuje.
+- Pełny brief: `docs/plany-modulow/01-podpowiedzi-leadow.md`.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

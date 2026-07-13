@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { type Client, CLIENT_STATUS_HINT, CLIENT_EVENT_ICON, EditableText, EditableTextarea, StatusTag } from "./shared";
+import { type Client, CLIENT_STATUS_HINT, CLIENT_STATUS_STEP, CLIENT_EVENT_ICON, EditableText, EditableTextarea, StatusTag } from "./shared";
+import { ProcessMap } from "../components";
 import { formatPlDate } from "@/lib/projects";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
@@ -354,6 +355,11 @@ export function ClientDetailPanel({
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="card-paper mt-6 rounded-3xl p-6 sm:p-8">
+        <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
+        <ProcessMap currentStep={CLIENT_STATUS_STEP[client.status] ?? 3} />
       </div>
     </div>
   );
