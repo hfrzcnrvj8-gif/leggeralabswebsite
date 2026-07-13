@@ -234,15 +234,19 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
         } transition-[width] duration-200`}
       >
         <div className="flex h-full flex-col p-2.5">
-          <div className="mb-2.5 flex items-center justify-between px-1.5 py-1">
-            {!collapsed && (
-              <span className="flex items-center gap-1.5">
-                <LogoMark size={18} />
+          <div
+            className={`mb-2.5 flex items-center px-1.5 py-1 ${
+              collapsed ? "flex-col gap-1.5" : "justify-between"
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <LogoMark size={18} />
+              {!collapsed && (
                 <span style={HUB_WORDMARK_STYLE} className="text-[13px] font-bold uppercase tracking-[0.12em]">
                   Leggera Hub
                 </span>
-              </span>
-            )}
+              )}
+            </span>
             <button
               onClick={toggleCollapsed}
               className="hidden shrink-0 rounded-md p-1 text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] md:block"
