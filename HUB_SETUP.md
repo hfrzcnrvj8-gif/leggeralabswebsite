@@ -506,6 +506,41 @@ statycznym sidebarze).
   skróty `g` + litera (`GO_CHORDS`) bez zmian, bo są przypisane do `href`,
   nie do pozycji na liście.
 
+## Infrastruktura AI: lokalna Ollama przez Tailscale Funnel (2026-07-14)
+
+Fundament pod Moduł 7 (szkice mailowe) i Moduł 8 (OCR kosztów) — **wyłącznie
+lokalne modele, żadnych chmurowych API**. Panel działa na Vercel (serverless),
+model działa na Mac Studio M2 Ultra 64GB właściciela, działający 24/7, za
+własnym proxy na porcie **11435** (nie domyślny port Ollamy 11434).
+
+- **Dostęp z Vercela**: zwykły adres Tailscale (`100.x.x.x` / tryb prywatny)
+  nie wystarcza — Vercel nie jest urządzeniem w tej sieci Tailscale.
+  Rozwiązanie: **Tailscale Funnel** (`tailscale funnel --bg 11435` na Macu)
+  wystawia proxy pod publicznym `https://<maszyna>.<tailnet>.ts.net`, z
+  automatycznym TLS — bez routera, bez nowego DNS, bez drugiej usługi.
+- **Autoryzacja**: proxy sprawdza nagłówek `Authorization: Bearer <sekret>`
+  w trybie miękkim (zły token → 401, brak nagłówka → nadal przepuszcza, dla
+  kompatybilności z innymi automatyzacjami w trakcie migracji). Hub **zawsze**
+  wysyła ten nagłówek poprawnie wypełniony.
+- **`lib/ollama.ts`** — cienki server-only klient (wzorem `lib/email.ts`):
+  - `ollamaGenerate({ model, prompt, system?, timeoutMs? })` → `POST /api/generate`,
+    zwraca `string | null`.
+  - `ollamaHealth(timeoutMs?)` → `GET /api/tags`, zwraca `{ available, models }`.
+  - Obie funkcje mają `AbortController` na timeout (domyślnie 12s/6s) i
+    `try/catch` — przy błędzie/timeout zwracają wynik "niedostępny"
+    (`null` / `available: false`), nigdy nie rzucają dalej. Panel działa
+    dalej bez AI, gdy Mac/tunel/proxy są wyłączone.
+- **`GET /api/ai/health`** — admin-only, ping do `ollamaHealth()`. Do użycia
+  przez przyszły widget statusu w UI (świadomie jeszcze nie zbudowany —
+  dopiero przy Module 7/8, gdy będzie faktyczna funkcja AI obok statusu).
+- **Env potrzebne w Vercelu**: `OLLAMA_API_URL` (publiczny adres `*.ts.net`
+  proxy, bez końcowego `/`) i `OLLAMA_API_SECRET` (sekret z Maca —
+  `~/.ollama-proxy-secret`, wklejony jako wartość, nigdy sam plik).
+- **Granica z resztą panelu (bez zmian)**: podpowiedzi leadów, dopasowania,
+  przypominacze pozostają w 100% deterministyczne — to punktowe, jawnie
+  klikane użycie modelu do treści-do-zatwierdzenia (Moduł 7/8), nie ogólny
+  mechanizm AI w panelu.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na
