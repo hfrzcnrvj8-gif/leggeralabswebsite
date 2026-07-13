@@ -14,11 +14,12 @@ export const OCR_MODEL = "qwen3-vl:8b";
 
 export const OCR_SYSTEM = `Jesteś asystentem odczytującym polskie paragony i faktury zakupowe ze zdjęcia/skanu.
 Zwróć WYŁĄCZNIE czysty JSON (bez markdown, bez komentarzy, bez dodatkowego tekstu) o dokładnie takim kształcie:
-{"dostawca": string, "nip": string, "kwota_netto": number, "kwota_brutto": number, "vat_stawka": string, "data": string, "termin_platnosci": string, "opis": string}
+{"dostawca": string, "nip": string, "numer_faktury": string, "kwota_netto": number, "kwota_brutto": number, "vat_stawka": string, "data": string, "termin_platnosci": string, "opis": string}
 
 Zasady:
 - "dostawca": nazwa sprzedawcy/firmy wystawiającej dokument.
 - "nip": NIP sprzedawcy (10 cyfr, może być z myślnikami/spacjami na dokumencie — Ty zwróć same cyfry). To NIP SPRZEDAWCY (wystawcy dokumentu), nie nabywcy.
+- "numer_faktury": numer dokumentu widoczny na fakturze/paragonie (np. "FV/123/2026", "2026/07/0042") — dokładnie tak, jak jest wydrukowany, bez zmian formatu.
 - "kwota_netto": SUMA kwoty netto całego dokumentu (wszystkich pozycji razem) jako liczba (kropka jako separator dziesiętny), bez waluty.
 - "kwota_brutto": SUMA "Do zapłaty"/kwoty brutto całego dokumentu jako liczba — to zwykle największa, wytłuszczona kwota na dokumencie.
 - "vat_stawka": jedna z wartości: "23", "8", "5", "0", "zw", "np". Jeśli dokument ma WIĘCEJ NIŻ JEDNĄ stawkę VAT na różnych pozycjach, wybierz tę, na którą przypada NAJWIĘKSZA kwota netto (stawkę dominującą) — to tylko przybliżenie do poprawienia ręcznie, nie musi być matematycznie dokładne dla całego dokumentu.
@@ -32,6 +33,7 @@ export const OCR_PROMPT = "Odczytaj dane z załączonego paragonu/faktury i zwr�
 export type OcrSuggestion = {
   dostawca_nazwa: string;
   dostawca_nip: string;
+  numer_faktury: string;
   kwota_netto: number | null;
   vat_stawka: VatRate | null;
   data_wydatku: string;
@@ -72,6 +74,7 @@ export function parseOcrResponse(raw: string): OcrSuggestion {
   const empty: OcrSuggestion = {
     dostawca_nazwa: "",
     dostawca_nip: "",
+    numer_faktury: "",
     kwota_netto: null,
     vat_stawka: null,
     data_wydatku: "",
@@ -96,6 +99,8 @@ export function parseOcrResponse(raw: string): OcrSuggestion {
   const nipDigits = typeof obj.nip === "string" ? obj.nip.replace(/\D/g, "") : "";
   const dostawca_nip = nipDigits.length === 10 ? nipDigits : "";
 
+  const numer_faktury = typeof obj.numer_faktury === "string" ? obj.numer_faktury.trim().slice(0, 100) : "";
+
   const kwota_netto = parsePositiveAmount(obj.kwota_netto);
   const kwota_brutto = parsePositiveAmount(obj.kwota_brutto);
 
@@ -113,5 +118,5 @@ export function parseOcrResponse(raw: string): OcrSuggestion {
 
   const opis = typeof obj.opis === "string" ? obj.opis.trim().slice(0, 500) : "";
 
-  return { dostawca_nazwa: dostawca, dostawca_nip, kwota_netto, vat_stawka, data_wydatku, data_platnosci, opis };
+  return { dostawca_nazwa: dostawca, dostawca_nip, numer_faktury, kwota_netto, vat_stawka, data_wydatku, data_platnosci, opis };
 }

@@ -112,6 +112,69 @@ export async function lookupClientByNip(nipRaw: string): Promise<NipLookupResult
   }
 }
 
+// ---------------------------------------------------------------------------
+// Dostawca (Koszty, Moduł 9): analogiczny helper do lookupClientByNip, ale
+// zwraca pola `dostawca_*` i — dla polskich NIP-ów — numery kont z Białej
+// Listy (do weryfikacji `dostawca_konto` wpisanego ręcznie, patrz lib/mf.ts).
+// Koszty nie mają pól adresowych dostawcy (nie są potrzebne na dokumencie
+// zakupowym jak na wystawianej fakturze), więc autouzupełnia tylko nazwę.
+// ---------------------------------------------------------------------------
+
+/** Normalizuje numer konta do samych cyfr (bez spacji/prefiksu PL) — do
+ * porównania numeru wpisanego ręcznie (zwykle z prefiksem PL i spacjami) z
+ * numerami z Białej Listy (same cyfry, bez PL). */
+export function normalizeAccountNumber(v: string): string {
+  return v.toUpperCase().replace(/^PL/, "").replace(/\D/g, "");
+}
+
+export type SupplierLookupResult =
+  | { ok: true; dostawca_nazwa: string; statusVat: string | null; numeryKont: string[]; message: string }
+  | { ok: false; message: string };
+
+export async function lookupSupplierByNip(nipRaw: string): Promise<SupplierLookupResult> {
+  const raw = (nipRaw ?? "").replace(/\s+/g, "").toUpperCase();
+  if (!raw) return { ok: false, message: "Wpisz najpierw NIP dostawcy." };
+  const prefix = /^([A-Z]{2})(.+)$/.exec(raw);
+  const useVies = Boolean(prefix && prefix[1] !== "PL" && VIES_COUNTRY_CODES.has(prefix[1]));
+  try {
+    if (useVies && prefix) {
+      const res = await fetch(`/api/vies/${prefix[1]}/${encodeURIComponent(prefix[2])}`);
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        return { ok: false, message: d.error ?? "Nie udało się zweryfikować w VIES." };
+      }
+      const { subject } = (await res.json()) as { subject: { nazwa: string; kraj: string } };
+      return {
+        ok: true,
+        dostawca_nazwa: subject.nazwa,
+        statusVat: null,
+        numeryKont: [],
+        message: subject.nazwa
+          ? "Uzupełniono nazwę z VIES. Biała Lista MF dotyczy tylko polskich NIP-ów — numer konta sprawdź ręcznie."
+          : `✓ Numer VAT-UE (${prefix[1]}) potwierdzony jako ważny. Ten kraj nie udostępnia nazwy przez VIES.`,
+      };
+    }
+    const nip = raw.replace(/^PL/, "").replace(/\D/g, "");
+    const res = await fetch(`/api/mf/nip/${nip}`);
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, message: d.error ?? "Nie znaleziono podmiotu o tym NIP." };
+    }
+    const { subject } = (await res.json()) as {
+      subject: { nazwa: string; statusVat: string | null; numeryKont: string[] };
+    };
+    return {
+      ok: true,
+      dostawca_nazwa: subject.nazwa,
+      statusVat: subject.statusVat,
+      numeryKont: subject.numeryKont ?? [],
+      message: "Uzupełniono dane z Białej Listy MF.",
+    };
+  } catch {
+    return { ok: false, message: "Błąd połączenia przy wyszukiwaniu podmiotu." };
+  }
+}
+
 /** Sprawdza numer VAT-UE w VIES i zwraca dane podmiotu. Zwraca null przy
  * błędzie połączenia/nieprawidłowym wejściu; `valid=false`, gdy numer istnieje
  * w zapytaniu, ale VIES uznał go za nieaktywny. */

@@ -849,6 +849,25 @@ async function createCostsSchema(): Promise<void> {
   // „Kopiuj dane do przelewu"). NULL/'' = nieustawiona.
   await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS metoda_platnosci TEXT;`;
   await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS dostawca_konto TEXT NOT NULL DEFAULT '';`;
+  // Moduł 9, fundamenty zgodności (2026-07-14): `numer_faktury` — ustawowy
+  // element faktury VAT (art. 106e) i osobne pole w rejestrze zakupów
+  // JPK_V7 (`NrFaktury`); bez niego księgowa musi otwierać każdy załącznik,
+  // żeby dopasować wpis do dokumentu. `data_wplywu` — data OTRZYMANIA
+  // faktury, osobna od `data_wydatku` (data wystawienia) — to ona liczy się
+  // dla terminu odliczenia VAT, jeśli różni się od daty wystawienia. NULL =
+  // nieustawiona (świadomie opcjonalna, nie każdy koszt to wymaga).
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS numer_faktury TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS data_wplywu DATE;`;
+  // Moduł 9, ostrzeżenia podatkowe: procent VAT do odliczenia (100% domyślnie;
+  // 50% dla samochodów mieszanego użytku, 0% dla reprezentacji — art. 88
+  // ustawy o VAT). Miękka podpowiedź w UI, nie automatyczna reguła — właściciel
+  // zawsze wybiera sam, panel niczego nie zgaduje.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS vat_odliczenie_procent INTEGER NOT NULL DEFAULT 100;`;
+  // Moduł 9, dobre praktyki: koszt oznaczony jako potencjalny duplikat już
+  // sprawdzonego wpisu (ten sam NIP+kwota+data) — właściciel może to
+  // świadomie wyciszyć, żeby miękkie ostrzeżenie nie wracało przy każdym
+  // otwarciu tego samego kosztu.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS duplikat_potwierdzony BOOLEAN NOT NULL DEFAULT false;`;
 }
 
 /** Lazily tworzy tabelę modułu Koszty. */

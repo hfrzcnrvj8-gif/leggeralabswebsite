@@ -15,7 +15,11 @@ export {
   PAYMENT_METHOD_ICON,
   PAYMENT_METHOD_CLASS,
   VAT_RATES,
+  AMORTYZACJA_PROG_NETTO,
+  VAT_ODLICZENIE_OPTIONS,
+  VAT_ODLICZENIE_LABEL,
   costBrutto,
+  vatDoOdliczenia,
   formatMoney,
 } from "@/lib/costs";
 

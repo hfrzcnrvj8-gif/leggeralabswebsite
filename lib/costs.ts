@@ -66,6 +66,23 @@ export const PAYMENT_METHOD_CLASS: Record<PaymentMethod, string> = {
   apple_pay: "bg-[var(--hairline)] text-[var(--fg)]",
 };
 
+/** Moduł 9, fundamenty zgodności — próg amortyzacji (art. 22k ustawy o PIT):
+ * sprzęt/środki trwałe powyżej tej kwoty netto co do zasady NIE wchodzą
+ * jednorazowo w koszty, tylko przez amortyzację. Tylko miękka podpowiedź w
+ * UI — panel niczego nie blokuje ani nie rozlicza automatycznie. */
+export const AMORTYZACJA_PROG_NETTO = 10000;
+
+/** Procent VAT do odliczenia — domyślnie 100%; 50% dla samochodów mieszanego
+ * użytku, 0% dla reprezentacji (art. 86a i art. 88 ust. 1 pkt 2 ustawy o
+ * VAT). Właściciel wybiera sam z trzech typowych wartości — panel niczego
+ * nie zgaduje po kategorii/opisie. */
+export const VAT_ODLICZENIE_OPTIONS = [100, 50, 0] as const;
+export const VAT_ODLICZENIE_LABEL: Record<number, string> = {
+  100: "100% (pełne odliczenie)",
+  50: "50% (np. samochód mieszanego użytku)",
+  0: "0% (np. reprezentacja)",
+};
+
 export type Cost = {
   id: string;
   dostawca_nazwa: string;
@@ -84,6 +101,20 @@ export type Cost = {
   /** Numer konta dostawcy (IBAN) — do „Kopiuj dane do przelewu", nie do
    * inicjowania płatności (panel nigdy nie przenosi pieniędzy). */
   dostawca_konto: string;
+  /** Numer faktury/dokumentu od dostawcy — ustawowy element faktury VAT
+   * (art. 106e) i osobne pole w rejestrze zakupów JPK_V7. Puste = brak
+   * (np. paragon bez numeru albo koszt wprowadzony przed tą funkcją). */
+  numer_faktury: string;
+  /** Data OTRZYMANIA faktury — osobna od `data_wydatku` (data wystawienia).
+   * Liczy się dla terminu odliczenia VAT, jeśli różni się od daty
+   * wystawienia. NULL = nieustawiona (opcjonalna, nie każdy koszt wymaga
+   * rozróżnienia obu dat). */
+  data_wplywu: string | null;
+  /** Procent VAT do odliczenia — patrz VAT_ODLICZENIE_OPTIONS. */
+  vat_odliczenie_procent: number;
+  /** Właściciel świadomie wyciszył ostrzeżenie o możliwym duplikacie tego
+   * kosztu (ten sam NIP+kwota+data co inny wpis) — nie pokazuj go ponownie. */
+  duplikat_potwierdzony: boolean;
   created_at: string;
   updated_at: string;
   /** Dołączane w GET /api/costs (JOIN z projects) — tylko do wyświetlenia. */
@@ -113,4 +144,11 @@ export function guessVatRate(netto: number, vat: number): VatRate {
 /** Kwota brutto z netto + stawki VAT (np. dla auto-przeliczenia w edytorze). */
 export function costBrutto(netto: number, vatStawka: string): number {
   return round2(netto * (1 + vatFraction(vatStawka)));
+}
+
+/** Kwota VAT faktycznie do odliczenia — kwota VAT z dokumentu pomnożona
+ * przez `vat_odliczenie_procent` (100/50/0, patrz VAT_ODLICZENIE_OPTIONS). */
+export function vatDoOdliczenia(netto: number, vatStawka: string, procent: number): number {
+  const kwotaVat = costBrutto(netto, vatStawka) - netto;
+  return round2((kwotaVat * procent) / 100);
 }

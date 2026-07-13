@@ -4,7 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { toCsv, csvMoney, currentMonthRange, exportFilename } from "@/lib/export";
-import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/lib/costs";
+import { PAYMENT_METHOD_LABEL, type PaymentMethod, vatDoOdliczenia } from "@/lib/costs";
 
 export const runtime = "nodejs";
 
@@ -25,32 +25,37 @@ export async function GET(req: NextRequest) {
   const to = toParam && isPlausibleDateString(toParam) ? toParam : defaults.to;
 
   const rows = await sql`
-    SELECT dostawca_nazwa, dostawca_nip, kategoria, opis, data_wydatku,
-      kwota_netto::float8 AS kwota_netto, vat_stawka, kwota_brutto::float8 AS kwota_brutto,
-      status, data_platnosci, metoda_platnosci, dostawca_konto
+    SELECT dostawca_nazwa, dostawca_nip, numer_faktury, kategoria, opis, data_wydatku,
+      data_wplywu, kwota_netto::float8 AS kwota_netto, vat_stawka, kwota_brutto::float8 AS kwota_brutto,
+      vat_odliczenie_procent, status, data_platnosci, metoda_platnosci, dostawca_konto
     FROM costs
     WHERE data_wydatku BETWEEN ${from} AND ${to}
     ORDER BY data_wydatku ASC, created_at ASC;
   `;
 
   const header = [
-    "Dostawca", "NIP", "Kategoria", "Opis", "Data wydatku",
-    "Netto", "VAT (stawka)", "Kwota VAT", "Brutto", "Status", "Data płatności",
+    "Dostawca", "NIP", "Nr faktury", "Kategoria", "Opis", "Data wystawienia", "Data wpływu",
+    "Netto", "VAT (stawka)", "Kwota VAT", "VAT do odliczenia", "Brutto", "Status", "Data płatności",
     "Metoda płatności", "Nr konta dostawcy",
   ];
   const body = rows.map((r) => {
     const netto = Number(r.kwota_netto);
     const brutto = Number(r.kwota_brutto);
+    const vatStawka = String(r.vat_stawka ?? "");
+    const procentOdliczenia = Number(r.vat_odliczenie_procent ?? 100);
     const metoda = r.metoda_platnosci as PaymentMethod | null;
     return [
       String(r.dostawca_nazwa ?? ""),
       String(r.dostawca_nip ?? ""),
+      String(r.numer_faktury ?? ""),
       String(r.kategoria ?? ""),
       String(r.opis ?? ""),
       String(r.data_wydatku ?? "").slice(0, 10),
+      String(r.data_wplywu ?? "").slice(0, 10),
       csvMoney(netto),
-      String(r.vat_stawka ?? ""),
+      vatStawka,
       csvMoney(brutto - netto),
+      csvMoney(vatDoOdliczenia(netto, vatStawka, procentOdliczenia)),
       csvMoney(brutto),
       String(r.status ?? ""),
       String(r.data_platnosci ?? "").slice(0, 10),

@@ -3,7 +3,7 @@ import { getSql, ensureCostsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
-import { costBrutto, COST_CATEGORIES, COST_STATUSES, VAT_RATES, PAYMENT_METHODS } from "@/lib/costs";
+import { costBrutto, COST_CATEGORIES, COST_STATUSES, VAT_RATES, PAYMENT_METHODS, VAT_ODLICZENIE_OPTIONS } from "@/lib/costs";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     SELECT id, dostawca_nazwa, dostawca_nip, kategoria, opis, data_wydatku,
       kwota_netto, vat_stawka, kwota_brutto, status, data_platnosci, project_id,
       created_at, updated_at, zalacznik_nazwa, zalacznik_typ, ksef_numer, ksef_tryb,
-      metoda_platnosci, dostawca_konto
+      metoda_platnosci, dostawca_konto, numer_faktury, data_wplywu,
+      vat_odliczenie_procent, duplikat_potwierdzony
     FROM costs WHERE id = ${id};
   `;
   const cost = rows[0];
@@ -60,6 +61,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE costs SET metoda_platnosci = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("dostawca_konto" in body) await sql`UPDATE costs SET dostawca_konto = ${str(body.dostawca_konto, 40)}, updated_at = now() WHERE id = ${id};`;
+    if ("numer_faktury" in body) await sql`UPDATE costs SET numer_faktury = ${str(body.numer_faktury, 100)}, updated_at = now() WHERE id = ${id};`;
+    if ("vat_odliczenie_procent" in body) {
+      const v = typeof body.vat_odliczenie_procent === "number" && (VAT_ODLICZENIE_OPTIONS as readonly number[]).includes(body.vat_odliczenie_procent) ? body.vat_odliczenie_procent : 100;
+      await sql`UPDATE costs SET vat_odliczenie_procent = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    if ("duplikat_potwierdzony" in body) await sql`UPDATE costs SET duplikat_potwierdzony = ${Boolean(body.duplikat_potwierdzony)}, updated_at = now() WHERE id = ${id};`;
     if ("data_wydatku" in body) {
       const v = dateOrNull(body.data_wydatku);
       if (v === undefined || v === null) return NextResponse.json({ error: "invalid data_wydatku" }, { status: 400 });
@@ -69,6 +76,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const v = dateOrNull(body.data_platnosci);
       if (v === undefined) return NextResponse.json({ error: "invalid data_platnosci" }, { status: 400 });
       await sql`UPDATE costs SET data_platnosci = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    if ("data_wplywu" in body) {
+      const v = dateOrNull(body.data_wplywu);
+      if (v === undefined) return NextResponse.json({ error: "invalid data_wplywu" }, { status: 400 });
+      await sql`UPDATE costs SET data_wplywu = ${v}, updated_at = now() WHERE id = ${id};`;
     }
 
     // Kwota netto i/lub stawka VAT — jeśli przyszła choć jedna, przelicz brutto

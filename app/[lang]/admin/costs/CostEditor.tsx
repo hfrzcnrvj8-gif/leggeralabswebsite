@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconPaperclip, IconExternalLink, IconUpload, IconCamera, IconCopy } from "@tabler/icons-react";
+import {
+  IconX,
+  IconTrash,
+  IconCheck,
+  IconLoader2,
+  IconPaperclip,
+  IconExternalLink,
+  IconUpload,
+  IconCamera,
+  IconCopy,
+  IconSearch,
+  IconAlertTriangleFilled,
+} from "@tabler/icons-react";
 import {
   type Cost,
   type PaymentMethod,
@@ -12,9 +24,14 @@ import {
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHOD_ICON,
   PAYMENT_METHOD_CLASS,
+  AMORTYZACJA_PROG_NETTO,
+  VAT_ODLICZENIE_OPTIONS,
+  VAT_ODLICZENIE_LABEL,
   costBrutto,
+  vatDoOdliczenia,
   formatMoney,
 } from "@/lib/costs";
+import { lookupSupplierByNip, normalizeAccountNumber } from "@/lib/vies";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
@@ -44,18 +61,48 @@ export function CostEditor({
   const savedTimer = useRef<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [nipLoading, setNipLoading] = useState(false);
+  /** Numery kont z Białej Listy MF dla ostatnio wyszukanego NIP-u dostawcy —
+   * `null` dopóki nie zrobiono wyszukiwania (wtedy nie pokazujemy żadnej
+   * oceny zgodności konta, bo nie mamy z czym porównać). */
+  const [supplierAccounts, setSupplierAccounts] = useState<string[] | null>(null);
+  /** Dwie miękkie, w pełni deterministyczne podpowiedzi liczone z historii
+   * kosztów tego samego dostawcy (NIP) — zero AI, patrz CLAUDE.md. */
+  const [hints, setHints] = useState<{
+    duplicate: { id: string; dostawca_nazwa: string; kwota_brutto: number; data_wydatku: string } | null;
+    suggestion: { kategoria: string; project_id: string | null; project_tytul: string | null } | null;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  /** Pola, których zmiana ma sens do ponownego sprawdzenia duplikatu/podpowiedzi
+   * kategorii — reszta (opis, status, metoda płatności…) nie wpływa na wynik. */
+  const HINT_TRIGGER_KEYS = ["dostawca_nip", "kwota_netto", "vat_stawka", "data_wydatku"];
+
+  const refreshHints = useCallback(async (c: Cost) => {
+    const nipDigits = c.dostawca_nip.replace(/\D/g, "");
+    if (nipDigits.length !== 10 || !c.data_wydatku) {
+      setHints(null);
+      return;
+    }
+    const brutto = costBrutto(c.kwota_netto, c.vat_stawka);
+    const params = new URLSearchParams({ nip: nipDigits, excludeId: c.id, kwota: String(brutto), data: c.data_wydatku });
+    const res = await fetch(`/api/costs/hints?${params.toString()}`);
+    if (!res.ok) return;
+    setHints(await res.json());
+  }, []);
 
   const load = useCallback(async () => {
     const [costRes, projectsRes] = await Promise.all([fetch(`/api/costs/${id}`), fetch("/api/projects")]);
     if (!costRes.ok) return;
     const data = (await costRes.json()) as { cost: Cost };
     setCost(data.cost);
+    refreshHints(data.cost);
     if (projectsRes.ok) {
       const pdata = (await projectsRes.json()) as { projects: ProjectOption[] };
       setProjects(pdata.projects);
     }
-  }, [id]);
+  }, [id, refreshHints]);
 
   useEffect(() => {
     load();
@@ -85,14 +132,29 @@ export function CostEditor({
         if (fresh.ok) {
           const data = (await fresh.json()) as { cost: Cost };
           setCost(data.cost);
+          if (Object.keys(body).some((k) => HINT_TRIGGER_KEYS.includes(k))) refreshHints(data.cost);
         }
       } else {
         setSaveState("idle");
         toast("Nie udało się zapisać.", "error");
       }
     },
-    [id, flashSaved, onChange, toast]
+    [id, flashSaved, onChange, toast, refreshHints]
   );
+
+  const lookupSupplier = useCallback(async () => {
+    if (!cost) return;
+    setNipLoading(true);
+    const r = await lookupSupplierByNip(cost.dostawca_nip);
+    setNipLoading(false);
+    if (!r.ok) {
+      toast(r.message, "error");
+      return;
+    }
+    setSupplierAccounts(r.numeryKont);
+    if (r.dostawca_nazwa) await patch({ dostawca_nazwa: r.dostawca_nazwa });
+    toast(r.message);
+  }, [cost, patch, toast]);
 
   const remove = useCallback(async () => {
     const ok = await confirm(`Usunąć koszt „${cost?.dostawca_nazwa || "bez nazwy dostawcy"}”?`, { danger: true });
@@ -136,6 +198,7 @@ export function CostEditor({
         suggestion?: {
           dostawca_nazwa: string;
           dostawca_nip: string;
+          numer_faktury: string;
           kwota_netto: number | null;
           vat_stawka: string | null;
           data_wydatku: string;
@@ -152,6 +215,7 @@ export function CostEditor({
       const patchBody: Record<string, unknown> = {};
       if (s.dostawca_nazwa) patchBody.dostawca_nazwa = s.dostawca_nazwa;
       if (s.dostawca_nip) patchBody.dostawca_nip = s.dostawca_nip;
+      if (s.numer_faktury) patchBody.numer_faktury = s.numer_faktury;
       if (s.kwota_netto != null) patchBody.kwota_netto = s.kwota_netto;
       if (s.vat_stawka) patchBody.vat_stawka = s.vat_stawka;
       if (s.data_wydatku) patchBody.data_wydatku = s.data_wydatku;
@@ -238,6 +302,42 @@ export function CostEditor({
         </div>
       </div>
 
+      {hints?.duplicate && (
+        <div className="mb-3 flex items-start gap-2 rounded-md bg-amber-400/10 px-2.5 py-2 text-[11.5px] text-amber-400">
+          <IconAlertTriangleFilled size={14} className="mt-0.5 shrink-0" />
+          <div className="flex-1">
+            Podobny koszt już istnieje: „{hints.duplicate.dostawca_nazwa || "bez nazwy"}”, {formatMoney(hints.duplicate.kwota_brutto)},{" "}
+            {hints.duplicate.data_wydatku} — ten sam dostawca, kwota i data (±3 dni). Sprawdź, czy to nie duplikat.
+          </div>
+          <button
+            onClick={() => {
+              patch({ duplikat_potwierdzony: true });
+              setHints((h) => (h ? { ...h, duplicate: null } : h));
+            }}
+            className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-amber-400 hover:bg-amber-400/15"
+          >
+            To nie duplikat
+          </button>
+        </div>
+      )}
+      {hints?.suggestion && (cost.kategoria === "Inne" || !cost.project_id) && (
+        <div className="mb-3 flex items-center gap-2 rounded-md bg-[var(--hairline)] px-2.5 py-2 text-[11.5px] text-muted">
+          <span className="flex-1">
+            Poprzedni koszt tego dostawcy: kategoria „{hints.suggestion.kategoria}”
+            {hints.suggestion.project_tytul ? `, projekt „${hints.suggestion.project_tytul}”` : ""}.
+          </span>
+          <button
+            onClick={() => {
+              patch({ kategoria: hints.suggestion!.kategoria, project_id: hints.suggestion!.project_id });
+              setHints((h) => (h ? { ...h, suggestion: null } : h));
+            }}
+            className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand-purple hover:bg-brand-purple/15"
+          >
+            Zastosuj
+          </button>
+        </div>
+      )}
+
       <div key={cost.updated_at} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {/* key={cost.updated_at}: pola tekstowe niżej są nieskontrolowane
          * (defaultValue), żeby nie gubić kursora przy pisaniu — ale to
@@ -255,11 +355,31 @@ export function CostEditor({
         </label>
         <label className="block">
           <span className="mb-1 block text-[11px] text-muted">NIP dostawcy</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              defaultValue={cost.dostawca_nip}
+              onBlur={(e) => e.target.value !== cost.dostawca_nip && patch({ dostawca_nip: e.target.value })}
+              className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
+              placeholder="opcjonalnie"
+            />
+            <button
+              onClick={lookupSupplier}
+              disabled={nipLoading || !cost.dostawca_nip}
+              title="Polski NIP → Biała Lista MF (nazwa + numery kont); numer z prefiksem kraju UE → VIES"
+              className="flex shrink-0 items-center gap-1 rounded-md border hairline px-2 py-1.5 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {nipLoading ? <IconLoader2 size={13} className="animate-spin" /> : <IconSearch size={13} />}
+            </button>
+          </div>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-muted">Numer faktury</span>
           <input
-            defaultValue={cost.dostawca_nip}
-            onBlur={(e) => e.target.value !== cost.dostawca_nip && patch({ dostawca_nip: e.target.value })}
+            defaultValue={cost.numer_faktury}
+            onBlur={(e) => e.target.value !== cost.numer_faktury && patch({ numer_faktury: e.target.value })}
             className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
-            placeholder="opcjonalnie"
+            placeholder="np. FV/123/2026"
           />
         </label>
 
@@ -275,7 +395,7 @@ export function CostEditor({
             <button
               onClick={async () => {
                 const brutto = formatMoney(costBrutto(cost.kwota_netto, cost.vat_stawka));
-                const tytul = [cost.dostawca_nazwa, cost.opis].filter(Boolean).join(" — ") || "Płatność";
+                const tytul = [cost.numer_faktury, cost.dostawca_nazwa].filter(Boolean).join(" — ") || cost.opis || "Płatność";
                 const text = `Numer konta: ${cost.dostawca_konto}\nKwota: ${brutto}\nTytuł: ${tytul}`;
                 await navigator.clipboard.writeText(text);
                 toast("Skopiowano dane do przelewu.");
@@ -287,6 +407,19 @@ export function CostEditor({
               <IconCopy size={13} /> Kopiuj
             </button>
           </div>
+          {supplierAccounts !== null && cost.dostawca_konto && (
+            supplierAccounts.length === 0 ? (
+              <p className="mt-1 text-[10.5px] text-muted">Biała Lista MF nie zwróciła numerów kont dla tego NIP-u.</p>
+            ) : supplierAccounts.some((a) => normalizeAccountNumber(a) === normalizeAccountNumber(cost.dostawca_konto)) ? (
+              <p className="mt-1 flex items-center gap-1 text-[10.5px] text-emerald-400">
+                <IconCheck size={12} /> Zgodny z Białą Listą MF.
+              </p>
+            ) : (
+              <p className="mt-1 flex items-center gap-1 text-[10.5px] text-amber-400">
+                <IconAlertTriangleFilled size={12} /> Numer NIE widnieje w Białej Liście dla tego NIP-u — przelew &gt;15 000 zł na to konto może oznaczać utratę prawa do zaliczenia w koszty.
+              </p>
+            )
+          )}
         </label>
 
         <label className="block">
@@ -338,6 +471,13 @@ export function CostEditor({
           </Popover>
         </label>
 
+        {cost.kategoria === "Sprzęt" && cost.kwota_netto >= AMORTYZACJA_PROG_NETTO && (
+          <p className="col-span-full flex items-start gap-1.5 rounded-md bg-amber-400/10 px-2.5 py-1.5 text-[11.5px] text-amber-400">
+            <IconAlertTriangleFilled size={13} className="mt-0.5 shrink-0" />
+            Kwota netto ≥ {formatMoney(AMORTYZACJA_PROG_NETTO)} przy kategorii „Sprzęt” — to może wymagać amortyzacji zamiast jednorazowego wrzucenia w koszty. Skonsultuj z księgową.
+          </p>
+        )}
+
         <label className="block">
           <span className="mb-1 block text-[11px] text-muted">Kwota netto</span>
           <input
@@ -382,8 +522,42 @@ export function CostEditor({
         </div>
 
         <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Data wydatku</span>
+          <span className="mb-1 block text-[11px] text-muted">% odliczenia VAT</span>
+          <Popover
+            align="left"
+            width={260}
+            trigger={(open) => (
+              <button
+                onClick={open}
+                className="flex w-full items-center justify-between rounded-md border hairline px-2.5 py-1.5 text-left text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)]"
+              >
+                {cost.vat_odliczenie_procent}%
+              </button>
+            )}
+          >
+            {(close) => (
+              <div>
+                {VAT_ODLICZENIE_OPTIONS.map((p) => (
+                  <MenuRow key={p} label={VAT_ODLICZENIE_LABEL[p]} selected={cost.vat_odliczenie_procent === p} onClick={() => { patch({ vat_odliczenie_procent: p }); close(); }} />
+                ))}
+              </div>
+            )}
+          </Popover>
+        </label>
+        <div className="block">
+          <span className="mb-1 block text-[11px] text-muted">VAT do odliczenia</span>
+          <div className="px-2.5 py-1.5 text-[13px] font-medium text-[var(--fg)]">
+            {formatMoney(vatDoOdliczenia(cost.kwota_netto, cost.vat_stawka, cost.vat_odliczenie_procent))}
+          </div>
+        </div>
+
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-muted">Data wystawienia (wydatku)</span>
           <DateField value={cost.data_wydatku ?? ""} onChange={(v) => patch({ data_wydatku: v })} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-muted">Data wpływu faktury</span>
+          <DateField value={cost.data_wplywu ?? ""} onChange={(v) => patch({ data_wplywu: v })} placeholder="Jeśli inna niż wystawienia" />
         </label>
         <label className="block">
           <span className="mb-1 block text-[11px] text-muted">Data płatności</span>
@@ -430,15 +604,37 @@ export function CostEditor({
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-1.5 rounded-md border hairline px-2.5 py-1.5 text-[13px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {uploading ? <IconLoader2 size={14} className="animate-spin" /> : <IconUpload size={14} />}
-              {uploading ? "Wgrywanie…" : "Wgraj skan / PDF (max 8 MB)"}
-            </button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1.5 rounded-md border hairline px-2.5 py-1.5 text-[13px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {uploading ? <IconLoader2 size={14} className="animate-spin" /> : <IconUpload size={14} />}
+                {uploading ? "Wgrywanie…" : "Wgraj skan / PDF (max 8 MB)"}
+              </button>
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1.5 rounded-md border hairline px-2.5 py-1.5 text-[13px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
+                title="Na telefonie od razu otwiera aparat"
+              >
+                <IconCamera size={14} /> Zrób zdjęcie
+              </button>
+            </div>
           )}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadAttachment(file);
+              e.target.value = "";
+            }}
+            className="hidden"
+          />
           <input
             ref={fileInputRef}
             type="file"

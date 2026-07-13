@@ -816,6 +816,76 @@ kopiuj dane do przelewu.**
   zdjęcie z aparatu na telefonie, rozpoznawanie powtarzającego się
   dostawcy po NIP — patrz plik modułu, sekcja "Dodatkowe pomysły z rynku".
 
+**Krok 2 (zbudowany i zweryfikowany lokalnie 2026-07-14): fundamenty
+zgodności prawnej + ostrzeżenia podatkowe + trzy dobre praktyki rynkowe.**
+Właściciel poprosił o audyt "co trzeba dodać, żeby moduł Koszty był zgodny z
+przepisami i miał integrację z przyszłą księgowością" — audyt (subagent +
+research) zidentyfikował realne luki (nie tylko wygodę), opisane niżej z
+podziałem 🔴 wymóg prawny / 🔵 integracja / 🟢 dobra praktyka rynkowa.
+Właściciel zatwierdził wszystkie trzy zestawy do zbudowania w jednej sesji.
+
+- 🔴 **Numer faktury dostawcy** (`numer_faktury`, TEXT) — ustawowy element
+  faktury VAT (art. 106e) i osobne pole w rejestrze zakupów JPK_V7
+  (`NrFaktury`). OCR (Moduł 8, `lib/costs-ocr.ts`) teraz też go wyciąga
+  (nowe pole `numer_faktury` w schemacie JSON modelu wizyjnego).
+- 🔴 **`data_wplywu`** (DATE, nullable) — data OTRZYMANIA faktury, osobna od
+  `data_wydatku` (data wystawienia, etykieta w UI doprecyzowana na "Data
+  wystawienia (wydatku)"). Prawo VAT liczy termin odliczenia od daty
+  otrzymania, nie wystawienia — jeśli się różnią, jedna data myliłaby okres
+  rozliczeniowy. Opcjonalne pole, wypełniane tylko gdy faktycznie różni się.
+- 🔴 **Autouzupełnianie dostawcy po NIP z Białej Listy MF** —
+  `lib/vies.ts` → `lookupSupplierByNip()` (analogiczny do istniejącego
+  `lookupClientByNip()` używanego w Fakturach/Ofertach, ale zwraca pola
+  `dostawca_*` + `numeryKont`; PL → Biała Lista MF, prefiks kraju UE →
+  VIES). Przycisk 🔍 obok pola NIP w `CostEditor.tsx` (wzorem
+  `InvoiceEditor.tsx`). `lib/mf.ts` → `lookupNip()` rozszerzony o
+  `accountNumbers` z odpowiedzi `wl-api.mf.gov.pl` (pole `numeryKont`).
+- 🔴 **Weryfikacja konta dostawcy na Białej Liście** — po wyszukaniu NIP-u
+  edytor porównuje wpisany `dostawca_konto` z `numeryKont` zwróconymi przez
+  MF (`normalizeAccountNumber()` w `lib/vies.ts` — same cyfry, bez `PL`).
+  Zielony ✓ = zgodny, żółte ostrzeżenie = brak na liście (przelew >15 000 zł
+  na takie konto grozi utratą prawa do zaliczenia w koszty bez zgłoszenia
+  ZAW-NR w 7 dni — art. 117ba Ordynacji podatkowej), neutralna notatka = MF
+  nie zwróciło żadnych numerów dla tego NIP-u. Czysto informacyjne, nic nie
+  blokuje.
+- 🔴 **% odliczenia VAT** (`vat_odliczenie_procent`, INTEGER, domyślnie 100)
+  — picker 100%/50%/0% (`VAT_ODLICZENIE_OPTIONS` w `lib/costs.ts`) dla
+  typowych ograniczeń: samochody mieszanego użytku (art. 86a, 50%),
+  reprezentacja (art. 88 ust. 1 pkt 2, 0%). Nowe pole "VAT do odliczenia"
+  (`vatDoOdliczenia()`) liczy realną kwotę do odliczenia z uwzględnieniem
+  procentu — widoczne w edytorze i w eksporcie CSV.
+- 🔴 **Ostrzeżenie o progu amortyzacji** — miękki żółty baner w edytorze,
+  gdy kategoria = "Sprzęt" i kwota netto ≥ `AMORTYZACJA_PROG_NETTO` (10 000
+  zł, art. 22k ustawy o PIT) — informuje, że wydatek może wymagać
+  amortyzacji zamiast jednorazowego wrzucenia w koszty. Nic nie blokuje,
+  właściciel i tak może zapisać jak chce.
+- 🟢 **Wykrywanie duplikatów** — `GET /api/costs/hints` (nowy endpoint,
+  `app/api/costs/hints/route.ts`) liczy dwie w pełni deterministyczne
+  podpowiedzi (zero AI) na podstawie NIP+kwota+data: (1) czy istnieje inny
+  koszt tego samego dostawcy z tą samą kwotą brutto i datą w oknie ±3 dni
+  (`duplikat_potwierdzony` BOOLEAN pozwala świadomie wyciszyć ostrzeżenie na
+  stałe dla danego kosztu — nie wraca po odświeżeniu); (2) kategoria/projekt
+  z najnowszego INNEGO kosztu tego samego dostawcy, do podpowiedzi przy
+  wpisywaniu kolejnego. Oba jako nienachalne banery nad formularzem w
+  `CostEditor.tsx`, każdy z przyciskiem akcji ("To nie duplikat" /
+  "Zastosuj") — miękkie podpowiedzi, nigdy twarde bramki.
+- 🟢 **Zdjęcie z aparatu na telefonie** — drugi przycisk "Zrób zdjęcie" obok
+  "Wgraj skan/PDF", osobny ukryty `<input type="file" accept="image/*"
+  capture="environment">` — na telefonie otwiera od razu aparat zamiast
+  wyboru pliku z galerii, pierwszy krok pod Moduł 5 (mobilna aplikacja).
+- **Zweryfikowane na żywo na dev (PGlite)**: amortyzacja — kategoria
+  "Sprzęt" + 15 000 zł netto pokazuje baner, znika po zmianie kategorii;
+  VAT do odliczenia przelicza się poprawnie przy zmianie 100%→50% (3450 zł
+  → 1725 zł); duplikat — dwa koszty tego samego NIP-u/kwoty/daty pokazują
+  baner ostrzegawczy, klik "To nie duplikat" chowa go trwale (dopisany
+  lokalny `setHints` obok `patch()`, bo serwer nie odświeża hintów przy
+  zmianie samego `duplikat_potwierdzony`); podpowiedź kategorii — klik
+  "Zastosuj" ustawia kategorię z historii dostawcy i chowa baner. `tsc
+  --noEmit` czysty przez cały proces (4 przebiegi po każdej paczce zmian).
+- **Wciąż nieuzgodnione** (do priorytetyzacji w kolejnej sesji): koszty
+  cykliczne/subskrypcje, analityka/trendy wydatków (wykres per kategoria) —
+  oba to większy, osobny zakres (nowe UI/tabela), świadomie odłożone.
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z

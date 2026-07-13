@@ -129,10 +129,33 @@ tytuł → schowek). Zero integracji z bramką płatności. Szczegóły
 implementacji: `HUB_SETUP.md` → sekcja "Moduł 9 — Koszty jako branżowy
 standard".
 
+## Stan po drugiej sesji (2026-07-14) — audyt zgodności prawnej
+
+Właściciel poprosił o przegląd "co trzeba dodać, żeby moduł był zgodny z
+przepisami i miał integrację z przyszłą księgowością" — patrz research w
+`HUB_SETUP.md` → sekcja "Moduł 9", "Krok 2". Zbudowane i zweryfikowane:
+
+- 🔴 Numer faktury dostawcy + data wpływu faktury (osobna od daty
+  wystawienia) — brakujące pola do rejestru zakupów VAT/JPK.
+- 🔴 Autouzupełnianie dostawcy po NIP z Białej Listy MF/VIES (jak w
+  Fakturach) + weryfikacja numeru konta dostawcy przeciw Białej Liście.
+- 🔴 % odliczenia VAT (100/50/0) + pole "VAT do odliczenia" — dla
+  samochodów mieszanego użytku i reprezentacji.
+- 🔴 Miękkie ostrzeżenie o progu amortyzacji (10 000 zł netto, kategoria
+  Sprzęt).
+- 🟢 Wykrywanie duplikatów (ten sam NIP+kwota+data, ±3 dni) — miękki baner
+  z opcją wyciszenia.
+- 🟢 Podpowiedź kategorii/projektu na podstawie historii tego samego
+  dostawcy.
+- 🟢 "Zrób zdjęcie" — drugi przycisk otwierający aparat wprost na telefonie.
+
+**Świadomie NIE zrobione, bo firma jeszcze nie jest zarejestrowana i realne
+generowanie/wysyłka JPK_VAT i tak zostaje po stronie księgowej (patrz
+`PO_REJESTRACJI.md`)** — CSV do księgowej ma teraz komplet pól, których
+potrzebuje jej oprogramowanie.
+
 **Nieuzgodnione jeszcze z właścicielem** (do zapytania na starcie kolejnej
-sesji tego modułu, patrz sekcja "Dodatkowe pomysły z rynku" wyżej) — żaden z
-tych czterech nie został jeszcze priorytetyzowany:
-1. Wykrywanie duplikatów kosztów (ten sam NIP+kwota+data).
-2. Koszty cykliczne/subskrypcje.
-3. Analityka/trendy wydatków (wykres miesięczny per kategoria).
-4. Szybsze dodawanie z telefonu (aparat) / rozpoznawanie dostawcy po NIP.
+sesji tego modułu, patrz sekcja "Dodatkowe pomysły z rynku" wyżej) — oba to
+większy, osobny zakres (nowe UI/tabela), świadomie odłożone:
+1. Koszty cykliczne/subskrypcje.
+2. Analityka/trendy wydatków (wykres miesięczny per kategoria).

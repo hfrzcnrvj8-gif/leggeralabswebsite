@@ -11,6 +11,12 @@ export type MfSubject = {
   kod: string;
   miasto: string;
   statusVat: string | null;
+  /** Numery rachunków rozliczeniowych zarejestrowane do tego NIP-u w Białej
+   * Liście (Moduł 9, fundamenty zgodności) — do porównania z ręcznie
+   * wpisanym numerem konta dostawcy. Przelew >15 000 zł na konto SPOZA tej
+   * listy grozi utratą prawa do zaliczenia wydatku w koszty (bez zgłoszenia
+   * ZAW-NR w 7 dni). Puste = MF nie zwróciło żadnego numeru dla tego NIP-u. */
+  numeryKont: string[];
 };
 
 /** Rozbija jednolinijkowy adres z Białej Listy ("ul. Testowa 1, 00-001
@@ -36,13 +42,28 @@ export async function lookupNip(nip: string): Promise<MfSubject | null> {
     });
     if (!res.ok) return null;
     const data = (await res.json()) as {
-      result?: { subject?: { name?: string; workingAddress?: string; residenceAddress?: string; statusVat?: string } | null };
+      result?: {
+        subject?: {
+          name?: string;
+          workingAddress?: string;
+          residenceAddress?: string;
+          statusVat?: string;
+          accountNumbers?: string[];
+        } | null;
+      };
     };
     const subject = data.result?.subject;
     if (!subject || !subject.name) return null;
     const address = subject.workingAddress || subject.residenceAddress || "";
     const { ulica, kod, miasto } = splitAddress(address);
-    return { nazwa: subject.name, ulica, kod, miasto, statusVat: subject.statusVat ?? null };
+    return {
+      nazwa: subject.name,
+      ulica,
+      kod,
+      miasto,
+      statusVat: subject.statusVat ?? null,
+      numeryKont: Array.isArray(subject.accountNumbers) ? subject.accountNumbers : [],
+    };
   } catch {
     return null;
   }
