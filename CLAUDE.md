@@ -145,3 +145,8 @@ czekaj na Vercel → zgaduj"):
   w polityce prywatności, przełączenie KSeF test→produkcja, ustawienia
   sprzedawcy). Firma NIE jest jeszcze zarejestrowana — te elementy świadomie
   odłożone; NIE traktować jako braki do „naprawienia" przed rejestracją.
+- `docs/plany-modulow/` — **briefy wdrożeniowe kolejnych modułów, po jednym na
+  osobny czat** (podpowiedzi leadów, nurture, kanały kontaktu, skrzynka
+  mailowa). Powstały po audycie przepływów 2026-07-13 jako domknięcie trzech
+  świadomie odłożonych luk. Jeśli właściciel prosi o „kolejny moduł", zacznij od
+  `docs/plany-modulow/README.md` i wskazanego pliku.
