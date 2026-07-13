@@ -16,6 +16,7 @@ import { useUI } from "./ui";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
+type OverdueMilestone = { id: string; nazwa: string; termin: string; project_id: string; projekt: string };
 
 type Kpi = {
   revenueThisMonth: [string, number][];
@@ -29,7 +30,9 @@ type TodayData = {
   overdueLeads: Lead[];
   overdueClients: Client[];
   dueProjects: Project[];
+  overdueMilestones: OverdueMilestone[];
   overdueInvoices: InvoiceRow[];
+  draftInvoices: InvoiceRow[];
   expiredOffers: OfferRow[];
   todayEvents: HubEvent[];
   recentNotes: Note[];
@@ -147,7 +150,9 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.overdueLeads.length +
     data.overdueClients.length +
     data.dueProjects.length +
+    data.overdueMilestones.length +
     data.overdueInvoices.length +
+    data.draftInvoices.length +
     data.expiredOffers.length;
 
   const revenueThisMonthPln = sumPln(data.kpi.revenueThisMonth);
@@ -290,6 +295,26 @@ export function DashboardHome({ lang }: { lang: Locale }) {
 
         <section className="card-paper rounded-xl border hairline p-4">
           <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Kamienie po terminie</h2>
+          </div>
+          {data.overdueMilestones.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — kamienie na czas.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.overdueMilestones.slice(0, 6).map((m) => (
+                <li key={m.id} className="text-sm">
+                  <Link href={`/${lang}/admin/projects/${m.project_id}`} className="font-medium hover:underline">
+                    {m.nazwa}
+                  </Link>
+                  <span className="text-muted"> — {m.projekt} — termin {formatPlDate(m.termin)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Zaległe faktury</h2>
             <Link href={`/${lang}/admin/invoices`} className="text-xs text-muted hover:text-[var(--fg)]">
               Zobacz wszystkie →
@@ -316,6 +341,37 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   >
                     Przypomnij
                   </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Faktury do wystawienia</h2>
+            <Link href={`/${lang}/admin/invoices`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {data.draftInvoices.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — żaden szkic nie czeka.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.draftInvoices.slice(0, 6).map((inv) => (
+                <li key={inv.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={`/${lang}/admin/invoices/${inv.id}`} className="font-medium hover:underline">
+                      {inv.klient_nazwa || "(szkic bez klienta)"}
+                    </Link>
+                    <span className="text-muted"> — {formatMoney(inv.brutto, inv.waluta || "PLN")}</span>
+                  </span>
+                  <Link
+                    href={`/${lang}/admin/invoices/${inv.id}`}
+                    className="shrink-0 rounded-full border border-amber-500/40 px-2 py-0.5 text-[11px] text-amber-500"
+                  >
+                    Wystaw
+                  </Link>
                 </li>
               ))}
             </ul>

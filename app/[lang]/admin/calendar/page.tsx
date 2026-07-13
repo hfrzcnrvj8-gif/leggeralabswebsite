@@ -20,7 +20,7 @@ export default async function AdminCalendarPage({
 
   return (
     <AppShell lang={lang as Locale}>
-      {authed ? <CalendarView /> : <LoginForm />}
+      {authed ? <CalendarView lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );
 }

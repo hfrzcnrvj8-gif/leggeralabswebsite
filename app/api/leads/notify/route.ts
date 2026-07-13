@@ -139,10 +139,32 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   const sql = getSql();
   const today = todayLocalISO();
 
-  const [leads, projects, todayEvents, invoiceReminders, recurring] = await Promise.all([
+  const [leads, projects, overdueMilestones, todayEvents, draftInvoices, invoiceReminders, recurring] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
+    // Kamienie milowe po terminie (ta sama reguła co na pulpicie, patrz
+    // app/api/hub/today) — niewdrożony projekt, nieukończony kamień.
+    sql`
+      SELECT m.nazwa, m.termin, p.tytul AS projekt
+      FROM project_milestones m
+      JOIN projects p ON p.id = m.project_id
+      WHERE p.status != 'Wdrożone' AND m.termin IS NOT NULL AND m.termin <= ${today}
+        AND (
+          EXISTS (SELECT 1 FROM project_tasks t WHERE t.milestone_id = m.id AND t.done = false)
+          OR NOT EXISTS (SELECT 1 FROM project_tasks t WHERE t.milestone_id = m.id)
+        )
+      ORDER BY m.termin ASC;
+    ` as unknown as Promise<{ nazwa: string; termin: string; projekt: string }[]>,
     sql`SELECT * FROM events WHERE data = ${today} ORDER BY godzina ASC NULLS LAST;` as unknown as Promise<HubEvent[]>,
+    // Faktury-szkice czekające na wystawienie (z treścią, nie utworzone dziś) —
+    // ta sama reguła co na pulpicie (patrz app/api/hub/today). Liczą się tylko
+    // właściwe faktury, nie proformy/zaliczkowe.
+    sql`
+      SELECT i.id FROM invoices i
+      WHERE i.status = 'Szkic' AND i.typ_dokumentu = 'faktura'
+        AND i.created_at::date < ${today}::date
+        AND EXISTS (SELECT 1 FROM invoice_items it WHERE it.invoice_id = i.id);
+    ` as unknown as Promise<{ id: string }[]>,
     sendOverdueInvoiceReminders(),
     generateDueRecurringInvoices(),
   ]);
@@ -159,12 +181,16 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     ? dueProjects.map((p) => `- ${p.tytul} — termin ${p.termin}`).join("\n")
     : "Brak projektów z minionym terminem.";
 
+  const milestoneLines = overdueMilestones.length
+    ? overdueMilestones.map((m) => `- ${m.nazwa} (${m.projekt}) — termin ${m.termin}`).join("\n")
+    : "Brak kamieni po terminie.";
+
   const eventLines = todayEvents.length
     ? todayEvents.map((e) => `- ${e.godzina ? `${e.godzina} ` : ""}${e.tytul}`).join("\n")
     : "Brak wydarzeń w kalendarzu na dziś.";
 
   const summaryLines = STATUSES.map((s) => `  ${s}: ${counts[s] ?? 0}`).join("\n");
-  const totalActionable = overdueLeads.length + dueProjects.length;
+  const totalActionable = overdueLeads.length + dueProjects.length + overdueMilestones.length + draftInvoices.length;
 
   const text = [
     "Dzień dobry,",
@@ -176,6 +202,11 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Projekty z minionym terminem (${dueProjects.length}):`,
     projectLines,
+    "",
+    `Kamienie milowe po terminie (${overdueMilestones.length}):`,
+    milestoneLines,
+    "",
+    `Faktury-szkice czekające na wystawienie: ${draftInvoices.length}`,
     "",
     `Dziś w kalendarzu (${todayEvents.length}):`,
     eventLines,

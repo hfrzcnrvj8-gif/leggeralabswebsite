@@ -133,6 +133,18 @@ export async function acceptOffer(
         throw new OfferAlreadyAcceptedError();
       }
 
+      // Lead „domknął się sukcesem" — oferta zamieniła się w projekt+fakturę.
+      // Bez tego lead wisiałby dalej jako otwarty na tablicy kanban i w liście
+      // „wymaga działania" na pulpicie, mimo że jest już płacącym klientem.
+      // Nie nadpisujemy leada już oznaczonego jako odrzucony/zamknięty (mało
+      // prawdopodobne, ale gdyby ktoś ręcznie zamknął leada przed akceptacją).
+      if (leadId) {
+        await sql`
+          UPDATE leads SET status = 'Zamknięte - sukces', updated_at = now()
+          WHERE id = ${leadId} AND status NOT IN ('Zamknięte - sukces', 'Odrzucone / brak zainteresowania');
+        `;
+      }
+
       await logClientEvent(sql, clientId, "offer_accepted", `Zaakceptowano ofertę „${tytulProjektu}” — utworzono projekt i fakturę`);
 
       return { ok: true, projectId, invoiceId };

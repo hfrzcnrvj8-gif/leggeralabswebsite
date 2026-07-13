@@ -40,10 +40,25 @@ export async function GET() {
   const lastMonth =
     thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
-  const [leads, clients, projects, todayEvents, recentNotes, invoices, offers] = await Promise.all([
+  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects;` as unknown as Promise<Project[]>,
+    // Kamienie milowe po terminie (projekt niewdrożony, kamień nieukończony) —
+    // widoczne NIEZALEŻNIE od terminu całego projektu. Bez tego spóźniony
+    // kamień w trwającym projekcie był zupełnie cichy (patrz isProjectOverdue,
+    // które patrzy tylko na termin projektu).
+    sql`
+      SELECT m.id, m.nazwa, m.termin, m.project_id, p.tytul AS projekt
+      FROM project_milestones m
+      JOIN projects p ON p.id = m.project_id
+      WHERE p.status != 'Wdrożone' AND m.termin IS NOT NULL AND m.termin <= ${today}
+        AND (
+          EXISTS (SELECT 1 FROM project_tasks t WHERE t.milestone_id = m.id AND t.done = false)
+          OR NOT EXISTS (SELECT 1 FROM project_tasks t WHERE t.milestone_id = m.id)
+        )
+      ORDER BY m.termin ASC;
+    ` as unknown as Promise<{ id: string; nazwa: string; termin: string; project_id: string; projekt: string }[]>,
     sql`SELECT * FROM events WHERE data = ${today} ORDER BY godzina ASC NULLS LAST;` as unknown as Promise<HubEvent[]>,
     sql`SELECT * FROM notes ORDER BY updated_at DESC LIMIT 5;` as unknown as Promise<Note[]>,
     sql`
@@ -81,6 +96,21 @@ export async function GET() {
   const overdueInvoices = realInvoices.filter(isInvoiceOverdue);
   const expiredOffers = offers.filter(isOfferExpired);
 
+  // Faktury-szkice czekające na wystawienie — robota zrobiona, ale dokument
+  // nigdy nie dostał numeru (a więc: nie liczy się do przychodu i nikt za
+  // niego nie zapłaci). Nagabujemy tylko o szkice właściwych faktur (nie
+  // proform/zaliczkowych), które mają jakąkolwiek treść i NIE powstały dziś —
+  // żeby faktura, którą właśnie edytujesz, nie wyskakiwała od razu jako
+  // „zaległa". Najczęstsze źródło: szkic utworzony automatycznie z
+  // zaakceptowanej oferty albo z szablonu cyklicznego.
+  const draftInvoices = invoices.filter(
+    (i) =>
+      i.status === "Szkic" &&
+      i.typ_dokumentu === "faktura" &&
+      i.brutto > 0 &&
+      (i.created_at ?? "").slice(0, 10) < today
+  );
+
   // Przychód wg daty wystawienia (nie wg wpłat — wpłaty częściowe są opcjonalne
   // i nie każda opłacona faktura ma zarejestrowaną wpłatę).
   const revenueThisMonth = new Map<string, number>();
@@ -110,6 +140,8 @@ export async function GET() {
     overdueClients,
     dueProjects,
     overdueInvoices,
+    draftInvoices,
+    overdueMilestones,
     expiredOffers,
     todayEvents,
     recentNotes,

@@ -1,11 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { HubEvent } from "@/lib/events";
 import type { Lead } from "@/lib/leads";
 import type { Project } from "@/lib/projects";
+import type { Deadline, DeadlineKind } from "@/app/api/events/deadlines/route";
 import { todayLocalISO as todayISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
+
+/** Kolory wyliczonych terminów — celowo inne niż niebieski ręcznych wydarzeń,
+ * żeby na pierwszy rzut oka odróżnić „to wpisałem sam" od „to wyliczył panel". */
+const DEADLINE_STYLE: Record<DeadlineKind, { dot: string; pill: string; label: string }> = {
+  invoice: { dot: "bg-brand-gold", pill: "bg-brand-gold/15 text-brand-gold", label: "Płatność" },
+  project: { dot: "bg-brand-purple", pill: "bg-brand-purple/15 text-brand-purple", label: "Projekt" },
+  milestone: { dot: "bg-brand-pink", pill: "bg-brand-pink/15 text-brand-pink", label: "Kamień" },
+  lead: { dot: "bg-orange-500", pill: "bg-orange-500/15 text-orange-400", label: "Lead" },
+  client: { dot: "bg-brand-cyan", pill: "bg-brand-cyan/15 text-brand-cyan", label: "Klient" },
+};
 
 const WEEKDAYS = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nie"];
 const MONTH_NAMES = [
@@ -25,12 +37,13 @@ function monthGrid(year: number, monthIdx: number): (string | null)[] {
   return cells;
 }
 
-export function CalendarView() {
+export function CalendarView({ lang }: { lang: string }) {
   const { toast, confirm } = useUI();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [monthIdx, setMonthIdx] = useState(now.getMonth());
   const [events, setEvents] = useState<HubEvent[] | null>(null);
+  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
   const [newTitle, setNewTitle] = useState("");
   const [newTime, setNewTime] = useState("");
@@ -57,6 +70,18 @@ export function CalendarView() {
     setEvents(data.events);
   }, [monthKey]);
 
+  // Wyliczone terminy z innych modułów (płatności, projekty, kamienie,
+  // przypomnienia) — tylko do odczytu, ładowane osobno od ręcznych wydarzeń.
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/events/deadlines?month=${monthKey}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => alive && d && setDeadlines(d.deadlines as Deadline[]));
+    return () => {
+      alive = false;
+    };
+  }, [monthKey]);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -71,6 +96,16 @@ export function CalendarView() {
     });
     return map;
   }, [events]);
+
+  const deadlinesByDay = useMemo(() => {
+    const map = new Map<string, Deadline[]>();
+    deadlines.forEach((d) => {
+      const list = map.get(d.data) ?? [];
+      list.push(d);
+      map.set(d.data, list);
+    });
+    return map;
+  }, [deadlines]);
 
   const changeMonth = (delta: number) => {
     let m = monthIdx + delta;
@@ -124,6 +159,7 @@ export function CalendarView() {
 
   const today = todayISO();
   const selectedEvents = eventsByDay.get(selectedDay) ?? [];
+  const selectedDeadlines = deadlinesByDay.get(selectedDay) ?? [];
   const leadName = (id: string | null) => (id ? leads?.find((l) => l.id === id)?.firma : null);
   const projectName = (id: string | null) => (id ? projects?.find((p) => p.id === id)?.tytul : null);
 
@@ -148,8 +184,15 @@ export function CalendarView() {
             {cells.map((day, i) => {
               if (!day) return <div key={i} />;
               const dayEvents = eventsByDay.get(day) ?? [];
+              const dayDeadlines = deadlinesByDay.get(day) ?? [];
               const isToday = day === today;
               const isSelected = day === selectedDay;
+              // Wspólny limit dla ręcznych wydarzeń i wyliczonych terminów,
+              // żeby komórka nie puchła — reszta jako „+N więcej".
+              const shownEvents = dayEvents.slice(0, 2);
+              const remainingSlots = Math.max(0, 2 - shownEvents.length);
+              const shownDeadlines = dayDeadlines.slice(0, remainingSlots);
+              const overflow = dayEvents.length + dayDeadlines.length - shownEvents.length - shownDeadlines.length;
               return (
                 <button
                   key={day}
@@ -161,24 +204,51 @@ export function CalendarView() {
                   <span className={`text-[11px] ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)]" : "text-muted"}`}>
                     {Number(day.slice(-2))}
                   </span>
-                  {dayEvents.slice(0, 2).map((e) => (
+                  {shownEvents.map((e) => (
                     <span key={e.id} className="w-full truncate rounded bg-[#4ea7fc]/15 px-1 text-[10px] text-[#4ea7fc]">
                       {e.tytul}
                     </span>
                   ))}
-                  {dayEvents.length > 2 && (
-                    <span className="text-[10px] text-muted">+{dayEvents.length - 2} więcej</span>
-                  )}
+                  {shownDeadlines.map((d) => (
+                    <span key={d.id} className={`w-full truncate rounded px-1 text-[10px] ${DEADLINE_STYLE[d.kind].pill}`}>
+                      {d.tytul}
+                    </span>
+                  ))}
+                  {overflow > 0 && <span className="text-[10px] text-muted">+{overflow} więcej</span>}
                 </button>
               );
             })}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t hairline pt-3 text-[10px] text-muted">
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#4ea7fc]" /> Wydarzenie</span>
+            {(Object.keys(DEADLINE_STYLE) as DeadlineKind[]).map((k) => (
+              <span key={k} className="flex items-center gap-1">
+                <span className={`h-2 w-2 rounded-full ${DEADLINE_STYLE[k].dot}`} /> {DEADLINE_STYLE[k].label}
+              </span>
+            ))}
           </div>
         </div>
 
         <div className="card-paper rounded-2xl p-4">
           <h2 className="mb-3 text-[13px] font-medium">{selectedDay}</h2>
+
+          {selectedDeadlines.length > 0 && (
+            <ul className="mb-3 space-y-1.5">
+              {selectedDeadlines.map((d) => (
+                <li key={d.id} className="flex items-center gap-2 rounded-lg border hairline px-2.5 py-1.5 text-sm">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${DEADLINE_STYLE[d.kind].dot}`} />
+                  <Link href={`/${lang}${d.href}`} className="truncate hover:underline" title={d.tytul}>
+                    {d.tytul}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {selectedEvents.length === 0 ? (
-            <p className="mb-3 text-sm text-muted opacity-60">🗓️ Brak wydarzeń tego dnia.</p>
+            <p className="mb-3 text-sm text-muted opacity-60">
+              {selectedDeadlines.length === 0 ? "🗓️ Brak wydarzeń tego dnia." : "Brak dodatkowych wydarzeń tego dnia."}
+            </p>
           ) : (
             <ul className="mb-3 space-y-1.5">
               {selectedEvents.map((e) => (
