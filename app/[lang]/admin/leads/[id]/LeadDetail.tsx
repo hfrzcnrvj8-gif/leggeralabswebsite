@@ -12,7 +12,7 @@ import { LeadDetailPanel } from "../LeadDetailPanel";
 export function LeadDetail({ id, lang }: { id: string; lang: Locale }) {
   const router = useRouter();
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <Link href={`/${lang}/admin/leads`} className="mb-3 inline-block text-sm text-muted hover:text-[var(--fg)]">
         ← Wróć do tablicy
       </Link>

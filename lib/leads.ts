@@ -128,6 +128,37 @@ export function guessSourceCategory(zrodlo: string): string {
   return "Inne";
 }
 
+/** Normalizacja nazwy firmy do prostego dopasowania podobieństwa — usuwa
+ * polskie znaki diakrytyczne, interpunkcję i różnice wielkości liter, żeby
+ * "Kancelaria Kowalski" i "kancelaria kowalski sp. z o.o." trafiły na
+ * siebie. Wyłącznie do miękkiego ostrzeżenia (findSimilarLead), nie do
+ * jakiejkolwiek logiki biznesowej. */
+function normalizeCompanyName(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** Pierwszy istniejący lead o bardzo podobnej nazwie firmy (identyczna po
+ * normalizacji, albo jedna nazwa w całości zawiera drugą) — miękkie
+ * ostrzeżenie przed przypadkowym duplikatem przy ręcznym dodawaniu leada
+ * (LeadsDashboard.tsx addLead), nigdy blokada. Auto-wyszukiwanie (OSM) ma
+ * już własne, dokładne sprawdzenie duplikatów po nazwie — to jest dla
+ * ścieżki ręcznej, która go nie miała wcale. */
+export function findSimilarLead(firma: string, leads: Lead[]): Lead | null {
+  const needle = normalizeCompanyName(firma);
+  if (!needle) return null;
+  return (
+    leads.find((l) => {
+      const hay = normalizeCompanyName(l.firma);
+      return hay.length > 0 && (hay === needle || hay.includes(needle) || needle.includes(hay));
+    }) ?? null
+  );
+}
+
 /** Miękkie, statyczne podpowiedzi "co zwykle dalej" per status — mentor
  * bez LLM (zgodne z zasadą "brak AI w logice przypominacza"). Czysto
  * informacyjne, nigdy nie blokują żadnej akcji. Wzorem CLIENT_STATUS_HINT

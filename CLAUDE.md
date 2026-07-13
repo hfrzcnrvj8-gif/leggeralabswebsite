@@ -51,16 +51,21 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   dla projektów), profil rekordu ORAZ osobna podstrona `[id]/page.tsx` dla
   bezpośrednich linków — obie renderują ten sam `*DetailPanel.tsx`/
   `*Detail.tsx` komponent.
-- **Profil rekordu = wyśrodkowany, szeroki modal** (`max-w-4xl`), NIE wąski
-  panel wysuwany z prawej — dotyczy WSZYSTKICH modułów (Leady, Klienci,
-  Faktury, Oferty, Projekty). Do 2026-07-14 Leady/Klienci używały węższego
-  `max-w-2xl` panelu z prawej (`.glass` tło) — zmienione na wyraźną prośbę
-  właściciela, bo gęsta treść profilu (dane + adres + źródło + log + mapa
-  procesu) nie mieściła się wygodnie. Wzorzec: `fixed inset-0 ... flex
-  items-start justify-center` overlay + `card-paper max-h-[85vh]
-  overflow-y-auto rounded-2xl` karta wewnątrz samego `*DetailPanel.tsx`
-  (nie w wrapperze dashboardu) — patrz `LeadDetailPanel.tsx`/
-  `InvoiceEditor.tsx` jako referencja. Nie wracaj do wąskiego panelu z prawej
+- **Profil rekordu = wyśrodkowany modal**, NIE wąski panel wysuwany z
+  prawej — dotyczy WSZYSTKICH modułów (Leady, Klienci, Faktury, Oferty,
+  Projekty). Do 2026-07-14 Leady/Klienci używały węższego `max-w-2xl`
+  panelu z prawej (`.glass` tło) — zmienione na wyraźną prośbę właściciela,
+  bo gęsta treść profilu (dane + adres + źródło + log + mapa procesu) nie
+  mieściła się wygodnie. Leady/Klienci: BEZ `max-w` (`w-full`, margines
+  tylko z paddingu overlayu) — modal zajmuje całą szerokość ekranu, siatka
+  pól ma `xl:grid-cols-3`. Faktury/Oferty/Projekty: własne, węższe limity
+  (`max-w-7xl` itp. w `InvoicesDashboard.tsx` i analogicznych) — nie
+  ujednolicaj bez potrzeby, mają inny kształt treści (tabele pozycji).
+  Wzorzec: `fixed inset-0 ... flex items-start justify-center` overlay +
+  `card-paper max-h-[85vh] overflow-y-auto rounded-2xl` karta wewnątrz
+  samego `*DetailPanel.tsx` (nie w wrapperze dashboardu) — patrz
+  `LeadDetailPanel.tsx`/`InvoiceEditor.tsx` jako referencja. Nie wracaj do
+  wąskiego panelu z prawej
   bez wyraźnej prośby.
 
 ## Design system (trzymaj się tego)

@@ -393,21 +393,58 @@ kategorii (przyszłe automatyczne źródła — formularz, discover — już
 zapisują kategorię od razu, więc to głównie dla importów/starych danych).
 `LeadsDashboard.tsx` → `tidySources()`.
 
+## Leady: eksport CSV, szersze wyszukiwanie/filtr miasta, ostrzeżenie o duplikacie (2026-07-14)
+
+Dogonienie Leadów do poziomu Faktur/Kosztów pod kątem narzędzi, po pytaniu
+właściciela "co jeszcze usprawniłoby pracę":
+
+- **Eksport CSV** (`app/api/leads/export/route.ts`, ikona `IconFileExport`
+  w toolbarze) — cały rejestr na raz, bez pytania o zakres dat jak przy
+  Fakturach/Kosztach (leady to żywy rejestr, nie zdarzenia z okresu, więc
+  `ExportCsvButton` z zakresem dat by tu nie pasował — osobny, prostszy
+  komponent: `<a href="/api/leads/export">`).
+- **Wyszukiwarka** dopasowuje teraz też branżę, miasto, osobę kontaktową i
+  notatki, nie tylko nazwę firmy (`LeadsDashboard.tsx` `filtered`).
+- **Filtr "Miasto"** w tym samym Popoverze co Status/Źródło (lista miast
+  wyliczona z aktualnych leadów, jak `zrodla`) — obsługiwany też przez
+  Zapisane Widoki.
+- **Miękkie ostrzeżenie o duplikacie** przy ręcznym "Dodaj leada"
+  (`findSimilarLead()`, `lib/leads.ts`) — normalizuje nazwę (usuwa polskie
+  znaki diakrytyczne/interpunkcję/wielkość liter) i szuka istniejącego
+  leada o identycznej lub zawierającej się nazwie. Nigdy nie blokuje —
+  tylko `confirm()` z pytaniem, czy dodać mimo to. Auto-wyszukiwanie (OSM)
+  miało już własne, dokładne sprawdzenie duplikatów; to domyka ścieżkę
+  ręczną, która go nie miała wcale.
+
 ## Profil leada/klienta jako wyśrodkowany modal (2026-07-14)
 
 Na wyraźną prośbę właściciela: dawny wąski panel "peek" wysuwany z prawej
 (`max-w-2xl` na `.glass` tle) był za ciasny na gęstą treść profilu (dane +
-adres + źródło + log + mapa procesu). Zamieniony na wyśrodkowany, znacznie
-szerszy modal (`max-w-4xl`) — dokładnie ten sam wzorzec co
-`InvoiceEditor.tsx`/`OfferEditor.tsx` (patrz `## Architektura modułów` w
-`CLAUDE.md` — WYJĄTEK od zasady "peek panel z prawej" teraz obejmuje też
-Leady i Klientów, nie tylko Faktury/Oferty/Projekty). Dotyczy obu:
-`LeadDetailPanel.tsx`/`ClientDetailPanel.tsx` (ten sam komponent renderuje
-się w peek-modalu z `LeadsDashboard.tsx`/`ClientsDashboard.tsx` ORAZ w
-samodzielnej podstronie `[id]/page.tsx`, więc zmiana objęła oba miejsca
-naraz). Wewnątrz komponentu trzy dawne zagnieżdżone karty (`card-paper
-rounded-3xl`) scalone w jedną ramkę z separatorami (`border-t hairline`) —
-mniej wizualnego szumu, więcej miejsca na treść.
+adres + źródło + log + mapa procesu). Zamieniony na wyśrodkowany modal —
+dokładnie ten sam wzorzec co `InvoiceEditor.tsx`/`OfferEditor.tsx` (patrz
+`## Architektura modułów` w `CLAUDE.md` — WYJĄTEK od zasady "peek panel z
+prawej" teraz obejmuje też Leady i Klientów, nie tylko Faktury/Oferty/
+Projekty). Pierwsza wersja miała `max-w-4xl`, ale wciąż było za ciasno —
+finalnie usunięty limit szerokości (`w-full` bez `max-w`, margines tylko z
+paddingu overlayu `p-4 sm:p-8`), więc modal realnie zajmuje całą szerokość
+ekranu. Siatka pól w środku dostała `xl:grid-cols-3` (zamiast tylko
+`sm:grid-cols-2`), żeby dodatkowa szerokość była wykorzystana, nie tylko
+poszerzała odstępy. Dotyczy obu: `LeadDetailPanel.tsx`/
+`ClientDetailPanel.tsx` (ten sam komponent renderuje się w peek-modalu z
+`LeadsDashboard.tsx`/`ClientsDashboard.tsx` ORAZ w samodzielnej podstronie
+`[id]/page.tsx`, więc zmiana objęła oba miejsca naraz). Wewnątrz komponentu
+trzy dawne zagnieżdżone karty (`card-paper rounded-3xl`) scalone w jedną
+ramkę z separatorami (`border-t hairline`) — mniej wizualnego szumu,
+więcej miejsca na treść.
+
+Logo w sidebarze poprawione w tej samej rundzie — pierwsza wersja
+("LEGGERA HUB" + `.text-liquid`) nie pasowała do prawdziwego wzorca marki.
+Teraz: `LogoMark` (`components/Logo.tsx`, prawdziwy znak "podwójne L") +
+tekst stylowany tym samym gradientem/kątem/dark-stroke co realny wordmark
+"Leggera Labs" (`HUB_WORDMARK_STYLE` w `AppShell.tsx`, skopiowany 1:1 z
+`wordmarkGradient` w `Logo.tsx` — nie reużywa importu, bo `Logo.tsx` ma też
+scroll-animowaną logikę specyficzną dla strony publicznej, niepotrzebną w
+statycznym sidebarze).
 
 ## Branding panelu: "LEGGERA HUB" + kolejność nawigacji wg procesu (2026-07-14)
 

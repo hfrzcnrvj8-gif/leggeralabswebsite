@@ -18,18 +18,31 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconLogout,
-  IconSlash,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { AdminUIProvider, useUI, isTypingTarget, type Action } from "./ui";
 import { CommandPalette } from "./CommandPalette";
+import { LogoMark } from "@/components/Logo";
 import type { Lead } from "@/lib/leads";
 import type { Client } from "@/lib/clients";
 import type { Project } from "@/lib/projects";
 import { formatPlDate } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
 import type { HubEvent } from "@/lib/events";
+
+// Sam wzór wordmarku "Leggera Labs" (components/Logo.tsx `wordmarkGradient`)
+// — ten sam gradient/kąt/dark-stroke, żeby "LEGGERA HUB" wyglądało jak
+// naturalne rozszerzenie marki, nie przybliżenie (`.text-liquid` ma inny
+// kąt/stopnie gradientu, celowo dobrany do dużych nagłówków na stronie
+// publicznej, nie do małego wordmarku w sidebarze).
+const HUB_WORDMARK_STYLE = {
+  backgroundImage: "linear-gradient(100deg, #7C3AED 0%, #E0A93B 65%, #FFF7E8 100%)",
+  WebkitBackgroundClip: "text" as const,
+  backgroundClip: "text" as const,
+  color: "transparent" as const,
+  WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)",
+};
 
 // Kolejność wg realnej ścieżki pracy (lib/process.ts, 12 kroków), nie
 // alfabetu/daty dodania: Pulpit (start dnia) → Leady → Klienci → Oferty →
@@ -223,9 +236,11 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
         <div className="flex h-full flex-col p-2.5">
           <div className="mb-2.5 flex items-center justify-between px-1.5 py-1">
             {!collapsed && (
-              <span className="flex items-center gap-1.5 text-[13px] font-semibold">
-                <IconSlash size={15} stroke={2} />
-                <span className="text-liquid tracking-wide">LEGGERA HUB</span>
+              <span className="flex items-center gap-1.5">
+                <LogoMark size={18} />
+                <span style={HUB_WORDMARK_STYLE} className="text-[13px] font-bold uppercase tracking-[0.12em]">
+                  Leggera Hub
+                </span>
               </span>
             )}
             <button

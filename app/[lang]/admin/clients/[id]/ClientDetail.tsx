@@ -10,7 +10,7 @@ import { ClientDetailPanel } from "../ClientDetailPanel";
 export function ClientDetail({ id, lang }: { id: string; lang: Locale }) {
   const router = useRouter();
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <Link href={`/${lang}/admin/clients`} className="mb-3 inline-block text-sm text-muted hover:text-[var(--fg)]">
         ← Wróć do tablicy
       </Link>

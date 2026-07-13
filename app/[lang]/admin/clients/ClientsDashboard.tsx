@@ -408,7 +408,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.14, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className="my-auto w-full max-w-4xl"
+              className="my-auto w-full"
             >
               <ClientDetailPanel
                 id={openClientId}

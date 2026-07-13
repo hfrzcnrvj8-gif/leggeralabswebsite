@@ -212,7 +212,7 @@ export function LeadDetailPanel({
         </div>
         <p className="mt-2 text-[12.5px] text-muted opacity-80">{LEAD_STATUS_HINT[lead.status]}</p>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Field label="Branża">
             <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
           </Field>

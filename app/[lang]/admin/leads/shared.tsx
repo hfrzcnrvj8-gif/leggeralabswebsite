@@ -21,6 +21,7 @@ export {
   overdueReason,
   leadSourceLabel,
   guessSourceCategory,
+  findSimilarLead,
 } from "@/lib/leads";
 
 export { SummaryCard, EditableText, EditableTextarea } from "../components";

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag } from "@tabler/icons-react";
+import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag, IconFileExport } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, SEED, isOverdue, overdueReason, leadSourceLabel, guessSourceCategory } from "./shared";
+import { type Lead, STATUSES, SEED, isOverdue, overdueReason, leadSourceLabel, guessSourceCategory, findSimilarLead } from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
@@ -21,6 +21,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterZrodlo, setFilterZrodlo] = useState("");
+  const [filterMiasto, setFilterMiasto] = useState("");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
   const [discoverOpen, setDiscoverOpen] = useState(false);
@@ -72,6 +73,18 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const addLead = useCallback(async () => {
     const firma = await prompt("Nazwa firmy nowego leada:", { placeholder: "np. Kancelaria Kowalski" });
     if (!firma) return;
+
+    // Miękkie ostrzeżenie, nie blokada — auto-wyszukiwanie (OSM) sprawdza
+    // duplikaty po nazwie od razu, ręczne dodawanie do tej pory nie
+    // sprawdzało wcale.
+    const similar = leads ? findSimilarLead(firma, leads) : null;
+    if (similar) {
+      const proceed = await confirm(
+        `Podobny lead już jest w rejestrze: „${similar.firma}" (status: ${similar.status}). Dodać mimo to jako nowy?`
+      );
+      if (!proceed) return;
+    }
+
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -83,7 +96,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     } else {
       toast("Nie udało się dodać leada.", "error");
     }
-  }, [prompt, toast, load]);
+  }, [prompt, toast, load, leads, confirm]);
 
   const deleteLead = useCallback(async (id: string, firma: string) => {
     const ok = await confirm(`Usunąć "${firma}" z listy?`, { danger: true });
@@ -202,25 +215,38 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   }, [selectedIds, confirm, toast, clearSelection]);
 
   const zrodla = useMemo(() => [...new Set((leads ?? []).map(leadSourceLabel))], [leads]);
-  const activeFilterCount = (filterStatus ? 1 : 0) + (filterZrodlo ? 1 : 0);
+  const miasta = useMemo(
+    () => [...new Set((leads ?? []).map((l) => l.miasto).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [leads]
+  );
+  const activeFilterCount = (filterStatus ? 1 : 0) + (filterZrodlo ? 1 : 0) + (filterMiasto ? 1 : 0);
 
   const filtered = useMemo(() => {
     let list = leads ?? [];
     if (filterStatus) list = list.filter((l) => l.status === filterStatus);
     if (filterZrodlo) list = list.filter((l) => leadSourceLabel(l) === filterZrodlo);
-    if (search) list = list.filter((l) => l.firma.toLowerCase().includes(search.toLowerCase()));
+    if (filterMiasto) list = list.filter((l) => l.miasto === filterMiasto);
+    if (search) {
+      const q = search.toLowerCase();
+      // Szuka nie tylko po nazwie firmy, ale wszędzie tam, gdzie realnie
+      // można pamiętać jakiś fragment (osoba kontaktowa, branża, miasto,
+      // notatka) — samo dopasowanie do nazwy firmy było za wąskie.
+      list = list.filter((l) =>
+        [l.firma, l.osoba_kontaktowa, l.branza, l.miasto, l.notatki].some((f) => f.toLowerCase().includes(q))
+      );
+    }
     return [...list].sort((a, b) => {
       const ao = isOverdue(a) ? 0 : 1;
       const bo = isOverdue(b) ? 0 : 1;
       if (ao !== bo) return ao - bo;
       return a.firma.localeCompare(b.firma);
     });
-  }, [leads, filterStatus, filterZrodlo, search]);
+  }, [leads, filterStatus, filterZrodlo, filterMiasto, search]);
 
   useEffect(() => {
     setSelectedIndex(0);
     clearSelection();
-  }, [filterStatus, filterZrodlo, search, view, clearSelection]);
+  }, [filterStatus, filterZrodlo, filterMiasto, search, view, clearSelection]);
 
   // Skróty lokalne dla tego widoku: "/" fokus wyszukiwarki, "j"/"k"
   // nawigacja w tabeli, Esc zamyka peek panel. Cmd+K i "n" (dodaj) obsługuje
@@ -360,6 +386,16 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
               {zrodla.map((z) => (
                 <MenuRow key={z} label={z} selected={filterZrodlo === z} onClick={() => setFilterZrodlo(filterZrodlo === z ? "" : z)} />
               ))}
+              {miasta.length > 0 && (
+                <>
+                  <MenuDivider />
+                  <MenuLabel>Miasto</MenuLabel>
+                  <MenuRow label="Wszystkie" selected={!filterMiasto} onClick={() => setFilterMiasto("")} />
+                  {miasta.map((m) => (
+                    <MenuRow key={m} label={m} selected={filterMiasto === m} onClick={() => setFilterMiasto(filterMiasto === m ? "" : m)} />
+                  ))}
+                </>
+              )}
               {activeFilterCount > 0 && (
                 <>
                   <MenuDivider />
@@ -367,6 +403,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
                     onClick={() => {
                       setFilterStatus("");
                       setFilterZrodlo("");
+                      setFilterMiasto("");
                     }}
                     className="w-full px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-[#232327]"
                   >
@@ -407,6 +444,13 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         >
           <IconTag size={15} />
         </button>
+        <a
+          href="/api/leads/export"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Eksport CSV (cały rejestr)"
+        >
+          <IconFileExport size={15} />
+        </a>
         <button
           onClick={addLead}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
@@ -447,10 +491,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       <div className="mb-3">
         <SavedViews
           storageKey="leggera_leads_saved_views"
-          currentFilters={{ status: filterStatus, zrodlo: filterZrodlo }}
+          currentFilters={{ status: filterStatus, zrodlo: filterZrodlo, miasto: filterMiasto }}
           onApply={(f) => {
             setFilterStatus(f.status ?? "");
             setFilterZrodlo(f.zrodlo ?? "");
+            setFilterMiasto(f.miasto ?? "");
           }}
         />
       </div>
@@ -544,7 +589,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.14, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className="my-auto w-full max-w-4xl"
+              className="my-auto w-full"
             >
               <LeadDetailPanel
                 id={openLeadId}

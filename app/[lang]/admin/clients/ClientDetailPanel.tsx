@@ -200,7 +200,7 @@ export function ClientDetailPanel({
         </div>
         <p className="mt-2 text-[12.5px] text-muted opacity-80">{CLIENT_STATUS_HINT[client.status]}</p>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Field label="NIP">
             <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
           </Field>
