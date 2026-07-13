@@ -217,7 +217,7 @@ export const PROJECT_STATUS_DOT: Record<string, string> = {
   Wstrzymane: "bg-[var(--hairline)]",
 };
 
-const CLOSED_PROJECT_STATUSES = new Set(["Wdrożone"]);
+export const CLOSED_PROJECT_STATUSES = new Set(["Wdrożone"]);
 
 /** Projekt "wymaga działania" jeśli ma minięty/dzisiejszy termin i nie jest
  * zamknięty — ten sam duch co isOverdue() dla leadów. */

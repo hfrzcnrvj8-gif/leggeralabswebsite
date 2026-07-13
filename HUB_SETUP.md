@@ -416,6 +416,51 @@ właściciela "co jeszcze usprawniłoby pracę":
   miało już własne, dokładne sprawdzenie duplikatów; to domyka ścieżkę
   ręczną, która go nie miała wcale.
 
+## Moduł 2 — Nurture automatyczny (2026-07-14)
+
+Domyka lukę ⑥ z audytu przepływów (`docs/plany-modulow/02-nurture-automatyczny.md`):
+po wygranym projekcie nic samo nie planowało powrotu do klienta — trzeba
+było ręcznie ustawić `next_followup`. Teraz: gdy projekt z podpiętym
+klientem przechodzi w status **"Wdrożone"**, panel automatycznie planuje
+**dwa** przyszłe kontakty, bez klikania:
+- **+14 dni** — "kontakt kontrolny: referencja/opinia" (moment największego
+  zadowolenia klienta, najlepszy na prośbę o opinię).
+- **+90 dni** — "kontakt kontrolny: kolejna automatyzacja" (po kwartale
+  użytkowania, moment na upsell).
+
+Świadomie tylko te dwa dotknięcia (decyzja właściciela 2026-07-14, zgodna z
+rekomendacją briefu) — po nich panel przestaje nagabywać, dalej to ręczna
+decyzja (`next_followup` albo status "Uśpiony"). Panel **nic nie wysyła do
+klienta automatycznie** — to zadanie dla właściciela na Pulpicie, nie mail
+za niego. Zero AI — odstępy to stałe (`NURTURE_OFFSETS`, `lib/clients.ts`).
+
+- **Schemat**: nowa tabela `client_followups` (id, client_id, project_id,
+  due_date, powod, done_at) — `ensureFollowupsSchema()` w `lib/db.ts`.
+  Osobna tabela zamiast nadpisywania `next_followup`, żeby trzymać DWA
+  przyszłe terminy naraz bez gubienia drugiego; nie koliduje z ręcznym
+  `next_followup` klienta — oba źródła sumują się na Pulpicie/w mailu.
+  `project_id` służy do deduplikacji (nie planuj drugi raz dla tego samego
+  projektu, np. przy powrocie do "Wdrożone" po korekcie).
+- **Trigger**: `app/api/projects/[id]/route.ts` PATCH — przy zmianie statusu
+  na zamknięty (`CLOSED_PROJECT_STATUSES`, teraz eksportowane z
+  `lib/projects.ts`) z podpiętym `client_id`, wstawia 2 wiersze wg
+  `NURTURE_OFFSETS` i loguje zdarzenie `nurture_scheduled` (📅) na osi
+  klienta.
+- **Widoczność**: `app/api/hub/today` dorzuca `dueFollowups` (wymagalne
+  dziś/wcześniej, `done_at IS NULL`) do sekcji "Klienci wymagający
+  kontaktu" na Pulpicie — osobna lista obok istniejących `overdueClients`
+  (ręczny `next_followup`), bo mają inny czytelny powód, ale renderują się
+  razem (`DashboardHome.tsx`). Analogicznie dorzucone do dziennego maila
+  (`app/api/leads/notify`), który wcześniej w ogóle nie raportował klientów
+  — przy okazji domknięta ta luka.
+- **Obsługa**: nowy endpoint `PATCH /api/client-followups/:id` ustawia
+  `done_at = now()` na pojedynczym wpisie — przycisk "Obsłużone" przy
+  kliencie na Pulpicie (`markFollowupHandled`, osobno od `markClientHandled`
+  dla ręcznego `next_followup`).
+- Zweryfikowane end-to-end na dev: oferta → akceptacja (projekt z
+  `client_id`) → status "Wdrożone" → 2 wiersze w `client_followups` +
+  zdarzenie `nurture_scheduled` na osi klienta.
+
 ## Profil leada/klienta jako wyśrodkowany modal (2026-07-14)
 
 Na wyraźną prośbę właściciela: dawny wąski panel "peek" wysuwany z prawej

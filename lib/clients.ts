@@ -53,6 +53,7 @@ export const CLIENT_EVENT_KINDS = [
   "payment_received",
   "invoice_paid",
   "project_status_changed",
+  "nurture_scheduled",
 ] as const;
 export type ClientEventKind = (typeof CLIENT_EVENT_KINDS)[number];
 
@@ -76,6 +77,7 @@ export const CLIENT_EVENT_ICON: Record<string, string> = {
   payment_received: "💰",
   invoice_paid: "✅",
   project_status_changed: "📁",
+  nurture_scheduled: "📅",
 };
 
 /** Status relacji — świadomie OSOBNA oś od tego, czy klient coś już kupił
@@ -119,6 +121,29 @@ export const CLIENT_STATUS_STEP: Record<ClientStatus, number> = {
   Uśpiony: 12,
   Stracony: 12,
 };
+
+/** Jeden zaplanowany kontakt nurture (harmonogram, `client_followups`) —
+ * `done_at` puste = jeszcze do zrobienia. Patrz NURTURE_OFFSETS. */
+export type ClientFollowup = {
+  id: string;
+  client_id: string;
+  project_id: string | null;
+  due_date: string;
+  powod: string;
+  created_at: string;
+  done_at: string | null;
+};
+
+/** Rytm automatycznego nurture po "Wdrożone" — DWA dotknięcia, bo mają różną
+ * wartość: +14 dni to moment największego zadowolenia klienta (prośba o
+ * referencję), +90 dni to moment na kolejną propozycję po kwartale
+ * użytkowania. Świadomie tylko dwa (decyzja właściciela 2026-07-14) — po
+ * nich panel przestaje nagabywać, dalej to ręczna decyzja (next_followup
+ * albo status "Uśpiony"). Zero AI — stałe w kodzie, deterministyczne. */
+export const NURTURE_OFFSETS: { days: number; powod: string }[] = [
+  { days: 14, powod: "kontakt kontrolny: referencja/opinia" },
+  { days: 90, powod: "kontakt kontrolny: kolejna automatyzacja" },
+];
 
 function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;

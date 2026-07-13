@@ -724,6 +724,41 @@ export async function logClientEvent(
   `;
 }
 
+let followupsSchemaReady: Promise<void> | null = null;
+
+/** Harmonogram automatycznego nurture (Moduł 2, luka ⑥) — gdy projekt
+ * przechodzi w "Wdrożone", planujemy klientowi dwa przyszłe kontakty (14 i
+ * 90 dni, patrz NURTURE_OFFSETS w lib/clients.ts) zamiast liczyć na to, że
+ * właściciel sam ustawi next_followup. Osobna tabela zamiast nadpisywania
+ * next_followup, bo trzeba trzymać DWA przyszłe terminy naraz bez gubienia
+ * drugiego — i nie kolidować z ręcznie ustawionym next_followup (oba źródła
+ * sumują się na Pulpicie, patrz app/api/hub/today). `project_id` służy do
+ * deduplikacji (nie planuj drugi raz dla tego samego projektu). */
+async function createFollowupsSchema(): Promise<void> {
+  await ensureClientsSchema();
+  await ensureHubSchema();
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_followups (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      due_date DATE NOT NULL,
+      powod TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      done_at TIMESTAMPTZ
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_followups_client_id_idx ON client_followups(client_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS client_followups_due_date_idx ON client_followups(due_date);`;
+}
+
+export async function ensureFollowupsSchema(): Promise<void> {
+  if (!followupsSchemaReady) followupsSchemaReady = createFollowupsSchema();
+  await followupsSchemaReady;
+}
+
 let costsSchemaReady: Promise<void> | null = null;
 
 /** Moduł Koszty (Faza G) — ewidencja faktur PRZYCHODZĄCYCH od dostawców, w

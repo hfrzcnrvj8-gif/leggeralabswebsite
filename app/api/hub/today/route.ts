@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
@@ -30,6 +30,7 @@ export async function GET() {
   await ensureInvoicesSchema();
   await ensureOffersSchema();
   await ensureClientsSchema();
+  await ensureFollowupsSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -40,7 +41,7 @@ export async function GET() {
   const lastMonth =
     thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
-  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers] = await Promise.all([
+  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, dueFollowups] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects;` as unknown as Promise<Project[]>,
@@ -86,6 +87,17 @@ export async function GET() {
         SELECT offer_id, SUM(ilosc * cena) AS kwota FROM offer_items GROUP BY offer_id
       ) t ON t.offer_id = o.id;
     ` as unknown as Promise<OfferRow[]>,
+    // Zaplanowane kontakty nurture (Moduł 2) wymagalne dziś lub wcześniej,
+    // jeszcze nieobsłużone — osobno od isClientOverdue (ręczny next_followup),
+    // scalane z nim dopiero w UI (DashboardHome.tsx), żeby zachować czytelny,
+    // własny powód przy każdym.
+    sql`
+      SELECT f.id, f.client_id, f.due_date, f.powod, c.nazwa AS client_nazwa
+      FROM client_followups f
+      JOIN clients c ON c.id = f.client_id
+      WHERE f.due_date <= ${today} AND f.done_at IS NULL
+      ORDER BY f.due_date ASC;
+    ` as unknown as Promise<{ id: string; client_id: string; due_date: string; powod: string; client_nazwa: string }[]>,
   ]);
 
   const overdueLeads = leads.filter(isOverdue);
@@ -143,6 +155,7 @@ export async function GET() {
     draftInvoices,
     overdueMilestones,
     expiredOffers,
+    dueFollowups,
     todayEvents,
     recentNotes,
     kpi: {

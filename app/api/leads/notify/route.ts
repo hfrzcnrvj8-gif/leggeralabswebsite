@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureInvoiceShareToken, ensureClientsSchema, ensureFollowupsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
+import { isClientOverdue, clientOverdueReason, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
 import { isInvoiceOverdue, formatMoney, addDaysISO, type Invoice } from "@/lib/invoices";
 import { sendEmail } from "@/lib/email";
@@ -136,12 +137,24 @@ async function generateDueRecurringInvoices(): Promise<{ generated: number; fail
 async function buildAndSendDigest(): Promise<{ overdue: number; total: number; invoiceReminders: number; recurringGenerated: number }> {
   await ensureLeadsSchema();
   await ensureHubSchema();
+  await ensureClientsSchema();
+  await ensureFollowupsSchema();
   const sql = getSql();
   const today = todayLocalISO();
 
-  const [leads, projects, overdueMilestones, todayEvents, draftInvoices, invoiceReminders, recurring] = await Promise.all([
+  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, invoiceReminders, recurring] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
+    sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
+    // Zaplanowane kontakty nurture (Moduł 2) wymagalne dziś lub wcześniej —
+    // ta sama reguła co na Pulpicie (patrz app/api/hub/today).
+    sql`
+      SELECT f.id, f.client_id, f.due_date, f.powod, c.nazwa AS client_nazwa
+      FROM client_followups f
+      JOIN clients c ON c.id = f.client_id
+      WHERE f.due_date <= ${today} AND f.done_at IS NULL
+      ORDER BY f.due_date ASC;
+    ` as unknown as Promise<{ id: string; client_id: string; due_date: string; powod: string; client_nazwa: string }[]>,
     // Kamienie milowe po terminie (ta sama reguła co na pulpicie, patrz
     // app/api/hub/today) — niewdrożony projekt, nieukończony kamień.
     sql`
@@ -171,11 +184,23 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
 
   const overdueLeads = leads.filter(isOverdue);
   const dueProjects = projects.filter(isProjectOverdue);
+  const overdueClients = clients.filter(isClientOverdue);
   const counts = Object.fromEntries(STATUSES.map((s) => [s, leads.filter((l) => l.status === s).length]));
 
   const leadLines = overdueLeads.length
     ? overdueLeads.map((l) => `- ${l.firma} — ${overdueReason(l)}`).join("\n")
     : "Brak leadów wymagających dziś działania.";
+
+  // Dwa źródła "klient wymaga kontaktu": ręcznie ustawiony next_followup i
+  // automatyczny harmonogram nurture (Moduł 2) — osobne linie, bo mają inny
+  // powód, ale sumują się do jednej sekcji w mailu, tak jak na Pulpicie.
+  const clientLines = overdueClients.length
+    ? overdueClients.map((c) => `- ${c.nazwa} — ${clientOverdueReason(c)}`).join("\n")
+    : "Brak klientów z ręcznie ustawionym przypomnieniem.";
+
+  const followupLines = dueFollowups.length
+    ? dueFollowups.map((f) => `- ${f.client_nazwa} — ${f.powod}`).join("\n")
+    : "Brak zaplanowanych kontaktów nurture.";
 
   const projectLines = dueProjects.length
     ? dueProjects.map((p) => `- ${p.tytul} — termin ${p.termin}`).join("\n")
@@ -190,7 +215,8 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     : "Brak wydarzeń w kalendarzu na dziś.";
 
   const summaryLines = STATUSES.map((s) => `  ${s}: ${counts[s] ?? 0}`).join("\n");
-  const totalActionable = overdueLeads.length + dueProjects.length + overdueMilestones.length + draftInvoices.length;
+  const totalActionable =
+    overdueLeads.length + overdueClients.length + dueFollowups.length + dueProjects.length + overdueMilestones.length + draftInvoices.length;
 
   const text = [
     "Dzień dobry,",
@@ -199,6 +225,12 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Leady wymagające działania dziś (${overdueLeads.length}):`,
     leadLines,
+    "",
+    `Klienci z ręcznym przypomnieniem (${overdueClients.length}):`,
+    clientLines,
+    "",
+    `Zaplanowane kontakty nurture (${dueFollowups.length}):`,
+    followupLines,
     "",
     `Projekty z minionym terminem (${dueProjects.length}):`,
     projectLines,

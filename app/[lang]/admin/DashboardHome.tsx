@@ -17,6 +17,7 @@ import { useUI } from "./ui";
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
 type OverdueMilestone = { id: string; nazwa: string; termin: string; project_id: string; projekt: string };
+type DueFollowup = { id: string; client_id: string; due_date: string; powod: string; client_nazwa: string };
 
 type Kpi = {
   revenueThisMonth: [string, number][];
@@ -34,6 +35,7 @@ type TodayData = {
   overdueInvoices: InvoiceRow[];
   draftInvoices: InvoiceRow[];
   expiredOffers: OfferRow[];
+  dueFollowups: DueFollowup[];
   todayEvents: HubEvent[];
   recentNotes: Note[];
   kpi: Kpi;
@@ -98,6 +100,19 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     toast("Klient oznaczony jako obsłużony.");
   };
 
+  /** Obsługuje jeden zaplanowany kontakt nurture (Moduł 2) — osobno od
+   * markClientHandled, bo to inne źródło "wymaga kontaktu" (harmonogram
+   * client_followups, nie ręczny next_followup). */
+  const markFollowupHandled = async (followupId: string) => {
+    const res = await fetch(`/api/client-followups/${followupId}`, { method: "PATCH" });
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, dueFollowups: prev.dueFollowups.filter((f) => f.id !== followupId) } : prev));
+    toast("Kontakt oznaczony jako obsłużony.");
+  };
+
   const markProjectDone = async (id: string, tytul: string) => {
     const ok = await confirm(`Oznaczyć "${tytul}" jako wdrożone?`);
     if (!ok) return;
@@ -149,6 +164,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   const totalActionable =
     data.overdueLeads.length +
     data.overdueClients.length +
+    data.dueFollowups.length +
     data.dueProjects.length +
     data.overdueMilestones.length +
     data.overdueInvoices.length +
@@ -238,7 +254,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
               Zobacz wszystkie →
             </Link>
           </div>
-          {data.overdueClients.length === 0 ? (
+          {data.overdueClients.length === 0 && data.dueFollowups.length === 0 ? (
             <p className="text-sm text-muted opacity-60">Nic — wszystko obsłużone.</p>
           ) : (
             <ul className="space-y-2">
@@ -252,6 +268,22 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   </span>
                   <button
                     onClick={() => markClientHandled(c.id)}
+                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                  >
+                    Obsłużone
+                  </button>
+                </li>
+              ))}
+              {data.dueFollowups.slice(0, 6).map((f) => (
+                <li key={f.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={`/${lang}/admin/clients/${f.client_id}`} className="font-medium hover:underline">
+                      {f.client_nazwa}
+                    </Link>
+                    <span className="text-muted"> — {f.powod}</span>
+                  </span>
+                  <button
+                    onClick={() => markFollowupHandled(f.id)}
                     className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
                   >
                     Obsłużone
