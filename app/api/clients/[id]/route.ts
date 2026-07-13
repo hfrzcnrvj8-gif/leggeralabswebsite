@@ -22,13 +22,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!client) return NextResponse.json({ error: "not found" }, { status: 404 });
   const leadId = typeof client.lead_id === "string" ? client.lead_id : null;
 
+  type RawActivity = {
+    id: string;
+    text: string;
+    kanal: string | null;
+    kierunek: string | null;
+    wynik: string | null;
+    czas_trwania_sek: number | null;
+    created_at: string;
+  };
   const [clientActivity, leadActivity, events, offers, invoices, projects] = await Promise.all([
-    sql`SELECT id, text, kanal, kierunek, created_at FROM client_activity WHERE client_id = ${id};`,
+    sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
     leadId
-      ? (sql`SELECT id, text, kanal, kierunek, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<
-          { id: string; text: string; kanal: string | null; kierunek: string | null; created_at: string }[]
-        >)
-      : Promise.resolve([] as { id: string; text: string; kanal: string | null; kierunek: string | null; created_at: string }[]),
+      ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
+      : Promise.resolve([] as RawActivity[]),
     sql`SELECT id, kind, text, amount, created_at FROM client_events WHERE client_id = ${id};`,
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
@@ -42,12 +49,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const feed = [
     ...clientActivity.map((a) => ({
       id: a.id,
-      created_at: a.created_at as string,
+      created_at: a.created_at,
       kind: "note" as const,
-      text: a.text as string,
+      text: a.text,
       amount: null as number | null,
-      kanal: (a.kanal as string | null) ?? null,
-      kierunek: (a.kierunek as string | null) ?? null,
+      kanal: a.kanal ?? null,
+      kierunek: a.kierunek ?? null,
+      wynik: a.wynik ?? null,
+      czas_trwania_sek: a.czas_trwania_sek ?? null,
       source: "client" as const,
     })),
     ...leadActivity.map((a) => ({
@@ -58,6 +67,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       amount: null as number | null,
       kanal: a.kanal ?? null,
       kierunek: a.kierunek ?? null,
+      wynik: a.wynik ?? null,
+      czas_trwania_sek: a.czas_trwania_sek ?? null,
       source: "lead" as const,
     })),
     ...events.map((e) => ({
@@ -68,6 +79,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       amount: e.amount != null ? Number(e.amount) : null,
       kanal: null as string | null,
       kierunek: null as string | null,
+      wynik: null as string | null,
+      czas_trwania_sek: null as number | null,
       source: "system" as const,
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

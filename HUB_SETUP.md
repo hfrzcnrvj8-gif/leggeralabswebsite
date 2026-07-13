@@ -800,6 +800,52 @@ Zero AI.
   przyciski szybkiego kontaktu i formularz osi zawijają się czytelnie,
   cele dotykowe 44px.
 
+### Moduł 3 — druga tura: wynik połączenia, kolorowe tagi, grupowanie dni (2026-07-14)
+
+Po zbudowaniu podstawy właściciel poprosił o "premium UX jak w Apple/iPhone" —
+kolorowe tagi per zdarzenie i wygląd dodawania połączenia jak w dzienniku
+iPhone'a (odebrane/nieodebrane, czas trwania). Zaprojektowane najpierw jako
+makieta w realnym ciemnym stylu marki (`mcp__visualize`) i zatwierdzone przed
+kodowaniem — dopiero potem wdrożone.
+
+- **Wynik połączenia** — nowe pole `wynik` (`CALL_OUTCOMES` w
+  `lib/contact.ts`: `odebrane`/`nieodebrane`), osobne od `kierunek` (kierunek
+  mówi KTO dzwonił, wynik mówi CZY się połączyło). Nowa kolumna
+  `czas_trwania_sek` (sensowna tylko przy `wynik="odebrane"`, serwer
+  wymusza `null` dla nieodebranych niezależnie co przyszło w żądaniu, limit
+  24h). Formularz osi: gdy kanał="telefon", pojawia się przełącznik
+  Odebrane/Nieodebrane (kolory jak w iOS: zielony/czerwony,
+  `CALL_OUTCOME_CLASS`), a przy "Odebrane" — dwa pola liczbowe (min/s).
+- **Kolorowe tagi kanałów** (`CONTACT_CHANNEL_CLASS` w `lib/contact.ts`) —
+  zamiast płaskiego szarego tła każdy kanał ma stały, rozpoznawalny kolor:
+  telefon turkusowy (marka), email złoty (marka), WhatsApp zielony (własny
+  kolor marki WhatsApp — świadome zapożyczenie poza paletę Leggera dla
+  rozpoznawalności), LinkedIn niebieski (analogicznie), spotkanie fioletowy
+  (marka), inne neutralne. Wpisy na osi renderują się jako kolorowe kółka z
+  emoji zamiast płaskiej ikony inline.
+- **Miękka podpowiedź przy nieodebranym połączeniu przychodzącym** — gdy w
+  formularzu kanał="telefon", kierunek="przychodzacy", wynik="nieodebrane" i
+  nie ustawiono jeszcze `next_followup`, pojawia się czerwony przycisk
+  "📵 Nieodebrane od klienta — ustaw przypomnienie na jutro" — jedno
+  kliknięcie ustawia `next_followup` na jutro (`addDaysLocalISO(1)`) i
+  `next_action` na "Oddzwonić". Świadomie miękkie (nie wymusza niczego,
+  właściciel może zignorować) — wpina się w już istniejący mechanizm
+  next_followup/next_action, więc nieodebrane połączenie automatycznie
+  trafia do "Wymaga działania dziś" na Pulpicie bez żadnej nowej,
+  równoległej logiki liczenia "nieobsłużonych połączeń".
+- **Grupowanie osi po dniach** (styl Wiadomości/Telefonu w iOS) — wpisy w
+  logu leada i w Pełnej historii klienta grupują się pod nagłówkiem
+  "Dziś"/"Wczoraj"/"DD.MM.YYYY" zamiast powtarzać pełną datę przy każdym
+  wpisie (`groupActivityByDay()`/`groupFeedByDay()`, lokalne w obu panelach
+  — czysto kosmetyczne, nie mylić z `todayLocalISO()` z `lib/dates.ts`,
+  która steruje regułami biznesowymi).
+- Przetestowane end-to-end lokalnie (PGlite): nieodebrane połączenie
+  przychodzące → czerwone kółko 📵 na osi, przycisk podpowiedzi widoczny
+  tylko gdy `next_followup` puste, klik ustawia poprawną datę/akcję i
+  przycisk znika; odebrane wychodzące z czasem trwania 3:42 → turkusowe
+  kółko + "3 min 42 s" przy godzinie; scalony feed klienta poprawnie
+  pokazuje kolor/czas trwania także dla wpisów dociągniętych z leada.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

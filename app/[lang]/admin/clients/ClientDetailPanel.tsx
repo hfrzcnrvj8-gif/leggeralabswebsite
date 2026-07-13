@@ -11,8 +11,14 @@ import {
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_ICON,
+  CONTACT_CHANNEL_CLASS,
   CONTACT_DIRECTIONS,
   CONTACT_DIRECTION_LABEL,
+  CALL_OUTCOMES,
+  CALL_OUTCOME_LABEL,
+  CALL_OUTCOME_ICON,
+  CALL_OUTCOME_CLASS,
+  formatCallDuration,
   ContactQuickActions,
   QuickDateChips,
   EditableText,
@@ -24,7 +30,7 @@ import { formatPlDate } from "@/lib/projects";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
-import { todayLocalISO } from "@/lib/dates";
+import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
 
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
 type LinkedInvoice = { id: string; numer: string | null; status: string; typ_dokumentu: string; created_at: string };
@@ -42,6 +48,8 @@ type FeedItem = {
   amount: number | null;
   kanal: string | null;
   kierunek: string | null;
+  wynik: string | null;
+  czas_trwania_sek: number | null;
   source: "client" | "lead" | "system";
 };
 
@@ -76,6 +84,9 @@ export function ClientDetailPanel({
   const [noteAction, setNoteAction] = useState("");
   const [noteChannel, setNoteChannel] = useState("");
   const [noteDirection, setNoteDirection] = useState("wychodzacy");
+  const [noteOutcome, setNoteOutcome] = useState("");
+  const [noteDurationMin, setNoteDurationMin] = useState("");
+  const [noteDurationSec, setNoteDurationSec] = useState("");
   const [markContacted, setMarkContacted] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedFilter, setFeedFilter] = useState<"all" | "calls" | "system" | "notes">("all");
@@ -142,6 +153,8 @@ export function ClientDetailPanel({
     e.preventDefault();
     if (!noteText.trim()) return;
     setSaving(true);
+    const durationSec =
+      noteOutcome === "odebrane" ? (Number(noteDurationMin) || 0) * 60 + (Number(noteDurationSec) || 0) : null;
     const res = await fetch(`/api/clients/${id}/activity`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -149,6 +162,8 @@ export function ClientDetailPanel({
         text: noteText.trim(),
         kanal: noteChannel || null,
         kierunek: noteDirection || null,
+        wynik: noteOutcome || null,
+        czas_trwania_sek: durationSec,
         next_followup: noteFollowup || null,
         next_action: noteAction || null,
         ...(markContacted ? { ostatni_kontakt: todayLocalISO() } : {}),
@@ -157,6 +172,9 @@ export function ClientDetailPanel({
     setSaving(false);
     if (res.ok) {
       setNoteText("");
+      setNoteOutcome("");
+      setNoteDurationMin("");
+      setNoteDurationSec("");
       toast("Zapisano wpis.");
       load();
     } else {
@@ -384,6 +402,62 @@ export function ClientDetailPanel({
             </div>
           </div>
 
+          {noteChannel === "telefon" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+                {CALL_OUTCOMES.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setNoteOutcome(o)}
+                    className={`flex min-h-[30px] items-center gap-1 px-2.5 ${
+                      noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
+                    }`}
+                  >
+                    <span aria-hidden>{CALL_OUTCOME_ICON[o]}</span>
+                    {CALL_OUTCOME_LABEL[o]}
+                  </button>
+                ))}
+              </div>
+              {noteOutcome === "odebrane" && (
+                <div className="flex items-center gap-1.5 text-xs text-muted">
+                  <input
+                    type="number"
+                    min={0}
+                    value={noteDurationMin}
+                    onChange={(e) => setNoteDurationMin(e.target.value)}
+                    placeholder="0"
+                    className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                  />
+                  min
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={noteDurationSec}
+                    onChange={(e) => setNoteDurationSec(e.target.value)}
+                    placeholder="0"
+                    className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                  />
+                  s
+                </div>
+              )}
+            </div>
+          )}
+
+          {noteChannel === "telefon" && noteDirection === "przychodzacy" && noteOutcome === "nieodebrane" && !noteFollowup && (
+            <button
+              type="button"
+              onClick={() => {
+                setNoteFollowup(addDaysLocalISO(1));
+                setNoteAction("Oddzwonić");
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
+            >
+              📵 Nieodebrane od klienta — ustaw przypomnienie na jutro
+            </button>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-muted">
               <input type="checkbox" checked={markContacted} onChange={(e) => setMarkContacted(e.target.checked)} />
@@ -436,43 +510,53 @@ export function ClientDetailPanel({
         ) : filteredFeed.length === 0 ? (
           <p className="text-sm text-muted opacity-60">Brak wpisów w tym filtrze.</p>
         ) : (
-          <ul className="space-y-3">
-            {filteredFeed.map((f) => (
-              <li key={`${f.source}:${f.id}`} className="rounded-xl border hairline p-3 text-sm">
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                    <span aria-hidden>
-                      {f.kanal
-                        ? CONTACT_CHANNEL_ICON[f.kanal as keyof typeof CONTACT_CHANNEL_ICON]
-                        : f.kind === "note"
-                          ? "💬"
-                          : (CLIENT_EVENT_ICON[f.kind] ?? "•")}
-                    </span>
-                    {formatDate(f.created_at)}
-                    {f.kierunek && (
-                      <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
-                        {CONTACT_DIRECTION_LABEL[f.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
+          groupFeedByDay(filteredFeed).map((group) => (
+            <div key={group.label} className="mb-4 last:mb-0">
+              <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
+              <ul className="space-y-2">
+                {group.items.map((f) => {
+                  const badge = feedBadge(f);
+                  return (
+                    <li key={`${f.source}:${f.id}`} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
+                        aria-hidden
+                      >
+                        {badge.icon}
                       </span>
-                    )}
-                    {f.source === "lead" && (
-                      <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted" title="Wpis sprzed awansu na klienta">
-                        z etapu leada
-                      </span>
-                    )}
-                  </span>
-                  {f.source === "client" && (
-                    <button onClick={() => deleteNote(f.id)} className="text-muted hover:text-red-400" aria-label="Usuń wpis" title="Usuń wpis">
-                      ✕
-                    </button>
-                  )}
-                </div>
-                <p className="whitespace-pre-wrap">
-                  {f.text}
-                  {f.amount != null && <span className="font-medium"> — {formatMoney(f.amount)}</span>}
-                </p>
-              </li>
-            ))}
-          </ul>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                            {formatTime(f.created_at)}
+                            {f.czas_trwania_sek != null && <span>· {formatCallDuration(f.czas_trwania_sek)}</span>}
+                            {f.kierunek && (
+                              <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
+                                {CONTACT_DIRECTION_LABEL[f.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
+                              </span>
+                            )}
+                            {f.source === "lead" && (
+                              <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted" title="Wpis sprzed awansu na klienta">
+                                z etapu leada
+                              </span>
+                            )}
+                          </span>
+                          {f.source === "client" && (
+                            <button onClick={() => deleteNote(f.id)} className="text-muted hover:text-red-400" aria-label="Usuń wpis" title="Usuń wpis">
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                        <p className="whitespace-pre-wrap">
+                          {f.text}
+                          {f.amount != null && <span className="font-medium"> — {formatMoney(f.amount)}</span>}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))
         )}
       </div>
 
@@ -514,7 +598,48 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function formatDate(iso: string): string {
+/** Kolorowa odznaka wpisu na osi — wzorem iOS: nieodebrane połączenie
+ * czerwone, inne kanały mają swój stały kolor, zdarzenia systemowe i
+ * notatki bez kanału dostają neutralne tło. */
+function feedBadge(f: { kanal: string | null; wynik: string | null; kind: string }): { icon: string; cls: string } {
+  if (f.kanal === "telefon" && f.wynik === "nieodebrane") {
+    return { icon: CALL_OUTCOME_ICON.nieodebrane, cls: CALL_OUTCOME_CLASS.nieodebrane };
+  }
+  if (f.kanal) {
+    return {
+      icon: CONTACT_CHANNEL_ICON[f.kanal as keyof typeof CONTACT_CHANNEL_ICON],
+      cls: CONTACT_CHANNEL_CLASS[f.kanal as keyof typeof CONTACT_CHANNEL_CLASS],
+    };
+  }
+  if (f.kind === "note") return { icon: "💬", cls: "bg-[var(--hairline)] text-muted" };
+  return { icon: CLIENT_EVENT_ICON[f.kind] ?? "•", cls: "bg-[var(--hairline)] text-muted" };
+}
+
+/** "Dziś" / "Wczoraj" / "DD.MM.YYYY" — kosmetyczne grupowanie osi po dniu
+ * (styl Wiadomości/Telefonu w iOS), niezwiązane z todayLocalISO() z
+ * lib/dates.ts (ta funkcja nie steruje żadną regułą biznesową). */
+function dayLabel(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return "Dziś";
+  if (sameDay(d, yesterday)) return "Wczoraj";
+  return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function groupFeedByDay<T extends { created_at: string }>(items: T[]): { label: string; items: T[] }[] {
+  const groups: { label: string; items: T[] }[] = [];
+  for (const item of items) {
+    const label = dayLabel(item.created_at);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(item);
+    else groups.push({ label, items: [item] });
+  }
+  return groups;
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
 }

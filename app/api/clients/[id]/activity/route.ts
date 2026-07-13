@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
-import { CONTACT_CHANNELS, CONTACT_DIRECTIONS } from "@/lib/contact";
+import { CONTACT_CHANNELS, CONTACT_DIRECTIONS, CALL_OUTCOMES } from "@/lib/contact";
 
 export const runtime = "nodejs";
 
@@ -23,12 +23,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         next_action?: unknown;
         kanal?: unknown;
         kierunek?: unknown;
+        wynik?: unknown;
+        czas_trwania_sek?: unknown;
       }
     | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
   const kanal = (CONTACT_CHANNELS as readonly string[]).includes(body?.kanal as string) ? (body!.kanal as string) : null;
   const kierunek = (CONTACT_DIRECTIONS as readonly string[]).includes(body?.kierunek as string) ? (body!.kierunek as string) : null;
+  const wynik = (CALL_OUTCOMES as readonly string[]).includes(body?.wynik as string) ? (body!.wynik as string) : null;
+  const rawDuration = Number(body?.czas_trwania_sek);
+  const czasTrwaniaSek =
+    wynik === "odebrane" && Number.isFinite(rawDuration) && rawDuration >= 0
+      ? Math.min(Math.round(rawDuration), 24 * 60 * 60)
+      : null;
 
   await ensureClientsSchema();
   const sql = getSql();
@@ -37,7 +45,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!clientRows[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const activityId = randomUUID();
-  await sql`INSERT INTO client_activity (id, client_id, text, kanal, kierunek) VALUES (${activityId}, ${id}, ${text.slice(0, 4000)}, ${kanal}, ${kierunek});`;
+  await sql`
+    INSERT INTO client_activity (id, client_id, text, kanal, kierunek, wynik, czas_trwania_sek)
+    VALUES (${activityId}, ${id}, ${text.slice(0, 4000)}, ${kanal}, ${kierunek}, ${wynik}, ${czasTrwaniaSek});
+  `;
 
   if (typeof body?.ostatni_kontakt === "string" && body.ostatni_kontakt.trim()) {
     const trimmed = body.ostatni_kontakt.trim();

@@ -48,6 +48,10 @@ export type ClientActivity = {
   kanal: string | null;
   /** Kierunek: kto zainicjował ten kontakt (CONTACT_DIRECTIONS). */
   kierunek: string | null;
+  /** Wynik połączenia (CALL_OUTCOMES) — tylko dla kanal="telefon". */
+  wynik: string | null;
+  /** Czas trwania połączenia w sekundach — tylko gdy wynik="odebrane". */
+  czas_trwania_sek: number | null;
   created_at: string;
 };
 

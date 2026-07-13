@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
-import { CONTACT_CHANNELS, CONTACT_DIRECTIONS } from "@/lib/contact";
+import { CONTACT_CHANNELS, CONTACT_DIRECTIONS, CALL_OUTCOMES } from "@/lib/contact";
 
 export const runtime = "nodejs";
 
@@ -30,6 +30,8 @@ export async function POST(
         next_action?: unknown;
         kanal?: unknown;
         kierunek?: unknown;
+        wynik?: unknown;
+        czas_trwania_sek?: unknown;
       }
     | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
@@ -38,6 +40,14 @@ export async function POST(
   }
   const kanal = (CONTACT_CHANNELS as readonly string[]).includes(body?.kanal as string) ? (body!.kanal as string) : null;
   const kierunek = (CONTACT_DIRECTIONS as readonly string[]).includes(body?.kierunek as string) ? (body!.kierunek as string) : null;
+  const wynik = (CALL_OUTCOMES as readonly string[]).includes(body?.wynik as string) ? (body!.wynik as string) : null;
+  // Czas trwania ma sens tylko dla odebranych połączeń — dla nieodebranych
+  // zawsze zapisujemy null, niezależnie co przyszło w żądaniu.
+  const rawDuration = Number(body?.czas_trwania_sek);
+  const czasTrwaniaSek =
+    wynik === "odebrane" && Number.isFinite(rawDuration) && rawDuration >= 0
+      ? Math.min(Math.round(rawDuration), 24 * 60 * 60)
+      : null;
 
   await ensureLeadsSchema();
   const sql = getSql();
@@ -49,7 +59,8 @@ export async function POST(
 
   const activityId = randomUUID();
   await sql`
-    INSERT INTO lead_activity (id, lead_id, text, kanal, kierunek) VALUES (${activityId}, ${id}, ${text.slice(0, 4000)}, ${kanal}, ${kierunek});
+    INSERT INTO lead_activity (id, lead_id, text, kanal, kierunek, wynik, czas_trwania_sek)
+    VALUES (${activityId}, ${id}, ${text.slice(0, 4000)}, ${kanal}, ${kierunek}, ${wynik}, ${czasTrwaniaSek});
   `;
 
   if (typeof body?.ostatni_kontakt === "string" && body.ostatni_kontakt.trim()) {

@@ -187,6 +187,12 @@ async function createSchema(): Promise<void> {
   // nieokreślony.
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS kanal TEXT;`;
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS kierunek TEXT;`;
+  // Wynik połączenia (odebrane/nieodebrane) i czas trwania w sekundach —
+  // sensowne tylko dla kanal='telefon', ale trzymane generycznie jak
+  // kanal/kierunek. Null = nieokreślony (wpis sprzed tej zmiany albo inny
+  // kanał niż telefon).
+  await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS wynik TEXT;`;
+  await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS czas_trwania_sek INTEGER;`;
 }
 
 /**
@@ -696,6 +702,8 @@ async function createClientsSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS client_activity_client_id_idx ON client_activity(client_id);`;
   await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS kanal TEXT;`;
   await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS kierunek TEXT;`;
+  await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS wynik TEXT;`;
+  await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS czas_trwania_sek INTEGER;`;
 
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
