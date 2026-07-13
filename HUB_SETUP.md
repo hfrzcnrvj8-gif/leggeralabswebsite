@@ -727,9 +727,20 @@ od "zero AI w logice panelu").
     (nasz model kosztu ma jedną stawkę na wpis, nie da się zapisać dwóch),
     ale powinno zmniejszyć błąd w typowym przypadku (jedna dominująca +
     mały dodatek).
-  - Zauważone, świadomie NIE zmienione teraz: NIP dostawcy widoczny na
-    fakturze nie jest wcale wyciągany (schemat OCR go nie obejmuje) —
-    właściciel zapytany, czy dodać.
+  - **NIP dostawcy dodany do OCR** (właściciel poprosił po zauważeniu, że
+    NIP widoczny na fakturze wcale nie był wyciągany): `OCR_SYSTEM` i
+    `OcrSuggestion` (`lib/costs-ocr.ts`) mają teraz pole `nip` — model
+    zwraca same cyfry (parser czyści myślniki/spacje), walidacja wymaga
+    dokładnie 10 cyfr, inaczej puste. `CostEditor.tsx` wypełnia
+    `dostawca_nip`, jeśli sugestia je zawiera. Zweryfikowane lokalnie
+    (zasymulowana odpowiedź OCR z NIP-em z tej samej faktury) — pole
+    poprawnie się wypełnia i odświeża.
+  - **Definicja ukończenia modułu 8 — spełniona**: realny test na
+    prawdziwej fakturze (nie tylko obraz testowy) potwierdził odczyt
+    jednym kliknięciem z edytowalnymi polami przed zapisem, kontrolowany
+    fallback przy niedostępności modelu, `tsc` czysty. Jakość na typowych
+    polskich dokumentach do dalszej obserwacji w praktyce (mieszane stawki
+    VAT to znany, świadomy kompromis — pojedyncza stawka na wpis kosztu).
 
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 

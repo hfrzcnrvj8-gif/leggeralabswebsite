@@ -13,10 +13,11 @@ export const OCR_MODEL = "qwen3-vl:8b";
 
 export const OCR_SYSTEM = `Jesteś asystentem odczytującym polskie paragony i faktury zakupowe ze zdjęcia/skanu.
 Zwróć WYŁĄCZNIE czysty JSON (bez markdown, bez komentarzy, bez dodatkowego tekstu) o dokładnie takim kształcie:
-{"dostawca": string, "kwota_netto": number, "vat_stawka": string, "data": string, "opis": string}
+{"dostawca": string, "nip": string, "kwota_netto": number, "vat_stawka": string, "data": string, "opis": string}
 
 Zasady:
 - "dostawca": nazwa sprzedawcy/firmy wystawiającej dokument.
+- "nip": NIP sprzedawcy (10 cyfr, może być z myślnikami/spacjami na dokumencie — Ty zwróć same cyfry). To NIP SPRZEDAWCY (wystawcy dokumentu), nie nabywcy.
 - "kwota_netto": SUMA kwoty netto całego dokumentu (wszystkich pozycji razem) jako liczba (kropka jako separator dziesiętny), bez waluty.
 - "vat_stawka": jedna z wartości: "23", "8", "5", "0", "zw", "np". Jeśli dokument ma WIĘCEJ NIŻ JEDNĄ stawkę VAT na różnych pozycjach, wybierz tę, na którą przypada NAJWIĘKSZA kwota netto (stawkę dominującą) — to tylko przybliżenie do poprawienia ręcznie, nie musi być matematycznie dokładne dla całego dokumentu.
 - "data": data wystawienia/sprzedaży w formacie YYYY-MM-DD.
@@ -27,6 +28,7 @@ export const OCR_PROMPT = "Odczytaj dane z załączonego paragonu/faktury i zwr�
 
 export type OcrSuggestion = {
   dostawca_nazwa: string;
+  dostawca_nip: string;
   kwota_netto: number | null;
   vat_stawka: VatRate | null;
   data_wydatku: string;
@@ -37,7 +39,7 @@ export type OcrSuggestion = {
  * walidacji, zostają puste/null zamiast wpisywać śmieciową wartość do
  * formularza — właściciel uzupełnia je ręcznie jak dziś. Nigdy nie rzuca. */
 export function parseOcrResponse(raw: string): OcrSuggestion {
-  const empty: OcrSuggestion = { dostawca_nazwa: "", kwota_netto: null, vat_stawka: null, data_wydatku: "", opis: "" };
+  const empty: OcrSuggestion = { dostawca_nazwa: "", dostawca_nip: "", kwota_netto: null, vat_stawka: null, data_wydatku: "", opis: "" };
 
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return empty;
@@ -53,6 +55,9 @@ export function parseOcrResponse(raw: string): OcrSuggestion {
 
   const dostawca = typeof obj.dostawca === "string" ? obj.dostawca.trim().slice(0, 300) : "";
 
+  const nipDigits = typeof obj.nip === "string" ? obj.nip.replace(/\D/g, "") : "";
+  const dostawca_nip = nipDigits.length === 10 ? nipDigits : "";
+
   const kwotaRaw = obj.kwota_netto;
   const kwotaNum = typeof kwotaRaw === "number" ? kwotaRaw : typeof kwotaRaw === "string" ? Number(kwotaRaw.replace(",", ".")) : NaN;
   const kwota_netto = Number.isFinite(kwotaNum) && kwotaNum > 0 ? Math.round(kwotaNum * 100) / 100 : null;
@@ -65,5 +70,5 @@ export function parseOcrResponse(raw: string): OcrSuggestion {
 
   const opis = typeof obj.opis === "string" ? obj.opis.trim().slice(0, 500) : "";
 
-  return { dostawca_nazwa: dostawca, kwota_netto, vat_stawka, data_wydatku, opis };
+  return { dostawca_nazwa: dostawca, dostawca_nip, kwota_netto, vat_stawka, data_wydatku, opis };
 }
