@@ -120,7 +120,7 @@ export async function GET() {
       i.status === "Szkic" &&
       i.typ_dokumentu === "faktura" &&
       i.brutto > 0 &&
-      (i.created_at ?? "").slice(0, 10) < today
+      String(i.created_at ?? "").slice(0, 10) < today
   );
 
   // Przychód wg daty wystawienia (nie wg wpłat — wpłaty częściowe są opcjonalne
@@ -130,7 +130,7 @@ export async function GET() {
   for (const inv of realInvoices) {
     if (inv.status === "Anulowana" || inv.status === "Szkic") continue;
     if (!inv.data_wystawienia) continue;
-    const month = inv.data_wystawienia.slice(0, 7);
+    const month = String(inv.data_wystawienia).slice(0, 7);
     const currency = inv.waluta || "PLN";
     if (month === thisMonth) addToCurrencyMap(revenueThisMonth, currency, inv.brutto);
     else if (month === lastMonth) addToCurrencyMap(revenueLastMonth, currency, inv.brutto);
