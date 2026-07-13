@@ -708,6 +708,29 @@ od "zero AI w logice panelu").
   przez inny proces), nie kodu panelu — do zdiagnozowania przez właściciela
   (`ollama ps`, Monitor Aktywności) w momencie próby.
 
+  **Piąta runda — pierwszy udany odczyt na prawdziwej fakturze** (faktura
+  za abonament TV/internet z mieszaną stawką VAT 8%+23%): dostawca, opis i
+  data odczytane poprawnie; ujawniły się dwa kolejne, mniejsze problemy:
+  - **Błąd wyświetlania**: pole "Kwota netto" (i inne pola tekstowe:
+    Dostawca, NIP, Opis) używają nieskontrolowanego `defaultValue` (żeby
+    nie gubić kursora przy pisaniu), więc nie odświeżały się WIZUALNIE po
+    programowym patchu z OCR — sama wartość w bazie była zapisana
+    poprawnie, tylko okno tego nie pokazywało (myląco wyglądało, jakby AI
+    nic nie wpisało). Naprawione: `<div key={cost.updated_at}>` na siatce
+    pól w `CostEditor.tsx` — wymusza remount (a więc świeży `defaultValue`)
+    po każdym patchu z zewnątrz, nie tylko po ręcznej edycji.
+  - **Zła stawka VAT przy mieszanych fakturach**: model wybrał 23% (mniej
+    znaczący fragment kwoty) zamiast 8% (dominujący), co psuło przeliczoną
+    kwotę brutto. `OCR_SYSTEM` (`lib/costs-ocr.ts`) doprecyzowany: przy
+    więcej niż jednej stawce VAT na dokumencie model ma wybierać tę, na
+    którą przypada NAJWIĘKSZA kwota netto — to nadal tylko przybliżenie
+    (nasz model kosztu ma jedną stawkę na wpis, nie da się zapisać dwóch),
+    ale powinno zmniejszyć błąd w typowym przypadku (jedna dominująca +
+    mały dodatek).
+  - Zauważone, świadomie NIE zmienione teraz: NIP dostawcy widoczny na
+    fakturze nie jest wcale wyciągany (schemat OCR go nie obejmuje) —
+    właściciel zapytany, czy dodać.
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z

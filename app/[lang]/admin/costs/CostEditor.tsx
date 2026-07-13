@@ -197,7 +197,12 @@ export function CostEditor({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div key={cost.updated_at} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* key={cost.updated_at}: pola tekstowe niżej są nieskontrolowane
+         * (defaultValue), żeby nie gubić kursora przy pisaniu — ale to
+         * znaczy, że nie odświeżają się same, gdy wartość zmienia się
+         * programowo (np. po OCR), tylko przy ponownym montowaniu. Klucz
+         * na updated_at wymusza remount po każdym patchu z zewnątrz. */}
         <label className="block">
           <span className="mb-1 block text-[11px] text-muted">Dostawca</span>
           <input

@@ -17,8 +17,8 @@ Zwróć WYŁĄCZNIE czysty JSON (bez markdown, bez komentarzy, bez dodatkowego t
 
 Zasady:
 - "dostawca": nazwa sprzedawcy/firmy wystawiającej dokument.
-- "kwota_netto": kwota netto jako liczba (kropka jako separator dziesiętny), bez waluty.
-- "vat_stawka": jedna z wartości: "23", "8", "5", "0", "zw", "np".
+- "kwota_netto": SUMA kwoty netto całego dokumentu (wszystkich pozycji razem) jako liczba (kropka jako separator dziesiętny), bez waluty.
+- "vat_stawka": jedna z wartości: "23", "8", "5", "0", "zw", "np". Jeśli dokument ma WIĘCEJ NIŻ JEDNĄ stawkę VAT na różnych pozycjach, wybierz tę, na którą przypada NAJWIĘKSZA kwota netto (stawkę dominującą) — to tylko przybliżenie do poprawienia ręcznie, nie musi być matematycznie dokładne dla całego dokumentu.
 - "data": data wystawienia/sprzedaży w formacie YYYY-MM-DD.
 - "opis": krótki opis zakupu (np. nazwa towaru/usługi z dokumentu).
 - Jeśli nie jesteś pewien wartości danego pola, zwróć dla niego pusty string "" — NIGDY nie zgaduj.`;
