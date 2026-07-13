@@ -880,6 +880,33 @@ kodowaniem — dopiero potem wdrożone.
   kółko + "3 min 42 s" przy godzinie; scalony feed klienta poprawnie
   pokazuje kolor/czas trwania także dla wpisów dociągniętych z leada.
 
+### Moduł 3 — trzecia tura: połączenia w Kalendarzu (2026-07-14)
+
+Właściciel poprosił, żeby historia kontaktu agregowała się też w Kalendarzu.
+Świadomie **tylko połączenia telefoniczne**, nie cała historia kontaktu
+(zatwierdzone przez właściciela) — kalendarz pokazuje maks. 2 pozycje na
+dzień + "+N więcej", więc każda notatka/mail zalogowana jako wpis osi
+zagłuszyłaby ważniejsze terminy (płatności, kamienie milowe).
+
+- `app/api/events/deadlines/route.ts` — ten sam, już istniejący wzorzec
+  "wyliczonych terminów" co płatności/kamienie/przypomnienia (endpoint
+  tylko do odczytu, kalendarz niczego tu nie zapisuje ani nie usuwa). Nowe
+  zapytania do `lead_activity`/`client_activity` gdzie `kanal='telefon'` w
+  danym miesiącu, zjoinowane z nazwą leada/klienta. Dwa nowe `DeadlineKind`:
+  `call` (odebrane, tytuł z czasem trwania gdy znany —
+  `formatCallDuration()` z `lib/contact.ts`) i `call-missed` (nieodebrane).
+- `CalendarView.tsx` — `DEADLINE_STYLE` rozszerzony o te dwa rodzaje,
+  kolory świadomie identyczne z tym, co już widać na osi kontaktu:
+  `call` = turkus (`brand-cyan`, jak `CONTACT_CHANNEL_CLASS.telefon`),
+  `call-missed` = czerwony (jak `CALL_OUTCOME_CLASS.nieodebrane`) — jeden
+  spójny język kolorów w całym panelu, nie osobna paleta dla kalendarza.
+  Klik w pozycję prowadzi do karty leada/klienta (`href` z tego samego
+  mechanizmu co reszta wyliczonych terminów).
+- Przetestowane end-to-end lokalnie (PGlite): odebrane i nieodebrane
+  połączenie dodane leadowi → oba widoczne w komórce dnia i w panelu
+  bocznym z poprawnymi kolorami/tytułami, klik w "Połączenie — …" prowadzi
+  do właściwego leada.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

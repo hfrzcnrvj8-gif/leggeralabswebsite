@@ -8,12 +8,16 @@ import {
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO } from "@/lib/dates";
+import { formatCallDuration } from "@/lib/contact";
 
 export const runtime = "nodejs";
 
 /** Rodzaj terminu wyliczonego (a nie ręcznie wpisanego) — do kolorowania i
- * linkowania w kalendarzu. */
-export type DeadlineKind = "invoice" | "project" | "milestone" | "lead" | "client";
+ * linkowania w kalendarzu. `call`/`call-missed` to zalogowane połączenia
+ * telefoniczne (Moduł 3, kanał="telefon") — świadomie tylko telefon, nie
+ * cała historia kontaktu, żeby gęste dni nie zagłuszyły ważniejszych
+ * terminów (decyzja właściciela 2026-07-14). */
+export type DeadlineKind = "invoice" | "project" | "milestone" | "lead" | "client" | "call" | "call-missed";
 
 export type Deadline = {
   /** Stabilny, syntetyczny id — kalendarz nie zapisuje ani nie usuwa tych
@@ -46,7 +50,7 @@ export async function GET(req: NextRequest) {
   const month = req.nextUrl.searchParams.get("month");
   const prefix = month && /^\d{4}-\d{2}$/.test(month) ? month : todayLocalISO().slice(0, 7);
 
-  const [invoices, projects, milestones, leads, clients] = await Promise.all([
+  const [invoices, projects, milestones, leads, clients, leadCalls, clientCalls] = await Promise.all([
     // Nieopłacone faktury z terminem płatności w tym miesiącu (bez proform,
     // bez szkiców/anulowanych/opłaconych).
     sql`
@@ -88,7 +92,29 @@ export async function GET(req: NextRequest) {
       WHERE next_followup IS NOT NULL
         AND to_char(next_followup, 'YYYY-MM') = ${prefix};
     ` as unknown as Promise<{ id: string; nazwa: string; next_followup: string }[]>,
+    // Zalogowane połączenia telefoniczne z leadami (Moduł 3) — świadomie
+    // tylko kanał="telefon", żeby gęste dni nie zagłuszyły ważniejszych
+    // terminów mailami/notatkami.
+    sql`
+      SELECT a.id, a.wynik, a.czas_trwania_sek, a.created_at, l.id AS lead_id, l.firma
+      FROM lead_activity a JOIN leads l ON l.id = a.lead_id
+      WHERE a.kanal = 'telefon' AND to_char(a.created_at, 'YYYY-MM') = ${prefix};
+    ` as unknown as Promise<
+      { id: string; wynik: string | null; czas_trwania_sek: number | null; created_at: string; lead_id: string; firma: string }[]
+    >,
+    sql`
+      SELECT a.id, a.wynik, a.czas_trwania_sek, a.created_at, c.id AS client_id, c.nazwa
+      FROM client_activity a JOIN clients c ON c.id = a.client_id
+      WHERE a.kanal = 'telefon' AND to_char(a.created_at, 'YYYY-MM') = ${prefix};
+    ` as unknown as Promise<
+      { id: string; wynik: string | null; czas_trwania_sek: number | null; created_at: string; client_id: string; nazwa: string }[]
+    >,
   ]);
+
+  /** Wspólny mapper dla połączeń leada/klienta — nieodebrane dostaje osobny
+   * `kind` (czerwony), odebrane pokazuje czas trwania w tytule gdy znany. */
+  const callTitle = (nazwa: string, wynik: string | null, sek: number | null): string =>
+    wynik === "nieodebrane" ? `Nieodebrane — ${nazwa}` : `Połączenie — ${nazwa}${sek != null ? ` (${formatCallDuration(sek)})` : ""}`;
 
   const deadlines: Deadline[] = [
     ...invoices.map((i) => ({
@@ -125,6 +151,20 @@ export async function GET(req: NextRequest) {
       tytul: `Przypomnienie (klient) — ${c.nazwa}`,
       kind: "client" as const,
       href: `/admin/clients/${c.id}`,
+    })),
+    ...leadCalls.map((a) => ({
+      id: `call-led-${a.id}`,
+      data: String(a.created_at).slice(0, 10),
+      tytul: callTitle(a.firma, a.wynik, a.czas_trwania_sek),
+      kind: (a.wynik === "nieodebrane" ? "call-missed" : "call") as DeadlineKind,
+      href: `/admin/leads/${a.lead_id}`,
+    })),
+    ...clientCalls.map((a) => ({
+      id: `call-cli-${a.id}`,
+      data: String(a.created_at).slice(0, 10),
+      tytul: callTitle(a.nazwa, a.wynik, a.czas_trwania_sek),
+      kind: (a.wynik === "nieodebrane" ? "call-missed" : "call") as DeadlineKind,
+      href: `/admin/clients/${a.client_id}`,
     })),
   ];
 

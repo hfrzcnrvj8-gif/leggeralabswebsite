@@ -17,6 +17,8 @@ const DEADLINE_STYLE: Record<DeadlineKind, { dot: string; pill: string; label: s
   milestone: { dot: "bg-brand-pink", pill: "bg-brand-pink/15 text-brand-pink", label: "Kamień" },
   lead: { dot: "bg-orange-500", pill: "bg-orange-500/15 text-orange-400", label: "Lead" },
   client: { dot: "bg-brand-cyan", pill: "bg-brand-cyan/15 text-brand-cyan", label: "Klient" },
+  call: { dot: "bg-brand-cyan", pill: "bg-brand-cyan/15 text-brand-cyan", label: "Połączenie" },
+  "call-missed": { dot: "bg-red-500", pill: "bg-red-500/15 text-red-400", label: "Nieodebrane" },
 };
 
 const WEEKDAYS = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nie"];
