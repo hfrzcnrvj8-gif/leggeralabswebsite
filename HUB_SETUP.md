@@ -765,6 +765,57 @@ od "zero AI w logice panelu").
   `tsc` czysty, `parseOcrResponse` przetestowany na przykładzie z realną
   fakturą (z i bez `kwota_brutto`).
 
+## Moduł 9 — Koszty jako branżowy standard (2026-07-14, w toku)
+
+Ambicja właściciela po przetestowaniu Modułu 8 (OCR) na prawdziwej fakturze:
+podciągnąć moduł Koszty w stronę Ramp/Expensify/QuickBooks/wFirma, nie tylko
+"wystarczające". Duży, wieloetapowy, świadomie otwarty zakres — patrz
+`docs/plany-modulow/09-koszty-branzowy-standard.md` za pełny research
+konkurencji i listę pomysłów do priorytetyzacji. **Świadomie POZA zakresem:**
+prawdziwa integracja z bramką płatności ("kliknij i zapłać" jak wFirma) — to
+operacja finansowa, osobna decyzja biznesowa, nie dobudowanie funkcji.
+
+**Krok 1 (zbudowany i zweryfikowany lokalnie 2026-07-14): metoda płatności +
+kopiuj dane do przelewu.**
+
+- Nowe pola na koszcie (`lib/db.ts` → `createCostsSchema`):
+  `metoda_platnosci` (TEXT, NULL = nieustawiona) i `dostawca_konto` (TEXT,
+  domyślnie `''` — numer konta/IBAN dostawcy).
+- **`lib/costs.ts`**: `PAYMENT_METHODS` (`przelew`/`karta`/`gotowka`/`blik`/
+  `paypal`/`apple_pay`) + mapy `PAYMENT_METHOD_LABEL`/`_ICON`/`_CLASS`,
+  wzorem istniejącego rejestru kanałów kontaktu (`lib/contact.ts`,
+  `CONTACT_CHANNEL_*`) — czysta etykieta do raportowania/uzgadniania z
+  wyciągiem, **nie inicjuje żadnej płatności** (patrz "poza zakresem" wyżej;
+  research w pliku modułu potwierdza, że nawet Ramp/Expensify/QuickBooks
+  robią to tylko jako tag, nie jako "kliknij i zapłać").
+- **UI** (`CostEditor.tsx`): plakietka metody płatności obok statusu
+  (`PropertyMenu`, wzorem `StatusTag`) — klik otwiera menu z ikoną+etykietą
+  każdej metody, "Brak" resetuje na `NULL`. Pole "Numer konta dostawcy" +
+  przycisk "Kopiuj" obok (`IconCopy`) — kopiuje do schowka trzy linie (numer
+  konta, kwota brutto przez `formatMoney`, tytuł = dostawca + opis) przez
+  `navigator.clipboard.writeText`, z potwierdzeniem `toast()`. Przycisk
+  wyłączony, gdy `dostawca_konto` puste. Zero integracji z bramką płatności,
+  zero przenoszenia pieniędzy — czysta wygoda kopiuj-wklej, zgodnie z
+  rekomendacją z researchu w pliku modułu.
+- **`CostsDashboard.tsx`**: kolumna "Płatność" w tabeli — sama ikona metody
+  (tooltip z pełną etykietą), `—` gdy nieustawiona.
+- **API** (`app/api/costs/route.ts`, `[id]/route.ts`, `export/route.ts`):
+  GET zwraca oba nowe pola, PATCH waliduje `metoda_platnosci` przeciw
+  `PAYMENT_METHODS` (nieznana wartość → `NULL`, nie błąd — miękkie
+  zachowanie), `dostawca_konto` zapisywany jako zwykły string (limit 40
+  znaków). Eksport CSV (rejestr zakupów dla księgowej) dostał dwie nowe
+  kolumny: "Metoda płatności" (etykieta PL) i "Nr konta dostawcy".
+- Zweryfikowane lokalnie na dev (PGlite): dodanie kosztu → wybór metody
+  "Przelew" w plakietce zapisuje się i przeżywa refetch (kolor cyan,
+  ikona 🏦) → widoczne też jako ikona w kolumnie "Płatność" tabeli →
+  wypełnienie numeru konta odblokowuje przycisk "Kopiuj" → klik nie rzuca
+  błędu w konsoli. `tsc --noEmit` czysty.
+- **Dalsze kroki modułu (nieuzgodnione jeszcze z właścicielem, do
+  priorytetyzacji w kolejnym czacie)**: wykrywanie duplikatów (ten sam
+  NIP+kwota+data), koszty cykliczne/subskrypcje, analityka/trendy wydatków,
+  zdjęcie z aparatu na telefonie, rozpoznawanie powtarzającego się
+  dostawcy po NIP — patrz plik modułu, sekcja "Dodatkowe pomysły z rynku".
+
 ## Dwie naprawy przy okazji audytu Pulpitu (2026-07-14)
 
 Zgłoszone jako "Pulpit się nie ładuje" przy tej samej okazji, niezwiązane z

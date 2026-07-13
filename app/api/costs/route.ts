@@ -15,6 +15,7 @@ export async function GET() {
     SELECT c.id, c.dostawca_nazwa, c.dostawca_nip, c.kategoria, c.opis, c.data_wydatku,
       c.kwota_netto, c.vat_stawka, c.kwota_brutto, c.status, c.data_platnosci, c.project_id,
       c.created_at, c.updated_at, c.zalacznik_nazwa, c.zalacznik_typ, c.ksef_numer, c.ksef_tryb,
+      c.metoda_platnosci, c.dostawca_konto,
       p.tytul AS project_tytul
     FROM costs c
     LEFT JOIN projects p ON p.id = c.project_id

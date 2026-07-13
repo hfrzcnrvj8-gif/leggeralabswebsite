@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { toCsv, csvMoney, currentMonthRange, exportFilename } from "@/lib/export";
+import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/lib/costs";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   const rows = await sql`
     SELECT dostawca_nazwa, dostawca_nip, kategoria, opis, data_wydatku,
       kwota_netto::float8 AS kwota_netto, vat_stawka, kwota_brutto::float8 AS kwota_brutto,
-      status, data_platnosci
+      status, data_platnosci, metoda_platnosci, dostawca_konto
     FROM costs
     WHERE data_wydatku BETWEEN ${from} AND ${to}
     ORDER BY data_wydatku ASC, created_at ASC;
@@ -35,10 +36,12 @@ export async function GET(req: NextRequest) {
   const header = [
     "Dostawca", "NIP", "Kategoria", "Opis", "Data wydatku",
     "Netto", "VAT (stawka)", "Kwota VAT", "Brutto", "Status", "Data płatności",
+    "Metoda płatności", "Nr konta dostawcy",
   ];
   const body = rows.map((r) => {
     const netto = Number(r.kwota_netto);
     const brutto = Number(r.kwota_brutto);
+    const metoda = r.metoda_platnosci as PaymentMethod | null;
     return [
       String(r.dostawca_nazwa ?? ""),
       String(r.dostawca_nip ?? ""),
@@ -51,6 +54,8 @@ export async function GET(req: NextRequest) {
       csvMoney(brutto),
       String(r.status ?? ""),
       String(r.data_platnosci ?? "").slice(0, 10),
+      metoda ? (PAYMENT_METHOD_LABEL[metoda] ?? metoda) : "",
+      String(r.dostawca_konto ?? ""),
     ];
   });
 

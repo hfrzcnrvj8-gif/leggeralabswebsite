@@ -31,6 +31,41 @@ export const COST_STATUS_CLASS: Record<string, string> = {
   Opłacony: "bg-emerald-500/20 text-emerald-400 font-semibold",
 };
 
+/** Moduł 9 (branżowy standard) — jak koszt został/zostanie zapłacony. Czysta
+ * etykieta do raportowania i uzgadniania z wyciągiem bankowym, wzorem
+ * Ramp/Expensify/QuickBooks — świadomie NIE inicjuje żadnej płatności (patrz
+ * docs/plany-modulow/09-koszty-branzowy-standard.md, sekcja "poza zakresem").
+ * NULL/"" = nieustawiona (koszty sprzed tej funkcji, albo jeszcze niezdecydowane). */
+export const PAYMENT_METHODS = ["przelew", "karta", "gotowka", "blik", "paypal", "apple_pay"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  przelew: "Przelew",
+  karta: "Karta",
+  gotowka: "Gotówka",
+  blik: "BLIK",
+  paypal: "PayPal",
+  apple_pay: "Apple Pay",
+};
+
+export const PAYMENT_METHOD_ICON: Record<PaymentMethod, string> = {
+  przelew: "🏦",
+  karta: "💳",
+  gotowka: "💵",
+  blik: "📱",
+  paypal: "🅿️",
+  apple_pay: "🍎",
+};
+
+export const PAYMENT_METHOD_CLASS: Record<PaymentMethod, string> = {
+  przelew: "bg-brand-cyan/15 text-brand-cyan",
+  karta: "bg-brand-purple/15 text-brand-purple",
+  gotowka: "bg-emerald-500/15 text-emerald-400",
+  blik: "bg-brand-gold/15 text-brand-gold",
+  paypal: "bg-blue-500/15 text-blue-400",
+  apple_pay: "bg-[var(--hairline)] text-[var(--fg)]",
+};
+
 export type Cost = {
   id: string;
   dostawca_nazwa: string;
@@ -44,6 +79,11 @@ export type Cost = {
   status: CostStatus;
   data_platnosci: string | null;
   project_id: string | null;
+  /** Jak koszt został/zostanie zapłacony — patrz PAYMENT_METHODS. NULL = nieustawiona. */
+  metoda_platnosci: PaymentMethod | string | null;
+  /** Numer konta dostawcy (IBAN) — do „Kopiuj dane do przelewu", nie do
+   * inicjowania płatności (panel nigdy nie przenosi pieniędzy). */
+  dostawca_konto: string;
   created_at: string;
   updated_at: string;
   /** Dołączane w GET /api/costs (JOIN z projects) — tylko do wyświetlenia. */

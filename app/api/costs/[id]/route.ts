@@ -3,7 +3,7 @@ import { getSql, ensureCostsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
-import { costBrutto, COST_CATEGORIES, COST_STATUSES, VAT_RATES } from "@/lib/costs";
+import { costBrutto, COST_CATEGORIES, COST_STATUSES, VAT_RATES, PAYMENT_METHODS } from "@/lib/costs";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const rows = await sql`
     SELECT id, dostawca_nazwa, dostawca_nip, kategoria, opis, data_wydatku,
       kwota_netto, vat_stawka, kwota_brutto, status, data_platnosci, project_id,
-      created_at, updated_at, zalacznik_nazwa, zalacznik_typ, ksef_numer, ksef_tryb
+      created_at, updated_at, zalacznik_nazwa, zalacznik_typ, ksef_numer, ksef_tryb,
+      metoda_platnosci, dostawca_konto
     FROM costs WHERE id = ${id};
   `;
   const cost = rows[0];
@@ -54,6 +55,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const v = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id : null;
       await sql`UPDATE costs SET project_id = ${v}, updated_at = now() WHERE id = ${id};`;
     }
+    if ("metoda_platnosci" in body) {
+      const v = typeof body.metoda_platnosci === "string" && (PAYMENT_METHODS as readonly string[]).includes(body.metoda_platnosci) ? body.metoda_platnosci : null;
+      await sql`UPDATE costs SET metoda_platnosci = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    if ("dostawca_konto" in body) await sql`UPDATE costs SET dostawca_konto = ${str(body.dostawca_konto, 40)}, updated_at = now() WHERE id = ${id};`;
     if ("data_wydatku" in body) {
       const v = dateOrNull(body.data_wydatku);
       if (v === undefined || v === null) return NextResponse.json({ error: "invalid data_wydatku" }, { status: 400 });

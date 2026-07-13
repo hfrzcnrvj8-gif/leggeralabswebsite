@@ -119,3 +119,20 @@ wchodzą w zakres, to surowy materiał do rozmowy, nie zatwierdzony plan:
 - Przynajmniej pierwszy, uzgodniony krok (prawdopodobnie plakietki metody
   płatności i/lub kopiowanie danych do przelewu) zaimplementowany, `tsc`
   czysty, zweryfikowany na dev, `HUB_SETUP.md` zaktualizowany.
+
+## Stan po pierwszej sesji (2026-07-14)
+
+**Krok 1 zbudowany i zweryfikowany**: plakietki metody płatności
+(przelew/karta/gotówka/BLIK/PayPal/Apple Pay) na koszcie + pole "Numer konta
+dostawcy" + przycisk "Kopiuj dane do przelewu" (numer konta, kwota brutto,
+tytuł → schowek). Zero integracji z bramką płatności. Szczegóły
+implementacji: `HUB_SETUP.md` → sekcja "Moduł 9 — Koszty jako branżowy
+standard".
+
+**Nieuzgodnione jeszcze z właścicielem** (do zapytania na starcie kolejnej
+sesji tego modułu, patrz sekcja "Dodatkowe pomysły z rynku" wyżej) — żaden z
+tych czterech nie został jeszcze priorytetyzowany:
+1. Wykrywanie duplikatów kosztów (ten sam NIP+kwota+data).
+2. Koszty cykliczne/subskrypcje.
+3. Analityka/trendy wydatków (wykres miesięczny per kategoria).
+4. Szybsze dodawanie z telefonu (aparat) / rozpoznawanie dostawcy po NIP.

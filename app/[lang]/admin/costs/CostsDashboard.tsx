@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconX, IconPaperclip, IconCloudDownload } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Cost, COST_STATUSES, COST_CATEGORIES, formatMoney } from "@/lib/costs";
+import { type Cost, type PaymentMethod, COST_STATUSES, COST_CATEGORIES, PAYMENT_METHOD_ICON, PAYMENT_METHOD_LABEL, formatMoney } from "@/lib/costs";
 import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
@@ -274,6 +274,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                   <th className="p-2.5 font-medium">Kategoria</th>
                   <th className="p-2.5 font-medium">Projekt</th>
                   <th className="p-2.5 text-right font-medium">Brutto</th>
+                  <th className="p-2.5 font-medium">Płatność</th>
                   <th className="p-2.5 font-medium">Status</th>
                   <th className="p-2.5 font-medium">Data wydatku</th>
                   <th className="p-2.5"></th>
@@ -295,6 +296,9 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                     <td className="p-2.5 text-muted">{c.kategoria}</td>
                     <td className="p-2.5 text-muted">{c.project_tytul ?? "—"}</td>
                     <td className="p-2.5 text-right tabular-nums">{formatMoney(c.kwota_brutto)}</td>
+                    <td className="p-2.5 text-muted" title={c.metoda_platnosci ? PAYMENT_METHOD_LABEL[c.metoda_platnosci as PaymentMethod] ?? c.metoda_platnosci : ""}>
+                      {c.metoda_platnosci ? PAYMENT_METHOD_ICON[c.metoda_platnosci as PaymentMethod] ?? "" : "—"}
+                    </td>
                     <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                       <StatusTag status={c.status} onChange={(v) => updateStatus(c.id, v)} />
                     </td>

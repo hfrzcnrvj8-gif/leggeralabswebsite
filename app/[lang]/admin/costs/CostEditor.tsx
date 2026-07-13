@@ -1,11 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconPaperclip, IconExternalLink, IconUpload, IconCamera } from "@tabler/icons-react";
-import { type Cost, COST_CATEGORIES, VAT_RATES, ATTACHMENT_MIME_TYPES, costBrutto, formatMoney } from "@/lib/costs";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconPaperclip, IconExternalLink, IconUpload, IconCamera, IconCopy } from "@tabler/icons-react";
+import {
+  type Cost,
+  type PaymentMethod,
+  COST_CATEGORIES,
+  VAT_RATES,
+  ATTACHMENT_MIME_TYPES,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_LABEL,
+  PAYMENT_METHOD_ICON,
+  PAYMENT_METHOD_CLASS,
+  costBrutto,
+  formatMoney,
+} from "@/lib/costs";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
-import { Popover, MenuRow } from "../Menu";
+import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { StatusTag } from "./shared";
 
 type ProjectOption = { id: string; tytul: string };
@@ -186,6 +198,25 @@ export function CostEditor({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <StatusTag status={cost.status} onChange={(v) => patch({ status: v as Cost["status"] })} />
+          <PropertyMenu
+            value={(cost.metoda_platnosci as PaymentMethod) ?? ""}
+            options={[
+              { value: "" as PaymentMethod, label: "Brak" },
+              ...PAYMENT_METHODS.map((m) => ({ value: m, label: PAYMENT_METHOD_LABEL[m], icon: PAYMENT_METHOD_ICON[m] })),
+            ]}
+            onChange={(v) => patch({ metoda_platnosci: v || null })}
+            title="Zmień metodę płatności"
+          >
+            <span
+              className={`cursor-pointer rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                cost.metoda_platnosci ? PAYMENT_METHOD_CLASS[cost.metoda_platnosci as PaymentMethod] ?? "bg-[var(--hairline)] text-muted" : "bg-[var(--hairline)] text-muted"
+              }`}
+            >
+              {cost.metoda_platnosci
+                ? `${PAYMENT_METHOD_ICON[cost.metoda_platnosci as PaymentMethod] ?? ""} ${PAYMENT_METHOD_LABEL[cost.metoda_platnosci as PaymentMethod] ?? cost.metoda_platnosci}`
+                : "Metoda płatności: —"}
+            </span>
+          </PropertyMenu>
           {cost.ksef_numer && (
             <span
               className="rounded-md bg-brand-cyan/15 px-1.5 py-0.5 text-[10.5px] font-medium text-brand-cyan"
@@ -230,6 +261,32 @@ export function CostEditor({
             className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
             placeholder="opcjonalnie"
           />
+        </label>
+
+        <label className="col-span-full block sm:col-span-1">
+          <span className="mb-1 block text-[11px] text-muted">Numer konta dostawcy</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              defaultValue={cost.dostawca_konto}
+              onBlur={(e) => e.target.value !== cost.dostawca_konto && patch({ dostawca_konto: e.target.value.replace(/\s+/g, " ").trim() })}
+              className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
+              placeholder="PL00 0000 0000 0000 0000 0000 0000"
+            />
+            <button
+              onClick={async () => {
+                const brutto = formatMoney(costBrutto(cost.kwota_netto, cost.vat_stawka));
+                const tytul = [cost.dostawca_nazwa, cost.opis].filter(Boolean).join(" — ") || "Płatność";
+                const text = `Numer konta: ${cost.dostawca_konto}\nKwota: ${brutto}\nTytuł: ${tytul}`;
+                await navigator.clipboard.writeText(text);
+                toast("Skopiowano dane do przelewu.");
+              }}
+              disabled={!cost.dostawca_konto}
+              className="flex shrink-0 items-center gap-1 rounded-md border hairline px-2 py-1.5 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-40"
+              title="Kopiuj numer konta, kwotę i tytuł do schowka"
+            >
+              <IconCopy size={13} /> Kopiuj
+            </button>
+          </div>
         </label>
 
         <label className="block">
