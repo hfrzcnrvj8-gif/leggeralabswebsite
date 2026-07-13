@@ -82,3 +82,38 @@ export function buildEpcQrPayload(params: {
   const remittance = params.remittanceInfo.trim().slice(0, 140);
   return ["BCD", "002", "1", "SCT", bic, name, iban, amount, "", remittance, ""].join("\n");
 }
+
+/** Payload kodu QR wg polskiego standardu „2D" (Rekomendacja Związku Banków
+ * Polskich) — rozpoznawany przez aplikacje mobilne większości polskich
+ * banków (mBank, PKO/IKO, ING, Santander, Pekao i in.). W przeciwieństwie do
+ * EPC069-12 (wyłącznie EUR) ten standard obsługuje przelewy w PLN — dlatego
+ * używać tylko gdy waluta faktury to PLN (patrz wywołanie w
+ * InvoicePrint.tsx). Pola rozdzielone znakiem "|": NIP odbiorcy (10 cyfr,
+ * opcjonalnie), kod kraju, 26-cyfrowy NRB (= IBAN bez prefiksu "PL"), kwota w
+ * groszach (min. 6 cyfr z zerami), nazwa odbiorcy (≤20 zn.), tytuł przelewu
+ * (≤32 zn., wymagany), 3 pola zarezerwowane (nieużywane, puste). Max 160
+ * znaków łącznie. Specyfikacja zweryfikowana wg kodu referencyjnej
+ * biblioteki (github.com/MarcinOrlowski/bank-qrcode-formatter), zgodnej z
+ * Rekomendacją ZBP. Zwraca `null`, gdy brakuje poprawnego NRB lub nazwy
+ * odbiorcy. */
+export function buildPolishQrPayload(params: {
+  beneficiaryName: string;
+  beneficiaryNip: string;
+  /** IBAN (z prefiksem "PL") lub goły NRB — funkcja sama wytnie prefiks. */
+  accountIban: string;
+  amountPln: number;
+  title: string;
+}): string | null {
+  const rawAccount = params.accountIban.replace(/\s+/g, "").toUpperCase();
+  const nrb = (rawAccount.startsWith("PL") ? rawAccount.slice(2) : rawAccount).replace(/\D/g, "");
+  const name = params.beneficiaryName.trim().slice(0, 20);
+  if (nrb.length !== 26 || !name) return null;
+  const nip = (params.beneficiaryNip || "").replace(/\D/g, "");
+  const vatId = nip.length === 10 ? nip : "";
+  const amountGrosz = Math.max(0, Math.round(params.amountPln * 100));
+  const title = params.title.trim().slice(0, 32);
+  if (!title) return null;
+  const fields = [vatId, "PL", nrb, String(amountGrosz).padStart(6, "0"), name, title, "", "", ""];
+  const result = fields.join("|");
+  return result.length <= 160 ? result : null;
+}

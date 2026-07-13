@@ -18,7 +18,7 @@ import {
   vatBreakdown,
   round2,
 } from "@/lib/invoices";
-import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload } from "@/lib/documents";
+import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload, buildPolishQrPayload } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
 
 /** Podgląd/wydruk faktury — samodzielny biały dokument (niezależny od motywu
@@ -353,21 +353,36 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   const finalDue = zaliczka ? Math.round((dueAmount - zaliczka.brutto + Number.EPSILON) * 100) / 100 : dueAmount;
   const currency = invoice?.waluta || "PLN";
 
-  // Kod QR (standard EPC069-12 / "GiroCode") — tylko dla EUR, bo standard
-  // SEPA jest zdefiniowany wyłącznie dla tej waluty. Skanowalny przez
-  // większość europejskich bankowości mobilnych, wypełnia gotowy przelew.
+  // Kod QR do szybkiej płatności — dwa standardy wg waluty faktury, bo żaden
+  // pojedynczy nie obsługuje obu: EUR → EPC069-12/"GiroCode" (standard SEPA,
+  // zdefiniowany wyłącznie dla EUR); PLN → polski standard "2D" (Rekomendacja
+  // ZBP), rozpoznawany przez aplikacje mobilne polskich banków (mBank,
+  // PKO/IKO, ING, Santander, Pekao i in.) — obsługuje WYŁĄCZNIE przelewy
+  // krajowe w PLN, nie działa dla kont/kwot w innej walucie. Dla USD/GBP nie
+  // istnieje analogiczny, powszechnie wspierany standard — kod się nie pojawi.
   useEffect(() => {
-    if (!invoice || !settings || currency !== "EUR" || !settings.konto) {
+    if (!invoice || !settings || !settings.konto) {
       setQrUrl(null);
       return;
     }
-    const payload = buildEpcQrPayload({
-      beneficiaryName: settings.nazwa,
-      iban: settings.konto,
-      bic: settings.swift,
-      amountEur: finalDue,
-      remittanceInfo: invoice.numer ?? invoice.id,
-    });
+    const payload =
+      currency === "EUR"
+        ? buildEpcQrPayload({
+            beneficiaryName: settings.nazwa,
+            iban: settings.konto,
+            bic: settings.swift,
+            amountEur: finalDue,
+            remittanceInfo: invoice.numer ?? invoice.id,
+          })
+        : currency === "PLN"
+          ? buildPolishQrPayload({
+              beneficiaryName: settings.nazwa,
+              beneficiaryNip: settings.nip,
+              accountIban: settings.konto,
+              amountPln: finalDue,
+              title: invoice.numer ?? invoice.id,
+            })
+          : null;
     if (!payload) {
       setQrUrl(null);
       return;
@@ -380,7 +395,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoice?.id, invoice?.numer, settings?.konto, settings?.swift, settings?.nazwa, currency, finalDue]);
+  }, [invoice?.id, invoice?.numer, settings?.konto, settings?.swift, settings?.nazwa, settings?.nip, currency, finalDue]);
 
   // Kod QR KOD I (weryfikacja faktury w KSeF) — z gotowego linku zapisanego przy
   // przyjęciu (lib/ksef-api buduje {baza}/invoice/{NIP}/{data}/{hash}).
