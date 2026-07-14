@@ -9,7 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { IconCheck } from "@tabler/icons-react";
 
 /**
@@ -102,24 +102,33 @@ export function Popover({
         {trigger(openMenu, open)}
       </span>
       {typeof document !== "undefined" &&
-        open &&
         pos &&
+        // AnimatePresence musi być WEWNĄTRZ portalu (opakowywać motion.div),
+        // nie na zewnątrz wywołania createPortal — portal to obiekt
+        // ReactPortal, nie zwykły element, więc AnimatePresence owinięte
+        // dookoła createPortal(...) nie potrafi go poprawnie sklonować/
+        // wykryć zmiany obecności (popover po prostu przestawał się otwierać).
         createPortal(
-          <motion.div
-            ref={menuRef}
-            initial={{ opacity: 0, scale: 0.97, y: -2 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.1, ease: "easeOut" }}
-            role="menu"
-            // `admin-linear` — portal renderuje się w <body>, poza scope'em
-            // AppShell, więc bez tej klasy var(--fg)/var(--fg-muted)/
-            // var(--hairline) spadają do jasnych tokenów strony publicznej
-            // (ciemny tekst na tym samym ciemnym tle popovera = nieczytelne).
-            className="admin-linear fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 text-[var(--fg)] shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
-            style={{ top: pos.top, left: pos.left, width }}
-          >
-            {children(() => setOpen(false))}
-          </motion.div>,
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                ref={menuRef}
+                initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: -2 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                role="menu"
+                // `admin-linear` — portal renderuje się w <body>, poza scope'em
+                // AppShell, więc bez tej klasy var(--fg)/var(--fg-muted)/
+                // var(--hairline) spadają do jasnych tokenów strony publicznej
+                // (ciemny tekst na tym samym ciemnym tle popovera = nieczytelne).
+                className="admin-linear fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 text-[var(--fg)] shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+                style={{ top: pos.top, left: pos.left, width }}
+              >
+                {children(() => setOpen(false))}
+              </motion.div>
+            )}
+          </AnimatePresence>,
           document.body
         )}
     </>
@@ -259,40 +268,46 @@ export function PropertyMenu<T extends string>({
         {children}
       </button>
       {typeof document !== "undefined" &&
-        open &&
         pos &&
+        // Patrz komentarz w Popover — AnimatePresence musi być wewnątrz
+        // portalu, nie na zewnątrz createPortal(...).
         createPortal(
-          <motion.div
-            ref={menuRef}
-            initial={{ opacity: 0, scale: 0.97, y: -2 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.1, ease: "easeOut" }}
-            onClick={(e) => e.stopPropagation()}
-            role="menu"
-            className="fixed z-[200] w-max min-w-[190px] max-w-[340px] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
-            style={{ top: pos.top, left: pos.left }}
-          >
-            {options.map((opt, i) => (
-                  <button
-                    key={opt.value}
-                    role="menuitemradio"
-                    aria-checked={opt.value === value}
-                    onMouseEnter={() => setActive(i)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onChange(opt.value);
-                      setOpen(false);
-                    }}
-                    className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] text-[#e9e9ea] ${
-                      i === active ? "bg-[#232327]" : ""
-                    }`}
-                  >
-                    {opt.icon && <span className="flex w-4 shrink-0 justify-center">{opt.icon}</span>}
-                    <span className="flex-1 truncate">{opt.label}</span>
-                    {opt.value === value && <IconCheck size={14} className="shrink-0 text-[#8a8f98]" />}
-                  </button>
-                ))}
-          </motion.div>,
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                ref={menuRef}
+                initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: -2 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                onClick={(e) => e.stopPropagation()}
+                role="menu"
+                className="fixed z-[200] w-max min-w-[190px] max-w-[340px] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+                style={{ top: pos.top, left: pos.left }}
+              >
+                {options.map((opt, i) => (
+                      <button
+                        key={opt.value}
+                        role="menuitemradio"
+                        aria-checked={opt.value === value}
+                        onMouseEnter={() => setActive(i)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onChange(opt.value);
+                          setOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] text-[#e9e9ea] ${
+                          i === active ? "bg-[#232327]" : ""
+                        }`}
+                      >
+                        {opt.icon && <span className="flex w-4 shrink-0 justify-center">{opt.icon}</span>}
+                        <span className="flex-1 truncate">{opt.label}</span>
+                        {opt.value === value && <IconCheck size={14} className="shrink-0 text-[#8a8f98]" />}
+                      </button>
+                    ))}
+              </motion.div>
+            )}
+          </AnimatePresence>,
           document.body
         )}
     </>

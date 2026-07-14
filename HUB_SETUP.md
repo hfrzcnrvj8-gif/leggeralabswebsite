@@ -1561,6 +1561,72 @@ szczerej samooceny UX poprzedniej tury:
   wysokości, odsłaniając więcej siatki godzinowej. `npx tsc --noEmit`
   czysty po całej turze.
 
+### Moduł 10 — ósma tura: premium animacje wzorem Linear/Apple (2026-07-14)
+
+Właściciel zapytał wprost, jakie animacje premium (znane z Linear, Apple)
+dałoby się dodać do Kalendarza — moduł nie miał wcześniej żadnych przejść
+poza jedną, bardzo krótką (0.1s) animacją Popovera. Dodano `framer-motion`
+w czterech miejscach (`CalendarView.tsx`, `Menu.tsx`):
+
+- **Kierunkowy slide+fade przy zmianie miesiąca/tygodnia/dnia** — nowy stan
+  `direction` (-1/0/1), ustawiany w `changeMonth`/`changePeriod`/`goToday`/
+  `pickDay` (porównanie starej i nowej daty), zerowany przy zmianie WIDOKU
+  (`handleViewChange` — to nie "strona" tego samego widoku, więc czysty
+  fade bez przesunięcia). Cała zawartość głównego panelu (miesiąc/tydzień/
+  dzień) owinięta w `AnimatePresence mode="wait"` + `motion.div` kluczowany
+  `${viewMode}-${monthKey lub selectedDay}`, warianty `enter`/`center`/
+  `exit` z `custom={direction}` — "dalej" wjeżdża z prawej, "wstecz" z lewej.
+- **Animacje wejścia/wyjścia + layout list wydarzeń** — `DayAgendaList`
+  (lista dnia w podglądzie/tygodniu) i bloki wydarzeń w `TimelineGridRow`
+  (siatka godzinowa Dzień/Tydzień) owinięte w `AnimatePresence` +
+  `motion.li`/`motion.div` z `layout` — dodanie/usunięcie/przesunięcie
+  wydarzenia animuje się płynnie zamiast znikać/pojawiać się skokowo.
+- **Wizualny feedback przeciągania** — przeciągany element traci opacity
+  (0.4) przez czas `onDragStart`/`onDragEnd` (miesiąc, tydzień, siatka
+  godzinowa), cel upuszczenia podświetla się ringiem
+  (`ring-2 ring-inset ring-[var(--fg)]/40`) na `onDragEnter`/`onDragLeave`.
+  W siatce miesiąca zrobione imperatywnie przez `classList` bezpośrednio na
+  `ev.currentTarget` (42 komórki w miesiącu — stan React per-komórka byłby
+  przesadą tylko dla podświetlenia ramki); w siatce godzinowej przez lokalny
+  `useState<boolean>` (jedna kolumna na komponent, więc naturalny stan).
+- **Dopieszczenie timingu Popovera** — `Menu.tsx`: dłuższy, bardziej
+  "premium" easing (`[0.16, 1, 0.3, 1]`, 0.16s zamiast 0.1s liniowego),
+  osobny `exit` (wcześniej brak — zamykanie było natychmiastowe, bez
+  animacji). Subtelny hover-lift (`hover:-translate-y-px`) na chipach
+  wydarzeń w miesiącu i liście dnia.
+
+**Pułapka napotkana i naprawiona**: pierwsza wersja owinęła
+`AnimatePresence` WOKÓŁ wywołania `createPortal(...)` w `Popover`/
+`PropertyMenu` (`Menu.tsx`) — to zepsuło popover całkowicie (przestawał się
+otwierać, brak elementu `[role="menu"]` w DOM). Przyczyna: `createPortal`
+zwraca obiekt `ReactPortal`, nie zwykły element React — `AnimatePresence`
+potrzebuje zwykłego elementu (najlepiej `motion.*`) jako bezpośredniego
+dziecka, żeby śledzić jego obecność/klonować propsy. Naprawione przez
+zamianę kolejności: `AnimatePresence` musi być WEWNĄTRZ portalu (owija
+`motion.div`), portal wywoływany bezwarunkowo (gdy `pos` ustawione), a samo
+`motion.div` renderowane warunkowo (`open &&`) wewnątrz — dzięki temu
+`AnimatePresence` widzi normalny motion-element i poprawnie animuje zarówno
+wejście, jak i wyjście (przy zamykaniu portal zostaje zamontowany do czasu
+zakończenia animacji `exit`). Wniosek na przyszłość: `AnimatePresence`
+zawsze musi opakowywać zwykłe elementy/motion-komponenty, nigdy wynik
+`createPortal(...)` bezpośrednio.
+
+Przetestowane w przeglądarce (lokalny dev, `preview_start name:"dev"`):
+nawigacja miesiąc→miesiąc (Lipiec→Sierpień 2026) z widocznym slide,
+przełączanie Miesiąc→Tydzień→Dzień przez dropdown (nowy timing dropdownu
+widoczny), otwieranie/zamykanie podglądu dnia (popover) z płynnym
+wejściem/wyjściem, `npx tsc --noEmit` czysty. Uwaga o narzędziu QA: w tej
+samej sesji `read_console_messages`/`preview_logs` pokazywały uporczywie
+STARE błędy (w tym błąd sprzed poprawki portalu i błędy parsowania z
+wcześniejszego stanu pliku) mimo świeżego restartu serwera dev — potwierdzone
+jako artefakt cache'a tych narzędzi (nie realny stan aplikacji) przez
+bezpośrednią inspekcję DOM/`nextjs-portal` i `preview_logs` po restarcie
+serwera (`No server errors found`). Podobnie klikanie przez narzędzie
+`computer` po współrzędnych z zrzutu ekranu bywało niecelne (viewport
+1600×900 vs zrzut 800×450) — klikanie przez `ref` (z `read_page`) lub
+programowo (`button.click()` w JS) działało niezawodnie i potwierdziło, że
+sama aplikacja reaguje poprawnie.
+
 ## Moduł 11 — Umowy + NDA (2026-07-14)
 
 Nowy moduł `/admin/contracts` ("Umowy") — pierwszy krok domknięcia

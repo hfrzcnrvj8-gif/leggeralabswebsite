@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import type { HubEvent } from "@/lib/events";
 import { expandEventDays, parseQuickAdd, layoutTimedEvents, timeToMinutes, minutesToTime } from "@/lib/events";
 import type { Lead } from "@/lib/leads";
@@ -141,6 +142,15 @@ type AddEventFn = (
   durationMin: number | null
 ) => Promise<boolean>;
 
+/** Slide+fade kierunkowy dla przełączania miesiąca/tygodnia/dnia — `custom`
+ * niesie kierunek (-1/0/1), więc "dalej" wjeżdża z prawej, "wstecz" z lewej,
+ * a zmiana widoku (kierunek 0) to czysty fade bez przesunięcia. */
+const periodSlideVariants = {
+  enter: (dir: number) => ({ opacity: 0, x: dir * 28 }),
+  center: { opacity: 1, x: 0 },
+  exit: (dir: number) => ({ opacity: 0, x: dir * -28 }),
+};
+
 export function CalendarView({ lang }: { lang: string }) {
   const { toast, confirm } = useUI();
   const now = new Date();
@@ -160,6 +170,12 @@ export function CalendarView({ lang }: { lang: string }) {
   const [clients, setClients] = useState<Client[] | null>(null);
   const [icsInfo, setIcsInfo] = useState<{ configured: boolean; token: string | null } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Kierunek ostatniej nawigacji (-1 wstecz, 1 w przód, 0 bez kierunku np.
+  // "Dziś"/zmiana widoku) — napędza slide+fade przejścia w stylu Linear
+  // przy zmianie miesiąca/tygodnia/dnia (patrz AnimatePresence poniżej).
+  const [direction, setDirection] = useState(0);
+  const [upcomingEvents, setUpcomingEvents] = useState<HubEvent[]>([]);
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<Deadline[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
   const newTitleRef = useRef<HTMLInputElement>(null);
 
@@ -169,6 +185,32 @@ export function CalendarView({ lang }: { lang: string }) {
     fetch("/api/clients").then((r) => (r.ok ? r.json() : null)).then((d) => d && setClients(d.clients));
     fetch("/api/calendar/ics-info").then((r) => (r.ok ? r.json() : null)).then((d) => d && setIcsInfo(d));
   }, []);
+
+  /** Dane pod widget "Najbliżej" w sidebarze — pobierane NIEZALEŻNIE od tego,
+   * jaki miesiąc/widok jest akurat wyświetlany (zawsze bieżący + następny
+   * miesiąc względem realnego "dziś"), żeby widget zostawał trafny nawet gdy
+   * właściciel nawiguje daleko w przód/tył w głównym widoku. */
+  const loadUpcoming = useCallback(async () => {
+    const t = todayISO();
+    const [ty, tm] = t.split("-").map(Number);
+    const thisMonth = t.slice(0, 7);
+    const next = new Date(ty, tm, 1);
+    const nextMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    const [e1, e2, d1, d2] = await Promise.all([
+      fetch(`/api/events?month=${thisMonth}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/events?month=${nextMonth}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/events/deadlines?month=${thisMonth}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/events/deadlines?month=${nextMonth}`).then((r) => (r.ok ? r.json() : null)),
+    ]);
+    const byId = new Map<string, HubEvent>();
+    [...(e1?.events ?? []), ...(e2?.events ?? [])].forEach((e: HubEvent) => byId.set(e.id, e));
+    setUpcomingEvents(Array.from(byId.values()));
+    setUpcomingDeadlines([...(d1?.deadlines ?? []), ...(d2?.deadlines ?? [])]);
+  }, []);
+
+  useEffect(() => {
+    loadUpcoming();
+  }, [loadUpcoming]);
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -195,23 +237,40 @@ export function CalendarView({ lang }: { lang: string }) {
 
   const monthKey = `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
 
+  // Znacznik, dla którego monthKey dane naprawdę dotarły — zapobiega
+  // krótkiemu "błyskowi" danych z POPRZEDNIEGO miesiąca nałożonych na daty
+  // NOWEGO miesiąca podczas przełączania (siatka dat aktualizuje się
+  // natychmiast, ale events/deadlines dociągają się asynchronicznie).
+  // Zamknięcie nad `key` (nie odczyt `monthKey` po fakcie) chroni przed
+  // wyścigiem, gdyby stare zapytanie dociągnęło się już po zmianie miesiąca.
+  const [eventsReadyKey, setEventsReadyKey] = useState<string | null>(null);
+  const [deadlinesReadyKey, setDeadlinesReadyKey] = useState<string | null>(null);
+  const monthReady = eventsReadyKey === monthKey && deadlinesReadyKey === monthKey;
+
   const load = useCallback(async () => {
-    const res = await fetch(`/api/events?month=${monthKey}`);
+    const key = monthKey;
+    const res = await fetch(`/api/events?month=${key}`);
     if (res.status === 401) {
       window.location.reload();
       return;
     }
     const data = (await res.json()) as { events: HubEvent[] };
     setEvents(data.events);
+    setEventsReadyKey(key);
   }, [monthKey]);
 
   // Wyliczone terminy z innych modułów (płatności, projekty, kamienie,
   // przypomnienia) — tylko do odczytu, ładowane osobno od ręcznych wydarzeń.
   useEffect(() => {
     let alive = true;
-    fetch(`/api/events/deadlines?month=${monthKey}`)
+    const key = monthKey;
+    fetch(`/api/events/deadlines?month=${key}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => alive && d && setDeadlines(d.deadlines as Deadline[]));
+      .then((d) => {
+        if (!alive || !d) return;
+        setDeadlines(d.deadlines as Deadline[]);
+        setDeadlinesReadyKey(key);
+      });
     return () => {
       alive = false;
     };
@@ -268,25 +327,24 @@ export function CalendarView({ lang }: { lang: string }) {
   }, [deadlines, extraDeadlines, visibleMonthKeys, monthKey]);
 
   /** Najbliższe wydarzenie/termin — wzorem "Upcoming" w Notion Calendar.
-   * Liczone tylko z aktualnie wczytanych miesięcy (bieżący + sąsiednie przy
-   * widoku Tydzień/Dzień), więc jest w pełni trafne dopóki "dziś" mieści się
-   * w wczytanym zakresie — typowy przypadek, panel startuje na bieżącym
-   * miesiącu. */
+   * Liczone z `upcomingEvents`/`upcomingDeadlines` (dedykowany fetch bieżący
+   * + następny miesiąc względem realnego "dziś", patrz `loadUpcoming`) —
+   * niezależne od tego, jaki miesiąc/widok jest akurat wyświetlany. */
   const upcomingItem = useMemo(() => {
     const nowStr = todayISO();
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
     type Upcoming = { id: string; data: string; minutes: number; title: string; kind: "event" | DeadlineKind; href?: string };
     const items: Upcoming[] = [];
-    allEvents.forEach((e) => {
+    upcomingEvents.forEach((e) => {
       const isFuture = e.data > nowStr || (e.data === nowStr && (!e.godzina || timeToMinutes(e.godzina) >= nowMin));
       if (isFuture) items.push({ id: e.id, data: e.data, minutes: e.godzina ? timeToMinutes(e.godzina) : 0, title: e.tytul, kind: "event" });
     });
-    allDeadlines.forEach((d) => {
+    upcomingDeadlines.forEach((d) => {
       if (d.data >= nowStr) items.push({ id: d.id, data: d.data, minutes: 0, title: d.tytul, kind: d.kind, href: d.href });
     });
     items.sort((a, b) => (a.data === b.data ? a.minutes - b.minutes : a.data < b.data ? -1 : 1));
     return items[0] ?? null;
-  }, [allEvents, allDeadlines]);
+  }, [upcomingEvents, upcomingDeadlines]);
 
   // Łączone filtry (klient + lead + projekt) — AND: pozycja musi pasować do
   // KAŻDEGO ustawionego filtra. Plus widoczność "kalendarzy" z sidebara —
@@ -338,6 +396,7 @@ export function CalendarView({ lang }: { lang: string }) {
   }, [filteredDeadlines]);
 
   const changeMonth = (delta: number) => {
+    if (delta !== 0) setDirection(delta > 0 ? 1 : -1);
     let m = monthIdx + delta;
     let y = year;
     if (m < 0) { m = 11; y -= 1; }
@@ -351,6 +410,7 @@ export function CalendarView({ lang }: { lang: string }) {
       changeMonth(delta);
       return;
     }
+    setDirection(delta > 0 ? 1 : delta < 0 ? -1 : 0);
     const step = viewMode === "week" ? delta * 7 : delta;
     const next = addDaysToISO(selectedDay, step);
     setSelectedDay(next);
@@ -361,16 +421,25 @@ export function CalendarView({ lang }: { lang: string }) {
 
   const goToday = () => {
     const t = todayISO();
+    setDirection(t > selectedDay ? 1 : t < selectedDay ? -1 : 0);
     setSelectedDay(t);
     setYear(now.getFullYear());
     setMonthIdx(now.getMonth());
   };
 
   const pickDay = (day: string) => {
+    setDirection(day > selectedDay ? 1 : day < selectedDay ? -1 : 0);
     setSelectedDay(day);
     const [y, m] = day.split("-").map(Number);
     setYear(y);
     setMonthIdx(m - 1);
+  };
+
+  /** Zmiana widoku (Miesiąc/Tydzień/Dzień) — bez kierunku, to nie „strona"
+   * tego samego widoku tylko zupełnie inny układ, więc czysty fade. */
+  const handleViewChange = (v: ViewMode) => {
+    setDirection(0);
+    setViewMode(v);
   };
 
   const addEvent: AddEventFn = async (day, title, time, leadId, projectId, clientId, dayEnd, durationMin) => {
@@ -392,6 +461,7 @@ export function CalendarView({ lang }: { lang: string }) {
     if (res.ok) {
       load();
       setExtraEvents({});
+      loadUpcoming();
       toast("Dodano wydarzenie.");
       return true;
     }
@@ -413,6 +483,7 @@ export function CalendarView({ lang }: { lang: string }) {
       Object.entries(prev).forEach(([k, v]) => { next[k] = v.filter((e) => e.id !== id); });
       return next;
     });
+    loadUpcoming();
   };
 
   const patchEvent = async (id: string, fields: Record<string, unknown>, successMsg: string) => {
@@ -424,6 +495,7 @@ export function CalendarView({ lang }: { lang: string }) {
     if (res.ok) {
       load();
       setExtraEvents({});
+      loadUpcoming();
       toast(successMsg);
     } else {
       toast("Nie udało się zaktualizować wydarzenia.", "error");
@@ -457,9 +529,9 @@ export function CalendarView({ lang }: { lang: string }) {
     [
       { id: "add", label: "+ Nowe wydarzenie", hint: "N", run: () => newTitleRef.current?.focus() },
       { id: "today", label: "Dziś", hint: "T", run: () => goToday() },
-      { id: "view-month", label: "Widok: Miesiąc", run: () => setViewMode("month") },
-      { id: "view-week", label: "Widok: Tydzień", run: () => setViewMode("week") },
-      { id: "view-day", label: "Widok: Dzień", run: () => setViewMode("day") },
+      { id: "view-month", label: "Widok: Miesiąc", run: () => handleViewChange("month") },
+      { id: "view-week", label: "Widok: Tydzień", run: () => handleViewChange("week") },
+      { id: "view-day", label: "Widok: Dzień", run: () => handleViewChange("day") },
     ],
     []
   );
@@ -495,7 +567,7 @@ export function CalendarView({ lang }: { lang: string }) {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b hairline px-4 py-2 sm:px-6">
-          <ViewDropdown viewMode={viewMode} onChange={setViewMode} />
+          <ViewDropdown viewMode={viewMode} onChange={handleViewChange} />
           <button
             onClick={goToday}
             className="rounded-lg border hairline px-2 py-1 text-[11.5px] text-muted hover:text-[var(--fg)]"
@@ -550,6 +622,17 @@ export function CalendarView({ lang }: { lang: string }) {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6">
+        <AnimatePresence mode="wait" custom={direction} initial={false}>
+        <motion.div
+          key={`${viewMode}-${viewMode === "month" ? monthKey : selectedDay}`}
+          custom={direction}
+          variants={periodSlideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+          className="flex min-h-0 flex-1 flex-col"
+        >
           {viewMode === "month" && (
             <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
               <div className="grid shrink-0 grid-cols-7 gap-1 text-center text-[11px] text-muted">
@@ -560,8 +643,11 @@ export function CalendarView({ lang }: { lang: string }) {
               <div className="grid flex-1 grid-cols-7 gap-1" style={{ gridAutoRows: "1fr" }}>
                 {cells.map((day, i) => {
                   if (!day) return <div key={i} />;
-                  const dayEvents = eventsByDay.get(day) ?? [];
-                  const dayDeadlines = deadlinesByDay.get(day) ?? [];
+                  // Gdy dane bieżącego miesiąca jeszcze nie dotarły, pokaż
+                  // pustą siatkę zamiast starych danych z poprzedniego
+                  // miesiąca nałożonych na nowe daty (patrz `monthReady`).
+                  const dayEvents = monthReady ? eventsByDay.get(day) ?? [] : [];
+                  const dayDeadlines = monthReady ? deadlinesByDay.get(day) ?? [] : [];
                   const isToday = day === today;
                   // Wspólny limit dla podglądu w komórce siatki — pełna lista
                   // dnia zawsze dostępna w podglądzie po kliknięciu (bez limitu).
@@ -578,8 +664,15 @@ export function CalendarView({ lang }: { lang: string }) {
                         <button
                           onClick={open}
                           onDragOver={(ev) => ev.preventDefault()}
+                          // Imperatywne DOM-owe podświetlenie celu (bez stanu
+                          // per-komórka — 42 komórki w miesiącu, prop-drilling
+                          // stanu przez tyle kafli byłby przesadą dla samego
+                          // podświetlenia ramki podczas przeciągania).
+                          onDragEnter={(ev) => ev.currentTarget.classList.add("ring-2", "ring-inset", "ring-[var(--fg)]/40")}
+                          onDragLeave={(ev) => ev.currentTarget.classList.remove("ring-2", "ring-inset", "ring-[var(--fg)]/40")}
                           onDrop={(ev) => {
                             ev.preventDefault();
+                            ev.currentTarget.classList.remove("ring-2", "ring-inset", "ring-[var(--fg)]/40");
                             const id = ev.dataTransfer.getData("text/plain");
                             if (id) moveEvent(id, day);
                           }}
@@ -597,8 +690,12 @@ export function CalendarView({ lang }: { lang: string }) {
                                 onDragStart={(ev) => {
                                   ev.stopPropagation();
                                   ev.dataTransfer.setData("text/plain", e.id);
+                                  ev.currentTarget.style.opacity = "0.4";
                                 }}
-                                className={`w-full cursor-grab truncate rounded border-l-2 ${style.border} ${style.bg} px-1 text-[10px] ${style.text}`}
+                                onDragEnd={(ev) => {
+                                  ev.currentTarget.style.opacity = "1";
+                                }}
+                                className={`w-full cursor-grab truncate rounded border-l-2 ${style.border} ${style.bg} px-1 text-[10px] ${style.text} transition-[opacity,transform] hover:-translate-y-px`}
                                 title="Przeciągnij, by zmienić dzień"
                               >
                                 {e.godzina && `${e.godzina} `}{e.tytul}
@@ -689,6 +786,8 @@ export function CalendarView({ lang }: { lang: string }) {
               />
             </div>
           )}
+        </motion.div>
+        </AnimatePresence>
         </div>
       </div>
     </div>
@@ -836,8 +935,8 @@ function MiniMonthCalendar({
       <div className="mb-1.5 flex items-center justify-between px-1">
         <span className="text-[12px] font-medium">{MONTH_NAMES[monthIdx]} {year}</span>
         <div className="flex gap-0.5">
-          <button onClick={() => onChangeMonth(-1)} className="flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" aria-label="Poprzedni miesiąc">‹</button>
-          <button onClick={() => onChangeMonth(1)} className="flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" aria-label="Następny miesiąc">›</button>
+          <button onClick={() => onChangeMonth(-1)} className="flex h-7 w-7 items-center justify-center rounded text-[15px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" aria-label="Poprzedni miesiąc">‹</button>
+          <button onClick={() => onChangeMonth(1)} className="flex h-7 w-7 items-center justify-center rounded text-[15px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" aria-label="Następny miesiąc">›</button>
         </div>
       </div>
       <div className="grid grid-cols-7 text-center text-[9px] text-muted">
@@ -898,59 +997,85 @@ function DayAgendaList({
   }
   return (
     <ul className={`space-y-1.5 ${compact ? "" : "mb-3"}`}>
-      {dls.map((d) => {
-        const style = DEADLINE_STYLE[d.kind];
-        return (
-          <li key={d.id} className={`rounded-lg border-l-[3px] ${style.border} ${style.bg} px-2.5 py-1.5 text-sm`}>
-            <Link href={`/${lang}${d.href}`} className="block truncate hover:underline" title={d.tytul}>
-              {d.tytul}
-            </Link>
-          </li>
-        );
-      })}
-      {events.map((e) => {
-        const style = eventStyle(e);
-        const hasLinks = e.client_id || e.lead_id || e.project_id;
-        return (
-          <li
-            key={e.id}
-            draggable
-            onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
-            className={`cursor-grab rounded-lg border-l-[3px] ${style.border} bg-[var(--bg-soft)] px-2.5 py-1.5 text-sm`}
-            title="Przeciągnij, by zmienić dzień"
-          >
-            <div className="flex items-center justify-between">
-              <span className="truncate">
-                {e.godzina && <span className={`mr-1.5 font-medium ${style.text}`}>{formatTimeRange(e)}</span>}
-                {e.tytul}
-                {e.data_koniec && e.data_koniec > e.data && (
-                  <span className="ml-1.5 text-[11px] text-muted">({e.data} → {e.data_koniec})</span>
-                )}
-              </span>
-              <button onClick={() => onDelete(e.id)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
-            </div>
-            {hasLinks && (
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
-                {e.client_id && (
-                  <Link href={`/${lang}/admin/clients/${e.client_id}`} className="text-brand-cyan hover:underline">
-                    👤 {clientName(e.client_id)}
-                  </Link>
-                )}
-                {e.lead_id && (
-                  <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-orange-400 hover:underline">
-                    🎯 {leadName(e.lead_id)}
-                  </Link>
-                )}
-                {e.project_id && (
-                  <Link href={`/${lang}/admin/projects/${e.project_id}`} className="text-brand-purple hover:underline">
-                    📁 {projectName(e.project_id)}
-                  </Link>
-                )}
+      <AnimatePresence initial={false}>
+        {dls.map((d) => {
+          const style = DEADLINE_STYLE[d.kind];
+          return (
+            <motion.li
+              key={d.id}
+              layout
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className={`overflow-hidden rounded-lg border-l-[3px] ${style.border} ${style.bg} px-2.5 py-1.5 text-sm`}
+            >
+              <Link href={`/${lang}${d.href}`} className="block truncate hover:underline" title={d.tytul}>
+                {d.tytul}
+              </Link>
+            </motion.li>
+          );
+        })}
+        {events.map((e) => {
+          const style = eventStyle(e);
+          const hasLinks = e.client_id || e.lead_id || e.project_id;
+          return (
+            <motion.li
+              key={e.id}
+              layout
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              draggable
+              // Framer-motion typuje onDragStart/onDragEnd pod SWÓJ gesture
+              // drag (PanInfo), nie natywne DragEvent — rzutowanie bezpieczne,
+              // bo `drag` (prop framer-motion) nigdy nie jest tu ustawiony,
+              // więc realnie odpala się tylko natywny event przeglądarki.
+              onDragStart={(ev) => {
+                const dragEv = ev as unknown as React.DragEvent<HTMLLIElement>;
+                dragEv.dataTransfer.setData("text/plain", e.id);
+                dragEv.currentTarget.style.opacity = "0.4";
+              }}
+              onDragEnd={(ev) => {
+                (ev as unknown as React.DragEvent<HTMLLIElement>).currentTarget.style.opacity = "1";
+              }}
+              className={`cursor-grab overflow-hidden rounded-lg border-l-[3px] ${style.border} bg-[var(--bg-soft)] px-2.5 py-1.5 text-sm transition-[opacity,transform] hover:-translate-y-px hover:shadow-sm`}
+              title="Przeciągnij, by zmienić dzień"
+            >
+              <div className="flex items-center justify-between">
+                <span className="truncate">
+                  {e.godzina && <span className={`mr-1.5 font-medium ${style.text}`}>{formatTimeRange(e)}</span>}
+                  {e.tytul}
+                  {e.data_koniec && e.data_koniec > e.data && (
+                    <span className="ml-1.5 text-[11px] text-muted">({e.data} → {e.data_koniec})</span>
+                  )}
+                </span>
+                <button onClick={() => onDelete(e.id)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
               </div>
-            )}
-          </li>
-        );
-      })}
+              {hasLinks && (
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+                  {e.client_id && (
+                    <Link href={`/${lang}/admin/clients/${e.client_id}`} className="text-brand-cyan hover:underline">
+                      👤 {clientName(e.client_id)}
+                    </Link>
+                  )}
+                  {e.lead_id && (
+                    <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-orange-400 hover:underline">
+                      🎯 {leadName(e.lead_id)}
+                    </Link>
+                  )}
+                  {e.project_id && (
+                    <Link href={`/${lang}/admin/projects/${e.project_id}`} className="text-brand-purple hover:underline">
+                      📁 {projectName(e.project_id)}
+                    </Link>
+                  )}
+                </div>
+              )}
+            </motion.li>
+          );
+        })}
+      </AnimatePresence>
     </ul>
   );
 }
@@ -1141,12 +1266,22 @@ function WeekTimeline({
   const range = timelineRange(allTimed);
   const [prefillTime, setPrefillTime] = useState("");
 
+  // Pasek "cały dzień" rezerwuje pełną wysokość tylko wtedy, gdy przynajmniej
+  // jeden dzień tygodnia ma coś do pokazania — w typowym tygodniu bez
+  // wydarzeń bez godziny/wyliczonych terminów zajmowałby stałe miejsce bez
+  // powodu. Wspólne dla wszystkich kolumn (i etykiet godzin), żeby siatka
+  // została wyrównana.
+  const hasAnyAllDay = days.some(
+    (d) => (eventsByDay.get(d) ?? []).some((e) => !e.godzina) || (deadlinesByDay.get(d) ?? []).length > 0
+  );
+  const agendaH = hasAnyAllDay ? WEEK_AGENDA_H : 28;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
       <div className="flex min-h-0 flex-1 gap-2">
         <div className="flex w-12 shrink-0 flex-col">
           <div style={{ height: WEEK_HEADER_H }} />
-          <div style={{ height: WEEK_AGENDA_H }} />
+          <div style={{ height: agendaH }} />
           <div className="flex-1 overflow-y-auto">
             <HourLabels range={range} />
           </div>
@@ -1173,17 +1308,19 @@ function WeekTimeline({
                     +
                   </button>
                 </div>
-                <div style={{ height: WEEK_AGENDA_H }} className="overflow-y-auto">
-                  <DayAgendaList
-                    lang={lang}
-                    events={(eventsByDay.get(day) ?? []).filter((e) => !e.godzina)}
-                    dls={deadlinesByDay.get(day) ?? []}
-                    leadName={leadName}
-                    projectName={projectName}
-                    clientName={clientName}
-                    onDelete={onDelete}
-                    compact
-                  />
+                <div style={{ height: agendaH }} className="overflow-y-auto">
+                  {hasAnyAllDay && (
+                    <DayAgendaList
+                      lang={lang}
+                      events={(eventsByDay.get(day) ?? []).filter((e) => !e.godzina)}
+                      dls={deadlinesByDay.get(day) ?? []}
+                      leadName={leadName}
+                      projectName={projectName}
+                      clientName={clientName}
+                      onDelete={onDelete}
+                      compact
+                    />
+                  )}
                 </div>
                 <div className="flex-1 overflow-y-auto">
                   <TimelineGridRow
@@ -1277,9 +1414,11 @@ function TimelineGridRow({
     return minutesToTime(range.startHour * 60 + rounded);
   };
 
+  const [isDragOver, setIsDragOver] = useState(false);
+
   return (
     <div
-      className="relative rounded-lg"
+      className={`relative rounded-lg transition-shadow ${isDragOver ? "ring-2 ring-inset ring-[var(--fg)]/40" : ""}`}
       style={{
         height: (range.endHour - range.startHour) * HOUR_PX,
         backgroundImage: `repeating-linear-gradient(to bottom, var(--hairline) 0, var(--hairline) 1px, transparent 1px, transparent ${HOUR_PX}px)`,
@@ -1289,8 +1428,11 @@ function TimelineGridRow({
         onSlotClick(timeFromClientY(ev.clientY, ev.currentTarget.getBoundingClientRect()), ev);
       }}
       onDragOver={(ev) => ev.preventDefault()}
+      onDragEnter={() => setIsDragOver(true)}
+      onDragLeave={() => setIsDragOver(false)}
       onDrop={(ev) => {
         ev.preventDefault();
+        setIsDragOver(false);
         const id = ev.dataTransfer.getData("text/plain");
         if (!id) return;
         onMoveToTime(id, day, timeFromClientY(ev.clientY, ev.currentTarget.getBoundingClientRect()));
@@ -1303,6 +1445,7 @@ function TimelineGridRow({
           style={{ top: ((nowMin - range.startHour * 60) / totalMin) * 100 + "%" }}
         />
       )}
+      <AnimatePresence initial={false}>
       {events.map((e) => {
         const l = layout.get(e.id);
         if (!l) return null;
@@ -1312,11 +1455,24 @@ function TimelineGridRow({
         const width = 100 / l.cols;
         const left = l.col * width;
         return (
-          <div
+          <motion.div
             key={e.id}
+            layout
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            whileHover={{ scale: 1.015 }}
             draggable
             onClick={(ev) => ev.stopPropagation()}
-            onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
+            onDragStart={(ev) => {
+              const dragEv = ev as unknown as React.DragEvent<HTMLDivElement>;
+              dragEv.dataTransfer.setData("text/plain", e.id);
+              dragEv.currentTarget.style.opacity = "0.4";
+            }}
+            onDragEnd={(ev) => {
+              (ev as unknown as React.DragEvent<HTMLDivElement>).currentTarget.style.opacity = "1";
+            }}
             className={`absolute cursor-grab overflow-hidden rounded border-l-2 ${style.border} ${style.bg} p-1 text-[10px] ${style.text}`}
             style={{ top: `${top}%`, height: `${height}%`, left: `${left}%`, width: `calc(${width}% - 2px)` }}
             title={`${e.godzina} ${e.tytul} — przeciągnij, by zmienić czas`}
@@ -1331,9 +1487,10 @@ function TimelineGridRow({
                 ✕
               </button>
             </div>
-          </div>
+          </motion.div>
         );
       })}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1480,7 +1637,9 @@ function AddEventForm({
         )}
         <button
           onClick={() => setShowRange((v) => !v)}
-          className={`rounded-md border hairline px-2 py-1 text-[11px] ${showRange ? "text-[var(--fg)]" : "text-muted"}`}
+          className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
+            showRange ? "border-transparent bg-[var(--fg)] text-[var(--bg)]" : "hairline text-muted"
+          }`}
           title="Wydarzenie wielodniowe (np. urlop, wyjazd)"
         >
           Wielodniowe
