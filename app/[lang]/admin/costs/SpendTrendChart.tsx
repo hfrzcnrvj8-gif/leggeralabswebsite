@@ -1,8 +1,11 @@
 "use client";
 
 // Analityka wydatków (Moduł 9) — kompaktowy, czysto orientacyjny widget w
-// panelu bocznym (nie hero element strony — lista kosztów jest tu główną
-// treścią). Prosty słupkowy wykres skumulowany: jeden słupek na miesiąc,
+// rzędzie obok kart KPI (nie hero element strony — lista kosztów niżej jest
+// tu główną treścią). Wykres zostaje mały i stały rozmiarowo; dodatkowa
+// szerokość karty idzie na rozłożenie legendy obok niego, nie na
+// powiększanie samego wykresu. Prosty słupkowy wykres skumulowany: jeden
+// słupek na miesiąc,
 // segmenty = kategorie. Paleta i reguły wg dataviz skill: 7 kategorii = 7
 // pierwszych slotów zwalidowanej domyślnej palety kategorycznej (stała
 // kolejność, nigdy nie cyklowana); relief przy WARN kontrastu/CVD w obu
@@ -78,98 +81,104 @@ export function SpendTrendChart() {
         .dark .cost-trend-chart { --s1:${SERIES_DARK[0]}; --s2:${SERIES_DARK[1]}; --s3:${SERIES_DARK[2]}; --s4:${SERIES_DARK[3]}; --s5:${SERIES_DARK[4]}; --s6:${SERIES_DARK[5]}; --s7:${SERIES_DARK[6]}; }
       `}</style>
 
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted">Trend wydatków</h3>
-        <div className="flex items-center gap-0.5 text-[10px]">
-          {[6, 12].map((m) => (
-            <button
-              key={m}
-              onClick={() => setMonthsCount(m)}
-              className={`rounded-full px-1.5 py-0.5 ${monthsCount === m ? "bg-brand-purple/15 text-brand-purple" : "text-muted hover:text-[var(--fg)]"}`}
-            >
-              {m}m
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Wydatki miesięczne per kategoria">
-          <line x1={padSide} y1={H - padBottom} x2={W - padSide} y2={H - padBottom} stroke="var(--hairline)" strokeWidth={1} />
-          {data.months.map((mKey, i) => {
-            const x = padSide + i * barSlot + (barSlot - barW) / 2;
-            const total = monthTotals[i];
-            let yCursor = H - padBottom;
-            const segs = COST_CATEGORIES.map((k, ci) => {
-              const v = data.byCategory[k]?.[i] ?? 0;
-              const segH = total > 0 ? (v / maxTotal) * chartH : 0;
-              const y = yCursor - segH;
-              yCursor -= segH > 0 ? segH + (segH > 2 ? 1 : 0) : 0;
-              return { k, ci, v, y, segH };
-            });
-            // Co drugi miesiąc podpisany przy 12-mies. widoku — inaczej etykiety się zlewają w wąskiej kolumnie.
-            const showLabel = n <= 6 || i % 2 === (n % 2);
-            return (
-              <g key={mKey}>
-                {segs.map(
-                  (s) =>
-                    s.segH > 0.5 && (
-                      <rect
-                        key={s.k}
-                        x={x}
-                        y={s.y}
-                        width={barW}
-                        height={Math.max(0, s.segH - 0.5)}
-                        rx={s.ci === segs.length - 1 || segs.slice(s.ci + 1).every((o) => o.segH <= 0.5) ? 2 : 0}
-                        fill={`var(--s${s.ci + 1})`}
-                        opacity={hover && hover.monthIdx === i && hover.catIdx !== s.ci ? 0.35 : 1}
-                        onMouseEnter={(e) => {
-                          const rect = (e.target as SVGElement).ownerSVGElement?.getBoundingClientRect();
-                          setHover({ monthIdx: i, catIdx: s.ci, x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) });
-                        }}
-                        onMouseMove={(e) => {
-                          const rect = (e.target as SVGElement).ownerSVGElement?.getBoundingClientRect();
-                          setHover({ monthIdx: i, catIdx: s.ci, x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) });
-                        }}
-                        onMouseLeave={() => setHover(null)}
-                      />
-                    )
-                )}
-                {showLabel && (
-                  <text x={x + barW / 2} y={H - padBottom + 11} textAnchor="middle" fontSize={7.5} fill="var(--fg-muted)">
-                    {monthLabel(mKey).split(" ")[0]}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-        {hover && (
-          <div
-            className="pointer-events-none absolute z-10 rounded-md border hairline bg-[var(--bg-soft)] px-2 py-1 text-[10.5px] text-[var(--fg)] shadow-lg"
-            style={{ left: Math.min(hover.x + 6, W - 120), top: Math.max(hover.y - 34, 0) }}
-          >
-            <div className="font-medium">{COST_CATEGORIES[hover.catIdx]}</div>
-            <div className="text-muted">
-              {monthLabel(data.months[hover.monthIdx])}: {formatMoney(data.byCategory[COST_CATEGORIES[hover.catIdx]]?.[hover.monthIdx] ?? 0)}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="w-full shrink-0 sm:w-[220px]">
+          <div className="mb-1.5 flex items-center justify-between">
+            <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted">Trend wydatków</h3>
+            <div className="flex items-center gap-0.5 text-[10px]">
+              {[6, 12].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMonthsCount(m)}
+                  className={`rounded-full px-1.5 py-0.5 ${monthsCount === m ? "bg-brand-purple/15 text-brand-purple" : "text-muted hover:text-[var(--fg)]"}`}
+                >
+                  {m}m
+                </button>
+              ))}
             </div>
+          </div>
+
+          <div className="relative">
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Wydatki miesięczne per kategoria">
+              <line x1={padSide} y1={H - padBottom} x2={W - padSide} y2={H - padBottom} stroke="var(--hairline)" strokeWidth={1} />
+              {data.months.map((mKey, i) => {
+                const x = padSide + i * barSlot + (barSlot - barW) / 2;
+                const total = monthTotals[i];
+                let yCursor = H - padBottom;
+                const segs = COST_CATEGORIES.map((k, ci) => {
+                  const v = data.byCategory[k]?.[i] ?? 0;
+                  const segH = total > 0 ? (v / maxTotal) * chartH : 0;
+                  const y = yCursor - segH;
+                  yCursor -= segH > 0 ? segH + (segH > 2 ? 1 : 0) : 0;
+                  return { k, ci, v, y, segH };
+                });
+                // Co drugi miesiąc podpisany przy 12-mies. widoku — inaczej etykiety się zlewają w wąskiej kolumnie.
+                const showLabel = n <= 6 || i % 2 === (n % 2);
+                return (
+                  <g key={mKey}>
+                    {segs.map(
+                      (s) =>
+                        s.segH > 0.5 && (
+                          <rect
+                            key={s.k}
+                            x={x}
+                            y={s.y}
+                            width={barW}
+                            height={Math.max(0, s.segH - 0.5)}
+                            rx={s.ci === segs.length - 1 || segs.slice(s.ci + 1).every((o) => o.segH <= 0.5) ? 2 : 0}
+                            fill={`var(--s${s.ci + 1})`}
+                            opacity={hover && hover.monthIdx === i && hover.catIdx !== s.ci ? 0.35 : 1}
+                            onMouseEnter={(e) => {
+                              const rect = (e.target as SVGElement).ownerSVGElement?.getBoundingClientRect();
+                              setHover({ monthIdx: i, catIdx: s.ci, x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) });
+                            }}
+                            onMouseMove={(e) => {
+                              const rect = (e.target as SVGElement).ownerSVGElement?.getBoundingClientRect();
+                              setHover({ monthIdx: i, catIdx: s.ci, x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) });
+                            }}
+                            onMouseLeave={() => setHover(null)}
+                          />
+                        )
+                    )}
+                    {showLabel && (
+                      <text x={x + barW / 2} y={H - padBottom + 11} textAnchor="middle" fontSize={7.5} fill="var(--fg-muted)">
+                        {monthLabel(mKey).split(" ")[0]}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+            {hover && (
+              <div
+                className="pointer-events-none absolute z-10 rounded-md border hairline bg-[var(--bg-soft)] px-2 py-1 text-[10.5px] text-[var(--fg)] shadow-lg"
+                style={{ left: Math.min(hover.x + 6, W - 120), top: Math.max(hover.y - 34, 0) }}
+              >
+                <div className="font-medium">{COST_CATEGORIES[hover.catIdx]}</div>
+                <div className="text-muted">
+                  {monthLabel(data.months[hover.monthIdx])}: {formatMoney(data.byCategory[COST_CATEGORIES[hover.catIdx]]?.[hover.monthIdx] ?? 0)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="hidden h-16 w-px shrink-0 bg-[var(--hairline)] sm:block" />
+
+        {totalsByCategory.length === 0 ? (
+          <p className="text-[10.5px] text-muted opacity-60">Brak wydatków w tym okresie.</p>
+        ) : (
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+            {totalsByCategory.map((c) => (
+              <div key={c.kategoria} className="flex items-center gap-1.5 text-[11px]">
+                <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: `var(--s${c.slot + 1})` }} />
+                <span className="min-w-0 flex-1 truncate text-muted">{c.kategoria}</span>
+                <span className="shrink-0 font-medium text-[var(--fg)]">{formatMoney(c.total)}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
-
-      {totalsByCategory.length === 0 ? (
-        <p className="mt-2 text-[10.5px] text-muted opacity-60">Brak wydatków w tym okresie.</p>
-      ) : (
-        <div className="mt-2.5 space-y-1">
-          {totalsByCategory.map((c) => (
-            <div key={c.kategoria} className="flex items-center gap-1.5 text-[10.5px]">
-              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: `var(--s${c.slot + 1})` }} />
-              <span className="min-w-0 flex-1 truncate text-muted">{c.kategoria}</span>
-              <span className="shrink-0 font-medium text-[var(--fg)]">{formatMoney(c.total)}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

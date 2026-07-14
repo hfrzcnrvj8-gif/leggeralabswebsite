@@ -257,21 +257,28 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
       </div>
 
       <div className="px-4 py-4 sm:px-6">
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
-          <div className="card-paper rounded-xl border hairline p-3">
-            <div className="text-[11px] text-muted">Koszty w tym miesiącu</div>
-            <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.miesiac)}</div>
-          </div>
-          <div className="card-paper rounded-xl border hairline p-3">
-            <div className="text-[11px] text-muted">Nieopłacone</div>
-            <div className={`mt-0.5 text-lg font-semibold ${kpi.nieoplacone > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
-              {formatMoney(kpi.nieoplacone)}
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-stretch">
+          <div className="grid grid-cols-2 gap-3 sm:max-w-md lg:w-72 lg:shrink-0">
+            <div className="card-paper rounded-xl border hairline p-3">
+              <div className="text-[11px] text-muted">Koszty w tym miesiącu</div>
+              <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.miesiac)}</div>
+            </div>
+            <div className="card-paper rounded-xl border hairline p-3">
+              <div className="text-[11px] text-muted">Nieopłacone</div>
+              <div className={`mt-0.5 text-lg font-semibold ${kpi.nieoplacone > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
+                {formatMoney(kpi.nieoplacone)}
+              </div>
             </div>
           </div>
+
+          {costs.length > 0 && !projectFilter && (
+            <div className="card-paper min-w-0 flex-1 rounded-xl border hairline p-3.5">
+              <SpendTrendChart />
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-          <div className="min-w-0 flex-1">
+        <div className="min-w-0">
             {rows.length === 0 ? (
               <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
                 <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-lg">💸</div>
@@ -328,15 +335,6 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                 </table>
               </div>
             )}
-          </div>
-
-          {costs.length > 0 && !projectFilter && (
-            <aside className="w-full shrink-0 lg:w-56">
-              <div className="card-paper rounded-2xl border hairline p-3.5">
-                <SpendTrendChart />
-              </div>
-            </aside>
-          )}
         </div>
       </div>
 
