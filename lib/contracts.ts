@@ -105,6 +105,42 @@ export const CONTRACT_CLAUSES: Clause[] = [
     text: "Zamawiający odpowiada za wykonywanie i przechowywanie własnych kopii zapasowych danych i systemów, chyba że wykonywanie kopii zapasowych zostało wyraźnie ujęte w przedmiocie umowy. Wykonawca nie ponosi odpowiedzialności za utratę danych, błędy działania ani przerwy w dostępności wynikające ze zmian wprowadzonych w systemie, konfiguracji lub danych przez Zamawiającego lub osoby trzecie po odbiorze prac, dokonanych bez wiedzy i pisemnej zgody Wykonawcy.",
   },
   {
+    title: "Zależność od systemów i usług stron trzecich",
+    text: "Wykonawca nie ponosi odpowiedzialności za nieprawidłowe działanie, przerwy w dostępności, zmiany w interfejsach (API), warunkach korzystania lub cennikach systemów i usług stron trzecich (w tym systemów Zamawiającego oraz zewnętrznych dostawców oprogramowania/chmury), z których korzysta wdrożone rozwiązanie, o ile pozostają one poza kontrolą Wykonawcy.",
+  },
+  {
+    title: "Dane i dostępy dostarczane przez Zamawiającego",
+    text: "Realizacja przedmiotu umowy opiera się na danych, dostępach i dokumentacji dostarczonych przez Zamawiającego. Opóźnienia lub błędy wynikające z niekompletnych, nieaktualnych lub błędnych danych/dostępów, a także z opóźnienia w ich dostarczeniu, przesuwają odpowiednio terminy realizacji i nie obciążają Wykonawcy.",
+  },
+  {
+    title: "Charakter modeli AI i weryfikacja wyników",
+    text: "Wykonawca nie gwarantuje, że wyniki generowane przez modele sztucznej inteligencji (w tym modele językowe uruchamiane lokalnie) będą w każdym przypadku poprawne, kompletne lub wolne od błędów ('halucynacji'). Zamawiający zobowiązuje się nie wykorzystywać tych wyników bez weryfikacji przez człowieka w procesach o istotnym znaczeniu (finansowych, prawnych, medycznych, bezpieczeństwa) i ponosi odpowiedzialność za decyzje podjęte na ich podstawie.",
+  },
+  {
+    title: "Licencje modeli i komponentów open-source",
+    text: "Wdrożone modele językowe i inne komponenty open-source podlegają własnym licencjom producentów. Zamawiający odpowiada za przestrzeganie warunków tych licencji (w tym ewentualnych ograniczeń komercyjnych) w toku dalszego korzystania z wdrożonego rozwiązania; Wykonawca informuje o wybranej licencji na etapie doboru modelu, lecz nie ponosi odpowiedzialności za jej późniejszą zmianę przez producenta.",
+  },
+  {
+    title: "Infrastruktura i dostępność",
+    text: "O ile Strony nie uzgodniły inaczej w odrębnym dokumencie, Zamawiający odpowiada za zapewnienie infrastruktury (sprzętu, mocy obliczeniowej, hostingu) wymaganej do działania wdrożonego rozwiązania, w tym modeli uruchamianych lokalnie. Wykonawca nie gwarantuje określonego poziomu dostępności (SLA) usługi, chyba że został on wyraźnie określony i wyceniony jako odrębny element przedmiotu umowy.",
+  },
+  {
+    title: "Odbiór prac",
+    text: "Zakończenie danego etapu lub całości prac potwierdzane jest pisemnie (w tym mailowo) przez Zamawiającego w oparciu o zgodność z przedmiotem umowy. Brak zgłoszenia uwag w terminie 7 dni od przekazania informacji o zakończeniu etapu uznaje się za jego milczący odbiór.",
+  },
+  {
+    title: "Ochrona danych osobowych",
+    text: "Jeżeli w toku realizacji przedmiotu umowy Wykonawca uzyskuje dostęp do danych osobowych przetwarzanych przez Zamawiającego, Strony zawrą odrębną umowę powierzenia przetwarzania danych osobowych (zgodną z RODO), która ma pierwszeństwo w zakresie zasad przetwarzania tych danych.",
+  },
+  {
+    title: "Wsparcie powdrożeniowe",
+    text: "Niniejsza umowa obejmuje jednorazowe wdrożenie opisane w przedmiocie umowy. Dalsze utrzymanie, monitorowanie i dostosowywanie wdrożonego rozwiązania do zmian w systemach zewnętrznych (w tym w integrowanych systemach i API) stanowi odrębną, dodatkowo płatną usługę, chyba że wyraźnie ujęto ją w przedmiocie umowy.",
+  },
+  {
+    title: "Poufność",
+    text: "Strony zobowiązują się zachować w poufności informacje techniczne i handlowe uzyskane w związku z realizacją niniejszej umowy, również po jej zakończeniu. Wykonawca zachowuje prawo do wykorzystywania ogólnej wiedzy, doświadczenia, metodologii i narzędzi (frameworków) wypracowanych w toku realizacji w innych, niekonkurencyjnych projektach, o ile nie ujawnia przy tym informacji poufnych ani danych identyfikujących Zamawiającego.",
+  },
+  {
     title: "Warunki płatności",
     text: "Wynagrodzenie płatne jest na podstawie faktury VAT wystawionej po zakończeniu prac lub uzgodnionego etapu, w terminie 14 dni od daty wystawienia, przelewem na rachunek bankowy wskazany na fakturze.",
   },
