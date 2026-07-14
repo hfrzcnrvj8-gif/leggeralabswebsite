@@ -44,6 +44,30 @@ export async function PATCH(req: NextRequest) {
       const val = Number.isFinite(n) && n >= 0 && n <= 365 ? Math.round(n) : 14;
       await sql`UPDATE company_settings SET domyslny_termin_dni = ${val}, updated_at = now() WHERE id = 'default';`;
     }
+    // Moduł 13 — odsetki ustawowe (null = nie ustawiono, wezwania nie
+    // pokazują wtedy kwoty odsetek — nigdy nie licz "domyślnej" stawki bez
+    // jawnej decyzji właściciela) i rezerwa podatkowa (trzy stawki 0-100%).
+    if ("stawka_odsetek_ustawowych" in body) {
+      const raw = body.stawka_odsetek_ustawowych;
+      const n = Number(raw);
+      const val = raw === null || raw === "" ? null : Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+      await sql`UPDATE company_settings SET stawka_odsetek_ustawowych = ${val}, updated_at = now() WHERE id = 'default';`;
+    }
+    if ("rezerwa_vat_procent" in body) {
+      const n = Number(body.rezerwa_vat_procent);
+      const val = Number.isFinite(n) && n >= 0 && n <= 100 ? n : 0;
+      await sql`UPDATE company_settings SET rezerwa_vat_procent = ${val}, updated_at = now() WHERE id = 'default';`;
+    }
+    if ("rezerwa_pit_procent" in body) {
+      const n = Number(body.rezerwa_pit_procent);
+      const val = Number.isFinite(n) && n >= 0 && n <= 100 ? n : 0;
+      await sql`UPDATE company_settings SET rezerwa_pit_procent = ${val}, updated_at = now() WHERE id = 'default';`;
+    }
+    if ("rezerwa_zus_procent" in body) {
+      const n = Number(body.rezerwa_zus_procent);
+      const val = Number.isFinite(n) && n >= 0 && n <= 100 ? n : 0;
+      await sql`UPDATE company_settings SET rezerwa_zus_procent = ${val}, updated_at = now() WHERE id = 'default';`;
+    }
 
     const rows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
     return NextResponse.json({ ok: true, settings: rows[0] ?? null });

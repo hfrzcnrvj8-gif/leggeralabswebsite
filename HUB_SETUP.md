@@ -1708,6 +1708,59 @@ właściciela). Patrz `docs/plany-modulow/12-fundament-linkowania.md`.
   był w zakresie tego modułu — to inny przepływ (prefill pustego formularza,
   nie automatyczna migracja danych).
 
+## Moduł 13 — Faktury: eskalacja windykacji + rezerwa podatkowa (2026-07-14)
+
+Patrz `docs/plany-modulow/13-faktury-windykacja.md`. Decyzje właściciela na
+starcie tego czatu:
+
+- **3-poziomowa eskalacja** zamiast dawnego stałego 7-dniowego cooldownu bez
+  eskalacji: +3 dni po terminie = uprzejme przypomnienie, +10 = stanowcze,
+  +21 = formalne wezwanie do zapłaty. Świadomie BEZ przypomnienia przed
+  terminem. `invoices.reminder_level` (0-3) pilnuje, żeby dany poziom nie
+  poszedł dwa razy — zarówno w dziennym cronie
+  (`sendOverdueInvoiceReminders()` w `app/api/leads/notify/route.ts`), jak i
+  w ręcznym triggerze (`app/api/invoices/[id]/remind/route.ts`, minimalny
+  poziom 1 nawet przed automatycznym progiem — to jawna decyzja "wyślij
+  teraz"). Nowa tabela `invoice_reminders` trzyma pełną historię (poziom +
+  data), widoczną w `InvoiceEditor.tsx` (karta "Windykacja") — dotąd był
+  tylko nadpisywany `last_reminder_at`. Treść e-maili poziomu 1/2
+  scentralizowana w `reminderEmailText()` (`lib/invoices.ts`) — wcześniej
+  była zduplikowana 1:1 między cronem a ręcznym triggerem.
+- **Wezwanie do zapłaty = osobny generowany dokument**, wzorem Umów (Moduł
+  11): własny token publiczny (`invoices.wezwanie_share_token`, osobny od
+  `share_token` samej faktury), własna referencja bez numeracji fiskalnej
+  (`dunningReference()`, np. "WZ-2026-A1B2C3" — wezwanie nie jest
+  dokumentem fiskalnym, więc świadomie NIE wchodzi do `INVOICE_TYPES`/
+  numeracji `invoices.numer`). Wydruk: `DunningPrint.tsx`
+  (`app/[lang]/admin/invoices/[id]/wezwanie/print/`), ten sam premium styl
+  co `ContractPrint.tsx`, bez sekcji e-podpisu (wezwanie to jednostronne
+  oświadczenie). Publiczny podgląd bez logowania: `app/[lang]/wezwanie/[token]`
+  + `app/api/invoices/wezwanie/public/[token]/route.ts` (widoczny tylko po
+  realnym wystawieniu, `wezwanie_wystawiono_at` ustawione). Jak przy
+  Umowach — treść to **roboczy szablon** (`DUNNING_LEGAL_NOTE`), wymaga
+  weryfikacji prawnej przed użyciem z prawdziwym klientem.
+- **Odsetki ustawowe** — opcjonalne, wyliczane automatycznie
+  (`lateInterestAmount()`: kwota × stawka/100 × dni/365) od kwoty **i
+  liczby dni opóźnienia**, ale stawka wejściowa (`company_settings.
+  stawka_odsetek_ustawowych`) jest wpisywana WYŁĄCZNIE ręcznie w Danych
+  firmy (zmienia się okresowo, ogłasza NBP/MF) — panel nigdy jej sam nie
+  wylicza/aktualizuje. Puste = wezwanie nie pokazuje kwoty odsetek.
+- **Rezerwa podatkowa — rozbicie VAT/PIT/ZUS**, trzy osobne stawki % w
+  Danych firmy (`rezerwa_vat_procent`/`rezerwa_pit_procent`/
+  `rezerwa_zus_procent`), liczone od kwoty **netto** (VAT jest już osobno
+  wyszczególniony na fakturze, więc netto jako wspólna baza dla wszystkich
+  trzech unika podwójnego liczenia — `taxReserveBreakdown()` w
+  `lib/invoices.ts`). Widoczna zbiorczo na Pulpicie (nowa karta "Rezerwa
+  podatkowa (ten miesiąc)" w `DashboardHome.tsx`, liczona **tylko z faktur
+  w PLN** — świadome uproszczenie, przeliczanie obcych walut po kursie NBP
+  dla samego poglądowego wskaźnika byłoby niepotrzebną komplikacją). To
+  pomoc poglądowa, nie automat księgowy — nie zastępuje wyliczeń księgowej.
+- Nowy typ zdarzenia na osi czasu klienta (Moduł 12): `invoice_dunning_sent`
+  — klikalny, prowadzi do podstrony faktury. Przy okazji dopisano do
+  `CLIENT_EVENT_KINDS` cztery zdarzenia z Modułu 11 (`contract_created`,
+  `contract_sent`, `contract_signed`, `nda_created`), które już się logowały,
+  ale nie były w tej liście.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

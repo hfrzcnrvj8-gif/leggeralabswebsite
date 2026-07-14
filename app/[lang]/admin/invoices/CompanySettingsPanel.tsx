@@ -112,7 +112,86 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
           />
           <p className="mt-1 text-[11px] text-muted">Wstawiana automatycznie przy tworzeniu nowej faktury — nadal można ją zmienić na konkretnej fakturze.</p>
         </div>
+
+        <div className="mt-3 rounded-lg border hairline p-3">
+          <h3 className="text-sm text-[var(--fg)]">Windykacja — odsetki ustawowe</h3>
+          <p className="mt-0.5 text-[11px] text-muted">
+            Roczna stawka w % — wpisz ją ręcznie (zmienia się okresowo, ogłasza NBP/MF). Panel nigdy jej sam nie wylicza ani nie aktualizuje. Puste = wezwania
+            do zapłaty nie pokazują kwoty odsetek.
+          </p>
+          <div className="mt-2 max-w-[160px]">
+            <NumberField
+              value={s.stawka_odsetek_ustawowych}
+              onSave={(v) => patch({ stawka_odsetek_ustawowych: v })}
+              placeholder="np. 11,25"
+              suffix="%"
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border hairline p-3">
+          <h3 className="text-sm text-[var(--fg)]">Rezerwa podatkowa</h3>
+          <p className="mt-0.5 text-[11px] text-muted">
+            Ile procent kwoty netto każdej faktury warto odłożyć na każdy z podatków — poglądowy wskaźnik, nie automat księgowy, nie zastępuje wyliczeń
+            księgowej.
+          </p>
+          <div className="mt-2 grid grid-cols-3 gap-2.5">
+            <div>
+              <label className="mb-1 block text-[11px] text-muted">VAT</label>
+              <NumberField value={s.rezerwa_vat_procent} onSave={(v) => patch({ rezerwa_vat_procent: v ?? 0 })} placeholder="0" suffix="%" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-muted">PIT</label>
+              <NumberField value={s.rezerwa_pit_procent} onSave={(v) => patch({ rezerwa_pit_procent: v ?? 0 })} placeholder="0" suffix="%" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-muted">ZUS</label>
+              <NumberField value={s.rezerwa_zus_procent} onSave={(v) => patch({ rezerwa_zus_procent: v ?? 0 })} placeholder="0" suffix="%" />
+            </div>
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
+
+/** Pole liczbowe (procent) z lokalnym buforem tekstu, zapis na onBlur —
+ * wzorem SField, ale z konwersją string↔number i opcjonalnym `null` (dla
+ * "nie ustawiono", patrz stawka_odsetek_ustawowych). */
+function NumberField({
+  value,
+  onSave,
+  placeholder,
+  suffix,
+}: {
+  value: number | null;
+  onSave: (v: number | null) => void;
+  placeholder?: string;
+  suffix?: string;
+}) {
+  const [v, setV] = useState(value == null ? "" : String(value));
+  useEffect(() => setV(value == null ? "" : String(value)), [value]);
+  const commit = () => {
+    const trimmed = v.trim().replace(",", ".");
+    if (!trimmed) {
+      onSave(null);
+      return;
+    }
+    const n = Number(trimmed);
+    if (Number.isFinite(n)) onSave(n);
+  };
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={commit}
+        placeholder={placeholder}
+        className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+      />
+      {suffix && <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-muted">{suffix}</span>}
     </div>
   );
 }

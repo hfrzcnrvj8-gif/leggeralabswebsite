@@ -3,7 +3,7 @@ import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensur
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
-import { isInvoiceOverdue, type Invoice } from "@/lib/invoices";
+import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
 import { isOfferExpired, weightedOfferValue, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
 import { isClientOverdue, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
@@ -41,7 +41,7 @@ export async function GET() {
   const lastMonth =
     thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
-  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, dueFollowups] = await Promise.all([
+  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, dueFollowups, companySettingsRows] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects;` as unknown as Promise<Project[]>,
@@ -98,6 +98,7 @@ export async function GET() {
       WHERE f.due_date <= ${today} AND f.done_at IS NULL
       ORDER BY f.due_date ASC;
     ` as unknown as Promise<{ id: string; client_id: string; due_date: string; powod: string; client_nazwa: string }[]>,
+    sql`SELECT * FROM company_settings WHERE id = 'default';` as unknown as Promise<CompanySettings[]>,
   ]);
 
   const overdueLeads = leads.filter(isOverdue);
@@ -127,14 +128,26 @@ export async function GET() {
   // i nie każda opłacona faktura ma zarejestrowaną wpłatę).
   const revenueThisMonth = new Map<string, number>();
   const revenueLastMonth = new Map<string, number>();
+  // Rezerwa podatkowa (Moduł 13) liczona TYLKO z faktur w PLN — stawki
+  // podatkowe (VAT/PIT/ZUS) i tak rozliczane są w PLN, a przeliczanie obcych
+  // walut po kursie NBP na potrzeby samego poglądowego wskaźnika byłoby
+  // niepotrzebną komplikacją (dokładny kurs VAT liczy już `kurs_nbp` na
+  // fakturze, ale to osobny, węższy mechanizm — patrz lib/ksef.ts).
+  let nettoThisMonthPln = 0;
   for (const inv of realInvoices) {
     if (inv.status === "Anulowana" || inv.status === "Szkic") continue;
     if (!inv.data_wystawienia) continue;
     const month = String(inv.data_wystawienia).slice(0, 7);
     const currency = inv.waluta || "PLN";
-    if (month === thisMonth) addToCurrencyMap(revenueThisMonth, currency, inv.brutto);
-    else if (month === lastMonth) addToCurrencyMap(revenueLastMonth, currency, inv.brutto);
+    if (month === thisMonth) {
+      addToCurrencyMap(revenueThisMonth, currency, inv.brutto);
+      if (currency === "PLN") nettoThisMonthPln += inv.netto;
+    } else if (month === lastMonth) {
+      addToCurrencyMap(revenueLastMonth, currency, inv.brutto);
+    }
   }
+  const companySettings = companySettingsRows[0] ?? null;
+  const taxReserve = companySettings ? taxReserveBreakdown(nettoThisMonthPln, companySettings) : { vat: 0, pit: 0, zus: 0 };
 
   const outstanding = new Map<string, number>();
   for (const inv of overdueInvoices) {
@@ -164,6 +177,7 @@ export async function GET() {
       outstanding: Array.from(outstanding.entries()),
       pipeline,
       pipelineRaw,
+      taxReserve,
     },
     counts: {
       leads: leads.length,

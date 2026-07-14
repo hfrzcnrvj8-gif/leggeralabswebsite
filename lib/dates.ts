@@ -33,3 +33,13 @@ export function addDaysToISO(dateStr: string, days: number): string {
 export function addDaysLocalISO(days: number): string {
   return addDaysToISO(todayLocalISO(), days);
 }
+
+/** Liczba dni między dwiema datami ISO ("YYYY-MM-DD"), jako `b - a` — czysta
+ * arytmetyka dat w UTC (nie realny zegar), spójna z `addDaysToISO`. Dodatnia,
+ * gdy `b` jest późniejsze niż `a` (np. "ile dni po terminie płatności" =
+ * `daysBetweenISO(termin, dziś)`). */
+export function daysBetweenISO(a: string, b: string): number {
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}

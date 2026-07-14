@@ -399,6 +399,13 @@ async function createInvoicesSchema(): Promise<void> {
   // Domyślna treść "Uwag" — auto-wstawiana przy tworzeniu nowej faktury,
   // patrz komentarz przy CompanySettings.domyslne_uwagi w lib/invoices.ts.
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS domyslne_uwagi TEXT NOT NULL DEFAULT '';`;
+  // Moduł 13 — windykacja (stawka odsetek ustawowych, wpisywana ręcznie —
+  // nigdy aktualizowana automatycznie) i rezerwa podatkowa (trzy osobne
+  // stawki VAT/PIT/ZUS) — patrz komentarze przy CompanySettings w lib/invoices.ts.
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS stawka_odsetek_ustawowych NUMERIC;`;
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS rezerwa_vat_procent NUMERIC NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS rezerwa_pit_procent NUMERIC NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS rezerwa_zus_procent NUMERIC NOT NULL DEFAULT 0;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
@@ -443,6 +450,15 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS share_token TEXT;`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS invoices_share_token_idx ON invoices(share_token);`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;`;
+  // Moduł 13 — eskalacja windykacji: reminder_level pilnuje, żeby ten sam
+  // poziom (0 = żaden, 1-3 wg REMINDER_LEVELS w lib/invoices.ts) nie poszedł
+  // dwa razy. wezwanie_* to formalne wezwanie do zapłaty (poziom 3) — osobny
+  // token publiczny, bo to inny dokument niż sama faktura (patrz
+  // app/[lang]/wezwanie/[token]).
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminder_level INTEGER NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS wezwanie_wystawiono_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS wezwanie_share_token TEXT;`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS invoices_wezwanie_share_token_idx ON invoices(wezwanie_share_token);`;
   // Typ dokumentu — zwykła faktura / proforma (niefiskalna, własna numeracja,
   // nie wchodzi do KPI) / zaliczkowa (na poczet przyszłej faktury końcowej).
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS typ_dokumentu TEXT NOT NULL DEFAULT 'faktura';`;
@@ -517,6 +533,20 @@ async function createInvoicesSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS invoice_payments_invoice_id_idx ON invoice_payments(invoice_id);`;
+
+  // Moduł 13 — historia wysłanych przypomnień/wezwań (osobno od
+  // last_reminder_at, który dotąd był jedynym, nadpisywanym śladem) — żeby
+  // w edytorze faktury było widać ILE poszło i na jakim poziomie eskalacji.
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoice_reminders (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      level INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS invoice_reminders_invoice_id_idx ON invoice_reminders(invoice_id);`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS recurring_invoices (
@@ -997,6 +1027,15 @@ export async function ensureInvoiceShareToken(sql: Sql, id: string, existingToke
   if (existingToken) return existingToken;
   const token = randomUUID().replace(/-/g, "");
   await sql`UPDATE invoices SET share_token = ${token} WHERE id = ${id};`;
+  return token;
+}
+
+/** Token publicznego podglądu wezwania do zapłaty (Moduł 13) — osobny od
+ * `share_token` faktury, bo to inny dokument (patrz app/[lang]/wezwanie/[token]). */
+export async function ensureInvoiceWezwanieShareToken(sql: Sql, id: string, existingToken: string | null): Promise<string> {
+  if (existingToken) return existingToken;
+  const token = randomUUID().replace(/-/g, "");
+  await sql`UPDATE invoices SET wezwanie_share_token = ${token} WHERE id = ${id};`;
   return token;
 }
 

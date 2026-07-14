@@ -23,6 +23,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
   const payments = await sql`SELECT * FROM invoice_payments WHERE invoice_id = ${id} ORDER BY data ASC;`;
+  // Historia eskalacji windykacji (Moduł 13) — osobno od `last_reminder_at`
+  // (jedyny, nadpisywany ślad), żeby edytor mógł pokazać ILE poszło i na
+  // jakim poziomie, nie tylko "kiedy ostatnio".
+  const reminders = await sql`SELECT * FROM invoice_reminders WHERE invoice_id = ${id} ORDER BY sent_at DESC;`;
   const korekty = await sql`SELECT id, numer, data_wystawienia, status FROM invoices WHERE koryguje_id = ${id} ORDER BY created_at ASC;`;
   // Dla korekty dołączamy brutto faktury pierwotnej — edytor pokazuje na jego
   // podstawie różnicę (stan po korekcie − stan pierwotny), którą wyśle do KSeF.
@@ -50,6 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     items: numItems(items),
     settings: settings[0] ?? null,
     payments: payments.map((p) => ({ ...p, kwota: Number(p.kwota) })),
+    reminders,
     korekty,
     koryguje,
     zaliczka,

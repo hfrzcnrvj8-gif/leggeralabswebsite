@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent } from "@/lib/db";
+import { randomUUID } from "node:crypto";
+import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, ensureInvoiceWezwanieShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
-import { formatMoney } from "@/lib/invoices";
+import { daysOverdue, reminderLevelForDays, reminderEmailText, dunningEmailText, dunningReference, lateInterestAmount } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 
-/** POST /api/invoices/:id/remind — ręczne przypomnienie o zaległej płatności,
- * wysyłane do nabywcy z linkiem do faktury. Admin-only. Ten sam mechanizm
- * (bez ręcznego triggera) uruchamia się automatycznie w dziennym cronie
- * (app/api/leads/notify/route.ts) dla faktur po terminie. */
+/** POST /api/invoices/:id/remind — ręczne wysłanie kolejnego kroku
+ * eskalacji windykacji, wyzwalane z panelu. Poziom (1 uprzejme / 2 stanowcze
+ * / 3 formalne wezwanie do zapłaty) liczony tym samym progiem dni co w
+ * automatycznym cronie (app/api/leads/notify/route.ts), z dolnym progiem 1 —
+ * ręczne kliknięcie zawsze wysyła PRZYNAJMNIEJ poziom 1, nawet gdy
+ * automatyczny próg (+3 dni) jeszcze nie minął, bo to jawna decyzja
+ * właściciela "wyślij teraz", nie automat czekający na próg. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -30,31 +34,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!inv.numer) return NextResponse.json({ error: "Faktura nie jest jeszcze wystawiona." }, { status: 400 });
     if (!inv.klient_email) return NextResponse.json({ error: "Brak adresu e-mail nabywcy — uzupełnij go w edytorze." }, { status: 400 });
 
-    const token = await ensureInvoiceShareToken(sql, id, typeof inv.share_token === "string" ? inv.share_token : null);
-    const url = `${req.nextUrl.origin}/pl/faktura/${token}`;
-
-    await sendEmail({
-      to: String(inv.klient_email),
-      subject: `Przypomnienie o płatności — faktura ${inv.numer}`,
-      text: [
-        `Dzień dobry,`,
-        ``,
-        `przypominamy o płatności za fakturę nr ${inv.numer} na kwotę ${formatMoney(Number(inv.brutto), String(inv.waluta || "PLN"))}, `,
-        `z terminem płatności ${inv.termin_platnosci ? String(inv.termin_platnosci).slice(0, 10) : "—"}.`,
-        ``,
-        url,
-        ``,
-        `Jeśli płatność została już zrealizowana, prosimy zignorować tę wiadomość.`,
-        ``,
-        `Pozdrawiamy,`,
-        `Leggera Labs`,
-      ].join("\n"),
-    });
-
-    await sql`UPDATE invoices SET last_reminder_at = now() WHERE id = ${id};`;
+    const dni = daysOverdue({ termin_platnosci: inv.termin_platnosci as string | null });
+    const level = Math.max(1, reminderLevelForDays(dni)) as 1 | 2 | 3;
+    const brutto = Number(inv.brutto);
+    const waluta = String(inv.waluta || "PLN");
+    const terminPlatnosci = inv.termin_platnosci ? String(inv.termin_platnosci) : null;
+    const numer = String(inv.numer);
     const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
-    await logClientEvent(sql, clientId, "invoice_reminder", `Wysłano przypomnienie o płatności — faktura ${inv.numer}`, null, id);
-    return NextResponse.json({ ok: true });
+
+    if (level === 3) {
+      const token = await ensureInvoiceWezwanieShareToken(sql, id, typeof inv.wezwanie_share_token === "string" ? inv.wezwanie_share_token : null);
+      const url = `${req.nextUrl.origin}/pl/wezwanie/${token}`;
+      const reference = dunningReference(id, String(inv.created_at));
+      const settingsRows = await sql`SELECT stawka_odsetek_ustawowych FROM company_settings WHERE id = 'default';`;
+      const stawkaOdsetek = settingsRows[0]?.stawka_odsetek_ustawowych != null ? Number(settingsRows[0].stawka_odsetek_ustawowych) : null;
+      const odsetki = lateInterestAmount(brutto, stawkaOdsetek, dni ?? 0);
+      const { subject, text } = dunningEmailText({ numer, brutto, waluta, terminPlatnosci, dni: dni ?? 0, odsetki, url, reference });
+      await sendEmail({ to: String(inv.klient_email), subject, text });
+      await sql`UPDATE invoices SET wezwanie_wystawiono_at = now() WHERE id = ${id};`;
+      await logClientEvent(sql, clientId, "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${numer} (${reference})`, null, id);
+    } else {
+      const token = await ensureInvoiceShareToken(sql, id, typeof inv.share_token === "string" ? inv.share_token : null);
+      const url = `${req.nextUrl.origin}/pl/faktura/${token}`;
+      const { subject, text } = reminderEmailText(level, { numer, brutto, waluta, terminPlatnosci, url });
+      await sendEmail({ to: String(inv.klient_email), subject, text });
+      await logClientEvent(sql, clientId, "invoice_reminder", `Wysłano przypomnienie o płatności (poziom ${level}) — faktura ${numer}`, null, id);
+    }
+
+    // reminder_level nigdy nie cofa się w dół (ręczne wysłanie niższego
+    // poziomu niż już osiągnięty nie powinno "zapomnieć" wcześniejszej eskalacji).
+    const newReminderLevel = Math.max(level, Number(inv.reminder_level) || 0);
+    await sql`UPDATE invoices SET last_reminder_at = now(), reminder_level = ${newReminderLevel} WHERE id = ${id};`;
+    await sql`
+      INSERT INTO invoice_reminders (id, invoice_id, level, kind)
+      VALUES (${randomUUID()}, ${id}, ${level}, ${level === 3 ? "wezwanie" : "reminder"});
+    `;
+
+    return NextResponse.json({ ok: true, level });
   } catch (err) {
     console.error("[POST /api/invoices/:id/remind] failed", err);
     const message = err instanceof Error ? err.message : String(err);

@@ -3,7 +3,7 @@
 // i lib/projects.ts. Świadomie lekki moduł: bez KSeF, elastyczny VAT/bez-VAT.
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
-import { todayLocalISO } from "./dates";
+import { todayLocalISO, daysBetweenISO } from "./dates";
 // Type-only (erased przy kompilacji) — bez cyklu w runtime: wartości płyną
 // tylko z invoices.ts do ksef.ts, nigdy w drugą stronę.
 import type { KsefStatus, KsefTryb } from "./ksef";
@@ -41,6 +41,17 @@ export type CompanySettings = {
    * formułki (np. "Dziękuję za współpracę. Płatność przelewem."). Można
    * potem nadpisać per faktura jak dotąd. */
   domyslne_uwagi: string;
+  /** Odsetki ustawowe za opóźnienie w płatnościach — roczna stawka w %,
+   * wpisywana RĘCZNIE przez właściciela (zmienia się okresowo, ogłaszana
+   * przez NBP/MF) — panel nigdy jej sam nie wylicza/aktualizuje. `null` =
+   * nie ustawiono, wezwania do zapłaty nie pokazują wtedy kwoty odsetek. */
+  stawka_odsetek_ustawowych: number | null;
+  /** Rezerwa podatkowa — trzy osobne, ręcznie ustawiane stawki % (od kwoty
+   * netto faktury), pokazujące "ile warto odłożyć" na każdy z podatków. To
+   * pomoc, nie automat księgowy — nie zastępuje wyliczeń księgowej. */
+  rezerwa_vat_procent: number;
+  rezerwa_pit_procent: number;
+  rezerwa_zus_procent: number;
 };
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
@@ -60,6 +71,10 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   zwolnienie_podstawa: "art. 113 ust. 1 ustawy o VAT",
   domyslny_termin_dni: 14,
   domyslne_uwagi: "",
+  stawka_odsetek_ustawowych: null,
+  rezerwa_vat_procent: 0,
+  rezerwa_pit_procent: 0,
+  rezerwa_zus_procent: 0,
 };
 
 /** Język wydruku faktury — niezależny od języka panelu (klient może być
@@ -170,6 +185,15 @@ export type Invoice = {
   klient_email: string;
   share_token: string | null;
   last_reminder_at: string | null;
+  /** Poziom eskalacji windykacji już wysłany (0 = żaden, 1-3 wg
+   * REMINDER_LEVELS) — pilnuje, żeby ten sam poziom nie poszedł dwa razy. */
+  reminder_level: number;
+  /** Moment wygenerowania formalnego wezwania do zapłaty (poziom 3) — null,
+   * dopóki nie wystawiono. */
+  wezwanie_wystawiono_at: string | null;
+  /** Token publicznego podglądu wezwania (`/wezwanie/[token]`) — osobny od
+   * `share_token` faktury, bo to inny dokument. */
+  wezwanie_share_token: string | null;
   typ_dokumentu: InvoiceDocType;
   /** Ustawione, gdy TA faktura jest korektą innej — pozycje tej faktury to
    * stan PO korekcie, oryginał (koryguje_id) zostaje nienaruszony. */
@@ -236,6 +260,17 @@ export type InvoicePayment = {
   kwota: number;
   data: string;
   created_at: string;
+};
+
+/** Jeden wysłany krok eskalacji windykacji (Moduł 13) — historia widoczna w
+ * edytorze faktury, żeby było widać ILE już poszło i jakim tonem, nie tylko
+ * "kiedy ostatnio" (jak dotąd `last_reminder_at`). */
+export type InvoiceReminder = {
+  id: string;
+  invoice_id: string;
+  level: number;
+  kind: "reminder" | "wezwanie";
+  sent_at: string;
 };
 
 /** Suma zarejestrowanych wpłat na fakturę. */
@@ -375,6 +410,160 @@ export function isInvoiceOverdue(inv: Pick<Invoice, "status" | "termin_platnosci
   if (inv.status === "Szkic") return false;
   if (!inv.termin_platnosci) return false;
   return inv.termin_platnosci < todayLocalISO();
+}
+
+/** Progi eskalacji windykacji (Moduł 13, decyzja właściciela 2026-07-14):
+ * uprzejme przypomnienie +3 dni po terminie, stanowcze +10, formalne
+ * wezwanie do zapłaty (PDF + opcjonalne odsetki) +21. Świadomie BEZ
+ * przypomnienia przed terminem — reaguje tylko na już zaległą płatność. */
+export const REMINDER_LEVELS: { level: 1 | 2 | 3; days: number; label: string }[] = [
+  { level: 1, days: 3, label: "Uprzejme przypomnienie" },
+  { level: 2, days: 10, label: "Stanowcze przypomnienie" },
+  { level: 3, days: 21, label: "Wezwanie do zapłaty" },
+];
+export const REMINDER_LEVEL_LABEL: Record<number, string> = Object.fromEntries(REMINDER_LEVELS.map((l) => [l.level, l.label]));
+
+/** Liczba dni po terminie płatności — `null`, gdy brak terminu (np. szkic).
+ * Ujemna/zero = jeszcze nie po terminie. */
+export function daysOverdue(inv: Pick<Invoice, "termin_platnosci">): number | null {
+  if (!inv.termin_platnosci) return null;
+  return daysBetweenISO(inv.termin_platnosci, todayLocalISO());
+}
+
+/** Docelowy poziom eskalacji (0-3) dla danej liczby dni po terminie, wg
+ * REMINDER_LEVELS — 0 oznacza "jeszcze żaden próg nie minął" (dni ≤ 0, czyli
+ * także pierwsze 1-2 dni po terminie, świadomie ciche wg decyzji
+ * właściciela). Porównuj z `Invoice.reminder_level`, żeby nie wysłać tego
+ * samego poziomu dwa razy. */
+export function reminderLevelForDays(days: number | null): number {
+  if (days === null || days <= 0) return 0;
+  let level = 0;
+  for (const l of REMINDER_LEVELS) if (days >= l.days) level = l.level;
+  return level;
+}
+
+/** Kwota odsetek ustawowych za opóźnienie — proste odsetki liczone od
+ * kwoty, rocznej stawki (wpisywanej ręcznie, patrz
+ * CompanySettings.stawka_odsetek_ustawowych) i liczby dni opóźnienia.
+ * Zwraca 0, gdy stawka nie jest ustawiona (nigdy nie licz "domyślnej"
+ * stawki bez jawnej decyzji właściciela). */
+export function lateInterestAmount(kwota: number, stawkaProcentRocznie: number | null, dni: number): number {
+  if (!stawkaProcentRocznie || stawkaProcentRocznie <= 0 || dni <= 0 || kwota <= 0) return 0;
+  return round2(kwota * (stawkaProcentRocznie / 100) * (dni / 365));
+}
+
+/** Referencja formalnego wezwania do zapłaty (np. "WZ-2026-A1B2C3") — bez
+ * numeracji fiskalnej sekwencyjnej (wezwanie nie jest dokumentem fiskalnym),
+ * wzorem `contractReference()` w lib/contracts.ts. */
+export function dunningReference(invoiceId: string, atIso: string): string {
+  const year = new Date(atIso).getFullYear();
+  return `WZ-${year}-${invoiceId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+}
+
+/** Ostrzeżenie wyświetlane na każdym wezwaniu do zapłaty — treść to roboczy
+ * szablon, nie wolno używać z prawdziwym klientem bez weryfikacji prawnika
+ * (patrz docs/plany-modulow/13-faktury-windykacja.md, pytanie 5 — ten sam
+ * zastrzeżenie co przy Umowach/NDA, lib/contracts.ts). */
+export const DUNNING_LEGAL_NOTE =
+  "SZABLON — WYMAGA WERYFIKACJI PRAWNEJ przed użyciem z prawdziwym klientem. Treść poniżej to robocza wersja, nie sprawdzona jeszcze przez prawnika.";
+
+/** Treść e-maila dla poziomu 1 (uprzejme) / 2 (stanowcze) — scalone w jedną
+ * funkcję, żeby cron (app/api/leads/notify) i ręczny trigger
+ * (app/api/invoices/[id]/remind) nie trzymały dwóch kopii tego samego
+ * szablonu (jak było przed Modułem 13). */
+export function reminderEmailText(
+  level: 1 | 2,
+  opts: { numer: string; brutto: number; waluta: string; terminPlatnosci: string | null; url: string }
+): { subject: string; text: string } {
+  const kwota = formatMoney(opts.brutto, opts.waluta || "PLN");
+  const termin = opts.terminPlatnosci ? opts.terminPlatnosci.slice(0, 10) : "—";
+  if (level === 1) {
+    return {
+      subject: `Przypomnienie o płatności — faktura ${opts.numer}`,
+      text: [
+        `Dzień dobry,`,
+        ``,
+        `przypominamy o płatności za fakturę nr ${opts.numer} na kwotę ${kwota}, `,
+        `z terminem płatności ${termin}.`,
+        ``,
+        opts.url,
+        ``,
+        `Jeśli płatność została już zrealizowana, prosimy zignorować tę wiadomość.`,
+        ``,
+        `Pozdrawiamy,`,
+        `Leggera Labs`,
+      ].join("\n"),
+    };
+  }
+  return {
+    subject: `Druga prośba o płatność — faktura ${opts.numer} po terminie`,
+    text: [
+      `Dzień dobry,`,
+      ``,
+      `nadal nie odnotowaliśmy płatności za fakturę nr ${opts.numer} na kwotę ${kwota}, `,
+      `z terminem płatności ${termin} — to już druga wiadomość w tej sprawie.`,
+      ``,
+      `Prosimy o pilne uregulowanie należności lub kontakt, jeśli coś stoi na przeszkodzie.`,
+      ``,
+      opts.url,
+      ``,
+      `Pozdrawiamy,`,
+      `Leggera Labs`,
+    ].join("\n"),
+  };
+}
+
+/** Treść e-maila dla poziomu 3 (formalne wezwanie do zapłaty) — osobna od
+ * `reminderEmailText`, bo to inny dokument (link do `/wezwanie/[token]`,
+ * inny ton, opcjonalna kwota odsetek). */
+export function dunningEmailText(opts: {
+  numer: string;
+  brutto: number;
+  waluta: string;
+  terminPlatnosci: string | null;
+  dni: number;
+  odsetki: number;
+  url: string;
+  reference: string;
+}): { subject: string; text: string } {
+  const kwota = formatMoney(opts.brutto, opts.waluta || "PLN");
+  const termin = opts.terminPlatnosci ? opts.terminPlatnosci.slice(0, 10) : "—";
+  const odsetkiLine = opts.odsetki > 0 ? `Naliczone odsetki ustawowe za opóźnienie na dziś: ${formatMoney(opts.odsetki, opts.waluta || "PLN")}.\n\n` : "";
+  return {
+    subject: `Wezwanie do zapłaty — faktura ${opts.numer} (${opts.reference})`,
+    text: [
+      `Dzień dobry,`,
+      ``,
+      `pomimo wcześniejszych przypomnień nie odnotowaliśmy płatności za fakturę nr ${opts.numer} na kwotę ${kwota}, `,
+      `z terminem płatności ${termin} (${opts.dni} dni po terminie).`,
+      ``,
+      `W załączeniu formalne wezwanie do zapłaty:`,
+      opts.url,
+      ``,
+      odsetkiLine + `Prosimy o niezwłoczne uregulowanie należności.`,
+      ``,
+      `Pozdrawiamy,`,
+      `Leggera Labs`,
+    ].join("\n"),
+  };
+}
+
+export type TaxReserve = { vat: number; pit: number; zus: number };
+
+/** Rezerwa podatkowa (Moduł 13) — trzy osobne kwoty "ile odłożyć" liczone
+ * jako % (ustawiany ręcznie w Danych firmy) od kwoty NETTO faktury/przychodu
+ * (VAT jest już osobno wyszczególniony na fakturze, więc bazą dla rezerwy
+ * jest netto, żeby nie liczyć podwójnie). To pomoc poglądowa, nie automat
+ * księgowy — nie zastępuje wyliczeń księgowej. */
+export function taxReserveBreakdown(
+  netto: number,
+  settings: Pick<CompanySettings, "rezerwa_vat_procent" | "rezerwa_pit_procent" | "rezerwa_zus_procent">
+): TaxReserve {
+  return {
+    vat: round2(netto * (settings.rezerwa_vat_procent / 100)),
+    pit: round2(netto * (settings.rezerwa_pit_procent / 100)),
+    zus: round2(netto * (settings.rezerwa_zus_procent / 100)),
+  };
 }
 
 const JEDNOSCI = ["", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć"];

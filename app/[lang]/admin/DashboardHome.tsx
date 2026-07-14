@@ -19,12 +19,15 @@ type OfferRow = Offer & { kwota: number };
 type OverdueMilestone = { id: string; nazwa: string; termin: string; project_id: string; projekt: string };
 type DueFollowup = { id: string; client_id: string; due_date: string; powod: string; client_nazwa: string };
 
+type TaxReserve = { vat: number; pit: number; zus: number };
+
 type Kpi = {
   revenueThisMonth: [string, number][];
   revenueLastMonth: [string, number][];
   outstanding: [string, number][];
   pipeline: number;
   pipelineRaw: number;
+  taxReserve: TaxReserve;
 };
 
 type TodayData = {
@@ -206,7 +209,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-5">
         <div className="card-paper rounded-xl border hairline p-4">
           <div className="text-[11px] text-muted">Przychód (ten miesiąc)</div>
           <div className="mt-1 text-liquid text-lg font-semibold">{formatByCurrency(data.kpi.revenueThisMonth)}</div>
@@ -232,6 +235,23 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           <div className="text-[11px] text-muted">Wymaga działania dziś</div>
           <div className="mt-1 text-lg font-semibold">{totalActionable}</div>
           <div className="mt-0.5 text-[11px] text-muted">leady, projekty, faktury, oferty</div>
+        </div>
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Rezerwa podatkowa (ten miesiąc)</div>
+          <div className="mt-1.5 space-y-0.5 text-[12px]">
+            <div className="flex justify-between">
+              <span className="text-muted">VAT</span>
+              <span className="tabular-nums">{formatMoney(data.kpi.taxReserve.vat)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">PIT</span>
+              <span className="tabular-nums">{formatMoney(data.kpi.taxReserve.pit)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">ZUS</span>
+              <span className="tabular-nums">{formatMoney(data.kpi.taxReserve.zus)}</span>
+            </div>
+          </div>
         </div>
       </div>
 

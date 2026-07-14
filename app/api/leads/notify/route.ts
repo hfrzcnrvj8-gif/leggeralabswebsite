@@ -1,39 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureInvoiceShareToken, ensureClientsSchema, ensureFollowupsSchema, ensureCostsSchema, logClientEvent } from "@/lib/db";
+import { randomUUID } from "node:crypto";
+import {
+  getSql,
+  ensureLeadsSchema,
+  ensureHubSchema,
+  ensureInvoicesSchema,
+  ensureInvoiceShareToken,
+  ensureInvoiceWezwanieShareToken,
+  ensureClientsSchema,
+  ensureFollowupsSchema,
+  ensureCostsSchema,
+  logClientEvent,
+} from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
 import { isClientOverdue, clientOverdueReason, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
-import { isInvoiceOverdue, formatMoney, addDaysISO, type Invoice } from "@/lib/invoices";
+import {
+  isInvoiceOverdue,
+  daysOverdue,
+  reminderLevelForDays,
+  reminderEmailText,
+  dunningEmailText,
+  dunningReference,
+  lateInterestAmount,
+  addDaysISO,
+  type Invoice,
+  type CompanySettings,
+} from "@/lib/invoices";
 import { costBrutto, type RecurringCost } from "@/lib/costs";
 import { sendEmail } from "@/lib/email";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO } from "@/lib/dates";
-import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const NOTIFY_TO = "kontakt@leggeralabs.pl";
-// Nie przypominaj klientowi codziennie o tej samej zaległej fakturze —
-// odstęp między automatycznymi przypomnieniami tej samej faktury.
-const REMINDER_COOLDOWN_DAYS = 7;
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://leggeralabs.pl";
 
 /** Wysyła klientom automatyczne przypomnienia o zaległych fakturach (z
- * e-mailem nabywcy, wystawionych, po terminie), z odstępem
- * `REMINDER_COOLDOWN_DAYS` między kolejnymi przypomnieniami tej samej
- * faktury. Błędy pojedynczych wysyłek nie przerywają reszty — liczy się
- * "wysłano ile się dało", nie "wszystko albo nic". */
+ * e-mailem nabywcy, wystawionych, po terminie), z rosnącą eskalacją tonu
+ * wg `REMINDER_LEVELS` (lib/invoices.ts): +3 dni uprzejme, +10 stanowcze,
+ * +21 formalne wezwanie do zapłaty (osobny dokument, opcjonalne odsetki
+ * ustawowe). `invoices.reminder_level` pilnuje, żeby dany poziom nie
+ * poszedł dwa razy — zastąpiło to poprzedni, prostszy mechanizm stałego
+ * 7-dniowego cooldownu bez eskalacji. Błędy pojedynczych wysyłek nie
+ * przerywają reszty — liczy się "wysłano ile się dało", nie "wszystko albo
+ * nic". */
 async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: number }> {
   await ensureInvoicesSchema();
   const sql = getSql();
   const rows = (await sql`
     SELECT * FROM invoices
-    WHERE status = 'Wystawiona' AND typ_dokumentu != 'proforma' AND klient_email != ''
-      AND (last_reminder_at IS NULL OR last_reminder_at < now() - make_interval(days => ${REMINDER_COOLDOWN_DAYS}));
+    WHERE status = 'Wystawiona' AND typ_dokumentu != 'proforma' AND klient_email != '';
   `) as unknown as Invoice[];
+  const settingsRows = (await sql`SELECT * FROM company_settings WHERE id = 'default';`) as unknown as CompanySettings[];
+  const stawkaOdsetek = settingsRows[0]?.stawka_odsetek_ustawowych ?? null;
 
   const dueRows = await Promise.all(
     rows.map(async (inv) => {
@@ -49,28 +73,46 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
   let failed = 0;
   for (const { inv, brutto } of dueRows) {
     if (!isInvoiceOverdue(inv)) continue;
+    const dni = daysOverdue(inv);
+    const targetLevel = reminderLevelForDays(dni);
+    if (targetLevel === 0 || targetLevel <= inv.reminder_level) continue;
     try {
-      const token = await ensureInvoiceShareToken(sql, inv.id, inv.share_token);
-      const url = `${SITE_ORIGIN}/pl/faktura/${token}`;
-      await sendEmail({
-        to: inv.klient_email,
-        subject: `Przypomnienie o płatności — faktura ${inv.numer}`,
-        text: [
-          `Dzień dobry,`,
-          ``,
-          `przypominamy o płatności za fakturę nr ${inv.numer} na kwotę ${formatMoney(brutto, inv.waluta || "PLN")}, `,
-          `z terminem płatności ${inv.termin_platnosci ?? "—"}.`,
-          ``,
+      if (targetLevel === 3) {
+        const token = await ensureInvoiceWezwanieShareToken(sql, inv.id, inv.wezwanie_share_token);
+        const url = `${SITE_ORIGIN}/pl/wezwanie/${token}`;
+        const reference = dunningReference(inv.id, inv.created_at);
+        const odsetki = lateInterestAmount(brutto, stawkaOdsetek, dni ?? 0);
+        const { subject, text } = dunningEmailText({
+          numer: inv.numer ?? "",
+          brutto,
+          waluta: inv.waluta,
+          terminPlatnosci: inv.termin_platnosci,
+          dni: dni ?? 0,
+          odsetki,
           url,
-          ``,
-          `Jeśli płatność została już zrealizowana, prosimy zignorować tę wiadomość.`,
-          ``,
-          `Pozdrawiamy,`,
-          `Leggera Labs`,
-        ].join("\n"),
-      });
-      await sql`UPDATE invoices SET last_reminder_at = now() WHERE id = ${inv.id};`;
-      await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności — faktura ${inv.numer}`, null, inv.id);
+          reference,
+        });
+        await sendEmail({ to: inv.klient_email, subject, text });
+        await sql`UPDATE invoices SET wezwanie_wystawiono_at = now() WHERE id = ${inv.id};`;
+        await logClientEvent(sql, inv.client_id, "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${inv.numer} (${reference})`, null, inv.id);
+      } else {
+        const token = await ensureInvoiceShareToken(sql, inv.id, inv.share_token);
+        const url = `${SITE_ORIGIN}/pl/faktura/${token}`;
+        const { subject, text } = reminderEmailText(targetLevel as 1 | 2, {
+          numer: inv.numer ?? "",
+          brutto,
+          waluta: inv.waluta,
+          terminPlatnosci: inv.termin_platnosci,
+          url,
+        });
+        await sendEmail({ to: inv.klient_email, subject, text });
+        await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności (poziom ${targetLevel}) — faktura ${inv.numer}`, null, inv.id);
+      }
+      await sql`UPDATE invoices SET last_reminder_at = now(), reminder_level = ${targetLevel} WHERE id = ${inv.id};`;
+      await sql`
+        INSERT INTO invoice_reminders (id, invoice_id, level, kind)
+        VALUES (${randomUUID()}, ${inv.id}, ${targetLevel}, ${targetLevel === 3 ? "wezwanie" : "reminder"});
+      `;
       sent += 1;
     } catch (e) {
       console.error("[sendOverdueInvoiceReminders] failed for", inv.id, e);

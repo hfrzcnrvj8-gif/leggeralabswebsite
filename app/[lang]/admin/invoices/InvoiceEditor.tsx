@@ -23,6 +23,7 @@ import {
   type Invoice,
   type InvoiceItem,
   type InvoicePayment,
+  type InvoiceReminder,
   type CompanySettings,
   type CatalogItem,
   VAT_RATES,
@@ -44,6 +45,9 @@ import {
   itemDiscountAmount,
   unitBrutto,
   nettoFromUnitBrutto,
+  daysOverdue,
+  reminderLevelForDays,
+  REMINDER_LEVEL_LABEL,
 } from "@/lib/invoices";
 import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL, KOREKTA_TYPY, KOREKTA_TYP_LABEL } from "@/lib/ksef";
 import type { Client } from "@/lib/clients";
@@ -85,6 +89,7 @@ export function InvoiceEditor({
   const [issuing, setIssuing] = useState(false);
   const [showOdbiorca, setShowOdbiorca] = useState(false);
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
+  const [reminders, setReminders] = useState<InvoiceReminder[]>([]);
   const [korekty, setKorekty] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; status?: string }[]>([]);
   const [koryguje, setKoryguje] = useState<{ id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null>(null);
   // Zaliczka rozliczana TĄ fakturą (gdy invoice.rozlicza_zaliczke_id ustawione,
@@ -123,6 +128,7 @@ export function InvoiceEditor({
       items: InvoiceItem[];
       settings: CompanySettings;
       payments: InvoicePayment[];
+      reminders: InvoiceReminder[];
       korekty: { id: string; numer: string | null; data_wystawienia: string | null; status?: string }[];
       koryguje: { id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null;
       zaliczka: { id: string; numer: string | null; status?: string; ksef_status?: string; ksef_numer?: string | null; brutto: number } | null;
@@ -132,6 +138,7 @@ export function InvoiceEditor({
     setSettings(data.settings);
     setShowOdbiorca(Boolean(data.invoice.odbiorca_nazwa));
     setPayments(data.payments ?? []);
+    setReminders(data.reminders ?? []);
     setKorekty(data.korekty ?? []);
     setKoryguje(data.koryguje ?? null);
     setZaliczka(data.zaliczka ?? null);
@@ -435,7 +442,8 @@ export function InvoiceEditor({
     const res = await fetch(`/api/invoices/${id}/remind`, { method: "POST" });
     setReminding(false);
     if (res.ok) {
-      toast("Wysłano przypomnienie o płatności.");
+      const data = (await res.json().catch(() => ({}))) as { level?: number };
+      toast(data.level === 3 ? "Wysłano formalne wezwanie do zapłaty." : `Wysłano przypomnienie (${REMINDER_LEVEL_LABEL[data.level ?? 1]?.toLowerCase() ?? "poziom " + data.level}).`);
       await load();
     } else {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -1195,6 +1203,41 @@ export function InvoiceEditor({
             </div>
           )}
 
+          {!isDraft && (overdue || reminders.length > 0) && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-[11px] uppercase tracking-wide text-muted">Windykacja</h3>
+                {invoice.reminder_level > 0 && (
+                  <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-[11px] font-medium text-orange-400">
+                    {REMINDER_LEVEL_LABEL[invoice.reminder_level] ?? `Poziom ${invoice.reminder_level}`}
+                  </span>
+                )}
+              </div>
+              {reminders.length > 0 ? (
+                <div className="mb-2 space-y-1">
+                  {reminders.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between text-[12.5px]">
+                      <span className="text-muted">{REMINDER_LEVEL_LABEL[r.level] ?? `Poziom ${r.level}`}</span>
+                      <span className="tabular-nums text-muted">{formatPlDate(r.sent_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-2 text-[12px] text-muted">Jeszcze nic nie wysłano.</p>
+              )}
+              {invoice.wezwanie_wystawiono_at && (
+                <a
+                  href={`/${lang}/admin/invoices/${id}/wezwanie/print`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)]"
+                >
+                  <IconExternalLink size={13} /> Podgląd wezwania do zapłaty
+                </a>
+              )}
+            </div>
+          )}
+
           {!isDraft && (invoice.typ_dokumentu === "faktura" || invoice.typ_dokumentu === "zaliczkowa") && (
             <div className="card-paper rounded-xl border hairline p-4">
               <div className="mb-2 flex items-center justify-between">
@@ -1282,7 +1325,12 @@ export function InvoiceEditor({
                   className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-orange-400 hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {reminding ? <IconLoader2 size={13} className="animate-spin" /> : <IconBellRinging size={13} />}
-                  Wyślij przypomnienie
+                  {(() => {
+                    const nextLevel = Math.max(1, reminderLevelForDays(daysOverdue(invoice))) as 1 | 2 | 3;
+                    if (invoice.reminder_level >= 3) return "Wyślij wezwanie ponownie";
+                    if (nextLevel === 3) return "Wyślij wezwanie do zapłaty";
+                    return `Wyślij przypomnienie (${REMINDER_LEVEL_LABEL[nextLevel]?.toLowerCase()})`;
+                  })()}
                 </button>
               )}
               {!koryguje && (
