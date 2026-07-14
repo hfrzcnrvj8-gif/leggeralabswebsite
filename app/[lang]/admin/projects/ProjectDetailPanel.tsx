@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical } from "@tabler/icons-react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconUsers, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -62,6 +63,8 @@ export function ProjectDetailPanel({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const savedTimer = useRef<number | null>(null);
   const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [clients, setClients] = useState<{ id: string; nazwa: string }[] | null>(null);
+  const [sourceOffer, setSourceOffer] = useState<{ id: string; tytul: string } | null>(null);
   const [newResourceLabel, setNewResourceLabel] = useState("");
   const [newResourceUrl, setNewResourceUrl] = useState("");
   const [newOnboardingText, setNewOnboardingText] = useState("");
@@ -95,6 +98,7 @@ export function ProjectDetailPanel({
       onboarding: ProjectOnboardingItem[];
       dependencies?: { depends_on_id: string }[];
       rentownosc?: { przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean };
+      sourceOffer?: { id: string; tytul: string } | null;
     };
     setProject(data.project);
     setTasks(data.tasks);
@@ -104,6 +108,7 @@ export function ProjectDetailPanel({
     setOnboarding(data.onboarding ?? []);
     setDependencies((data.dependencies ?? []).map((d) => d.depends_on_id));
     setRentownosc(data.rentownosc ?? null);
+    setSourceOffer(data.sourceOffer ?? null);
 
     let loadedClient: { nazwa: string; osoba_kontaktowa: string; email: string } | null = null;
     if (data.project.client_id) {
@@ -155,6 +160,7 @@ export function ProjectDetailPanel({
   useEffect(() => {
     fetch("/api/leads").then((r) => (r.ok ? r.json() : null)).then((d) => d && setLeads(d.leads));
     fetch("/api/projects").then((r) => (r.ok ? r.json() : null)).then((d) => d && setAllProjects(d.projects.map((p: { id: string; tytul: string }) => ({ id: p.id, tytul: p.tytul }))));
+    fetch("/api/clients").then((r) => (r.ok ? r.json() : null)).then((d) => d && setClients(d.clients.map((c: { id: string; nazwa: string }) => ({ id: c.id, nazwa: c.nazwa }))));
   }, []);
 
   const addDependency = async (dependsOnId: string) => {
@@ -252,6 +258,19 @@ export function ProjectDetailPanel({
     // odświeża się na ten sygnał) potrafiła pobrać dane zanim PATCH się
     // faktycznie zapisał (wyścig: refetch wygrywał z zapisem).
     onFieldChange?.(id, field, value);
+
+    // Zmiana podpiętego klienta unieważnia szkice wygenerowane pod poprzedni
+    // kontekst (wiadomość powitalna, podsumowanie + link do opinii — Moduł
+    // 15) — resetujemy flagi "wygenerowano już raz" i odświeżamy pełne dane,
+    // żeby szkice dociągnęły dane nowego klienta (albo zniknęły, gdy klienta
+    // odpięto).
+    if (field === "client_id") {
+      welcomeMsgInitialized.current = false;
+      reviewDraftInitialized.current = false;
+      setReviewUrl("");
+      setReviewDraft("");
+      load();
+    }
   };
 
   const deleteProject = async () => {
@@ -521,6 +540,10 @@ export function ProjectDetailPanel({
     { value: "", label: "— brak —" },
     ...(leads ?? []).map((l) => ({ value: l.id, label: l.firma })),
   ];
+  const clientOptions: MenuOption<string>[] = [
+    { value: "", label: "— brak —" },
+    ...(clients ?? []).map((c) => ({ value: c.id, label: c.nazwa || "(bez nazwy)" })),
+  ];
 
   return (
     <div>
@@ -547,6 +570,14 @@ export function ProjectDetailPanel({
               />
             </div>
             <ClientLinkChip clientId={project.client_id} lang={langPrefix as Locale} className="mt-1 inline-block" />
+            {sourceOffer && (
+              <Link
+                href={`/${langPrefix}/admin/offers/${sourceOffer.id}`}
+                className="mt-1 ml-3 inline-block text-[12.5px] text-muted hover:text-[var(--fg)] hover:underline"
+              >
+                → Powstał z oferty: {sourceOffer.tytul || "(bez tytułu)"}
+              </Link>
+            )}
             <div className="mt-2">
               <EditableTextarea value={project.opis} onSave={(v) => updateProject("opis", v)} />
             </div>
@@ -933,6 +964,17 @@ export function ProjectDetailPanel({
                 full
               >
                 <PropTrigger label={project.lead_id ? (leads?.find((l) => l.id === project.lead_id)?.firma ?? "—") : "— brak —"} />
+              </PropertyMenu>
+            </MetaRow>
+            <MetaRow icon={<IconUsers size={15} />} title="Klient">
+              <PropertyMenu
+                value={project.client_id ?? ""}
+                options={clientOptions}
+                onChange={(v) => updateProject("client_id", v)}
+                title="Powiązany klient"
+                full
+              >
+                <PropTrigger label={project.client_id ? (clients?.find((c) => c.id === project.client_id)?.nazwa || "(bez nazwy)") : "— brak —"} />
               </PropertyMenu>
             </MetaRow>
           </div>

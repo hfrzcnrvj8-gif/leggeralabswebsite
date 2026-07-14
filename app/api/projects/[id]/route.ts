@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureFollowupsSchema, ensureContractsSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureFollowupsSchema, ensureContractsSchema, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString, formatPlDate, CLOSED_PROJECT_STATUSES } from "@/lib/projects";
 import { NURTURE_OFFSETS } from "@/lib/clients";
@@ -43,6 +43,14 @@ export async function GET(
   `;
   const dependencies = await sql`SELECT depends_on_id FROM project_dependencies WHERE project_id = ${id};`;
 
+  // Skąd powstał ten projekt — jeśli został utworzony przez akceptację
+  // oferty (lib/offerAccept.ts ustawia offers.project_id), pokazujemy w UI
+  // link "→ Oferta: ...". Projekty utworzone ręcznie (POST /api/projects)
+  // nie mają źródła — sourceOffer zostaje null.
+  await ensureOffersSchema();
+  const sourceOfferRows = await sql`SELECT id, tytul FROM offers WHERE project_id = ${id} LIMIT 1;`;
+  const sourceOffer = sourceOfferRows[0] ?? null;
+
   // Rentowność projektu: przychód netto z faktur projektu (wg tych samych
   // wykluczeń co licznik KSeF w InvoicesDashboard: bez proform/szkiców/
   // anulowanych, tylko PLN) minus koszty netto podpięte do projektu.
@@ -84,7 +92,7 @@ export async function GET(
     ma_inne_waluty: Number(nonPlnRow?.n ?? 0) > 0,
   };
 
-  return NextResponse.json({ project, tasks, activity, milestones, resources, onboarding, dependencies, rentownosc });
+  return NextResponse.json({ project, tasks, activity, milestones, resources, onboarding, dependencies, rentownosc, sourceOffer });
 }
 
 /** PATCH /api/projects/:id — update one or more fields. Admin-only. */
@@ -186,6 +194,15 @@ export async function PATCH(
     const raw = body.lead_id;
     const value = typeof raw === "string" && raw.trim() ? raw : null;
     await sql`UPDATE projects SET lead_id = ${value}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("client_id" in body) {
+    // Ręczne podpięcie/zmiana klienta — jedyna dziś ścieżka poza automatycznym
+    // ustawieniem przy akceptacji oferty (lib/offerAccept.ts). Potrzebne m.in.
+    // dla Modułu 15 (zamknięcie/opinia), który wymaga klienta z adresem e-mail.
+    await ensureClientsSchema();
+    const raw = body.client_id;
+    const value = typeof raw === "string" && raw.trim() ? raw : null;
+    await sql`UPDATE projects SET client_id = ${value}, updated_at = now() WHERE id = ${id};`;
   }
   if ("kolor" in body) {
     const value = typeof body.kolor === "string" && body.kolor.trim() ? body.kolor.slice(0, 20) : null;
