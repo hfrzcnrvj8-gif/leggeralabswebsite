@@ -10,6 +10,9 @@ import {
   type ProjectActivity,
   type ProjectMilestone,
   type ProjectResource,
+  type ProjectOnboardingItem,
+  ONBOARDING_INCOMPLETE_HINT,
+  buildOnboardingWelcomeMessage,
   progressOf,
   isPlausibleDateString,
   relativeDeadline,
@@ -47,6 +50,8 @@ export function ProjectDetailPanel({
   const [activity, setActivity] = useState<ProjectActivity[]>([]);
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
   const [resources, setResources] = useState<ProjectResource[]>([]);
+  const [onboarding, setOnboarding] = useState<ProjectOnboardingItem[]>([]);
+  const [client, setClient] = useState<{ nazwa: string; osoba_kontaktowa: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -55,6 +60,10 @@ export function ProjectDetailPanel({
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [newResourceLabel, setNewResourceLabel] = useState("");
   const [newResourceUrl, setNewResourceUrl] = useState("");
+  const [newOnboardingText, setNewOnboardingText] = useState("");
+  const [seedingOnboarding, setSeedingOnboarding] = useState(false);
+  const [welcomeMsg, setWelcomeMsg] = useState("");
+  const welcomeMsgInitialized = useRef(false);
   const [dependencies, setDependencies] = useState<string[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
   const [rentownosc, setRentownosc] = useState<{ przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean } | null>(null);
@@ -75,6 +84,7 @@ export function ProjectDetailPanel({
       activity: ProjectActivity[];
       milestones: ProjectMilestone[];
       resources: ProjectResource[];
+      onboarding: ProjectOnboardingItem[];
       dependencies?: { depends_on_id: string }[];
       rentownosc?: { przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean };
     };
@@ -83,13 +93,34 @@ export function ProjectDetailPanel({
     setActivity(data.activity);
     setMilestones(data.milestones);
     setResources(data.resources);
+    setOnboarding(data.onboarding ?? []);
     setDependencies((data.dependencies ?? []).map((d) => d.depends_on_id));
     setRentownosc(data.rentownosc ?? null);
+
+    let loadedClient: { nazwa: string; osoba_kontaktowa: string } | null = null;
+    if (data.project.client_id) {
+      const cRes = await fetch(`/api/clients/${data.project.client_id}`);
+      if (cRes.ok) {
+        const cData = (await cRes.json()) as { client?: { nazwa: string; osoba_kontaktowa: string } };
+        loadedClient = cData.client ?? null;
+      }
+    }
+    setClient(loadedClient);
+
+    // Szkic wiadomości powitalnej wypełnia się raz, po pierwszym pełnym
+    // załadowaniu (projekt + ewentualny klient) — dalej edytowalny ręcznie,
+    // nie nadpisywany przy kolejnych odświeżeniach danych.
+    if (!welcomeMsgInitialized.current) {
+      welcomeMsgInitialized.current = true;
+      setWelcomeMsg(buildOnboardingWelcomeMessage(data.project, loadedClient));
+    }
   }, [id]);
 
   useEffect(() => {
     setProject(null);
     setNotFound(false);
+    welcomeMsgInitialized.current = false;
+    setWelcomeMsg("");
     load();
   }, [load]);
 
@@ -314,6 +345,76 @@ export function ProjectDetailPanel({
     setResources((prev) => prev.filter((r) => r.id !== resourceId));
   };
 
+  const addOnboardingItem = async () => {
+    if (!newOnboardingText.trim()) return;
+    const res = await fetch(`/api/projects/${id}/onboarding`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tekst: newOnboardingText.trim() }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { onboarding: ProjectOnboardingItem[] };
+      setOnboarding(data.onboarding);
+      setNewOnboardingText("");
+    } else {
+      toast("Nie udało się dodać punktu.", "error");
+    }
+  };
+
+  const seedDefaultOnboarding = async () => {
+    setSeedingOnboarding(true);
+    const res = await fetch(`/api/projects/${id}/onboarding`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seedDefaults: true }),
+    });
+    setSeedingOnboarding(false);
+    if (res.ok) {
+      const data = (await res.json()) as { onboarding: ProjectOnboardingItem[] };
+      setOnboarding(data.onboarding);
+    } else {
+      toast("Nie udało się uzupełnić checklisty.", "error");
+    }
+  };
+
+  const toggleOnboardingItem = async (itemId: string, done: boolean) => {
+    setOnboarding((prev) => prev.map((it) => (it.id === itemId ? { ...it, done } : it)));
+    const res = await fetch(`/api/projects/${id}/onboarding/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done }),
+    });
+    if (!res.ok) toast("Nie udało się zapisać.", "error");
+  };
+
+  const updateOnboardingItemText = async (itemId: string, tekst: string) => {
+    setOnboarding((prev) => prev.map((it) => (it.id === itemId ? { ...it, tekst } : it)));
+    const res = await fetch(`/api/projects/${id}/onboarding/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tekst }),
+    });
+    if (!res.ok) toast("Nie udało się zapisać.", "error");
+  };
+
+  const deleteOnboardingItem = async (itemId: string) => {
+    const res = await fetch(`/api/projects/${id}/onboarding/${itemId}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast("Nie udało się usunąć.", "error");
+      return;
+    }
+    setOnboarding((prev) => prev.filter((it) => it.id !== itemId));
+  };
+
+  const copyWelcomeMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(welcomeMsg);
+      toast("Skopiowano do schowka.");
+    } catch {
+      toast("Nie udało się skopiować — zaznacz i skopiuj ręcznie.", "error");
+    }
+  };
+
   const submitNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteText.trim()) return;
@@ -404,6 +505,100 @@ export function ProjectDetailPanel({
                 </span>
               </div>
             )}
+          </div>
+
+          <div className="card-paper rounded-xl border hairline p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[14px] font-medium">Onboarding</h2>
+              {onboarding.length > 0 && (
+                <span className="text-[11px] text-muted tabular-nums">
+                  {progressOf(onboarding.map((o) => ({ done: o.done }))).pct}% · {progressOf(onboarding.map((o) => ({ done: o.done }))).done}/{onboarding.length}
+                </span>
+              )}
+            </div>
+
+            {onboarding.length === 0 ? (
+              <div className="flex items-start gap-2 text-sm text-muted opacity-60">
+                <IconClipboardList size={15} className="mt-0.5 shrink-0" />
+                <span>
+                  Brak checklisty onboardingowej —{" "}
+                  <button
+                    onClick={seedDefaultOnboarding}
+                    disabled={seedingOnboarding}
+                    className="text-[var(--fg)] underline underline-offset-2 opacity-100 disabled:opacity-50"
+                  >
+                    {seedingOnboarding ? "Uzupełniam…" : "uzupełnij domyślną checklistą"}
+                  </button>
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--hairline)]">
+                  <div
+                    className="h-full rounded-full bg-[#4ea7fc] transition-all"
+                    style={{ width: `${progressOf(onboarding.map((o) => ({ done: o.done }))).pct}%` }}
+                  />
+                </div>
+                <ul className="space-y-1">
+                  {onboarding.map((it) => (
+                    <li key={it.id} className="group/onb flex items-center gap-1.5 rounded-lg px-1 py-0.5 hover:bg-[var(--hairline)]">
+                      <input
+                        type="checkbox"
+                        checked={it.done}
+                        onChange={(e) => toggleOnboardingItem(it.id, e.target.checked)}
+                        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
+                      />
+                      <div className={`min-w-0 flex-1 text-sm ${it.done ? "text-muted line-through" : ""}`}>
+                        <EditableText value={it.tekst} onSave={(v) => updateOnboardingItemText(it.id, v)} />
+                      </div>
+                      <button
+                        onClick={() => deleteOnboardingItem(it.id)}
+                        className="shrink-0 text-muted opacity-0 transition-opacity group-hover/onb:opacity-100 hover:text-red-400"
+                        aria-label="Usuń punkt checklisty"
+                        title="Usuń"
+                      >
+                        <IconX size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {progressOf(onboarding.map((o) => ({ done: o.done }))).pct < 100 && (
+                  <p className="mt-2 text-[12.5px] text-muted opacity-80">{ONBOARDING_INCOMPLETE_HINT}</p>
+                )}
+              </>
+            )}
+
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                value={newOnboardingText}
+                onChange={(e) => setNewOnboardingText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addOnboardingItem()}
+                placeholder="+ Dodaj punkt checklisty…"
+                className="w-full rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] placeholder:text-muted"
+              />
+              <button
+                onClick={addOnboardingItem}
+                disabled={!newOnboardingText.trim()}
+                className="shrink-0 rounded-lg border hairline px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Dodaj
+              </button>
+            </div>
+
+            <div className="mt-4 border-t hairline pt-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <h3 className="text-[11px] text-muted opacity-70">Wiadomość powitalna (szkic do ręcznego wysłania)</h3>
+                <button onClick={copyWelcomeMessage} className="shrink-0 rounded-full border hairline px-2.5 py-0.5 text-[11px] text-muted hover:text-[var(--fg)]">
+                  Kopiuj do schowka
+                </button>
+              </div>
+              <textarea
+                value={welcomeMsg}
+                onChange={(e) => setWelcomeMsg(e.target.value)}
+                rows={6}
+                className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+              />
+            </div>
           </div>
 
           {rentownosc && (rentownosc.przychod_netto > 0 || rentownosc.koszty_netto > 0) && (

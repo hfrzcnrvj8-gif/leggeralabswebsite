@@ -38,6 +38,9 @@ export async function GET(
   const resources = await sql`
     SELECT * FROM project_resources WHERE project_id = ${id} ORDER BY position ASC, created_at ASC;
   `;
+  const onboarding = await sql`
+    SELECT * FROM project_onboarding_items WHERE project_id = ${id} ORDER BY position ASC, created_at ASC;
+  `;
   const dependencies = await sql`SELECT depends_on_id FROM project_dependencies WHERE project_id = ${id};`;
 
   // Rentowność projektu: przychód netto z faktur projektu (wg tych samych
@@ -81,7 +84,7 @@ export async function GET(
     ma_inne_waluty: Number(nonPlnRow?.n ?? 0) > 0,
   };
 
-  return NextResponse.json({ project, tasks, activity, milestones, resources, dependencies, rentownosc });
+  return NextResponse.json({ project, tasks, activity, milestones, resources, onboarding, dependencies, rentownosc });
 }
 
 /** PATCH /api/projects/:id — update one or more fields. Admin-only. */

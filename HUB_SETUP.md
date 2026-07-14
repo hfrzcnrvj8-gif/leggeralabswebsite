@@ -1761,6 +1761,40 @@ starcie tego czatu:
   `contract_sent`, `contract_signed`, `nda_created`), które już się logowały,
   ale nie były w tej liście.
 
+## Moduł 14 — Onboarding klienta (2026-07-14)
+
+Patrz `docs/plany-modulow/14-onboarding-klienta.md`. Decyzje właściciela na
+starcie tego czatu:
+
+- **Checklista onboardingowa**: stały domyślny zestaw punktów
+  (`DEFAULT_ONBOARDING_ITEMS` w `lib/projects.ts` — dane kontaktowe do
+  decydenta, dostępy, materiały startowe, częstotliwość statusów, wysłana
+  wiadomość powitalna), wsiewany automatycznie przy tworzeniu projektu
+  (zarówno `POST /api/projects`, jak i akceptacja oferty w
+  `lib/offerAccept.ts`), a potem dowolnie edytowalny/rozszerzalny per
+  projekt — nowa tabela `project_onboarding_items`
+  (`id/project_id/tekst/done/position`), CRUD w
+  `app/api/projects/[id]/onboarding/`. Projekty sprzed tej migracji mają
+  pusty stan z przyciskiem "uzupełnij domyślną checklistą"
+  (`seedDefaults: true` w tym samym POST).
+- **Czysto miękka podpowiedź, nigdy blokada** — `ONBOARDING_INCOMPLETE_HINT`
+  pokazuje się, gdy checklista nie jest domknięta (wzorem
+  `LEAD_STATUS_HINT`), ale nic nie blokuje zmiany statusu projektu na "W
+  trakcie" (tam obowiązuje jedyna twarda blokada w tym panelu — podpisana
+  Umowa, Moduł 11 — i to się nie zmienia).
+- **Wiadomość powitalna = szkic do ręcznego wysłania**, nigdy wysyłana
+  automatycznie — `buildOnboardingWelcomeMessage()` w `lib/projects.ts`
+  generuje tekst z placeholderami (kontakt/częstotliwość/kolejny krok) na
+  podstawie tytułu projektu i (jeśli podpięty) nazwy/osoby kontaktowej
+  klienta, edytowalny w `<textarea>` w panelu, z przyciskiem "Kopiuj do
+  schowka" (`navigator.clipboard`). Generowany raz przy pierwszym
+  załadowaniu panelu, potem nie nadpisywany przy odświeżeniach — właściciel
+  może swobodnie edytować przed wysłaniem, treść nie jest zapisywana do
+  bazy (to jednorazowy szkic, nie trwałe pole projektu).
+- **UI**: nowa sekcja "Onboarding" w `ProjectDetailPanel.tsx`, w głównej
+  kolumnie zaraz po opisie projektu — przed "Kamieniami milowymi", bo
+  onboarding logicznie poprzedza realizację.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

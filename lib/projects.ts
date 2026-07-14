@@ -68,6 +68,63 @@ export type ProjectResource = {
   created_at: string;
 };
 
+export type ProjectOnboardingItem = {
+  id: string;
+  project_id: string;
+  tekst: string;
+  done: boolean;
+  position: number;
+  created_at: string;
+};
+
+/** Domyślna checklista onboardingowa (Moduł 14) — wsiewana automatycznie przy
+ * tworzeniu projektu (POST /api/projects, acceptOffer), potem dowolnie
+ * edytowalna/rozszerzalna per projekt (właściciel może dodać/usunąć punkty). */
+export const DEFAULT_ONBOARDING_ITEMS: string[] = [
+  "Dane kontaktowe do decydenta / osoby kontaktowej po stronie klienta",
+  "Dostępy do systemów/narzędzi potrzebnych do realizacji",
+  "Materiały startowe (grafiki, treści, dokumentacja, brandbook)",
+  "Ustalona częstotliwość i kanał statusów (np. mail co tydzień)",
+  "Wysłana wiadomość powitalna",
+];
+
+/** Miękka podpowiedź, gdy checklista onboardingowa nie jest domknięta —
+ * czysto informacyjna, nigdy nie blokuje przejścia do realizacji. Wzorem
+ * LEAD_STATUS_HINT (lib/leads.ts). */
+export const ONBOARDING_INCOMPLETE_HINT =
+  "Checklista onboardingowa nie jest jeszcze domknięta — upewnij się, że masz to, czego potrzebujesz, zanim ruszysz z realizacją.";
+
+/** Generuje szkic wiadomości powitalnej do klienta po podpisaniu umowy —
+ * gotowy tekst do przejrzenia, edycji i RĘCZNEGO wysłania (panel niczego nie
+ * wysyła sam, zgodnie z decyzją właściciela przy starcie Modułu 14). */
+export function buildOnboardingWelcomeMessage(
+  project: { tytul: string },
+  client: { nazwa: string; osoba_kontaktowa: string } | null
+): string {
+  const powitanie = client?.osoba_kontaktowa
+    ? `Cześć ${client.osoba_kontaktowa},`
+    : client?.nazwa
+      ? `Cześć,`
+      : "Cześć,";
+  const nazwaKlienta = client?.nazwa ? ` (${client.nazwa})` : "";
+  return `${powitanie}
+
+Dziękuję za podpisanie umowy — zaczynamy pracę nad „${project.tytul}"${nazwaKlienta}!
+
+Krótkie podsumowanie, jak będziemy współpracować:
+- Kontakt: [Twoje imię], [e-mail/telefon]
+- Statusy będę wysyłać: [ustal częstotliwość, np. co tydzień mailem]
+- Kolejny krok: [co dzieje się teraz — np. spotkanie kickoff / zebranie dostępów]
+
+Żeby ruszyć, potrzebuję od Ciebie jeszcze:
+[uzupełnij na podstawie checklisty onboardingowej — dostępy/materiały/kontakt]
+
+Razem z tym mailem daj znać, jeśli masz pytania — chętnie je wyjaśnię przed startem.
+
+Pozdrawiam,
+[Twoje imię]`;
+}
+
 export const PROJECT_STATUSES = [
   "Pomysł",
   "Planowanie",

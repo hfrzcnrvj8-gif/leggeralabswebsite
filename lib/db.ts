@@ -290,6 +290,23 @@ async function createHubSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS project_resources_project_id_idx ON project_resources(project_id);`;
 
+  // Checklista onboardingowa (Moduł 14) — co trzeba zebrać od klienta przed
+  // startem realizacji (dostępy, materiały, kontakt do decydenta). Domyślne
+  // punkty (DEFAULT_ONBOARDING_ITEMS w lib/projects.ts) wsiewane przy
+  // tworzeniu projektu (POST /api/projects i acceptOffer), potem dowolnie
+  // edytowalne per projekt — miękka podpowiedź, nigdy twarda brama.
+  await sql`
+    CREATE TABLE IF NOT EXISTS project_onboarding_items (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      tekst TEXT NOT NULL,
+      done BOOLEAN NOT NULL DEFAULT false,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_onboarding_items_project_id_idx ON project_onboarding_items(project_id);`;
+
   // Zależności między projektami (styl Linear Roadmap): project_id "zależy od"
   // depends_on_id (poprzednik musi się skończyć wcześniej) — rysowane jako
   // krzywe łączące koniec poprzednika ze startem następnika na osi czasu.

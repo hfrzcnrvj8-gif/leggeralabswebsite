@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { getProjectTemplate, expandProjectTemplate } from "@/lib/projects";
+import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "@/lib/projects";
 
 export const runtime = "nodejs";
 
@@ -85,6 +85,17 @@ export async function POST(req: NextRequest) {
       tPos += 1;
     }
     mPos += 1;
+  }
+
+  // Domyślna checklista onboardingowa (Moduł 14) — wsiewana od razu, dowolnie
+  // edytowalna później w ProjectDetailPanel.
+  let oPos = 0;
+  for (const tekst of DEFAULT_ONBOARDING_ITEMS) {
+    await sql`
+      INSERT INTO project_onboarding_items (id, project_id, tekst, position)
+      VALUES (${randomUUID()}, ${id}, ${tekst}, ${oPos});
+    `;
+    oPos += 1;
   }
 
   return NextResponse.json({ ok: true, id });

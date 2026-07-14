@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import { withTransaction, logClientEvent } from "./db";
-import { getProjectTemplate, expandProjectTemplate } from "./projects";
+import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "./projects";
 import { isOfferExpired, type Offer } from "./offers";
 
 export type AcceptOfferResult =
@@ -92,6 +92,18 @@ export async function acceptOffer(
           INSERT INTO projects (id, tytul, status, priorytet, lead_id, client_id)
           VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, 'Pomysł', 'Normalny', ${leadId}, ${clientId});
         `;
+      }
+
+      // Domyślna checklista onboardingowa (Moduł 14) — projekt startuje
+      // formalnie dopiero po podpisaniu umowy, ale checklista czeka
+      // przygotowana od razu przy akceptacji oferty.
+      let oPos = 0;
+      for (const tekst of DEFAULT_ONBOARDING_ITEMS) {
+        await sql`
+          INSERT INTO project_onboarding_items (id, project_id, tekst, position)
+          VALUES (${randomUUID()}, ${projectId}, ${tekst}, ${oPos});
+        `;
+        oPos += 1;
       }
 
       const invoiceId = randomUUID();
