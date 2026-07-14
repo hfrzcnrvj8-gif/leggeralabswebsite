@@ -1455,6 +1455,56 @@ Notion (kolor, zakres godzin, klikalne powiązania).
   kolorowe bloki z lewym paskiem, wyrównane rzędy godzin i czerwoną linię
   "teraz". `npx tsc --noEmit` czysty po całej turze zmian.
 
+### Moduł 10 — szósta tura: dalsze dopieszczanie pod Notion Calendar (2026-07-14)
+
+Właściciel przesłał kolejne zrzuty (gęsty widok Tygodnia z podwójną osią
+stref czasowych i panelem "Upcoming"/skrótów; osobny szablon "Timeblock
+Calendar" oparty na bazach Notion) i poprosił o sprawdzenie WSZYSTKICH
+funkcji Notion Calendar pod kątem dalszego podobieństwa. Drugi zrzut
+(karty time-block w kolumnach tygodnia) pominięty świadomie — to inny
+produkt Notion (szablon bazodanowy, nie prawdziwy kalendarz), którego
+metafora "kart zamiast siatki godzinowej" obniżyłaby użyteczność
+prawdziwego kalendarza czasu. Z pierwszego zrzutu przeniesione:
+
+- **Czerwona plakietka "dziś"** w nagłówkach kolumn widoku Tygodnia — data
+  dnia w kółku (czerwone tylko dla dzisiejszego dnia), obok skróconej nazwy
+  dnia tygodnia, wzorem "Wed [17]" w Notion Calendar.
+- **Widget "Najbliżej" w sidebarze** (`upcomingItem`, między mini-kalendarzem
+  a listą "Kalendarze") — odpowiednik "Upcoming in 45 min" z Notion.
+  Najbliższe wydarzenie/wyliczony termin (>= teraz), policzone z aktualnie
+  wczytanych miesięcy — w pełni trafne dopóki "dziś" mieści się w wczytanym
+  zakresie (typowy przypadek, panel startuje na bieżącym miesiącu; jeśli
+  właściciel nawiguje daleko w przód/tył, widget pokazuje najbliższe z tego,
+  co akurat wczytane — samo się koryguje po powrocie do bieżącego miesiąca).
+  Klik przenosi do widoku Dnia dla tej daty.
+- **Więcej skrótów w palecie poleceń** (Cmd/Ctrl+K) — "Dziś" (T),
+  "Widok: Miesiąc/Tydzień/Dzień" — odpowiednik listy "Useful shortcuts"
+  z Notion Calendar (Command menu, Go to date itp.), rejestrowane przez już
+  istniejący mechanizm `useRegisterActions`.
+- Świadomie NIE przeniesiono: podwójnej/wielokrotnej osi stref czasowych
+  (jednoosobowa firma w jednej strefie — Europe/Warsaw, brak potrzeby) oraz
+  panelu "Scheduling snippet"/"Quick meeting" (współdzielenie dostępności,
+  planowanie spotkań z innymi — poza zakresem jednoosobowego narzędzia bez
+  zewnętrznych uczestników/integracji kalendarzowych innych osób).
+- **Uwaga naprawcza podczas tej tury**: pierwsza wersja skrótu "Dziś" w
+  palecie poleceń miała `goToday` w tablicy zależności `useRegisterActions`
+  — że `goToday` to zwykła funkcja tworzona na nowo przy każdym renderze
+  (nie `useCallback`), useEffect w `useRegisterActions` odpalał się przy
+  KAŻDYM renderze i wywoływał `setContextActions`, co wywoływało kolejny
+  render → nieskończona pętla ("Maximum update depth exceeded"). Naprawione
+  przez powrót do `deps: []` (wzorem istniejącej akcji "+ Nowe wydarzenie")
+  — `run: () => goToday()` łapie bieżące domknięcie przy pierwszym renderze,
+  co jest wystarczające (nie zależy od świeżego stanu poza stabilnymi
+  setterami `useState`). **Wniosek na przyszłość**: nigdy nie wrzucać do
+  `deps` tablicy w `useRegisterActions` funkcji, która nie jest
+  zmemoizowana (`useCallback`) — zawsze `[]`, chyba że akcja faktycznie
+  potrzebuje świeżych wartości z aktualnego renderu.
+- Przetestowane: `npx tsc --noEmit` czysty; w przeglądarce po naprawie
+  pętli — brak błędu w konsoli, brak czerwonego wskaźnika "Issue" nakładki
+  deweloperskiej Next.js, widget "Najbliżej" poprawnie pokazuje "Call z
+  klientem — Dziś 10:00", przycisk "Dziś" (toolbar i paleta poleceń)
+  działa bez zawieszenia strony.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

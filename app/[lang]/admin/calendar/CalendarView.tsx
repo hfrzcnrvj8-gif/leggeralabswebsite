@@ -267,6 +267,27 @@ export function CalendarView({ lang }: { lang: string }) {
     return [...deadlines, ...extra];
   }, [deadlines, extraDeadlines, visibleMonthKeys, monthKey]);
 
+  /** Najbliższe wydarzenie/termin — wzorem "Upcoming" w Notion Calendar.
+   * Liczone tylko z aktualnie wczytanych miesięcy (bieżący + sąsiednie przy
+   * widoku Tydzień/Dzień), więc jest w pełni trafne dopóki "dziś" mieści się
+   * w wczytanym zakresie — typowy przypadek, panel startuje na bieżącym
+   * miesiącu. */
+  const upcomingItem = useMemo(() => {
+    const nowStr = todayISO();
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    type Upcoming = { id: string; data: string; minutes: number; title: string; kind: "event" | DeadlineKind; href?: string };
+    const items: Upcoming[] = [];
+    allEvents.forEach((e) => {
+      const isFuture = e.data > nowStr || (e.data === nowStr && (!e.godzina || timeToMinutes(e.godzina) >= nowMin));
+      if (isFuture) items.push({ id: e.id, data: e.data, minutes: e.godzina ? timeToMinutes(e.godzina) : 0, title: e.tytul, kind: "event" });
+    });
+    allDeadlines.forEach((d) => {
+      if (d.data >= nowStr) items.push({ id: d.id, data: d.data, minutes: 0, title: d.tytul, kind: d.kind, href: d.href });
+    });
+    items.sort((a, b) => (a.data === b.data ? a.minutes - b.minutes : a.data < b.data ? -1 : 1));
+    return items[0] ?? null;
+  }, [allEvents, allDeadlines]);
+
   // Łączone filtry (klient + lead + projekt) — AND: pozycja musi pasować do
   // KAŻDEGO ustawionego filtra. Plus widoczność "kalendarzy" z sidebara —
   // wyłączenie typu w sidebarze ukrywa go niezależnie od filtrów.
@@ -433,7 +454,13 @@ export function CalendarView({ lang }: { lang: string }) {
   };
 
   useRegisterActions(
-    [{ id: "add", label: "+ Nowe wydarzenie", hint: "N", run: () => newTitleRef.current?.focus() }],
+    [
+      { id: "add", label: "+ Nowe wydarzenie", hint: "N", run: () => newTitleRef.current?.focus() },
+      { id: "today", label: "Dziś", hint: "T", run: () => goToday() },
+      { id: "view-month", label: "Widok: Miesiąc", run: () => setViewMode("month") },
+      { id: "view-week", label: "Widok: Tydzień", run: () => setViewMode("week") },
+      { id: "view-day", label: "Widok: Dzień", run: () => setViewMode("day") },
+    ],
     []
   );
 
@@ -463,6 +490,8 @@ export function CalendarView({ lang }: { lang: string }) {
         onChangeMonth={changeMonth}
         hiddenKinds={hiddenKinds}
         onToggleKind={toggleKind}
+        upcoming={upcomingItem}
+        onPickUpcoming={(day) => { pickDay(day); setViewMode("day"); }}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b hairline px-4 py-2 sm:px-6">
@@ -704,6 +733,17 @@ function ViewDropdown({ viewMode, onChange }: { viewMode: ViewMode; onChange: (v
 /** Panel boczny wzorem Notion Calendar: mini-kalendarz miesiąca do szybkiej
  * nawigacji + lista "kalendarzy" (rodzajów wpisów) z możliwością ukrycia
  * każdego niezależnie — zastępuje dawną statyczną legendę na dole siatki. */
+type UpcomingItem = { id: string; data: string; minutes: number; title: string; kind: "event" | DeadlineKind; href?: string };
+
+/** "Dziś 14:00" / "Jutro" / "14 lipca" — zwięzła etykieta daty do widgetu
+ * "Najbliżej", wzorem "Upcoming in 45 min" w Notion Calendar. */
+function formatUpcomingWhen(item: UpcomingItem, today: string): string {
+  const time = item.minutes > 0 ? ` ${minutesToTime(item.minutes)}` : "";
+  if (item.data === today) return `Dziś${time}`;
+  if (item.data === addDaysToISO(today, 1)) return `Jutro${time}`;
+  return `${formatDayLabel(item.data)}${time}`;
+}
+
 function Sidebar({
   year,
   monthIdx,
@@ -713,6 +753,8 @@ function Sidebar({
   onChangeMonth,
   hiddenKinds,
   onToggleKind,
+  upcoming,
+  onPickUpcoming,
 }: {
   year: number;
   monthIdx: number;
@@ -722,6 +764,8 @@ function Sidebar({
   onChangeMonth: (delta: number) => void;
   hiddenKinds: Set<string>;
   onToggleKind: (key: string) => void;
+  upcoming: UpcomingItem | null;
+  onPickUpcoming: (day: string) => void;
 }) {
   return (
     <div className="flex w-[200px] shrink-0 flex-col gap-5 overflow-y-auto border-r hairline px-3 py-4">
@@ -733,6 +777,20 @@ function Sidebar({
         onPickDay={onPickDay}
         onChangeMonth={onChangeMonth}
       />
+      {upcoming && (
+        <div>
+          <div className="mb-1.5 px-1.5 text-[11px] font-medium text-muted">Najbliżej</div>
+          <button
+            onClick={() => onPickUpcoming(upcoming.data)}
+            className={`w-full rounded-lg border-l-[3px] ${
+              upcoming.kind === "event" ? EVENT_DEFAULT_STYLE.border : DEADLINE_STYLE[upcoming.kind as DeadlineKind].border
+            } bg-[var(--bg-soft)] px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]`}
+          >
+            <div className="truncate text-[12px] font-medium">{upcoming.title}</div>
+            <div className="text-[11px] text-muted">{formatUpcomingWhen(upcoming, today)}</div>
+          </button>
+        </div>
+      )}
       <div>
         <div className="mb-1.5 px-1.5 text-[11px] font-medium text-muted">Kalendarze</div>
         <div className="space-y-0.5">
@@ -1101,8 +1159,11 @@ function WeekTimeline({
             trigger={(open) => (
               <div className="flex flex-1 flex-col">
                 <div style={{ height: WEEK_HEADER_H }} className="flex items-center justify-between px-1">
-                  <span className={`text-[12px] font-medium ${day === today ? "text-[var(--fg)]" : "text-muted"}`}>
-                    {weekdayShort(day)} {formatDayLabel(day)}
+                  <span className={`flex items-center gap-1 text-[12px] font-medium ${day === today ? "text-[var(--fg)]" : "text-muted"}`}>
+                    {weekdayShort(day)}
+                    <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${day === today ? "bg-red-500 text-white" : ""}`}>
+                      {Number(day.slice(-2))}
+                    </span>
                   </span>
                   <button
                     onClick={(e) => { setPrefillTime(""); open(e); }}
