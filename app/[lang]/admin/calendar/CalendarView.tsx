@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
 import type { HubEvent } from "@/lib/events";
 import { expandEventDays, parseQuickAdd, layoutTimedEvents, timeToMinutes, minutesToTime } from "@/lib/events";
 import type { Lead } from "@/lib/leads";
@@ -27,6 +26,7 @@ const DEADLINE_STYLE: Record<DeadlineKind, { dot: string; pill: string; label: s
 };
 
 const WEEKDAYS = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nie"];
+const WEEKDAYS_FULL = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"];
 const MONTH_NAMES = [
   "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
   "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
@@ -35,6 +35,13 @@ const MONTH_NAMES = [
 type ViewMode = "month" | "week" | "day";
 const HOUR_PX = 48;
 const DEFAULT_RANGE = { startHour: 7, endHour: 21 };
+const PEEK_WIDTH = 380;
+// Wysokości nagłówka dnia i paska "cały dzień" w widoku Tydzień — stałe,
+// żeby kolumna z etykietami godzin wyrównała się z częścią godzinową każdej
+// kolumny dnia (nagłówek/agenda mają różną zawartość, ale zawsze tę samą
+// zarezerwowaną wysokość).
+const WEEK_HEADER_H = 24;
+const WEEK_AGENDA_H = 96;
 
 /** Liczba dni w miesiącu + offset dnia tygodnia (poniedziałek = 0), żeby
  * ułożyć siatkę kalendarza bez zewnętrznej biblioteki. */
@@ -60,9 +67,19 @@ function formatDayLabel(day: string): string {
   return `${d} ${MONTH_NAMES[m - 1]}`;
 }
 
-function weekdayShort(day: string): string {
+function weekdayIdx(day: string): number {
   const [y, m, d] = day.split("-").map(Number);
-  return WEEKDAYS[(new Date(y, m - 1, d).getDay() + 6) % 7];
+  return (new Date(y, m - 1, d).getDay() + 6) % 7;
+}
+
+function weekdayShort(day: string): string {
+  return WEEKDAYS[weekdayIdx(day)];
+}
+
+/** "wtorek, 14 lipca" — wzorem etykiety dnia w Apple Calendar. */
+function formatFullDayLabel(day: string): string {
+  const [, m, d] = day.split("-").map(Number);
+  return `${WEEKDAYS_FULL[weekdayIdx(day)]}, ${d} ${MONTH_NAMES[m - 1].toLowerCase()}`;
 }
 
 /** Ile dni trwa wydarzenie (1 = jednodniowe) — do zachowania długości
@@ -87,6 +104,17 @@ function timelineRange(events: HubEvent[]): { startHour: number; endHour: number
   return { startHour, endHour };
 }
 
+type AddEventFn = (
+  day: string,
+  title: string,
+  time: string,
+  leadId: string,
+  projectId: string,
+  clientId: string,
+  dayEnd: string,
+  durationMin: number | null
+) => Promise<boolean>;
+
 export function CalendarView({ lang }: { lang: string }) {
   const { toast, confirm } = useUI();
   const now = new Date();
@@ -96,7 +124,7 @@ export function CalendarView({ lang }: { lang: string }) {
   const [events, setEvents] = useState<HubEvent[] | null>(null);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
-  const [modalDay, setModalDay] = useState<string | null>(null);
+  const [dayPrefillTime, setDayPrefillTime] = useState("");
   const [filterClientId, setFilterClientId] = useState("");
   const [filterLeadId, setFilterLeadId] = useState("");
   const [filterProjectId, setFilterProjectId] = useState("");
@@ -279,16 +307,7 @@ export function CalendarView({ lang }: { lang: string }) {
     setMonthIdx(now.getMonth());
   };
 
-  const addEvent = async (
-    day: string,
-    title: string,
-    time: string,
-    leadId: string,
-    projectId: string,
-    clientId: string,
-    dayEnd: string,
-    durationMin: number | null
-  ) => {
+  const addEvent: AddEventFn = async (day, title, time, leadId, projectId, clientId, dayEnd, durationMin) => {
     if (!title.trim()) return false;
     const res = await fetch("/api/events", {
       method: "POST",
@@ -386,8 +405,11 @@ export function CalendarView({ lang }: { lang: string }) {
       : `${formatDayLabel(weekStart(selectedDay))} – ${formatDayLabel(addDaysToISO(weekStart(selectedDay), 6))}`;
 
   return (
-    <div ref={rootRef} className={isFullscreen ? "h-screen overflow-y-auto bg-[var(--bg)] p-4" : "-mx-4 sm:-mx-6"}>
-      <div className="flex flex-wrap items-center gap-2 border-b hairline px-4 py-2 sm:px-6">
+    <div
+      ref={rootRef}
+      className={`flex flex-col ${isFullscreen ? "h-screen overflow-hidden bg-[var(--bg)] p-4" : "-mx-4 min-h-[calc(100vh-140px)] sm:-mx-6"}`}
+    >
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b hairline px-4 py-2 sm:px-6">
         <span className="text-[13px] text-muted">Kalendarz</span>
         <div className="ml-2 flex items-center rounded-lg border hairline p-0.5 text-[11.5px]">
           {(["month", "week", "day"] as ViewMode[]).map((v) => (
@@ -455,65 +477,87 @@ export function CalendarView({ lang }: { lang: string }) {
         <button onClick={() => changePeriod(1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">→</button>
       </div>
 
-      <div className="px-4 py-4 sm:px-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6">
         {viewMode === "month" && (
-          <div className="card-paper rounded-2xl p-3">
-            <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-muted">
+          <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
+            <div className="grid shrink-0 grid-cols-7 gap-1 text-center text-[11px] text-muted">
               {WEEKDAYS.map((w) => (
                 <div key={w} className="py-1">{w}</div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid flex-1 grid-cols-7 gap-1" style={{ gridAutoRows: "1fr" }}>
               {cells.map((day, i) => {
                 if (!day) return <div key={i} />;
                 const dayEvents = eventsByDay.get(day) ?? [];
                 const dayDeadlines = deadlinesByDay.get(day) ?? [];
                 const isToday = day === today;
                 // Wspólny limit dla podglądu w komórce siatki — pełna lista
-                // dnia zawsze dostępna w modalu po kliknięciu (bez limitu).
-                const shownEvents = dayEvents.slice(0, 2);
-                const remainingSlots = Math.max(0, 2 - shownEvents.length);
+                // dnia zawsze dostępna w podglądzie po kliknięciu (bez limitu).
+                const shownEvents = dayEvents.slice(0, 3);
+                const remainingSlots = Math.max(0, 3 - shownEvents.length);
                 const shownDeadlines = dayDeadlines.slice(0, remainingSlots);
                 const overflow = dayEvents.length + dayDeadlines.length - shownEvents.length - shownDeadlines.length;
                 return (
-                  <button
+                  <Popover
                     key={day}
-                    onClick={() => {
-                      setSelectedDay(day);
-                      setModalDay(day);
-                    }}
-                    onDragOver={(ev) => ev.preventDefault()}
-                    onDrop={(ev) => {
-                      ev.preventDefault();
-                      const id = ev.dataTransfer.getData("text/plain");
-                      if (id) moveEvent(id, day);
-                    }}
-                    className="flex min-h-[64px] flex-col items-start gap-1 rounded-lg p-1.5 text-left text-xs transition-colors hover:bg-[var(--hairline)]"
-                  >
-                    <span className={`text-[11px] ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)]" : "text-muted"}`}>
-                      {Number(day.slice(-2))}
-                    </span>
-                    {shownEvents.map((e) => (
-                      <span
-                        key={e.id}
-                        draggable
-                        onDragStart={(ev) => {
-                          ev.stopPropagation();
-                          ev.dataTransfer.setData("text/plain", e.id);
+                    width={PEEK_WIDTH}
+                    triggerClassName="flex h-full w-full"
+                    trigger={(open) => (
+                      <button
+                        onClick={open}
+                        onDragOver={(ev) => ev.preventDefault()}
+                        onDrop={(ev) => {
+                          ev.preventDefault();
+                          const id = ev.dataTransfer.getData("text/plain");
+                          if (id) moveEvent(id, day);
                         }}
-                        className="w-full cursor-grab truncate rounded bg-[#4ea7fc]/15 px-1 text-[10px] text-[#4ea7fc]"
-                        title="Przeciągnij, by zmienić dzień"
+                        className="flex h-full w-full flex-col items-start gap-1 rounded-lg p-1.5 text-left text-xs transition-colors hover:bg-[var(--hairline)]"
                       >
-                        {e.tytul}
-                      </span>
-                    ))}
-                    {shownDeadlines.map((d) => (
-                      <span key={d.id} className={`w-full truncate rounded px-1 text-[10px] ${DEADLINE_STYLE[d.kind].pill}`}>
-                        {d.tytul}
-                      </span>
-                    ))}
-                    {overflow > 0 && <span className="text-[10px] text-muted">+{overflow} więcej</span>}
-                  </button>
+                        <span className={`text-[11px] ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)]" : "text-muted"}`}>
+                          {Number(day.slice(-2))}
+                        </span>
+                        {shownEvents.map((e) => (
+                          <span
+                            key={e.id}
+                            draggable
+                            onDragStart={(ev) => {
+                              ev.stopPropagation();
+                              ev.dataTransfer.setData("text/plain", e.id);
+                            }}
+                            className="w-full cursor-grab truncate rounded bg-[#4ea7fc]/15 px-1 text-[10px] text-[#4ea7fc]"
+                            title="Przeciągnij, by zmienić dzień"
+                          >
+                            {e.godzina && `${e.godzina} `}{e.tytul}
+                          </span>
+                        ))}
+                        {shownDeadlines.map((d) => (
+                          <span key={d.id} className={`w-full truncate rounded px-1 text-[10px] ${DEADLINE_STYLE[d.kind].pill}`}>
+                            {d.tytul}
+                          </span>
+                        ))}
+                        {overflow > 0 && <span className="text-[10px] text-muted">+{overflow} więcej</span>}
+                        <span className="flex-1" />
+                      </button>
+                    )}
+                  >
+                    {(close) => (
+                      <DayPeekContent
+                        day={day}
+                        lang={lang}
+                        eventsByDay={eventsByDay}
+                        deadlinesByDay={deadlinesByDay}
+                        leadName={leadName}
+                        projectName={projectName}
+                        clientName={clientName}
+                        onDelete={deleteEvent}
+                        onAdd={addEvent}
+                        leads={leads}
+                        projects={projects}
+                        clients={clients}
+                        close={close}
+                      />
+                    )}
+                  </Popover>
                 );
               })}
             </div>
@@ -532,7 +576,10 @@ export function CalendarView({ lang }: { lang: string }) {
             projectName={projectName}
             clientName={clientName}
             onDelete={deleteEvent}
-            onAddClick={(day) => { setSelectedDay(day); setModalDay(day); }}
+            onAdd={addEvent}
+            leads={leads}
+            projects={projects}
+            clients={clients}
             onMoveDay={moveEvent}
             onMoveToTime={moveEventToTime}
           />
@@ -540,7 +587,7 @@ export function CalendarView({ lang }: { lang: string }) {
 
         {viewMode === "day" && (
           <div className="card-paper rounded-2xl p-4">
-            <h2 className="mb-3 text-[13px] font-medium">{selectedDay}</h2>
+            <h2 className="mb-3 text-[13px] font-medium capitalize">{formatFullDayLabel(selectedDay)}</h2>
             <DayTimeline
               day={selectedDay}
               today={today}
@@ -552,6 +599,10 @@ export function CalendarView({ lang }: { lang: string }) {
               clientName={clientName}
               onDelete={deleteEvent}
               onMoveToTime={moveEventToTime}
+              onSlotClick={(time) => {
+                setDayPrefillTime(time);
+                newTitleRef.current?.focus();
+              }}
             />
             <AddEventForm
               day={selectedDay}
@@ -560,61 +611,18 @@ export function CalendarView({ lang }: { lang: string }) {
               clients={clients}
               titleRef={newTitleRef}
               onAdd={addEvent}
+              prefillTime={dayPrefillTime}
             />
           </div>
         )}
       </div>
-
-      <AnimatePresence>
-        {modalDay && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setModalDay(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl p-4"
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-[14px] font-medium">{modalDay}</h2>
-                <button onClick={() => setModalDay(null)} className="text-muted hover:text-[var(--fg)]" aria-label="Zamknij">✕</button>
-              </div>
-              <DayAgendaList
-                day={modalDay}
-                lang={lang}
-                events={eventsByDay.get(modalDay) ?? []}
-                dls={deadlinesByDay.get(modalDay) ?? []}
-                leadName={leadName}
-                projectName={projectName}
-                clientName={clientName}
-                onDelete={deleteEvent}
-              />
-              <AddEventForm
-                day={modalDay}
-                leads={leads}
-                projects={projects}
-                clients={clients}
-                titleRef={viewMode === "month" ? newTitleRef : undefined}
-                onAdd={addEvent}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
 function Legend() {
   return (
-    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t hairline pt-3 text-[10px] text-muted">
+    <div className="mt-3 flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t hairline pt-3 text-[10px] text-muted">
       <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#4ea7fc]" /> Wydarzenie</span>
       {(Object.keys(DEADLINE_STYLE) as DeadlineKind[]).map((k) => (
         <span key={k} className="flex items-center gap-1">
@@ -625,10 +633,9 @@ function Legend() {
   );
 }
 
-/** Pełna, przewijalna lista wydarzeń + wyliczonych terminów jednego dnia —
- * bez limitu 2+"więcej" (ten limit dotyczy tylko podglądu w komórce siatki
- * miesiąca). Używana w modalu dnia (miesiąc) i jako pasek "cały dzień" nad
- * siatką godzinową w Dniu/Tygodniu. */
+/** Pełna, przewijalna lista wydarzeń + wyliczonych terminów jednego dnia.
+ * Używana w podglądzie dnia (peek) i jako pasek "cały dzień" nad siatką
+ * godzinową w Dniu/Tygodniu. */
 function DayAgendaList({
   day,
   lang,
@@ -694,11 +701,96 @@ function DayAgendaList({
   );
 }
 
+/** Lekki, zakotwiczony podgląd dnia (wzorem Apple Calendar) — otwierany z
+ * komórki miesiąca/kolumny tygodnia jako `Popover`, nie pełnoekranowy modal.
+ * Strzałki ‹/› przełączają dzień BEZ zamykania podglądu (ten sam popover
+ * zostaje w miejscu, zmienia się tylko treść) — jak kliknięcie dnia w
+ * realnym Apple Calendar. */
+function DayPeekContent({
+  day: initialDay,
+  lang,
+  eventsByDay,
+  deadlinesByDay,
+  leadName,
+  projectName,
+  clientName,
+  onDelete,
+  onAdd,
+  leads,
+  projects,
+  clients,
+  close,
+  initialTime,
+}: {
+  day: string;
+  lang: string;
+  eventsByDay: Map<string, HubEvent[]>;
+  deadlinesByDay: Map<string, Deadline[]>;
+  leadName: (id: string | null) => string | null | undefined;
+  projectName: (id: string | null) => string | null | undefined;
+  clientName: (id: string | null) => string | null | undefined;
+  onDelete: (id: string) => void;
+  onAdd: AddEventFn;
+  leads: Lead[] | null;
+  projects: Project[] | null;
+  clients: Client[] | null;
+  close: () => void;
+  initialTime?: string;
+}) {
+  const [day, setDay] = useState(initialDay);
+  const events = eventsByDay.get(day) ?? [];
+  const dls = deadlinesByDay.get(day) ?? [];
+
+  return (
+    <div style={{ width: PEEK_WIDTH }} className="max-h-[70vh] overflow-y-auto p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setDay((d) => addDaysToISO(d, -1))}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]"
+            aria-label="Poprzedni dzień"
+          >
+            ‹
+          </button>
+          <h3 className="text-[13px] font-medium capitalize">{formatFullDayLabel(day)}</h3>
+          <button
+            onClick={() => setDay((d) => addDaysToISO(d, 1))}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]"
+            aria-label="Następny dzień"
+          >
+            ›
+          </button>
+        </div>
+        <button onClick={close} className="text-muted hover:text-[var(--fg)]" aria-label="Zamknij">✕</button>
+      </div>
+      <DayAgendaList
+        day={day}
+        lang={lang}
+        events={events}
+        dls={dls}
+        leadName={leadName}
+        projectName={projectName}
+        clientName={clientName}
+        onDelete={onDelete}
+      />
+      <AddEventForm
+        day={day}
+        leads={leads}
+        projects={projects}
+        clients={clients}
+        onAdd={onAdd}
+        prefillTime={day === initialDay ? initialTime : undefined}
+      />
+    </div>
+  );
+}
+
 /** Godzinowa siatka jednego dnia — wydarzenia z ustawioną godziną jako
  * bloki o wysokości = czas trwania (jak Google/Notion Calendar), nakładające
- * się wydarzenia dostają równe kolumny obok siebie. Przeciąganie w pionie
- * zmienia godzinę (zaokrąglone do 15 min). Wydarzenia bez godziny + wyliczone
- * terminy renderują się osobno, w pasku "cały dzień" nad siatką. */
+ * się wydarzenia dostają równe kolumny obok siebie. Klik w puste miejsce
+ * siatki wypełnia godzinę w formularzu poniżej (`onSlotClick`); przeciąganie
+ * w pionie zmienia godzinę (zaokrąglone do 15 min). Wydarzenia bez godziny +
+ * wyliczone terminy renderują się osobno, w pasku "cały dzień" nad siatką. */
 function DayTimeline({
   day,
   today,
@@ -710,6 +802,7 @@ function DayTimeline({
   clientName,
   onDelete,
   onMoveToTime,
+  onSlotClick,
 }: {
   day: string;
   today: string;
@@ -721,6 +814,7 @@ function DayTimeline({
   clientName: (id: string | null) => string | null | undefined;
   onDelete: (id: string) => void;
   onMoveToTime: (id: string, day: string, time: string) => void;
+  onSlotClick?: (time: string) => void;
 }) {
   const untimed = events.filter((e) => !e.godzina);
   const timed = events.filter((e) => e.godzina);
@@ -747,6 +841,7 @@ function DayTimeline({
           range={range}
           onDelete={onDelete}
           onMoveToTime={onMoveToTime}
+          onSlotClick={onSlotClick}
         />
       </div>
     </div>
@@ -754,9 +849,10 @@ function DayTimeline({
 }
 
 /** Widok tygodnia z 7 kolumnami dzielącymi WSPÓLNĄ oś godzin (żeby rzędy
- * godzin były równo wyrównane między dniami, jak w Google Calendar). Nad
- * siatką — rząd "cały dzień" per kolumna dla wydarzeń bez godziny i
- * wyliczonych terminów. */
+ * godzin były równo wyrównane między dniami, jak w Google Calendar). Cała
+ * kolumna dnia (nagłówek + pasek "cały dzień" + siatka) jest triggerem
+ * lekkiego podglądu dnia (`DayPeekContent`) — klik w "+" albo w puste
+ * miejsce siatki (z góry wypełnioną godziną) otwiera ten sam podgląd. */
 function WeekTimeline({
   days,
   today,
@@ -767,7 +863,10 @@ function WeekTimeline({
   projectName,
   clientName,
   onDelete,
-  onAddClick,
+  onAdd,
+  leads,
+  projects,
+  clients,
   onMoveDay,
   onMoveToTime,
 }: {
@@ -780,55 +879,93 @@ function WeekTimeline({
   projectName: (id: string | null) => string | null | undefined;
   clientName: (id: string | null) => string | null | undefined;
   onDelete: (id: string) => void;
-  onAddClick: (day: string) => void;
+  onAdd: AddEventFn;
+  leads: Lead[] | null;
+  projects: Project[] | null;
+  clients: Client[] | null;
   onMoveDay: (id: string, day: string) => void;
   onMoveToTime: (id: string, day: string, time: string) => void;
 }) {
   const allTimed = days.flatMap((d) => (eventsByDay.get(d) ?? []).filter((e) => e.godzina));
   const range = timelineRange(allTimed);
+  const [prefillTime, setPrefillTime] = useState("");
 
   return (
-    <div className="card-paper rounded-2xl p-3">
-      <div className="grid gap-2" style={{ gridTemplateColumns: "48px repeat(7, 1fr)" }}>
-        <div />
-        {days.map((day) => (
-          <div key={day} className="flex items-center justify-between px-1">
-            <span className={`text-[12px] font-medium ${day === today ? "text-[var(--fg)]" : "text-muted"}`}>
-              {weekdayShort(day)} {formatDayLabel(day)}
-            </span>
-            <button onClick={() => onAddClick(day)} className="text-[11px] text-muted hover:text-[var(--fg)]" title="Dodaj wydarzenie">+</button>
+    <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
+      <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex w-12 shrink-0 flex-col">
+          <div style={{ height: WEEK_HEADER_H }} />
+          <div style={{ height: WEEK_AGENDA_H }} />
+          <div className="flex-1 overflow-y-auto">
+            <HourLabels range={range} />
           </div>
-        ))}
-
-        <div />
+        </div>
         {days.map((day) => (
-          <div key={day} className="max-h-24 overflow-y-auto">
-            <DayAgendaList
-              day={day}
-              lang={lang}
-              events={(eventsByDay.get(day) ?? []).filter((e) => !e.godzina)}
-              dls={deadlinesByDay.get(day) ?? []}
-              leadName={leadName}
-              projectName={projectName}
-              clientName={clientName}
-              onDelete={onDelete}
-              compact
-            />
-          </div>
-        ))}
-
-        <HourLabels range={range} />
-        {days.map((day) => (
-          <TimelineGridRow
+          <Popover
             key={day}
-            day={day}
-            today={today}
-            events={(eventsByDay.get(day) ?? []).filter((e) => e.godzina)}
-            range={range}
-            onDelete={onDelete}
-            onMoveToTime={onMoveToTime}
-            onDropDay={onMoveDay}
-          />
+            width={PEEK_WIDTH}
+            triggerClassName="flex flex-1 min-w-0 flex-col"
+            trigger={(open) => (
+              <div className="flex flex-1 flex-col">
+                <div style={{ height: WEEK_HEADER_H }} className="flex items-center justify-between px-1">
+                  <span className={`text-[12px] font-medium ${day === today ? "text-[var(--fg)]" : "text-muted"}`}>
+                    {weekdayShort(day)} {formatDayLabel(day)}
+                  </span>
+                  <button
+                    onClick={(e) => { setPrefillTime(""); open(e); }}
+                    className="text-[11px] text-muted hover:text-[var(--fg)]"
+                    title="Dodaj wydarzenie"
+                  >
+                    +
+                  </button>
+                </div>
+                <div style={{ height: WEEK_AGENDA_H }} className="overflow-y-auto">
+                  <DayAgendaList
+                    day={day}
+                    lang={lang}
+                    events={(eventsByDay.get(day) ?? []).filter((e) => !e.godzina)}
+                    dls={deadlinesByDay.get(day) ?? []}
+                    leadName={leadName}
+                    projectName={projectName}
+                    clientName={clientName}
+                    onDelete={onDelete}
+                    compact
+                  />
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <TimelineGridRow
+                    day={day}
+                    today={today}
+                    events={(eventsByDay.get(day) ?? []).filter((e) => e.godzina)}
+                    range={range}
+                    onDelete={onDelete}
+                    onMoveToTime={onMoveToTime}
+                    onDropDay={onMoveDay}
+                    onSlotClick={(time, e) => { setPrefillTime(time); open(e); }}
+                  />
+                </div>
+              </div>
+            )}
+          >
+            {(close) => (
+              <DayPeekContent
+                day={day}
+                lang={lang}
+                eventsByDay={eventsByDay}
+                deadlinesByDay={deadlinesByDay}
+                leadName={leadName}
+                projectName={projectName}
+                clientName={clientName}
+                onDelete={onDelete}
+                onAdd={onAdd}
+                leads={leads}
+                projects={projects}
+                clients={clients}
+                close={close}
+                initialTime={prefillTime}
+              />
+            )}
+          </Popover>
         ))}
       </div>
     </div>
@@ -851,8 +988,11 @@ function HourLabels({ range }: { range: { startHour: number; endHour: number } }
 /** Jedna kolumna siatki godzinowej dla jednego dnia — dzielona wysokość
  * według `range`, bloki wydarzeń pozycjonowane absolutnie (top = godzina
  * startu, height = czas trwania), nakładające się dostają kolumny obok
- * siebie (`layoutTimedEvents`). Upuszczenie ustawia nową godzinę na
- * podstawie pozycji Y (zaokrąglone do 15 min). */
+ * siebie (`layoutTimedEvents`). Klik w puste miejsce wywołuje `onSlotClick`
+ * z wyliczoną godziną; przeciąganie (drop) zmienia godzinę zaokrągloną do
+ * 15 min. `readOnly` wyłącza klik/upuszczenie — używane w Tygodniu, gdzie
+ * ten sam wiersz siatki jest już renderowany wewnątrz triggera Popover
+ * (klik/drop obsługuje tamta instancja) i nie powinien się dublować. */
 function TimelineGridRow({
   day,
   today,
@@ -861,6 +1001,8 @@ function TimelineGridRow({
   onDelete,
   onMoveToTime,
   onDropDay,
+  onSlotClick,
+  readOnly = false,
 }: {
   day: string;
   today: string;
@@ -869,6 +1011,8 @@ function TimelineGridRow({
   onDelete: (id: string) => void;
   onMoveToTime: (id: string, day: string, time: string) => void;
   onDropDay?: (id: string, day: string) => void;
+  onSlotClick?: (time: string, e: React.MouseEvent) => void;
+  readOnly?: boolean;
 }) {
   const totalMin = (range.endHour - range.startHour) * 60;
   const layout = layoutTimedEvents(events);
@@ -877,6 +1021,13 @@ function TimelineGridRow({
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const showNowLine = isToday && nowMin >= range.startHour * 60 && nowMin <= range.endHour * 60;
 
+  const timeFromClientY = (clientY: number, rect: DOMRect): string => {
+    const relY = clientY - rect.top;
+    const minutesFromStart = Math.max(0, Math.min(totalMin, (relY / rect.height) * totalMin));
+    const rounded = Math.round(minutesFromStart / 15) * 15;
+    return minutesToTime(range.startHour * 60 + rounded);
+  };
+
   return (
     <div
       className="relative rounded-lg"
@@ -884,16 +1035,17 @@ function TimelineGridRow({
         height: (range.endHour - range.startHour) * HOUR_PX,
         backgroundImage: `repeating-linear-gradient(to bottom, var(--hairline) 0, var(--hairline) 1px, transparent 1px, transparent ${HOUR_PX}px)`,
       }}
-      onDragOver={(ev) => ev.preventDefault()}
+      onClick={(ev) => {
+        if (readOnly || !onSlotClick) return;
+        onSlotClick(timeFromClientY(ev.clientY, ev.currentTarget.getBoundingClientRect()), ev);
+      }}
+      onDragOver={(ev) => !readOnly && ev.preventDefault()}
       onDrop={(ev) => {
+        if (readOnly) return;
         ev.preventDefault();
         const id = ev.dataTransfer.getData("text/plain");
         if (!id) return;
-        const rect = ev.currentTarget.getBoundingClientRect();
-        const relY = ev.clientY - rect.top;
-        const minutesFromStart = Math.max(0, Math.min(totalMin, (relY / rect.height) * totalMin));
-        const rounded = Math.round(minutesFromStart / 15) * 15;
-        onMoveToTime(id, day, minutesToTime(range.startHour * 60 + rounded));
+        onMoveToTime(id, day, timeFromClientY(ev.clientY, ev.currentTarget.getBoundingClientRect()));
         onDropDay?.(id, day);
       }}
     >
@@ -914,6 +1066,7 @@ function TimelineGridRow({
           <div
             key={e.id}
             draggable
+            onClick={(ev) => ev.stopPropagation()}
             onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
             className="absolute cursor-grab overflow-hidden rounded border border-[#4ea7fc]/40 bg-[#4ea7fc]/15 p-1 text-[10px] text-[#4ea7fc]"
             style={{ top: `${top}%`, height: `${height}%`, left: `${left}%`, width: `calc(${width}% - 2px)` }}
@@ -936,9 +1089,60 @@ function TimelineGridRow({
   );
 }
 
+const MINUTE_STEPS = ["00", "15", "30", "45"];
+
+/** Własny picker godziny (dwa selecty: godzina/minuta) zamiast natywnego
+ * `<input type="time">` — natywny render różni się drastycznie między
+ * przeglądarkami i systemami (kółko z minutami itp.), co odstawało od
+ * spójnego, custom-stylowanego UI reszty panelu. Krok 15 min — pasuje do
+ * granulacji przeciągania w siatce godzinowej. */
+function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [h, m] = value ? value.split(":") : ["", ""];
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={h}
+        onChange={(e) => {
+          const nh = e.target.value;
+          onChange(nh ? `${nh}:${m || "00"}` : "");
+        }}
+        className="rounded-lg border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
+      >
+        <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Godzina</option>
+        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((hh) => (
+          <option key={hh} value={hh} className="bg-[var(--bg-soft)] text-[var(--fg)]">{hh}</option>
+        ))}
+      </select>
+      <span className="text-muted">:</span>
+      <select
+        value={m || "00"}
+        disabled={!h}
+        onChange={(e) => h && onChange(`${h}:${e.target.value}`)}
+        className="rounded-lg border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)] disabled:opacity-40"
+      >
+        {MINUTE_STEPS.map((mm) => (
+          <option key={mm} value={mm} className="bg-[var(--bg-soft)] text-[var(--fg)]">{mm}</option>
+        ))}
+      </select>
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          className="text-muted hover:text-red-400"
+          title="Wyczyść godzinę"
+          aria-label="Wyczyść godzinę"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Formularz dodawania ręcznego wydarzenia dla konkretnego dnia — współdzielony
- * przez modal dnia i widok dnia. Pole tytułu rozpoznaje deterministycznie
- * (bez AI) wiodące/wplecione frazy daty i godziny — patrz `parseQuickAdd`. */
+ * przez podgląd dnia (miesiąc/tydzień) i widok dnia. Pole tytułu rozpoznaje
+ * deterministycznie (bez AI) wiodące/wplecione frazy daty i godziny — patrz
+ * `parseQuickAdd`. `prefillTime` wypełnia godzinę po kliknięciu pustego
+ * miejsca w siatce godzinowej. */
 function AddEventForm({
   day,
   leads,
@@ -946,31 +1150,28 @@ function AddEventForm({
   clients,
   titleRef,
   onAdd,
+  prefillTime,
 }: {
   day: string;
   leads: Lead[] | null;
   projects: Project[] | null;
   clients: Client[] | null;
   titleRef?: React.RefObject<HTMLInputElement | null>;
-  onAdd: (
-    day: string,
-    title: string,
-    time: string,
-    leadId: string,
-    projectId: string,
-    clientId: string,
-    dayEnd: string,
-    durationMin: number | null
-  ) => Promise<boolean>;
+  onAdd: AddEventFn;
+  prefillTime?: string;
 }) {
   const [title, setTitle] = useState("");
-  const [time, setTime] = useState("");
+  const [time, setTime] = useState(prefillTime ?? "");
   const [duration, setDuration] = useState(60);
   const [dayEnd, setDayEnd] = useState("");
   const [leadId, setLeadId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [clientId, setClientId] = useState("");
   const [showRange, setShowRange] = useState(false);
+
+  useEffect(() => {
+    if (prefillTime) setTime(prefillTime);
+  }, [prefillTime]);
 
   const submit = async () => {
     const parsed = parseQuickAdd(title, day);
@@ -1013,12 +1214,7 @@ function AddEventForm({
         className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
       />
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          className="rounded-lg border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
-        />
+        <TimeSelect value={time} onChange={setTime} />
         {time && (
           <select
             value={duration}
@@ -1026,9 +1222,9 @@ function AddEventForm({
             className="rounded-lg border hairline bg-transparent px-2 py-1.5 text-[11px] text-muted"
             title="Czas trwania"
           >
-            {[15, 30, 45, 60, 90, 120, 180].map((m) => (
-              <option key={m} value={m} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-                {m < 60 ? `${m} min` : `${m / 60} godz.`}
+            {[15, 30, 45, 60, 90, 120, 180].map((mVal) => (
+              <option key={mVal} value={mVal} className="bg-[var(--bg-soft)] text-[var(--fg)]">
+                {mVal < 60 ? `${mVal} min` : `${mVal / 60} godz.`}
               </option>
             ))}
           </select>

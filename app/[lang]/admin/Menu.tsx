@@ -39,11 +39,16 @@ export function Popover({
   children,
   align = "left",
   width = 240,
+  triggerClassName = "inline-flex",
 }: {
   trigger: (open: (e?: ReactMouseEvent) => void, isOpen: boolean) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
   width?: number;
+  /** Klasa wrappera triggera — domyślnie `inline-flex`. Nadpisz na np.
+   * `flex h-full w-full`, gdy trigger musi wypełnić komórkę siatki (np.
+   * dzień w kalendarzu). */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -93,7 +98,7 @@ export function Popover({
 
   return (
     <>
-      <span ref={triggerWrapRef} className="inline-flex">
+      <span ref={triggerWrapRef} className={triggerClassName}>
         {trigger(openMenu, open)}
       </span>
       {typeof document !== "undefined" &&
@@ -106,7 +111,11 @@ export function Popover({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.1, ease: "easeOut" }}
             role="menu"
-            className="fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+            // `admin-linear` — portal renderuje się w <body>, poza scope'em
+            // AppShell, więc bez tej klasy var(--fg)/var(--fg-muted)/
+            // var(--hairline) spadają do jasnych tokenów strony publicznej
+            // (ciemny tekst na tym samym ciemnym tle popovera = nieczytelne).
+            className="admin-linear fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 text-[var(--fg)] shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
             style={{ top: pos.top, left: pos.left, width }}
           >
             {children(() => setOpen(false))}

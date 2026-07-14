@@ -1339,6 +1339,68 @@ Właściciel poprosił o dorzucenie reszty wzorców z topowych kalendarzy
   `GET /api/calendar/ics-info` poprawnie zwraca `configured:false` (brak
   `CALENDAR_ICS_SECRET` lokalnie) — przycisk "Subskrybuj" poprawnie ukryty.
 
+### Moduł 10 — czwarta tura: wypełnienie przestrzeni, podgląd dnia w stylu Apple, spójny picker godziny (2026-07-14)
+
+Właściciel wskazał konkretne problemy UX po wdrożeniu: dużo niewykorzystanej
+przestrzeni w widoku miesiąca (zwłaszcza pełny ekran), pełnoekranowy modal
+dnia zbyt ciężki (poprosił o coś bliższego Apple Calendar — mały podgląd
+przy klikniętym dniu z przełączaniem strzałkami), niespójny natywny picker
+godziny, i możliwość dodawania wydarzeń bezpośrednio tylko w widoku
+miesiąca (nie w Tygodniu/Dniu).
+
+- **Siatka miesiąca wypełnia dostępną wysokość** — `CalendarView.tsx`
+  root jest teraz `flex flex-col`; poza pełnym ekranem ma
+  `min-h-[calc(100vh-140px)]`, treść (`flex-1 min-h-0 overflow-y-auto`)
+  rozciąga kartę miesiąca (`flex-1 flex-col`), a sama siatka dni używa
+  `grid-auto-rows: 1fr`, żeby wiersze tygodni rozciągnęły się na całą
+  wysokość zamiast zostawiać pustą przestrzeń pod spodem. Limit podglądu w
+  komórce podniesiony z 2 do 3 pozycji (więcej miejsca = mniej "+N więcej").
+- **Podgląd dnia w stylu Apple Calendar** (`DayPeekContent`) zastępuje
+  pełnoekranowy modal — każda komórka miesiąca i każda kolumna tygodnia to
+  teraz osobny `Popover` (ten sam współdzielony komponent z `Menu.tsx`, użyty
+  już w innych miejscach panelu), którego trigger jest całą komórką/kolumną.
+  Zamiast ciemnego, pełnoekranowego tła — mały, zakotwiczony przy klikniętym
+  dniu kafelek. Strzałki ‹/› wewnątrz **przełączają wyświetlany dzień bez
+  zamykania i bez przesuwania popovera** (ten sam mechanizm co realny Apple
+  Calendar — popover zostaje w miejscu kliknięcia, zmienia się tylko treść).
+- **Bug w `Popover` (Menu.tsx), naprawiony przy okazji, dotyczy WSZYSTKICH
+  jego użyć w panelu, nie tylko kalendarza**: treść popovera renderuje się
+  przez `createPortal` bezpośrednio do `<body>`, POZA scope'em klasy
+  `.admin-linear` na korzeniu `AppShell`, która definiuje
+  `--fg`/`--fg-muted`/`--hairline` (ciemna paleta panelu). Bez tej klasy
+  `var(--fg)`/`text-muted` w portalowanej treści spadały do jasnych tokenów
+  strony publicznej (`:root`) — ciemny tekst na tym samym ciemnym tle
+  popovera, praktycznie nieczytelny. Naprawa: dodano klasę `admin-linear`
+  (i jawny `text-[var(--fg)]` jako domyślny kolor tekstu) na portalowanym
+  wrapperze w `Popover`. Odkryte i naprawione podczas testowania nowego
+  podglądu dnia — wcześniejsze użycia `Popover` w panelu (np.
+  `ClientPickerButton`) prawdopodobnie nie polegały aż tak mocno na
+  `text-muted`/`var(--fg)`, stąd problem nie był widoczny wcześniej.
+- **Spójny picker godziny** (`TimeSelect` w `CalendarView.tsx`) zastępuje
+  natywny `<input type="time">` — ten renderował się drastycznie różnie
+  między przeglądarkami/systemami (np. kółko z minutami), co odstawało od
+  reszty custom-stylowanego UI panelu. Dwa `<select>` (godzina/minuta, krok
+  15 min — pasuje do granulacji przeciągania w siatce godzinowej), wizualnie
+  spójne z resztą selectów w formularzu.
+- **Dodawanie bezpośrednio w siatce godzinowej (Tydzień/Dzień)** — klik w
+  puste miejsce siatki (nie tylko przycisk "+") wylicza godzinę z pozycji
+  kliknięcia (zaokrągloną do 15 min, ten sam algorytm co przeciąganie) i
+  otwiera dodawanie z góry wypełnioną godziną: w Tygodniu — ten sam podgląd
+  Apple-style (`DayPeekContent`, zakotwiczony przy kolumnie dnia); w Dniu —
+  wypełnia pole godziny w formularzu, który i tak jest tam zawsze widoczny.
+  Domyka zgłoszony problem "tylko w miesiącu można dodawać bezpośrednio w
+  polach kalendarza" — teraz wszystkie trzy widoki wspierają to tak samo.
+- Przetestowane w przeglądarce: podgląd dnia otwiera się zakotwiczony przy
+  komórce 14 lipca z poprawnym kontrastem (białym tekstem) po naprawie
+  Popovera; strzałka "Następny dzień" poprawnie przełącza treść na 15 lipca
+  bez zamykania/przesuwania kafelka; klik w puste miejsce siatki godzinowej
+  Tygodnia (symulowany na godz. 13:15) poprawnie otworzył podgląd z
+  wypełnioną godziną `13:15`; analogiczny klik w widoku Dnia poprawnie
+  ustawił `09` w selekcie godziny widocznego formularza. `npx tsc --noEmit`
+  czysty. Tryb pełnoekranowy nadal nie do zweryfikowania w tym środowisku
+  podglądu (iframe bez `allow="fullscreen"`) — kod niezmieniony względem
+  poprzedniej tury, warto przeklikać na żywej stronie.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na
