@@ -101,6 +101,10 @@ export const CONTRACT_CLAUSES: Clause[] = [
     text: "Odpowiedzialność Wykonawcy za szkody wynikłe z niewykonania lub nienależytego wykonania niniejszej umowy jest ograniczona do wysokości wynagrodzenia otrzymanego za przedmiot umowy, z wyłączeniem szkód wyrządzonych umyślnie.",
   },
   {
+    title: "Kopie zapasowe i zmiany po stronie Zamawiającego",
+    text: "Zamawiający odpowiada za wykonywanie i przechowywanie własnych kopii zapasowych danych i systemów, chyba że wykonywanie kopii zapasowych zostało wyraźnie ujęte w przedmiocie umowy. Wykonawca nie ponosi odpowiedzialności za utratę danych, błędy działania ani przerwy w dostępności wynikające ze zmian wprowadzonych w systemie, konfiguracji lub danych przez Zamawiającego lub osoby trzecie po odbiorze prac, dokonanych bez wiedzy i pisemnej zgody Wykonawcy.",
+  },
+  {
     title: "Warunki płatności",
     text: "Wynagrodzenie płatne jest na podstawie faktury VAT wystawionej po zakończeniu prac lub uzgodnionego etapu, w terminie 14 dni od daty wystawienia, przelewem na rachunek bankowy wskazany na fakturze.",
   },
