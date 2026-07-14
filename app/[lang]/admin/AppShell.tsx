@@ -12,6 +12,7 @@ import {
   IconTarget,
   IconUsers,
   IconFileText,
+  IconFileCheck,
   IconReceipt,
   IconReportMoney,
   IconSearch,
@@ -53,6 +54,7 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/leads", label: "Leady", icon: IconTarget },
   { href: "/clients", label: "Klienci", icon: IconUsers },
   { href: "/offers", label: "Oferty", icon: IconFileText },
+  { href: "/contracts", label: "Umowy", icon: IconFileCheck },
   { href: "/projects", label: "Projekty", icon: IconFolder },
   { href: "/invoices", label: "Faktury", icon: IconReceipt },
   { href: "/costs", label: "Koszty", icon: IconReportMoney },
@@ -70,6 +72,7 @@ const GO_CHORDS: Record<string, string> = {
   l: "/leads",
   k: "/clients",
   o: "/offers",
+  u: "/contracts",
   f: "/invoices",
   w: "/costs",
 };

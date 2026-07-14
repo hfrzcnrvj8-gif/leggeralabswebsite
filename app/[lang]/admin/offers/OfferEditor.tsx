@@ -36,6 +36,7 @@ export function OfferEditor({
   const [duplicating, setDuplicating] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [nipLoading, setNipLoading] = useState(false);
+  const [generatingContract, setGeneratingContract] = useState(false);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -198,6 +199,24 @@ export function OfferEditor({
       toast("Nie udało się zduplikować oferty.", "error");
     }
   }, [id, onChange, toast]);
+
+  const generateContract = useCallback(async () => {
+    setGeneratingContract(true);
+    const res = await fetch("/api/contracts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ typ: "umowa", offer_id: id }),
+    });
+    setGeneratingContract(false);
+    if (res.ok) {
+      const data = (await res.json()) as { id: string };
+      toast("Wygenerowano umowę z oferty.");
+      window.open(`/${lang}/admin/contracts/${data.id}`, "_blank");
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(data.error ?? "Nie udało się wygenerować umowy.", "error");
+    }
+  }, [id, lang, toast]);
 
   const sendOfferEmail = useCallback(async () => {
     setSending(true);
@@ -461,6 +480,14 @@ export function OfferEditor({
                   Zaakceptowano samodzielnie przez klienta: {offer.accepted_by_name}, {formatPlDate(offer.accepted_at)}
                 </div>
               )}
+              <button
+                onClick={generateContract}
+                disabled={generatingContract}
+                className="btn-primary mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {generatingContract ? <IconLoader2 size={15} className="animate-spin" /> : null}
+                Wygeneruj umowę
+              </button>
             </div>
           ) : (
             <Popover

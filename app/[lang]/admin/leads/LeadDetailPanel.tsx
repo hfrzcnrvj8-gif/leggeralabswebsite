@@ -71,6 +71,7 @@ export function LeadDetailPanel({
   const [markContacted, setMarkContacted] = useState(true);
   const [saving, setSaving] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [sendingNda, setSendingNda] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/leads/${id}`);
@@ -168,6 +169,23 @@ export function LeadDetailPanel({
     }
   };
 
+  const sendNda = async () => {
+    setSendingNda(true);
+    const res = await fetch("/api/contracts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ typ: "nda", lead_id: id }),
+    });
+    setSendingNda(false);
+    if (res.ok) {
+      const data = (await res.json()) as { id: string };
+      toast("Utworzono NDA — dokończ w module Umowy.");
+      window.open(`/${lang}/admin/contracts/${data.id}`, "_blank");
+    } else {
+      toast("Nie udało się utworzyć NDA.", "error");
+    }
+  };
+
   const deleteNote = async (activityId: string) => {
     const ok = await confirm("Usunąć ten wpis z logu?", { danger: true });
     if (!ok) return;
@@ -248,6 +266,14 @@ export function LeadDetailPanel({
               {promoting ? "Tworzę…" : "+ Utwórz klienta"}
             </button>
           )}
+          <button
+            onClick={sendNda}
+            disabled={sendingNda}
+            title="Gdy rozmowa dotknie wewnętrznych systemów/danych klienta, zanim cokolwiek podpiszecie — wyślij NDA przed rozmową odkrywczą"
+            className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            {sendingNda ? "Tworzę…" : "+ Wyślij NDA"}
+          </button>
         </div>
         <p className="mt-2 text-[12.5px] text-muted opacity-80">{LEAD_STATUS_HINT[lead.status]}</p>
 

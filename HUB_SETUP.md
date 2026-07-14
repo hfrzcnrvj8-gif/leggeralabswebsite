@@ -1505,6 +1505,108 @@ prawdziwego kalendarza czasu. Z pierwszego zrzutu przeniesione:
   klientem — Dziś 10:00", przycisk "Dziś" (toolbar i paleta poleceń)
   działa bez zawieszenia strony.
 
+### Moduł 10 — siódma tura: kompleksowy przegląd QA + polerowanie premium UX (2026-07-14)
+
+Właściciel poprosił o pełny przegląd funkcjonalny (błędy) i ocenę
+użyteczności/"premium UX" całego modułu, a następnie o poprawienie
+wszystkich zauważonych niedociągnięć.
+
+**Przegląd QA** — bez realnych błędów w kodzie. Podczas testowania trafiono
+na pozorny bug (klik w pole formularza w podglądzie dnia zamykał go, klik
+"Dodaj" nic nie robił) — zdiagnozowane aż do źródła: to artefakt środowiska
+testowego (Browser pane w tej sesji ma `devicePixelRatio: 2`, klik narzędzia
+QA trafiał w złe miejsce), **nie błąd aplikacji** — potwierdzone przez
+wywołanie tego samego przycisku programowo (`button.click()` przez JS
+zamiast przez narzędzie klikające), co zadziałało poprawnie od razu
+(wydarzenie realnie zapisało się w bazie). Nie dotyczy realnej przeglądarki
+użytkownika. Cała reszta funkcji (dodawanie z klientem/leadem/godziną/
+czasem trwania/wielodniowością, usuwanie, widoki, podgląd dnia, sidebar,
+paleta poleceń) przetestowana i działa poprawnie.
+
+**Poprawki premium UX** (`CalendarView.tsx`), wszystkie z konkretnej,
+szczerej samooceny UX poprzedniej tury:
+
+- **Wyraźny stan aktywny przycisku "Wielodniowe"** — wypełnione tło
+  (`bg-[var(--fg)] text-[var(--bg)]`) zamiast tylko subtelnej zmiany koloru
+  tekstu, spójne z resztą aktywnych przełączników w panelu (np. dropdown
+  widoku).
+- **Większe cele kliknięcia strzałek mini-kalendarza** — `h-5 w-5` → `h-7
+  w-7`, czytelniejszy rozmiar glifu.
+- **Widget "Najbliżej" poprawny niezależnie od nawigacji** — wcześniej
+  liczony z danych aktualnie WYŚWIETLANEGO miesiąca/widoku, więc nawigacja
+  daleko w przód/tył psuła jego trafność. Naprawione: dedykowany
+  `loadUpcoming()` pobiera zawsze bieżący + następny miesiąc względem
+  REALNEGO "dziś" (`todayISO()`), niezależnie od tego, co widać na ekranie;
+  odświeżany też po każdym dodaniu/usunięciu/przeniesieniu wydarzenia.
+- **Brak "błysku" złych danych przy zmianie miesiąca** — siatka dat
+  aktualizowała się natychmiast przy zmianie miesiąca, ale
+  wydarzenia/terminy dociągały się asynchronicznie, więc przez chwilę stare
+  dane (z poprzedniego miesiąca) nakładały się na nowe daty siatki. Naprawione
+  przez `monthReady` (para `eventsReadyKey`/`deadlinesReadyKey`, ustawiane
+  tylko dla FAKTYCZNIE zażądanego miesiąca — zamknięcie nad `key` chroni
+  przed wyścigiem) — siatka miesiąca pokazuje puste komórki (same numery
+  dni) zamiast złych danych, dopóki nowe dane nie dotrą.
+- **Kurczący się pasek "cały dzień" w Tygodniu, gdy pusty** — wcześniej
+  zarezerwowana wysokość 96px na pasek "cały dzień" nad siatką godzinową
+  zostawała nawet w tygodniu bez ŻADNYCH wydarzeń bez godziny/wyliczonych
+  terminów. Naprawione: `hasAnyAllDay` (sprawdzone dla całego tygodnia, nie
+  per dzień — żeby kolumny zostały wyrównane) zmniejsza wysokość do 28px i
+  pomija render pustych list "Brak wydarzeń tego dnia." w każdej z 7 kolumn,
+  gdy naprawdę nic nie ma do pokazania — więcej miejsca dla siatki godzinowej.
+- Przetestowane w przeglądarce: nawigacja Lipiec → Sierpień 2026 pokazała
+  poprawne, nowe wyliczone terminy bez śladu starych danych; widget
+  "Najbliżej" pozostał poprawny ("Call z klientem — Dziś 10:00") mimo
+  nawigacji do innego miesiąca; tydzień 20–26 lipca (bez żadnych wydarzeń
+  całodniowych) poprawnie zwinął pasek "cały dzień" do minimalnej
+  wysokości, odsłaniając więcej siatki godzinowej. `npx tsc --noEmit`
+  czysty po całej turze.
+
+## Moduł 11 — Umowy + NDA (2026-07-14)
+
+Nowy moduł `/admin/contracts` ("Umowy") — pierwszy krok domknięcia
+największej luki prawnej znalezionej w audycie 2026-07-14 (patrz
+`docs/plany-modulow/11-umowy-i-nda.md` i `00-mapa-drogi-klienta.md`, Etap 3).
+Decyzje właściciela na starcie tego modułu (nie zgadywane):
+
+- **Osobny dokument**, nie rozszerzenie oferty — nowa tabela `contracts`
+  (jedna dla obu typów: `typ = 'umowa' | 'nda'`, dzielą e-podpis i wysyłkę),
+  generowana z zaakceptowanej oferty (`app/api/contracts/route.ts` POST,
+  kopiuje klienta/zakres/kwotę z pozycji oferty). Przycisk „Wygeneruj umowę”
+  w `OfferEditor.tsx`, widoczny dopiero po akceptacji oferty; idempotentny
+  (drugie kliknięcie zwraca istniejącą umowę zamiast duplikatu).
+- **Jeden stały szablon prawny** (`lib/contracts.ts`: `CONTRACT_CLAUSES`,
+  `NDA_CLAUSES`) — klauzule (wyłączenia, zmiana zakresu, reklamacje, IP,
+  odpowiedzialność, płatności / cel, poufność, wyłączenia, okres) są
+  identyczne dla każdej umowy/NDA; zmienne są tylko pola per-rekord (zakres
+  prac, cena, termin, dane drugiej strony). Treść jest **roboczym
+  placeholderem** — `LEGAL_PLACEHOLDER_NOTE` wyświetla się na każdym
+  dokumencie (panel + wydruk + publiczny link) z ostrzeżeniem, że wymaga
+  weryfikacji prawnika przed użyciem z prawdziwym klientem (jak
+  `PO_REJESTRACJI.md`).
+- **Dwa osobne kroki podpisu** — klient najpierw akceptuje ofertę (jak
+  dotąd), umowę podpisuje osobno przez własny link (`/umowa/[token]` albo
+  `/nda/[token]`, oba renderują ten sam `ContractPrint.tsx` — typ-świadomy,
+  wzorem `OfferPrint.tsx`). E-podpis to ten sam mechanizm co oferty (imię,
+  IP, user-agent, `app/api/contracts/public/[token]/accept`), ale bez
+  atomowej transakcji z wieloma insertami — dokument już istnieje, więc
+  wystarczy jedno "claim"-style `UPDATE ... WHERE status != 'Podpisana'`.
+- **Twarda brama (świadomy wyjątek od "miękkie podpowiedzi")** — status
+  projektu nie da się ustawić na "W trakcie" bez podpisanej Umowy powiązanej
+  z tym projektem (`app/api/projects/[id]/route.ts` PATCH, 409 + czytelny
+  komunikat). Przy okazji naprawiono `ProjectsDashboard.updateProject`, żeby
+  cofał optymistyczną zmianę UI i pokazywał realny komunikat błędu z API
+  zamiast generycznego (wcześniej nieudany PATCH zostawiał niespójny stan
+  do czasu odświeżenia strony).
+- **NDA ręcznie, z profilu leada** — przycisk „+ Wyślij NDA” w
+  `LeadDetailPanel.tsx` (obok „+ Utwórz klienta”), tworzy szkic NDA
+  powiązany z leadem i otwiera go w nowej karcie do dopracowania/wysyłki.
+  Moduł Umowy ma też własny „+” w Cmd+K do wolnostojącego NDA (bez leada).
+- Świadomie **tylko po polsku** — treść prawna wymaga weryfikacji prawnika
+  niezależnie od języka; tłumaczenie na EN/DE (jak w Ofertach/Fakturach)
+  odłożone do czasu, aż treść będzie ostateczna.
+- Nawigacja: pozycja „Umowy” między Ofertami a Projektami (kolejność wg
+  realnej ścieżki pracy), skrót `g u`.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

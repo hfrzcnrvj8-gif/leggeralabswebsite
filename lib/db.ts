@@ -652,6 +652,64 @@ export async function ensureOffersSchema(): Promise<void> {
   await offersSchemaReady;
 }
 
+let contractsSchemaReady: Promise<void> | null = null;
+
+/** Moduł Umowy + NDA (Moduł 11, patrz docs/plany-modulow/11-umowy-i-nda.md)
+ * — jedna tabela dla obu typów dokumentu (typ: "umowa" | "nda"), bo dzielą
+ * e-podpis, wysyłkę mailem i cały wzorzec strukturalny (patrz komentarz na
+ * górze lib/contracts.ts). Umowa odwołuje się opcjonalnie do oferty, z
+ * której powstała (zakres/cena kopiowane przy tworzeniu); NDA zwykle tylko
+ * do leada (wysyłane przed sprzedażą, zanim powstanie klient/projekt). */
+async function createContractsSchema(): Promise<void> {
+  const sql = getSql();
+  await ensureLeadsSchema();
+  await ensureHubSchema();
+  await ensureClientsSchema();
+  await ensureOffersSchema();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS contracts (
+      id TEXT PRIMARY KEY,
+      typ TEXT NOT NULL DEFAULT 'umowa',
+      status TEXT NOT NULL DEFAULT 'Szkic',
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      client_id TEXT REFERENCES clients(id) ON DELETE SET NULL,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      offer_id TEXT REFERENCES offers(id) ON DELETE SET NULL,
+      klient_nazwa TEXT NOT NULL DEFAULT '',
+      klient_nip TEXT NOT NULL DEFAULT '',
+      klient_ulica TEXT NOT NULL DEFAULT '',
+      klient_kod TEXT NOT NULL DEFAULT '',
+      klient_miasto TEXT NOT NULL DEFAULT '',
+      klient_kraj TEXT NOT NULL DEFAULT '',
+      klient_email TEXT NOT NULL DEFAULT '',
+      zakres_prac TEXT NOT NULL DEFAULT '',
+      cena NUMERIC NOT NULL DEFAULT 0,
+      waluta TEXT NOT NULL DEFAULT 'PLN',
+      termin_realizacji DATE,
+      uwagi TEXT NOT NULL DEFAULT '',
+      share_token TEXT,
+      accepted_at TIMESTAMPTZ,
+      accepted_by_name TEXT,
+      accepted_ip TEXT,
+      accepted_user_agent TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS contracts_status_idx ON contracts(status);`;
+  await sql`CREATE INDEX IF NOT EXISTS contracts_typ_idx ON contracts(typ);`;
+  await sql`CREATE INDEX IF NOT EXISTS contracts_project_id_idx ON contracts(project_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS contracts_lead_id_idx ON contracts(lead_id);`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS contracts_share_token_idx ON contracts(share_token);`;
+}
+
+/** Lazily tworzy tabele modułu Umowy + NDA. */
+export async function ensureContractsSchema(): Promise<void> {
+  if (!contractsSchemaReady) contractsSchemaReady = createContractsSchema();
+  await contractsSchemaReady;
+}
+
 let clientsSchemaReady: Promise<void> | null = null;
 
 /** Moduł Klienci — fundament pod resztę CRM (patrz virtual-company-roadmap w
@@ -929,5 +987,12 @@ export async function ensureOfferShareToken(sql: Sql, id: string, existingToken:
   if (existingToken) return existingToken;
   const token = randomUUID().replace(/-/g, "");
   await sql`UPDATE offers SET share_token = ${token} WHERE id = ${id};`;
+  return token;
+}
+
+export async function ensureContractShareToken(sql: Sql, id: string, existingToken: string | null): Promise<string> {
+  if (existingToken) return existingToken;
+  const token = randomUUID().replace(/-/g, "");
+  await sql`UPDATE contracts SET share_token = ${token} WHERE id = ${id};`;
   return token;
 }

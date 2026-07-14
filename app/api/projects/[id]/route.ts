@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureFollowupsSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureFollowupsSchema, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString, formatPlDate, CLOSED_PROJECT_STATUSES } from "@/lib/projects";
 import { NURTURE_OFFSETS } from "@/lib/clients";
@@ -122,6 +122,23 @@ export async function PATCH(
   let statusChangedTo: string | null = null;
   if ("status" in body) {
     const nv = str(body.status);
+    // Formalny start realizacji ("W trakcie") wymaga podpisanej Umowy —
+    // jedyny wyjątek od zasady "miękkie podpowiedzi, nigdy twarde bramki"
+    // w tym panelu, świadomie zaakceptowany przez właściciela (patrz
+    // docs/plany-modulow/11-umowy-i-nda.md, mapa drogi klienta Krok 3:
+    // "to jest formalny start projektu, nie wcześniej").
+    if (nv === "W trakcie" && current && norm(current.status) !== "W trakcie") {
+      await ensureContractsSchema();
+      const signed = await sql`
+        SELECT 1 FROM contracts WHERE project_id = ${id} AND typ = 'umowa' AND status = 'Podpisana' LIMIT 1;
+      `;
+      if (signed.length === 0) {
+        return NextResponse.json(
+          { error: "Brak podpisanej umowy — podpisz umowę przed rozpoczęciem realizacji (moduł Umowy)." },
+          { status: 409 }
+        );
+      }
+    }
     if (current && norm(current.status) !== nv) {
       changes.push(`Status: ${norm(current.status) || "—"} → ${nv}`);
       statusChangedTo = nv;

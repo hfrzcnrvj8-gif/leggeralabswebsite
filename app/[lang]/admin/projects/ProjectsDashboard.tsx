@@ -96,13 +96,27 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   }, [filterStatus, filterPriority]);
 
   const updateProject = useCallback(async (id: string, field: string, value: string) => {
-    setProjects((prev) => prev?.map((p) => (p.id === id ? { ...p, [field]: value } : p)) ?? prev);
+    let previous: string | undefined;
+    setProjects((prev) => prev?.map((p) => {
+      if (p.id !== id) return p;
+      const record = p as unknown as Record<string, string>;
+      previous = record[field];
+      return { ...p, [field]: value };
+    }) ?? prev);
     const res = await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
     });
-    if (!res.ok) toast("Nie udało się zapisać zmiany.", "error");
+    if (!res.ok) {
+      // Cofnij optymistyczną zmianę — inaczej UI pokazuje wartość, która
+      // nigdy nie zapisała się w bazie (np. zablokowana zmiana statusu bez
+      // podpisanej umowy, patrz app/api/projects/[id]/route.ts).
+      setProjects((prev) => prev?.map((p) => (p.id === id ? { ...(p as unknown as Record<string, string>), [field]: previous } as unknown as typeof p : p)) ?? prev);
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(data.error ?? "Nie udało się zapisać zmiany.", "error");
+      return;
+    }
     bumpTimelineRefresh();
   }, [toast, bumpTimelineRefresh]);
 

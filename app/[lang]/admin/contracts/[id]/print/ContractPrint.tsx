@@ -1,0 +1,234 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  type Contract,
+  CONTRACT_TYP_LABEL,
+  CONTRACT_CLAUSES,
+  NDA_CLAUSES,
+  LEGAL_PLACEHOLDER_NOTE,
+  clientAddressLines,
+  contractReference,
+} from "@/lib/contracts";
+import { type CompanySettings } from "@/lib/invoices";
+import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
+import { DocLogoMark } from "../../../DocLogoMark";
+
+/** Podgląd/wydruk/podpis Umowy lub NDA — ten sam premium styl co
+ * OfferPrint.tsx, świadomie tylko po polsku (patrz komentarz w
+ * lib/contracts.ts — treść prawna wymaga weryfikacji niezależnie od
+ * języka). */
+
+export function ContractPrint({ id, token }: { id?: string; token?: string }) {
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [settings, setSettings] = useState<CompanySettings | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [signName, setSignName] = useState("");
+  const [signConfirm, setSignConfirm] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (token) {
+      fetch(`/api/contracts/public/${token}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d) => {
+          setContract(d.contract);
+          setSettings(d.settings);
+        })
+        .catch(() => setNotFound(true));
+      return;
+    }
+    Promise.all([
+      fetch(`/api/contracts/${id}`).then((r) => (r.ok ? r.json() : Promise.reject())),
+      fetch("/api/settings").then((r) => (r.ok ? r.json() : { settings: null })),
+    ])
+      .then(([contractData, settingsData]) => {
+        setContract(contractData.contract);
+        setSettings(settingsData.settings);
+      })
+      .catch(() => setNotFound(true));
+  }, [id, token]);
+
+  if (notFound) return <div className="p-10 text-center text-gray-600">Nie znaleziono dokumentu.</div>;
+  if (!contract) return <div className="p-10 text-center text-gray-400">Wczytywanie…</div>;
+
+  const isUmowa = contract.typ === "umowa";
+  const clauses = isUmowa ? CONTRACT_CLAUSES : NDA_CLAUSES;
+  const docLabel = CONTRACT_TYP_LABEL[contract.typ];
+
+  const submitAcceptance = async () => {
+    if (!token || !signName.trim() || !signConfirm || accepting) return;
+    setAccepting(true);
+    setAcceptError(null);
+    const res = await fetch(`/api/contracts/public/${token}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: signName.trim() }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; acceptedByName?: string };
+    setAccepting(false);
+    if (!res.ok) {
+      setAcceptError(data.error ?? "Nie udało się zapisać podpisu.");
+      return;
+    }
+    setContract((prev) =>
+      prev ? { ...prev, status: "Podpisana", accepted_by_name: data.acceptedByName ?? signName.trim(), accepted_at: new Date().toISOString() } : prev
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
+      <style>{`
+        @page { size: A4; margin: 16mm; }
+        @media print {
+          html, body { background: #fff !important; }
+        }
+      `}</style>
+
+      <div className="mx-auto mb-4 flex max-w-[794px] items-center justify-between px-4 print:hidden">
+        <button onClick={() => window.close()} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
+          ← Zamknij
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="rounded-lg px-4 py-1.5 text-sm font-semibold text-white"
+          style={{ background: DOC_GRADIENT }}
+        >
+          Drukuj / Zapisz PDF
+        </button>
+      </div>
+
+      <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
+        <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
+
+        <div className="flex flex-1 flex-col p-10">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <DocLogoMark gradientId="contractLogoGradient" />
+              {settings?.nazwa && <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa}</span>}
+            </div>
+            <div className="text-right">
+              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{docLabel}</div>
+              <div className="mt-0.5 text-xl font-semibold tracking-tight text-neutral-900">
+                {contract.status === "Szkic" ? "(szkic)" : contractReference(contract)}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-8 text-neutral-500">
+            <div>
+              <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">Data przygotowania</div>
+              <div className="font-medium text-neutral-800">{docDate(contract.created_at, "pl")}</div>
+            </div>
+            {isUmowa && contract.termin_realizacji && (
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">Termin realizacji</div>
+                <div className="font-medium text-neutral-800">{docDate(contract.termin_realizacji, "pl")}</div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-10 grid grid-cols-2 gap-8 border-t border-neutral-100 pt-6">
+            <div>
+              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Zleceniodawca / Wykonawca</div>
+              <div className="whitespace-pre-line font-medium text-neutral-900">{settings?.nazwa || "—"}</div>
+              {settings?.adres && <div className="mt-0.5 whitespace-pre-line text-neutral-500">{settings.adres}</div>}
+              {settings?.nip && <div className="mt-0.5 text-neutral-500">NIP: {settings.nip}</div>}
+              {settings?.email && <div className="mt-0.5 text-neutral-500">{settings.email}</div>}
+            </div>
+            <div>
+              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Druga strona</div>
+              <div className="whitespace-pre-line font-medium text-neutral-900">{contract.klient_nazwa || "—"}</div>
+              {clientAddressLines(contract).map((line, i) => (
+                <div key={i} className="mt-0.5 text-neutral-500">
+                  {line}
+                </div>
+              ))}
+              {contract.klient_nip && <div className="mt-0.5 text-neutral-500">NIP: {contract.klient_nip}</div>}
+            </div>
+          </div>
+
+          {isUmowa && (
+            <div className="mt-8">
+              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Przedmiot umowy</div>
+              <p className="whitespace-pre-line text-neutral-700">{contract.zakres_prac || "—"}</p>
+              {contract.cena > 0 && (
+                <div className="mt-3 flex justify-between border-t border-neutral-100 pt-2 text-[14px] font-semibold">
+                  <span className="text-neutral-900">Wynagrodzenie</span>
+                  <span
+                    className="tabular-nums"
+                    style={{ background: DOC_GRADIENT, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
+                  >
+                    {docMoney(contract.cena, "pl", contract.waluta || "PLN")}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-8 space-y-5">
+            {clauses.map((c) => (
+              <div key={c.title}>
+                <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{c.title}</div>
+                <p className="mt-0.5 leading-relaxed text-neutral-700">{c.text}</p>
+              </div>
+            ))}
+          </div>
+
+          {contract.uwagi && <div className="mt-6 whitespace-pre-line text-neutral-600">{contract.uwagi}</div>}
+
+          <div className="mt-auto pt-10">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[10.5px] leading-relaxed text-amber-700">
+              ⚠ {LEGAL_PLACEHOLDER_NOTE}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* E-podpis — tylko na publicznej stronie (token ustawiony). */}
+      {token && (
+        <div className="mx-auto mt-4 max-w-[794px] px-4 print:hidden">
+          {contract.status === "Podpisana" ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+              ✓ {contract.accepted_by_name ? `Podpisano przez ${contract.accepted_by_name}, ${docDate(contract.accepted_at, "pl")}` : "Dokument podpisany."}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-neutral-200 bg-white p-4">
+              <h2 className="mb-3 text-sm font-semibold text-neutral-900">Podpis — {docLabel.toLowerCase()}</h2>
+              <div className="space-y-2.5">
+                <input
+                  value={signName}
+                  onChange={(e) => setSignName(e.target.value)}
+                  placeholder="Jan Kowalski"
+                  aria-label="Imię i nazwisko"
+                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+                <label className="flex items-start gap-2 text-[13px] text-neutral-600">
+                  <input type="checkbox" checked={signConfirm} onChange={(e) => setSignConfirm(e.target.checked)} className="mt-0.5" />
+                  Potwierdzam, że zapoznałem/-am się z treścią dokumentu i ją akceptuję.
+                </label>
+                <p className="text-[11px] leading-relaxed text-neutral-400">
+                  Akceptując, zapisujemy Twoje imię i nazwisko, adres IP oraz datę i godzinę — jako dowód złożenia oświadczenia woli. Szczegóły
+                  przetwarzania danych:{" "}
+                  <a href="/pl/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-neutral-600">
+                    Polityka Prywatności
+                  </a>
+                </p>
+                {acceptError && <div className="text-[13px] text-red-600">{acceptError}</div>}
+                <button
+                  onClick={submitAcceptance}
+                  disabled={!signName.trim() || !signConfirm || accepting}
+                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: DOC_GRADIENT }}
+                >
+                  {accepting ? "Zapisywanie…" : `Podpisuję — ${docLabel}`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
