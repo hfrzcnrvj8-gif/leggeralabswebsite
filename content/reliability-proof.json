@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-07-12T05:00:05.445Z",
+  "generatedAt": "2026-07-14T05:00:05.406Z",
   "originIncident": {
     "date": "2026-07-01",
     "summary": "Proces proxy zawiesił się wewnętrznie po serii długich zapytań — nasłuchiwał, ale przestał przetwarzać nowe żądania. Zdiagnozowano: martwe, osierocone połączenie sieciowe, brak jakiegokolwiek timeoutu na krytycznej ścieżce.",
     "resolution": "Root-cause fix w kodzie: gwarantowane zwolnienie kolejki w KAŻDEJ ścieżce (sukces/błąd/timeout), twarde timeouty na każdym kroku, automatyczny alert e-mail przy każdym auto-recovery."
   },
   "selfHealingEvents": {
-    "windowDays": 12,
+    "windowDays": 14,
     "windowStart": "2026-07-01",
-    "windowEnd": "2026-07-12",
-    "totalEvents": 31,
+    "windowEnd": "2026-07-14",
+    "totalEvents": 32,
     "flagshipIncident": {
       "date": "2026-07-02/2026-07-03 (noc)",
       "description": "Kolejka spiętrzyła się pod nietypowo ciężkim obciążeniem — trzy kolejne zapytania czekały coraz dłużej, system za każdym razem zwolnił kolejkę automatycznie, bez interwencji człowieka.",
