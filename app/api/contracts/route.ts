@@ -17,10 +17,13 @@ export async function GET() {
 }
 
 /** POST /api/contracts — nowy dokument (szkic).
- * typ="umowa": wymaga offer_id zaakceptowanej oferty — kopiuje dane klienta,
- * zakres (z pozycji) i kwotę. Jeśli umowa dla tej oferty już istnieje, zwraca
- * jej id zamiast tworzyć duplikat.
- * typ="nda": wymaga lead_id — kopiuje dane firmy z leada. */
+ * typ="umowa": zwykle z offer_id zaakceptowanej oferty — kopiuje dane
+ * klienta, zakres (z pozycji) i kwotę (jeśli umowa dla tej oferty już
+ * istnieje, zwraca jej id zamiast tworzyć duplikat). Bez offer_id tworzy
+ * wolnostojący szkic (np. do podglądu szablonu klauzul, zanim jest
+ * jakakolwiek prawdziwa oferta) — pola zmienne uzupełnia się ręcznie.
+ * typ="nda": zwykle z lead_id — kopiuje dane firmy z leada; bez lead_id
+ * tworzy wolnostojące NDA (np. rozmowa jeszcze przed założeniem leada). */
 export async function POST(req: NextRequest) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -33,8 +36,13 @@ export async function POST(req: NextRequest) {
   const typ = body.typ === "nda" ? "nda" : "umowa";
 
   if (typ === "umowa") {
-    const offerId = typeof body.offer_id === "string" ? body.offer_id : "";
-    if (!offerId) return NextResponse.json({ error: "Brak offer_id — umowę można wygenerować tylko z zaakceptowanej oferty." }, { status: 400 });
+    const offerId = typeof body.offer_id === "string" && body.offer_id.trim() ? body.offer_id : "";
+    if (!offerId) {
+      const id = randomUUID();
+      const klientNazwa = typeof body.klient_nazwa === "string" ? body.klient_nazwa.slice(0, 300) : "";
+      await sql`INSERT INTO contracts (id, typ, klient_nazwa) VALUES (${id}, 'umowa', ${klientNazwa});`;
+      return NextResponse.json({ ok: true, id });
+    }
 
     const existing = await sql`SELECT id FROM contracts WHERE offer_id = ${offerId} AND typ = 'umowa' LIMIT 1;`;
     if (existing.length > 0) return NextResponse.json({ ok: true, id: existing[0].id });

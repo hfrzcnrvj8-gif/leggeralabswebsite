@@ -35,22 +35,30 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
     load();
   }, [load]);
 
-  const createNda = useCallback(async () => {
-    const nazwa = await prompt("Nazwa drugiej strony (firma / osoba):", { placeholder: "np. Kancelaria X sp. z o.o." });
-    if (nazwa === null) return;
-    const res = await fetch("/api/contracts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ typ: "nda", klient_nazwa: nazwa }),
-    });
-    if (!res.ok) {
-      toast("Nie udało się utworzyć NDA.", "error");
-      return;
-    }
-    const { id } = (await res.json()) as { id: string };
-    await load();
-    setOpenId(id);
-  }, [prompt, toast, load]);
+  const createDraft = useCallback(
+    async (typ: "umowa" | "nda") => {
+      const nazwa = await prompt("Nazwa drugiej strony (firma / osoba) — możesz zostawić puste, np. tylko do podglądu szablonu:", {
+        placeholder: "np. Kancelaria X sp. z o.o.",
+      });
+      if (nazwa === null) return;
+      const res = await fetch("/api/contracts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ typ, klient_nazwa: nazwa }),
+      });
+      if (!res.ok) {
+        toast(`Nie udało się utworzyć dokumentu (${CONTRACT_TYP_LABEL[typ]}).`, "error");
+        return;
+      }
+      const { id } = (await res.json()) as { id: string };
+      await load();
+      setOpenId(id);
+    },
+    [prompt, toast, load]
+  );
+
+  const createNda = useCallback(() => createDraft("nda"), [createDraft]);
+  const createUmowa = useCallback(() => createDraft("umowa"), [createDraft]);
 
   const deleteContract = useCallback(
     async (id: string, nazwa: string) => {
@@ -80,7 +88,13 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
     [toast]
   );
 
-  useRegisterActions([{ id: "add", label: "+ Nowe NDA", hint: "N", run: createNda }], [createNda]);
+  useRegisterActions(
+    [
+      { id: "add", label: "+ Nowa umowa", hint: "N", run: createUmowa },
+      { id: "add-nda", label: "+ Nowe NDA", run: createNda },
+    ],
+    [createUmowa, createNda]
+  );
 
   const rows = useMemo(() => {
     let list = contracts ?? [];
@@ -122,19 +136,33 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
-        <button
-          onClick={createNda}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Nowe NDA"
+        <Popover
+          align="right"
+          width={180}
+          trigger={(open) => (
+            <button
+              onClick={open}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+              title="Nowy dokument"
+            >
+              <IconPlus size={16} />
+            </button>
+          )}
         >
-          <IconPlus size={16} />
-        </button>
+          {(close) => (
+            <div>
+              <MenuRow label="+ Nowa umowa" onClick={() => { close(); createUmowa(); }} />
+              <MenuRow label="+ Nowe NDA" onClick={() => { close(); createNda(); }} />
+            </div>
+          )}
+        </Popover>
       </div>
 
       <div className="px-4 py-4 sm:px-6">
         <p className="mb-4 max-w-2xl text-[12.5px] text-muted">
-          Umowy powstają automatycznie z zaakceptowanej oferty (przycisk „Wygeneruj umowę” w edytorze oferty). NDA
-          tworzysz tu ręcznie albo przyciskiem „Wyślij NDA” w profilu leada.
+          Umowy zwykle powstają automatycznie z zaakceptowanej oferty (przycisk „Wygeneruj umowę” w edytorze oferty),
+          NDA zwykle przyciskiem „Wyślij NDA” w profilu leada — ale przyciskiem + powyżej możesz utworzyć wolnostojący
+          szkic każdego z nich w dowolnej chwili, np. żeby podejrzeć szablon klauzul.
         </p>
 
         {rows.length === 0 ? (
