@@ -1,12 +1,14 @@
 "use client";
 
-// Analityka wydatków (Moduł 9) — prosty słupkowy wykres skumulowany: jeden
-// słupek na miesiąc, segmenty = kategorie. Paleta i reguły wg dataviz skill:
-// 7 kategorii = 7 pierwszych slotów zwalidowanej domyślnej palety
-// kategorycznej (stała kolejność, nigdy nie cyklowana), z bezpośrednimi
-// etykietami (suma nad słupkiem + liczby w legendzie) jako "relief" wymagany
-// przy WARN kontrastu/CVD w obu trybach (zweryfikowane scripts/validate_palette.js).
-// Zero AI — czysta agregacja SUM/GROUP BY po stronie API.
+// Analityka wydatków (Moduł 9) — kompaktowy, czysto orientacyjny widget w
+// panelu bocznym (nie hero element strony — lista kosztów jest tu główną
+// treścią). Prosty słupkowy wykres skumulowany: jeden słupek na miesiąc,
+// segmenty = kategorie. Paleta i reguły wg dataviz skill: 7 kategorii = 7
+// pierwszych slotów zwalidowanej domyślnej palety kategorycznej (stała
+// kolejność, nigdy nie cyklowana); relief przy WARN kontrastu/CVD w obu
+// trybach (zweryfikowane scripts/validate_palette.js) przez legendę z
+// liczbami i tooltip przy hover — nigdy sam kolor. Zero AI — czysta
+// agregacja SUM/GROUP BY po stronie API.
 
 import { useEffect, useMemo, useState } from "react";
 import { COST_CATEGORIES, formatMoney } from "./shared";
@@ -19,12 +21,6 @@ const MONTH_LABEL = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wr
 function monthLabel(key: string): string {
   const [y, m] = key.split("-").map(Number);
   return `${MONTH_LABEL[m - 1]} ${String(y).slice(2)}`;
-}
-
-/** Kwota bez grosza/symbolu waluty, do etykiety nad słupkiem (mało miejsca) —
- * pełna kwota w tooltipie i legendzie przez `formatMoney`. */
-function compactMoney(n: number): string {
-  return new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
 type Analytics = { months: string[]; categories: string[]; byCategory: Record<string, number[]> };
@@ -46,7 +42,9 @@ export function SpendTrendChart() {
 
   const totalsByCategory = useMemo(() => {
     if (!data) return [];
-    return COST_CATEGORIES.map((k) => ({ kategoria: k, total: (data.byCategory[k] ?? []).reduce((a, b) => a + b, 0) }));
+    return COST_CATEGORIES.map((k, i) => ({ kategoria: k, slot: i, total: (data.byCategory[k] ?? []).reduce((a, b) => a + b, 0) }))
+      .filter((c) => c.total > 0)
+      .sort((a, b) => b.total - a.total);
   }, [data]);
 
   const monthTotals = useMemo(() => {
@@ -56,20 +54,22 @@ export function SpendTrendChart() {
 
   const maxTotal = Math.max(1, ...monthTotals);
 
-  const W = 640;
-  const H = 220;
-  const padTop = 28;
-  const padBottom = 28;
-  const padSide = 12;
+  // Ciasny, boczny format — nie hero-wykres. Szerokość dopasowuje się do
+  // kontenera (aside ~240px), wysokość świadomie niska.
+  const W = 232;
+  const H = 108;
+  const padTop = 6;
+  const padBottom = 16;
+  const padSide = 4;
   const chartH = H - padTop - padBottom;
 
   if (!data) {
-    return <div className="h-56 animate-pulse rounded-xl bg-[var(--hairline)]" />;
+    return <div className="h-40 animate-pulse rounded-xl bg-[var(--hairline)]" />;
   }
 
   const n = data.months.length;
   const barSlot = (W - padSide * 2) / n;
-  const barW = Math.min(40, barSlot * 0.55);
+  const barW = Math.min(18, barSlot * 0.6);
 
   return (
     <div className="cost-trend-chart">
@@ -79,15 +79,15 @@ export function SpendTrendChart() {
       `}</style>
 
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-[13px] font-medium text-[var(--fg)]">Trend wydatków</h3>
-        <div className="flex items-center gap-1 text-[11px]">
+        <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted">Trend wydatków</h3>
+        <div className="flex items-center gap-0.5 text-[10px]">
           {[6, 12].map((m) => (
             <button
               key={m}
               onClick={() => setMonthsCount(m)}
-              className={`rounded-full px-2 py-0.5 ${monthsCount === m ? "bg-brand-purple/15 text-brand-purple" : "text-muted hover:text-[var(--fg)]"}`}
+              className={`rounded-full px-1.5 py-0.5 ${monthsCount === m ? "bg-brand-purple/15 text-brand-purple" : "text-muted hover:text-[var(--fg)]"}`}
             >
-              {m} mies.
+              {m}m
             </button>
           ))}
         </div>
@@ -104,9 +104,11 @@ export function SpendTrendChart() {
               const v = data.byCategory[k]?.[i] ?? 0;
               const segH = total > 0 ? (v / maxTotal) * chartH : 0;
               const y = yCursor - segH;
-              yCursor -= segH > 0 ? segH + (segH > 2 ? 2 : 0) : 0;
+              yCursor -= segH > 0 ? segH + (segH > 2 ? 1 : 0) : 0;
               return { k, ci, v, y, segH };
             });
+            // Co drugi miesiąc podpisany przy 12-mies. widoku — inaczej etykiety się zlewają w wąskiej kolumnie.
+            const showLabel = n <= 6 || i % 2 === (n % 2);
             return (
               <g key={mKey}>
                 {segs.map(
@@ -117,8 +119,8 @@ export function SpendTrendChart() {
                         x={x}
                         y={s.y}
                         width={barW}
-                        height={Math.max(0, s.segH - 1)}
-                        rx={s.ci === segs.length - 1 || segs.slice(s.ci + 1).every((o) => o.segH <= 0.5) ? 3 : 0}
+                        height={Math.max(0, s.segH - 0.5)}
+                        rx={s.ci === segs.length - 1 || segs.slice(s.ci + 1).every((o) => o.segH <= 0.5) ? 2 : 0}
                         fill={`var(--s${s.ci + 1})`}
                         opacity={hover && hover.monthIdx === i && hover.catIdx !== s.ci ? 0.35 : 1}
                         onMouseEnter={(e) => {
@@ -133,38 +135,41 @@ export function SpendTrendChart() {
                       />
                     )
                 )}
-                {total > 0 && (
-                  <text x={x + barW / 2} y={yCursor - 6} textAnchor="middle" fontSize={10} fill="var(--fg)" opacity={0.85}>
-                    {compactMoney(total)}
+                {showLabel && (
+                  <text x={x + barW / 2} y={H - padBottom + 11} textAnchor="middle" fontSize={7.5} fill="var(--fg-muted)">
+                    {monthLabel(mKey).split(" ")[0]}
                   </text>
                 )}
-                <text x={x + barW / 2} y={H - padBottom + 14} textAnchor="middle" fontSize={10} fill="var(--fg-muted)">
-                  {monthLabel(mKey)}
-                </text>
               </g>
             );
           })}
         </svg>
         {hover && (
           <div
-            className="pointer-events-none absolute z-10 rounded-md border hairline bg-[var(--bg-soft)] px-2 py-1 text-[11px] text-[var(--fg)] shadow-lg"
-            style={{ left: Math.min(hover.x + 8, W - 140), top: Math.max(hover.y - 30, 0) }}
+            className="pointer-events-none absolute z-10 rounded-md border hairline bg-[var(--bg-soft)] px-2 py-1 text-[10.5px] text-[var(--fg)] shadow-lg"
+            style={{ left: Math.min(hover.x + 6, W - 120), top: Math.max(hover.y - 34, 0) }}
           >
             <div className="font-medium">{COST_CATEGORIES[hover.catIdx]}</div>
-            <div className="text-muted">{monthLabel(data.months[hover.monthIdx])}: {formatMoney(data.byCategory[COST_CATEGORIES[hover.catIdx]]?.[hover.monthIdx] ?? 0)}</div>
+            <div className="text-muted">
+              {monthLabel(data.months[hover.monthIdx])}: {formatMoney(data.byCategory[COST_CATEGORIES[hover.catIdx]]?.[hover.monthIdx] ?? 0)}
+            </div>
           </div>
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
-        {totalsByCategory.map((c, i) => (
-          <div key={c.kategoria} className="flex items-center gap-1.5 text-[11px]">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: `var(--s${i + 1})` }} />
-            <span className="text-muted">{c.kategoria}</span>
-            <span className="font-medium text-[var(--fg)]">{formatMoney(c.total)}</span>
-          </div>
-        ))}
-      </div>
+      {totalsByCategory.length === 0 ? (
+        <p className="mt-2 text-[10.5px] text-muted opacity-60">Brak wydatków w tym okresie.</p>
+      ) : (
+        <div className="mt-2.5 space-y-1">
+          {totalsByCategory.map((c) => (
+            <div key={c.kategoria} className="flex items-center gap-1.5 text-[10.5px]">
+              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: `var(--s${c.slot + 1})` }} />
+              <span className="min-w-0 flex-1 truncate text-muted">{c.kategoria}</span>
+              <span className="shrink-0 font-medium text-[var(--fg)]">{formatMoney(c.total)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -270,68 +270,74 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
           </div>
         </div>
 
-        {costs.length > 0 && !projectFilter && (
-          <div className="card-paper mb-4 rounded-2xl border hairline p-4">
-            <SpendTrendChart />
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
+            {rows.length === 0 ? (
+              <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-lg">💸</div>
+                <p className="mt-2">{filterStatus || filterKategoria || projectFilter ? "Brak kosztów spełniających filtry." : "Brak kosztów — dodaj pierwszy przyciskiem +."}</p>
+              </div>
+            ) : (
+              <div className="card-paper overflow-x-auto rounded-2xl">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b hairline text-left text-[11px] uppercase tracking-wide text-muted">
+                      <th className="p-2.5 font-medium">Dostawca</th>
+                      <th className="p-2.5 font-medium">Kategoria</th>
+                      <th className="p-2.5 font-medium">Projekt</th>
+                      <th className="p-2.5 text-right font-medium">Brutto</th>
+                      <th className="p-2.5 font-medium">Płatność</th>
+                      <th className="p-2.5 font-medium">Status</th>
+                      <th className="p-2.5 font-medium">Data wydatku</th>
+                      <th className="p-2.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((c) => (
+                      <tr
+                        key={c.id}
+                        onClick={() => setOpenId(c.id)}
+                        className="cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40"
+                      >
+                        <td className="p-2.5 font-medium text-[var(--fg)]">
+                          <span className="flex items-center gap-1.5">
+                            {c.dostawca_nazwa || <span className="text-muted">bez nazwy</span>}
+                            {c.zalacznik_nazwa && <IconPaperclip size={12} className="shrink-0 text-muted" title="Ma załącznik" />}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-muted">{c.kategoria}</td>
+                        <td className="p-2.5 text-muted">{c.project_tytul ?? "—"}</td>
+                        <td className="p-2.5 text-right tabular-nums">{formatMoney(c.kwota_brutto)}</td>
+                        <td className="p-2.5 text-muted" title={c.metoda_platnosci ? PAYMENT_METHOD_LABEL[c.metoda_platnosci as PaymentMethod] ?? c.metoda_platnosci : ""}>
+                          {c.metoda_platnosci ? PAYMENT_METHOD_ICON[c.metoda_platnosci as PaymentMethod] ?? "" : "—"}
+                        </td>
+                        <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
+                          <StatusTag status={c.status} onChange={(v) => updateStatus(c.id, v)} />
+                        </td>
+                        <td className="p-2.5 text-muted">{c.data_wydatku ? formatPlDate(c.data_wydatku) : "—"}</td>
+                        <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end">
+                            <button onClick={() => deleteCost(c.id, c.dostawca_nazwa)} className="flex text-muted hover:text-red-400" title="Usuń">
+                              <IconX size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
 
-        {rows.length === 0 ? (
-          <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-lg">💸</div>
-            <p className="mt-2">{filterStatus || filterKategoria || projectFilter ? "Brak kosztów spełniających filtry." : "Brak kosztów — dodaj pierwszy przyciskiem +."}</p>
-          </div>
-        ) : (
-          <div className="card-paper overflow-x-auto rounded-2xl">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="border-b hairline text-left text-[11px] uppercase tracking-wide text-muted">
-                  <th className="p-2.5 font-medium">Dostawca</th>
-                  <th className="p-2.5 font-medium">Kategoria</th>
-                  <th className="p-2.5 font-medium">Projekt</th>
-                  <th className="p-2.5 text-right font-medium">Brutto</th>
-                  <th className="p-2.5 font-medium">Płatność</th>
-                  <th className="p-2.5 font-medium">Status</th>
-                  <th className="p-2.5 font-medium">Data wydatku</th>
-                  <th className="p-2.5"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr
-                    key={c.id}
-                    onClick={() => setOpenId(c.id)}
-                    className="cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40"
-                  >
-                    <td className="p-2.5 font-medium text-[var(--fg)]">
-                      <span className="flex items-center gap-1.5">
-                        {c.dostawca_nazwa || <span className="text-muted">bez nazwy</span>}
-                        {c.zalacznik_nazwa && <IconPaperclip size={12} className="shrink-0 text-muted" title="Ma załącznik" />}
-                      </span>
-                    </td>
-                    <td className="p-2.5 text-muted">{c.kategoria}</td>
-                    <td className="p-2.5 text-muted">{c.project_tytul ?? "—"}</td>
-                    <td className="p-2.5 text-right tabular-nums">{formatMoney(c.kwota_brutto)}</td>
-                    <td className="p-2.5 text-muted" title={c.metoda_platnosci ? PAYMENT_METHOD_LABEL[c.metoda_platnosci as PaymentMethod] ?? c.metoda_platnosci : ""}>
-                      {c.metoda_platnosci ? PAYMENT_METHOD_ICON[c.metoda_platnosci as PaymentMethod] ?? "" : "—"}
-                    </td>
-                    <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
-                      <StatusTag status={c.status} onChange={(v) => updateStatus(c.id, v)} />
-                    </td>
-                    <td className="p-2.5 text-muted">{c.data_wydatku ? formatPlDate(c.data_wydatku) : "—"}</td>
-                    <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end">
-                        <button onClick={() => deleteCost(c.id, c.dostawca_nazwa)} className="flex text-muted hover:text-red-400" title="Usuń">
-                          <IconX size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          {costs.length > 0 && !projectFilter && (
+            <aside className="w-full shrink-0 lg:w-56">
+              <div className="card-paper rounded-2xl border hairline p-3.5">
+                <SpendTrendChart />
+              </div>
+            </aside>
+          )}
+        </div>
       </div>
 
       <AnimatePresence>
