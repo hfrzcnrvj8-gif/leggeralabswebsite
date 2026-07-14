@@ -28,6 +28,20 @@ export type Project = {
    * (tam liczymy bezpośrednio z pełnej listy `tasks`). */
   task_total?: number;
   task_done?: number;
+  /** Zamknięcie projektu i opinia (Moduł 15) — patrz buildProjectClosingSummary,
+   * PROJECT_REVIEW_CONSENT_TEXT i app/api/projects/review/public/[token]. */
+  review_token: string | null;
+  review_requested_at: string | null;
+  review_rating_jakosc: number | null;
+  review_rating_terminowosc: number | null;
+  review_rating_komunikacja: number | null;
+  review_comment: string;
+  review_submitted_at: string | null;
+  review_consent_case_study: boolean;
+  review_consent_text: string | null;
+  review_consent_name: string | null;
+  review_consent_ip: string | null;
+  review_consent_user_agent: string | null;
 };
 
 export type ProjectTask = {
@@ -123,6 +137,66 @@ Razem z tym mailem daj znać, jeśli masz pytania — chętnie je wyjaśnię prz
 
 Pozdrawiam,
 [Twoje imię]`;
+}
+
+/** Miękka podpowiedź przy statusie "Wdrożone", dopóki opinia nie została
+ * poproszona — czysto informacyjna, nigdy nie blokuje zmiany statusu. Wzorem
+ * ONBOARDING_INCOMPLETE_HINT/CLIENT_STATUS_HINT. */
+export const PROJECT_REVIEW_REQUEST_HINT =
+  "Projekt jest Wdrożony — dobry moment na podsumowanie i prośbę o opinię (sekcja „Zamknięcie i opinia” niżej).";
+
+/** Pełny tekst zgody na wykorzystanie referencji/case study — świadomie
+ * bliżej formalnej zgody RODO/marketingowej niż prosty checkbox tak/nie
+ * (decyzja właściciela przy starcie Modułu 15). Zapisywany jako snapshot w
+ * `review_consent_text` w momencie akceptacji, żeby późniejsza zmiana treści
+ * w kodzie nie podważała tego, na co klient faktycznie się zgodził. */
+export const PROJECT_REVIEW_CONSENT_TEXT =
+  "Wyrażam zgodę na wykorzystanie przez Leggera Labs informacji o zrealizowanym projekcie — w tym mojej opinii, nazwy firmy oraz ogólnego zakresu współpracy — w materiałach marketingowych, referencyjnych oraz studiach przypadku (case study), publikowanych na stronie internetowej i w materiałach sprzedażowych Leggera Labs. Zgoda jest dobrowolna i można ją w każdej chwili wycofać, kontaktując się mailowo.";
+
+/** Generuje szkic podsumowania projektu + prośby o opinię — gotowy tekst do
+ * przejrzenia, edycji i wysłania (ręcznie skopiowanego albo mailem przez
+ * panel). Wzorem buildOnboardingWelcomeMessage: panel niczego nie wysyła bez
+ * jawnego kliknięcia. `reviewUrl` to link do publicznego formularza opinii
+ * (patrz ensureProjectReviewToken). */
+export function buildProjectClosingSummary(
+  project: { tytul: string },
+  client: { nazwa: string; osoba_kontaktowa: string } | null,
+  milestones: { nazwa: string; termin: string | null }[],
+  reviewUrl: string
+): string {
+  const powitanie = client?.osoba_kontaktowa ? `Cześć ${client.osoba_kontaktowa},` : "Cześć,";
+  const nazwaKlienta = client?.nazwa ? ` (${client.nazwa})` : "";
+  const etapy = milestones.length
+    ? milestones.map((m) => `- ${m.nazwa}${m.termin ? ` (${formatPlDate(m.termin)})` : ""}`).join("\n")
+    : "- [uzupełnij, co zrobiliśmy]";
+  return `${powitanie}
+
+Projekt „${project.tytul}"${nazwaKlienta} jest zakończony — dziękuję za współpracę!
+
+Co zrobiliśmy:
+${etapy}
+
+Co dalej: [uzupełnij, jeśli jest plan na kolejne kroki/wsparcie]
+
+Będzie mi bardzo miło, jeśli poświęcisz 2 minuty na krótką opinię o współpracy:
+${reviewUrl}
+
+Dziękuję jeszcze raz i do zobaczenia przy kolejnym projekcie!
+
+Pozdrawiam,
+[Twoje imię]`;
+}
+
+/** Średnia z trzech wymiarów oceny (jakość/terminowość/komunikacja) — null,
+ * dopóki żadna ocena nie została jeszcze zebrana. */
+export function projectReviewAverage(
+  p: Pick<Project, "review_rating_jakosc" | "review_rating_terminowosc" | "review_rating_komunikacja">
+): number | null {
+  const vals = [p.review_rating_jakosc, p.review_rating_terminowosc, p.review_rating_komunikacja].filter(
+    (v): v is number => typeof v === "number"
+  );
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 export const PROJECT_STATUSES = [

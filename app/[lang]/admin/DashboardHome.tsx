@@ -28,6 +28,9 @@ type Kpi = {
   pipeline: number;
   pipelineRaw: number;
   taxReserve: TaxReserve;
+  avgClientRating: number | null;
+  reviewsCollected: number;
+  closedProjectsCount: number;
 };
 
 type TodayData = {
@@ -209,7 +212,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-6">
         <div className="card-paper rounded-xl border hairline p-4">
           <div className="text-[11px] text-muted">Przychód (ten miesiąc)</div>
           <div className="mt-1 text-liquid text-lg font-semibold">{formatByCurrency(data.kpi.revenueThisMonth)}</div>
@@ -251,6 +254,15 @@ export function DashboardHome({ lang }: { lang: Locale }) {
               <span className="text-muted">ZUS</span>
               <span className="tabular-nums">{formatMoney(data.kpi.taxReserve.zus)}</span>
             </div>
+          </div>
+        </div>
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Opinie klientów</div>
+          <div className="mt-1 text-lg font-semibold">
+            {data.kpi.avgClientRating != null ? `★ ${data.kpi.avgClientRating.toFixed(1)}/5` : "—"}
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted">
+            {data.kpi.reviewsCollected}/{data.kpi.closedProjectsCount} zamkniętych projektów z opinią
           </div>
         </div>
       </div>

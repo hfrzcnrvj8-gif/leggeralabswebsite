@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
-import { isProjectOverdue, type Project } from "@/lib/projects";
+import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
 import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
 import { isOfferExpired, weightedOfferValue, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
 import { isClientOverdue, type Client } from "@/lib/clients";
@@ -160,6 +160,14 @@ export async function GET() {
   // Surowa (nieważona) suma otwartych ofert — do podpisu KPI, dla przejrzystości.
   const pipelineRaw = offers.reduce((sum, o) => (CLOSED_OFFER_STATUSES.has(o.status) ? sum : sum + o.kwota), 0);
 
+  // Moduł 15 (zamknięcie i opinie): średnia z ocen zebranych opinii + jaki
+  // odsetek zamkniętych projektów w ogóle ma zebraną opinię (patrz "Monitorować"
+  // w docs/plany-modulow/15-zamkniecie-i-opinie.md).
+  const closedProjects = projects.filter((p) => p.status === "Wdrożone");
+  const reviewedProjects = projects.filter((p) => p.review_submitted_at);
+  const reviewAverages = reviewedProjects.map(projectReviewAverage).filter((v): v is number => v != null);
+  const avgClientRating = reviewAverages.length ? reviewAverages.reduce((a, b) => a + b, 0) / reviewAverages.length : null;
+
   return NextResponse.json({
     overdueLeads,
     overdueClients,
@@ -178,6 +186,9 @@ export async function GET() {
       pipeline,
       pipelineRaw,
       taxReserve,
+      avgClientRating,
+      reviewsCollected: reviewedProjects.length,
+      closedProjectsCount: closedProjects.length,
     },
     counts: {
       leads: leads.length,

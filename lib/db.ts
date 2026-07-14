@@ -261,6 +261,25 @@ async function createHubSchema(): Promise<void> {
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS kolor TEXT;`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS ikona TEXT;`;
 
+  // Zamknięcie projektu i opinia (Moduł 15) — token publicznego formularza
+  // oceny (wzorem share_token oferty), trzy wymiary oceny 1-5, komentarz,
+  // zgoda na case study/referencję (pełny tekst do zaakceptowania, nie tylko
+  // checkbox — decyzja właściciela 2026-07-14) + dowód złożenia zgody
+  // (imię, IP, user-agent), tym samym wzorcem co e-podpis oferty/umowy.
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_token TEXT;`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS projects_review_token_idx ON projects(review_token);`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_requested_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_rating_jakosc SMALLINT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_rating_terminowosc SMALLINT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_rating_komunikacja SMALLINT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_comment TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_submitted_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_consent_case_study BOOLEAN NOT NULL DEFAULT false;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_consent_text TEXT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_consent_name TEXT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_consent_ip TEXT;`;
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_consent_user_agent TEXT;`;
+
   // Kamienie milowe — grupują zadania z checklisty i pokazują postęp
   // ("Core 100% z 73") osobno dla każdego etapu projektu, nie tylko całości.
   await sql`
@@ -1067,5 +1086,13 @@ export async function ensureContractShareToken(sql: Sql, id: string, existingTok
   if (existingToken) return existingToken;
   const token = randomUUID().replace(/-/g, "");
   await sql`UPDATE contracts SET share_token = ${token} WHERE id = ${id};`;
+  return token;
+}
+
+/** Token publicznego formularza opinii (Moduł 15) — wzorem ensureOfferShareToken. */
+export async function ensureProjectReviewToken(sql: Sql, id: string, existingToken: string | null): Promise<string> {
+  if (existingToken) return existingToken;
+  const token = randomUUID().replace(/-/g, "");
+  await sql`UPDATE projects SET review_token = ${token} WHERE id = ${id};`;
   return token;
 }

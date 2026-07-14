@@ -83,6 +83,8 @@ export const CLIENT_EVENT_KINDS = [
   "contract_sent",
   "contract_signed",
   "nda_created",
+  "review_requested",
+  "review_collected",
 ] as const;
 export type ClientEventKind = (typeof CLIENT_EVENT_KINDS)[number];
 
@@ -113,6 +115,8 @@ export const CLIENT_EVENT_ICON: Record<string, string> = {
   contract_sent: "📤",
   contract_signed: "✍️",
   nda_created: "🔒",
+  review_requested: "📮",
+  review_collected: "⭐",
 };
 
 /** Moduł 12 (fundament linkowania) — do jakiego segmentu URL-a
@@ -136,6 +140,8 @@ export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projec
   contract_sent: "contracts",
   contract_signed: "contracts",
   nda_created: "contracts",
+  review_requested: "projects",
+  review_collected: "projects",
 };
 
 /** Status relacji — świadomie OSOBNA oś od tego, czy klient coś już kupił

@@ -1795,6 +1795,57 @@ starcie tego czatu:
   kolumnie zaraz po opisie projektu — przed "Kamieniami milowymi", bo
   onboarding logicznie poprzedza realizację.
 
+## Moduł 15 — Zamknięcie projektu i opinie (2026-07-14)
+
+Patrz `docs/plany-modulow/15-zamkniecie-i-opinie.md`. Decyzje właściciela na
+starcie tego czatu: ocena w trzech wymiarach (jakość/terminowość/
+komunikacja, 1-5 każdy), zbierana przez publiczny formularz (link mailem,
+jak Oferty), zgoda na case study/referencję jako pełny tekst do
+zaakceptowania (nie prosty checkbox), szkic podsumowania generowany
+automatycznie z danych projektu, i dodatkowo prosta średnia na Pulpicie
+już w tym module (nie odłożona do Modułu 18).
+
+- **Dane na projekcie, nie na kliencie** — mimo że mapa drogi klienta mówi
+  "zapisywane przy kliencie", opinia dotyczy konkretnego zrealizowanego
+  projektu (klient może mieć kilka projektów w czasie), więc pola
+  `review_*` (token, trzy oceny, komentarz, zgoda + dowód złożenia: imię/
+  IP/user-agent) żyją na `projects` (`createHubSchema` w `lib/db.ts`),
+  wzorem `share_token` oferty/umowy. `ensureProjectReviewToken()` — token
+  generowany leniwie i idempotentnie.
+- **Formularz publiczny**: `app/[lang]/opinia/[token]/` (strona +
+  `ProjectReviewForm.tsx`, prosty jasny card, nie pełny druk A4 jak
+  Oferta/Umowa — to ankieta, nie dokument), `GET`/`POST .../submit` w
+  `app/api/projects/review/public/[token]/` — bez `isAuthed()` (token =
+  hasło-w-linku, wzorem publicznego podglądu oferty). "Claim"-style UPDATE
+  (`WHERE review_submitted_at IS NULL`) chroni przed podwójnym zapisem.
+  Zgoda na case study wymaga wpisanego imienia i nazwiska jako dowodu
+  (jak e-podpis oferty) — samego checkboxa nie da się użyć jako dowodu.
+  Treść zgody (`PROJECT_REVIEW_CONSENT_TEXT` w `lib/projects.ts`) jest
+  zapisywana jako snapshot w `review_consent_text` w momencie akceptacji,
+  żeby późniejsza zmiana treści w kodzie nie podważała, na co klient
+  faktycznie się zgodził.
+- **Szkic podsumowania + wysyłka — ten sam duch co wiadomość powitalna
+  (Moduł 14)**: `buildProjectClosingSummary()` generuje tekst (powitanie +
+  lista kamieni milowych + link do formularza opinii) raz przy pierwszym
+  załadowaniu panelu, edytowalny w `<textarea>`, nigdy wysyłany
+  automatycznie. Przycisk "Wyślij mailem" (`POST /api/projects/:id/
+  request-review`) wysyła DOKŁADNIE tę (ew. zredagowaną) treść przez
+  Resend i dopiero WTEDY ustawia `review_requested_at` — jeśli wysyłka się
+  nie uda (np. brak `RESEND_API_KEY`), stan nie zmienia się na "wysłano".
+  Wymaga podpiętego klienta z adresem e-mail.
+- **Miękka podpowiedź** — `PROJECT_REVIEW_REQUEST_HINT` pokazuje się przy
+  statusie "Wdrożone", dopóki opinia nie została ani poproszona, ani
+  zebrana (wzorem `ONBOARDING_INCOMPLETE_HINT`/`LEAD_STATUS_HINT`) —
+  czysto informacyjna, nic nie blokuje.
+- **Pulpit**: nowy kafelek "Opinie klientów" (`kpi.avgClientRating`,
+  `reviewsCollected`/`closedProjectsCount` w `app/api/hub/today`) — średnia
+  z `projectReviewAverage()` po wszystkich projektach z zebraną opinią,
+  plus "X/Y zamkniętych projektów z opinią" (dokładnie wskaźnik z
+  "Monitorować" w pliku modułu).
+- **Oś czasu klienta** (Moduł 12): nowe zdarzenia `review_requested` (📮)
+  i `review_collected` (⭐), oba klikalne do podstrony projektu
+  (`CLIENT_EVENT_TARGET`).
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

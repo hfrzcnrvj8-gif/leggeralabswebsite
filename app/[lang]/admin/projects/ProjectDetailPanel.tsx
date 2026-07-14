@@ -13,8 +13,12 @@ import {
   type ProjectOnboardingItem,
   ONBOARDING_INCOMPLETE_HINT,
   buildOnboardingWelcomeMessage,
+  PROJECT_REVIEW_REQUEST_HINT,
+  buildProjectClosingSummary,
+  projectReviewAverage,
   progressOf,
   isPlausibleDateString,
+  formatPlDate,
   relativeDeadline,
   daysFromToday,
   ProjectIconPicker,
@@ -51,7 +55,7 @@ export function ProjectDetailPanel({
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
   const [resources, setResources] = useState<ProjectResource[]>([]);
   const [onboarding, setOnboarding] = useState<ProjectOnboardingItem[]>([]);
-  const [client, setClient] = useState<{ nazwa: string; osoba_kontaktowa: string } | null>(null);
+  const [client, setClient] = useState<{ nazwa: string; osoba_kontaktowa: string; email: string } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -64,6 +68,10 @@ export function ProjectDetailPanel({
   const [seedingOnboarding, setSeedingOnboarding] = useState(false);
   const [welcomeMsg, setWelcomeMsg] = useState("");
   const welcomeMsgInitialized = useRef(false);
+  const [reviewUrl, setReviewUrl] = useState("");
+  const [reviewDraft, setReviewDraft] = useState("");
+  const reviewDraftInitialized = useRef(false);
+  const [requestingReview, setRequestingReview] = useState(false);
   const [dependencies, setDependencies] = useState<string[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
   const [rentownosc, setRentownosc] = useState<{ przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean } | null>(null);
@@ -97,11 +105,11 @@ export function ProjectDetailPanel({
     setDependencies((data.dependencies ?? []).map((d) => d.depends_on_id));
     setRentownosc(data.rentownosc ?? null);
 
-    let loadedClient: { nazwa: string; osoba_kontaktowa: string } | null = null;
+    let loadedClient: { nazwa: string; osoba_kontaktowa: string; email: string } | null = null;
     if (data.project.client_id) {
       const cRes = await fetch(`/api/clients/${data.project.client_id}`);
       if (cRes.ok) {
-        const cData = (await cRes.json()) as { client?: { nazwa: string; osoba_kontaktowa: string } };
+        const cData = (await cRes.json()) as { client?: { nazwa: string; osoba_kontaktowa: string; email: string } };
         loadedClient = cData.client ?? null;
       }
     }
@@ -114,6 +122,23 @@ export function ProjectDetailPanel({
       welcomeMsgInitialized.current = true;
       setWelcomeMsg(buildOnboardingWelcomeMessage(data.project, loadedClient));
     }
+
+    // Zamknięcie i opinia (Moduł 15): link generuje się raz, przy pierwszym
+    // załadowaniu (jeśli projekt ma klienta) — token jest idempotentny, więc
+    // kolejne odświeżenia dostają zawsze ten sam link. Szkic podsumowania
+    // wypełnia się raz, dopiero gdy link jest już znany, żeby zawierał
+    // prawdziwy URL — dalej edytowalny ręcznie, jak wiadomość powitalna.
+    if (data.project.client_id && !reviewDraftInitialized.current) {
+      const rRes = await fetch(`/api/projects/${id}/review-link`, { method: "POST" });
+      if (rRes.ok) {
+        const rData = (await rRes.json()) as { url: string };
+        setReviewUrl(rData.url);
+        if (!reviewDraftInitialized.current) {
+          reviewDraftInitialized.current = true;
+          setReviewDraft(buildProjectClosingSummary(data.project, loadedClient, data.milestones, rData.url));
+        }
+      }
+    }
   }, [id]);
 
   useEffect(() => {
@@ -121,6 +146,9 @@ export function ProjectDetailPanel({
     setNotFound(false);
     welcomeMsgInitialized.current = false;
     setWelcomeMsg("");
+    reviewDraftInitialized.current = false;
+    setReviewUrl("");
+    setReviewDraft("");
     load();
   }, [load]);
 
@@ -415,6 +443,33 @@ export function ProjectDetailPanel({
     }
   };
 
+  const copyReviewDraft = async () => {
+    try {
+      await navigator.clipboard.writeText(reviewDraft);
+      toast("Skopiowano do schowka.");
+    } catch {
+      toast("Nie udało się skopiować — zaznacz i skopiuj ręcznie.", "error");
+    }
+  };
+
+  const requestReview = async () => {
+    if (!reviewDraft.trim() || requestingReview) return;
+    setRequestingReview(true);
+    const res = await fetch(`/api/projects/${id}/request-review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: reviewDraft }),
+    });
+    setRequestingReview(false);
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      toast(data.error ?? "Nie udało się wysłać wiadomości.", "error");
+      return;
+    }
+    toast("Wysłano podsumowanie i prośbę o opinię.");
+    load();
+  };
+
   const submitNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteText.trim()) return;
@@ -600,6 +655,73 @@ export function ProjectDetailPanel({
               />
             </div>
           </div>
+
+          {project.client_id && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <h2 className="text-[14px] font-medium">Zamknięcie projektu i opinia</h2>
+              {project.status === "Wdrożone" && !project.review_requested_at && !project.review_submitted_at && (
+                <p className="mt-2 text-[12.5px] text-muted opacity-80">{PROJECT_REVIEW_REQUEST_HINT}</p>
+              )}
+
+              {project.review_submitted_at ? (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-1.5 text-[13px] text-emerald-400">
+                    <IconCheck size={15} />
+                    Opinia zebrana {formatPlDate(project.review_submitted_at)} — średnia {projectReviewAverage(project)?.toFixed(1)}/5
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-[12px]">
+                    <div>
+                      <div className="text-muted">Jakość</div>
+                      <div className="font-medium text-[var(--fg)]">{project.review_rating_jakosc}/5</div>
+                    </div>
+                    <div>
+                      <div className="text-muted">Terminowość</div>
+                      <div className="font-medium text-[var(--fg)]">{project.review_rating_terminowosc}/5</div>
+                    </div>
+                    <div>
+                      <div className="text-muted">Komunikacja</div>
+                      <div className="font-medium text-[var(--fg)]">{project.review_rating_komunikacja}/5</div>
+                    </div>
+                  </div>
+                  {project.review_comment && <p className="text-[12.5px] italic text-[var(--fg)] opacity-90">„{project.review_comment}"</p>}
+                  <p className="text-[11.5px] text-muted">
+                    {project.review_consent_case_study
+                      ? `✓ Zgoda na referencję/case study (${project.review_consent_name ?? "—"})`
+                      : "Brak zgody na referencję/case study."}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {project.review_requested_at && (
+                    <p className="mt-2 text-[12.5px] text-muted opacity-80">
+                      Wysłano {formatPlDate(project.review_requested_at)} — czeka na odpowiedź klienta.
+                    </p>
+                  )}
+                  <div className="mt-3 border-t hairline pt-3">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <h3 className="text-[11px] text-muted opacity-70">Podsumowanie + prośba o opinię (szkic do edycji)</h3>
+                      <button onClick={copyReviewDraft} className="shrink-0 rounded-full border hairline px-2.5 py-0.5 text-[11px] text-muted hover:text-[var(--fg)]">
+                        Kopiuj do schowka
+                      </button>
+                    </div>
+                    <textarea
+                      value={reviewDraft}
+                      onChange={(e) => setReviewDraft(e.target.value)}
+                      rows={7}
+                      className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+                    />
+                    <button
+                      onClick={requestReview}
+                      disabled={!reviewDraft.trim() || requestingReview || !reviewUrl}
+                      className="btn-primary mt-2 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {requestingReview ? "Wysyłanie…" : project.review_requested_at ? "Wyślij ponownie mailem" : "Wyślij mailem"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {rentownosc && (rentownosc.przychod_netto > 0 || rentownosc.koszty_netto > 0) && (
             <div className="card-paper rounded-xl border hairline p-4">
