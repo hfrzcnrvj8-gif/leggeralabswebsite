@@ -70,7 +70,7 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
         ].join("\n"),
       });
       await sql`UPDATE invoices SET last_reminder_at = now() WHERE id = ${inv.id};`;
-      await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności — faktura ${inv.numer}`);
+      await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności — faktura ${inv.numer}`, null, inv.id);
       sent += 1;
     } catch (e) {
       console.error("[sendOverdueInvoiceReminders] failed for", inv.id, e);

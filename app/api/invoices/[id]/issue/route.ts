@@ -153,7 +153,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     }
     const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
     const typLabel = INVOICE_TYPE_LABEL[(inv.typ_dokumentu as InvoiceDocType) ?? "faktura"];
-    await logClientEvent(sql, clientId, "invoice_issued", `Wystawiono: ${typLabel} nr ${numer}`);
+    await logClientEvent(sql, clientId, "invoice_issued", `Wystawiono: ${typLabel} nr ${numer}`, null, id);
 
     return NextResponse.json({ ok: true, numer });
   } catch (err) {

@@ -1673,6 +1673,41 @@ Decyzje właściciela na starcie tego modułu (nie zgadywane):
 - Nawigacja: pozycja „Umowy” między Ofertami a Projektami (kolejność wg
   realnej ścieżki pracy), skrót `g u`.
 
+## Moduł 12 — Fundament linkowania (2026-07-14)
+
+Infrastrukturalny moduł odblokowujący klikalną historię klienta ("kliknij na
+coś typu mail z kiedyś tam i mnie do tego przenosi" — wprost zgłoszone przez
+właściciela). Patrz `docs/plany-modulow/12-fundament-linkowania.md`.
+
+- **Podstrony Faktur/Ofert** — `app/[lang]/admin/invoices/[id]/page.tsx` i
+  `.../offers/[id]/page.tsx` (+ cienkie wrappery `InvoiceDetail.tsx`/
+  `OfferDetail.tsx`, wzorem `LeadDetail.tsx`) renderują **ten sam edytor co
+  modal** (`InvoiceEditor`/`OfferEditor`), tylko jako pełną stronę z kartą
+  `card-paper` — nie przekierowanie na `/print`. Współistnieją z istniejącym
+  `[id]/print/` (osobna podstrona, bez kolizji). Naprawia przy okazji martwy
+  link z Pulpitu (`DashboardHome.tsx` linkował do `/admin/invoices/[id]`,
+  zanim ta podstrona istniała).
+- **Klikalna oś czasu klienta** — `client_events` ma nową kolumnę
+  `related_id` (id oferty/faktury/projektu/umowy, do którego zdarzenie się
+  odnosi); `logClientEvent()` przyjmuje opcjonalny 6. parametr `relatedId`.
+  Docelowy URL wynika z `kind` przez `CLIENT_EVENT_TARGET` (`lib/clients.ts`)
+  — nie ma osobnej kolumny "typu celu". `client_created` i
+  `nurture_scheduled` świadomie bez linku (nie mają odrębnego rekordu).
+  Rozszerzono też `CLIENT_EVENT_KINDS`/`CLIENT_EVENT_ICON` o zdarzenia z
+  Modułu 11 (`contract_created`, `contract_sent`, `contract_signed`,
+  `nda_created`), które dotąd nie były w tej liście mimo że już się logowały.
+  Sekcja "Powiązane" w `ClientDetailPanel.tsx` linkuje teraz do `/[id]`
+  (pełny edytor) zamiast do `/print`, spójnie z Projektami.
+- **Gubione pola przy konwersji Lead→Klient** — `clients` ma nowe kolumny
+  `osoba_kontaktowa`, `zrodlo`, `zrodlo_kategoria` (analogiczne pola już
+  istniały w `leads`, ale nie miały odpowiednika w `clients`). Oba miejsca
+  automatycznej promocji leada (`app/api/leads/[id]/promote/route.ts`,
+  `app/api/offers/route.ts` POST) kopiują teraz też `linkedin_url` i
+  `notatki` — te kolumny w `clients` już istniały, ale nie były wypełniane.
+  Ręczny formularz "Utwórz klienta" (`app/api/clients/route.ts` POST) nie
+  był w zakresie tego modułu — to inny przepływ (prefill pustego formularza,
+  nie automatyczna migracja danych).
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

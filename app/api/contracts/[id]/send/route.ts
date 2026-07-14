@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       status = "Wysłana";
     }
     const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
-    await logClientEvent(sql, clientId, "contract_sent", `Wysłano ${label.toLowerCase()} mailem`);
+    await logClientEvent(sql, clientId, "contract_sent", `Wysłano ${label.toLowerCase()} mailem`, null, id);
 
     return NextResponse.json({ ok: true, status });
   } catch (err) {

@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       status = "Wysłana";
     }
     const clientId = typeof offer.client_id === "string" ? offer.client_id : null;
-    await logClientEvent(sql, clientId, "offer_sent", `Wysłano ofertę „${tytul}” mailem`);
+    await logClientEvent(sql, clientId, "offer_sent", `Wysłano ofertę „${tytul}” mailem`, null, id);
 
     return NextResponse.json({ ok: true, status });
   } catch (err) {

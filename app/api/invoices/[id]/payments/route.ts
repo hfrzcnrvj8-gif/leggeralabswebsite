@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const paymentId = randomUUID();
     await sql`INSERT INTO invoice_payments (id, invoice_id, kwota, data) VALUES (${paymentId}, ${id}, ${kwota}, ${data});`;
-    await logClientEvent(sql, clientId, "payment_received", `Wpłata na fakturę ${inv[0].numer ?? "(szkic)"}`, kwota);
+    await logClientEvent(sql, clientId, "payment_received", `Wpłata na fakturę ${inv[0].numer ?? "(szkic)"}`, kwota, id);
 
     const payments = await sql`SELECT * FROM invoice_payments WHERE invoice_id = ${id} ORDER BY data ASC;`;
     const paymentsNum = payments.map((p) => ({ ...p, kwota: Number(p.kwota) }));
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (brutto > 0 && totalPaid(paymentsNum) >= brutto) {
         await sql`UPDATE invoices SET status = 'Opłacona', updated_at = now() WHERE id = ${id};`;
         status = "Opłacona";
-        await logClientEvent(sql, clientId, "invoice_paid", `Faktura ${inv[0].numer ?? "(szkic)"} w pełni opłacona`);
+        await logClientEvent(sql, clientId, "invoice_paid", `Faktura ${inv[0].numer ?? "(szkic)"} w pełni opłacona`, null, id);
       }
     }
 

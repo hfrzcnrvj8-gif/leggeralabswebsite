@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         ${zakresPrac}, ${cena}
       );
     `;
-    await logClientEvent(sql, offer.client_id, "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`);
+    await logClientEvent(sql, offer.client_id, "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`, null, id);
     return NextResponse.json({ ok: true, id });
   }
 
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         ${lead.firma}, ${lead.ulica}, ${lead.kod}, ${lead.miasto}, ${lead.kraj}, ${lead.email}
       );
     `;
-    if (lead.client_id) await logClientEvent(sql, lead.client_id, "nda_created", "Utworzono NDA");
+    if (lead.client_id) await logClientEvent(sql, lead.client_id, "nda_created", "Utworzono NDA", null, id);
     return NextResponse.json({ ok: true, id });
   }
 

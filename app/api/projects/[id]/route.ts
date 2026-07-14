@@ -204,7 +204,7 @@ export async function PATCH(
   if (statusChangedTo && current) {
     const clientId = typeof current.client_id === "string" ? current.client_id : null;
     const tytul = typeof current.tytul === "string" ? current.tytul : "Projekt";
-    await logClientEvent(sql, clientId, "project_status_changed", `Projekt „${tytul}” → ${statusChangedTo}`);
+    await logClientEvent(sql, clientId, "project_status_changed", `Projekt „${tytul}” → ${statusChangedTo}`, null, id);
 
     // Nurture automatyczny (Moduł 2): przy wejściu w status zamknięty
     // ("Wdrożone") planujemy klientowi dwa przyszłe kontakty (14/90 dni),

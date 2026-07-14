@@ -8,6 +8,7 @@ import {
   CLIENT_STATUS_HINT,
   CLIENT_STATUS_STEP,
   CLIENT_EVENT_ICON,
+  CLIENT_EVENT_TARGET,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_ICON,
@@ -50,6 +51,9 @@ type FeedItem = {
   kierunek: string | null;
   wynik: string | null;
   czas_trwania_sek: number | null;
+  /** Id oferty/faktury/projektu/umowy, do którego się odnosi (Moduł 12) —
+   * null gdy zdarzenie świadomie bez celu (patrz CLIENT_EVENT_TARGET). */
+  related_id: string | null;
   source: "client" | "lead" | "system";
 };
 
@@ -318,7 +322,7 @@ export function ClientDetailPanel({
               <LinkedGroup title="Oferty">
                 {offers.map((o) => (
                   <li key={o.id}>
-                    <Link href={`/${lang}/admin/offers/${o.id}/print`} target="_blank" className="hover:underline">
+                    <Link href={`/${lang}/admin/offers/${o.id}`} className="hover:underline">
                       {o.tytul || "(bez tytułu)"}
                     </Link>
                     <span className="text-muted"> — {o.status}{o.wazna_do ? `, ważna do ${formatPlDate(o.wazna_do)}` : ""}</span>
@@ -330,7 +334,7 @@ export function ClientDetailPanel({
               <LinkedGroup title="Faktury">
                 {invoices.map((i) => (
                   <li key={i.id}>
-                    <Link href={`/${lang}/admin/invoices/${i.id}/print`} target="_blank" className="hover:underline">
+                    <Link href={`/${lang}/admin/invoices/${i.id}`} className="hover:underline">
                       {i.numer ?? "(szkic)"}
                     </Link>
                     <span className="text-muted"> — {i.status}</span>
@@ -516,6 +520,18 @@ export function ClientDetailPanel({
               <ul className="space-y-2">
                 {group.items.map((f) => {
                   const badge = feedBadge(f);
+                  // Moduł 12 — zdarzenie klikalne, gdy ma zapisany cel
+                  // (oferta/faktura/projekt/umowa) i typ zdarzenia wie, dokąd
+                  // prowadzi (patrz CLIENT_EVENT_TARGET). Starsze zdarzenia
+                  // sprzed migracji nie mają related_id — zostają bez linku.
+                  const targetSegment = CLIENT_EVENT_TARGET[f.kind];
+                  const href = f.related_id && targetSegment ? `/${lang}/admin/${targetSegment}/${f.related_id}` : null;
+                  const text = (
+                    <p className={`whitespace-pre-wrap ${href ? "hover:underline" : ""}`}>
+                      {f.text}
+                      {f.amount != null && <span className="font-medium"> — {formatMoney(f.amount)}</span>}
+                    </p>
+                  );
                   return (
                     <li key={`${f.source}:${f.id}`} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
                       <span
@@ -546,10 +562,7 @@ export function ClientDetailPanel({
                             </button>
                           )}
                         </div>
-                        <p className="whitespace-pre-wrap">
-                          {f.text}
-                          {f.amount != null && <span className="font-medium"> — {formatMoney(f.amount)}</span>}
-                        </p>
+                        {href ? <Link href={href}>{text}</Link> : text}
                       </div>
                     </li>
                   );

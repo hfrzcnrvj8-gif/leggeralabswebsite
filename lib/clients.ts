@@ -24,6 +24,14 @@ export type Client = {
   www: string;
   /** Link do profilu LinkedIn — osobne pole, patrz lib/contact.ts linkedinLink(). */
   linkedin_url: string;
+  /** Osoba kontaktowa u klienta — kopiowana z leada przy awansie (Moduł 12),
+   * pole istniało tylko w leads przed tą migracją. */
+  osoba_kontaktowa: string;
+  /** Pochodzenie klienta (skąd przyszedł jako lead) — wolny tekst,
+   * kopiowany z leada przy awansie, nigdy nie edytowany ręcznie potem. */
+  zrodlo: string;
+  /** Kategoria źródła (SOURCE_CATEGORIES w lib/leads.ts) — patrz zrodlo. */
+  zrodlo_kategoria: string;
   branza: string;
   status: ClientStatus;
   ostatni_kontakt: string | null;
@@ -70,6 +78,10 @@ export const CLIENT_EVENT_KINDS = [
   "invoice_paid",
   "project_status_changed",
   "nurture_scheduled",
+  "contract_created",
+  "contract_sent",
+  "contract_signed",
+  "nda_created",
 ] as const;
 export type ClientEventKind = (typeof CLIENT_EVENT_KINDS)[number];
 
@@ -79,6 +91,7 @@ export type ClientEvent = {
   kind: ClientEventKind | string;
   text: string;
   amount: number | null;
+  related_id: string | null;
   created_at: string;
 };
 
@@ -94,6 +107,32 @@ export const CLIENT_EVENT_ICON: Record<string, string> = {
   invoice_paid: "✅",
   project_status_changed: "📁",
   nurture_scheduled: "📅",
+  contract_created: "📄",
+  contract_sent: "📤",
+  contract_signed: "✍️",
+  nda_created: "🔒",
+};
+
+/** Moduł 12 (fundament linkowania) — do jakiego segmentu URL-a
+ * (`/admin/<segment>/<id>`) prowadzi dane zdarzenie, na podstawie `kind`.
+ * `null` = zdarzenie świadomie bez celu (client_created, nurture_scheduled —
+ * nie ma osobnego rekordu, do którego dałoby się linkować). */
+export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projects" | "contracts" | null> = {
+  client_created: null,
+  offer_created: "offers",
+  offer_sent: "offers",
+  offer_accepted: "offers",
+  invoice_issued: "invoices",
+  invoice_sent: "invoices",
+  invoice_reminder: "invoices",
+  payment_received: "invoices",
+  invoice_paid: "invoices",
+  project_status_changed: "projects",
+  nurture_scheduled: null,
+  contract_created: "contracts",
+  contract_sent: "contracts",
+  contract_signed: "contracts",
+  nda_created: "contracts",
 };
 
 /** Status relacji — świadomie OSOBNA oś od tego, czy klient coś już kupił

@@ -797,6 +797,20 @@ async function createClientsSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS client_events_client_id_idx ON client_events(client_id);`;
+
+  // Moduł 12 (fundament linkowania) — id rekordu, do którego zdarzenie się
+  // odnosi (oferta/faktura/projekt/umowa), żeby oś czasu klienta mogła
+  // linkować wprost do niego. Typ tego rekordu (a więc i URL) wynika z
+  // `kind` — patrz CLIENT_EVENT_TARGET w lib/clients.ts — więc nie
+  // potrzebujemy osobnej kolumny "related_type".
+  await sql`ALTER TABLE client_events ADD COLUMN IF NOT EXISTS related_id TEXT;`;
+
+  // Moduł 12 — pola gubione dziś przy konwersji Lead→Klient (osoba
+  // kontaktowa, LinkedIn już ma kolumnę wyżej, źródło leada) — patrz
+  // app/api/leads/[id]/promote i app/api/offers/route.ts POST.
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS osoba_kontaktowa TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS zrodlo TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS zrodlo_kategoria TEXT NOT NULL DEFAULT '';`;
 }
 
 export async function ensureClientsSchema(): Promise<void> {
@@ -808,18 +822,21 @@ export async function ensureClientsSchema(): Promise<void> {
  * `clientId` jest null (dokument bez podpiętego klienta). Wywoływane z
  * różnych routes (oferty/faktury/wpłaty/projekty) zaraz po akcji, żeby data
  * zdarzenia była prawdziwym momentem jego wystąpienia, nie odgadywana
- * później z `updated_at`. */
+ * później z `updated_at`. `relatedId` (Moduł 12) to id oferty/faktury/
+ * projektu/umowy, do którego zdarzenie się odnosi — pozwala osi czasu
+ * linkować wprost do rekordu (patrz CLIENT_EVENT_TARGET w lib/clients.ts). */
 export async function logClientEvent(
   sql: Sql,
   clientId: string | null,
   kind: string,
   text: string,
-  amount?: number | null
+  amount?: number | null,
+  relatedId?: string | null
 ): Promise<void> {
   if (!clientId) return;
   await sql`
-    INSERT INTO client_events (id, client_id, kind, text, amount)
-    VALUES (${randomUUID()}, ${clientId}, ${kind}, ${text}, ${amount ?? null});
+    INSERT INTO client_events (id, client_id, kind, text, amount, related_id)
+    VALUES (${randomUUID()}, ${clientId}, ${kind}, ${text}, ${amount ?? null}, ${relatedId ?? null});
   `;
 }
 

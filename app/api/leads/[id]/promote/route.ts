@@ -23,8 +23,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const clientId = randomUUID();
   await sql`
-    INSERT INTO clients (id, nazwa, branza, telefon, email, www, ulica, kod, miasto, kraj, lead_id)
-    VALUES (${clientId}, ${lead.firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${lead.ulica}, ${lead.kod}, ${lead.miasto}, ${lead.kraj}, ${id});
+    INSERT INTO clients (
+      id, nazwa, branza, telefon, email, www, ulica, kod, miasto, kraj, lead_id,
+      osoba_kontaktowa, linkedin_url, zrodlo, zrodlo_kategoria, notatki
+    )
+    VALUES (
+      ${clientId}, ${lead.firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${lead.ulica}, ${lead.kod}, ${lead.miasto}, ${lead.kraj}, ${id},
+      ${lead.osoba_kontaktowa}, ${lead.linkedin_url}, ${lead.zrodlo}, ${lead.zrodlo_kategoria}, ${lead.notatki}
+    );
   `;
   await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${id};`;
   await logClientEvent(sql, clientId, "client_created", "Ręcznie utworzony z leada");

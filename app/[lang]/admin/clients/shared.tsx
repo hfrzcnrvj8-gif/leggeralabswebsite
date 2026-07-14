@@ -13,6 +13,7 @@ export {
   CLIENT_STATUS_HINT,
   CLIENT_STATUS_STEP,
   CLIENT_EVENT_ICON,
+  CLIENT_EVENT_TARGET,
   clientDaysSince,
   isClientOverdue,
   clientOverdueReason,

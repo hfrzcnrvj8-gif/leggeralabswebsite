@@ -26,7 +26,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
 
   const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
-  await logClientEvent(sql, clientId, "contract_signed", `${contract.typ === "nda" ? "NDA" : "Umowa"} oznaczona jako podpisana`);
+  await logClientEvent(sql, clientId, "contract_signed", `${contract.typ === "nda" ? "NDA" : "Umowa"} oznaczona jako podpisana`, null, id);
 
   return NextResponse.json({ ok: true });
 }

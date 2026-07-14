@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
-    await logClientEvent(sql, clientId, "invoice_sent", `Wysłano mailem: ${typLabel} nr ${inv.numer}`);
+    await logClientEvent(sql, clientId, "invoice_sent", `Wysłano mailem: ${typLabel} nr ${inv.numer}`, null, id);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

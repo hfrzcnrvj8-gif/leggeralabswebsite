@@ -43,7 +43,11 @@ export async function POST(req: NextRequest) {
   let clientId: string | null = null;
 
   if (leadId) {
-    const lead = (await sql`SELECT firma, branza, telefon, email, www, ulica, kod, miasto, kraj, client_id FROM leads WHERE id = ${leadId};`)[0];
+    const lead = (await sql`
+      SELECT firma, branza, telefon, email, www, ulica, kod, miasto, kraj, client_id,
+        osoba_kontaktowa, linkedin_url, zrodlo, zrodlo_kategoria, notatki
+      FROM leads WHERE id = ${leadId};
+    `)[0];
     const firma = typeof lead?.firma === "string" ? lead.firma : "";
     if (!klientNazwa) klientNazwa = firma;
     if (!tytul) tytul = firma ? `Oferta — ${firma}` : "";
@@ -58,8 +62,14 @@ export async function POST(req: NextRequest) {
     } else if (lead) {
       clientId = randomUUID();
       await sql`
-        INSERT INTO clients (id, nazwa, branza, telefon, email, www, ulica, kod, miasto, kraj, lead_id)
-        VALUES (${clientId}, ${firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${lead.ulica}, ${lead.kod}, ${lead.miasto}, ${lead.kraj}, ${leadId});
+        INSERT INTO clients (
+          id, nazwa, branza, telefon, email, www, ulica, kod, miasto, kraj, lead_id,
+          osoba_kontaktowa, linkedin_url, zrodlo, zrodlo_kategoria, notatki
+        )
+        VALUES (
+          ${clientId}, ${firma}, ${lead.branza}, ${lead.telefon}, ${lead.email}, ${lead.www}, ${lead.ulica}, ${lead.kod}, ${lead.miasto}, ${lead.kraj}, ${leadId},
+          ${lead.osoba_kontaktowa}, ${lead.linkedin_url}, ${lead.zrodlo}, ${lead.zrodlo_kategoria}, ${lead.notatki}
+        );
       `;
       await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${leadId};`;
       await logClientEvent(sql, clientId, "client_created", "Awansował z leada przy tworzeniu pierwszej oferty");
@@ -70,6 +80,6 @@ export async function POST(req: NextRequest) {
     INSERT INTO offers (id, tytul, lead_id, klient_nazwa, client_id)
     VALUES (${id}, ${tytul}, ${leadId}, ${klientNazwa}, ${clientId});
   `;
-  await logClientEvent(sql, clientId, "offer_created", `Utworzono ofertę „${tytul || "(bez tytułu)"}”`);
+  await logClientEvent(sql, clientId, "offer_created", `Utworzono ofertę „${tytul || "(bez tytułu)"}”`, null, id);
   return NextResponse.json({ ok: true, id });
 }

@@ -145,7 +145,7 @@ export async function acceptOffer(
         `;
       }
 
-      await logClientEvent(sql, clientId, "offer_accepted", `Zaakceptowano ofertę „${tytulProjektu}” — utworzono projekt i fakturę`);
+      await logClientEvent(sql, clientId, "offer_accepted", `Zaakceptowano ofertę „${tytulProjektu}” — utworzono projekt i fakturę`, null, offer.id);
 
       return { ok: true, projectId, invoiceId };
     });

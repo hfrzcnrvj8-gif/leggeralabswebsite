@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     leadId
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
       : Promise.resolve([] as RawActivity[]),
-    sql`SELECT id, kind, text, amount, created_at FROM client_events WHERE client_id = ${id};`,
+    sql`SELECT id, kind, text, amount, related_id, created_at FROM client_events WHERE client_id = ${id};`,
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, tytul, status, termin, created_at FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;`,
@@ -57,6 +57,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       kierunek: a.kierunek ?? null,
       wynik: a.wynik ?? null,
       czas_trwania_sek: a.czas_trwania_sek ?? null,
+      related_id: null as string | null,
       source: "client" as const,
     })),
     ...leadActivity.map((a) => ({
@@ -69,6 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       kierunek: a.kierunek ?? null,
       wynik: a.wynik ?? null,
       czas_trwania_sek: a.czas_trwania_sek ?? null,
+      related_id: null as string | null,
       source: "lead" as const,
     })),
     ...events.map((e) => ({
@@ -81,6 +83,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       kierunek: null as string | null,
       wynik: null as string | null,
       czas_trwania_sek: null as number | null,
+      related_id: (e.related_id as string | null) ?? null,
       source: "system" as const,
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
