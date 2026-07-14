@@ -12,18 +12,39 @@ import { todayLocalISO as todayISO, addDaysToISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover } from "../Menu";
 
-/** Kolory wyliczonych terminów — celowo inne niż niebieski ręcznych wydarzeń,
- * żeby na pierwszy rzut oka odróżnić „to wpisałem sam" od „to wyliczył panel". */
-const DEADLINE_STYLE: Record<DeadlineKind, { dot: string; pill: string; label: string }> = {
-  invoice: { dot: "bg-brand-gold", pill: "bg-brand-gold/15 text-brand-gold", label: "Płatność" },
-  project: { dot: "bg-brand-purple", pill: "bg-brand-purple/15 text-brand-purple", label: "Projekt" },
-  milestone: { dot: "bg-brand-pink", pill: "bg-brand-pink/15 text-brand-pink", label: "Kamień" },
-  lead: { dot: "bg-orange-500", pill: "bg-orange-500/15 text-orange-400", label: "Lead" },
-  client: { dot: "bg-brand-cyan", pill: "bg-brand-cyan/15 text-brand-cyan", label: "Klient" },
-  call: { dot: "bg-brand-cyan", pill: "bg-brand-cyan/15 text-brand-cyan", label: "Połączenie" },
-  "call-missed": { dot: "bg-red-500", pill: "bg-red-500/15 text-red-400", label: "Nieodebrane" },
-  email: { dot: "bg-indigo-500", pill: "bg-indigo-500/15 text-indigo-400", label: "Email" },
+type KindStyle = { border: string; bg: string; text: string; dot: string; label: string };
+
+/** Styl "kalendarza" per rodzaj wpisu — lewy kolorowy pasek + podbarwione tło
+ * (wzorem Notion Calendar), zamiast cienkich plakietek. Paleta marki tam,
+ * gdzie ma to sens (klient/projekt), reszta zachowuje rozróżnialne kolory
+ * pomocnicze (lead/nieodebrane/email). */
+const DEADLINE_STYLE: Record<DeadlineKind, KindStyle> = {
+  invoice: { border: "border-brand-gold", bg: "bg-brand-gold/10", text: "text-brand-gold", dot: "bg-brand-gold", label: "Płatność" },
+  project: { border: "border-brand-purple", bg: "bg-brand-purple/10", text: "text-brand-purple", dot: "bg-brand-purple", label: "Projekt" },
+  milestone: { border: "border-brand-pink", bg: "bg-brand-pink/10", text: "text-brand-pink", dot: "bg-brand-pink", label: "Kamień" },
+  lead: { border: "border-orange-500", bg: "bg-orange-500/10", text: "text-orange-400", dot: "bg-orange-500", label: "Lead" },
+  client: { border: "border-brand-cyan", bg: "bg-brand-cyan/10", text: "text-brand-cyan", dot: "bg-brand-cyan", label: "Klient" },
+  call: { border: "border-brand-cyan", bg: "bg-brand-cyan/10", text: "text-brand-cyan", dot: "bg-brand-cyan", label: "Połączenie" },
+  "call-missed": { border: "border-red-500", bg: "bg-red-500/10", text: "text-red-400", dot: "bg-red-500", label: "Nieodebrane" },
+  email: { border: "border-indigo-500", bg: "bg-indigo-500/10", text: "text-indigo-400", dot: "bg-indigo-500", label: "Email" },
 };
+
+const EVENT_DEFAULT_STYLE: KindStyle = { border: "border-[#4ea7fc]", bg: "bg-[#4ea7fc]/10", text: "text-[#4ea7fc]", dot: "bg-[#4ea7fc]", label: "Wydarzenie" };
+
+/** Kolor ręcznego wydarzenia wyliczony z powiązania — sam kolor komunikuje,
+ * z którym modułem wydarzenie jest związane (klient → cyan, lead → gold,
+ * projekt → purple), zamiast jednego płaskiego koloru dla wszystkiego. */
+function eventStyle(e: HubEvent): KindStyle {
+  if (e.client_id) return DEADLINE_STYLE.client;
+  if (e.lead_id) return DEADLINE_STYLE.lead;
+  if (e.project_id) return DEADLINE_STYLE.project;
+  return EVENT_DEFAULT_STYLE;
+}
+
+const SIDEBAR_KINDS: { key: string; dot: string; label: string }[] = [
+  { key: "event", dot: EVENT_DEFAULT_STYLE.dot, label: "Wydarzenia" },
+  ...(Object.keys(DEADLINE_STYLE) as DeadlineKind[]).map((k) => ({ key: k, dot: DEADLINE_STYLE[k].dot, label: DEADLINE_STYLE[k].label })),
+];
 
 const WEEKDAYS = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nie"];
 const WEEKDAYS_FULL = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"];
@@ -36,10 +57,6 @@ type ViewMode = "month" | "week" | "day";
 const HOUR_PX = 48;
 const DEFAULT_RANGE = { startHour: 7, endHour: 21 };
 const PEEK_WIDTH = 380;
-// Wysokości nagłówka dnia i paska "cały dzień" w widoku Tydzień — stałe,
-// żeby kolumna z etykietami godzin wyrównała się z częścią godzinową każdej
-// kolumny dnia (nagłówek/agenda mają różną zawartość, ale zawsze tę samą
-// zarezerwowaną wysokość).
 const WEEK_HEADER_H = 24;
 const WEEK_AGENDA_H = 96;
 
@@ -80,6 +97,15 @@ function weekdayShort(day: string): string {
 function formatFullDayLabel(day: string): string {
   const [, m, d] = day.split("-").map(Number);
   return `${WEEKDAYS_FULL[weekdayIdx(day)]}, ${d} ${MONTH_NAMES[m - 1].toLowerCase()}`;
+}
+
+/** "10:00–11:00" (z czasem trwania) albo samo "10:00" — do wiersza czasu w
+ * liście dnia, wzorem Notion Event panel (zakres, nie tylko start). */
+function formatTimeRange(e: HubEvent): string {
+  if (!e.godzina) return "";
+  if (!e.czas_trwania_min) return e.godzina;
+  const endMin = timeToMinutes(e.godzina) + e.czas_trwania_min;
+  return `${e.godzina}–${minutesToTime(endMin % 1440)}`;
 }
 
 /** Ile dni trwa wydarzenie (1 = jednodniowe) — do zachowania długości
@@ -128,6 +154,7 @@ export function CalendarView({ lang }: { lang: string }) {
   const [filterClientId, setFilterClientId] = useState("");
   const [filterLeadId, setFilterLeadId] = useState("");
   const [filterProjectId, setFilterProjectId] = useState("");
+  const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [clients, setClients] = useState<Client[] | null>(null);
@@ -155,6 +182,15 @@ export function CalendarView({ lang }: { lang: string }) {
     } else {
       rootRef.current?.requestFullscreen().catch(() => toast("Nie udało się przełączyć pełnego ekranu.", "error"));
     }
+  };
+
+  const toggleKind = (key: string) => {
+    setHiddenKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   const monthKey = `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
@@ -232,27 +268,29 @@ export function CalendarView({ lang }: { lang: string }) {
   }, [deadlines, extraDeadlines, visibleMonthKeys, monthKey]);
 
   // Łączone filtry (klient + lead + projekt) — AND: pozycja musi pasować do
-  // KAŻDEGO ustawionego filtra, żeby np. "klient X" + "projekt Y" zawęziło
-  // widok do rzeczy wspólnych obu, nie sumy.
+  // KAŻDEGO ustawionego filtra. Plus widoczność "kalendarzy" z sidebara —
+  // wyłączenie typu w sidebarze ukrywa go niezależnie od filtrów.
   const filteredEvents = useMemo(
     () =>
       allEvents.filter(
         (e) =>
+          !hiddenKinds.has("event") &&
           (!filterClientId || e.client_id === filterClientId) &&
           (!filterLeadId || e.lead_id === filterLeadId) &&
           (!filterProjectId || e.project_id === filterProjectId)
       ),
-    [allEvents, filterClientId, filterLeadId, filterProjectId]
+    [allEvents, filterClientId, filterLeadId, filterProjectId, hiddenKinds]
   );
   const filteredDeadlines = useMemo(
     () =>
       allDeadlines.filter(
         (d) =>
+          !hiddenKinds.has(d.kind) &&
           (!filterClientId || d.client_id === filterClientId) &&
           (!filterLeadId || d.lead_id === filterLeadId) &&
           (!filterProjectId || d.project_id === filterProjectId)
       ),
-    [allDeadlines, filterClientId, filterLeadId, filterProjectId]
+    [allDeadlines, filterClientId, filterLeadId, filterProjectId, hiddenKinds]
   );
 
   const cells = useMemo(() => monthGrid(year, monthIdx), [year, monthIdx]);
@@ -305,6 +343,13 @@ export function CalendarView({ lang }: { lang: string }) {
     setSelectedDay(t);
     setYear(now.getFullYear());
     setMonthIdx(now.getMonth());
+  };
+
+  const pickDay = (day: string) => {
+    setSelectedDay(day);
+    const [y, m] = day.split("-").map(Number);
+    setYear(y);
+    setMonthIdx(m - 1);
   };
 
   const addEvent: AddEventFn = async (day, title, time, leadId, projectId, clientId, dayEnd, durationMin) => {
@@ -407,237 +452,371 @@ export function CalendarView({ lang }: { lang: string }) {
   return (
     <div
       ref={rootRef}
-      className={`flex flex-col ${isFullscreen ? "h-screen overflow-hidden bg-[var(--bg)] p-4" : "-mx-4 min-h-[calc(100vh-140px)] sm:-mx-6"}`}
+      className={`flex ${isFullscreen ? "h-screen overflow-hidden bg-[var(--bg)] p-4" : "-mx-4 min-h-[calc(100vh-140px)] sm:-mx-6"}`}
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b hairline px-4 py-2 sm:px-6">
-        <span className="text-[13px] text-muted">Kalendarz</span>
-        <div className="ml-2 flex items-center rounded-lg border hairline p-0.5 text-[11.5px]">
-          {(["month", "week", "day"] as ViewMode[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setViewMode(v)}
-              className={`rounded-md px-2 py-1 transition-colors ${
-                viewMode === v ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
-              }`}
-            >
-              {v === "month" ? "Miesiąc" : v === "week" ? "Tydzień" : "Dzień"}
-            </button>
-          ))}
+      <Sidebar
+        year={year}
+        monthIdx={monthIdx}
+        selectedDay={selectedDay}
+        today={today}
+        onPickDay={pickDay}
+        onChangeMonth={changeMonth}
+        hiddenKinds={hiddenKinds}
+        onToggleKind={toggleKind}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b hairline px-4 py-2 sm:px-6">
+          <ViewDropdown viewMode={viewMode} onChange={setViewMode} />
+          <button
+            onClick={goToday}
+            className="rounded-lg border hairline px-2 py-1 text-[11.5px] text-muted hover:text-[var(--fg)]"
+          >
+            Dziś
+          </button>
+          <select
+            value={filterClientId}
+            onChange={(e) => setFilterClientId(e.target.value)}
+            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
+            title="Pokaż tylko pozycje powiązane z jednym klientem"
+          >
+            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszyscy klienci</option>
+            {(clients ?? []).map((c) => (
+              <option key={c.id} value={c.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{c.nazwa}</option>
+            ))}
+          </select>
+          <select
+            value={filterLeadId}
+            onChange={(e) => setFilterLeadId(e.target.value)}
+            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
+            title="Pokaż tylko pozycje powiązane z jednym leadem"
+          >
+            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszystkie leady</option>
+            {(leads ?? []).map((l) => (
+              <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{l.firma}</option>
+            ))}
+          </select>
+          <select
+            value={filterProjectId}
+            onChange={(e) => setFilterProjectId(e.target.value)}
+            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
+            title="Pokaż tylko pozycje powiązane z jednym projektem"
+          >
+            <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszystkie projekty</option>
+            {(projects ?? []).map((p) => (
+              <option key={p.id} value={p.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{p.tytul}</option>
+            ))}
+          </select>
+          {icsInfo?.configured && icsInfo.token && <IcsSubscribeButton token={icsInfo.token} />}
+          <button
+            onClick={toggleFullscreen}
+            className="rounded-lg border hairline px-2 py-1 text-[11.5px] text-muted hover:text-[var(--fg)]"
+            title={isFullscreen ? "Wyjdź z pełnego ekranu" : "Pełny ekran"}
+          >
+            {isFullscreen ? "⤡" : "⛶"}
+          </button>
+          <span className="flex-1" />
+          <button onClick={() => changePeriod(-1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">←</button>
+          <span className="min-w-[140px] text-center text-[13px] font-medium">{periodLabel}</span>
+          <button onClick={() => changePeriod(1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">→</button>
         </div>
-        <button
-          onClick={goToday}
-          className="rounded-lg border hairline px-2 py-1 text-[11.5px] text-muted hover:text-[var(--fg)]"
-        >
-          Dziś
-        </button>
-        <select
-          value={filterClientId}
-          onChange={(e) => setFilterClientId(e.target.value)}
-          className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
-          title="Pokaż tylko pozycje powiązane z jednym klientem"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszyscy klienci</option>
-          {(clients ?? []).map((c) => (
-            <option key={c.id} value={c.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{c.nazwa}</option>
-          ))}
-        </select>
-        <select
-          value={filterLeadId}
-          onChange={(e) => setFilterLeadId(e.target.value)}
-          className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
-          title="Pokaż tylko pozycje powiązane z jednym leadem"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszystkie leady</option>
-          {(leads ?? []).map((l) => (
-            <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{l.firma}</option>
-          ))}
-        </select>
-        <select
-          value={filterProjectId}
-          onChange={(e) => setFilterProjectId(e.target.value)}
-          className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
-          title="Pokaż tylko pozycje powiązane z jednym projektem"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszystkie projekty</option>
-          {(projects ?? []).map((p) => (
-            <option key={p.id} value={p.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{p.tytul}</option>
-          ))}
-        </select>
-        {icsInfo?.configured && icsInfo.token && <IcsSubscribeButton token={icsInfo.token} />}
-        <button
-          onClick={toggleFullscreen}
-          className="rounded-lg border hairline px-2 py-1 text-[11.5px] text-muted hover:text-[var(--fg)]"
-          title={isFullscreen ? "Wyjdź z pełnego ekranu" : "Pełny ekran"}
-        >
-          {isFullscreen ? "⤡" : "⛶"}
-        </button>
-        <span className="flex-1" />
-        <button onClick={() => changePeriod(-1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">←</button>
-        <span className="min-w-[140px] text-center text-[13px] font-medium">{periodLabel}</span>
-        <button onClick={() => changePeriod(1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">→</button>
-      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6">
-        {viewMode === "month" && (
-          <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
-            <div className="grid shrink-0 grid-cols-7 gap-1 text-center text-[11px] text-muted">
-              {WEEKDAYS.map((w) => (
-                <div key={w} className="py-1">{w}</div>
-              ))}
-            </div>
-            <div className="grid flex-1 grid-cols-7 gap-1" style={{ gridAutoRows: "1fr" }}>
-              {cells.map((day, i) => {
-                if (!day) return <div key={i} />;
-                const dayEvents = eventsByDay.get(day) ?? [];
-                const dayDeadlines = deadlinesByDay.get(day) ?? [];
-                const isToday = day === today;
-                // Wspólny limit dla podglądu w komórce siatki — pełna lista
-                // dnia zawsze dostępna w podglądzie po kliknięciu (bez limitu).
-                const shownEvents = dayEvents.slice(0, 3);
-                const remainingSlots = Math.max(0, 3 - shownEvents.length);
-                const shownDeadlines = dayDeadlines.slice(0, remainingSlots);
-                const overflow = dayEvents.length + dayDeadlines.length - shownEvents.length - shownDeadlines.length;
-                return (
-                  <Popover
-                    key={day}
-                    width={PEEK_WIDTH}
-                    triggerClassName="flex h-full w-full"
-                    trigger={(open) => (
-                      <button
-                        onClick={open}
-                        onDragOver={(ev) => ev.preventDefault()}
-                        onDrop={(ev) => {
-                          ev.preventDefault();
-                          const id = ev.dataTransfer.getData("text/plain");
-                          if (id) moveEvent(id, day);
-                        }}
-                        className="flex h-full w-full flex-col items-start gap-1 rounded-lg p-1.5 text-left text-xs transition-colors hover:bg-[var(--hairline)]"
-                      >
-                        <span className={`text-[11px] ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)]" : "text-muted"}`}>
-                          {Number(day.slice(-2))}
-                        </span>
-                        {shownEvents.map((e) => (
-                          <span
-                            key={e.id}
-                            draggable
-                            onDragStart={(ev) => {
-                              ev.stopPropagation();
-                              ev.dataTransfer.setData("text/plain", e.id);
-                            }}
-                            className="w-full cursor-grab truncate rounded bg-[#4ea7fc]/15 px-1 text-[10px] text-[#4ea7fc]"
-                            title="Przeciągnij, by zmienić dzień"
-                          >
-                            {e.godzina && `${e.godzina} `}{e.tytul}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6">
+          {viewMode === "month" && (
+            <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
+              <div className="grid shrink-0 grid-cols-7 gap-1 text-center text-[11px] text-muted">
+                {WEEKDAYS.map((w) => (
+                  <div key={w} className="py-1">{w}</div>
+                ))}
+              </div>
+              <div className="grid flex-1 grid-cols-7 gap-1" style={{ gridAutoRows: "1fr" }}>
+                {cells.map((day, i) => {
+                  if (!day) return <div key={i} />;
+                  const dayEvents = eventsByDay.get(day) ?? [];
+                  const dayDeadlines = deadlinesByDay.get(day) ?? [];
+                  const isToday = day === today;
+                  // Wspólny limit dla podglądu w komórce siatki — pełna lista
+                  // dnia zawsze dostępna w podglądzie po kliknięciu (bez limitu).
+                  const shownEvents = dayEvents.slice(0, 3);
+                  const remainingSlots = Math.max(0, 3 - shownEvents.length);
+                  const shownDeadlines = dayDeadlines.slice(0, remainingSlots);
+                  const overflow = dayEvents.length + dayDeadlines.length - shownEvents.length - shownDeadlines.length;
+                  return (
+                    <Popover
+                      key={day}
+                      width={PEEK_WIDTH}
+                      triggerClassName="flex h-full w-full"
+                      trigger={(open) => (
+                        <button
+                          onClick={open}
+                          onDragOver={(ev) => ev.preventDefault()}
+                          onDrop={(ev) => {
+                            ev.preventDefault();
+                            const id = ev.dataTransfer.getData("text/plain");
+                            if (id) moveEvent(id, day);
+                          }}
+                          className="flex h-full w-full flex-col items-start gap-1 rounded-lg p-1.5 text-left text-xs transition-colors hover:bg-[var(--hairline)]"
+                        >
+                          <span className={`text-[11px] ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--fg)] text-[var(--bg)]" : "text-muted"}`}>
+                            {Number(day.slice(-2))}
                           </span>
-                        ))}
-                        {shownDeadlines.map((d) => (
-                          <span key={d.id} className={`w-full truncate rounded px-1 text-[10px] ${DEADLINE_STYLE[d.kind].pill}`}>
-                            {d.tytul}
-                          </span>
-                        ))}
-                        {overflow > 0 && <span className="text-[10px] text-muted">+{overflow} więcej</span>}
-                        <span className="flex-1" />
-                      </button>
-                    )}
-                  >
-                    {(close) => (
-                      <DayPeekContent
-                        day={day}
-                        lang={lang}
-                        eventsByDay={eventsByDay}
-                        deadlinesByDay={deadlinesByDay}
-                        leadName={leadName}
-                        projectName={projectName}
-                        clientName={clientName}
-                        onDelete={deleteEvent}
-                        onAdd={addEvent}
-                        leads={leads}
-                        projects={projects}
-                        clients={clients}
-                        close={close}
-                      />
-                    )}
-                  </Popover>
-                );
-              })}
+                          {shownEvents.map((e) => {
+                            const style = eventStyle(e);
+                            return (
+                              <span
+                                key={e.id}
+                                draggable
+                                onDragStart={(ev) => {
+                                  ev.stopPropagation();
+                                  ev.dataTransfer.setData("text/plain", e.id);
+                                }}
+                                className={`w-full cursor-grab truncate rounded border-l-2 ${style.border} ${style.bg} px-1 text-[10px] ${style.text}`}
+                                title="Przeciągnij, by zmienić dzień"
+                              >
+                                {e.godzina && `${e.godzina} `}{e.tytul}
+                              </span>
+                            );
+                          })}
+                          {shownDeadlines.map((d) => (
+                            <span key={d.id} className={`w-full truncate rounded border-l-2 ${DEADLINE_STYLE[d.kind].border} ${DEADLINE_STYLE[d.kind].bg} px-1 text-[10px] ${DEADLINE_STYLE[d.kind].text}`}>
+                              {d.tytul}
+                            </span>
+                          ))}
+                          {overflow > 0 && <span className="text-[10px] text-muted">+{overflow} więcej</span>}
+                          <span className="flex-1" />
+                        </button>
+                      )}
+                    >
+                      {(close) => (
+                        <DayPeekContent
+                          day={day}
+                          lang={lang}
+                          eventsByDay={eventsByDay}
+                          deadlinesByDay={deadlinesByDay}
+                          leadName={leadName}
+                          projectName={projectName}
+                          clientName={clientName}
+                          onDelete={deleteEvent}
+                          onAdd={addEvent}
+                          leads={leads}
+                          projects={projects}
+                          clients={clients}
+                          close={close}
+                        />
+                      )}
+                    </Popover>
+                  );
+                })}
+              </div>
             </div>
-            <Legend />
-          </div>
-        )}
+          )}
 
-        {viewMode === "week" && (
-          <WeekTimeline
-            days={Array.from({ length: 7 }, (_, i) => addDaysToISO(weekStart(selectedDay), i))}
-            today={today}
-            eventsByDay={eventsByDay}
-            deadlinesByDay={deadlinesByDay}
-            lang={lang}
-            leadName={leadName}
-            projectName={projectName}
-            clientName={clientName}
-            onDelete={deleteEvent}
-            onAdd={addEvent}
-            leads={leads}
-            projects={projects}
-            clients={clients}
-            onMoveDay={moveEvent}
-            onMoveToTime={moveEventToTime}
-          />
-        )}
-
-        {viewMode === "day" && (
-          <div className="card-paper rounded-2xl p-4">
-            <h2 className="mb-3 text-[13px] font-medium capitalize">{formatFullDayLabel(selectedDay)}</h2>
-            <DayTimeline
-              day={selectedDay}
+          {viewMode === "week" && (
+            <WeekTimeline
+              days={Array.from({ length: 7 }, (_, i) => addDaysToISO(weekStart(selectedDay), i))}
               today={today}
-              events={eventsByDay.get(selectedDay) ?? []}
-              dls={deadlinesByDay.get(selectedDay) ?? []}
+              eventsByDay={eventsByDay}
+              deadlinesByDay={deadlinesByDay}
               lang={lang}
               leadName={leadName}
               projectName={projectName}
               clientName={clientName}
               onDelete={deleteEvent}
-              onMoveToTime={moveEventToTime}
-              onSlotClick={(time) => {
-                setDayPrefillTime(time);
-                newTitleRef.current?.focus();
-              }}
-            />
-            <AddEventForm
-              day={selectedDay}
+              onAdd={addEvent}
               leads={leads}
               projects={projects}
               clients={clients}
-              titleRef={newTitleRef}
-              onAdd={addEvent}
-              prefillTime={dayPrefillTime}
+              onMoveDay={moveEvent}
+              onMoveToTime={moveEventToTime}
             />
-          </div>
-        )}
+          )}
+
+          {viewMode === "day" && (
+            <div className="card-paper rounded-2xl p-4">
+              <h2 className="mb-3 text-[13px] font-medium capitalize">{formatFullDayLabel(selectedDay)}</h2>
+              <DayTimeline
+                day={selectedDay}
+                today={today}
+                events={eventsByDay.get(selectedDay) ?? []}
+                dls={deadlinesByDay.get(selectedDay) ?? []}
+                lang={lang}
+                leadName={leadName}
+                projectName={projectName}
+                clientName={clientName}
+                onDelete={deleteEvent}
+                onMoveToTime={moveEventToTime}
+                onSlotClick={(time) => {
+                  setDayPrefillTime(time);
+                  newTitleRef.current?.focus();
+                }}
+              />
+              <AddEventForm
+                day={selectedDay}
+                leads={leads}
+                projects={projects}
+                clients={clients}
+                titleRef={newTitleRef}
+                onAdd={addEvent}
+                prefillTime={dayPrefillTime}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Legend() {
+/** Dropdown przełącznika widoku ("Miesiąc ▾") — wzorem Notion Calendar,
+ * zamiast segmentowanych przycisków. */
+function ViewDropdown({ viewMode, onChange }: { viewMode: ViewMode; onChange: (v: ViewMode) => void }) {
+  const labels: Record<ViewMode, string> = { month: "Miesiąc", week: "Tydzień", day: "Dzień" };
   return (
-    <div className="mt-3 flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t hairline pt-3 text-[10px] text-muted">
-      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#4ea7fc]" /> Wydarzenie</span>
-      {(Object.keys(DEADLINE_STYLE) as DeadlineKind[]).map((k) => (
-        <span key={k} className="flex items-center gap-1">
-          <span className={`h-2 w-2 rounded-full ${DEADLINE_STYLE[k].dot}`} /> {DEADLINE_STYLE[k].label}
-        </span>
-      ))}
+    <Popover
+      width={140}
+      trigger={(open) => (
+        <button
+          onClick={open}
+          className="flex items-center gap-1.5 rounded-lg border hairline px-2.5 py-1 text-[12px] font-medium text-[var(--fg)] hover:bg-[var(--hairline)]"
+        >
+          {labels[viewMode]} <span className="text-muted">▾</span>
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="p-1">
+          {(["month", "week", "day"] as ViewMode[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => { onChange(v); close(); }}
+              className={`block w-full rounded-md px-2 py-1.5 text-left text-[12.5px] hover:bg-[var(--hairline)] ${
+                viewMode === v ? "text-[var(--fg)]" : "text-muted"
+              }`}
+            >
+              {labels[v]}
+            </button>
+          ))}
+        </div>
+      )}
+    </Popover>
+  );
+}
+
+/** Panel boczny wzorem Notion Calendar: mini-kalendarz miesiąca do szybkiej
+ * nawigacji + lista "kalendarzy" (rodzajów wpisów) z możliwością ukrycia
+ * każdego niezależnie — zastępuje dawną statyczną legendę na dole siatki. */
+function Sidebar({
+  year,
+  monthIdx,
+  selectedDay,
+  today,
+  onPickDay,
+  onChangeMonth,
+  hiddenKinds,
+  onToggleKind,
+}: {
+  year: number;
+  monthIdx: number;
+  selectedDay: string;
+  today: string;
+  onPickDay: (day: string) => void;
+  onChangeMonth: (delta: number) => void;
+  hiddenKinds: Set<string>;
+  onToggleKind: (key: string) => void;
+}) {
+  return (
+    <div className="flex w-[200px] shrink-0 flex-col gap-5 overflow-y-auto border-r hairline px-3 py-4">
+      <MiniMonthCalendar
+        year={year}
+        monthIdx={monthIdx}
+        selectedDay={selectedDay}
+        today={today}
+        onPickDay={onPickDay}
+        onChangeMonth={onChangeMonth}
+      />
+      <div>
+        <div className="mb-1.5 px-1.5 text-[11px] font-medium text-muted">Kalendarze</div>
+        <div className="space-y-0.5">
+          {SIDEBAR_KINDS.map((k) => {
+            const hidden = hiddenKinds.has(k.key);
+            return (
+              <button
+                key={k.key}
+                onClick={() => onToggleKind(k.key)}
+                className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] hover:bg-[var(--hairline)]"
+              >
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${k.dot} ${hidden ? "opacity-25" : ""}`} />
+                <span className={`truncate ${hidden ? "text-muted opacity-60" : ""}`}>{k.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
 
-/** Pełna, przewijalna lista wydarzeń + wyliczonych terminów jednego dnia.
- * Używana w podglądzie dnia (peek) i jako pasek "cały dzień" nad siatką
- * godzinową w Dniu/Tygodniu. */
+/** Mały, klikalny kalendarz miesiąca w sidebarze — szybki skok do
+ * dowolnego dnia niezależnie od aktywnego widoku, wzorem Notion Calendar. */
+function MiniMonthCalendar({
+  year,
+  monthIdx,
+  selectedDay,
+  today,
+  onPickDay,
+  onChangeMonth,
+}: {
+  year: number;
+  monthIdx: number;
+  selectedDay: string;
+  today: string;
+  onPickDay: (day: string) => void;
+  onChangeMonth: (delta: number) => void;
+}) {
+  const cells = useMemo(() => monthGrid(year, monthIdx), [year, monthIdx]);
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between px-1">
+        <span className="text-[12px] font-medium">{MONTH_NAMES[monthIdx]} {year}</span>
+        <div className="flex gap-0.5">
+          <button onClick={() => onChangeMonth(-1)} className="flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" aria-label="Poprzedni miesiąc">‹</button>
+          <button onClick={() => onChangeMonth(1)} className="flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" aria-label="Następny miesiąc">›</button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 text-center text-[9px] text-muted">
+        {WEEKDAYS.map((w) => (
+          <div key={w}>{w[0]}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {cells.map((day, i) => (
+          <button
+            key={i}
+            disabled={!day}
+            onClick={() => day && onPickDay(day)}
+            className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${
+              !day
+                ? ""
+                : day === today
+                ? "bg-red-500 font-medium text-white"
+                : day === selectedDay
+                ? "bg-[var(--hairline)] font-medium text-[var(--fg)]"
+                : "text-muted hover:bg-[var(--hairline)]"
+            }`}
+          >
+            {day ? Number(day.slice(-2)) : ""}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Pełna, przewijalna lista wydarzeń + wyliczonych terminów jednego dnia —
+ * kolorowy lewy pasek per "kalendarz" (rodzaj), zakres godzin z czasem
+ * trwania, klikalne odnośniki do powiązanego klienta/leada/projektu (wzorem
+ * Notion Event panel). Używana w podglądzie dnia i jako pasek "cały dzień"
+ * nad siatką godzinową w Dniu/Tygodniu. */
 function DayAgendaList({
-  day,
   lang,
   events,
   dls,
@@ -647,7 +826,6 @@ function DayAgendaList({
   onDelete,
   compact = false,
 }: {
-  day: string;
   lang: string;
   events: HubEvent[];
   dls: Deadline[];
@@ -662,50 +840,67 @@ function DayAgendaList({
   }
   return (
     <ul className={`space-y-1.5 ${compact ? "" : "mb-3"}`}>
-      {dls.map((d) => (
-        <li key={d.id} className="flex items-center gap-2 rounded-lg border hairline px-2.5 py-1.5 text-sm">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${DEADLINE_STYLE[d.kind].dot}`} />
-          <Link href={`/${lang}${d.href}`} className="truncate hover:underline" title={d.tytul}>
-            {d.tytul}
-          </Link>
-        </li>
-      ))}
-      {events.map((e) => (
-        <li
-          key={e.id}
-          draggable
-          onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
-          className="cursor-grab rounded-lg border hairline px-2.5 py-1.5 text-sm"
-          title="Przeciągnij, by zmienić dzień"
-        >
-          <div className="flex items-center justify-between">
-            <span className="truncate">
-              {e.godzina && <span className="mr-1.5 text-muted">{e.godzina}</span>}
-              {e.tytul}
-              {e.data_koniec && e.data_koniec > e.data && (
-                <span className="ml-1.5 text-[11px] text-muted">({e.data} → {e.data_koniec})</span>
-              )}
-            </span>
-            <button onClick={() => onDelete(e.id)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
-          </div>
-          {(leadName(e.lead_id) || projectName(e.project_id) || clientName(e.client_id)) && (
-            <div className="mt-0.5 truncate text-[11px] text-muted">
-              {clientName(e.client_id) && <>Klient: {clientName(e.client_id)} </>}
-              {leadName(e.lead_id) && <>Lead: {leadName(e.lead_id)} </>}
-              {projectName(e.project_id) && <>Projekt: {projectName(e.project_id)}</>}
+      {dls.map((d) => {
+        const style = DEADLINE_STYLE[d.kind];
+        return (
+          <li key={d.id} className={`rounded-lg border-l-[3px] ${style.border} ${style.bg} px-2.5 py-1.5 text-sm`}>
+            <Link href={`/${lang}${d.href}`} className="block truncate hover:underline" title={d.tytul}>
+              {d.tytul}
+            </Link>
+          </li>
+        );
+      })}
+      {events.map((e) => {
+        const style = eventStyle(e);
+        const hasLinks = e.client_id || e.lead_id || e.project_id;
+        return (
+          <li
+            key={e.id}
+            draggable
+            onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
+            className={`cursor-grab rounded-lg border-l-[3px] ${style.border} bg-[var(--bg-soft)] px-2.5 py-1.5 text-sm`}
+            title="Przeciągnij, by zmienić dzień"
+          >
+            <div className="flex items-center justify-between">
+              <span className="truncate">
+                {e.godzina && <span className={`mr-1.5 font-medium ${style.text}`}>{formatTimeRange(e)}</span>}
+                {e.tytul}
+                {e.data_koniec && e.data_koniec > e.data && (
+                  <span className="ml-1.5 text-[11px] text-muted">({e.data} → {e.data_koniec})</span>
+                )}
+              </span>
+              <button onClick={() => onDelete(e.id)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
             </div>
-          )}
-        </li>
-      ))}
+            {hasLinks && (
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+                {e.client_id && (
+                  <Link href={`/${lang}/admin/clients/${e.client_id}`} className="text-brand-cyan hover:underline">
+                    👤 {clientName(e.client_id)}
+                  </Link>
+                )}
+                {e.lead_id && (
+                  <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-orange-400 hover:underline">
+                    🎯 {leadName(e.lead_id)}
+                  </Link>
+                )}
+                {e.project_id && (
+                  <Link href={`/${lang}/admin/projects/${e.project_id}`} className="text-brand-purple hover:underline">
+                    📁 {projectName(e.project_id)}
+                  </Link>
+                )}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-/** Lekki, zakotwiczony podgląd dnia (wzorem Apple Calendar) — otwierany z
- * komórki miesiąca/kolumny tygodnia jako `Popover`, nie pełnoekranowy modal.
- * Strzałki ‹/› przełączają dzień BEZ zamykania podglądu (ten sam popover
- * zostaje w miejscu, zmienia się tylko treść) — jak kliknięcie dnia w
- * realnym Apple Calendar. */
+/** Lekki, zakotwiczony podgląd dnia (wzorem Apple/Notion Calendar) —
+ * otwierany z komórki miesiąca/kolumny tygodnia jako `Popover`, nie
+ * pełnoekranowy modal. Strzałki ‹/› przełączają dzień BEZ zamykania —
+ * popover zostaje w miejscu, zmienia się tylko treść. */
 function DayPeekContent({
   day: initialDay,
   lang,
@@ -764,7 +959,6 @@ function DayPeekContent({
         <button onClick={close} className="text-muted hover:text-[var(--fg)]" aria-label="Zamknij">✕</button>
       </div>
       <DayAgendaList
-        day={day}
         lang={lang}
         events={events}
         dls={dls}
@@ -823,7 +1017,6 @@ function DayTimeline({
   return (
     <div>
       <DayAgendaList
-        day={day}
         lang={lang}
         events={untimed}
         dls={dls}
@@ -849,8 +1042,8 @@ function DayTimeline({
 }
 
 /** Widok tygodnia z 7 kolumnami dzielącymi WSPÓLNĄ oś godzin (żeby rzędy
- * godzin były równo wyrównane między dniami, jak w Google Calendar). Cała
- * kolumna dnia (nagłówek + pasek "cały dzień" + siatka) jest triggerem
+ * godzin były równo wyrównane między dniami, jak w Google/Notion Calendar).
+ * Cała kolumna dnia (nagłówek + pasek "cały dzień" + siatka) jest triggerem
  * lekkiego podglądu dnia (`DayPeekContent`) — klik w "+" albo w puste
  * miejsce siatki (z góry wypełnioną godziną) otwiera ten sam podgląd. */
 function WeekTimeline({
@@ -921,7 +1114,6 @@ function WeekTimeline({
                 </div>
                 <div style={{ height: WEEK_AGENDA_H }} className="overflow-y-auto">
                   <DayAgendaList
-                    day={day}
                     lang={lang}
                     events={(eventsByDay.get(day) ?? []).filter((e) => !e.godzina)}
                     dls={deadlinesByDay.get(day) ?? []}
@@ -987,12 +1179,10 @@ function HourLabels({ range }: { range: { startHour: number; endHour: number } }
 
 /** Jedna kolumna siatki godzinowej dla jednego dnia — dzielona wysokość
  * według `range`, bloki wydarzeń pozycjonowane absolutnie (top = godzina
- * startu, height = czas trwania), nakładające się dostają kolumny obok
- * siebie (`layoutTimedEvents`). Klik w puste miejsce wywołuje `onSlotClick`
- * z wyliczoną godziną; przeciąganie (drop) zmienia godzinę zaokrągloną do
- * 15 min. `readOnly` wyłącza klik/upuszczenie — używane w Tygodniu, gdzie
- * ten sam wiersz siatki jest już renderowany wewnątrz triggera Popover
- * (klik/drop obsługuje tamta instancja) i nie powinien się dublować. */
+ * startu, height = czas trwania, kolor z `eventStyle`), nakładające się
+ * dostają kolumny obok siebie (`layoutTimedEvents`). Klik w puste miejsce
+ * wywołuje `onSlotClick` z wyliczoną godziną; przeciąganie (drop) zmienia
+ * godzinę zaokrągloną do 15 min. */
 function TimelineGridRow({
   day,
   today,
@@ -1002,7 +1192,6 @@ function TimelineGridRow({
   onMoveToTime,
   onDropDay,
   onSlotClick,
-  readOnly = false,
 }: {
   day: string;
   today: string;
@@ -1012,7 +1201,6 @@ function TimelineGridRow({
   onMoveToTime: (id: string, day: string, time: string) => void;
   onDropDay?: (id: string, day: string) => void;
   onSlotClick?: (time: string, e: React.MouseEvent) => void;
-  readOnly?: boolean;
 }) {
   const totalMin = (range.endHour - range.startHour) * 60;
   const layout = layoutTimedEvents(events);
@@ -1036,12 +1224,11 @@ function TimelineGridRow({
         backgroundImage: `repeating-linear-gradient(to bottom, var(--hairline) 0, var(--hairline) 1px, transparent 1px, transparent ${HOUR_PX}px)`,
       }}
       onClick={(ev) => {
-        if (readOnly || !onSlotClick) return;
+        if (!onSlotClick) return;
         onSlotClick(timeFromClientY(ev.clientY, ev.currentTarget.getBoundingClientRect()), ev);
       }}
-      onDragOver={(ev) => !readOnly && ev.preventDefault()}
+      onDragOver={(ev) => ev.preventDefault()}
       onDrop={(ev) => {
-        if (readOnly) return;
         ev.preventDefault();
         const id = ev.dataTransfer.getData("text/plain");
         if (!id) return;
@@ -1058,6 +1245,7 @@ function TimelineGridRow({
       {events.map((e) => {
         const l = layout.get(e.id);
         if (!l) return null;
+        const style = eventStyle(e);
         const top = ((l.startMin - range.startHour * 60) / totalMin) * 100;
         const height = Math.max(4, ((l.endMin - l.startMin) / totalMin) * 100);
         const width = 100 / l.cols;
@@ -1068,7 +1256,7 @@ function TimelineGridRow({
             draggable
             onClick={(ev) => ev.stopPropagation()}
             onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
-            className="absolute cursor-grab overflow-hidden rounded border border-[#4ea7fc]/40 bg-[#4ea7fc]/15 p-1 text-[10px] text-[#4ea7fc]"
+            className={`absolute cursor-grab overflow-hidden rounded border-l-2 ${style.border} ${style.bg} p-1 text-[10px] ${style.text}`}
             style={{ top: `${top}%`, height: `${height}%`, left: `${left}%`, width: `calc(${width}% - 2px)` }}
             title={`${e.godzina} ${e.tytul} — przeciągnij, by zmienić czas`}
           >
@@ -1076,7 +1264,7 @@ function TimelineGridRow({
               <span className="truncate">{e.godzina} {e.tytul}</span>
               <button
                 onClick={(ev) => { ev.stopPropagation(); onDelete(e.id); }}
-                className="shrink-0 text-[#4ea7fc]/70 hover:text-red-400"
+                className={`shrink-0 ${style.text} opacity-70 hover:text-red-400 hover:opacity-100`}
                 aria-label="Usuń"
               >
                 ✕

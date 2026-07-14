@@ -1401,6 +1401,60 @@ miesiąca (nie w Tygodniu/Dniu).
   podglądu (iframe bez `allow="fullscreen"`) — kod niezmieniony względem
   poprzedniej tury, warto przeklikać na żywej stronie.
 
+### Moduł 10 — piąta tura: przebudowa 1:1 na wzór Notion Calendar (2026-07-14)
+
+Właściciel przesłał zrzuty ekranu Notion Calendar (dzień/tydzień, panel
+szczegółów wydarzenia, sidebar z mini-kalendarzem i listą "kalendarzy",
+kolorowe bloki z lewym paskiem) i poprosił o przeniesienie wyglądu/
+funkcjonalności "żywcem 1:1", z zachowaniem palety marki i integracji z
+resztą panelu. Świadomie NIE skopiowano jednego elementu: stałego panelu
+szczegółów na całą wysokość ekranu po prawej — koliduje z już ustaloną
+konwencją panelu (`CLAUDE.md`, wyśrodkowany modal zamiast panelu z prawej
+dla profili rekordów); zamiast tego wzbogacono treść już istniejącego,
+zakotwiczonego podglądu dnia (z poprzedniej tury) o elementy z panelu
+Notion (kolor, zakres godzin, klikalne powiązania).
+
+- **Sidebar** (`Sidebar` w `CalendarView.tsx`, ~200px, wzorem lewej kolumny
+  Notion Calendar) — zastępuje dawną statyczną legendę na dole siatki:
+  - `MiniMonthCalendar` — klikalny mini-kalendarz miesiąca (dziś na
+    czerwono, wybrany dzień podświetlony), strzałki ‹/› do zmiany miesiąca
+    niezależnie od aktywnego widoku Miesiąc/Tydzień/Dzień — szybki skok do
+    dowolnego dnia, jak w Notion.
+  - **"Kalendarze"** — lista rodzajów wpisów (Wydarzenia + wszystkie
+    `DeadlineKind`) z kolorową kropką, klik = toggle widoczności
+    (`hiddenKinds: Set<string>` w stanie `CalendarView`, filtrowane w
+    `filteredEvents`/`filteredDeadlines` obok istniejących filtrów
+    klient/lead/projekt). Odpowiednik włączania/wyłączania kalendarzy w
+    Notion, tylko po TYPIE wpisu zamiast po koncie/kalendarzu zewnętrznym
+    (nie mamy wielu kont — to nasz sensowny odpowiednik).
+- **Kolorowe bloki wydarzeń** (lewy pasek `border-l` + podbarwione tło
+  `bg-*/10`, wzorem Notion) zamiast cienkich plakietek — dotyczy chipów w
+  siatce miesiąca, bloków w siatce godzinowej Dzień/Tydzień i pozycji na
+  liście dnia. `DEADLINE_STYLE` rozszerzony o `border`/`bg` obok
+  istniejących `dot`/`label`. **Ręczne wydarzenia dostają kolor
+  automatycznie z powiązania** (`eventStyle()`) — klient → cyan (marka),
+  lead → gold/orange, projekt → purple (marka), brak powiązania → domyślny
+  niebieski. To jest właśnie "integracja z modułami" widoczna na pierwszy
+  rzut oka, bez dodatkowego klikania — sam kolor mówi, z czym wydarzenie
+  jest związane.
+- **Wzbogacona lista dnia** (`DayAgendaList`) — zakres godzin z czasem
+  trwania (`formatTimeRange()`: "10:00–11:00" zamiast samego "10:00"),
+  klikalne odnośniki do powiązanego klienta/leada/projektu (emoji-ikona +
+  nazwa, kolor jak reszta encji: 👤 cyan / 🎯 orange / 📁 purple),
+  prowadzące bezpośrednio do karty rekordu — wzorem pól
+  Participants/Location w panelu Event w Notion Calendar.
+- **Przełącznik widoku jako dropdown** ("Miesiąc ▾", `ViewDropdown`) —
+  zamiast segmentowanych przycisków, wzorem górnego paska Notion Calendar.
+- Przetestowane w przeglądarce (viewport 1600×900 — na wąskim viewport
+  ~800px pasek narzędzi zawija się na dwie linie, co jest akceptowalne,
+  typowe szerokości desktopowe mieszczą wszystko w jednym rzędzie): sidebar
+  renderuje mini-kalendarz i listę kalendarzy poprawnie; wyłączenie
+  "Kamień" w sidebarze poprawnie ukryło oba kamienie milowe z siatki
+  miesiąca (16 i 28 lipca) i przywróciło je po ponownym włączeniu; dropdown
+  widoku poprawnie przełącza na Tydzień, siatka godzinowa renderuje
+  kolorowe bloki z lewym paskiem, wyrównane rzędy godzin i czerwoną linię
+  "teraz". `npx tsc --noEmit` czysty po całej turze zmian.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na
