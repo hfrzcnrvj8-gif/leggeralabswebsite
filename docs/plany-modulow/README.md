@@ -30,7 +30,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 6 | ✅ AI: infrastruktura Ollama (fundament pod 7 i 8, nie samodzielna funkcja) | mały | [06-ai-infrastruktura-ollama.md](06-ai-infrastruktura-ollama.md) |
 | 7 | AI: szkice odpowiedzi mailowych (wymaga 4 i 6) | średni | [07-ai-szkice-mailowe.md](07-ai-szkice-mailowe.md) |
 | 8 | ✅ AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
-| 9 | Koszty jako branżowy standard — metoda płatności, inspiracje z liderów (wymaga 8) | duży, wieloetapowy | [09-koszty-branzowy-standard.md](09-koszty-branzowy-standard.md) |
+| 9 | ✅ Koszty jako branżowy standard — metoda płatności, inspiracje z liderów (wymaga 8) | duży, wieloetapowy | [09-koszty-branzowy-standard.md](09-koszty-branzowy-standard.md) |
 | 10 | Dopracowanie Kalendarza — agregacja działań, tagi, dopasowanie do klienta | otwarty zakres, zacznij od pytań | [10-kalendarz-dopracowanie.md](10-kalendarz-dopracowanie.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)

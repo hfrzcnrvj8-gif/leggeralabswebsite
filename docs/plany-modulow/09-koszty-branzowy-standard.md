@@ -181,3 +181,43 @@ cyklicznych), do potwierdzenia przy najbliższym uruchomieniu na produkcji.
 
 Dalsze pomysły wymagałyby nowego, osobnego researchu/rozmowy z właścicielem
 — nic nie zostało świadomie odłożone z bieżącego zakresu.
+
+## Krok 4 (2026-07-14) — poprawka UX wykresu trendów
+
+Właściciel obejrzał wykres z Kroku 3 na produkcji i zgłosił, że jako pasek
+na pełną szerokość nad tabelą wygląda zbyt dominująco (zwłaszcza przy mało
+danych) i sprawia wrażenie doklejonego. Poprawka: `SpendTrendChart`
+przeniesiony z osobnego bloku nad tabelą do tego samego rzędu co karty KPI
+("Koszty w tym miesiącu"/"Nieopłacone") — ten sam styl karty i wysokość
+rzędu, legenda kategorii rozkłada się w wolnej przestrzeni obok samego
+wykresu zamiast wisieć pod nim w wąskiej kolumnie. Tabela kosztów wróciła
+do pełnej szerokości. Zweryfikowane na żywo na dev, także dla scenariusza
+z jednym kosztem (dokładnie ten, który zgłosił właściciel).
+
+## STATUS: gotowy produkcyjnie (2026-07-14)
+
+Moduł 9 uznany za **kompletny i gotowy do produkcji**, z dwoma świadomymi
+zastrzeżeniami do potwierdzenia przy pierwszej realnej okazji (oba niskiego
+ryzyka — kopiują już działające w produkcji wzorce, nie nowy kod):
+
+1. **`generateDueRecurringCosts()`** (generowanie szkiców kosztów
+   cyklicznych przez codzienny cron) — logika przetestowana kodowo i przez
+   bezpośrednie zapytania API/bazy, ale NIE przez realne wywołanie
+   `POST /api/leads/notify` (blokowane w dev brakiem `RESEND_API_KEY`).
+   Bezpośrednia kopia już działającego `generateDueRecurringInvoices()`.
+2. **OCR — wyciąganie numeru konta dostawcy** — walidacja formatu (26 cyfr
+   IBAN) przetestowana, ale jakość odczytu z prawdziwego zdjęcia faktury
+   przez model wizyjny nie była testowana w tej sesji (wymaga żywego
+   połączenia z Ollamą na Mac Studio właściciela).
+
+**Kompatybilność z resztą panelu**: koszt łączy się z Projektami
+(`project_id`, widoczne w rentowności projektu), z ustawieniami sprzedawcy
+(`company_settings.konto` — ostrzeżenie o własnym koncie), re-używa
+`lib/recurring.ts` (te same cykle/logika co faktury cykliczne) i wzorca
+Białej Listy MF/VIES z Faktur/Ofert. Żadna zmiana schematu nie naruszyła
+istniejących tabel (same `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` /
+`CREATE TABLE IF NOT EXISTS`, idempotentne jak wymaga `CLAUDE.md`).
+
+Ostateczny, całościowy audyt (wraz z pozostałymi modułami) — do przeprowadzenia,
+kiedy reszta panelu (Moduł 4 poczta, Moduł 7 AI-szkice, Moduł 5 mobilny)
+będzie gotowa.
