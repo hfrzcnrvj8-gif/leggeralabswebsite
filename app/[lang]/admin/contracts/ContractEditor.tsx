@@ -10,10 +10,12 @@ import {
   NDA_CLAUSES,
   LEGAL_PLACEHOLDER_NOTE,
 } from "@/lib/contracts";
+import { DOC_LANGS, DOC_LANG_LABEL } from "@/lib/documents";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { ClientLinkChip } from "../components";
+import { PropertyMenu } from "../Menu";
 
 export function ContractEditor({
   id,
@@ -253,6 +255,27 @@ export function ContractEditor({
         </div>
 
         <div className="space-y-4">
+          <div className="card-paper rounded-xl border hairline p-4">
+            <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Dokument</h3>
+            <div className="flex items-center justify-between">
+              <span className="text-[12.5px] text-muted">Język wydruku</span>
+              <PropertyMenu
+                value={contract.jezyk}
+                options={DOC_LANGS.map((l) => ({ value: l, label: `${l.toUpperCase()} — ${DOC_LANG_LABEL[l]}` }))}
+                onChange={(v) => patch({ jezyk: v })}
+                title="Język wydruku dokumentu"
+                full
+              >
+                <span className="rounded-md px-1.5 py-1 -mx-1.5 text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)]">
+                  {contract.jezyk.toUpperCase()} — {DOC_LANG_LABEL[contract.jezyk]}
+                </span>
+              </PropertyMenu>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted opacity-70">
+              Dotyczy tylko nagłówków/przycisków wydruku — treść klauzul jest dziś tylko po polsku (patrz notatka wyżej).
+            </p>
+          </div>
+
           {isUmowa && (
             <div className="card-paper rounded-xl border hairline p-4">
               <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Wynagrodzenie</h3>

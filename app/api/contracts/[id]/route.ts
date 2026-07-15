@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
+import { DOC_LANGS } from "@/lib/documents";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE contracts SET cena = ${n}, updated_at = now() WHERE id = ${id};`;
     }
     if ("status" in body) await sql`UPDATE contracts SET status = ${str(body.status, 40)}, updated_at = now() WHERE id = ${id};`;
+    if ("jezyk" in body) {
+      const v = typeof body.jezyk === "string" && (DOC_LANGS as string[]).includes(body.jezyk) ? body.jezyk : "pl";
+      await sql`UPDATE contracts SET jezyk = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("termin_realizacji" in body) {
       const v = dateOrNull(body.termin_realizacji);
       if (v === undefined) return NextResponse.json({ error: "invalid termin_realizacji" }, { status: 400 });

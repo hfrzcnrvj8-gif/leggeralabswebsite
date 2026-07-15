@@ -131,7 +131,16 @@ export function KanbanBoard({
                       ✕
                     </button>
                   </div>
-                  {client.branza && <div className="text-[11px] text-muted">{client.branza}</div>}
+                  {(client.branza || client.avg_rating != null) && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted">
+                      {client.branza && <span>{client.branza}</span>}
+                      {client.avg_rating != null && (
+                        <span className="text-brand-gold" title={`Średnia ocena z opinii: ${client.avg_rating.toFixed(1)}/5`}>
+                          ★ {client.avg_rating.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {(client.telefon || client.email || client.www) && (
                     <div className="mt-1 space-y-0.5 text-[11px] text-muted opacity-80">
                       {client.telefon && <div className="break-words">{client.telefon}</div>}

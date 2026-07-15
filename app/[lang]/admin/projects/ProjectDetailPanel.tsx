@@ -75,6 +75,14 @@ export function ProjectDetailPanel({
   const [reviewDraft, setReviewDraft] = useState("");
   const reviewDraftInitialized = useRef(false);
   const [requestingReview, setRequestingReview] = useState(false);
+  const [manualReviewOpen, setManualReviewOpen] = useState(false);
+  const [manualJakosc, setManualJakosc] = useState(0);
+  const [manualTerminowosc, setManualTerminowosc] = useState(0);
+  const [manualKomunikacja, setManualKomunikacja] = useState(0);
+  const [manualComment, setManualComment] = useState("");
+  const [manualConsent, setManualConsent] = useState(false);
+  const [manualConsentName, setManualConsentName] = useState("");
+  const [savingManualReview, setSavingManualReview] = useState(false);
   const [dependencies, setDependencies] = useState<string[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
   const [rentownosc, setRentownosc] = useState<{ przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean } | null>(null);
@@ -489,6 +497,42 @@ export function ProjectDetailPanel({
     load();
   };
 
+  const saveManualReview = async () => {
+    if (manualJakosc === 0 || manualTerminowosc === 0 || manualKomunikacja === 0 || savingManualReview) return;
+    if (manualConsent && !manualConsentName.trim()) {
+      toast("Podaj imię i nazwisko osoby, która wyraziła zgodę.", "error");
+      return;
+    }
+    setSavingManualReview(true);
+    const res = await fetch(`/api/projects/${id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jakosc: manualJakosc,
+        terminowosc: manualTerminowosc,
+        komunikacja: manualKomunikacja,
+        comment: manualComment.trim(),
+        consentCaseStudy: manualConsent,
+        consentName: manualConsentName.trim(),
+      }),
+    });
+    setSavingManualReview(false);
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      toast(data.error ?? "Nie udało się zapisać opinii.", "error");
+      return;
+    }
+    toast("Opinia zapisana.");
+    setManualReviewOpen(false);
+    setManualJakosc(0);
+    setManualTerminowosc(0);
+    setManualKomunikacja(0);
+    setManualComment("");
+    setManualConsent(false);
+    setManualConsentName("");
+    load();
+  };
+
   const submitNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteText.trim()) return;
@@ -748,6 +792,56 @@ export function ProjectDetailPanel({
                     >
                       {requestingReview ? "Wysyłanie…" : project.review_requested_at ? "Wyślij ponownie mailem" : "Wyślij mailem"}
                     </button>
+                  </div>
+
+                  <div className="mt-3 border-t hairline pt-3">
+                    {!manualReviewOpen ? (
+                      <button onClick={() => setManualReviewOpen(true)} className="text-[11.5px] text-muted underline underline-offset-2 hover:text-[var(--fg)]">
+                        albo wpisz opinię ręcznie (np. zebraną telefonicznie)
+                      </button>
+                    ) : (
+                      <div className="space-y-3">
+                        <h3 className="text-[11px] text-muted opacity-70">Wpisz opinię ręcznie</h3>
+                        <div className="flex flex-wrap gap-4">
+                          <StarPicker value={manualJakosc} onChange={setManualJakosc} label="Jakość" />
+                          <StarPicker value={manualTerminowosc} onChange={setManualTerminowosc} label="Terminowość" />
+                          <StarPicker value={manualKomunikacja} onChange={setManualKomunikacja} label="Komunikacja" />
+                        </div>
+                        <textarea
+                          value={manualComment}
+                          onChange={(e) => setManualComment(e.target.value)}
+                          rows={3}
+                          placeholder="Komentarz (opcjonalnie)…"
+                          className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+                        />
+                        <div className="rounded-lg border hairline p-2.5">
+                          <label className="flex items-start gap-2 text-[11.5px] text-muted">
+                            <input type="checkbox" checked={manualConsent} onChange={(e) => setManualConsent(e.target.checked)} className="mt-0.5" />
+                            Klient wyraził zgodę na wykorzystanie referencji/case study (zaznacz tylko, jeśli faktycznie ją wyraził).
+                          </label>
+                          {manualConsent && (
+                            <input
+                              value={manualConsentName}
+                              onChange={(e) => setManualConsentName(e.target.value)}
+                              placeholder="Imię i nazwisko osoby, która wyraziła zgodę"
+                              className="mt-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+                            />
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={saveManualReview}
+                            disabled={manualJakosc === 0 || manualTerminowosc === 0 || manualKomunikacja === 0 || savingManualReview}
+                            className="btn-primary rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {savingManualReview ? "Zapisywanie…" : "Zapisz opinię"}
+                          </button>
+                          <button onClick={() => setManualReviewOpen(false)} className="rounded-lg border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)]">
+                            Anuluj
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -1211,6 +1305,30 @@ function DeadlineHint({ termin, closed }: { termin: string | null | undefined; c
       ? "text-amber-400"
       : "text-muted";
   return <div className={`mt-0.5 pl-1.5 text-[11px] ${color}`}>{label}</div>;
+}
+
+/** Wybór oceny 1-5 gwiazdkami — wersja dla ciemnego panelu admina (wzorem
+ * StarRating w publicznym ProjectReviewForm.tsx, ale dopasowana kolorystyka). */
+function StarPicker({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] text-muted">{label}</div>
+      <div className="flex gap-0.5">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            aria-label={`${n}/5`}
+            className="text-lg leading-none transition-transform hover:scale-110"
+            style={{ color: n <= value ? "#E0A93B" : "var(--hairline)" }}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function MetaRow({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {

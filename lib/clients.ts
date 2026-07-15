@@ -45,6 +45,11 @@ export type Client = {
   lead_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Średnia ocena ze wszystkich zebranych opinii (Moduł 15) po projektach
+   * tego klienta — null, gdy żadna opinia jeszcze nie została zebrana.
+   * Dociągana w GET /api/clients (podzapytanie po projects), nie jest
+   * kolumną w tabeli `clients`. */
+  avg_rating: number | null;
 };
 
 export type ClientActivity = {

@@ -63,11 +63,11 @@ export async function POST(req: NextRequest) {
       INSERT INTO contracts (
         id, typ, lead_id, client_id, project_id, offer_id,
         klient_nazwa, klient_nip, klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email,
-        zakres_prac, cena
+        zakres_prac, cena, jezyk
       ) VALUES (
         ${id}, 'umowa', ${offer.lead_id}, ${offer.client_id}, ${offer.project_id}, ${offerId},
         ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_ulica}, ${offer.klient_kod}, ${offer.klient_miasto}, ${offer.klient_kraj}, ${offer.klient_email},
-        ${zakresPrac}, ${cena}
+        ${zakresPrac}, ${cena}, ${offer.jezyk}
       );
     `;
     await logClientEvent(sql, offer.client_id, "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`, null, id);

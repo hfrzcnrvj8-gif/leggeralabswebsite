@@ -1846,6 +1846,91 @@ już w tym module (nie odłożona do Modułu 18).
   i `review_collected` (⭐), oba klikalne do podstrony projektu
   (`CLIENT_EVENT_TARGET`).
 
+### Moduł 15 — dodatki (2026-07-15)
+
+Kontynuacja tej samej sesji, na wyraźną prośbę właściciela:
+
+- **Projekt: pole "Klient"** — dotąd klient wpinał się do projektu WYŁĄCZNIE
+  automatycznie przy akceptacji oferty; projekty tworzone ręcznie (`POST
+  /api/projects`) nigdy nie miały klienta, więc nie mogły korzystać z
+  Modułu 15. Nowe pole "Klient" w panelu bocznym `ProjectDetailPanel.tsx`
+  (obok "Lead") pozwala podpiąć/zmienić klienta ręcznie — `PATCH
+  /api/projects/:id` z polem `client_id`. Zmiana klienta resetuje i
+  odświeża szkice (wiadomość powitalna, podsumowanie+opinia), żeby
+  odzwierciedlały nowy kontekst.
+- **Link "→ Powstał z oferty"** — jeśli projekt ma faktycznie powstał z
+  akceptacji oferty (`offers.project_id = ten projekt`), pod tytułem
+  projektu pokazuje się klikalny link do tej oferty (`GET
+  /api/projects/:id` dociąga `sourceOffer`).
+- **Język formularza opinii dziedziczony z oferty (PL/EN/DE)** — nowa
+  kolumna `projects.jezyk` (domyślnie 'pl'), ustawiana na `offer.jezyk` w
+  OBU gałęziach tworzenia projektu w `lib/offerAccept.ts`. Decyduje o
+  wersji językowej: `buildProjectClosingSummary()` (szkic maila),
+  `PROJECT_REVIEW_CONSENT_TEXT` (zgoda na case study — Record<DocLang,
+  string>), temacie maila (`app/api/projects/:id/request-review`) i
+  `ProjectReviewForm.tsx` (publiczny formularz, DICT PL/EN/DE — świadomie
+  NIE wg segmentu URL `[lang]`, bo to język rozmowy z klientem, nie język
+  przeglądania strony). Projekty utworzone poza ścieżką oferty zostają
+  domyślnie 'pl'.
+- **Ręczne wpisanie opinii przez właściciela** — `POST
+  /api/projects/:id/review` (admin-only, bez ograniczenia "tylko raz" —
+  świadomie inaczej niż publiczny `submit`, bo właściciel może poprawiać
+  literówkę). Dla feedbacku zebranego telefonicznie/na spotkaniu, gdy
+  klient nie wypełni formularza sam. Zgoda zapisana tą drogą NIE ma dowodu
+  IP/user-agent (nie ma przeglądarki klienta w tej ścieżce) — świadomie
+  niższy standard dowodowy niż e-podpis z publicznego formularza. UI:
+  link "albo wpisz opinię ręcznie" w sekcji "Zamknięcie..." w
+  `ProjectDetailPanel.tsx`, rozwija mini-formularz z gwiazdkami
+  (`StarPicker`).
+- **`/[lang]/references`** — publiczna strona referencji, pokazuje
+  WYŁĄCZNIE opinie z `review_consent_case_study = true` (nigdy surowe
+  oceny bez zgody klienta). Dane przez `GET /api/references` (publiczne,
+  bez `isAuthed()` — to już jawnie zgodzone na wykorzystanie marketingowe).
+  Empty-state świadomie w tonie "wybieramy pierwszych partnerów
+  założycieli" (spójne z pozycjonowaniem nowej firmy, patrz `page.tsx` w
+  `oferta`/homepage) — bo realnie strona długo będzie pusta. Server
+  Component robi fetch do własnego `/api/references` (przez `headers()` +
+  URL absolutny), a NIE bezpośredni import `lib/db.ts` — bezpośredni
+  import Neona w Server Component (page.tsx) wywoływał błąd bundlowania w
+  tym środowisku deweloperskim.
+- **Gwiazdka ★ przy kliencie** — `GET /api/clients` dociąga `avg_rating`
+  (podzapytanie AVG po `projects.review_*` per `client_id`), pokazywana w
+  `KanbanBoard.tsx` (przy branży) i `TableView.tsx` (nowa kolumna "Ocena").
+
+### Umowy (Moduł 11) — infrastruktura językowa BEZ tłumaczenia klauzul (2026-07-15)
+
+Właściciel poprosił o wersje PL/EN/DE Umów/NDA analogicznie do Modułu 15.
+**Świadomie zbudowana tylko infrastruktura, NIE tłumaczenie treści
+klauzul** — `lib/contracts.ts` już wcześniej zawierał jawne ostrzeżenie:
+treść `CONTRACT_CLAUSES`/`NDA_CLAUSES` to roboczy szablon, "WYMAGA
+WERYFIKACJI PRAWNEJ przed użyciem z prawdziwym klientem"
+(`LEGAL_PLACEHOLDER_NOTE`). Tłumaczenie niezweryfikowanego szkicu
+dokładałoby pracę do wyrzucenia po weryfikacji prawnika — właściciel to
+zaakceptował.
+
+Co zbudowano:
+- `contracts.jezyk` (domyślnie 'pl') — dla `typ="umowa"` ustawiane na
+  `offer.jezyk` przy generowaniu z zaakceptowanej oferty (`app/api/
+  contracts` POST); dla `typ="nda"` zawsze 'pl' (NDA nie ma powiązanej
+  oferty). Edytowalne ręcznie w `ContractEditor.tsx` (pole "Język
+  wydruku", wzorem Oferty).
+- `ContractPrint.tsx` — CAŁE "chrome" wydruku (nagłówki, przyciski,
+  etykiety stron, e-podpis, `LEGAL_PLACEHOLDER_NOTE`) przetłumaczone na
+  PL/EN/DE (`DICT` w pliku, `CONTRACT_TYP_LABEL_LANG`,
+  `LEGAL_PLACEHOLDER_NOTE_LANG` w `lib/contracts.ts`) — te teksty to
+  metainformacje o dokumencie, nie klauzule prawne, więc bezpieczne do
+  tłumaczenia od razu.
+- Same klauzule (`CONTRACT_CLAUSES`/`NDA_CLAUSES`) renderują się ZAWSZE po
+  polsku, niezależnie od `contract.jezyk` — przy wydruku niepolskojęzycznym
+  nad klauzulami pokazuje się dodatkowa notatka (`CLAUSES_UNTRANSLATED_
+  NOTE`) informująca, że tłumaczenie i weryfikacja prawna dopiero czekają.
+
+**Do zrobienia w przyszłości (nie teraz)**: dopiero po tym, jak polska
+treść klauzul przejdzie realną weryfikację prawnika, przetłumaczyć
+`CONTRACT_CLAUSES`/`NDA_CLAUSES` na EN/DE — infrastruktura (`jezyk`,
+`CONTRACT_TYP_LABEL_LANG` z gotowym kluczem `umowa`/`nda`) jest już
+gotowa, zostanie tylko dopisać treść klauzul per język.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

@@ -16,11 +16,22 @@
 // po polsku — treść prawna wymaga weryfikacji prawnika niezależnie od
 // języka, tłumaczenie dokładałoby pracę bez realnej wartości na tym etapie.
 
+import { type DocLang } from "./documents";
+
 export type ContractTyp = "umowa" | "nda";
 export const CONTRACT_TYPY: ContractTyp[] = ["umowa", "nda"];
 export const CONTRACT_TYP_LABEL: Record<ContractTyp, string> = {
   umowa: "Umowa",
   nda: "NDA",
+};
+
+/** Etykieta typu dokumentu wg języka wydruku (`contract.jezyk`) — używana
+ * tylko na publicznym/podglądowym wydruku (ContractPrint.tsx), NIE w panelu
+ * admina (tam zawsze po polsku, patrz CONTRACT_TYP_LABEL). */
+export const CONTRACT_TYP_LABEL_LANG: Record<DocLang, Record<ContractTyp, string>> = {
+  pl: { umowa: "Umowa", nda: "NDA" },
+  en: { umowa: "Agreement", nda: "NDA" },
+  de: { umowa: "Vertrag", nda: "NDA" },
 };
 
 export type ContractStatus = "Szkic" | "Wysłana" | "Podpisana" | "Odrzucona";
@@ -67,6 +78,13 @@ export type Contract = {
   accepted_user_agent: string | null;
   created_at: string;
   updated_at: string;
+  /** Język wydruku/publicznego linku (pl/en/de) — dla typ="umowa" dziedziczony
+   * z języka oferty przy generowaniu (app/api/contracts POST), dla typ="nda"
+   * zawsze 'pl' (NDA nie ma powiązanej oferty, z której można by dziedziczyć).
+   * WAŻNE: dotyczy tylko "chrome" wydruku (nagłówki, przyciski, e-podpis) —
+   * treść klauzul (CONTRACT_CLAUSES/NDA_CLAUSES) zostaje świadomie tylko po
+   * polsku, patrz komentarz na górze pliku. */
+  jezyk: DocLang;
 };
 
 /** Ostrzeżenie wyświetlane na każdym dokumencie (panel + wydruk/publiczny
@@ -74,6 +92,28 @@ export type Contract = {
  * klientem bez weryfikacji prawnika. Patrz uzasadnienie na górze pliku. */
 export const LEGAL_PLACEHOLDER_NOTE =
   "SZABLON — WYMAGA WERYFIKACJI PRAWNEJ przed użyciem z prawdziwym klientem. Treść poniżej to robocza wersja, nie sprawdzona jeszcze przez prawnika.";
+
+/** Wersje językowe LEGAL_PLACEHOLDER_NOTE — to metainformacja o dokumencie
+ * ("to szkic, wymaga weryfikacji prawnej"), NIE klauzula prawna, więc
+ * bezpieczna do tłumaczenia już teraz, mimo że same klauzule (CONTRACT_
+ * CLAUSES/NDA_CLAUSES) świadomie zostają tylko po polsku, dopóki nie
+ * przejdą weryfikacji prawnika. */
+export const LEGAL_PLACEHOLDER_NOTE_LANG: Record<DocLang, string> = {
+  pl: LEGAL_PLACEHOLDER_NOTE,
+  en: "TEMPLATE — REQUIRES LEGAL REVIEW before use with a real client. The content below is a working draft, not yet reviewed by a lawyer.",
+  de: "VORLAGE — RECHTLICHE PRÜFUNG ERFORDERLICH vor der Verwendung mit einem echten Kunden. Der nachfolgende Inhalt ist ein Arbeitsentwurf, der noch nicht von einem Anwalt geprüft wurde.",
+};
+
+/** Pokazywana obok klauzul na wydruku niepolskojęzycznym — same klauzule
+ * renderują się nadal po polsku (patrz CONTRACT_CLAUSES/NDA_CLAUSES),
+ * więc czytelnik obcojęzycznej wersji dokumentu musi wiedzieć, że czeka je
+ * jeszcze tłumaczenie + weryfikacja prawna, zanim będzie można użyć ich z
+ * prawdziwym zagranicznym klientem. */
+export const CLAUSES_UNTRANSLATED_NOTE: Record<DocLang, string> = {
+  pl: "",
+  en: "The clauses below are currently available in Polish only — translation and legal review are pending.",
+  de: "Die folgenden Klauseln liegen derzeit nur auf Polnisch vor — Übersetzung und rechtliche Prüfung stehen noch aus.",
+};
 
 export type Clause = { title: string; text: string };
 

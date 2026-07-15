@@ -81,6 +81,7 @@ export function TableView({
               <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Telefon</th>
               <th className="min-w-[150px] bg-[var(--bg-soft)] p-2">Email</th>
               <th className="min-w-[100px] bg-[var(--bg-soft)] p-2">Status</th>
+              <th className="min-w-[70px] bg-[var(--bg-soft)] p-2">Ocena</th>
               <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Ostatni kontakt</th>
               <th className="bg-[var(--bg-soft)] p-2">Dni</th>
               <th className="min-w-[220px] bg-[var(--bg-soft)] p-2">Notatki</th>
@@ -90,7 +91,7 @@ export function TableView({
           <tbody>
             {clients.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-sm text-muted opacity-60">
+                <td colSpan={11} className="p-8 text-center text-sm text-muted opacity-60">
                   <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
                   Brak klientów pasujących do filtrów.
                 </td>
@@ -147,6 +148,15 @@ export function TableView({
                   </td>
                   <td className="p-2">
                     <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
+                  </td>
+                  <td className="p-2">
+                    {client.avg_rating != null ? (
+                      <span className="text-brand-gold" title={`Średnia ocena z opinii: ${client.avg_rating.toFixed(1)}/5`}>
+                        ★ {client.avg_rating.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="text-muted opacity-50">—</span>
+                    )}
                   </td>
                   <td className="p-2">
                     <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => onUpdate(client.id, "ostatni_kontakt", v)} placeholder="—" />

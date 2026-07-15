@@ -774,6 +774,11 @@ async function createContractsSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS contracts_project_id_idx ON contracts(project_id);`;
   await sql`CREATE INDEX IF NOT EXISTS contracts_lead_id_idx ON contracts(lead_id);`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS contracts_share_token_idx ON contracts(share_token);`;
+  // Język wydruku (pl/en/de) — dla Umów dziedziczony z języka oferty przy
+  // generowaniu (app/api/contracts), dla NDA zawsze 'pl'. Dotyczy tylko
+  // "chrome" wydruku — treść klauzul zostaje świadomie tylko po polsku,
+  // patrz komentarz na górze lib/contracts.ts.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS jezyk TEXT NOT NULL DEFAULT 'pl';`;
 }
 
 /** Lazily tworzy tabele modułu Umowy + NDA. */

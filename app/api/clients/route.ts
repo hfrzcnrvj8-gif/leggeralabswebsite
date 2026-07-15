@@ -1,17 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureClientsSchema, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { CLIENT_STATUSES } from "@/lib/clients";
 
 export const runtime = "nodejs";
 
-/** GET /api/clients — lista klientów. Admin-only. */
+/** GET /api/clients — lista klientów. Admin-only. Dociąga `avg_rating`
+ * (Moduł 15) — średnią z opinii zebranych po wszystkich projektach danego
+ * klienta, do odznaki ★ w Kanban/liście (KanbanBoard.tsx/TableView.tsx). */
 export async function GET() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureClientsSchema();
+  await ensureHubSchema();
   const sql = getSql();
-  const rows = await sql`SELECT * FROM clients ORDER BY created_at DESC;`;
+  const rows = await sql`
+    SELECT c.*, r.avg_rating
+    FROM clients c
+    LEFT JOIN (
+      SELECT client_id, AVG((review_rating_jakosc + review_rating_terminowosc + review_rating_komunikacja) / 3.0)::float8 AS avg_rating
+      FROM projects
+      WHERE review_submitted_at IS NOT NULL AND client_id IS NOT NULL
+      GROUP BY client_id
+    ) r ON r.client_id = c.id
+    ORDER BY c.created_at DESC;
+  `;
   return NextResponse.json({ clients: rows });
 }
 
