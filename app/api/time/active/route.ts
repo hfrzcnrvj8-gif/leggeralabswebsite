@@ -16,7 +16,9 @@ export async function GET() {
   const sql = getSql();
 
   const rows = await sql`
-    SELECT te.*, p.tytul AS project_tytul, pt.text AS task_text
+    SELECT te.id, te.project_id, te.task_id, te.source, te.entry_date, te.started_at, te.ended_at,
+      te.minutes::float8 AS minutes, te.note, te.created_at,
+      p.tytul AS project_tytul, pt.text AS task_text
     FROM time_entries te
     JOIN projects p ON p.id = te.project_id
     LEFT JOIN project_tasks pt ON pt.id = te.task_id

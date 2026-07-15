@@ -2061,6 +2061,40 @@ projektu).
   — świadomie prostsze niż SWR/kontekst, bo w całym panelu i tak nigdzie
   indziej nie ma pollingu cross-page live data.
 
+### Moduł 19 — dogranie: edycja wpisów, precyzja stopera, raport zbiorczy (2026-07-15)
+
+Właściciel po pierwszym wdrożeniu poprosił o dogranie czterech braków
+zgłoszonych świadomie jako "czego nie ma" — wszystkie cztery domknięte w tej
+samej sesji:
+
+- **Edycja ręcznego/stoperowego wpisu w UI** — ikona ołówka (hover, obok
+  kosza) w karcie "Czas pracy" przełącza wiersz w formularz inline (godziny,
+  zadanie, data, notatka + Zapisz/Anuluj, Enter/Escape jako skróty) — ten sam
+  kształt co formularz dodawania, żeby nie trzeba było uczyć się drugiego
+  wzorca. Backend (`PATCH /api/time/:id`) istniał od początku, brakowało
+  tylko wejścia z UI.
+- **Precyzja stopera poniżej minuty** — `time_entries.minutes` zmienione z
+  `INTEGER` na `NUMERIC` (idempotentny `ALTER COLUMN TYPE` w
+  `ensureTimeSchema()`), `/api/time/start` i `/api/time/stop` liczą teraz
+  dokładny czas (`ROUND(..., 2)`) zamiast `GREATEST(1, ROUND(...))` które
+  zaokrąglało w górę do pełnej minuty. `formatDuration()`
+  (`lib/time-tracking.ts`) pokazuje sekundy poniżej minuty ("17 s") zamiast
+  chować krótkie sesje pod "0 min". Wszystkie SELECT-y na `time_entries`
+  jawnie rzutują `minutes::float8 AS minutes` (zamiast `SELECT *`) — NUMERIC
+  bez rzutowania wraca z neona jako string, co psułoby arytmetykę/typy w UI.
+- **Lista wpisów bez sztywnego limitu 8** — `<ul>` w karcie "Czas pracy" ma
+  teraz `max-h-56 overflow-y-auto` i renderuje WSZYSTKIE wpisy (przewijalnie),
+  zamiast `.slice(0, 8)` które po prostu obcinało starsze wpisy bez żadnego
+  sposobu, by je zobaczyć.
+- **Raport zbiorczy godzin pracy** — nowa karta "Godziny pracy (łącznie)" +
+  wykres trendu 12-miesięcznego na `/admin/stats` (Moduł 18), wzorem
+  pozostałych metryk: `app/api/stats/route.ts` dolicza `time_entries`
+  (`ensureTimeSchema()` + agregacja per miesiąc `entry_date`, z pominięciem
+  wpisu w trakcie — tak jak `sumMinutes()`), `StatsDashboard.tsx` dostaje
+  `timeTracking: { totalHours, trend }` i renderuje identycznym `StatCard`/
+  `ChartCard`/`TrendChart` co reszta strony (kolor marki dziedziczony
+  automatycznie z `.trend-chart` CSS, bez nowego stylu).
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

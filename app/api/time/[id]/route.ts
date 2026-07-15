@@ -21,7 +21,7 @@ export async function PATCH(
   await ensureTimeSchema();
   const sql = getSql();
 
-  const existingRows = await sql`SELECT * FROM time_entries WHERE id = ${id};`;
+  const existingRows = await sql`SELECT project_id, task_id, minutes::float8 AS minutes, entry_date, note FROM time_entries WHERE id = ${id};`;
   const existing = existingRows[0] as { project_id: string; task_id: string | null; minutes: number; entry_date: string; note: string } | undefined;
   if (!existing) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -45,7 +45,8 @@ export async function PATCH(
   `;
 
   const entries = await sql`
-    SELECT * FROM time_entries WHERE project_id = ${existing.project_id} ORDER BY entry_date DESC, created_at DESC;
+    SELECT id, project_id, task_id, source, entry_date, started_at, ended_at, minutes::float8 AS minutes, note, created_at
+    FROM time_entries WHERE project_id = ${existing.project_id} ORDER BY entry_date DESC, created_at DESC;
   `;
 
   return NextResponse.json({ ok: true, entries });
@@ -73,7 +74,8 @@ export async function DELETE(
   await sql`DELETE FROM time_entries WHERE id = ${id};`;
 
   const entries = await sql`
-    SELECT * FROM time_entries WHERE project_id = ${projectId} ORDER BY entry_date DESC, created_at DESC;
+    SELECT id, project_id, task_id, source, entry_date, started_at, ended_at, minutes::float8 AS minutes, note, created_at
+    FROM time_entries WHERE project_id = ${projectId} ORDER BY entry_date DESC, created_at DESC;
   `;
 
   return NextResponse.json({ ok: true, entries });

@@ -31,10 +31,14 @@ export async function POST(req: NextRequest) {
   let stopped: { id: string; project_id: string; minutes: number } | null = null;
 
   if (running) {
+    // Precyzja do setnych minuty (nie zaokrąglane w górę do pełnej minuty) —
+    // krótka sesja stopera ma zapisać się z realną długością, nie sztywnym
+    // "1 min". `formatDuration()` (lib/time-tracking.ts) pokazuje sekundy
+    // poniżej minuty.
     const minutesRows = await sql`
-      SELECT GREATEST(1, ROUND(EXTRACT(EPOCH FROM (now() - ${running.started_at}::timestamptz)) / 60))::int AS minutes;
+      SELECT ROUND((EXTRACT(EPOCH FROM (now() - ${running.started_at}::timestamptz)) / 60)::numeric, 2)::float8 AS minutes;
     `;
-    const minutes = (minutesRows[0]?.minutes as number | undefined) ?? 1;
+    const minutes = Math.max(0, (minutesRows[0]?.minutes as number | undefined) ?? 0);
     await sql`UPDATE time_entries SET ended_at = now(), minutes = ${minutes} WHERE id = ${running.id};`;
     stopped = { id: running.id, project_id: running.project_id, minutes };
   }
@@ -44,7 +48,10 @@ export async function POST(req: NextRequest) {
     INSERT INTO time_entries (id, project_id, task_id, source, entry_date, started_at)
     VALUES (${id}, ${projectId}, ${taskId}, 'timer', ${todayLocalISO()}, now());
   `;
-  const activeRows = await sql`SELECT * FROM time_entries WHERE id = ${id};`;
+  const activeRows = await sql`
+    SELECT id, project_id, task_id, source, entry_date, started_at, ended_at, minutes::float8 AS minutes, note, created_at
+    FROM time_entries WHERE id = ${id};
+  `;
 
   return NextResponse.json({ ok: true, active: activeRows[0], stopped_previous: stopped });
 }

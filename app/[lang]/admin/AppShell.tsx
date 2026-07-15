@@ -352,7 +352,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
               {!collapsed && (
                 <span className="min-w-0 flex-1 truncate">
-                  {formatDuration(Math.max(0, Math.floor((Date.now() - new Date(activeTimer.started_at as string).getTime()) / 60000)))}
+                  {formatDuration(Math.max(0, (Date.now() - new Date(activeTimer.started_at as string).getTime()) / 60000))}
                   {activeTimer.project_tytul ? ` · ${activeTimer.project_tytul}` : ""}
                 </span>
               )}

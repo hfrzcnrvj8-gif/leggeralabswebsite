@@ -1130,11 +1130,16 @@ async function createTimeSchema(): Promise<void> {
       entry_date DATE NOT NULL DEFAULT CURRENT_DATE,
       started_at TIMESTAMPTZ,
       ended_at TIMESTAMPTZ,
-      minutes INTEGER NOT NULL DEFAULT 0,
+      minutes NUMERIC NOT NULL DEFAULT 0,
       note TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+  // `minutes` zaczynał jako INTEGER (zaokrąglone w górę do pełnej minuty) —
+  // zmienione na NUMERIC, żeby krótkie sesje stopera (poniżej minuty)
+  // zapisywały się z realną długością zamiast sztywnego "1 min". Bezpieczne
+  // do wielokrotnego uruchomienia: rzutowanie NUMERIC→NUMERIC to no-op.
+  await sql`ALTER TABLE time_entries ALTER COLUMN minutes TYPE NUMERIC USING minutes::numeric;`;
   await sql`CREATE INDEX IF NOT EXISTS time_entries_project_id_idx ON time_entries(project_id);`;
   await sql`CREATE INDEX IF NOT EXISTS time_entries_task_id_idx ON time_entries(task_id);`;
   // Szybkie wyszukanie aktywnego stopera (globalnie, bez filtra po projekcie).

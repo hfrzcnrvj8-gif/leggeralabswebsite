@@ -22,13 +22,17 @@ export function sumMinutes(entries: TimeEntry[]): number {
   return entries.reduce((sum, e) => (e.ended_at === null && e.source === "timer" ? sum : sum + e.minutes), 0);
 }
 
-/** "125" → "2 godz. 5 min" (0 min pomijane, 0 godz. pomijane). Świadomie bez
- * "00:00" — to narzędzie do samopoznania, nie stoper sportowy. */
+/** "125" → "2 godz. 5 min" (0 min pomijane, 0 godz. pomijane). Poniżej minuty
+ * pokazuje sekundy ("42 s") zamiast zaokrąglać do "0 min" — stoper zapisuje
+ * teraz realną długość krótkich sesji (`minutes` jest ułamkowe), więc kilka
+ * sekund pracy nie powinno znikać z widoku jako zero. Świadomie bez "00:00"
+ * — to narzędzie do samopoznania, nie stoper sportowy. */
 export function formatDuration(totalMinutes: number): string {
-  const minutes = Math.max(0, Math.round(totalMinutes));
+  const totalSeconds = Math.max(0, Math.round(totalMinutes * 60));
+  if (totalSeconds < 60) return `${totalSeconds} s`;
+  const minutes = Math.round(totalSeconds / 60);
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h === 0 && m === 0) return "0 min";
   if (h === 0) return `${m} min`;
   if (m === 0) return `${h} godz.`;
   return `${h} godz. ${m} min`;

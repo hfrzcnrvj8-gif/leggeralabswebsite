@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconUsers, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical, IconPlayerPlay, IconPlayerStop, IconClock, IconTrash } from "@tabler/icons-react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconUsers, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical, IconPlayerPlay, IconPlayerStop, IconClock, IconTrash, IconPencil } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -93,6 +93,11 @@ export function ProjectDetailPanel({
   const [activeTimer, setActiveTimer] = useState<(TimeEntry & { project_tytul?: string; task_text?: string | null }) | null>(null);
   const [, setTick] = useState(0);
   const [manualHours, setManualHours] = useState("");
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editHours, setEditHours] = useState("");
+  const [editTaskId, setEditTaskId] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editNote, setEditNote] = useState("");
   const [manualTaskId, setManualTaskId] = useState("");
   const [manualDate, setManualDate] = useState(todayLocalISO());
   const [manualNote, setManualNote] = useState("");
@@ -293,6 +298,42 @@ export function ProjectDetailPanel({
     }
     const data = (await res.json()) as { entries: TimeEntry[] };
     setTimeEntries(data.entries);
+  };
+
+  const startEditEntry = (e: TimeEntry) => {
+    setEditingEntryId(e.id);
+    setEditHours(String(Math.round((e.minutes / 60) * 100) / 100).replace(".", ","));
+    setEditTaskId(e.task_id ?? "");
+    setEditDate(e.entry_date);
+    setEditNote(e.note);
+  };
+
+  const cancelEditEntry = () => setEditingEntryId(null);
+
+  const saveEditedEntry = async () => {
+    if (!editingEntryId) return;
+    const hours = parseFloat(editHours.replace(",", "."));
+    if (!Number.isFinite(hours) || hours <= 0) {
+      toast("Podaj liczbę godzin większą od zera.", "error");
+      return;
+    }
+    const res = await fetch(`/api/time/${editingEntryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        task_id: editTaskId || null,
+        minutes: Math.round(hours * 60),
+        entry_date: editDate,
+        note: editNote.trim(),
+      }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmian.", "error");
+      return;
+    }
+    const data = (await res.json()) as { entries: TimeEntry[] };
+    setTimeEntries(data.entries);
+    setEditingEntryId(null);
   };
 
   useRegisterActions(
@@ -1040,7 +1081,7 @@ export function ProjectDetailPanel({
                   <IconClock size={14} className="text-emerald-400" />
                   Stoper działa{activeTimerHere.task_text ? ` — ${activeTimerHere.task_text}` : ""}
                   {" · "}
-                  {formatDuration(Math.max(0, Math.floor((Date.now() - new Date(activeTimerHere.started_at as string).getTime()) / 60000)))}
+                  {formatDuration(Math.max(0, (Date.now() - new Date(activeTimerHere.started_at as string).getTime()) / 60000))}
                 </span>
                 <button onClick={stopTimer} className="shrink-0 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]">
                   <IconPlayerStop size={13} className="inline -mt-0.5 mr-1" />
@@ -1060,28 +1101,92 @@ export function ProjectDetailPanel({
             )}
 
             {timeEntries.filter((e) => !(e.ended_at === null && e.source === "timer")).length > 0 && (
-              <ul className="mb-3 space-y-1">
+              <ul className="mb-3 max-h-56 space-y-1 overflow-y-auto pr-1">
                 {timeEntries
                   .filter((e) => !(e.ended_at === null && e.source === "timer"))
-                  .slice(0, 8)
-                  .map((e) => (
-                  <li key={e.id} className="group/time flex items-center justify-between gap-2 rounded-lg px-1 py-0.5 text-[12.5px] hover:bg-[var(--hairline)]">
-                    <span className="min-w-0 flex-1 truncate text-muted">
-                      {formatPlDate(e.entry_date)}
-                      {e.task_id && tasks.find((t) => t.id === e.task_id) ? ` · ${tasks.find((t) => t.id === e.task_id)?.text}` : ""}
-                      {e.note ? ` — ${e.note}` : ""}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-[var(--fg)]">{formatDuration(e.minutes)}</span>
-                    <button
-                      onClick={() => deleteTimeEntry(e.id)}
-                      className="shrink-0 text-muted opacity-0 transition-opacity group-hover/time:opacity-100 hover:text-red-400"
-                      aria-label="Usuń wpis czasu"
-                      title="Usuń"
-                    >
-                      <IconTrash size={13} />
-                    </button>
-                  </li>
-                ))}
+                  .map((e) =>
+                    editingEntryId === e.id ? (
+                      <li key={e.id} className="space-y-1.5 rounded-lg border hairline bg-[var(--hairline)] p-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <input
+                            value={editHours}
+                            onChange={(ev) => setEditHours(ev.target.value)}
+                            onKeyDown={(ev) => {
+                              if (ev.key === "Enter") saveEditedEntry();
+                              if (ev.key === "Escape") cancelEditEntry();
+                            }}
+                            placeholder="godz."
+                            inputMode="decimal"
+                            autoFocus
+                            className="w-16 rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] placeholder:text-muted"
+                          />
+                          <select
+                            value={editTaskId}
+                            onChange={(ev) => setEditTaskId(ev.target.value)}
+                            className="rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)]"
+                          >
+                            <option value="">— ogólnie na projekt —</option>
+                            {tasks.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.text}
+                              </option>
+                            ))}
+                          </select>
+                          <DateField value={editDate} onChange={(v) => v && setEditDate(v)} placeholder="Data" />
+                        </div>
+                        <input
+                          value={editNote}
+                          onChange={(ev) => setEditNote(ev.target.value)}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") saveEditedEntry();
+                            if (ev.key === "Escape") cancelEditEntry();
+                          }}
+                          placeholder="Notatka (opcjonalnie)"
+                          className="w-full rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] placeholder:text-muted"
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <button onClick={cancelEditEntry} className="rounded-lg border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]">
+                            Anuluj
+                          </button>
+                          <button
+                            onClick={saveEditedEntry}
+                            disabled={!editHours.trim()}
+                            className="btn-primary rounded-lg px-2.5 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Zapisz
+                          </button>
+                        </div>
+                      </li>
+                    ) : (
+                      <li
+                        key={e.id}
+                        className="group/time flex items-center justify-between gap-2 rounded-lg px-1 py-0.5 text-[12.5px] transition-colors hover:bg-[var(--hairline)]"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-muted">
+                          {formatPlDate(e.entry_date)}
+                          {e.task_id && tasks.find((t) => t.id === e.task_id) ? ` · ${tasks.find((t) => t.id === e.task_id)?.text}` : ""}
+                          {e.note ? ` — ${e.note}` : ""}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-[var(--fg)]">{formatDuration(e.minutes)}</span>
+                        <button
+                          onClick={() => startEditEntry(e)}
+                          className="shrink-0 text-muted opacity-0 transition-opacity group-hover/time:opacity-100 hover:text-[var(--fg)]"
+                          aria-label="Edytuj wpis czasu"
+                          title="Edytuj"
+                        >
+                          <IconPencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => deleteTimeEntry(e.id)}
+                          className="shrink-0 text-muted opacity-0 transition-opacity group-hover/time:opacity-100 hover:text-red-400"
+                          aria-label="Usuń wpis czasu"
+                          title="Usuń"
+                        >
+                          <IconTrash size={13} />
+                        </button>
+                      </li>
+                    )
+                  )}
               </ul>
             )}
 

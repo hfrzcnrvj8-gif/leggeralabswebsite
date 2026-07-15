@@ -5,6 +5,7 @@ import {
   ensureHubSchema,
   ensureInvoicesSchema,
   ensureClientsSchema,
+  ensureTimeSchema,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO, daysBetweenISO } from "@/lib/dates";
@@ -27,6 +28,7 @@ export async function GET() {
   await ensureHubSchema();
   await ensureInvoicesSchema();
   await ensureClientsSchema();
+  await ensureTimeSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -38,6 +40,7 @@ export async function GET() {
     projectRows,
     invoiceRows,
     nurtureAskRows,
+    timeEntryRows,
   ] = await Promise.all([
     // Czas do pierwszej odpowiedzi: pierwszy wpis na osi leada zainicjowany
     // PRZEZ NAS ("wychodzacy") po utworzeniu leada — nie ma dedykowanej
@@ -84,6 +87,15 @@ export async function GET() {
     // razem z % Polecenie pokazuje nie tylko "ile poleceń przyszło", ale "ile
     // razy o nie zapytaliśmy" (patrz plik modułu, sekcja "Licznik poleceń").
     sql`SELECT COUNT(*)::int AS n FROM client_events WHERE kind = 'nurture_contact_sent';` as unknown as Promise<{ n: number }[]>,
+    // Moduł 19: suma zalogowanego czasu (wszystkie projekty), wg miesiąca
+    // wykonania pracy (`entry_date`) — pomija wpis w trakcie (stoper jeszcze
+    // działa, `minutes` nie jest jeszcze ostateczne), tak jak `sumMinutes()`
+    // w lib/time-tracking.ts.
+    sql`
+      SELECT entry_date, minutes::float8 AS minutes
+      FROM time_entries
+      WHERE NOT (ended_at IS NULL AND source = 'timer');
+    ` as unknown as Promise<{ entry_date: string; minutes: number }[]>,
   ]);
 
   // --- 1) Czas do pierwszej odpowiedzi (godziny) ---
@@ -187,6 +199,20 @@ export async function GET() {
     return { month: m, value: b && b.total > 0 ? statsRound1((b.referral / b.total) * 100) : null };
   });
 
+  // --- 7) Godziny pracy (Moduł 19) — suma wszystkich projektów ---
+  const minutesByMonth = new Map<string, number>();
+  let totalMinutesAll = 0;
+  for (const t of timeEntryRows) {
+    const minutes = Number(t.minutes) || 0;
+    totalMinutesAll += minutes;
+    const month = String(t.entry_date).slice(0, 7);
+    minutesByMonth.set(month, (minutesByMonth.get(month) ?? 0) + minutes);
+  }
+  const timeTrackingTrend: StatsTrendPoint[] = months.map((m) => {
+    const minutes = minutesByMonth.get(m);
+    return { month: m, value: minutes != null ? statsRound1(minutes / 60) : null };
+  });
+
   return NextResponse.json({
     months,
     firstResponse: { avgHours: avgResponseHours == null ? null : statsRound1(avgResponseHours), trend: responseTimeTrend },
@@ -215,6 +241,10 @@ export async function GET() {
       pct: totalLeadsInWindow > 0 ? statsRound1((totalReferral / totalLeadsInWindow) * 100) : null,
       nurtureAsksSent: nurtureAskRows[0]?.n ?? 0,
       trend: referralTrend,
+    },
+    timeTracking: {
+      totalHours: statsRound1(totalMinutesAll / 60),
+      trend: timeTrackingTrend,
     },
   });
 }

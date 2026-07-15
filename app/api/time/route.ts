@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
   const sql = getSql();
 
   const entries = await sql`
-    SELECT * FROM time_entries WHERE project_id = ${projectId} ORDER BY entry_date DESC, created_at DESC;
+    SELECT id, project_id, task_id, source, entry_date, started_at, ended_at, minutes::float8 AS minutes, note, created_at
+    FROM time_entries WHERE project_id = ${projectId} ORDER BY entry_date DESC, created_at DESC;
   `;
 
   return NextResponse.json({ ok: true, entries });
@@ -59,7 +60,8 @@ export async function POST(req: NextRequest) {
   `;
 
   const entries = await sql`
-    SELECT * FROM time_entries WHERE project_id = ${projectId} ORDER BY entry_date DESC, created_at DESC;
+    SELECT id, project_id, task_id, source, entry_date, started_at, ended_at, minutes::float8 AS minutes, note, created_at
+    FROM time_entries WHERE project_id = ${projectId} ORDER BY entry_date DESC, created_at DESC;
   `;
 
   return NextResponse.json({ ok: true, entries });

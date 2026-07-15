@@ -21,6 +21,7 @@ type StatsData = {
   dso: { avgDays: number | null; oldestOverdueDays: number | null; overdueCount: number; trend: StatsTrendPoint[] };
   reviews: { closedProjectsCount: number; reviewsCollected: number; pct: number | null; avgClientRating: number | null };
   referral: { totalLeads: number; referralLeads: number; pct: number | null; nurtureAsksSent: number; trend: StatsTrendPoint[] };
+  timeTracking: { totalHours: number; trend: StatsTrendPoint[] };
 };
 
 function formatHours(h: number): string {
@@ -132,6 +133,11 @@ export function StatsDashboard() {
           value={data.referral.pct != null ? `${data.referral.pct}%` : "—"}
           sub={`${data.referral.referralLeads}/${data.referral.totalLeads} leadów · ${data.referral.nurtureAsksSent} razy zapytaliśmy`}
         />
+        <StatCard
+          label="Godziny pracy (łącznie)"
+          value={data.timeTracking.totalHours > 0 ? `${data.timeTracking.totalHours} godz.` : "—"}
+          sub="suma zalogowanego czasu, wszystkie projekty"
+        />
         <div className="card-paper rounded-xl border hairline p-4">
           <div className="text-[11px] text-muted">Zdrowie projektów</div>
           <div className="mt-1.5 space-y-1">
@@ -163,6 +169,9 @@ export function StatsDashboard() {
         </ChartCard>
         <ChartCard title="Leady z polecenia" sub="% leadów z danego miesiąca ze źródła „Polecenie”">
           <TrendChart points={data.referral.trend} formatValue={(v) => `${v}%`} />
+        </ChartCard>
+        <ChartCard title="Godziny pracy" sub="suma zalogowanego czasu, wg miesiąca wykonania pracy (wszystkie projekty)">
+          <TrendChart points={data.timeTracking.trend} formatValue={(v) => `${v} godz.`} />
         </ChartCard>
       </div>
     </div>
