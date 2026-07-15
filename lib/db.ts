@@ -8,6 +8,92 @@ let client: Sql | null = null;
 let schemaReady: Promise<void> | null = null;
 let hubSchemaReady: Promise<void> | null = null;
 
+/**
+ * ── Bramka migracji (2026-07-15) ─────────────────────────────────────────
+ *
+ * PROBLEM, który to rozwiązuje. Każdy moduł tworzy swój schemat leniwie, przy
+ * pierwszym użyciu (`CREATE TABLE IF NOT EXISTS` / `ALTER ... ADD COLUMN IF
+ * NOT EXISTS`). Wzorzec jest wygodny, ale klient `neon()` w trybie HTTP
+ * wysyła KAŻDE zapytanie jako osobne żądanie — a łańcuch zależności potrafi
+ * mieć 150+ zapytań (poczta ciągnie leady + klientów + faktury, te ciągną
+ * oferty i hub). Przy zimnym starcie funkcji na Vercelu to kilka sekund
+ * samego czekania na sieć, ZANIM cokolwiek się policzy. Właściciel zgłosił to
+ * wprost 2026-07-15: „wszystko wczytuje się bardzo wolno".
+ *
+ * ROZWIĄZANIE. Zapisujemy w bazie, w jakiej wersji kodu dany schemat został
+ * już zastosowany. Wersja = SHA commita z Vercela, czyli zmienia się dokładnie
+ * przy każdym wdrożeniu. Pierwsze żądanie po wdrożeniu wykonuje migracje i
+ * odhacza je; każde kolejne (także po zimnym starcie) płaci 2 zapytania
+ * zamiast 150+.
+ *
+ * DLACZEGO TO BEZPIECZNE. Migracje i tak są idempotentne — bramka nie zmienia
+ * ich treści, tylko pomija ponowne wykonywanie tego, co już zrobiono w TEJ
+ * wersji kodu. Nowy commit = nowa wersja = migracje lecą znowu. Gdy padną w
+ * połowie, wersja NIE zostaje zapisana, więc następne żądanie spróbuje od
+ * nowa. Dwa równoległe zimne starty mogą wykonać migracje naraz — to nadal
+ * bezpieczne, bo są idempotentne.
+ *
+ * W DEV BRAMKA JEST WYŁĄCZONA (brak SHA) — migracje lecą zawsze. To celowe:
+ * lokalnie baza to PGlite w tym samym procesie (zapytanie ≈ darmowe), a przy
+ * dopisywaniu kolumn chcemy, żeby zmiana schematu działała od razu, bez
+ * kombinowania z wersjami.
+ */
+const SCHEMA_VERSION: string | null =
+  process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.VERCEL_DEPLOYMENT_ID ?? null;
+
+let appliedVersions: Promise<Map<string, string>> | null = null;
+
+async function loadAppliedVersions(): Promise<Map<string, string>> {
+  const sql = getSql();
+  // CAŁOŚĆ w inMigration(): to odczyt maszynerii migracji, nie logika runtime.
+  // Bez tego `SELECT` (który nie jest DDL) czekałby w dev na seed, a seeder
+  // woła migracje → migracje czekają na wersję → wersja czeka na seed.
+  // Zakleszczenie; złapane testem 2026-07-15 (wszystkie /api/* wisiały 60 s).
+  // Patrz lib/migration-ctx.ts — dokładnie ta sama pułapka co przy INSERT-ach
+  // singletonów.
+  return inMigration(async () => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS schema_state (
+        name TEXT PRIMARY KEY,
+        version TEXT NOT NULL,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `;
+    const rows = (await sql`SELECT name, version FROM schema_state;`) as unknown as { name: string; version: string }[];
+    return new Map(rows.map((r) => [r.name, r.version]));
+  });
+}
+
+/** Czy schemat `name` jest już w bazie w wersji odpowiadającej temu kodowi.
+ * `false` w dev (brak SHA) → migracje wykonują się normalnie. */
+async function schemaUpToDate(name: string): Promise<boolean> {
+  if (!SCHEMA_VERSION) return false;
+  if (!appliedVersions) appliedVersions = loadAppliedVersions();
+  try {
+    return (await appliedVersions).get(name) === SCHEMA_VERSION;
+  } catch (e) {
+    // Nie udało się odczytać stanu → zachowaj się jak dotąd i wykonaj
+    // migracje. Bramka to optymalizacja, nie warunek poprawności.
+    console.error("[db] nie udało się odczytać schema_state — wykonuję migracje", e);
+    appliedVersions = null;
+    return false;
+  }
+}
+
+/** Odhacz schemat jako zastosowany w tej wersji kodu. W dev nic nie robi. */
+async function markSchemaApplied(name: string): Promise<void> {
+  if (!SCHEMA_VERSION) return;
+  const sql = getSql();
+  await inMigration(
+    () => sql`
+      INSERT INTO schema_state (name, version) VALUES (${name}, ${SCHEMA_VERSION})
+      ON CONFLICT (name) DO UPDATE SET version = EXCLUDED.version, applied_at = now();
+    `
+  );
+  const cache = await appliedVersions;
+  cache?.set(name, SCHEMA_VERSION);
+}
+
 function connectionString(): string {
   // Vercel's native Postgres product (and @vercel/postgres) is gone — DB
   // storage now comes from the Marketplace (Neon, Supabase, etc.), which
@@ -118,6 +204,10 @@ export async function withTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<
 }
 
 async function createSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("leads")) return;
+
   const sql = getSql();
   await sql`
     CREATE TABLE IF NOT EXISTS leads (
@@ -194,6 +284,8 @@ async function createSchema(): Promise<void> {
   // kanał niż telefon).
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS wynik TEXT;`;
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS czas_trwania_sek INTEGER;`;
+
+  await markSchemaApplied("leads");
 }
 
 /**
@@ -206,6 +298,10 @@ export async function ensureLeadsSchema(): Promise<void> {
 }
 
 async function createHubSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("hub")) return;
+
   // `projects.lead_id` odwołuje się kluczem obcym do `leads(id)`, więc tabela
   // leadów musi istnieć PRZED tworzeniem projektów. Na ciepłej instancji
   // produkcyjnej leady zwykle już były, ale na świeżej bazie (nowy deploy,
@@ -394,6 +490,8 @@ async function createHubSchema(): Promise<void> {
   // ustawiona; NULL = nieznany/całodniowe. Napędza siatkę godzinową
   // (bloki wysokość=czas trwania) w widokach Dzień/Tydzień.
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS czas_trwania_min INTEGER;`;
+
+  await markSchemaApplied("hub");
 }
 
 /** Lazily creates projects/notes/events tables (i tabele pomocnicze) na
@@ -406,6 +504,10 @@ export async function ensureHubSchema(): Promise<void> {
 let invoicesSchemaReady: Promise<void> | null = null;
 
 async function createInvoicesSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("invoices")) return;
+
   const sql = getSql();
   // Faktura odwołuje się do leadów/projektów (FK) — upewnij się, że istnieją.
   await ensureLeadsSchema();
@@ -650,6 +752,8 @@ async function createInvoicesSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+
+  await markSchemaApplied("invoices");
 }
 
 /** Lazily tworzy tabele modułu Faktur (ustawienia firmy, faktury, pozycje). */
@@ -661,6 +765,10 @@ export async function ensureInvoicesSchema(): Promise<void> {
 let offersSchemaReady: Promise<void> | null = null;
 
 async function createOffersSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("offers")) return;
+
   const sql = getSql();
   // Oferta odwołuje się do leada, a po akceptacji do utworzonego projektu i
   // faktury (FK) — upewnij się, że te tabele istnieją.
@@ -719,6 +827,8 @@ async function createOffersSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS offer_items_offer_id_idx ON offer_items(offer_id);`;
+
+  await markSchemaApplied("offers");
 }
 
 /** Lazily tworzy tabele modułu Ofert (oferty, pozycje). */
@@ -738,6 +848,10 @@ let offerTemplatesSchemaReady: Promise<void> | null = null;
  * cold-startach (to_regclass sprawdza istnienie PRZED CREATE TABLE).
  */
 async function createOfferTemplatesSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("offer_templates")) return;
+
   const sql = getSql();
   const existing = await sql`SELECT to_regclass('public.offer_templates') AS reg;`;
   const isNew = !existing[0]?.reg;
@@ -807,6 +921,8 @@ async function createOfferTemplatesSchema(): Promise<void> {
       );
     }
   }
+
+  await markSchemaApplied("offer_templates");
 }
 
 /** Lazily tworzy tabelę modułu Szablony ofert. */
@@ -824,6 +940,10 @@ let contractsSchemaReady: Promise<void> | null = null;
  * której powstała (zakres/cena kopiowane przy tworzeniu); NDA zwykle tylko
  * do leada (wysyłane przed sprzedażą, zanim powstanie klient/projekt). */
 async function createContractsSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("contracts")) return;
+
   const sql = getSql();
   await ensureLeadsSchema();
   await ensureHubSchema();
@@ -870,6 +990,8 @@ async function createContractsSchema(): Promise<void> {
   // "chrome" wydruku — treść klauzul zostaje świadomie tylko po polsku,
   // patrz komentarz na górze lib/contracts.ts.
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS jezyk TEXT NOT NULL DEFAULT 'pl';`;
+
+  await markSchemaApplied("contracts");
 }
 
 /** Lazily tworzy tabele modułu Umowy + NDA. */
@@ -888,6 +1010,10 @@ let clientsSchemaReady: Promise<void> | null = null;
  * stare rekordy i szybkie jednorazowe dokumenty bez podpiętego klienta mają
  * dalej działać bez zmian. */
 async function createClientsSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("clients")) return;
+
   // client_id w leads/offers/invoices/projects odwołuje się do clients(id),
   // więc clients musi istnieć najpierw — a offers/invoices/projects muszą
   // istnieć, zanim dodamy im nowe kolumny.
@@ -979,6 +1105,8 @@ async function createClientsSchema(): Promise<void> {
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS osoba_kontaktowa TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS zrodlo TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS zrodlo_kategoria TEXT NOT NULL DEFAULT '';`;
+
+  await markSchemaApplied("clients");
 }
 
 export async function ensureClientsSchema(): Promise<void> {
@@ -1019,6 +1147,10 @@ let followupsSchemaReady: Promise<void> | null = null;
  * sumują się na Pulpicie, patrz app/api/hub/today). `project_id` służy do
  * deduplikacji (nie planuj drugi raz dla tego samego projektu). */
 async function createFollowupsSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("followups")) return;
+
   await ensureClientsSchema();
   await ensureHubSchema();
   const sql = getSql();
@@ -1036,6 +1168,8 @@ async function createFollowupsSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS client_followups_client_id_idx ON client_followups(client_id);`;
   await sql`CREATE INDEX IF NOT EXISTS client_followups_due_date_idx ON client_followups(due_date);`;
+
+  await markSchemaApplied("followups");
 }
 
 export async function ensureFollowupsSchema(): Promise<void> {
@@ -1051,6 +1185,10 @@ let costsSchemaReady: Promise<void> | null = null;
  * faktur projektu − koszty projektu) — patrz GET /api/projects/[id]. Świadomie
  * tylko PLN w v1. */
 async function createCostsSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("costs")) return;
+
   // Koszt może być podpięty do projektu (FK) — upewnij się, że istnieje.
   await ensureHubSchema();
 
@@ -1150,6 +1288,8 @@ async function createCostsSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS recurring_costs_active_idx ON recurring_costs(active, next_run);`;
+
+  await markSchemaApplied("costs");
 }
 
 /** Lazily tworzy tabelę modułu Koszty. */
@@ -1208,6 +1348,10 @@ let timeSchemaReady: Promise<void> | null = null;
  * aktualnie działa; panel jest jednoosobowy, więc w danym momencie może być
  * aktywny co najwyżej jeden taki wiersz (pilnowane w API, nie w bazie). */
 async function createTimeSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("time")) return;
+
   await ensureHubSchema();
 
   const sql = getSql();
@@ -1235,6 +1379,8 @@ async function createTimeSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS time_entries_task_id_idx ON time_entries(task_id);`;
   // Szybkie wyszukanie aktywnego stopera (globalnie, bez filtra po projekcie).
   await sql`CREATE INDEX IF NOT EXISTS time_entries_running_idx ON time_entries(ended_at) WHERE ended_at IS NULL;`;
+
+  await markSchemaApplied("time");
 }
 
 /** Lazily tworzy tabelę modułu Śledzenie czasu. */
@@ -1261,6 +1407,10 @@ let mailSchemaReady: Promise<void> | null = null;
  * to właśnie kolejka "Nieprzypisane" (mail z nieznanego adresu). ON DELETE
  * SET NULL, żeby usunięcie klienta nie kasowało korespondencji. */
 async function createMailSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("mail")) return;
+
   // Poczta dopina się do klientów, leadów i faktur — ich tabele muszą
   // istnieć, zanim założymy klucze obce.
   await ensureLeadsSchema();
@@ -1358,6 +1508,8 @@ async function createMailSchema(): Promise<void> {
   // zostawia wpis na osi (traci tylko link do treści).
   await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS mail_message_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS mail_message_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL;`;
+
+  await markSchemaApplied("mail");
 }
 
 /** Lazily tworzy tabele modułu Poczta. */

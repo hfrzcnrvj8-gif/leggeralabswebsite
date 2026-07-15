@@ -33,6 +33,16 @@ poprawiał kodu — jeśli coś wymaga decyzji nietechnicznej, zapytaj wprost.
   cache'owanym promise). Nowe kolumny/tabele dodawaj przez
   `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
   w tych funkcjach — nigdy ręcznych migracji.
+- **Bramka migracji** (2026-07-15): każda `create*Schema()` zaczyna się od
+  `if (await schemaUpToDate("nazwa")) return;` i kończy
+  `await markSchemaApplied("nazwa");`. Bez tego panel wykonuje 150+ zapytań
+  przy każdym zimnym starcie (neon() = 1 żądanie HTTP na zapytanie) i mieli
+  po kilka sekund. Dodając nowy schemat — dodaj obie linie. Szczegóły:
+  `HUB_SETUP.md` → „Bramka migracji".
+- **Zapytanie nie-DDL wewnątrz migracji** (np. `INSERT` wiersza-singletona)
+  MUSI być owinięte w `inMigration()` z `lib/migration-ctx.ts`, inaczej w dev
+  zakleszcza seeder i **wszystkie `/api/*` wiszą kilkadziesiąt sekund**.
+  Filtr `isDDL()` łapie tylko CREATE/ALTER/DROP.
 - Zmienne środowiskowe: `DATABASE_URL` (lub `POSTGRES_URL`),
   `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, opcjonalnie `RESEND_API_KEY` /
   `RESEND_FROM` / `CRON_SECRET` dla dziennego raportu mailowego.

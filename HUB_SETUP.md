@@ -2312,6 +2312,52 @@ RĘCZNIE, nie automatem po kraju klienta („mam wiedzieć, co podpinam").
 **DW (Cc)** przy odpowiadaniu — adresy trafiają też do koperty SMTP, inaczej
 nagłówek byłby widoczny, ale poczta by tam nie poszła.
 
+## Bramka migracji — dlaczego panel przestał mielić przy wejściu (2026-07-15)
+
+Właściciel zgłosił: „wszystko wczytuje się bardzo wolno". Zmierzone, nie
+zgadywane — łańcuch migracji uruchamiany przy zimnym starcie:
+
+| Wejście | Zapytań do bazy |
+|---|---|
+| **Poczta** (ciągnie leady + klientów + faktury) | **156** |
+| Klienci | 141 |
+| Faktury | 103 |
+
+Klient `neon()` w trybie HTTP wysyła KAŻDE zapytanie jako osobne żądanie, więc
+przy ~50 ms na jedno to kilka sekund samego czekania na sieć, zanim
+cokolwiek się policzy. Płacone przy każdym **zimnym starcie** funkcji na
+Vercelu (stąd objaw: pierwsze wejście mieli, kolejne są szybkie, po przerwie
+znowu mieli). **To nie wina poczty** — wzorzec „migracje przy pierwszym
+użyciu" jest w panelu od początku; poczta ma po prostu najdłuższy łańcuch
+zależności ze wszystkich modułów i pierwsza to obnażyła.
+
+**Rozwiązanie:** tabela `schema_state(name, version)` + `schemaUpToDate()` /
+`markSchemaApplied()` w `lib/db.ts`. Wersja = `VERCEL_GIT_COMMIT_SHA`, czyli
+zmienia się dokładnie przy każdym wdrożeniu. Pierwsze żądanie po wdrożeniu
+wykonuje migracje i odhacza je; każde kolejne płaci **2 zapytania zamiast
+150+**. Migracje pozostają idempotentne — bramka nie zmienia ich treści, tylko
+pomija powtarzanie tego, co już zrobiono w TEJ wersji kodu. Padnięcie w
+połowie = wersja niezapisana = następne żądanie próbuje od nowa.
+
+**W dev bramka jest wyłączona** (brak SHA) — migracje lecą zawsze. Celowo:
+PGlite jest w tym samym procesie (zapytanie ≈ darmowe), a przy dopisywaniu
+kolumny zmiana ma działać od razu, bez kombinowania z wersjami.
+
+⚠️ **Przy dodawaniu nowego schematu** pamiętaj o obu liniach:
+`if (await schemaUpToDate("nazwa")) return;` na początku i
+`await markSchemaApplied("nazwa");` na końcu `create*Schema()`.
+
+⚠️ **Czego NIE dało się sprawdzić lokalnie:** samego pominięcia migracji przy
+kolejnym zimnym starcie — dev-baza żyje w pamięci procesu, więc nowy start to
+nowa, pusta baza i migracje zawsze muszą polecieć. Zweryfikowano: brak
+zakleszczenia, poprawne dane przy aktywnej bramce, zapis wersji. Realny zysk
+czasu widać dopiero na produkcji.
+
+**Przy okazji złapana pułapka (ta sama co niżej):** pierwsza wersja bramki
+czytała `schema_state` zwykłym `SELECT`-em, poza `inMigration()` — przez co w
+dev seeder czekał na wersję, a wersja na seed. Wszystkie `/api/*` wisiały 60 s.
+Odczyt stanu migracji też jest migracją.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite
