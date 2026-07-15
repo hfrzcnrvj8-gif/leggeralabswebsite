@@ -92,12 +92,14 @@ export async function GET() {
     // scalane z nim dopiero w UI (DashboardHome.tsx), żeby zachować czytelny,
     // własny powód przy każdym.
     sql`
-      SELECT f.id, f.client_id, f.due_date, f.powod, c.nazwa AS client_nazwa
+      SELECT f.id, f.client_id, f.project_id, f.due_date, f.powod, c.nazwa AS client_nazwa
       FROM client_followups f
       JOIN clients c ON c.id = f.client_id
       WHERE f.due_date <= ${today} AND f.done_at IS NULL
       ORDER BY f.due_date ASC;
-    ` as unknown as Promise<{ id: string; client_id: string; due_date: string; powod: string; client_nazwa: string }[]>,
+    ` as unknown as Promise<
+      { id: string; client_id: string; project_id: string | null; due_date: string; powod: string; client_nazwa: string }[]
+    >,
     sql`SELECT * FROM company_settings WHERE id = 'default';` as unknown as Promise<CompanySettings[]>,
   ]);
 

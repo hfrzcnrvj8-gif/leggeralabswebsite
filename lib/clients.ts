@@ -10,6 +10,7 @@
 // zanim jest oferta). Patrz lib/db.ts ensureClientsSchema.
 
 import { todayLocalISO } from "./dates";
+import { type DocLang } from "./documents";
 
 export type Client = {
   id: string;
@@ -90,6 +91,7 @@ export const CLIENT_EVENT_KINDS = [
   "nda_created",
   "review_requested",
   "review_collected",
+  "nurture_contact_sent",
 ] as const;
 export type ClientEventKind = (typeof CLIENT_EVENT_KINDS)[number];
 
@@ -122,6 +124,7 @@ export const CLIENT_EVENT_ICON: Record<string, string> = {
   nda_created: "🔒",
   review_requested: "📮",
   review_collected: "⭐",
+  nurture_contact_sent: "🔁",
 };
 
 /** Moduł 12 (fundament linkowania) — do jakiego segmentu URL-a
@@ -147,6 +150,7 @@ export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projec
   nda_created: "contracts",
   review_requested: "projects",
   review_collected: "projects",
+  nurture_contact_sent: "projects",
 };
 
 /** Status relacji — świadomie OSOBNA oś od tego, czy klient coś już kupił
@@ -213,6 +217,100 @@ export const NURTURE_OFFSETS: { days: number; powod: string }[] = [
   { days: 14, powod: "kontakt kontrolny: referencja/opinia" },
   { days: 90, powod: "kontakt kontrolny: kolejna automatyzacja" },
 ];
+
+/** Generuje szkic wiadomości retencyjnej (Moduł 17) na podstawie jednego
+ * z dwóch zaplanowanych dotknięć (patrz NURTURE_OFFSETS) — gotowy tekst do
+ * przejrzenia, edycji i wysłania, nigdy automatycznie (wzorem
+ * buildOnboardingWelcomeMessage/buildProjectClosingSummary, lib/projects.ts).
+ * +14 to przypomnienie o opinii (pomijane, gdy `review.submitted` — nie ma
+ * sensu prosić drugi raz, jeśli już ją zebrano modułem 15); +90 to propozycja
+ * kolejnego kroku. Oba kończą się pytaniem o polecenie (decyzja właściciela
+ * przy starcie modułu, 2026-07-15). */
+export function buildNurtureMessage(
+  days: 14 | 90,
+  project: { tytul: string },
+  client: { nazwa: string; osoba_kontaktowa: string } | null,
+  review: { url: string; submitted: boolean } | null,
+  lang: DocLang = "pl"
+): string {
+  const nazwaKlienta = client?.nazwa ? ` (${client.nazwa})` : "";
+
+  if (lang === "en") {
+    const greeting = client?.osoba_kontaktowa ? `Hi ${client.osoba_kontaktowa},` : "Hi,";
+    if (days === 14) {
+      const reviewLine =
+        review && !review.submitted
+          ? `\n\nBy the way — if you haven't had a chance yet, I'd really appreciate a short review of our collaboration: ${review.url}`
+          : "";
+      return `${greeting}
+
+It's been two weeks since we wrapped up "${project.tytul}"${nazwaKlienta} — how is the rollout going? Let me know if anything needs attention.${reviewLine}
+
+And if you know anyone who could use similar help, feel free to send them my way — always appreciated!
+
+Best,
+[Your name]`;
+    }
+    return `${greeting}
+
+It's been three months since we wrapped up "${project.tytul}"${nazwaKlienta} — how has it been working out day to day? If new needs have come up that we could automate together, I'd love to hear about them.
+
+And if you know anyone who could use similar help, feel free to send them my way — always appreciated!
+
+Best,
+[Your name]`;
+  }
+
+  if (lang === "de") {
+    const greeting = client?.osoba_kontaktowa ? `Hallo ${client.osoba_kontaktowa},` : "Hallo,";
+    if (days === 14) {
+      const reviewLine =
+        review && !review.submitted
+          ? `\n\nÜbrigens — falls Sie noch keine Zeit hatten: Ich würde mich sehr über eine kurze Bewertung unserer Zusammenarbeit freuen: ${review.url}`
+          : "";
+      return `${greeting}
+
+seit dem Abschluss von „${project.tytul}"${nazwaKlienta} sind zwei Wochen vergangen — wie läuft die Umsetzung? Lassen Sie es mich wissen, falls etwas Aufmerksamkeit braucht.${reviewLine}
+
+Und falls Sie jemanden kennen, dem eine ähnliche Unterstützung helfen würde — ich freue mich immer über Empfehlungen!
+
+Viele Grüße,
+[Ihr Name]`;
+    }
+    return `${greeting}
+
+seit dem Abschluss von „${project.tytul}"${nazwaKlienta} sind drei Monate vergangen — wie läuft es im Alltag? Falls neue Bedürfnisse entstanden sind, die wir gemeinsam automatisieren könnten, würde ich das gerne hören.
+
+Und falls Sie jemanden kennen, dem eine ähnliche Unterstützung helfen würde — ich freue mich immer über Empfehlungen!
+
+Viele Grüße,
+[Ihr Name]`;
+  }
+
+  const greeting = client?.osoba_kontaktowa ? `Cześć ${client.osoba_kontaktowa},` : "Cześć,";
+  if (days === 14) {
+    const reviewLine =
+      review && !review.submitted
+        ? `\n\nPrzy okazji — jeśli jeszcze nie było czasu, będzie mi bardzo miło, jeśli zostawisz kilka słów opinii o naszej współpracy: ${review.url}`
+        : "";
+    return `${greeting}
+
+Minęły dwa tygodnie odkąd zamknęliśmy „${project.tytul}"${nazwaKlienta} — jak działa wdrożenie? Daj znać, jeśli coś wymaga uwagi.${reviewLine}
+
+I jeśli znasz kogoś, komu przydałaby się podobna pomoc — śmiało polecaj, zawsze to doceniam!
+
+Pozdrawiam,
+[Twoje imię]`;
+  }
+  return `${greeting}
+
+Minęły trzy miesiące odkąd zamknęliśmy „${project.tytul}"${nazwaKlienta} — jak sprawdza się to na co dzień? Jeśli pojawiły się nowe potrzeby, które moglibyśmy razem zautomatyzować, chętnie o nich usłyszę.
+
+I jeśli znasz kogoś, komu przydałaby się podobna pomoc — śmiało polecaj, zawsze to doceniam!
+
+Pozdrawiam,
+[Twoje imię]`;
+}
 
 function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;

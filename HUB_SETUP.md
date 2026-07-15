@@ -1931,6 +1931,44 @@ treść klauzul przejdzie realną weryfikację prawnika, przetłumaczyć
 `CONTRACT_TYP_LABEL_LANG` z gotowym kluczem `umowa`/`nda`) jest już
 gotowa, zostanie tylko dopisać treść klauzul per język.
 
+## Moduł 17 — Retencja i polecenia (2026-07-15)
+
+Patrz `docs/plany-modulow/17-retencja-i-polecenia.md`. Audyt kodu przy
+okazji Modułu 15 ustalił, że wyzwalacz/zapis/odczyt/oznaczanie-zrobione
+kontaktów nurture (+14/+90 dni po "Wdrożone", Moduł 2) już istniały i
+działały — brakowało tylko gotowego szkicu wiadomości (`powod` był samym
+krótkim tekstem) i miejsca na pytanie o polecenie. Decyzje właściciela na
+starcie tego czatu: +14 to przypomnienie o opinii, o ile jeszcze jej nie
+zebrano (NIE duplikat Modułu 15 — tamten mail idzie od razu przy
+zamknięciu, ten dopiero po dwóch tygodniach ciszy); pytanie o polecenie w
+OBU szkicach (+14 i +90); kontakty nurture wyróżnione na Pulpicie osobną
+sekcją/ikoną (🔁) od ręcznie ustawionych przypomnień klienta; licznik
+poleceń (z `zrodlo_kategoria = "Polecenie"`) świadomie odłożony do Modułu
+18 (Pulpit: wskaźniki), nie budowany tu.
+
+- **`buildNurtureMessage()`** (`lib/clients.ts`) — generuje szkic wg
+  `days` (14 lub 90) i języka projektu (PL/EN/DE, wzorem
+  `buildProjectClosingSummary`), zawsze kończy się pytaniem o polecenie.
+  Wariant +14 dokłada zdanie z linkiem do formularza opinii TYLKO gdy
+  `review.submitted` jest fałszywe — jeśli klient już ją zostawił (Moduł
+  15), nie prosi drugi raz.
+- **`GET /api/client-followups/:id/draft`** — generuje szkic na żądanie
+  (dociąga projekt/klienta, zapewnia `review_token` przez
+  `ensureProjectReviewToken` dla wariantu +14, sprawdza
+  `review_submitted_at`). Nic nie zapisuje poza tym tokenem (idempotentny,
+  jak w Module 15).
+- **`POST /api/client-followups/:id/send`** — wysyła zaakceptowaną
+  (ew. zredagowaną) treść przez Resend, DOPIERO wtedy ustawia
+  `done_at = now()` i loguje zdarzenie `nurture_contact_sent` (🔁) na osi
+  klienta z `related_id` = projekt. Wzorem `request-review` (Moduł 15) —
+  panel nigdy nie wysyła nic automatycznie.
+- **Pulpit** (`DashboardHome.tsx`): karta "Klienci wymagający kontaktu"
+  dzieli się na ręczne przypomnienia (`overdueClients`, jak dotąd) i
+  osobną sekcję "🔁 Zaplanowany kontakt retencyjny" (`dueFollowups`) z
+  przyciskiem "Szkic" — rozwija edytowalny `<textarea>` + "Kopiuj do
+  schowka" + "Wyślij mailem" (disabled bez adresu e-mail klienta), obok
+  istniejącego "Obsłużone" dla ręcznego zamknięcia bez wysyłki.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

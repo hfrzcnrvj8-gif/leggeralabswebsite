@@ -17,7 +17,7 @@ import { useUI } from "./ui";
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
 type OverdueMilestone = { id: string; nazwa: string; termin: string; project_id: string; projekt: string };
-type DueFollowup = { id: string; client_id: string; due_date: string; powod: string; client_nazwa: string };
+type DueFollowup = { id: string; client_id: string; project_id: string | null; due_date: string; powod: string; client_nazwa: string };
 
 type TaxReserve = { vat: number; pit: number; zus: number };
 
@@ -66,6 +66,14 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [data, setData] = useState<TodayData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Szkic kontaktu retencyjnego (Moduł 17) — na raz otwarty jest tylko jeden,
+  // stan trzymany tu, nie per-item, bo panel niczego nie wysyła bez tego
+  // jawnego rozwinięcia i edycji.
+  const [openDraftId, setOpenDraftId] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState("");
+  const [draftEmail, setDraftEmail] = useState<string | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftSending, setDraftSending] = useState(false);
 
   const loadToday = () => {
     setLoadError(null);
@@ -125,6 +133,58 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     }
     setData((prev) => (prev ? { ...prev, dueFollowups: prev.dueFollowups.filter((f) => f.id !== followupId) } : prev));
     toast("Kontakt oznaczony jako obsłużony.");
+  };
+
+  /** Rozwija/zwija szkic wiadomości retencyjnej pod danym kontaktem —
+   * dociąga treść dopiero na żądanie (Moduł 17), żeby nie generować linków
+   * do opinii dla wszystkich zaplanowanych kontaktów naraz. */
+  const toggleFollowupDraft = async (followupId: string) => {
+    if (openDraftId === followupId) {
+      setOpenDraftId(null);
+      return;
+    }
+    setOpenDraftId(followupId);
+    setDraftText("");
+    setDraftEmail(null);
+    setDraftLoading(true);
+    const res = await fetch(`/api/client-followups/${followupId}/draft`);
+    setDraftLoading(false);
+    if (!res.ok) {
+      toast("Nie udało się wczytać szkicu.", "error");
+      setOpenDraftId(null);
+      return;
+    }
+    const body = (await res.json()) as { text: string; clientEmail: string | null };
+    setDraftText(body.text);
+    setDraftEmail(body.clientEmail);
+  };
+
+  const copyFollowupDraft = async () => {
+    try {
+      await navigator.clipboard.writeText(draftText);
+      toast("Skopiowano do schowka.");
+    } catch {
+      toast("Nie udało się skopiować — zaznacz i skopiuj ręcznie.", "error");
+    }
+  };
+
+  const sendFollowupDraft = async (followupId: string) => {
+    if (!draftText.trim() || draftSending) return;
+    setDraftSending(true);
+    const res = await fetch(`/api/client-followups/${followupId}/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: draftText }),
+    });
+    setDraftSending(false);
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      toast(body.error ?? "Nie udało się wysłać wiadomości.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, dueFollowups: prev.dueFollowups.filter((f) => f.id !== followupId) } : prev));
+    setOpenDraftId(null);
+    toast("Wiadomość wysłana, kontakt oznaczony jako obsłużony.");
   };
 
   const markProjectDone = async (id: string, tytul: string) => {
@@ -309,40 +369,104 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           {data.overdueClients.length === 0 && data.dueFollowups.length === 0 ? (
             <p className="text-sm text-muted opacity-60">Nic — wszystko obsłużone.</p>
           ) : (
-            <ul className="space-y-2">
-              {data.overdueClients.slice(0, 6).map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span>
-                    <Link href={`/${lang}/admin/clients/${c.id}`} className="font-medium hover:underline">
-                      {c.nazwa}
-                    </Link>
-                    <span className="text-muted"> — {clientOverdueReason(c)}</span>
-                  </span>
-                  <button
-                    onClick={() => markClientHandled(c.id)}
-                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
-                  >
-                    Obsłużone
-                  </button>
-                </li>
-              ))}
-              {data.dueFollowups.slice(0, 6).map((f) => (
-                <li key={f.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span>
-                    <Link href={`/${lang}/admin/clients/${f.client_id}`} className="font-medium hover:underline">
-                      {f.client_nazwa}
-                    </Link>
-                    <span className="text-muted"> — {f.powod}</span>
-                  </span>
-                  <button
-                    onClick={() => markFollowupHandled(f.id)}
-                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
-                  >
-                    Obsłużone
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-3">
+              {data.overdueClients.length > 0 && (
+                <ul className="space-y-2">
+                  {data.overdueClients.slice(0, 6).map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span>
+                        <Link href={`/${lang}/admin/clients/${c.id}`} className="font-medium hover:underline">
+                          {c.nazwa}
+                        </Link>
+                        <span className="text-muted"> — {clientOverdueReason(c)}</span>
+                      </span>
+                      <button
+                        onClick={() => markClientHandled(c.id)}
+                        className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                      >
+                        Obsłużone
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {data.dueFollowups.length > 0 && (
+                <div>
+                  {data.overdueClients.length > 0 && (
+                    <div className="mb-1.5 mt-1 flex items-center gap-1 text-[10.5px] uppercase tracking-wide text-muted opacity-70">
+                      <span>🔁</span>
+                      <span>Zaplanowany kontakt retencyjny</span>
+                    </div>
+                  )}
+                  <ul className="space-y-2">
+                    {data.dueFollowups.slice(0, 6).map((f) => (
+                      <li key={f.id} className="text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>
+                            <span className="mr-1" title="Zaplanowany kontakt retencyjny (Moduł 17)">
+                              🔁
+                            </span>
+                            <Link href={`/${lang}/admin/clients/${f.client_id}`} className="font-medium hover:underline">
+                              {f.client_nazwa}
+                            </Link>
+                            <span className="text-muted"> — {f.powod}</span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <button
+                              onClick={() => toggleFollowupDraft(f.id)}
+                              className="rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:text-[var(--fg)]"
+                            >
+                              {openDraftId === f.id ? "Ukryj szkic" : "Szkic"}
+                            </button>
+                            <button
+                              onClick={() => markFollowupHandled(f.id)}
+                              className="rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                            >
+                              Obsłużone
+                            </button>
+                          </span>
+                        </div>
+                        {openDraftId === f.id && (
+                          <div className="mt-2 rounded-xl border hairline p-2.5">
+                            {draftLoading ? (
+                              <p className="text-[12px] text-muted">Wczytywanie szkicu…</p>
+                            ) : (
+                              <>
+                                <div className="mb-1.5 flex items-center justify-between">
+                                  <span className="text-[11px] text-muted opacity-70">Szkic do edycji — zawiera pytanie o polecenie</span>
+                                  <button
+                                    onClick={copyFollowupDraft}
+                                    className="shrink-0 rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:text-[var(--fg)]"
+                                  >
+                                    Kopiuj do schowka
+                                  </button>
+                                </div>
+                                <textarea
+                                  value={draftText}
+                                  onChange={(e) => setDraftText(e.target.value)}
+                                  rows={7}
+                                  className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+                                />
+                                <button
+                                  onClick={() => sendFollowupDraft(f.id)}
+                                  disabled={!draftText.trim() || draftSending || !draftEmail}
+                                  className="btn-primary mt-2 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {draftSending ? "Wysyłanie…" : "Wyślij mailem"}
+                                </button>
+                                {!draftEmail && (
+                                  <p className="mt-1 text-[11px] text-orange-400">Brak adresu e-mail klienta — uzupełnij go w karcie klienta.</p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           )}
         </section>
 
