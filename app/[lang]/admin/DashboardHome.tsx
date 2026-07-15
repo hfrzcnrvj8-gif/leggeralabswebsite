@@ -325,6 +325,13 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             {data.kpi.reviewsCollected}/{data.kpi.closedProjectsCount} zamkniętych projektów z opinią
           </div>
         </div>
+        <Link
+          href={`/${lang}/admin/stats`}
+          className="card-paper col-span-2 flex items-center justify-between rounded-xl border hairline p-4 hover:border-brand-purple/40 lg:col-span-6"
+        >
+          <span className="text-[11px] text-muted">Czy trzymam wzorzec pracy? Zobacz wskaźniki zdrowia biznesu.</span>
+          <span className="text-[13px] font-semibold text-brand-purple">Statystyki →</span>
+        </Link>
       </div>
 
       <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-2">

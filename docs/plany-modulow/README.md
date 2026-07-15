@@ -45,7 +45,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 15 | Zamknięcie projektu i opinie (najlepiej po 12) | mały/średni | [15-zamkniecie-i-opinie.md](15-zamkniecie-i-opinie.md) |
 | 16 | Wsparcie posprzedażowe — dopiero gdy będzie realna potrzeba | mały, otwarty zakres | [16-wsparcie-posprzedazowe.md](16-wsparcie-posprzedazowe.md) |
 | 17 | ✅ Retencja i polecenia | mały/średni | [17-retencja-i-polecenia.md](17-retencja-i-polecenia.md) |
-| 18 | Pulpit: wskaźniki zdrowia biznesu — rób na końcu (11-17, 19-20) | średni | [18-pulpit-wskazniki.md](18-pulpit-wskazniki.md) |
+| 18 | ✅ Pulpit: wskaźniki zdrowia biznesu | średni | [18-pulpit-wskazniki.md](18-pulpit-wskazniki.md) |
 | 19 | Śledzenie czasu pracy | mały/średni | [19-sledzenie-czasu.md](19-sledzenie-czasu.md) |
 | 20 | Szablony ofert / pakiety usług | mały | [20-szablony-ofert.md](20-szablony-ofert.md) |
 

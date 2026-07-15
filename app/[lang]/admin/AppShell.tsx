@@ -15,6 +15,7 @@ import {
   IconFileCheck,
   IconReceipt,
   IconReportMoney,
+  IconChartBar,
   IconSearch,
   IconChevronLeft,
   IconChevronRight,
@@ -60,6 +61,10 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/costs", label: "Koszty", icon: IconReportMoney },
   { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
   { href: "/notes", label: "Notatnik", icon: IconNotes },
+  // Statystyki (Moduł 18) świadomie na końcu — to nie krok w codziennym
+  // lejku pracy, tylko okresowy (raz w miesiącu/kwartale) przegląd, czy
+  // cały wzorzec się trzyma (patrz docs/plany-modulow/18-pulpit-wskazniki.md).
+  { href: "/stats", label: "Statystyki", icon: IconChartBar },
 ];
 
 // Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
@@ -75,6 +80,7 @@ const GO_CHORDS: Record<string, string> = {
   u: "/contracts",
   f: "/invoices",
   w: "/costs",
+  s: "/stats",
 };
 
 /** Wspólna rama dla całego panelu /admin — lewy sidebar (styl Linear),

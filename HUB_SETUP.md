@@ -1969,6 +1969,51 @@ poleceń (z `zrodlo_kategoria = "Polecenie"`) świadomie odłożony do Modułu
   schowka" + "Wyślij mailem" (disabled bez adresu e-mail klienta), obok
   istniejącego "Obsłużone" dla ręcznego zamknięcia bez wysyłki.
 
+## Moduł 18 — Pulpit: wskaźniki zdrowia biznesu (2026-07-15)
+
+Patrz `docs/plany-modulow/18-pulpit-wskazniki.md`. Nowa podstrona
+`/admin/stats` ("Statystyki"), osobna od Pulpitu — linkowana z niego kartą
+"Czy trzymam wzorzec pracy?". Decyzje właściciela na starcie tego czatu:
+pełen zestaw 6 wskaźników z `00-mapa-drogi-klienta.md` na start (nie węższy
+wybór); osobna podstrona (nie sekcja na Pulpicie); nagłówkowe liczby liczone
+OD POCZĄTKU działalności (bez okresu — firma dopiero startuje, miesięczne
+okno dawałoby puste/mylące liczby); wizualizacja przez wykresy trendu w
+czasie (dataviz skill przeczytany przed pisaniem wykresu).
+
+- **`app/api/stats/route.ts`** — jeden agregujący route (wzorem
+  `app/api/hub/today`), zero AI, same SQL/JS agregacje nad danymi, które już
+  istniały (bez nowych tabel):
+  - **Czas do 1. odpowiedzi** — brak dedykowanej kolumny; liczony jako
+    pierwszy wpis `lead_activity` z `kierunek = 'wychodzacy'` po
+    `leads.created_at` (najwcześniejszy wychodzący kontakt = odpowiedź).
+  - **Konwersja lead→klient** — `leads.client_id IS NOT NULL` / wszystkie
+    leady, per miesiąc utworzenia leada.
+  - **Zdrowie projektów** — rozkład `projects.zdrowie` (snapshot, nie
+    trend — to bieżący stan, nie coś co ma "historię miesięczną").
+  - **DSO** — TYLKO faktury PLN, typu `faktura` (nie proforma), status
+    `Opłacona`: dni między `data_wystawienia` a datą ostatniej wpłaty
+    (`MAX(invoice_payments.data)`), per miesiąc wystawienia. Najstarsza
+    zaległość = `MAX(dni po terminie)` po dziś nieopłaconych.
+  - **% opinii** — reużyte z logiki `hub/today` (closedProjects vs
+    reviewedProjects), tu dodatkowo jako jawny %.
+  - **% Polecenie** — `zrodlo_kategoria = 'Polecenie'` / wszystkie leady,
+    per miesiąc; obok niego licznik `client_events.kind =
+    'nurture_contact_sent'` (Moduł 17) — "ile razy zapytaliśmy" vs "ile
+    poleceń przyszło". To domyka licznik poleceń świadomie odłożony przez
+    Moduł 17.
+- **`lib/stats.ts`** — czyste pomocnicze funkcje (klucze miesięcy, etykiety,
+  średnia) współdzielone przez route i UI; wzorem `app/api/costs/analytics`.
+- **`TrendChart.tsx`** — prosty, jednoseriowy wykres liniowy SVG (własny,
+  lżejszy niż `SpendTrendChart.tsx` bo bez wielu kategorii — jedna seria nie
+  potrzebuje legendy, kolor niesie tożsamość marki `brand.purple`,
+  zwalidowany `scripts/validate_palette.js` w obu motywach). Punkty bez
+  danych w danym miesiącu przerywają linię (nie rysują fałszywego zera).
+- Wykresy trendu (12 mies.) tylko dla metryk, które faktycznie mają sens
+  jako trend (czas odpowiedzi, konwersja, DSO, % poleceń) — zdrowie
+  projektów i % opinii to karty ze statyczną liczbą/rozkładem, nie wykres.
+- Nawigacja: `AppShell.tsx` — wpis "Statystyki" na KOŃCU listy `NAV` (to
+  okresowy przegląd, nie krok w codziennym lejku pracy), chord `g s`.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na
