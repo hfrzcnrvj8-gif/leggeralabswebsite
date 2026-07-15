@@ -2095,6 +2095,36 @@ samej sesji:
   `ChartCard`/`TrendChart` co reszta strony (kolor marki dziedziczony
   automatycznie z `.trend-chart` CSS, bez nowego stylu).
 
+## Moduł 20 — Szablony ofert / pakiety usług (2026-07-15)
+
+Gotowe szkielety pozycji + domyślnych uwag do wstawienia jako punkt startowy
+nowej oferty, żeby nie pisać każdej oferty od zera i wymusić spójność
+zakresu. Wzorem `recurring_invoices` (Moduł 9 faktur) — pozycje trzymane
+jako JSONB "odbitka" (`offer_templates.pozycje`), bez relacyjnej
+integralności, bo tylko kopiowane przy wstawianiu, bez cyklicznego
+generowania.
+
+- **Zarządzanie** — osobny panel `OfferTemplatesPanel.tsx` (wzorem
+  `RecurringPanel.tsx`), otwierany przyciskiem "Szablony" w nagłówku
+  `/admin/offers`: lista rozwijanych kart, każda z nazwą, opisem (widocznym
+  tylko w panelu), pozycjami (nazwa/ilość/jednostka/cena) i domyślnymi
+  uwagami. CRUD przez `/api/offer-templates` (GET/POST) i
+  `/api/offer-templates/:id` (PATCH/DELETE).
+- **Zasiew startowy** — przy pierwszym uruchomieniu (tabela jeszcze nie
+  istnieje, sprawdzane `to_regclass` PRZED `CREATE TABLE`, więc zasiew
+  odpala się dokładnie raz, nie odtwarza usuniętych szablonów przy kolejnych
+  cold-startach) `createOfferTemplatesSchema()` w `lib/db.ts` wstawia 3
+  przykładowe szablony zaakceptowane przez właściciela (Audyt/PoC AI,
+  Wdrożenie automatyzacji, Abonament/opieka miesięczna) + jeden pusty wzór
+  do skopiowania. Wszystkie w pełni edytowalne/usuwalne z panelu.
+- **Wstawianie do oferty** — przycisk "Wstaw z szablonu" w karcie "Pozycje"
+  `OfferEditor.tsx` (obok "+ Pozycja"), lista szablonów w Popoverze z ceną
+  przy nazwie. `POST /api/offers/:id/apply-template` dopisuje pozycje
+  szablonu na końcu istniejących pozycji oferty i doklejowuje domyślne
+  uwagi szablonu pod istniejącą treścią uwag (jeśli oferta miała już jakąś
+  treść) — czysta kopia, bez żadnego powiązania z szablonem po wstawieniu,
+  więc dalsza edycja pozycji nie rusza samego szablonu.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

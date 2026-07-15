@@ -47,7 +47,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 17 | ✅ Retencja i polecenia | mały/średni | [17-retencja-i-polecenia.md](17-retencja-i-polecenia.md) |
 | 18 | ✅ Pulpit: wskaźniki zdrowia biznesu | średni | [18-pulpit-wskazniki.md](18-pulpit-wskazniki.md) |
 | 19 | ✅ Śledzenie czasu pracy | mały/średni | [19-sledzenie-czasu.md](19-sledzenie-czasu.md) |
-| 20 | Szablony ofert / pakiety usług | mały | [20-szablony-ofert.md](20-szablony-ofert.md) |
+| 20 | ✅ Szablony ofert / pakiety usług | mały | [20-szablony-ofert.md](20-szablony-ofert.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
 jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM

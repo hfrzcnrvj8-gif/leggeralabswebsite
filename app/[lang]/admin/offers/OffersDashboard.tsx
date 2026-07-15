@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconPlus, IconX, IconExternalLink } from "@tabler/icons-react";
+import { IconPlus, IconX, IconExternalLink, IconLayoutGrid } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, isOfferExpired, weightedOfferValue } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
@@ -10,6 +10,7 @@ import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { OfferEditor } from "./OfferEditor";
+import { OfferTemplatesPanel } from "./OfferTemplatesPanel";
 
 type OfferRow = Offer & { kwota: number };
 
@@ -20,6 +21,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const [filterStatus, setFilterStatus] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/offers");
@@ -174,6 +176,13 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
+        <button
+          onClick={() => setTemplatesOpen(true)}
+          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          title="Szablony ofert"
+        >
+          <IconLayoutGrid size={14} /> Szablony
+        </button>
         <button
           onClick={createOffer}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
@@ -363,6 +372,29 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                   setOpenId(null);
                 }}
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {templatesOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
+            onClick={() => setTemplatesOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.14, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
+            >
+              <OfferTemplatesPanel onClose={() => setTemplatesOpen(false)} />
             </motion.div>
           </motion.div>
         )}

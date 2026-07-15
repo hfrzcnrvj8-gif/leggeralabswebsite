@@ -724,6 +724,92 @@ export async function ensureOffersSchema(): Promise<void> {
   await offersSchemaReady;
 }
 
+let offerTemplatesSchemaReady: Promise<void> | null = null;
+
+/** Moduł 20 (szablony ofert) — pozycje jako JSONB "odbitka" (jak
+ * recurring_invoices.pozycje), bo tylko kopiowane do nowej oferty przy
+ * "wstaw z szablonu", bez potrzeby relacyjnej integralności. Przy pierwszym
+ * uruchomieniu (tabela jeszcze nie istnieje) zasiewa 3 przykładowe szablony
+ * zaakceptowane przez właściciela (2026-07-15) + jeden pusty wzór — dalej w
+ * pełni edytowalne/usuwalne z panelu, bez ponownego zasiewania przy kolejnych
+ * cold-startach (to_regclass sprawdza istnienie PRZED CREATE TABLE).
+ */
+async function createOfferTemplatesSchema(): Promise<void> {
+  const sql = getSql();
+  const existing = await sql`SELECT to_regclass('public.offer_templates') AS reg;`;
+  const isNew = !existing[0]?.reg;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS offer_templates (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL DEFAULT '',
+      opis TEXT NOT NULL DEFAULT '',
+      pozycje JSONB NOT NULL DEFAULT '[]',
+      uwagi TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  if (isNew) {
+    const seed: { id: string; nazwa: string; opis: string; pozycje: unknown[]; uwagi: string }[] = [
+      {
+        id: "seed-audyt-poc",
+        nazwa: "Audyt / PoC AI",
+        opis: "Krótki projekt diagnostyczny — sprawdzenie wykonalności przed większym wdrożeniem.",
+        pozycje: [
+          { nazwa: "Audyt procesów i danych", ilosc: 1, jednostka: "kpl.", cena: 3000 },
+          { nazwa: "Prototyp (PoC) wybranego rozwiązania", ilosc: 1, jednostka: "kpl.", cena: 4000 },
+          { nazwa: "Raport z rekomendacjami", ilosc: 1, jednostka: "kpl.", cena: 1000 },
+        ],
+        uwagi:
+          "Zakres: analiza obecnych procesów i danych, wskazanie miejsc do automatyzacji, działający prototyp jednego wybranego rozwiązania, raport z rekomendacją dalszych kroków. Czas realizacji: ok. 2 tygodnie od akceptacji.",
+      },
+      {
+        id: "seed-wdrozenie-automatyzacji",
+        nazwa: "Wdrożenie automatyzacji",
+        opis: "Pełne wdrożenie automatyzacji wybranego procesu — od analizy po szkolenie zespołu.",
+        pozycje: [
+          { nazwa: "Analiza i projekt rozwiązania", ilosc: 1, jednostka: "kpl.", cena: 3000 },
+          { nazwa: "Wdrożenie automatyzacji", ilosc: 1, jednostka: "kpl.", cena: 10000 },
+          { nazwa: "Szkolenie zespołu", ilosc: 1, jednostka: "kpl.", cena: 1500 },
+          { nazwa: "Wsparcie powdrożeniowe (30 dni)", ilosc: 1, jednostka: "kpl.", cena: 1500 },
+        ],
+        uwagi:
+          "Zakres: analiza procesu, wdrożenie automatyzacji w wybranym narzędziu, szkolenie zespołu z obsługi, 30 dni wsparcia powdrożeniowego. Płatność: 50% zaliczki, 50% po wdrożeniu.",
+      },
+      {
+        id: "seed-abonament-opieka",
+        nazwa: "Abonament / opieka miesięczna",
+        opis: "Stałe wsparcie i drobne usprawnienia w modelu miesięcznym.",
+        pozycje: [{ nazwa: "Opieka i monitoring — abonament miesięczny", ilosc: 1, jednostka: "m-c", cena: 1500 }],
+        uwagi:
+          "Zakres: monitoring działania wdrożonych automatyzacji, drobne poprawki i usprawnienia, konsultacje do 2h/miesiąc. Rozliczenie miesięczne, umowa na czas nieokreślony z 30-dniowym okresem wypowiedzenia.",
+      },
+      {
+        id: "seed-pusty-wzor",
+        nazwa: "Nowy szablon (pusty wzór)",
+        opis: "Punkt startowy do własnego szablonu — uzupełnij pozycje i uwagi.",
+        pozycje: [],
+        uwagi: "",
+      },
+    ];
+    for (const t of seed) {
+      await sql`
+        INSERT INTO offer_templates (id, nazwa, opis, pozycje, uwagi)
+        VALUES (${t.id}, ${t.nazwa}, ${t.opis}, ${JSON.stringify(t.pozycje)}, ${t.uwagi})
+        ON CONFLICT (id) DO NOTHING;
+      `;
+    }
+  }
+}
+
+/** Lazily tworzy tabelę modułu Szablony ofert. */
+export async function ensureOfferTemplatesSchema(): Promise<void> {
+  if (!offerTemplatesSchemaReady) offerTemplatesSchemaReady = createOfferTemplatesSchema();
+  await offerTemplatesSchemaReady;
+}
+
 let contractsSchemaReady: Promise<void> | null = null;
 
 /** Moduł Umowy + NDA (Moduł 11, patrz docs/plany-modulow/11-umowy-i-nda.md)

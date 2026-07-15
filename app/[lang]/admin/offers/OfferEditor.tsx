@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy, IconSearch } from "@tabler/icons-react";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy, IconSearch, IconLayoutGrid } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, type OfferItem, OFFER_LANGS, OFFER_LANG_LABEL, offerTotal, itemKwota } from "@/lib/offers";
+import { type OfferTemplate, templateTotal } from "@/lib/offerTemplates";
 import { formatMoney } from "@/lib/invoices";
 import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
@@ -37,11 +38,17 @@ export function OfferEditor({
   const [clients, setClients] = useState<Client[]>([]);
   const [nipLoading, setNipLoading] = useState(false);
   const [generatingContract, setGeneratingContract] = useState(false);
+  const [templates, setTemplates] = useState<OfferTemplate[]>([]);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
 
   useEffect(() => {
     fetch("/api/clients")
       .then((r) => (r.ok ? r.json() : { clients: [] }))
       .then((d) => setClients((d.clients ?? []) as Client[]))
+      .catch(() => {});
+    fetch("/api/offer-templates")
+      .then((r) => (r.ok ? r.json() : { templates: [] }))
+      .then((d) => setTemplates((d.templates ?? []) as OfferTemplate[]))
       .catch(() => {});
   }, []);
 
@@ -122,6 +129,28 @@ export function OfferEditor({
       onChange?.();
     }
   }, [id, onChange]);
+
+  const applyTemplate = useCallback(
+    async (templateId: string) => {
+      setApplyingTemplate(true);
+      const res = await fetch(`/api/offers/${id}/apply-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template_id: templateId }),
+      });
+      setApplyingTemplate(false);
+      if (!res.ok) {
+        toast("Nie udało się wstawić szablonu.", "error");
+        return;
+      }
+      const data = (await res.json()) as { items: OfferItem[]; offer: Offer };
+      setItems(data.items);
+      setOffer(data.offer);
+      onChange?.();
+      toast("Wstawiono pozycje z szablonu.");
+    },
+    [id, toast, onChange]
+  );
 
   const patchItem = useCallback(
     async (itemId: string, patch: Partial<OfferItem>) => {
@@ -359,9 +388,42 @@ export function OfferEditor({
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-[13px] font-medium">Pozycje</h2>
-              <button onClick={addItem} className="rounded-full border hairline px-3 py-1 text-xs">
-                + Pozycja
-              </button>
+              <div className="flex items-center gap-1.5">
+                {templates.length > 0 && (
+                  <Popover
+                    align="right"
+                    width={260}
+                    trigger={(open) => (
+                      <button
+                        onClick={open}
+                        disabled={applyingTemplate}
+                        className="flex items-center gap-1 rounded-full border hairline px-3 py-1 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                      >
+                        {applyingTemplate ? <IconLoader2 size={13} className="animate-spin" /> : <IconLayoutGrid size={13} />}
+                        Wstaw z szablonu
+                      </button>
+                    )}
+                  >
+                    {(close) => (
+                      <div>
+                        {templates.map((t) => (
+                          <MenuRow
+                            key={t.id}
+                            label={`${t.nazwa || "(bez nazwy)"} — ${formatMoney(templateTotal(t.pozycje))}`}
+                            onClick={() => {
+                              close();
+                              applyTemplate(t.id);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </Popover>
+                )}
+                <button onClick={addItem} className="rounded-full border hairline px-3 py-1 text-xs">
+                  + Pozycja
+                </button>
+              </div>
             </div>
 
             {items.length === 0 ? (
