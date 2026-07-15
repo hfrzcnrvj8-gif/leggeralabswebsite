@@ -67,8 +67,8 @@ export async function acceptOffer(
       if (template) {
         const exp = expandProjectTemplate(template);
         await sql`
-          INSERT INTO projects (id, tytul, opis, status, priorytet, start, termin, lead_id, client_id)
-          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, ${exp.opis}, 'Pomysł', 'Normalny', ${exp.start}, ${exp.termin}, ${leadId}, ${clientId});
+          INSERT INTO projects (id, tytul, opis, status, priorytet, start, termin, lead_id, client_id, jezyk)
+          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, ${exp.opis}, 'Pomysł', 'Normalny', ${exp.start}, ${exp.termin}, ${leadId}, ${clientId}, ${offer.jezyk});
         `;
         let mPos = 0;
         for (const m of exp.milestones) {
@@ -89,8 +89,8 @@ export async function acceptOffer(
         }
       } else {
         await sql`
-          INSERT INTO projects (id, tytul, status, priorytet, lead_id, client_id)
-          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, 'Pomysł', 'Normalny', ${leadId}, ${clientId});
+          INSERT INTO projects (id, tytul, status, priorytet, lead_id, client_id, jezyk)
+          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, 'Pomysł', 'Normalny', ${leadId}, ${clientId}, ${offer.jezyk});
         `;
       }
 

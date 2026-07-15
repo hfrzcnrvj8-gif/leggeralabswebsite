@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
+import type { DocLang } from "@/lib/documents";
 
 export const runtime = "nodejs";
+
+const SUBJECT: Record<DocLang, (tytul: string) => string> = {
+  pl: (tytul) => `Podsumowanie i prośba o opinię — ${tytul}`,
+  en: (tytul) => `Project summary and feedback request — ${tytul}`,
+  de: (tytul) => `Projektzusammenfassung und Bitte um Bewertung — ${tytul}`,
+};
 
 /** POST /api/projects/:id/request-review — wysyła klientowi mailem szkic
  * podsumowania projektu + link do publicznego formularza opinii. Admin-only.
@@ -35,9 +42,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const tytul = typeof project.tytul === "string" && project.tytul ? project.tytul : "projekt";
+    const lang = ((project.jezyk as string) in SUBJECT ? project.jezyk : "pl") as DocLang;
     await sendEmail({
       to: String(clientRow.email),
-      subject: `Podsumowanie i prośba o opinię — ${tytul}`,
+      subject: SUBJECT[lang](tytul),
       text,
     });
 

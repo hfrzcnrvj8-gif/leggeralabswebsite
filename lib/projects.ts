@@ -3,6 +3,7 @@
 // dashboardu, dzienny raport mailowy). Wzorowane 1:1 na lib/leads.ts.
 
 import { todayLocalISO } from "./dates";
+import { type DocLang } from "./documents";
 
 export type Project = {
   id: string;
@@ -42,6 +43,11 @@ export type Project = {
   review_consent_name: string | null;
   review_consent_ip: string | null;
   review_consent_user_agent: string | null;
+  /** Język projektu (pl/en/de) — dziedziczony z języka oferty przy akceptacji
+   * (lib/offerAccept.ts), decyduje o wersji językowej publicznego formularza
+   * opinii i szkicu podsumowania (Moduł 15). Projekty utworzone poza tą
+   * ścieżką (ręcznie) zostają domyślnie 'pl'. */
+  jezyk: DocLang;
 };
 
 export type ProjectTask = {
@@ -149,32 +155,80 @@ export const PROJECT_REVIEW_REQUEST_HINT =
  * bliżej formalnej zgody RODO/marketingowej niż prosty checkbox tak/nie
  * (decyzja właściciela przy starcie Modułu 15). Zapisywany jako snapshot w
  * `review_consent_text` w momencie akceptacji, żeby późniejsza zmiana treści
- * w kodzie nie podważała tego, na co klient faktycznie się zgodził. */
-export const PROJECT_REVIEW_CONSENT_TEXT =
-  "Wyrażam zgodę na wykorzystanie przez Leggera Labs informacji o zrealizowanym projekcie — w tym mojej opinii, nazwy firmy oraz ogólnego zakresu współpracy — w materiałach marketingowych, referencyjnych oraz studiach przypadku (case study), publikowanych na stronie internetowej i w materiałach sprzedażowych Leggera Labs. Zgoda jest dobrowolna i można ją w każdej chwili wycofać, kontaktując się mailowo.";
+ * w kodzie nie podważała tego, na co klient faktycznie się zgodził. Wersja
+ * językowa wg `project.jezyk` (dziedziczonego z oferty) — patrz Moduł 15,
+ * kontynuacja: język formularza per klient PL/EN/DE. */
+export const PROJECT_REVIEW_CONSENT_TEXT: Record<DocLang, string> = {
+  pl: "Wyrażam zgodę na wykorzystanie przez Leggera Labs informacji o zrealizowanym projekcie — w tym mojej opinii, nazwy firmy oraz ogólnego zakresu współpracy — w materiałach marketingowych, referencyjnych oraz studiach przypadku (case study), publikowanych na stronie internetowej i w materiałach sprzedażowych Leggera Labs. Zgoda jest dobrowolna i można ją w każdej chwili wycofać, kontaktując się mailowo.",
+  en: "I agree that Leggera Labs may use information about the completed project — including my feedback, company name, and a general description of our collaboration — in marketing materials, references, and case studies published on the website and in Leggera Labs' sales materials. This consent is voluntary and can be withdrawn at any time by contacting us via email.",
+  de: "Ich stimme zu, dass Leggera Labs Informationen über das abgeschlossene Projekt — einschließlich meines Feedbacks, des Firmennamens und einer allgemeinen Beschreibung der Zusammenarbeit — in Marketingmaterialien, Referenzen und Fallstudien (Case Studies) verwenden darf, die auf der Website und in Vertriebsunterlagen von Leggera Labs veröffentlicht werden. Diese Einwilligung ist freiwillig und kann jederzeit per E-Mail widerrufen werden.",
+};
 
 /** Generuje szkic podsumowania projektu + prośby o opinię — gotowy tekst do
  * przejrzenia, edycji i wysłania (ręcznie skopiowanego albo mailem przez
  * panel). Wzorem buildOnboardingWelcomeMessage: panel niczego nie wysyła bez
  * jawnego kliknięcia. `reviewUrl` to link do publicznego formularza opinii
- * (patrz ensureProjectReviewToken). */
+ * (patrz ensureProjectReviewToken). `lang` domyślnie 'pl' — w praktyce zawsze
+ * `project.jezyk` (dziedziczony z oferty). */
 export function buildProjectClosingSummary(
   project: { tytul: string },
   client: { nazwa: string; osoba_kontaktowa: string } | null,
   milestones: { nazwa: string; termin: string | null }[],
-  reviewUrl: string
+  reviewUrl: string,
+  lang: DocLang = "pl"
 ): string {
-  const powitanie = client?.osoba_kontaktowa ? `Cześć ${client.osoba_kontaktowa},` : "Cześć,";
   const nazwaKlienta = client?.nazwa ? ` (${client.nazwa})` : "";
   const etapy = milestones.length
     ? milestones.map((m) => `- ${m.nazwa}${m.termin ? ` (${formatPlDate(m.termin)})` : ""}`).join("\n")
-    : "- [uzupełnij, co zrobiliśmy]";
+    : null;
+
+  if (lang === "en") {
+    const powitanie = client?.osoba_kontaktowa ? `Hi ${client.osoba_kontaktowa},` : "Hi,";
+    return `${powitanie}
+
+The project "${project.tytul}"${nazwaKlienta} is complete — thank you for working with us!
+
+What we did:
+${etapy ?? "- [fill in what we did]"}
+
+What's next: [fill in, if there's a plan for next steps/support]
+
+I'd really appreciate it if you could spare 2 minutes to leave a short review of our collaboration:
+${reviewUrl}
+
+Thanks again, and see you on the next project!
+
+Best,
+[Your name]`;
+  }
+
+  if (lang === "de") {
+    const powitanie = client?.osoba_kontaktowa ? `Hallo ${client.osoba_kontaktowa},` : "Hallo,";
+    return `${powitanie}
+
+das Projekt „${project.tytul}"${nazwaKlienta} ist abgeschlossen — vielen Dank für die Zusammenarbeit!
+
+Was wir gemacht haben:
+${etapy ?? "- [ergänzen, was wir gemacht haben]"}
+
+Nächste Schritte: [ergänzen, falls es einen Plan für weitere Schritte/Support gibt]
+
+Ich würde mich sehr freuen, wenn Sie sich 2 Minuten Zeit nehmen und eine kurze Bewertung unserer Zusammenarbeit abgeben:
+${reviewUrl}
+
+Nochmals vielen Dank und bis zum nächsten Projekt!
+
+Viele Grüße,
+[Ihr Name]`;
+  }
+
+  const powitanie = client?.osoba_kontaktowa ? `Cześć ${client.osoba_kontaktowa},` : "Cześć,";
   return `${powitanie}
 
 Projekt „${project.tytul}"${nazwaKlienta} jest zakończony — dziękuję za współpracę!
 
 Co zrobiliśmy:
-${etapy}
+${etapy ?? "- [uzupełnij, co zrobiliśmy]"}
 
 Co dalej: [uzupełnij, jeśli jest plan na kolejne kroki/wsparcie]
 

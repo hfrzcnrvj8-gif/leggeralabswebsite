@@ -140,7 +140,7 @@ export function ProjectDetailPanel({
         setReviewUrl(rData.url);
         if (!reviewDraftInitialized.current) {
           reviewDraftInitialized.current = true;
-          setReviewDraft(buildProjectClosingSummary(data.project, loadedClient, data.milestones, rData.url));
+          setReviewDraft(buildProjectClosingSummary(data.project, loadedClient, data.milestones, rData.url, data.project.jezyk));
         }
       }
     }

@@ -33,6 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       review_rating_komunikacja: project.review_rating_komunikacja,
       review_comment: project.review_comment,
       review_consent_case_study: project.review_consent_case_study,
+      jezyk: project.jezyk,
     },
   });
 }

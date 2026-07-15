@@ -280,6 +280,12 @@ async function createHubSchema(): Promise<void> {
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_consent_ip TEXT;`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_consent_user_agent TEXT;`;
 
+  // Język projektu (pl/en/de) — dziedziczony z języka oferty przy akceptacji
+  // (lib/offerAccept.ts), decyduje o wersji językowej publicznego formularza
+  // opinii i szkicu podsumowania (Moduł 15). Wzorem `offers.jezyk`/
+  // `invoices.jezyk` (DocLang w lib/documents.ts).
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS jezyk TEXT NOT NULL DEFAULT 'pl';`;
+
   // Kamienie milowe — grupują zadania z checklisty i pokazują postęp
   // ("Core 100% z 73") osobno dla każdego etapu projektu, nie tylko całości.
   await sql`
