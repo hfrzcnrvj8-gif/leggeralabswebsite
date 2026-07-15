@@ -207,6 +207,53 @@ export async function fetchNewMessages(
 }
 
 /**
+ * Dociąga SAME NAGŁÓWKI dla podanych UID-ów — bez treści, więc jest tanie.
+ *
+ * Po co: wiadomości pobrane, zanim zaczęliśmy czytać nagłówki masówki, mają
+ * je puste, a bez nich nie da się ich poprawnie zaklasyfikować (Calendly/n8n
+ * nie mają "noreply" w adresie — właściciel zgłosił to 2026-07-15). Dedup po
+ * `message_id` nie pozwala pobrać ich ponownie w całości, więc dociągamy
+ * wyłącznie brakujący fragment.
+ *
+ * Zwraca mapę uid → hints. UID-y, których serwer już nie zna (skasowane w
+ * Outlooku), po prostu nie trafiają do mapy — wołający zostawia je w spokoju.
+ */
+export async function fetchHintsByUids(uids: number[]): Promise<Map<number, MailHeaderHints>> {
+  const out = new Map<number, MailHeaderHints>();
+  if (uids.length === 0) return out;
+
+  const cfg = mailboxConfig();
+  const client = await connectImap(cfg);
+  try {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      // `headers: [...]` ściąga wskazane pola zamiast całej wiadomości.
+      for await (const msg of client.fetch(
+        uids,
+        { uid: true, headers: ["list-unsubscribe", "precedence", "auto-submitted"] },
+        { uid: true }
+      )) {
+        const raw = msg.headers?.toString("utf8") ?? "";
+        const pick = (name: string): string | null => {
+          const m = raw.match(new RegExp(`^${name}:\\s*(.+)$`, "im"));
+          return m ? m[1].trim() : null;
+        };
+        out.set(msg.uid, {
+          listUnsubscribe: /^list-unsubscribe:/im.test(raw),
+          precedence: pick("precedence"),
+          autoSubmitted: pick("auto-submitted"),
+        });
+      }
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout().catch(() => {});
+  }
+  return out;
+}
+
+/**
  * Wysyła odpowiedź przez SMTP az.pl z nagłówkami wątku (In-Reply-To/
  * References) — dzięki nim odpowiedź wpada w ten sam wątek w Outlooku, a nie
  * zakłada nowego. Zwraca Message-ID wysłanej wiadomości (zapisujemy go, żeby

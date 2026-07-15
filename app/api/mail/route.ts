@@ -26,6 +26,11 @@ export async function GET(req: NextRequest) {
   const unassignedOnly = req.nextUrl.searchParams.get("filter") === "unassigned";
   const katParam = req.nextUrl.searchParams.get("kategoria");
   const kategoria = (MAIL_CATEGORIES as readonly string[]).includes(katParam || "") ? katParam : null;
+  // Wyszukiwarka — po nadawcy, temacie i treści. Puste = brak filtra.
+  // Escape'ujemy znaki wieloznaczne ILIKE, żeby "%" wpisany w pole szukania
+  // był traktowany jako zwykły znak, a nie "dopasuj wszystko".
+  const qRaw = (req.nextUrl.searchParams.get("q") || "").trim();
+  const q = qRaw ? `%${qRaw.replace(/([%_\\])/g, "\\$1")}%` : null;
 
   // Neon HTTP nie składa fragmentów SQL, więc zamiast budować WHERE
   // dynamicznie, przekazujemy oba filtry jako parametry i wyłączamy je
@@ -43,18 +48,31 @@ export async function GET(req: NextRequest) {
     WHERE (${status}::text IS NULL OR m.status = ${status})
       AND (${unassignedOnly} = false OR (m.client_id IS NULL AND m.lead_id IS NULL))
       AND (${kategoria}::text IS NULL OR m.kategoria = ${kategoria})
+      AND (
+        ${q}::text IS NULL
+        OR m.from_addr ILIKE ${q} OR m.from_name ILIKE ${q}
+        OR m.subject ILIKE ${q} OR m.body_text ILIKE ${q}
+      )
     ORDER BY m.received_at DESC
     LIMIT 200;
   `) as unknown as MailMessageWithLinks[];
 
+  // Liczniki dla KAŻDEJ kategorii (właściciel 2026-07-15: "przy zapytaniu
+  // pokazuje, przy reklamie nie"). Liczą wiadomości przychodzące w danej
+  // szufladce niezależnie od statusu — inaczej "Reklama" pokazywałaby 0, bo
+  // reklamy z definicji są od razu 'zignorowany'. Wyjątkiem jest `nowe`,
+  // które z natury dotyczy tylko nieobsłużonych.
   const [counts] = (await sql`
     SELECT
       COUNT(*) FILTER (WHERE status = 'nowy' AND kierunek = 'in')::int AS nowe,
       COUNT(*) FILTER (WHERE client_id IS NULL AND lead_id IS NULL AND kierunek = 'in' AND status != 'zignorowany')::int AS nieprzypisane,
-      COUNT(*) FILTER (WHERE kategoria = 'oferta' AND status = 'nowy')::int AS zapytania,
-      COUNT(*) FILTER (WHERE kategoria = 'rachunek' AND status = 'nowy')::int AS rachunki
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'oferta')::int AS oferta,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'rachunek')::int AS rachunek,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'urzedowe')::int AS urzedowe,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'inne')::int AS inne,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'reklama')::int AS reklama
     FROM mail_messages;
-  `) as unknown as { nowe: number; nieprzypisane: number; zapytania: number; rachunki: number }[];
+  `) as unknown as Record<string, number>[];
 
   return NextResponse.json({ messages: rows, counts, configured: isMailboxConfigured() });
 }

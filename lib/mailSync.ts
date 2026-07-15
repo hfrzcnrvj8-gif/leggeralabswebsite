@@ -9,8 +9,8 @@
 import { randomUUID } from "node:crypto";
 import { getSql, ensureMailSchema } from "./db";
 import { findContactsByEmail } from "./contactLookup";
-import { fetchNewMessages, type FetchedMessage } from "./mailbox";
-import { classifyMail, isNoiseMail, mailSummaryLine, MAIL_RETENTION_MONTHS } from "./mail";
+import { fetchNewMessages, fetchHintsByUids, isMailboxConfigured, type FetchedMessage } from "./mailbox";
+import { classifyMail, isNoiseMail, mailSummaryLine, MAIL_RETENTION_MONTHS, type MailHeaderHints } from "./mail";
 import { todayLocalISO } from "./dates";
 
 export type SyncResult = {
@@ -102,16 +102,18 @@ export async function syncMailbox(): Promise<SyncResult> {
 }
 
 /**
- * Uzupełnia kategorię wiadomościom pobranym przed jej wprowadzeniem
- * (`kategoria IS NULL`). Bez tego maile już w bazie zostałyby na zawsze z
- * błędną szufladką — dedup po `message_id` nie pozwala pobrać ich ponownie,
- * więc sam sync by ich nie ruszył.
+ * Przelicza kategorie wiadomości, które ich nie mają (`kategoria IS NULL`)
+ * albo zostały zaklasyfikowane bez nagłówków (`list_unsubscribe IS NULL`).
  *
- * Ograniczenie, świadome: nie mamy zapisanych nagłówków starych wiadomości
- * (nie było takiej kolumny), więc lecimy na adresie i temacie. To słabszy
- * sygnał niż `List-Unsubscribe`, ale wystarcza dla typowych automatów
- * (`jobalerts-noreply@linkedin.com` łapie się po nazwie). Nowe wiadomości
- * korzystają już z pełnych nagłówków.
+ * Dlaczego nie wystarczy sam adres: pierwsza wersja tak właśnie robiła i
+ * właściciel od razu zobaczył skutek — maile z Calendly wylądowały w
+ * "Zapytaniach", bo nie mają "noreply" w adresie. Dopiero `List-Unsubscribe`
+ * mówi wprost "to masówka". Dedup po `message_id` nie pozwala pobrać takiej
+ * wiadomości ponownie w całości, więc dociągamy ze skrzynki SAME nagłówki po
+ * UID-zie (tanie) i klasyfikujemy z pełnym sygnałem.
+ *
+ * Gdy skrzynka jest niedostępna (albo lokalnie, gdzie jej nie ma), lecimy
+ * dalej na samym adresie — lepiej dać przybliżoną szufladkę niż żadną.
  *
  * Status podnosimy TYLKO z 'nowy' → 'zignorowany'. Wiadomości, które
  * właściciel już odhaczył albo wyciszył ręcznie, zostają nietknięte — jego
@@ -120,21 +122,63 @@ export async function syncMailbox(): Promise<SyncResult> {
 export async function backfillCategories(): Promise<{ updated: number }> {
   const sql = getSql();
   const rows = (await sql`
-    SELECT id, from_addr, subject, client_id, lead_id, status
+    SELECT id, uid, from_addr, subject, client_id, lead_id, status, kategoria,
+           list_unsubscribe, precedence, auto_submitted
     FROM mail_messages
-    WHERE kategoria IS NULL
-    LIMIT 500;
-  `) as unknown as { id: string; from_addr: string; subject: string; client_id: string | null; lead_id: string | null; status: string }[];
+    WHERE kierunek = 'in' AND (kategoria IS NULL OR list_unsubscribe IS NULL)
+    LIMIT 300;
+  `) as unknown as {
+    id: string;
+    uid: number | null;
+    from_addr: string;
+    subject: string;
+    client_id: string | null;
+    lead_id: string | null;
+    status: string;
+    kategoria: string | null;
+    list_unsubscribe: boolean | null;
+    precedence: string | null;
+    auto_submitted: string | null;
+  }[];
+  if (rows.length === 0) return { updated: 0 };
+
+  // Dociągnij brakujące nagłówki jednym połączeniem IMAP (nie po jednym na
+  // wiadomość). Bez skrzynki po prostu ich nie będzie.
+  let hintsByUid = new Map<number, MailHeaderHints>();
+  const missing = rows.filter((r) => r.list_unsubscribe === null && r.uid != null).map((r) => r.uid as number);
+  if (missing.length > 0 && isMailboxConfigured()) {
+    hintsByUid = await fetchHintsByUids(missing).catch((e) => {
+      console.error("[mailSync] nie udało się dociągnąć nagłówków — klasyfikuję po adresie", e);
+      return new Map();
+    });
+  }
 
   let updated = 0;
   for (const r of rows) {
+    const fetched = r.uid != null ? hintsByUid.get(r.uid) : undefined;
+    const hints =
+      fetched ??
+      (r.list_unsubscribe !== null
+        ? { listUnsubscribe: r.list_unsubscribe, precedence: r.precedence, autoSubmitted: r.auto_submitted }
+        : undefined);
+
     const kategoria = classifyMail({
       fromAddr: r.from_addr,
       subject: r.subject,
+      hints,
       knownContact: Boolean(r.client_id || r.lead_id),
     });
     const newStatus = kategoria === "reklama" && r.status === "nowy" ? "zignorowany" : r.status;
-    await sql`UPDATE mail_messages SET kategoria = ${kategoria}, status = ${newStatus} WHERE id = ${r.id};`;
+
+    await sql`
+      UPDATE mail_messages
+      SET kategoria = ${kategoria},
+          status = ${newStatus},
+          list_unsubscribe = ${hints ? hints.listUnsubscribe : r.list_unsubscribe},
+          precedence = ${hints ? hints.precedence : r.precedence},
+          auto_submitted = ${hints ? hints.autoSubmitted : r.auto_submitted}
+      WHERE id = ${r.id};
+    `;
     updated++;
   }
   return { updated };
@@ -172,11 +216,14 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage)
   const inserted = (await sql`
     INSERT INTO mail_messages (
       id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr,
-      subject, body_text, body_html, message_id, in_reply_to, refs, status, kategoria, received_at
+      subject, body_text, body_html, message_id, in_reply_to, refs, status, kategoria,
+      list_unsubscribe, precedence, auto_submitted, received_at
     ) VALUES (
       ${id}, ${msg.uid}, 'in', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr},
       ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
-      ${status}, ${kategoria}, ${msg.receivedAt.toISOString()}
+      ${status}, ${kategoria},
+      ${msg.hints.listUnsubscribe}, ${msg.hints.precedence}, ${msg.hints.autoSubmitted},
+      ${msg.receivedAt.toISOString()}
     )
     ON CONFLICT (message_id) DO NOTHING
     RETURNING id;

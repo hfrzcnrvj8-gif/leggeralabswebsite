@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions } from "../ui";
@@ -28,6 +28,8 @@ const CAT_FILTERS: { id: CatFilter; label: string }[] = [
   { id: "reklama", label: `${MAIL_CATEGORY_LABEL.reklama}` },
 ];
 
+type Counts = { nowe: number; nieprzypisane: number } & Record<string, number>;
+
 /** Data wiadomości w skali "dziś/wczoraj/dawniej" — przy poczcie liczy się
  * godzina (czy to sprzed chwili), a nie sama data, więc świadomie NIE
  * używamy tu formatPlDate() z lib/projects.ts (ten formatuje dzień). */
@@ -46,20 +48,19 @@ function formatWhen(iso: string): string {
 export function MailDashboard({ lang }: { lang: Locale }) {
   const { toast } = useUI();
   const [messages, setMessages] = useState<MailMessageWithLinks[] | null>(null);
-  const [counts, setCounts] = useState<{ nowe: number; nieprzypisane: number; zapytania: number; rachunki: number }>({
-    nowe: 0,
-    nieprzypisane: 0,
-    zapytania: 0,
-    rachunki: 0,
-  });
+  const [counts, setCounts] = useState<Counts>({ nowe: 0, nieprzypisane: 0 });
   const [configured, setConfigured] = useState(true);
   const [filter, setFilter] = useState<Filter>("nowy");
   const [catFilter, setCatFilter] = useState<CatFilter>("wszystkie");
+  const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/mail");
+    // Szukanie idzie do serwera, a nie filtruje wczytanej listy — lista ma
+    // limit 200, więc filtrowanie po stronie przeglądarki gubiłoby starsze
+    // trafienia i "nie znajdowałoby" maili, które są w skrzynce.
+    const res = await fetch(`/api/mail${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`);
     if (res.status === 401) {
       window.location.reload();
       return;
@@ -70,9 +71,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     }
     const data = await res.json();
     setMessages(data.messages);
-    setCounts(data.counts ?? { nowe: 0, nieprzypisane: 0, zapytania: 0, rachunki: 0 });
+    setCounts(data.counts ?? { nowe: 0, nieprzypisane: 0 });
     setConfigured(data.configured);
-  }, [toast]);
+  }, [query, toast]);
 
   const sync = useCallback(
     async (silent: boolean) => {
@@ -116,6 +117,19 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Szukanie z opóźnieniem — bez tego każda litera to osobne zapytanie.
+  // Pomijamy pierwsze uruchomienie (pustą frazę), bo listę wczytał już
+  // efekt wejścia w widok.
+  const firstQueryRun = useRef(true);
+  useEffect(() => {
+    if (firstQueryRun.current) {
+      firstQueryRun.current = false;
+      return;
+    }
+    const t = window.setTimeout(() => void load(), 250);
+    return () => window.clearTimeout(t);
+  }, [query, load]);
+
   useRegisterActions(
     [{ id: "sync", label: "Pobierz nowe wiadomości", run: () => void sync(false) }],
     [sync]
@@ -124,6 +138,10 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   const filtered = useMemo(() => {
     if (!messages) return [];
     let out = messages;
+    // Podczas szukania filtry NIE zawężają wyniku: jeśli wpisujesz frazę,
+    // chcesz ją znaleźć wszędzie — także w wyciszonych reklamach czy w
+    // obsłużonych. Inaczej wyszukiwarka "nie znajduje" maila, który jest.
+    if (query.trim()) return out;
     if (filter === "nowy") out = out.filter((m) => m.status === "nowy" && m.kierunek === "in");
     else if (filter === "unassigned") {
       out = out.filter((m) => !m.client_id && !m.lead_id && m.kierunek === "in" && m.status !== "zignorowany");
@@ -134,7 +152,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       out = out.filter((m) => (m.kategoria ?? "inne") === catFilter);
     }
     return out;
-  }, [messages, filter, catFilter]);
+  }, [messages, filter, catFilter, query]);
 
   const openMessage = messages?.find((m) => m.id === openId) ?? null;
 
@@ -157,13 +175,35 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             {counts.nieprzypisane > 0 ? ` · ${counts.nieprzypisane} nieprzypisane` : ""}
           </p>
         </div>
-        <button
-          onClick={() => void sync(false)}
-          disabled={syncing}
-          className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50"
-        >
-          {syncing ? "Pobieram…" : "Pobierz nowe"}
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Szukaj w poczcie…"
+              className="w-56 rounded-full border hairline bg-transparent py-1.5 pl-8 pr-7 text-[13px] outline-none focus:border-brand-purple/50"
+            />
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-muted" aria-hidden>
+              🔍
+            </span>
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-muted hover:text-[var(--fg)]"
+                aria-label="Wyczyść szukanie"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => void sync(false)}
+            disabled={syncing}
+            className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50"
+          >
+            {syncing ? "Pobieram…" : "Pobierz nowe"}
+          </button>
+        </div>
       </div>
 
       {!configured && (
@@ -205,8 +245,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             }`}
           >
             {c.label}
-            {c.id === "oferta" && counts.zapytania > 0 ? ` (${counts.zapytania})` : ""}
-            {c.id === "rachunek" && counts.rachunki > 0 ? ` (${counts.rachunki})` : ""}
+            {c.id !== "wszystkie" && counts[c.id] > 0 ? ` (${counts[c.id]})` : ""}
           </button>
         ))}
       </div>
@@ -228,6 +267,14 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                   onClick={() => setOpenId(m.id)}
                   className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[var(--hairline)]/40"
                 >
+                  {/* Kropka nieprzeczytanych wzorem Apple Mail — stała
+                      kolumna (niewidoczna, gdy obsłużone), żeby wiersze nie
+                      przeskakiwały w bok po odhaczeniu. */}
+                  <span className="mt-1.5 flex w-2 shrink-0 justify-center" aria-hidden>
+                    {m.status === "nowy" && m.kierunek === "in" && (
+                      <span className="h-2 w-2 rounded-full bg-brand-cyan" title="Nieprzeczytana" />
+                    )}
+                  </span>
                   <span className="mt-0.5 shrink-0 text-base" aria-hidden>
                     {m.kierunek === "out" ? "↩️" : "✉️"}
                   </span>

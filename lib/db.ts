@@ -1303,6 +1303,17 @@ async function createMailSchema(): Promise<void> {
   // syncu — bez tego maile już pobrane zostałyby z błędnym statusem na
   // zawsze, bo dedup po message_id nie pozwala ich pobrać ponownie.
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS kategoria TEXT;`;
+
+  // Sygnały ze standardowych nagłówków masówki (List-Unsubscribe,
+  // Precedence, Auto-Submitted) — patrz isNoiseMail() w lib/mail.ts.
+  // Zapisujemy je, bo bez nich NIE DA SIĘ poprawnie przeklasyfikować już
+  // pobranej wiadomości: sam adres to za słaby sygnał (Calendly czy n8n nie
+  // mają "noreply" w adresie, a są masówką). Właściciel zgłosił to
+  // 2026-07-15 — maile Calendly lądowały w "Zapytaniach".
+  // NULL = nie wiemy (wiersz sprzed tej zmiany); false = sprawdzone, nie ma.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS list_unsubscribe BOOLEAN;`;
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS precedence TEXT;`;
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS auto_submitted TEXT;`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_kategoria_idx ON mail_messages(kategoria);`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_client_id_idx ON mail_messages(client_id);`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_lead_id_idx ON mail_messages(lead_id);`;
