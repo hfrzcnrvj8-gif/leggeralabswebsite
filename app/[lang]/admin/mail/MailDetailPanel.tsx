@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
-import { MailStatusTag, replySubject, type MailMessageWithLinks, type MailStatus } from "./shared";
+import { MailStatusTag, MailCategoryTag, replySubject, type MailMessageWithLinks, type MailStatus } from "./shared";
+import { MailBodyHtml } from "./MailBodyHtml";
 
 type Project = { id: string; tytul: string; status: string };
 
@@ -28,6 +29,9 @@ export function MailDetailPanel({
 }) {
   const { toast, prompt } = useUI();
   const [mail, setMail] = useState<MailMessageWithLinks | null>(null);
+  const [html, setHtml] = useState("");
+  const [blockedImages, setBlockedImages] = useState(false);
+  const [showImages, setShowImages] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
@@ -35,14 +39,16 @@ export function MailDetailPanel({
   const [projects, setProjects] = useState<Project[] | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/mail/${mailId}`);
+    const res = await fetch(`/api/mail/${mailId}${showImages ? "?images=1" : ""}`);
     if (!res.ok) {
       toast("Nie udało się wczytać wiadomości.", "error");
       return;
     }
     const data = await res.json();
     setMail(data.message);
-  }, [mailId, toast]);
+    setHtml(data.html || "");
+    setBlockedImages(Boolean(data.blockedImages));
+  }, [mailId, showImages, toast]);
 
   useEffect(() => {
     void load();
@@ -182,7 +188,10 @@ export function MailDetailPanel({
     );
   }
 
-  const unassigned = !mail.client_id && !mail.lead_id && mail.kierunek === "in";
+  // "Utwórz leada" ma sens tylko dla wiadomości od CZŁOWIEKA. Przy reklamie
+  // proponowanie leada z robota (np. jobalerts-noreply@linkedin.com) było
+  // dokładnie tym, co właściciel zgłosił jako bez sensu 2026-07-15.
+  const unassigned = !mail.client_id && !mail.lead_id && mail.kierunek === "in" && mail.kategoria !== "reklama";
 
   return (
     <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
@@ -198,6 +207,7 @@ export function MailDetailPanel({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {mail.kategoria && <MailCategoryTag kategoria={mail.kategoria} />}
           <MailStatusTag status={mail.status as MailStatus} />
           <button onClick={onClose} className="rounded-full px-2 py-0.5 text-lg leading-none text-muted hover:text-[var(--fg)]" aria-label="Zamknij">
             ×
@@ -232,10 +242,18 @@ export function MailDetailPanel({
         )}
       </div>
 
-      <div className="mb-5 rounded-xl border hairline bg-[var(--hairline)]/20 p-4">
-        <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed">
-          {mail.body_text || "(pusta treść)"}
-        </pre>
+      {/* HTML, gdy mail go ma (tak wygląda w Outlooku); wersja tekstowa jako
+          zapas dla maili czysto tekstowych. */}
+      <div className="mb-5">
+        {html ? (
+          <MailBodyHtml html={html} blockedImages={blockedImages} onShowImages={() => setShowImages(true)} />
+        ) : (
+          <div className="rounded-xl border hairline bg-[var(--hairline)]/20 p-4">
+            <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed">
+              {mail.body_text || "(pusta treść)"}
+            </pre>
+          </div>
+        )}
       </div>
 
       {projects && projects.length > 0 && (

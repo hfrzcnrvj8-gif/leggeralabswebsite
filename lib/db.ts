@@ -1292,6 +1292,18 @@ async function createMailSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+  // Kategoria (Moduł 4, druga tura 2026-07-15): reklama/rachunek/urzedowe/
+  // oferta/inne — wyliczana deterministycznie przy zapisie przez
+  // classifyMail() (lib/mail.ts), bez AI.
+  //
+  // ŚWIADOMIE nullable, bez DEFAULT: NULL znaczy "jeszcze nieskategoryzowana"
+  // i tym różni się od 'inne' ("sprawdzona, zwykła rozmowa"). Wiersze
+  // pobrane przed tą zmianą dostają NULL, dzięki czemu backfillCategories()
+  // (lib/mailSync.ts) potrafi je odróżnić i przeliczyć przy najbliższym
+  // syncu — bez tego maile już pobrane zostałyby z błędnym statusem na
+  // zawsze, bo dedup po message_id nie pozwala ich pobrać ponownie.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS kategoria TEXT;`;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_kategoria_idx ON mail_messages(kategoria);`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_client_id_idx ON mail_messages(client_id);`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_lead_id_idx ON mail_messages(lead_id);`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_status_idx ON mail_messages(status);`;

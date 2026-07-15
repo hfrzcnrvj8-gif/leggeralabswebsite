@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { syncMailbox } from "@/lib/mailSync";
+import { syncMailbox, backfillCategories } from "@/lib/mailSync";
+import { ensureMailSchema } from "@/lib/db";
 import { isMailboxConfigured } from "@/lib/mailbox";
 
 // IMAP/SMTP to zwykły TCP — Edge tego nie potrafi.
@@ -24,6 +25,13 @@ export const maxDuration = 60;
  */
 export async function POST() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  // Uzupełnienie kategorii PRZED sprawdzeniem skrzynki i niezależnie od niej —
+  // to porządki na własnej bazie, nie pobieranie poczty. Dzięki temu stare
+  // wiadomości dostają szufladkę nawet gdy IMAP akurat nie odpowiada (albo
+  // gdy skrzynki w ogóle nie ma, jak lokalnie).
+  await ensureMailSchema();
+  await backfillCategories().catch((e) => console.error("[POST /api/mail/sync] backfill", e));
 
   if (!isMailboxConfigured()) {
     return NextResponse.json({ configured: false, fetched: 0, matched: 0 });

@@ -178,8 +178,14 @@ async function ensureSeeded(): Promise<void> {
           mailUnknown, 103, "zapytanie@nowafirma.pl", "Tomasz Wiśniewski", "kontakt@leggeralabs.pl",
           "Zapytanie o współpracę", "Dzień dobry, szukamy kogoś do automatyzacji obiegu faktur. Czy moglibyśmy porozmawiać?", "<dev-unknown-1@nowafirma.pl>",
 
-          mailNoise, 104, "newsletter@jakas-platforma.pl", "Jakaś Platforma", "kontakt@leggeralabs.pl",
-          "Nowości w tym tygodniu!", "Zobacz nasze najnowsze artykuły...", "<dev-noise-1@jakas-platforma.pl>",
+          // Prawdziwy przypadek zgłoszony przez właściciela 2026-07-15:
+          // "noreply" jest tu NA KOŃCU lokalnej części, przez co pierwsza
+          // wersja filtra (startsWith) przepuściła go jako "do odpowiedzi".
+          // Zostaje w seedzie jako regresja — ma na zawsze wpadać w "reklama".
+          mailNoise, 104, "jobalerts-noreply@linkedin.com", "Alerty o ofertach pracy na LinkedIn", "kontakt@leggeralabs.pl",
+          "„Konsultant systemu SAP”: SAP Systemanalytiker Banking Platform (m/w/d) i więcej",
+          "Twój alert o ofertach pracy na stanowisko Konsultant systemu SAP\nNowe oferty pracy pasują do Twoich preferencji.",
+          "<dev-noise-1@linkedin.com>",
         ]
       );
 
@@ -192,6 +198,28 @@ async function ensureSeeded(): Promise<void> {
       await raw(
         `INSERT INTO lead_activity (id, lead_id, text, kanal, kierunek, mail_message_id) VALUES ($1,$2,$3,'email','przychodzacy',$4)`,
         [randomUUID(), leadA, "Re: Automatyzacja umów — Dzień dobry, wracam do tematu — kiedy moglibyśmy porozmawiać?", mailLead]
+      );
+
+      // HTML dla maila "reklamowego" — sprawdza renderowanie w izolowanej
+      // ramce (lib/mailHtml.ts + MailBodyHtml.tsx). Zawiera CELOWO trzy
+      // rzeczy, które MUSZĄ zostać wycięte przez odkażanie: <script>, atrybut
+      // onerror= i link javascript:. Jeśli po zmianie w regułach zobaczysz w
+      // panelu alert albo goły kod — to regresja bezpieczeństwa.
+      await raw(
+        `UPDATE mail_messages SET body_html = $1 WHERE id = $2`,
+        [
+          `<html><body style="font-family:sans-serif">
+            <table width="600" cellpadding="8"><tr><td bgcolor="#0a66c2" style="color:#fff">
+              <h2 style="margin:0">Alerty o ofertach pracy</h2></td></tr>
+              <tr><td><p>Twój alert o ofertach pracy na stanowisko <b>Konsultant systemu SAP</b>.</p>
+              <p><a href="https://www.linkedin.com/comm/jobs/view/4440064680/?trackingId=c9bGxz9ZszGOTqn4FoidKA%3D%3D&refId=5p%2FQ6kiuHC9hb15LfUiMWg%3D%3D&midToken=AQGsyEYTyg_tSw">Wyświetl ofertę pracy</a></p>
+              <img src="https://www.linkedin.com/tracking-pixel.gif" width="1" height="1" onerror="alert('xss')">
+              <p><a href="javascript:alert('xss')">Podejrzany link</a></p>
+              <script>alert('xss')</script>
+              </td></tr></table>
+          </body></html>`,
+          mailNoise,
+        ]
       );
 
       await raw(`UPDATE mail_state SET last_seen_uid = 104 WHERE id = 'default'`, []);

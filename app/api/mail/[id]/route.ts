@@ -3,13 +3,23 @@ import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema } from "@/lib/db";
 import { MAIL_STATUSES, mailSummaryLine, type MailMessageWithLinks } from "@/lib/mail";
 import { logMailOnTimeline } from "@/lib/mailSync";
+import { sanitizeMailHtml } from "@/lib/mailHtml";
 
 export const runtime = "nodejs";
 
-/** GET /api/mail/[id] — pełna wiadomość (z body_html) + wątek. */
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+/**
+ * GET /api/mail/[id] — pełna wiadomość + odkażony HTML.
+ *
+ * `?images=1` wczytuje zdalne obrazki (domyślnie blokowane — to tracking
+ * pixele; patrz lib/mailHtml.ts). Odkażamy przy KAŻDYM odczycie, a nie raz
+ * przy zapisie: gdyby w regułach znalazła się luka, poprawka działa od razu
+ * na całej historii, bez migracji i bez ponownego pobierania poczty.
+ * Surowy `body_html` NIE opuszcza serwera.
+ */
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
+  const allowImages = req.nextUrl.searchParams.get("images") === "1";
 
   await ensureMailSchema();
   const sql = getSql();
@@ -26,7 +36,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const message = rows[0];
   if (!message) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  return NextResponse.json({ message });
+  const { html, blockedImages } = sanitizeMailHtml(message.body_html || "", allowImages);
+
+  return NextResponse.json({
+    message: { ...message, body_html: "" },
+    html,
+    blockedImages,
+  });
 }
 
 /**

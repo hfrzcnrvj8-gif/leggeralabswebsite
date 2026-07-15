@@ -47,6 +47,9 @@ export type MailMessage = {
   in_reply_to: string | null;
   refs: string | null;
   status: MailStatus;
+  /** null = wiersz sprzed wprowadzenia kategorii; uzupełni go
+   * backfillCategories() przy najbliższym syncu (lib/mailSync.ts). */
+  kategoria: MailCategory | null;
   received_at: string;
   handled_at: string | null;
 };
@@ -88,36 +91,170 @@ function localPart(addr: string): string {
   return i > 0 ? a.slice(0, i) : a;
 }
 
-/** Adresy, które z definicji nie są rozmową z człowiekiem — nie ma do kogo
- * odpisać, więc nie mają czego szukać na liście "do odpowiedzi". Świadomie
- * lista dopasowań na lokalnej części adresu, nie czytanie treści przez AI
- * (zasada modułu). Decyzja właściciela 2026-07-15: wyciszenie szumu wchodzi
- * do pierwszej wersji, żeby lista "do obsłużenia" miała tylko realne rozmowy. */
-const NOISE_LOCAL_PARTS = [
-  "no-reply",
+/** Domena adresu (po "@"). */
+function domainPart(addr: string): string {
+  const a = normalizeEmail(addr);
+  const i = a.indexOf("@");
+  return i > 0 ? a.slice(i + 1) : "";
+}
+
+/** Nagłówki, po których poznajemy maila masowego. To sygnał ZE STANDARDU
+ * (RFC 2919/3834 + konwencja `Precedence`), nie zgadywanie z nazwy — każdy
+ * porządny newsletter musi dać `List-Unsubscribe`, a autorespondery
+ * `Auto-Submitted`. Dlatego sprawdzamy je PRZED nazwą adresu. */
+export type MailHeaderHints = {
+  listUnsubscribe: boolean;
+  precedence: string | null;
+  autoSubmitted: string | null;
+};
+
+/** Adresy automatów. Historia: pierwsza wersja porównywała `startsWith`, przez
+ * co przepuściła `jobalerts-noreply@linkedin.com` (właściciel zgłosił
+ * 2026-07-15 — "noreply" jest tu na KOŃCU, po myślniku). Dlatego dziś tniemy
+ * lokalną część na tokeny po `.`/`-`/`_`/`+` i szukamy dopasowania w każdym z
+ * nich, a nie tylko na początku. */
+const NOISE_TOKENS = new Set([
   "noreply",
-  "no_reply",
   "donotreply",
-  "do-not-reply",
   "newsletter",
-  "mailer-daemon",
+  "newsletters",
+  "mailerdaemon",
   "postmaster",
   "bounce",
   "bounces",
-  "notifications",
   "notification",
+  "notifications",
   "automated",
-  "auto-confirm",
+  "autoconfirm",
+  "jobalerts",
+  "alerts",
+  "mailer",
+  "no",
+]);
+
+/** Tokeny lokalnej części adresu, ze sklejeniem separatorów: "no-reply" →
+ * ["no","reply","noreply"], "jobalerts-noreply" → ["jobalerts","noreply",...].
+ * Dzięki temu łapiemy zarówno "no-reply", jak i "noreply" jednym zestawem. */
+function localTokens(addr: string): string[] {
+  const lp = localPart(addr);
+  if (!lp) return [];
+  const parts = lp.split(/[.\-_+]/).filter(Boolean);
+  return [...parts, parts.join(""), lp.replace(/[.\-_+]/g, "")];
+}
+
+/** Czy wiadomość to automat/masówka (a więc: wyciszyć — nie ma do kogo
+ * odpisać). Kolejność sygnałów od najpewniejszego: nagłówki standardu →
+ * nazwa adresu. Celowo konserwatywne przy nazwie: wątpliwy mail lepiej
+ * pokazać jako "nowy" (właściciel odhaczy) niż ukryć realne zapytanie. */
+export function isNoiseMail(fromAddr: string, hints?: MailHeaderHints): boolean {
+  if (hints) {
+    // Newsletter/lista dyskusyjna — RFC 2919/8058.
+    if (hints.listUnsubscribe) return true;
+    // "bulk"/"list"/"junk" = masówka. "auto_reply" też nie jest rozmową.
+    const p = (hints.precedence || "").toLowerCase();
+    if (p === "bulk" || p === "list" || p === "junk" || p === "auto_reply") return true;
+    // RFC 3834: cokolwiek poza "no" oznacza wiadomość wygenerowaną automatem.
+    const a = (hints.autoSubmitted || "").toLowerCase();
+    if (a && a !== "no") return true;
+  }
+  const tokens = localTokens(fromAddr);
+  if (tokens.some((t) => NOISE_TOKENS.has(t))) return true;
+  // "no" samo w sobie jest zbyt ogólne, ale "no"+"reply" obok siebie już nie.
+  return tokens.includes("no") && tokens.includes("reply");
+}
+
+/** Zachowane pod starą nazwą — używane tam, gdzie mamy sam adres, bez
+ * nagłówków (np. ręczne sprawdzenie w UI). */
+export function isNoiseAddress(fromAddr: string): boolean {
+  return isNoiseMail(fromAddr);
+}
+
+/** Kategoria wiadomości — deterministyczna, po nadawcy/temacie/nagłówkach.
+ * ZERO AI (zasada modułu): żaden model nie czyta treści i nie zgaduje typu.
+ * Decyzja właściciela 2026-07-15: cztery kategorie + "inne". */
+export const MAIL_CATEGORIES = ["reklama", "rachunek", "urzedowe", "oferta", "inne"] as const;
+export type MailCategory = (typeof MAIL_CATEGORIES)[number];
+
+export const MAIL_CATEGORY_LABEL: Record<MailCategory, string> = {
+  reklama: "Reklama",
+  rachunek: "Rachunek",
+  urzedowe: "Urzędowe",
+  oferta: "Zapytanie",
+  inne: "Rozmowa",
+};
+
+export const MAIL_CATEGORY_ICON: Record<MailCategory, string> = {
+  reklama: "📢",
+  rachunek: "🧾",
+  urzedowe: "🏛️",
+  oferta: "✨",
+  inne: "💬",
+};
+
+export const MAIL_CATEGORY_CLASS: Record<MailCategory, string> = {
+  reklama: "bg-[var(--hairline)] text-muted",
+  rachunek: "bg-brand-gold/15 text-brand-gold",
+  urzedowe: "bg-blue-500/15 text-blue-400",
+  oferta: "bg-brand-cyan/15 text-brand-cyan",
+  inne: "bg-brand-purple/15 text-brand-purple",
+};
+
+/** Domeny spraw urzędowych/bankowych — maile stąd nie mogą ginąć w reklamach.
+ * Dopasowanie po SUFIKSIE domeny, żeby łapać też subdomeny
+ * (`powiadomienia.mbank.pl`), ale nie dało się podszyć przez
+ * `zus.pl.oszust.com`. */
+const OFFICIAL_DOMAINS = [
+  "zus.pl",
+  "gov.pl",
+  "podatki.gov.pl",
+  "mf.gov.pl",
+  "ceidg.gov.pl",
+  "biznes.gov.pl",
+  "mbank.pl",
+  "ing.pl",
+  "pkobp.pl",
+  "santander.pl",
+  "bankmillennium.pl",
+  "aliorbank.pl",
+  "pekao.com.pl",
+  "bnpparibas.pl",
+  "revolut.com",
+  "wise.com",
 ];
 
-/** Czy adres wygląda na automat/newsletter (a więc: wyciszyć). Reguła jest
- * celowo konserwatywna — dopasowuje tylko jednoznaczne wzorce w lokalnej
- * części adresu. Wątpliwy mail lepiej pokazać jako "nowy" (właściciel go
- * odhaczy) niż ukryć realne zapytanie od klienta. */
-export function isNoiseAddress(fromAddr: string): boolean {
-  const lp = localPart(fromAddr);
-  if (!lp) return false;
-  return NOISE_LOCAL_PARTS.some((n) => lp === n || lp.startsWith(`${n}+`) || lp.startsWith(`${n}-`) || lp.startsWith(`${n}.`));
+function isOfficialDomain(fromAddr: string): boolean {
+  const d = domainPart(fromAddr);
+  if (!d) return false;
+  return OFFICIAL_DOMAINS.some((o) => d === o || d.endsWith(`.${o}`));
+}
+
+/** Temat wyglądający na dokument księgowy. `\b` przy FV, żeby nie łapać
+ * przypadkowych słów zawierających te litery. */
+const INVOICE_SUBJECT = /\b(faktura|faktury|fakturę|rachunek|rachunki|invoice|\d*\s*FV[\s/-]|nota\s+ksi[eę]gowa|paragon|duplikat\s+faktury)\b/i;
+
+/**
+ * Do jakiej szufladki trafia wiadomość. Kolejność reguł to hierarchia
+ * ważności, nie przypadek:
+ *  1. urzędowe — ZUS/US/bank mają pierwszeństwo NAWET nad masówką, bo bank
+ *     wysyła powiadomienia z `List-Unsubscribe`, a takiego maila nie wolno
+ *     wrzucić do "reklama" i uciszyć,
+ *  2. rachunek — faktura od dostawcy bywa masówką z automatu, a i tak jest
+ *     ważna (pomost do modułu Koszty),
+ *  3. reklama — dopiero teraz reszta masówki,
+ *  4. oferta — nieznany nadawca, który NIE jest robotem = potencjalny klient,
+ *  5. inne — znany klient/lead piszący normalnego maila.
+ */
+export function classifyMail(params: {
+  fromAddr: string;
+  subject: string;
+  hints?: MailHeaderHints;
+  knownContact: boolean;
+}): MailCategory {
+  if (isOfficialDomain(params.fromAddr)) return "urzedowe";
+  if (INVOICE_SUBJECT.test(params.subject || "")) return "rachunek";
+  if (isNoiseMail(params.fromAddr, params.hints)) return "reklama";
+  if (!params.knownContact) return "oferta";
+  return "inne";
 }
 
 /** Temat odpowiedzi — dokłada "Re: " tylko jeśli go jeszcze nie ma (także dla

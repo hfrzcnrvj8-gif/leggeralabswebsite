@@ -4,15 +4,28 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions } from "../ui";
-import { MailStatusTag, type MailMessageWithLinks, type MailStatus } from "./shared";
+import { MailStatusTag, MailCategoryTag, MAIL_CATEGORY_LABEL, type MailMessageWithLinks, type MailStatus } from "./shared";
 import { MailDetailPanel } from "./MailDetailPanel";
 
+// Filtry to dwie NIEZALEŻNE osie, jak status vs zdrowie projektu: co wymaga
+// mojej reakcji (góra) i czego dotyczy (dół, kategorie). Mieszanie ich w jedną
+// listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki".
 type Filter = "nowy" | "unassigned" | "all";
+type CatFilter = "wszystkie" | "oferta" | "rachunek" | "urzedowe" | "inne" | "reklama";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "nowy", label: "Do odpowiedzi" },
   { id: "unassigned", label: "Nieprzypisane" },
   { id: "all", label: "Wszystkie" },
+];
+
+const CAT_FILTERS: { id: CatFilter; label: string }[] = [
+  { id: "wszystkie", label: "Wszystkie" },
+  { id: "oferta", label: `${MAIL_CATEGORY_LABEL.oferta}` },
+  { id: "rachunek", label: `${MAIL_CATEGORY_LABEL.rachunek}` },
+  { id: "urzedowe", label: `${MAIL_CATEGORY_LABEL.urzedowe}` },
+  { id: "inne", label: `${MAIL_CATEGORY_LABEL.inne}` },
+  { id: "reklama", label: `${MAIL_CATEGORY_LABEL.reklama}` },
 ];
 
 /** Data wiadomości w skali "dziś/wczoraj/dawniej" — przy poczcie liczy się
@@ -33,9 +46,15 @@ function formatWhen(iso: string): string {
 export function MailDashboard({ lang }: { lang: Locale }) {
   const { toast } = useUI();
   const [messages, setMessages] = useState<MailMessageWithLinks[] | null>(null);
-  const [counts, setCounts] = useState<{ nowe: number; nieprzypisane: number }>({ nowe: 0, nieprzypisane: 0 });
+  const [counts, setCounts] = useState<{ nowe: number; nieprzypisane: number; zapytania: number; rachunki: number }>({
+    nowe: 0,
+    nieprzypisane: 0,
+    zapytania: 0,
+    rachunki: 0,
+  });
   const [configured, setConfigured] = useState(true);
   const [filter, setFilter] = useState<Filter>("nowy");
+  const [catFilter, setCatFilter] = useState<CatFilter>("wszystkie");
   const [openId, setOpenId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -51,7 +70,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     }
     const data = await res.json();
     setMessages(data.messages);
-    setCounts(data.counts ?? { nowe: 0, nieprzypisane: 0 });
+    setCounts(data.counts ?? { nowe: 0, nieprzypisane: 0, zapytania: 0, rachunki: 0 });
     setConfigured(data.configured);
   }, [toast]);
 
@@ -104,12 +123,18 @@ export function MailDashboard({ lang }: { lang: Locale }) {
 
   const filtered = useMemo(() => {
     if (!messages) return [];
-    if (filter === "nowy") return messages.filter((m) => m.status === "nowy" && m.kierunek === "in");
-    if (filter === "unassigned") {
-      return messages.filter((m) => !m.client_id && !m.lead_id && m.kierunek === "in" && m.status !== "zignorowany");
+    let out = messages;
+    if (filter === "nowy") out = out.filter((m) => m.status === "nowy" && m.kierunek === "in");
+    else if (filter === "unassigned") {
+      out = out.filter((m) => !m.client_id && !m.lead_id && m.kierunek === "in" && m.status !== "zignorowany");
     }
-    return messages;
-  }, [messages, filter]);
+    if (catFilter !== "wszystkie") {
+      // Wiersze sprzed wprowadzenia kategorii mają null — traktujemy je jak
+      // "inne", żeby nie znikały z widoku, zanim backfill je przeliczy.
+      out = out.filter((m) => (m.kategoria ?? "inne") === catFilter);
+    }
+    return out;
+  }, [messages, filter, catFilter]);
 
   const openMessage = messages?.find((m) => m.id === openId) ?? null;
 
@@ -153,7 +178,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
-      <div className="mb-3 flex gap-1">
+      <div className="mb-2 flex gap-1">
         {FILTERS.map((f) => (
           <button
             key={f.id}
@@ -165,6 +190,23 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             {f.label}
             {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
             {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-1 border-t hairline pt-2">
+        <span className="mr-1 text-[11px] text-muted opacity-70">Rodzaj:</span>
+        {CAT_FILTERS.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCatFilter(c.id)}
+            className={`rounded-full px-2.5 py-0.5 text-[12px] transition ${
+              catFilter === c.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
+            }`}
+          >
+            {c.label}
+            {c.id === "oferta" && counts.zapytania > 0 ? ` (${counts.zapytania})` : ""}
+            {c.id === "rachunek" && counts.rachunki > 0 ? ` (${counts.rachunki})` : ""}
           </button>
         ))}
       </div>
@@ -216,6 +258,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
+                    {m.kategoria && <MailCategoryTag kategoria={m.kategoria} />}
                     <MailStatusTag status={m.status as MailStatus} />
                     <span className="w-14 text-right text-[11px] text-muted">{formatWhen(m.received_at)}</span>
                   </span>

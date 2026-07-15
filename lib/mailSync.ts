@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureMailSchema } from "./db";
 import { findContactsByEmail } from "./contactLookup";
 import { fetchNewMessages, type FetchedMessage } from "./mailbox";
-import { isNoiseAddress, mailSummaryLine, MAIL_RETENTION_MONTHS } from "./mail";
+import { classifyMail, isNoiseMail, mailSummaryLine, MAIL_RETENTION_MONTHS } from "./mail";
 import { todayLocalISO } from "./dates";
 
 export type SyncResult = {
@@ -34,6 +34,14 @@ type MailState = { last_seen_uid: number; uid_validity: string | number | null }
 export async function syncMailbox(): Promise<SyncResult> {
   await ensureMailSchema();
   const sql = getSql();
+
+  // Najpierw dociągnij kategorie wiadomościom sprzed ich wprowadzenia —
+  // samo-naprawiające się, więc właściciel nie musi nic klikać ani wiedzieć,
+  // że coś było do nadrobienia.
+  await backfillCategories().catch((e) => {
+    // Backfill to porządki, nie powód, żeby nie pobrać nowej poczty.
+    console.error("[mailSync] backfill kategorii nie powiódł się", e);
+  });
 
   const stateRows = (await sql`SELECT last_seen_uid, uid_validity FROM mail_state WHERE id = 'default';`) as unknown as MailState[];
   const state = stateRows[0] ?? { last_seen_uid: 0, uid_validity: null };
@@ -93,32 +101,82 @@ export async function syncMailbox(): Promise<SyncResult> {
   return { fetched: batch.messages.length, saved, matched, unassigned, ignored };
 }
 
+/**
+ * Uzupełnia kategorię wiadomościom pobranym przed jej wprowadzeniem
+ * (`kategoria IS NULL`). Bez tego maile już w bazie zostałyby na zawsze z
+ * błędną szufladką — dedup po `message_id` nie pozwala pobrać ich ponownie,
+ * więc sam sync by ich nie ruszył.
+ *
+ * Ograniczenie, świadome: nie mamy zapisanych nagłówków starych wiadomości
+ * (nie było takiej kolumny), więc lecimy na adresie i temacie. To słabszy
+ * sygnał niż `List-Unsubscribe`, ale wystarcza dla typowych automatów
+ * (`jobalerts-noreply@linkedin.com` łapie się po nazwie). Nowe wiadomości
+ * korzystają już z pełnych nagłówków.
+ *
+ * Status podnosimy TYLKO z 'nowy' → 'zignorowany'. Wiadomości, które
+ * właściciel już odhaczył albo wyciszył ręcznie, zostają nietknięte — jego
+ * decyzja jest ważniejsza niż reguła.
+ */
+export async function backfillCategories(): Promise<{ updated: number }> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT id, from_addr, subject, client_id, lead_id, status
+    FROM mail_messages
+    WHERE kategoria IS NULL
+    LIMIT 500;
+  `) as unknown as { id: string; from_addr: string; subject: string; client_id: string | null; lead_id: string | null; status: string }[];
+
+  let updated = 0;
+  for (const r of rows) {
+    const kategoria = classifyMail({
+      fromAddr: r.from_addr,
+      subject: r.subject,
+      knownContact: Boolean(r.client_id || r.lead_id),
+    });
+    const newStatus = kategoria === "reklama" && r.status === "nowy" ? "zignorowany" : r.status;
+    await sql`UPDATE mail_messages SET kategoria = ${kategoria}, status = ${newStatus} WHERE id = ${r.id};`;
+    updated++;
+  }
+  return { updated };
+}
+
 type SaveOutcome = "matched" | "unassigned" | "ignored" | "duplicate";
 
 /** Zapisz jedną przychodzącą wiadomość + (gdy dopasowana) wpis na osi
  * kontaktu klienta/leada. */
 async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage): Promise<SaveOutcome> {
-  const noise = isNoiseAddress(msg.fromAddr);
-  // Newsletter/no-reply zapisujemy, ale od razu jako "zignorowany" — nie ma
-  // do kogo odpisać, więc nie ma czego szukać na liście "do odpowiedzi"
-  // (wyciszenie szumu, decyzja właściciela 2026-07-15).
-  const status = noise ? "zignorowany" : "nowy";
+  const noise = isNoiseMail(msg.fromAddr, msg.hints);
 
-  // Automat nie jest kontaktem z człowiekiem — nie dopinamy go do klienta i
-  // nie brudzimy nim osi kontaktu, nawet gdyby adres pasował.
+  // Dopasowanie liczymy PRZED kategoryzacją, bo "czy znamy nadawcę" jest
+  // jedną z jej przesłanek (nieznany człowiek = potencjalne zapytanie).
+  // Automatu nie dopinamy do nikogo, nawet gdyby adres pasował — nie ma
+  // sensu brudzić osi kontaktu klienta jego własnym newsletterem.
   const match = noise ? undefined : (await findContactsByEmail(msg.fromAddr))[0];
   const clientId = match?.type === "client" ? match.id : null;
   const leadId = match?.type === "lead" ? match.id : null;
+
+  const kategoria = classifyMail({
+    fromAddr: msg.fromAddr,
+    subject: msg.subject,
+    hints: msg.hints,
+    knownContact: Boolean(match),
+  });
+
+  // "Reklama" nie ma do kogo odpisać → od razu poza listę "do odpowiedzi".
+  // Uwaga: NIE używamy tu `noise`, tylko kategorii — bank czy faktura potrafią
+  // przyjść z nagłówkami masówki, a te muszą zostać "nowe" (patrz kolejność
+  // reguł w classifyMail).
+  const status = kategoria === "reklama" ? "zignorowany" : "nowy";
 
   const id = randomUUID();
   const inserted = (await sql`
     INSERT INTO mail_messages (
       id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr,
-      subject, body_text, body_html, message_id, in_reply_to, refs, status, received_at
+      subject, body_text, body_html, message_id, in_reply_to, refs, status, kategoria, received_at
     ) VALUES (
       ${id}, ${msg.uid}, 'in', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr},
       ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
-      ${status}, ${msg.receivedAt.toISOString()}
+      ${status}, ${kategoria}, ${msg.receivedAt.toISOString()}
     )
     ON CONFLICT (message_id) DO NOTHING
     RETURNING id;
@@ -126,7 +184,7 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage)
 
   // Pusty RETURNING = ON CONFLICT zadziałał, czyli znaliśmy już tę wiadomość.
   if (inserted.length === 0) return "duplicate";
-  if (noise) return "ignored";
+  if (kategoria === "reklama") return "ignored";
   if (!match) return "unassigned";
 
   await logMailOnTimeline(sql, {

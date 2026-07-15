@@ -2199,6 +2199,70 @@ odpowiedzi API.
   az.pl — panel jest roboczą kopią. **Wartość musi zgadzać się z polityką
   prywatności** — patrz `PO_REJESTRACJI.md`.
 
+### Moduł 4 — druga tura: kategorie, wyciszanie, HTML maila (2026-07-15)
+
+Po pierwszym uruchomieniu na produkcji właściciel zgłosił trzy rzeczy —
+wszystkie trafione, wszystkie naprawione.
+
+**1. Wyciszanie szumu przepuszczało automaty (BŁĄD).** `jobalerts-noreply@
+linkedin.com` lądował jako "Do odpowiedzi" z propozycją "Utwórz leada",
+bo pierwsza wersja `isNoiseAddress()` sprawdzała `startsWith` — a tu
+"noreply" jest na KOŃCU. Dziś `isNoiseMail()`:
+- czyta **standardowe nagłówki masówki** (`List-Unsubscribe` RFC 2919/8058,
+  `Precedence: bulk/list/junk`, `Auto-Submitted` RFC 3834) — to sygnał ze
+  standardu, pewniejszy niż jakakolwiek nazwa adresu, więc idzie pierwszy,
+- dopiero potem tnie lokalną część adresu na tokeny (`.`/`-`/`_`/`+`) i
+  szuka dopasowania w KAŻDYM z nich, nie tylko na początku.
+Ten mail jest w seedzie dev (`lib/dev-db.ts`) jako regresja — ma na zawsze
+wpadać w "reklama".
+
+**2. Kategorie (deterministyczne, ZERO AI).** `classifyMail()` w
+`lib/mail.ts` → kolumna `mail_messages.kategoria`:
+`urzedowe` → `rachunek` → `reklama` → `oferta` → `inne`. **Kolejność reguł
+jest treścią, nie kosmetyką:** bank i faktura mają pierwszeństwo przed
+masówką, bo jedno i drugie potrafi przyjść z `List-Unsubscribe`, a takiego
+maila nie wolno uciszyć. `oferta` = nieznany nadawca, który nie jest robotem
+(potencjalny klient). Status `zignorowany` nadaje wyłącznie `reklama` —
+świadomie po kategorii, nie po surowym "to masówka".
+- Filtry w UI to dwie NIEZALEŻNE osie (jak status vs zdrowie projektu): co
+  wymaga reakcji (Do odpowiedzi/Nieprzypisane/Wszystkie) × czego dotyczy
+  (Rodzaj: Zapytanie/Rachunek/Urzędowe/Rozmowa/Reklama).
+- `kategoria` jest **nullable bez DEFAULT** — NULL ("jeszcze nie wiadomo")
+  różni się od `'inne'` ("sprawdzone, zwykła rozmowa"). Dzięki temu
+  `backfillCategories()` (`lib/mailSync.ts`) przelicza wiadomości pobrane
+  przed tą zmianą. Bez tego zostałyby z błędnym statusem NA ZAWSZE — dedup po
+  `message_id` nie pozwala pobrać ich ponownie. Backfill leci w
+  `POST /api/mail/sync` **przed** sprawdzeniem skrzynki (to porządki na
+  własnej bazie, nie pobieranie poczty), więc działa też lokalnie i przy
+  padniętym IMAP. Podnosi status tylko `nowy`→`zignorowany` — ręczna decyzja
+  właściciela jest ważniejsza niż reguła.
+
+**3. Treść maila = HTML (właściciel: "wygląda nieobsługiwane").** Panel
+pokazywał `body_text`, stąd ściany linków trackingowych zamiast przycisków.
+Teraz renderujemy HTML, ale **treść maila to kod od obcej osoby** — wrzucony
+wprost (`dangerouslySetInnerHTML`) mógłby wykraść ciasteczko sesji panelu.
+Dlatego trzy niezależne warstwy:
+1. `lib/mailHtml.ts` — `sanitize-html`: wycina `<script>`, `on*=`, `<iframe>`,
+   `<form>`, `javascript:`; whitelist tagów (tabele ZOSTAJĄ — maile
+   marketingowe są na nich zbudowane) i stylów.
+2. `MailBodyHtml.tsx` — `<iframe sandbox>` **bez `allow-scripts` i bez
+   `allow-same-origin`**: nawet gdyby coś przeszło odkażanie, nie ma jak się
+   wykonać ani sięgnąć do sesji. `srcdoc`, nie `innerHTML`.
+3. CSP w `<meta>` wewnątrz ramki (`script-src 'none'`).
+- **Zdalne obrazki domyślnie blokowane** (podmiana na przezroczysty piksel +
+  "Pokaż obrazki") — to tracking pixele: samo otwarcie zdradza nadawcy, że i
+  kiedy przeczytałeś maila. Tak samo robi Gmail/Outlook. `data:` obrazki
+  (osadzone) zostają.
+- Odkażamy przy KAŻDYM odczycie, nie raz przy zapisie — poprawka reguł
+  działa wtedy od razu na całej historii. Surowy `body_html` nie opuszcza
+  serwera (`GET /api/mail/[id]` zwraca `body_html: ""` + gotowy `html`).
+- Ramka nie mierzy własnej wysokości (to wymagałoby `allow-scripts`) —
+  świadomy kompromis: stała wysokość wg długości treści + scroll w środku.
+
+**Ustalone, NIEzbudowane:** wiele skrzynek. Decyzja właściciela: przez env
+Vercela (`MAIL_2_HOST/USER/PASS`), **nie** przez formularz w panelu — hasła do
+poczty nie trafiają do bazy. Osobny moduł, gdy pojawi się druga skrzynka.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

@@ -12,7 +12,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
-import { extractEmailAddress } from "./mail";
+import { extractEmailAddress, type MailHeaderHints } from "./mail";
 
 /** Jedna sparsowana wiadomość — surowa, jeszcze nie dopasowana do klienta. */
 export type FetchedMessage = {
@@ -27,6 +27,9 @@ export type FetchedMessage = {
   inReplyTo: string | null;
   refs: string | null;
   receivedAt: Date;
+  /** Sygnały ze standardowych nagłówków: czy to masówka/automat. Patrz
+   * isNoiseMail() w lib/mail.ts — pewniejsze niż zgadywanie z nazwy adresu. */
+  hints: MailHeaderHints;
 };
 
 export type MailboxConfig = {
@@ -154,6 +157,20 @@ export async function fetchNewMessages(
         const refsRaw = parsed.references;
         const refs = Array.isArray(refsRaw) ? refsRaw.join(" ") : refsRaw || null;
 
+        // mailparser trzyma nagłówki w Mapie po nazwach pisanych małymi
+        // literami. Wartość bywa stringiem albo obiektem (List-Unsubscribe) —
+        // dla nas liczy się wyłącznie SAMA OBECNOŚĆ tego nagłówka.
+        const header = (name: string): string | null => {
+          const v = parsed.headers?.get(name);
+          if (v == null) return null;
+          return typeof v === "string" ? v : String((v as { value?: unknown }).value ?? v);
+        };
+        const hints = {
+          listUnsubscribe: parsed.headers?.has("list-unsubscribe") ?? false,
+          precedence: header("precedence"),
+          autoSubmitted: header("auto-submitted"),
+        };
+
         messages.push({
           uid: item.uid,
           fromAddr: extractEmailAddress(fromEntry?.address || parsed.from?.text || ""),
@@ -166,6 +183,7 @@ export async function fetchNewMessages(
           inReplyTo: (parsed.inReplyTo || "").trim() || null,
           refs,
           receivedAt: parsed.date || new Date(),
+          hints,
         });
       }
 
