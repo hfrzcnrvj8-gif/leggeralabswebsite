@@ -13,6 +13,8 @@ import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { extractEmailAddress, type MailHeaderHints } from "./mail";
+import { SIGNATURE_IMAGES } from "./mailSignature";
+import { siteUrl } from "./site";
 
 /** Jedna sparsowana wiadomość — surowa, jeszcze nie dopasowana do klienta. */
 export type FetchedMessage = {
@@ -267,8 +269,15 @@ export async function fetchHintsByUids(uids: number[]): Promise<Map<number, Mail
  */
 export async function sendReply(params: {
   to: string;
+  cc?: string[];
   subject: string;
   text: string;
+  /** Wersja HTML (z podpisem). Gdy podana, mail leci jako multipart:
+   * text/plain + text/html — pominięcie części tekstowej podbija punktację
+   * spamową i psuje odbiór w klientach tekstowych. */
+  html?: string;
+  /** Obrazki osadzone (podpis) — dołączane jako `cid:`, nie zdalne linki. */
+  inlineImages?: { cid: string; filename: string; content: Buffer }[];
   inReplyTo: string | null;
   references: string | null;
 }): Promise<{ messageId: string; raw: string }> {
@@ -285,8 +294,23 @@ export async function sendReply(params: {
     await new MailComposer({
       from,
       to: params.to,
+      ...(params.cc && params.cc.length > 0 ? { cc: params.cc } : {}),
       subject: params.subject,
       text: params.text,
+      ...(params.html ? { html: params.html } : {}),
+      // `cid` + `contentDisposition: "inline"` sprawia, że obrazek jest
+      // częścią wiadomości (a nie załącznikiem do pobrania) i nie podlega
+      // blokadzie zdalnych obrazków.
+      ...(params.inlineImages && params.inlineImages.length > 0
+        ? {
+            attachments: params.inlineImages.map((i) => ({
+              cid: i.cid,
+              filename: i.filename,
+              content: i.content,
+              contentDisposition: "inline" as const,
+            })),
+          }
+        : {}),
       messageId,
       ...(params.inReplyTo ? { inReplyTo: params.inReplyTo } : {}),
       ...(params.references ? { references: params.references } : {}),
@@ -303,13 +327,45 @@ export async function sendReply(params: {
   });
 
   // `raw` + jawna koperta: wysyłamy dokładnie tę treść, którą złożyliśmy
-  // wyżej (sendMail nie przepisuje wtedy nagłówków po swojemu).
+  // wyżej (sendMail nie przepisuje wtedy nagłówków po swojemu). Koperta musi
+  // zawierać też DW — inaczej nagłówek Cc byłby widoczny, ale poczta by tam
+  // nie poszła.
   await transporter.sendMail({
-    envelope: { from: extractEmailAddress(from) || from, to: [params.to] },
+    envelope: {
+      from: extractEmailAddress(from) || from,
+      to: [params.to, ...(params.cc ?? [])],
+    },
     raw,
   });
 
   return { messageId, raw };
+}
+
+/**
+ * Pobiera obrazki podpisu z naszej własnej domeny, żeby dołączyć je do maila
+ * jako `cid:`.
+ *
+ * Dlaczego przez HTTP, a nie z dysku: pliki z `public/` nie trafiają do
+ * funkcji serverless na Vercelu — `fs.readFile` działałby lokalnie i wywalił
+ * się na produkcji. Adres bierzemy z `siteUrl` (lib/site.ts).
+ *
+ * Awaria pobierania NIE jest błędem: zwracamy pustą listę, mail leci bez
+ * ozdób, a podpis i tak jest kompletny, bo wszystkie dane kontaktowe są w nim
+ * tekstem (patrz lib/mailSignature.ts). Lepiej wysłać maila bez zdjęcia niż
+ * nie wysłać go wcale.
+ */
+export async function fetchSignatureImages(): Promise<{ cid: string; filename: string; content: Buffer }[]> {
+  const out: { cid: string; filename: string; content: Buffer }[] = [];
+  for (const img of SIGNATURE_IMAGES) {
+    try {
+      const res = await fetch(`${siteUrl}${img.url}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      out.push({ cid: img.cid, filename: img.filename, content: Buffer.from(await res.arrayBuffer()) });
+    } catch (e) {
+      console.error(`[mailbox] nie udało się pobrać obrazka podpisu ${img.url} — wysyłam bez niego`, e);
+    }
+  }
+  return out;
 }
 
 /**

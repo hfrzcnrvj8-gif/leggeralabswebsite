@@ -4,7 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
-import { MailStatusTag, MailCategoryTag, replySubject, type MailMessageWithLinks, type MailStatus } from "./shared";
+import {
+  MailStatusTag,
+  MailCategoryTag,
+  replySubject,
+  SIGNATURE_LANGS,
+  SIGNATURE_LANG_LABEL,
+  type SignatureLang,
+  type MailMessageWithLinks,
+  type MailStatus,
+} from "./shared";
 import { MailBodyHtml } from "./MailBodyHtml";
 
 type Project = { id: string; tytul: string; status: string };
@@ -34,6 +43,10 @@ export function MailDetailPanel({
   const [showImages, setShowImages] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [replyCc, setReplyCc] = useState("");
+  // Domyślnie polski; przełącznik przy pisaniu (decyzja właściciela
+  // 2026-07-15 — świadomie ręcznie, nie automatem po kraju klienta).
+  const [podpis, setPodpis] = useState<SignatureLang | null>("pl");
   const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -101,7 +114,7 @@ export function MailDetailPanel({
       const res = await fetch(`/api/mail/${mailId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, podpis, cc: replyCc }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -110,6 +123,7 @@ export function MailDetailPanel({
       }
       setReplyOpen(false);
       setReplyText("");
+      setReplyCc("");
       await load();
       await onChanged();
       // Mail poszedł, ale coś pobocznego się nie udało (np. kopia w Sent) —
@@ -122,28 +136,39 @@ export function MailDetailPanel({
     } finally {
       setSending(false);
     }
-  }, [mailId, replyText, load, onChanged, toast]);
+  }, [mailId, replyText, replyCc, podpis, load, onChanged, toast]);
 
-  const createLead = useCallback(async () => {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/mail/${mailId}/create-lead`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast(data?.error || "Nie udało się utworzyć leada.", "error");
-        return;
+  /** Wspólne dla "Utwórz leada" i "Utwórz klienta" — te same kroki, inny
+   * endpoint. Właściciel decyduje kliknięciem, czy piszący to dopiero lead do
+   * przepchnięcia przez lejek, czy od razu realna relacja (prośba
+   * 2026-07-15). Panel tego nie zgaduje. */
+  const createContact = useCallback(
+    async (kind: "lead" | "client") => {
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/mail/${mailId}/create-${kind}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          toast(data?.error || `Nie udało się utworzyć ${kind === "lead" ? "leada" : "klienta"}.`, "error");
+          return;
+        }
+        await load();
+        await onChanged();
+        toast(
+          data.reused
+            ? `Przypisano do: ${data.nazwa}.`
+            : `Utworzono ${kind === "lead" ? "leada" : "klienta"}: ${data.nazwa}.`
+        );
+      } finally {
+        setBusy(false);
       }
-      await load();
-      await onChanged();
-      toast(data.reused ? `Przypisano do: ${data.nazwa}.` : `Utworzono leada: ${data.nazwa}.`);
-    } finally {
-      setBusy(false);
-    }
-  }, [mailId, load, onChanged, toast]);
+    },
+    [mailId, load, onChanged, toast]
+  );
 
   const toTask = useCallback(
     async (projectId: string) => {
@@ -232,13 +257,22 @@ export function MailDetailPanel({
           </Link>
         )}
         {unassigned && (
-          <button
-            onClick={createLead}
-            disabled={busy}
-            className="rounded-full border border-brand-cyan/40 px-2.5 py-1 text-brand-cyan hover:bg-brand-cyan/10 disabled:opacity-50"
-          >
-            + Utwórz leada z tego maila
-          </button>
+          <>
+            <button
+              onClick={() => void createContact("lead")}
+              disabled={busy}
+              className="rounded-full border border-brand-cyan/40 px-2.5 py-1 text-brand-cyan hover:bg-brand-cyan/10 disabled:opacity-50"
+            >
+              🎯 Utwórz leada
+            </button>
+            <button
+              onClick={() => void createContact("client")}
+              disabled={busy}
+              className="rounded-full border border-brand-purple/40 px-2.5 py-1 text-brand-purple hover:bg-brand-purple/10 disabled:opacity-50"
+            >
+              👤 Utwórz klienta
+            </button>
+          </>
         )}
       </div>
 
@@ -279,6 +313,12 @@ export function MailDetailPanel({
           <p className="text-[12px] text-muted">
             Odpowiedź do <span className="font-medium">{mail.from_addr}</span> — temat: {replySubject(mail.subject)}
           </p>
+          <input
+            value={replyCc}
+            onChange={(e) => setReplyCc(e.target.value)}
+            placeholder="DW (opcjonalnie, adresy po przecinku)"
+            className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[13px] outline-none focus:border-brand-purple/50"
+          />
           <textarea
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
@@ -287,6 +327,33 @@ export function MailDetailPanel({
             placeholder="Treść odpowiedzi…"
             className="w-full rounded-xl border hairline bg-transparent p-3 text-[13px] outline-none focus:border-brand-purple/50"
           />
+
+          {/* Podpis dokleja panel przy wysyłce — świadomie NIE wrzucamy go do
+              pola edycji, żeby nie dało się go przypadkiem nadpisać ani wysłać
+              w nieaktualnej wersji. */}
+          <div className="flex flex-wrap items-center gap-1 text-[12px]">
+            <span className="mr-1 text-muted opacity-70">Podpis:</span>
+            {SIGNATURE_LANGS.map((l) => (
+              <button
+                key={l}
+                onClick={() => setPodpis(l as SignatureLang)}
+                className={`rounded-full px-2.5 py-0.5 transition ${
+                  podpis === l ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
+                }`}
+              >
+                {SIGNATURE_LANG_LABEL[l as SignatureLang]}
+              </button>
+            ))}
+            <button
+              onClick={() => setPodpis(null)}
+              className={`rounded-full px-2.5 py-0.5 transition ${
+                podpis === null ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
+              }`}
+            >
+              Bez podpisu
+            </button>
+          </div>
+
           <div className="flex items-center gap-2">
             <button onClick={send} disabled={sending} className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50">
               {sending ? "Wysyłam…" : "Wyślij odpowiedź"}

@@ -36,30 +36,34 @@ UID-zie dla starych maili (Calendly lądował w „Zapytaniach").
 
 ## Kolejność (wg decyzji właściciela)
 
-### Etap 1 — Pisanie i odpowiadanie (START TUTAJ)
+### Etap 1 — Pisanie i odpowiadanie (W TOKU)
+
+**✅ ZROBIONE 2026-07-15** (szczegóły w `HUB_SETUP.md` → „Moduł 4 — trzecia tura"):
+- **Podpisy PL/EN/DE** — `lib/mailSignature.ts`, przełącznik przy pisaniu
+  (domyślnie PL) + „Bez podpisu". HTML z prawdziwym tekstem i linkami, obrazki
+  jako `cid:`, baner jako HTML (nie PNG), zawsze multipart text+HTML.
+  Adres: `kontakt@leggeralabs.pl` — rozbieżność z PNG-ami rozstrzygnięta
+  przez właściciela. Stare `stopka_mailowa_*.png` są **nieużywane**
+  (zostawione w repo; do usunięcia przy okazji, jeśli właściciel potwierdzi).
+- **Odpowiedź w HTML** — `sendReply()` przyjmuje `html` + `inlineImages`.
+- **DW (Cc)** przy odpowiadaniu.
+- **„Utwórz klienta z maila"** obok „Utwórz leada"
+  (`POST /api/mail/[id]/create-client`).
+
+**Zostało w tym etapie:**
 - **Nowa wiadomość** (compose od zera), **Przekaż**, **Odpowiedz wszystkim**.
-  Dziś jest wyłącznie „Odpisz" do nadawcy (`app/api/mail/[id]/reply`).
-- **Odpowiedź w HTML** — dziś wysyłamy `text` (patrz `sendReply` w
-  `lib/mailbox.ts`). Podpis wymaga HTML-a. Wysyłaj multipart: `text` + `html`.
-- **Podpisy PL/EN/DE.**
-  - ⚠️ **Pliki JUŻ SĄ w repo i nikt ich nie używa:**
-    `public/assets/signature/stopka_mailowa_{PL,EN,DE}.png`.
-  - ⚠️ **ALE to obrazki PNG — odradzone właścicielowi 2026-07-15.** Wady:
-    większość klientów blokuje zdalne obrazki (podpis = pusta ramka), nic nie
-    jest klikalne, gorsza ocena antyspamowa. **Rekomendacja: odtworzyć jako
-    HTML z prawdziwym tekstem + klikalnymi linkami**, zdjęcie/logo jako małe
-    obrazki inline (`cid:`, nie zdalne — nie podlegają blokadzie).
-    Czeka na decyzję właściciela.
-  - ⚠️ **Rozbieżność do wyjaśnienia:** podpis podaje `kontakt@patrykpiecyk.pl`,
-    a skrzynka panelu to `kontakt@leggeralabs.pl` (`NOTIFY_TO` w
-    `app/api/leads/notify`). Zapytać, który adres jest właściwy.
-  - Treść trzymać w `company_settings` (kolumny `podpis_pl/_en/_de`), nie w
-    kodzie — właściciel ma móc je edytować bez programisty.
+  Dziś jest wyłącznie „Odpisz" do nadawcy. Compose wymaga wyboru odbiorcy z
+  bazy (klienci/leady) — jest już `findContactsByEmail` i klient-picker w
+  edytorze faktur do podpatrzenia.
 - **Cofnij wysyłkę** — opóźnienie ~10 s przed przekazaniem do SMTP. Czysto po
   naszej stronie, tanie, ratuje skórę. Gmail daje 5–30 s (domyślnie 5).
 - **Szablony wiadomości** — naturalne przedłużenie podpisów. Wzorzec:
   Superhuman Snippets (wstawianie inline). W panelu jest już
   `offer_templates` — ten sam kształt.
+- ⚠️ **Do rozważenia:** dane podpisu (telefon, rola) siedzą dziś w kodzie
+  (`SIGNATURE_IDENTITY`). Świadomie — to zasób marki, nie ustawienie do zmiany
+  co tydzień. Jeśli właściciel poprosi o edycję z panelu, przenieść do
+  `company_settings`.
 
 ### Etap 2 — Fundament: foldery i flagi IMAP
 **To jest przepisanie fundamentu, nie dokładanie przycisków.** Dziś panel

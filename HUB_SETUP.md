@@ -2263,6 +2263,55 @@ Dlatego trzy niezależne warstwy:
 Vercela (`MAIL_2_HOST/USER/PASS`), **nie** przez formularz w panelu — hasła do
 poczty nie trafiają do bazy. Osobny moduł, gdy pojawi się druga skrzynka.
 
+### Moduł 4 — trzecia tura: podpisy PL/EN/DE, klient z maila, DW (2026-07-15)
+
+**Klient bezpośrednio z maila.** Obok „Utwórz leada" jest „Utwórz klienta"
+(`POST /api/mail/[id]/create-client`) — właściciel poprosił, bo nie każdy
+piszący to lead do przepchnięcia przez lejek. Dwa osobne przyciski, bo to dwie
+różne decyzje biznesowe i panel ich nie zgaduje. Klient dostaje status
+`Prospekt` (nie `Aktywny` — z maila jeszcze nic nie kupił), źródło
+`Inbound / E-mail`, wpis `client_created` na osi czasu i mail na osi kontaktu.
+Ochrona przed duplikatem: jeśli adres już jest znany, przypina do
+istniejącego rekordu zamiast tworzyć drugi.
+
+**Podpisy PL/EN/DE** (`lib/mailSignature.ts`). Przełącznik przy pisaniu,
+domyślnie polski, plus opcja „Bez podpisu" — decyzja właściciela: świadomie
+RĘCZNIE, nie automatem po kraju klienta („mam wiedzieć, co podpinam").
+- **Dlaczego HTML, a nie gotowe PNG-i.** W repo leżały
+  `stopka_mailowa_{PL,EN,DE}.png` — cały podpis jako jeden obrazek. Odradzone
+  właścicielowi i zastąpione: (1) klienci blokują domyślnie obrazki → u
+  odbiorcy pusta ramka (tę samą blokadę mamy u siebie), (2) telefon/mail/
+  LinkedIn to piksele, nie linki, (3) mail-obrazek dostaje gorszą ocenę
+  antyspamową, (4) czytniki ekranu nic nie odczytają. Dziś dane kontaktowe to
+  PRAWDZIWY tekst z linkami `tel:`/`mailto:`, a obrazki są tylko ozdobą —
+  podpis czyta się w całości nawet, gdy się nie wczytają.
+- **Adres: `kontakt@leggeralabs.pl` wszędzie** (decyzja właściciela) — PNG-i
+  miały nieaktualne `kontakt@patrykpiecyk.pl`. Reszta kodu i tak używała
+  właściwego.
+- **Baner jest HTML-em, nie obrazkiem** — mimo że `sygnatura_baner_*.png` są w
+  repo. To on niesie CTA (jedyny element podpisu, który ma coś sprzedać), więc
+  nie może zniknąć przy zablokowanych obrazkach. Te same hasła i kolory marki.
+- **Tabele + style inline** — Outlook na Windows renderuje HTML silnikiem
+  Worda: flexbox/klasy CSS/marginesy nie działają. To nie zaniedbanie.
+- **Zdjęcie wypalone w okręgu** (`sygnatura_zdjecie_kolo.png`, generowane raz
+  z `sygnatura_zdjecie.png`) — Outlook ignoruje `border-radius`.
+- **Obrazki jako `cid:`** (osadzone w wiadomości), nie zdalne `https://` — te
+  drugie są blokowane jak każdy tracking pixel. ⚠️ Pobierane przez HTTP z
+  `siteUrl`, NIE z dysku: pliki z `public/` nie trafiają do funkcji serverless
+  na Vercelu, więc `fs.readFile` działałby lokalnie i wywalił się na
+  produkcji. Awaria pobierania = mail leci bez ozdób, nie błąd.
+- **Zawsze multipart text+HTML** — sam HTML podbija punktację spamową i psuje
+  odbiór w klientach tekstowych (`signatureText()`).
+- Podpis doklejany przy WYSYŁCE, nie w polu edycji — nie da się go
+  przypadkiem nadpisać. Do bazy i na oś kontaktu klienta zapisujemy treść BEZ
+  podpisu, inaczej każda rozmowa byłaby zaśmiecona powtórzoną stopką.
+- Teksty 1:1 z kanonem marki (`i18n/dictionaries/*.json` → `footer.tagline`,
+  `cta.bookingCta`), kolory = `brand.*` z `tailwind.config.ts` wpisane wprost
+  (w mailu nie ma Tailwinda ani zmiennych CSS).
+
+**DW (Cc)** przy odpowiadaniu — adresy trafiają też do koperty SMTP, inaczej
+nagłówek byłby widoczny, ale poczta by tam nie poszła.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

@@ -27,6 +27,12 @@ export {
 
 export { CONTACT_CHANNEL_ICON, CONTACT_CHANNEL_CLASS } from "@/lib/contact";
 
+// Podpisy — tylko stałe (nazwy języków). Sam generator HTML-a
+// (signatureHtml) zostaje po stronie serwera: nie ma po co wysyłać do
+// przeglądarki kodu, który i tak składa maila w API.
+export { SIGNATURE_LANGS, SIGNATURE_LANG_LABEL } from "@/lib/mailSignature";
+export type { Locale as SignatureLang } from "@/i18n/config";
+
 import {
   MAIL_STATUS_CLASS,
   MAIL_STATUS_LABEL,

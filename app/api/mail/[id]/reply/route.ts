@@ -2,12 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema } from "@/lib/db";
-import { buildReferences, mailSummaryLine, replySubject, type MailMessage } from "@/lib/mail";
-import { appendToSent, isMailboxConfigured, sendReply } from "@/lib/mailbox";
+import { buildReferences, extractEmailAddress, mailSummaryLine, replySubject, type MailMessage } from "@/lib/mail";
+import { appendToSent, fetchSignatureImages, isMailboxConfigured, sendReply } from "@/lib/mailbox";
 import { logMailOnTimeline } from "@/lib/mailSync";
+import { signatureHtml, signatureText } from "@/lib/mailSignature";
+import { getBookingUrl } from "@/lib/site";
+import { i18n, type Locale } from "@/i18n/config";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+/** Zamienia to, co właściciel wpisał, na bezpieczny HTML: escape'uje znaki
+ * specjalne (żeby "<" w treści nie stał się tagiem) i zamienia entery na
+ * <br />. Świadomie NIE parsujemy markdownu — właściciel pisze zwykły tekst,
+ * a każda "inteligentna" zamiana to niespodzianka w wysłanym mailu. */
+function textToHtml(text: string): string {
+  const esc = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:14px;line-height:22px;color:#141414;white-space:pre-wrap;">${esc}</div>`;
+}
 
 /**
  * POST /api/mail/[id]/reply — odpowiedz na wiadomość przez SMTP az.pl.
@@ -29,9 +45,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  const body = (await req.json().catch(() => null)) as { text?: unknown; subject?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as
+    | { text?: unknown; subject?: unknown; podpis?: unknown; cc?: unknown }
+    | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) return NextResponse.json({ error: "Treść odpowiedzi nie może być pusta." }, { status: 400 });
+
+  // Język podpisu wybiera właściciel przy pisaniu (decyzja 2026-07-15:
+  // przełącznik ręczny, NIE automat po kraju klienta — ma wiedzieć, co
+  // podpina). `null`/nieznana wartość = bez podpisu.
+  const podpis = (i18n.locales as readonly string[]).includes(body?.podpis as string) ? (body!.podpis as Locale) : null;
+
+  // DW — adresy oddzielone przecinkiem/średnikiem, odsiane z pustych.
+  const cc =
+    typeof body?.cc === "string"
+      ? body.cc
+          .split(/[,;]/)
+          .map((s) => extractEmailAddress(s))
+          .filter(Boolean)
+      : [];
 
   await ensureMailSchema();
   const sql = getSql();
@@ -46,12 +78,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const subject = typeof body?.subject === "string" && body.subject.trim() ? body.subject.trim() : replySubject(original.subject);
   const references = buildReferences({ message_id: original.message_id, refs: original.refs });
 
+  // Podpis doklejamy TU, a nie w polu edycji: właściciel pisze samą treść, a
+  // panel gwarantuje, że stopka jest zawsze aktualna i poprawna. Do bazy
+  // (i na oś kontaktu) zapisujemy tekst BEZ podpisu — inaczej każda rozmowa
+  // na karcie klienta byłaby zaśmiecona powtórzoną stopką.
+  const bookingUrl = podpis ? getBookingUrl(podpis) : "";
+  const fullText = podpis ? `${text}\n\n${signatureText(podpis, bookingUrl)}` : text;
+  const fullHtml = podpis ? `${textToHtml(text)}<br />${signatureHtml(podpis, bookingUrl)}` : undefined;
+  const inlineImages = podpis ? await fetchSignatureImages() : [];
+
   let sent: { messageId: string; raw: string };
   try {
     sent = await sendReply({
       to: original.from_addr,
+      cc,
       subject,
-      text,
+      text: fullText,
+      html: fullHtml,
+      inlineImages,
       inReplyTo: original.message_id || null,
       references: references || null,
     });
