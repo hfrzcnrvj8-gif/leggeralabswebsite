@@ -1,88 +1,94 @@
 {
-  "generatedAt": "2026-07-12T05:00:05.382Z",
+  "generatedAt": "2026-07-15T05:00:04.339Z",
   "pricingSourceDate": "2026-07-04",
-  "daysCovered": 9,
+  "daysCovered": 12,
   "grandTotal": {
-    "requests": 1411,
-    "tokensTotal": 6338695,
+    "requests": 1761,
+    "tokensTotal": 8196393,
     "costUsdByTier": {
-      "mini": 0.52,
-      "gpt4o": 33.43,
-      "sonnet": 48.55
+      "mini": 0.68,
+      "gpt4o": 44.13,
+      "sonnet": 64.2
     }
   },
   "byDomain": [
     {
       "label": "Rynki krypto",
-      "requests": 56,
-      "tokensTotal": 617517,
-      "costUsd": 6.32
+      "requests": 76,
+      "tokensTotal": 835130,
+      "costUsd": 8.56
     },
     {
       "label": "Rynek akcji",
-      "requests": 54,
-      "tokensTotal": 650423,
-      "costUsd": 5.51
-    },
-    {
-      "label": "Bezpieczeństwo / CVE",
-      "requests": 28,
-      "tokensTotal": 260988,
-      "costUsd": 2.39
-    },
-    {
-      "label": "Insider Trading (korporacyjny)",
-      "requests": 24,
-      "tokensTotal": 256512,
-      "costUsd": 2.28
+      "requests": 80,
+      "tokensTotal": 913298,
+      "costUsd": 7.68
     },
     {
       "label": "Sieci",
-      "requests": 28,
-      "tokensTotal": 258700,
-      "costUsd": 2.21
+      "requests": 40,
+      "tokensTotal": 367037,
+      "costUsd": 3.14
     },
     {
       "label": "Produkcja muzyczna",
-      "requests": 28,
-      "tokensTotal": 224302,
-      "costUsd": 2.18
+      "requests": 40,
+      "tokensTotal": 321355,
+      "costUsd": 3.13
     },
     {
-      "label": "ERP",
-      "requests": 28,
-      "tokensTotal": 226805,
-      "costUsd": 2.15
+      "label": "Bezpieczeństwo / CVE",
+      "requests": 36,
+      "tokensTotal": 331630,
+      "costUsd": 3.02
+    },
+    {
+      "label": "Insider Trading (korporacyjny)",
+      "requests": 32,
+      "tokensTotal": 343398,
+      "costUsd": 2.99
     },
     {
       "label": "Homelab",
-      "requests": 28,
-      "tokensTotal": 221730,
-      "costUsd": 2.1
+      "requests": 36,
+      "tokensTotal": 291599,
+      "costUsd": 2.79
+    },
+    {
+      "label": "ERP",
+      "requests": 36,
+      "tokensTotal": 287860,
+      "costUsd": 2.77
     },
     {
       "label": "Sprzęt pod AI",
-      "requests": 24,
-      "tokensTotal": 213972,
-      "costUsd": 1.98
+      "requests": 32,
+      "tokensTotal": 286192,
+      "costUsd": 2.66
     },
     {
       "label": "Asystent AI / Agenci",
-      "requests": 24,
-      "tokensTotal": 209325,
-      "costUsd": 1.97
+      "requests": 32,
+      "tokensTotal": 279862,
+      "costUsd": 2.6
     },
     {
       "label": "Self-hosted LLM / RAG",
-      "requests": 28,
-      "tokensTotal": 195957,
-      "costUsd": 1.93
+      "requests": 36,
+      "tokensTotal": 249899,
+      "costUsd": 2.47
     },
     {
       "label": "BI / Analityka",
-      "requests": 16,
-      "tokensTotal": 116271,
-      "costUsd": 1.16
+      "requests": 20,
+      "tokensTotal": 144609,
+      "costUsd": 1.45
+    },
+    {
+      "label": "Kalendarz makro",
+      "requests": 8,
+      "tokensTotal": 97706,
+      "costUsd": 0.92
     },
     {
       "label": "Ochrona kapitału",
@@ -91,28 +97,22 @@
       "costUsd": 0.85
     },
     {
+      "label": "Smart Money (13F)",
+      "requests": 6,
+      "tokensTotal": 64645,
+      "costUsd": 0.77
+    },
+    {
+      "label": "Compliance podatkowe PL/DE",
+      "requests": 8,
+      "tokensTotal": 80743,
+      "costUsd": 0.7
+    },
+    {
       "label": "Agile / Scrum",
       "requests": 8,
       "tokensTotal": 65991,
       "costUsd": 0.63
-    },
-    {
-      "label": "Kalendarz makro",
-      "requests": 4,
-      "tokensTotal": 45263,
-      "costUsd": 0.45
-    },
-    {
-      "label": "Smart Money (13F)",
-      "requests": 3,
-      "tokensTotal": 31481,
-      "costUsd": 0.37
-    },
-    {
-      "label": "Compliance podatkowe PL/DE",
-      "requests": 4,
-      "tokensTotal": 39984,
-      "costUsd": 0.36
     }
   ]
 }
