@@ -163,8 +163,44 @@ pierwotnych (RFC, oficjalne dokumentacje).
 ## Ryzyka
 - **Tożsamość wątku** to wspólna zależność wątkowania, screenera i nudge'y.
 - **Polski stemming** w wyszukiwarce — `pg_catalog.simple` nie stemuje PL.
-  Dziś jest `ILIKE` (wystarcza); `tsvector` wymagałby konfiguracji.
-- **Własne keywordy IMAP na az.pl** — niezweryfikowane, przetestuj empirycznie.
+  Dziś jest `ILIKE` (wystarcza). ⚠️ **Neon usunął `pg_search` dla nowych
+  projektów 2026-03-19** — jeśli sięgniesz po pełnotekstową, to wbudowany
+  `tsvector` + GIN + `pg_trgm` + `unaccent` (mieszczą się w idempotentnych
+  migracjach `lib/db.ts`, zero nowej infrastruktury). Przed `to_tsvector`
+  odetnij cytowaną historię i podpisy: limit to 1 MB na `tsvector`, a powyżej
+  256 pozycji na słowo są **po cichu odrzucane** — i tak poprawia to jakość.
+- **Własne keywordy IMAP na az.pl** — niezweryfikowane, przetestuj empirycznie
+  (`PERMANENTFLAGS` musi zawierać `\*`). Bez tego zapis keyworda jest
+  ignorowany albo trzymany tylko do końca sesji — **po cichu**.
+- ⚠️ **`mailparser` (używamy go w `lib/mailbox.ts`) jest oficjalnie w trybie
+  utrzymaniowym.** Nie blokuje, ale przy większych zmianach rozważ
+  `postal-mime`. `imapflow` jest na MIT i aktywnie rozwijany (v1.4.7,
+  lipiec 2026) — tu jest czysto.
+
+## Uczciwa uwaga do architektury „Postgres = źródło prawdy"
+
+Research znalazł **kontrargument wart świadomej decyzji, nie przemilczenia**:
+z ~25 przejrzanych projektów tylko dwa robią „IMAP → własna baza z własnym
+schematem" (Nylas sync-engine — martwy od 2017; Delta Chat). **Każdy żywy
+klient pocztowy postawił na odwrót: IMAP jest systemem zapisu, a baza
+jednorazowym cache'em.** Roundcube trzyma w cache'u wyłącznie metadane i
+flagi (bez treści); nawet nowa Panorama w Thunderbirdzie zostawia treści w
+mbox/maildir, a w SQLite ma sam indeks.
+
+Sugerowany szew: **Postgres na metadane + nasze rzeczy (tagi, snooze, screener,
+reguły, indeks wyszukiwania), treści z IMAP-a cache'owane leniwie.**
+
+My świadomie trzymamy pełne treści w `mail_messages` — bo potrzebujemy ich do
+wyszukiwarki, osi kontaktu klienta i działania bez skrzynki. Strażnikiem jest
+retencja 24 mies. (decyzja właściciela, RODO). **To nie jest przypadek, tylko
+wybór — ale przy Etapie 2 warto go świadomie potwierdzić**, bo koszt
+utrzymania rośnie wraz z liczbą folderów.
+
+Dodatkowo, na poparcie planu „snooze robimy sami": **Fastmail — firma, która
+napisała szkic standardu snooze dla IMAP — sama pisze wprost, że *nie potrafi
+udostępnić odkładania wiadomości klientom zewnętrznym*.** Szkic
+(`draft-ietf-extra-email-snooze`) wygasł i nigdy nie został RFC. Nie ma czego
+szukać w protokole.
 
 ## Definicja ukończenia (Etap 1)
 - Da się napisać nową wiadomość, przekazać, odpowiedzieć wszystkim.
