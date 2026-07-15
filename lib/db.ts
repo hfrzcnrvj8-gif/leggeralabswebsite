@@ -1,5 +1,6 @@
 import { neon, Pool, type NeonQueryFunction } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
+import { inMigration } from "./migration-ctx";
 
 export type Sql = NeonQueryFunction<false, false>;
 
@@ -426,7 +427,9 @@ async function createInvoicesSchema(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
-  await sql`INSERT INTO company_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;`;
+  // inMigration(): to zapytanie jest częścią migracji, nie runtime'u — w dev
+  // nie może czekać na seed (patrz lib/migration-ctx.ts).
+  await inMigration(() => sql`INSERT INTO company_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;`);
   // Nazwa banku + BIC/SWIFT — dodane po pierwszym wdrożeniu, do stopki
   // wydruku (przydatne zwłaszcza zagranicznym klientom płacącym SWIFT/SEPA).
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_nazwa TEXT NOT NULL DEFAULT '';`;
@@ -795,11 +798,13 @@ async function createOfferTemplatesSchema(): Promise<void> {
       },
     ];
     for (const t of seed) {
-      await sql`
-        INSERT INTO offer_templates (id, nazwa, opis, pozycje, uwagi)
-        VALUES (${t.id}, ${t.nazwa}, ${t.opis}, ${JSON.stringify(t.pozycje)}, ${t.uwagi})
-        ON CONFLICT (id) DO NOTHING;
-      `;
+      await inMigration(
+        () => sql`
+          INSERT INTO offer_templates (id, nazwa, opis, pozycje, uwagi)
+          VALUES (${t.id}, ${t.nazwa}, ${t.opis}, ${JSON.stringify(t.pozycje)}, ${t.uwagi})
+          ON CONFLICT (id) DO NOTHING;
+        `
+      );
     }
   }
 }
@@ -1236,4 +1241,104 @@ async function createTimeSchema(): Promise<void> {
 export async function ensureTimeSchema(): Promise<void> {
   if (!timeSchemaReady) timeSchemaReady = createTimeSchema();
   await timeSchemaReady;
+}
+
+let mailSchemaReady: Promise<void> | null = null;
+
+/** Moduł 4 (poczta IMAP/SMTP, docs/plany-modulow/04-skrzynka-mailowa.md).
+ *
+ * `mail_messages` = robocza kopia korespondencji ze skrzynki az.pl; oryginały
+ * zostają na serwerze pocztowym (panel niczego tam nie kasuje). Dlatego
+ * retencja (24 mies., decyzja właściciela 2026-07-15) może bezpiecznie
+ * czyścić stare wiersze — patrz MAIL_RETENTION_MONTHS w lib/mail.ts.
+ *
+ * `message_id UNIQUE` to sedno dedupu: podwójny sync (otwarcie widoku +
+ * cron o 6:00) nie zdublikuje wiadomości, bo INSERT ... ON CONFLICT DO
+ * NOTHING po prostu ją pominie. Dlatego UID-y są tylko optymalizacją
+ * (skąd zacząć czytać), a nie gwarancją poprawności.
+ *
+ * client_id/lead_id/invoice_id nullable i wszystkie naraz mogą być NULL —
+ * to właśnie kolejka "Nieprzypisane" (mail z nieznanego adresu). ON DELETE
+ * SET NULL, żeby usunięcie klienta nie kasowało korespondencji. */
+async function createMailSchema(): Promise<void> {
+  // Poczta dopina się do klientów, leadów i faktur — ich tabele muszą
+  // istnieć, zanim założymy klucze obce.
+  await ensureLeadsSchema();
+  await ensureClientsSchema();
+  await ensureInvoicesSchema();
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_messages (
+      id TEXT PRIMARY KEY,
+      uid INTEGER,
+      kierunek TEXT NOT NULL DEFAULT 'in',
+      client_id TEXT REFERENCES clients(id) ON DELETE SET NULL,
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      invoice_id TEXT REFERENCES invoices(id) ON DELETE SET NULL,
+      from_addr TEXT NOT NULL DEFAULT '',
+      from_name TEXT NOT NULL DEFAULT '',
+      to_addr TEXT NOT NULL DEFAULT '',
+      subject TEXT NOT NULL DEFAULT '',
+      body_text TEXT NOT NULL DEFAULT '',
+      body_html TEXT NOT NULL DEFAULT '',
+      message_id TEXT NOT NULL UNIQUE,
+      in_reply_to TEXT,
+      refs TEXT,
+      status TEXT NOT NULL DEFAULT 'nowy',
+      received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      handled_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_client_id_idx ON mail_messages(client_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_lead_id_idx ON mail_messages(lead_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_status_idx ON mail_messages(status);`;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_received_at_idx ON mail_messages(received_at DESC);`;
+  // Kolejka "Nieprzypisane" — mail bez klienta i bez leada. Indeks częściowy,
+  // bo pytamy o to na Pulpicie i w zakładce Poczta przy każdym otwarciu.
+  await sql`
+    CREATE INDEX IF NOT EXISTS mail_messages_unassigned_idx
+      ON mail_messages(received_at DESC)
+      WHERE client_id IS NULL AND lead_id IS NULL;
+  `;
+
+  // Stan skrzynki (od którego UID-a czytać dalej). ŚWIADOMIE osobna
+  // 1-wierszowa tabela zamiast kolumny w `company_settings`: tamta należy do
+  // schematu faktur ("dane sprzedawcy") i ciągnęłaby zależność poczty od
+  // ensureInvoicesSchema() bez powodu merytorycznego.
+  //
+  // `uid_validity` jest tu nie dla ozdoby: serwer IMAP może przenumerować
+  // skrzynkę (np. przy migracji/odtworzeniu z backupu) i wtedy stare UID-y
+  // wskazują zupełnie inne wiadomości. Gdy UIDVALIDITY się zmieni,
+  // resetujemy last_seen_uid i czytamy od nowa — dedup po message_id
+  // sprawia, że to bezpieczne, a nie skutkuje lawiną duplikatów.
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_state (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      last_seen_uid INTEGER NOT NULL DEFAULT 0,
+      uid_validity BIGINT,
+      last_sync_at TIMESTAMPTZ,
+      last_error TEXT
+    );
+  `;
+  await inMigration(() => sql`INSERT INTO mail_state (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;`);
+
+  // Moduł 4 — link z wpisu na osi kontaktu wprost do pełnej treści maila.
+  // `client_events.related_id` (Moduł 12) rozwiązuje ten sam problem dla
+  // zdarzeń systemowych, ale mail ląduje w `client_activity` (kanał e-mail,
+  // jak telefon z Modułu 3 — patrz app/api/telefonia/webhook), a tamta
+  // tabela nie ma related_id. Osobna, jawnie nazwana kolumna jest tu
+  // czytelniejsza niż generyczne related_id: wiadomo bez zgadywania, na co
+  // wskazuje. ON DELETE SET NULL — wyczyszczenie maila przez retencję
+  // zostawia wpis na osi (traci tylko link do treści).
+  await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS mail_message_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS mail_message_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL;`;
+}
+
+/** Lazily tworzy tabele modułu Poczta. */
+export async function ensureMailSchema(): Promise<void> {
+  if (!mailSchemaReady) mailSchemaReady = createMailSchema();
+  await mailSchemaReady;
 }

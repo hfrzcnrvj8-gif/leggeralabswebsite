@@ -2125,6 +2125,96 @@ generowania.
   treść) — czysta kopia, bez żadnego powiązania z szablonem po wstawieniu,
   więc dalsza edycja pozycji nie rusza samego szablonu.
 
+## Moduł 4 — Natywna poczta w panelu (IMAP/SMTP az.pl) (2026-07-15)
+
+Brief: `docs/plany-modulow/04-skrzynka-mailowa.md`. Panel łączy się
+**bezpośrednio ze skrzynką az.pl** (zwykły IMAP/SMTP — właściciel nie ma
+Microsoft 365/Exchange, więc Graph/OAuth nie wchodzi w grę i nie jest
+potrzebny). Outlook czyta tę samą skrzynkę, więc oba widoki są spójne:
+odpiszesz w panelu → widać w Outlooku.
+
+**Zmienne środowiskowe (Vercel)** — bez nich moduł działa w trybie „tylko to,
+co w bazie", a zakładka pokazuje spokojny baner zamiast błędu:
+`MAIL_IMAP_HOST`, `MAIL_USER`, `MAIL_PASS` (wymagane) oraz opcjonalnie
+`MAIL_IMAP_PORT` (domyślnie 993), `MAIL_SMTP_HOST` (domyślnie ten sam co
+IMAP), `MAIL_SMTP_PORT` (domyślnie 465), `MAIL_FROM`. Wartości z panelu az.pl.
+**Panel zyskuje pełny dostęp do poczty** — ten sam poziom zaufania co
+`DATABASE_URL`; hasło żyje wyłącznie po stronie serwera i nigdy nie trafia do
+odpowiedzi API.
+
+- **Warstwy** (ten sam podział co `lib/contact.ts` vs `lib/contactLookup.ts`):
+  - `lib/mail.ts` — czyste typy/stałe/reguły, bezpieczne dla `"use client"`.
+  - `lib/mailbox.ts` — server-only IMAP/SMTP (`imapflow`, `mailparser`,
+    `nodemailer`). Wszystkie trasy poczty `runtime = "nodejs"`.
+  - `lib/mailSync.ts` — dopasowanie + dedup + zapis; wołane z dwóch wejść:
+    `POST /api/mail/sync` (otwarcie zakładki) i dziennego crona.
+- **Dedup po `message_id UNIQUE`** — podwójny sync nic nie dubluje. UID-y
+  (`mail_state.last_seen_uid`) to tylko optymalizacja „skąd czytać". Przy
+  zmianie `UIDVALIDITY` (serwer przenumerował skrzynkę) kursor resetuje się
+  do zera — bezpieczne właśnie dzięki dedupowi.
+- **Auto-przypisanie po adresie nadawcy** (`findContactsByEmail` w
+  `lib/contactLookup.ts`, obok istniejącego dopasowania po telefonie):
+  klient → lead → kolejka „Nieprzypisane". Zero AI, sama równość adresów.
+- **Mail na osi kontaktu = `client_activity`/`lead_activity` z
+  `kanal='email'`**, NIE `client_events` (decyzja 2026-07-15). Powód: mail to
+  kontakt z człowiekiem jak telefon z Modułu 3 (ma kanał i kierunek), a nie
+  zdarzenie systemowe typu „wystawiono fakturę". Precedens:
+  `POST /api/telefonia/webhook` zapisuje tam automatycznie tak samo. Wpis to
+  skrót (temat + pierwsza linia); pełna treść zostaje w `mail_messages`, a
+  nowa kolumna `mail_message_id` linkuje oś wprost do niej (odpowiednik
+  `client_events.related_id` z Modułu 12).
+- **Odpowiadanie** — `POST /api/mail/[id]/reply`: SMTP az.pl z
+  `In-Reply-To`/`References` (wątkowanie) → kopia do „Sent" przez IMAP APPEND
+  → zapis jako `kierunek='out'` → oryginał `obsłużony`. Wiadomość składamy
+  `MailComposer`-em, więc do „Sent" trafia bajt w bajt to, co poszło do
+  klienta. **Wysyłka jest nieodwracalna, więc idzie pierwsza** — awaria
+  któregokolwiek z kroków po niej nie zwraca błędu, tylko ostrzeżenie
+  (klient dostał już maila; drugi „wyślij" byłby gorszy niż brak kopii w Sent).
+- **Ścieżka wysyłki** (decyzja właściciela): osobiste odpowiedzi → SMTP az.pl
+  (wątkowanie + „Sent"); faktury/oferty/raport dzienny → dalej Resend
+  (`lib/email.ts`), bo to inne zadanie — dostarczalność maili automatycznych.
+- **Wyciszenie szumu** — `isNoiseAddress()` dopasowuje jednoznaczne wzorce w
+  lokalnej części adresu (`no-reply`, `newsletter`, `mailer-daemon`…) →
+  status `zignorowany`, poza listę „do odpowiedzi". Celowo konserwatywne:
+  wątpliwy mail lepiej pokazać niż ukryć realne zapytanie.
+- **UI** — zakładka „Poczta" (`g m`): lista z filtrami (Do odpowiedzi /
+  Nieprzypisane / Wszystkie), profil wiadomości jako **wyśrodkowany modal**
+  (`MailDetailPanel.tsx`) + własna podstrona `[id]` dla linków. Akcje:
+  Odpisz, Obsłużone, Wycisz, „Otwórz w Outlooku" (mailto), „+ Utwórz leada z
+  tego maila" (status „Nowe zgłoszenie ze strony" → od razu na Pulpicie),
+  „Z maila → zadanie" (wybór projektu klienta; treść podaje właściciel —
+  model niczego nie wnioskuje).
+- **Pulpit** — sekcja „Wiadomości do odpowiedzi" (`status='nowy'`) z
+  „Obsłużone", wliczana do licznika „spraw na dziś". To samo w mailu dziennym.
+- **Sync** (decyzja właściciela): przy otwarciu zakładki + raz dziennie w
+  cronie 06:00. Bez push — funkcje serverless nie utrzymują połączenia IMAP;
+  od „dinga w sekundę" jest Outlook. `maxDuration` crona podniesione 30→60 s.
+  Sync w cronie leci **przed** zapytaniami (sekwencyjnie, nie w `Promise.all`),
+  bo raport czyta to, co sync właśnie zapisał. Awaria skrzynki jest wypisana
+  w raporcie — cicho niepobierana poczta wyglądałaby jak „nikt nie pisze".
+- **Retencja (RODO)** — 24 miesiące (decyzja właściciela), stała
+  `MAIL_RETENTION_MONTHS` w `lib/mail.ts`, czyszczone dziennym cronem
+  (`purgeOldMail`). Kasujemy całe wiersze; wpisy na osi kontaktu zostają
+  (`ON DELETE SET NULL`), tracą tylko link do treści. Oryginały zostają na
+  az.pl — panel jest roboczą kopią. **Wartość musi zgadzać się z polityką
+  prywatności** — patrz `PO_REJESTRACJI.md`.
+
+### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
+
+Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite
+ujawniło istniejącą pułapkę: seeder sam odpala migracje, a migracje robią nie
+tylko DDL, ale i pojedyncze `INSERT`-y singletonów (`company_settings`,
+`offer_templates`, `mail_state`). Taki INSERT wracał do taga dev-bazy, który
+czeka na `ensureSeeded()` → seeder czekał na promise trzymany przez route →
+**każde `/api/*` w dev wisiało ~56 s**. Filtr `isDDL()` celował dokładnie w
+ten problem, ale łapie tylko CREATE/ALTER/DROP.
+
+Naprawione przez `lib/migration-ctx.ts` (AsyncLocalStorage): migracja jawnie
+oznacza swoje zapytania `inMigration()`, a tag dev-bazy je przepuszcza bez
+czekania na seed. Świadomie **nie** rozpoznajemy tego po treści SQL-a (np.
+„INSERT … ON CONFLICT DO NOTHING”), bo identyczny kształt mają zapytania
+runtime, które na seed czekać MUSZĄ — choćby dedup poczty w `lib/mailSync.ts`.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na
@@ -2133,6 +2223,11 @@ generowania.
   pojedynczy wpis.
 - Brak wielu użytkowników/ról — panel jest jednoosobowy z jednym hasłem
   administratora, zgodnie z założeniem "narzędzie dla solo-przedsiębiorcy".
+- Poczta (Moduł 4) nie ma powiadomień push ani załączników: serverless nie
+  utrzymuje stałego połączenia IMAP (model = polling przy otwarciu zakładki +
+  cron 06:00), a zapisywanie załączników to osobna decyzja RODO (retencja
+  plików), świadomie odłożona. Pobieramy tylko INBOX i tylko treść. Panel nie
+  kasuje niczego na serwerze az.pl.
 - Brak integracji KSeF (Krajowy System e-Faktur) — świadomie odłożone,
   osobny i większy zakres (wymaga certyfikatów/uwierzytelniania API
   Ministerstwa Finansów). Podobnie brak linków do płatności online

@@ -7,6 +7,7 @@
 // stronie serwera.
 import { getSql, ensureLeadsSchema, ensureClientsSchema } from "./db";
 import { lastPhoneDigits } from "./contact";
+import { normalizeEmail } from "./mail";
 
 export type ContactMatch = { type: "lead" | "client"; id: string; nazwa: string };
 
@@ -35,5 +36,41 @@ export async function findContactsByPhone(telefon: string): Promise<ContactMatch
   return [
     ...clients.filter((c) => lastPhoneDigits(c.telefon) === target).map((c) => ({ type: "client" as const, id: c.id, nazwa: c.nazwa })),
     ...leads.filter((l) => lastPhoneDigits(l.telefon) === target).map((l) => ({ type: "lead" as const, id: l.id, nazwa: l.nazwa })),
+  ];
+}
+
+/** Moduł 4 (poczta) — odpowiednik findContactsByPhone dla adresu e-mail:
+ * komu przypisać przychodzącą wiadomość. Dopasowanie jest w pełni
+ * deterministyczne (równość znormalizowanych adresów), bez czytania treści
+ * przez AI — zgodnie z zasadą modułu.
+ *
+ * Klienci przed leadami, bo `app/api/mail/sync` bierze PIERWSZE trafienie:
+ * gdy ten sam adres jest i leadem, i klientem (klient powstał z tego leada),
+ * mail należy do aktualniejszej relacji. Pusta tablica = kolejka
+ * "Nieprzypisane" — nic nie ginie, właściciel przypisze ręcznie albo zrobi
+ * z tego leada jednym kliknięciem. */
+export async function findContactsByEmail(email: string): Promise<ContactMatch[]> {
+  const target = normalizeEmail(email);
+  if (!target.includes("@")) return [];
+
+  await ensureLeadsSchema();
+  await ensureClientsSchema();
+  const sql = getSql();
+
+  // Porównanie i filtr po stronie SQL (LOWER + TRIM) — adresów jest tyle co
+  // leadów/klientów, więc nie ma po co ciągnąć całej tabeli do Node'a jak
+  // przy telefonach (tam wymusza to dopasowanie po ostatnich 9 cyfrach).
+  const [leads, clients] = await Promise.all([
+    sql`SELECT id, firma AS nazwa FROM leads WHERE LOWER(TRIM(email)) = ${target};` as unknown as Promise<
+      { id: string; nazwa: string }[]
+    >,
+    sql`SELECT id, nazwa FROM clients WHERE LOWER(TRIM(email)) = ${target};` as unknown as Promise<
+      { id: string; nazwa: string }[]
+    >,
+  ]);
+
+  return [
+    ...clients.map((c) => ({ type: "client" as const, id: c.id, nazwa: c.nazwa })),
+    ...leads.map((l) => ({ type: "lead" as const, id: l.id, nazwa: l.nazwa })),
   ];
 }

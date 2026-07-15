@@ -1,5 +1,32 @@
 # Moduł 4 — Natywna poczta w panelu (IMAP/SMTP, skrzynka az.pl) (luka ⑦b)
 
+## ✅ ZBUDOWANE 2026-07-15 — co zostało do zrobienia
+
+Moduł jest gotowy i zweryfikowany na dev (mock/seed w PGlite). Pełny opis
+implementacji: `HUB_SETUP.md` → „Moduł 4 — Natywna poczta w panelu”.
+
+**Decyzje właściciela (2026-07-15):** odpowiedzi przez SMTP az.pl, faktury/
+oferty dalej Resend · zakres: pełny wątek na karcie klienta + Pulpit
+„do odpowiedzi” + inbound→lead + wyciszenie szumu (1+2+4+7) · retencja
+**24 mies.** · sync przy otwarciu zakładki + cron 06:00 · mail na osi
+kontaktu jako `client_activity` z `kanal='email'` (nie `client_events`).
+
+**Zostało po stronie właściciela — bez tego poczta się nie pobiera:**
+1. Podać z panelu az.pl i dodać w env Vercela: `MAIL_IMAP_HOST`, `MAIL_USER`,
+   `MAIL_PASS` (+ opcjonalnie `MAIL_IMAP_PORT`/`MAIL_SMTP_HOST`/
+   `MAIL_SMTP_PORT`/`MAIL_FROM`). Sprawdzić, czy az.pl daje **hasło
+   aplikacji** — bezpieczniejsze niż główne.
+2. Pierwszy realny test IMAP/SMTP dopiero na Vercelu (dev nie ma dostępu do
+   skrzynki — ten sam handoff co przy KSeF). Sprawdzić: pobieranie,
+   dopasowanie do klienta, odpowiedź → czy wątkuje się i jest w „Sent”.
+3. Polityka prywatności: dopisać kategorię „korespondencja e-mail” +
+   retencję 24 mies. — patrz `PO_REJESTRACJI.md` (sekcja 2).
+
+**Odblokowany:** Moduł 7 (AI szkice odpowiedzi mailowych) — wymagał 4 i 6,
+oba są już gotowe.
+
+Reszta pliku poniżej to oryginalny brief (kontekst decyzji).
+
 > Przeczytaj najpierw `docs/plany-modulow/README.md` (zasady wspólne) i `CLAUDE.md`.
 > Architektura ustalona z właścicielem 2026-07-13 — patrz „DECYZJA” niżej. To
 > NAJWIĘKSZY moduł; przed budową potwierdź tylko szczegóły z „Otwarte decyzje”.

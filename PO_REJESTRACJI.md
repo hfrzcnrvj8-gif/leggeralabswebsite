@@ -24,6 +24,22 @@ zostały przygotowane, ale nie wypełnione. **Po rejestracji przejść całą li
 - Do uzupełnienia po rejestracji: formalne dane administratora
   (pełna nazwa, adres, NIP) — dziś intro świadomie mówi, że to „szablon
   do uzupełnienia o dane rejestrowe".
+- **DO DOPISANIA — korespondencja e-mail (Moduł 4, 2026-07-15).** Panel
+  pobiera i przechowuje treść maili ze skrzynki az.pl (`mail_messages`), więc
+  polityka musi wymieniać nową kategorię danych: **korespondencja e-mail**
+  (adres nadawcy, temat, treść wiadomości).
+  - **Retencja: 24 miesiące** — decyzja właściciela 2026-07-15, wdrożona w
+    kodzie (`MAIL_RETENTION_MONTHS` w `lib/mail.ts`, czyszczenie dziennym
+    cronem). Ta liczba w polityce MUSI zgadzać się z kodem — jeśli któraś
+    się zmieni, zmień obie.
+  - **Cel i podstawa**: obsługa korespondencji i realizacja umowy
+    (art. 6 ust. 1 lit. b/f RODO) — do potwierdzenia z prawnikiem.
+  - **Zakres**: panel przechowuje wyłącznie roboczą kopię (tylko INBOX, tylko
+    treść, bez załączników). Oryginały zostają na serwerze pocztowym az.pl
+    (osobny podmiot — sprawdzić, czy az.pl wymaga wpisu jako **podprocesor**).
+  - **Usuwanie na żądanie**: dziś kasowanie maila to ręczna operacja na bazie
+    — brak przycisku „usuń wiadomość" w panelu. Jeśli prawnik uzna to za
+    niewystarczające, trzeba go dodać (mały zakres).
 - **Zalecane:** przed publikacją z prawdziwymi danymi klientów dać całość
   (polityka + nota) do weryfikacji prawnikowi — kod czyni ją przejrzystą,
   ale nie zastępuje opinii prawnej.

@@ -18,6 +18,17 @@ type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplac
 type OfferRow = Offer & { kwota: number };
 type OverdueMilestone = { id: string; nazwa: string; termin: string; project_id: string; projekt: string };
 type DueFollowup = { id: string; client_id: string; project_id: string | null; due_date: string; powod: string; client_nazwa: string };
+// Moduł 4 — przychodzący mail bez reakcji. Bez treści: Pulpit pokazuje kto i
+// w jakiej sprawie, pełna wiadomość jest w zakładce Poczta.
+type PendingMail = {
+  id: string;
+  from_addr: string;
+  from_name: string;
+  subject: string;
+  received_at: string;
+  client_nazwa: string | null;
+  lead_nazwa: string | null;
+};
 
 type TaxReserve = { vat: number; pit: number; zus: number };
 
@@ -42,6 +53,7 @@ type TodayData = {
   draftInvoices: InvoiceRow[];
   expiredOffers: OfferRow[];
   dueFollowups: DueFollowup[];
+  pendingMails: PendingMail[];
   todayEvents: HubEvent[];
   recentNotes: Note[];
   kpi: Kpi;
@@ -133,6 +145,23 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     }
     setData((prev) => (prev ? { ...prev, dueFollowups: prev.dueFollowups.filter((f) => f.id !== followupId) } : prev));
     toast("Kontakt oznaczony jako obsłużony.");
+  };
+
+  /** Odhacza wiadomość bez odpisywania (Moduł 4) — np. "przeczytałem, nic nie
+   * wymaga odpowiedzi". Odpisanie z zakładki Poczta zdejmuje ją z tej listy
+   * automatycznie, więc ten przycisk jest dla pozostałych przypadków. */
+  const markMailHandled = async (mailId: string) => {
+    const res = await fetch(`/api/mail/${mailId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "obsłużony" }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, pendingMails: prev.pendingMails.filter((m) => m.id !== mailId) } : prev));
+    toast("Wiadomość oznaczona jako obsłużona.");
   };
 
   /** Rozwija/zwija szkic wiadomości retencyjnej pod danym kontaktem —
@@ -251,6 +280,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.overdueLeads.length +
     data.overdueClients.length +
     data.dueFollowups.length +
+    data.pendingMails.length +
     data.dueProjects.length +
     data.overdueMilestones.length +
     data.overdueInvoices.length +
@@ -356,6 +386,40 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   </span>
                   <button
                     onClick={() => markLeadHandled(l.id)}
+                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                  >
+                    Obsłużone
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Moduł 4 — "Wiadomości do odpowiedzi". Wysoko na Pulpicie, zaraz po
+            leadach: nieodpisany mail starzeje się szybciej niż większość
+            pozostałych spraw. */}
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Wiadomości do odpowiedzi</h2>
+            <Link href={`/${lang}/admin/mail`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {data.pendingMails.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — wszystko obsłużone.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.pendingMails.slice(0, 6).map((m) => (
+                <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/mail/${m.id}`} className="font-medium hover:underline">
+                      {m.client_nazwa || m.lead_nazwa || m.from_name || m.from_addr}
+                    </Link>
+                    <span className="text-muted"> — {m.subject || "(bez tematu)"}</span>
+                  </span>
+                  <button
+                    onClick={() => markMailHandled(m.id)}
                     className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
                   >
                     Obsłużone

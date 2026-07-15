@@ -31,11 +31,17 @@ import {
 } from "@/lib/invoices";
 import { costBrutto, type RecurringCost } from "@/lib/costs";
 import { sendEmail } from "@/lib/email";
+import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
+import { isMailboxConfigured } from "@/lib/mailbox";
+import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+// Podniesione z 30 s przy Module 4: do raportu doszło pobranie poczty przez
+// IMAP (połączenie + parsowanie MIME), które na wolniejszej skrzynce potrafi
+// zająć kilkanaście sekund.
+export const maxDuration = 60;
 
 const NOTIFY_TO = "kontakt@leggeralabs.pl";
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://leggeralabs.pl";
@@ -218,6 +224,40 @@ async function generateDueRecurringCosts(): Promise<{ generated: number; failed:
 /** Dzienny raport ze wszystkich modułów panelu (leady + projekty +
  * dzisiejszy kalendarz), nie tylko z rejestru leadów — jeden mail spinający
  * całość, zamiast osobnych powiadomień per moduł. */
+/** Moduł 4 — dzienne pobranie poczty + retencja (24 mies., decyzja
+ * właściciela 2026-07-15). Ten sam wzorzec co pozostałe zadania crona: łyka
+ * własne błędy i zwraca liczby, bo niedostępna skrzynka nie może wywrócić
+ * całego raportu dziennego (leady/faktury/kalendarz mają lecieć niezależnie).
+ *
+ * Drugie wejście do syncu to POST /api/mail/sync przy otwarciu zakładki
+ * Poczta — tu wołamy tę samą funkcję z lib/mailSync.ts wprost, bez HTTP. */
+async function syncMailAndPurge(): Promise<{ fetched: number; matched: number; purged: number; failed: boolean }> {
+  if (!isMailboxConfigured()) return { fetched: 0, matched: 0, purged: 0, failed: false };
+
+  let fetched = 0;
+  let matched = 0;
+  let failed = false;
+  try {
+    const r = await syncMailbox();
+    fetched = r.saved;
+    matched = r.matched;
+  } catch (e) {
+    console.error("[cron] sync poczty nie powiódł się", e);
+    failed = true;
+  }
+
+  let purged = 0;
+  try {
+    // Retencja leci nawet gdy sync padł — to niezależny obowiązek (RODO), a
+    // nie krok pobierania.
+    purged = (await purgeOldMail()).purged;
+  } catch (e) {
+    console.error("[cron] czyszczenie starych maili nie powiodło się", e);
+  }
+
+  return { fetched, matched, purged, failed };
+}
+
 async function buildAndSendDigest(): Promise<{ overdue: number; total: number; invoiceReminders: number; recurringGenerated: number; recurringCostsGenerated: number }> {
   await ensureLeadsSchema();
   await ensureHubSchema();
@@ -226,7 +266,13 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   const sql = getSql();
   const today = todayLocalISO();
 
-  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, invoiceReminders, recurring, recurringCosts] = await Promise.all([
+  // ŚWIADOMIE przed Promise.all, a nie w środku: sync zapisuje nowe wiersze do
+  // mail_messages, a zapytanie o "wiadomości do odpowiedzi" niżej z nich
+  // czyta. Puszczone równolegle ścigałoby się z własnym zapisem i raport
+  // pomijałby maile pobrane tego samego ranka.
+  const mail = await syncMailAndPurge();
+
+  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, pendingMails, invoiceReminders, recurring, recurringCosts] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
@@ -262,6 +308,19 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
         AND i.created_at::date < ${today}::date
         AND EXISTS (SELECT 1 FROM invoice_items it WHERE it.invoice_id = i.id);
     ` as unknown as Promise<{ id: string }[]>,
+    // Moduł 4 — nieodpisane wiadomości (ta sama reguła co na Pulpicie, patrz
+    // app/api/hub/today). Wyciszone (newslettery) mają status 'zignorowany'.
+    sql`
+      SELECT m.from_addr, m.from_name, m.subject,
+             c.nazwa AS client_nazwa, l.firma AS lead_nazwa
+      FROM mail_messages m
+      LEFT JOIN clients c ON c.id = m.client_id
+      LEFT JOIN leads l ON l.id = m.lead_id
+      WHERE m.status = 'nowy' AND m.kierunek = 'in'
+      ORDER BY m.received_at DESC;
+    ` as unknown as Promise<
+      { from_addr: string; from_name: string; subject: string; client_nazwa: string | null; lead_nazwa: string | null }[]
+    >,
     sendOverdueInvoiceReminders(),
     generateDueRecurringInvoices(),
     generateDueRecurringCosts(),
@@ -301,7 +360,19 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
 
   const summaryLines = STATUSES.map((s) => `  ${s}: ${counts[s] ?? 0}`).join("\n");
   const totalActionable =
-    overdueLeads.length + overdueClients.length + dueFollowups.length + dueProjects.length + overdueMilestones.length + draftInvoices.length;
+    overdueLeads.length +
+    overdueClients.length +
+    dueFollowups.length +
+    pendingMails.length +
+    dueProjects.length +
+    overdueMilestones.length +
+    draftInvoices.length;
+
+  const mailLines = pendingMails.length
+    ? pendingMails
+        .map((m) => `  • ${m.client_nazwa || m.lead_nazwa || m.from_name || m.from_addr} — ${m.subject || "(bez tematu)"}`)
+        .join("\n")
+    : "  (nic — wszystko obsłużone)";
 
   const text = [
     "Dzień dobry,",
@@ -316,6 +387,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Zaplanowane kontakty nurture (${dueFollowups.length}):`,
     followupLines,
+    "",
+    `Wiadomości do odpowiedzi (${pendingMails.length}):`,
+    mailLines,
     "",
     `Projekty z minionym terminem (${dueProjects.length}):`,
     projectLines,
@@ -339,6 +413,13 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Wygenerowane dziś szkice kosztów cyklicznych: ${recurringCosts.generated}` +
       (recurringCosts.failed ? ` (${recurringCosts.failed} nieudanych)` : ""),
+    "",
+    // Awaria skrzynki musi być widoczna w raporcie — inaczej poczta po cichu
+    // przestaje się pobierać i wygląda to jak "nikt nie pisze".
+    mail.failed
+      ? "UWAGA: nie udało się dziś pobrać poczty ze skrzynki — sprawdź dane dostępowe az.pl w zmiennych środowiskowych Vercela."
+      : `Nowe wiadomości pobrane dziś: ${mail.fetched}` + (mail.matched ? ` (w tym ${mail.matched} dopasowanych do klienta/leada)` : ""),
+    mail.purged > 0 ? `Usunięto starych wiadomości (retencja ${MAIL_RETENTION_MONTHS} mies.): ${mail.purged}` : "",
     "",
     `Łącznie: ${leads.length} leadów, ${projects.length} projektów.`,
     "",

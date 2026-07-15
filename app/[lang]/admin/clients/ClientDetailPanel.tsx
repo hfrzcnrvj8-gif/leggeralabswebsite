@@ -54,6 +54,10 @@ type FeedItem = {
   /** Id oferty/faktury/projektu/umowy, do którego się odnosi (Moduł 12) —
    * null gdy zdarzenie świadomie bez celu (patrz CLIENT_EVENT_TARGET). */
   related_id: string | null;
+  /** Id wiadomości, z której powstał ten wpis (Moduł 4) — wpis na osi jest
+   * tylko skrótem, link prowadzi do pełnej treści w Poczcie. Null dla wpisów
+   * niebędących mailem i dla maili usuniętych przez retencję. */
+  mail_message_id: string | null;
   source: "client" | "lead" | "system";
 };
 
@@ -525,7 +529,13 @@ export function ClientDetailPanel({
                   // prowadzi (patrz CLIENT_EVENT_TARGET). Starsze zdarzenia
                   // sprzed migracji nie mają related_id — zostają bez linku.
                   const targetSegment = CLIENT_EVENT_TARGET[f.kind];
-                  const href = f.related_id && targetSegment ? `/${lang}/admin/${targetSegment}/${f.related_id}` : null;
+                  // Wpis z maila (Moduł 4) linkuje do pełnej treści w Poczcie;
+                  // reszta — do rekordu wg CLIENT_EVENT_TARGET.
+                  const href = f.mail_message_id
+                    ? `/${lang}/admin/mail/${f.mail_message_id}`
+                    : f.related_id && targetSegment
+                      ? `/${lang}/admin/${targetSegment}/${f.related_id}`
+                      : null;
                   const text = (
                     <p className={`whitespace-pre-wrap ${href ? "hover:underline" : ""}`}>
                       {f.text}

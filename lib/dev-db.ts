@@ -15,6 +15,7 @@
  */
 import { PGlite } from "@electric-sql/pglite";
 import { randomUUID } from "node:crypto";
+import { isInMigration } from "./migration-ctx";
 
 type Row = Record<string, unknown>;
 type Sql = (strings: TemplateStringsArray, ...values: unknown[]) => Promise<Row[]>;
@@ -70,9 +71,11 @@ async function ensureSeeded(): Promise<void> {
     seedPromise = (async () => {
       // Schemat tworzą migracje aplikacji, ale seeder może odpalić się jako
       // pierwszy — więc na wszelki wypadek importujemy i uruchamiamy je tu.
-      const { ensureLeadsSchema, ensureHubSchema } = await import("./db");
+      const { ensureLeadsSchema, ensureHubSchema, ensureClientsSchema, ensureMailSchema } = await import("./db");
       await ensureLeadsSchema();
       await ensureHubSchema();
+      await ensureClientsSchema();
+      await ensureMailSchema();
 
       const existing = await raw("SELECT COUNT(*)::int AS n FROM projects", []);
       if ((existing[0]?.n as number) > 0) return; // już zaseedowane
@@ -138,6 +141,60 @@ async function ensureSeeded(): Promise<void> {
           randomUUID(), "Demo produktu", iso(3), "14:30",
         ]
       );
+
+      // — Klient (Moduł 4: bez klienta nie da się lokalnie sprawdzić
+      //   dopasowania maila po adresie ani wpisu na osi kontaktu) —
+      const clientA = randomUUID();
+      await raw(
+        `INSERT INTO clients (id, nazwa, osoba_kontaktowa, email, telefon, status, ostatni_kontakt)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [clientA, "Nordwind Studio", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3)]
+      );
+
+      // — Poczta (Moduł 4) —
+      // Dev nie ma dostępu do skrzynki az.pl (IMAP żyje tylko na Vercelu z
+      // env właściciela), więc realny sync symulujemy: wstawiamy wprost do
+      // mail_messages to, co normalnie zapisałby lib/mailSync.ts. Cztery
+      // wiersze pokrywają wszystkie ścieżki modułu: mail od KLIENTA (kanał
+      // e-mail na osi kontaktu), od LEADA, z nieznanego adresu (kolejka
+      // "Nieprzypisane" → "Utwórz leada") i newsletter (wyciszony szum).
+      const mailClient = randomUUID();
+      const mailLead = randomUUID();
+      const mailUnknown = randomUUID();
+      const mailNoise = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr, subject, body_text, message_id, status, received_at)
+         VALUES ($1,$2,'in',$3,NULL,$4,$5,$6,$7,$8,$9,'nowy',now() - interval '2 hours'),
+                ($10,$11,'in',NULL,$12,$13,$14,$15,$16,$17,$18,'nowy',now() - interval '1 day'),
+                ($19,$20,'in',NULL,NULL,$21,$22,$23,$24,$25,$26,'nowy',now() - interval '3 hours'),
+                ($27,$28,'in',NULL,NULL,$29,$30,$31,$32,$33,$34,'zignorowany',now() - interval '5 hours')`,
+        [
+          mailClient, 101, clientA, "anna@nordwind.pl", "Anna Nowak", "kontakt@leggeralabs.pl",
+          "Prośba o zmianę w panelu", "Cześć, czy dałoby się dodać eksport do CSV na liście zamówień?\n\nPozdrawiam,\nAnna", "<dev-client-1@nordwind.pl>",
+
+          mailLead, 102, leadA, "biuro@kowalski.pl", "Marek Kowalski", "kontakt@leggeralabs.pl",
+          "Re: Automatyzacja umów", "Dzień dobry, wracam do tematu — kiedy moglibyśmy porozmawiać?", "<dev-lead-1@kowalski.pl>",
+
+          mailUnknown, 103, "zapytanie@nowafirma.pl", "Tomasz Wiśniewski", "kontakt@leggeralabs.pl",
+          "Zapytanie o współpracę", "Dzień dobry, szukamy kogoś do automatyzacji obiegu faktur. Czy moglibyśmy porozmawiać?", "<dev-unknown-1@nowafirma.pl>",
+
+          mailNoise, 104, "newsletter@jakas-platforma.pl", "Jakaś Platforma", "kontakt@leggeralabs.pl",
+          "Nowości w tym tygodniu!", "Zobacz nasze najnowsze artykuły...", "<dev-noise-1@jakas-platforma.pl>",
+        ]
+      );
+
+      // Wpisy na osi kontaktu — dokładnie to, co robi logMailOnTimeline()
+      // przy realnym syncu (kanał e-mail, jak telefon z Modułu 3).
+      await raw(
+        `INSERT INTO client_activity (id, client_id, text, kanal, kierunek, mail_message_id) VALUES ($1,$2,$3,'email','przychodzacy',$4)`,
+        [randomUUID(), clientA, "Prośba o zmianę w panelu — Cześć, czy dałoby się dodać eksport do CSV na liście zamówień?", mailClient]
+      );
+      await raw(
+        `INSERT INTO lead_activity (id, lead_id, text, kanal, kierunek, mail_message_id) VALUES ($1,$2,$3,'email','przychodzacy',$4)`,
+        [randomUUID(), leadA, "Re: Automatyzacja umów — Dzień dobry, wracam do tematu — kiedy moglibyśmy porozmawiać?", mailLead]
+      );
+
+      await raw(`UPDATE mail_state SET last_seen_uid = 104 WHERE id = 'default'`, []);
     })();
   }
   await seedPromise;
@@ -147,9 +204,12 @@ async function ensureSeeded(): Promise<void> {
 export function getDevSql(): Sql {
   const tag: Sql = async (strings, ...values) => {
     const { text, params } = buildQuery(strings, values);
-    // DDL (migracje) omija seed, żeby nie było zakleszczenia: seeder sam
-    // wywołuje migracje, a te wracają tutaj jako DDL.
-    if (isDDL(text)) return raw(text, params);
+    // Migracje omijają seed, żeby nie było zakleszczenia: seeder sam wywołuje
+    // migracje, a te wracają tutaj. `isDDL` łapie CREATE/ALTER/DROP;
+    // `isInMigration()` — pozostałe zapytania migracji (INSERT-y singletonów
+    // typu company_settings/mail_state), których po treści SQL-a nie da się
+    // bezpiecznie odróżnić od runtime'u. Patrz lib/migration-ctx.ts.
+    if (isDDL(text) || isInMigration()) return raw(text, params);
     await ensureSeeded();
     return raw(text, params);
   };

@@ -15,6 +15,7 @@ import {
   IconFileCheck,
   IconReceipt,
   IconReportMoney,
+  IconMail,
   IconChartBar,
   IconSearch,
   IconChevronLeft,
@@ -57,7 +58,9 @@ const HUB_WORDMARK_STYLE = {
 // Kolejność wg realnej ścieżki pracy (lib/process.ts, 12 kroków), nie
 // alfabetu/daty dodania: Pulpit (start dnia) → Leady → Klienci → Oferty →
 // Projekty → Faktury → Koszty (cały lejek sprzedaż→realizacja→rozliczenie)
-// → Kalendarz/Notatnik (narzędzia pomocnicze, nie przypięte do etapu).
+// → Poczta/Kalendarz/Notatnik (narzędzia pomocnicze, nie przypięte do etapu
+// — poczta przecina wszystkie etapy naraz, więc nie ma swojego miejsca w
+// lejku).
 const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "", label: "Pulpit", icon: IconHome },
   { href: "/leads", label: "Leady", icon: IconTarget },
@@ -67,6 +70,7 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/projects", label: "Projekty", icon: IconFolder },
   { href: "/invoices", label: "Faktury", icon: IconReceipt },
   { href: "/costs", label: "Koszty", icon: IconReportMoney },
+  { href: "/mail", label: "Poczta", icon: IconMail },
   { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
   { href: "/notes", label: "Notatnik", icon: IconNotes },
   // Statystyki (Moduł 18) świadomie na końcu — to nie krok w codziennym
@@ -88,6 +92,7 @@ const GO_CHORDS: Record<string, string> = {
   u: "/contracts",
   f: "/invoices",
   w: "/costs",
+  m: "/mail",
   s: "/stats",
 };
 

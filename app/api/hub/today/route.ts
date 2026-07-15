@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
@@ -31,6 +31,7 @@ export async function GET() {
   await ensureOffersSchema();
   await ensureClientsSchema();
   await ensureFollowupsSchema();
+  await ensureMailSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -41,7 +42,7 @@ export async function GET() {
   const lastMonth =
     thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
-  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, dueFollowups, companySettingsRows] = await Promise.all([
+  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, dueFollowups, companySettingsRows, pendingMails] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects;` as unknown as Promise<Project[]>,
@@ -101,6 +102,21 @@ export async function GET() {
       { id: string; client_id: string; project_id: string | null; due_date: string; powod: string; client_nazwa: string }[]
     >,
     sql`SELECT * FROM company_settings WHERE id = 'default';` as unknown as Promise<CompanySettings[]>,
+    // Moduł 4 — "Wiadomości do odpowiedzi": każdy przychodzący mail jest do
+    // obsłużenia, dopóki nie odpiszesz albo go nie odhaczysz. Wyciszone
+    // (newslettery/no-reply) mają status 'zignorowany', więc tu nie wpadną.
+    // Bez body_html/body_text — Pulpit pokazuje tylko nadawcę i temat.
+    sql`
+      SELECT m.id, m.from_addr, m.from_name, m.subject, m.received_at,
+             c.nazwa AS client_nazwa, l.firma AS lead_nazwa
+      FROM mail_messages m
+      LEFT JOIN clients c ON c.id = m.client_id
+      LEFT JOIN leads l ON l.id = m.lead_id
+      WHERE m.status = 'nowy' AND m.kierunek = 'in'
+      ORDER BY m.received_at DESC;
+    ` as unknown as Promise<
+      { id: string; from_addr: string; from_name: string; subject: string; received_at: string; client_nazwa: string | null; lead_nazwa: string | null }[]
+    >,
   ]);
 
   const overdueLeads = leads.filter(isOverdue);
@@ -179,6 +195,7 @@ export async function GET() {
     overdueMilestones,
     expiredOffers,
     dueFollowups,
+    pendingMails,
     todayEvents,
     recentNotes,
     kpi: {

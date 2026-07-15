@@ -29,12 +29,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     kierunek: string | null;
     wynik: string | null;
     czas_trwania_sek: number | null;
+    mail_message_id: string | null;
     created_at: string;
   };
   const [clientActivity, leadActivity, events, offers, invoices, projects] = await Promise.all([
-    sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
+    sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
     leadId
-      ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
+      ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
       : Promise.resolve([] as RawActivity[]),
     sql`SELECT id, kind, text, amount, related_id, created_at FROM client_events WHERE client_id = ${id};`,
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
@@ -58,6 +59,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       wynik: a.wynik ?? null,
       czas_trwania_sek: a.czas_trwania_sek ?? null,
       related_id: null as string | null,
+      mail_message_id: a.mail_message_id ?? null,
       source: "client" as const,
     })),
     ...leadActivity.map((a) => ({
@@ -71,6 +73,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       wynik: a.wynik ?? null,
       czas_trwania_sek: a.czas_trwania_sek ?? null,
       related_id: null as string | null,
+      mail_message_id: a.mail_message_id ?? null,
       source: "lead" as const,
     })),
     ...events.map((e) => ({
@@ -84,6 +87,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       wynik: null as string | null,
       czas_trwania_sek: null as number | null,
       related_id: (e.related_id as string | null) ?? null,
+      mail_message_id: null as string | null,
       source: "system" as const,
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
