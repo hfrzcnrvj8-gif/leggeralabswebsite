@@ -20,6 +20,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconLogout,
+  IconPlayerStop,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
@@ -32,6 +33,13 @@ import type { Project } from "@/lib/projects";
 import { formatPlDate } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
 import type { HubEvent } from "@/lib/events";
+import { type TimeEntry, formatDuration } from "@/lib/time-tracking";
+
+// Zdarzenie DOM, którym `ProjectDetailPanel` informuje sidebar o
+// starcie/zatrzymaniu stopera — bez tego globalny wskaźnik odświeżałby się
+// dopiero przy zmianie strony. Świadomie zwykły `window` event zamiast
+// kontekstu/SWR (moduł jest mały, panel jednoosobowy, jeden aktywny stoper).
+export const TIMER_CHANGED_EVENT = "leggera:timer-changed";
 
 // Sam wzór wordmarku "Leggera Labs" (components/Logo.tsx `wordmarkGradient`)
 // — ten sam gradient/kąt/dark-stroke, żeby "LEGGERA HUB" wyglądało jak
@@ -111,11 +119,41 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     events: HubEvent[];
   } | null>(null);
   const [searching, setSearching] = useState(false);
+  const [activeTimer, setActiveTimer] = useState<(TimeEntry & { project_tytul?: string; task_text?: string | null }) | null>(null);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("leggera_admin_sidebar_collapsed");
     if (saved === "1") setCollapsed(true);
   }, []);
+
+  const loadActiveTimer = useCallback(async () => {
+    const res = await fetch("/api/time/active");
+    if (res.ok) {
+      const data = (await res.json()) as { active: (TimeEntry & { project_tytul?: string; task_text?: string | null }) | null };
+      setActiveTimer(data.active);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadActiveTimer();
+  }, [loadActiveTimer, pathname]);
+
+  useEffect(() => {
+    window.addEventListener(TIMER_CHANGED_EVENT, loadActiveTimer);
+    return () => window.removeEventListener(TIMER_CHANGED_EVENT, loadActiveTimer);
+  }, [loadActiveTimer]);
+
+  useEffect(() => {
+    if (!activeTimer || activeTimer.ended_at) return;
+    const t = window.setInterval(() => setTick((x) => x + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [activeTimer]);
+
+  const stopGlobalTimer = async () => {
+    const res = await fetch("/api/time/stop", { method: "POST" });
+    if (res.ok) setActiveTimer(null);
+  };
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -302,6 +340,35 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               );
             })}
           </nav>
+
+          {activeTimer && !activeTimer.ended_at && (
+            <Link
+              href={`${base}/projects/${activeTimer.project_id}`}
+              className={`mb-1.5 flex items-center gap-1.5 rounded-md border hairline px-1.5 py-1.5 text-[11.5px] text-emerald-400 hover:bg-[var(--hairline)] ${
+                collapsed ? "justify-center" : ""
+              }`}
+              title={activeTimer.project_tytul ? `Stoper działa — ${activeTimer.project_tytul}` : "Stoper działa"}
+            >
+              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+              {!collapsed && (
+                <span className="min-w-0 flex-1 truncate">
+                  {formatDuration(Math.max(0, Math.floor((Date.now() - new Date(activeTimer.started_at as string).getTime()) / 60000)))}
+                  {activeTimer.project_tytul ? ` · ${activeTimer.project_tytul}` : ""}
+                </span>
+              )}
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  stopGlobalTimer();
+                }}
+                className="shrink-0 text-emerald-400 hover:text-[var(--fg)]"
+                aria-label="Zatrzymaj stoper"
+                title="Zatrzymaj stoper"
+              >
+                <IconPlayerStop size={13} />
+              </button>
+            </Link>
+          )}
 
           <div className={`mt-2 flex items-center ${collapsed ? "flex-col" : ""}`}>
             <button

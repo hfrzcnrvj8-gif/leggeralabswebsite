@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconUsers, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical } from "@tabler/icons-react";
+import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconUsers, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical, IconPlayerPlay, IconPlayerStop, IconClock, IconTrash } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -28,9 +28,12 @@ import { EditableText, EditableTextarea, ClientLinkChip } from "../components";
 import { PropertyMenu, Popover, MenuRow, type MenuOption } from "../Menu";
 import { DateField } from "../DatePicker";
 import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
-import { useUI } from "../ui";
+import { useUI, useRegisterActions } from "../ui";
 import type { Lead } from "@/lib/leads";
 import { formatMoney } from "@/lib/invoices";
+import { type TimeEntry, formatDuration, sumMinutes, effectiveHourlyRate } from "@/lib/time-tracking";
+import { todayLocalISO } from "@/lib/dates";
+import { TIMER_CHANGED_EVENT } from "../AppShell";
 
 /** Rdzeń widoku szczegółów projektu, w stylu Linear: treść + kamienie
  * milowe + log aktywności po lewej, metadane (zdrowie/status/terminy/
@@ -86,6 +89,13 @@ export function ProjectDetailPanel({
   const [dependencies, setDependencies] = useState<string[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
   const [rentownosc, setRentownosc] = useState<{ przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean } | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [activeTimer, setActiveTimer] = useState<(TimeEntry & { project_tytul?: string; task_text?: string | null }) | null>(null);
+  const [, setTick] = useState(0);
+  const [manualHours, setManualHours] = useState("");
+  const [manualTaskId, setManualTaskId] = useState("");
+  const [manualDate, setManualDate] = useState(todayLocalISO());
+  const [manualNote, setManualNote] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`);
@@ -170,6 +180,131 @@ export function ProjectDetailPanel({
     fetch("/api/projects").then((r) => (r.ok ? r.json() : null)).then((d) => d && setAllProjects(d.projects.map((p: { id: string; tytul: string }) => ({ id: p.id, tytul: p.tytul }))));
     fetch("/api/clients").then((r) => (r.ok ? r.json() : null)).then((d) => d && setClients(d.clients.map((c: { id: string; nazwa: string }) => ({ id: c.id, nazwa: c.nazwa }))));
   }, []);
+
+  const loadTime = useCallback(async () => {
+    const res = await fetch(`/api/time?project_id=${id}`);
+    if (res.ok) {
+      const data = (await res.json()) as { entries: TimeEntry[] };
+      setTimeEntries(data.entries);
+    }
+  }, [id]);
+
+  const loadActiveTimer = useCallback(async () => {
+    const res = await fetch("/api/time/active");
+    if (res.ok) {
+      const data = (await res.json()) as { active: (TimeEntry & { project_tytul?: string; task_text?: string | null }) | null };
+      setActiveTimer(data.active);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTime();
+  }, [loadTime]);
+
+  useEffect(() => {
+    loadActiveTimer();
+  }, [loadActiveTimer]);
+
+  // Żywy tik co sekundę, wyłącznie żeby przeliczyć widoczny czas trwania
+  // aktywnego stopera — nie odpytujemy serwera w pętli.
+  useEffect(() => {
+    if (!activeTimer || activeTimer.ended_at) return;
+    const t = window.setInterval(() => setTick((x) => x + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [activeTimer]);
+
+  const activeTimerHere = activeTimer && activeTimer.project_id === id ? activeTimer : null;
+  const totalMinutes = sumMinutes(timeEntries);
+  const minutesByTask = timeEntries.reduce<Record<string, number>>((m, e) => {
+    if (e.ended_at === null && e.source === "timer") return m;
+    const key = e.task_id ?? "__project__";
+    m[key] = (m[key] ?? 0) + e.minutes;
+    return m;
+  }, {});
+
+  const startTimer = async (taskId: string | null) => {
+    const res = await fetch("/api/time/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: id, task_id: taskId }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się uruchomić stopera.", "error");
+      return;
+    }
+    const data = (await res.json()) as { active: TimeEntry; stopped_previous: { minutes: number } | null };
+    setActiveTimer(data.active);
+    window.dispatchEvent(new Event(TIMER_CHANGED_EVENT));
+    if (data.stopped_previous) {
+      toast(`Zatrzymano poprzedni stoper (${formatDuration(data.stopped_previous.minutes)}) i zapisano wpis.`);
+      loadTime();
+    }
+  };
+
+  const stopTimer = async () => {
+    const res = await fetch("/api/time/stop", { method: "POST" });
+    if (!res.ok) {
+      toast("Nie udało się zatrzymać stopera.", "error");
+      return;
+    }
+    const data = (await res.json()) as { stopped: { minutes: number } | null };
+    setActiveTimer(null);
+    window.dispatchEvent(new Event(TIMER_CHANGED_EVENT));
+    if (data.stopped) {
+      toast(`Zatrzymano stoper: ${formatDuration(data.stopped.minutes)}.`);
+      loadTime();
+    }
+  };
+
+  const addManualTimeEntry = async () => {
+    const hours = parseFloat(manualHours.replace(",", "."));
+    if (!Number.isFinite(hours) || hours <= 0) {
+      toast("Podaj liczbę godzin większą od zera.", "error");
+      return;
+    }
+    const res = await fetch("/api/time", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: id,
+        task_id: manualTaskId || null,
+        minutes: Math.round(hours * 60),
+        entry_date: manualDate,
+        note: manualNote.trim(),
+      }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się dodać wpisu czasu.", "error");
+      return;
+    }
+    const data = (await res.json()) as { entries: TimeEntry[] };
+    setTimeEntries(data.entries);
+    setManualHours("");
+    setManualNote("");
+  };
+
+  const deleteTimeEntry = async (entryId: string) => {
+    const ok = await confirm("Usunąć ten wpis czasu?", { danger: true });
+    if (!ok) return;
+    const res = await fetch(`/api/time/${entryId}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast("Nie udało się usunąć wpisu.", "error");
+      return;
+    }
+    const data = (await res.json()) as { entries: TimeEntry[] };
+    setTimeEntries(data.entries);
+  };
+
+  useRegisterActions(
+    [
+      {
+        id: "time-toggle",
+        label: activeTimerHere && !activeTimerHere.ended_at ? "⏱ Zatrzymaj stoper" : "⏱ Start stopera (ten projekt)",
+        run: () => (activeTimerHere && !activeTimerHere.ended_at ? stopTimer() : startTimer(null)),
+      },
+    ],
+    [activeTimerHere?.id, activeTimerHere?.ended_at]
+  );
 
   const addDependency = async (dependsOnId: string) => {
     const res = await fetch(`/api/projects/${id}/dependencies`, {
@@ -880,6 +1015,115 @@ export function ProjectDetailPanel({
 
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[14px] font-medium">Czas pracy</h2>
+              <span className="text-xs text-muted">{totalMinutes > 0 ? formatDuration(totalMinutes) : "brak wpisów"}</span>
+            </div>
+
+            <div className="mb-3 flex items-center justify-between rounded-lg border hairline px-3 py-2">
+              <span className="text-[11px] text-muted">Efektywna stawka godzinowa</span>
+              {(() => {
+                if (!rentownosc) {
+                  return <span className="text-[12px] text-muted opacity-70">brak danych o rentowności</span>;
+                }
+                const rate = effectiveHourlyRate(rentownosc.zysk_netto, totalMinutes);
+                return rate === null ? (
+                  <span className="text-[12px] text-muted opacity-70">brak zalogowanego czasu</span>
+                ) : (
+                  <span className={`text-[14px] font-semibold ${rate >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatMoney(rate)}/h</span>
+                );
+              })()}
+            </div>
+
+            {activeTimerHere && !activeTimerHere.ended_at ? (
+              <div className="mb-3 flex items-center justify-between rounded-lg border hairline bg-[var(--hairline)] px-3 py-2">
+                <span className="flex items-center gap-1.5 text-[12.5px] text-[var(--fg)]">
+                  <IconClock size={14} className="text-emerald-400" />
+                  Stoper działa{activeTimerHere.task_text ? ` — ${activeTimerHere.task_text}` : ""}
+                  {" · "}
+                  {formatDuration(Math.max(0, Math.floor((Date.now() - new Date(activeTimerHere.started_at as string).getTime()) / 60000)))}
+                </span>
+                <button onClick={stopTimer} className="shrink-0 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]">
+                  <IconPlayerStop size={13} className="inline -mt-0.5 mr-1" />
+                  Zatrzymaj
+                </button>
+              </div>
+            ) : (
+              !activeTimer && (
+                <button
+                  onClick={() => startTimer(null)}
+                  className="mb-3 flex items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]"
+                >
+                  <IconPlayerPlay size={13} />
+                  Start stopera (ogólnie na projekt)
+                </button>
+              )
+            )}
+
+            {timeEntries.filter((e) => !(e.ended_at === null && e.source === "timer")).length > 0 && (
+              <ul className="mb-3 space-y-1">
+                {timeEntries
+                  .filter((e) => !(e.ended_at === null && e.source === "timer"))
+                  .slice(0, 8)
+                  .map((e) => (
+                  <li key={e.id} className="group/time flex items-center justify-between gap-2 rounded-lg px-1 py-0.5 text-[12.5px] hover:bg-[var(--hairline)]">
+                    <span className="min-w-0 flex-1 truncate text-muted">
+                      {formatPlDate(e.entry_date)}
+                      {e.task_id && tasks.find((t) => t.id === e.task_id) ? ` · ${tasks.find((t) => t.id === e.task_id)?.text}` : ""}
+                      {e.note ? ` — ${e.note}` : ""}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-[var(--fg)]">{formatDuration(e.minutes)}</span>
+                    <button
+                      onClick={() => deleteTimeEntry(e.id)}
+                      className="shrink-0 text-muted opacity-0 transition-opacity group-hover/time:opacity-100 hover:text-red-400"
+                      aria-label="Usuń wpis czasu"
+                      title="Usuń"
+                    >
+                      <IconTrash size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex flex-wrap items-center gap-1.5 border-t hairline pt-3">
+              <input
+                value={manualHours}
+                onChange={(e) => setManualHours(e.target.value)}
+                placeholder="godz."
+                inputMode="decimal"
+                className="w-16 rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] placeholder:text-muted"
+              />
+              <select
+                value={manualTaskId}
+                onChange={(e) => setManualTaskId(e.target.value)}
+                className="rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)]"
+              >
+                <option value="">— ogólnie na projekt —</option>
+                {tasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.text}
+                  </option>
+                ))}
+              </select>
+              <DateField value={manualDate} onChange={(v) => v && setManualDate(v)} placeholder="Data" />
+              <input
+                value={manualNote}
+                onChange={(e) => setManualNote(e.target.value)}
+                placeholder="Notatka (opcjonalnie)"
+                className="min-w-[120px] flex-1 rounded-lg border hairline bg-transparent px-2 py-1 text-xs text-[var(--fg)] placeholder:text-muted"
+              />
+              <button
+                onClick={addManualTimeEntry}
+                disabled={!manualHours.trim()}
+                className="shrink-0 rounded-lg border hairline px-2.5 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                + Dodaj wpis
+              </button>
+            </div>
+          </div>
+
+          <div className="card-paper rounded-xl border hairline p-4">
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[14px] font-medium">Kamienie milowe</h2>
               <button onClick={addMilestone} className="rounded-full border hairline px-3 py-1 text-xs">
                 + Nowy kamień milowy
@@ -940,7 +1184,17 @@ export function ProjectDetailPanel({
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <TaskList tasks={mTasks} onToggle={toggleTask} onDelete={deleteTask} onDragStartTask={(tid) => (dragTaskRef.current = tid)} onDropTask={onDropTask} />
+                      <TaskList
+                        tasks={mTasks}
+                        onToggle={toggleTask}
+                        onDelete={deleteTask}
+                        onDragStartTask={(tid) => (dragTaskRef.current = tid)}
+                        onDropTask={onDropTask}
+                        minutesByTask={minutesByTask}
+                        activeTaskId={activeTimerHere && !activeTimerHere.ended_at ? activeTimerHere.task_id : null}
+                        onStartTimer={startTimer}
+                        onStopTimer={stopTimer}
+                      />
                       <button
                         onClick={() => addTask(m.id)}
                         className="mt-1 text-[11px] text-muted hover:text-[var(--fg)]"
@@ -958,7 +1212,17 @@ export function ProjectDetailPanel({
                         Bez kamienia milowego
                       </h3>
                     )}
-                    <TaskList tasks={unmilestoned} onToggle={toggleTask} onDelete={deleteTask} onDragStartTask={(tid) => (dragTaskRef.current = tid)} onDropTask={onDropTask} />
+                    <TaskList
+                      tasks={unmilestoned}
+                      onToggle={toggleTask}
+                      onDelete={deleteTask}
+                      onDragStartTask={(tid) => (dragTaskRef.current = tid)}
+                      onDropTask={onDropTask}
+                      minutesByTask={minutesByTask}
+                      activeTaskId={activeTimerHere && !activeTimerHere.ended_at ? activeTimerHere.task_id : null}
+                      onStartTimer={startTimer}
+                      onStopTimer={stopTimer}
+                    />
                     <button
                       onClick={() => addTask(null)}
                       className="mt-1 text-[11px] text-muted hover:text-[var(--fg)]"
@@ -1179,51 +1443,74 @@ function TaskList({
   onDelete,
   onDragStartTask,
   onDropTask,
+  minutesByTask,
+  activeTaskId,
+  onStartTimer,
+  onStopTimer,
 }: {
   tasks: ProjectTask[];
   onToggle: (id: string, done: boolean) => void;
   onDelete: (id: string) => void;
   onDragStartTask?: (id: string) => void;
   onDropTask?: (id: string) => void;
+  minutesByTask?: Record<string, number>;
+  activeTaskId?: string | null;
+  onStartTimer?: (taskId: string) => void;
+  onStopTimer?: () => void;
 }) {
   if (tasks.length === 0) return <p className="text-xs text-muted opacity-50">Brak zadań.</p>;
   return (
     <ul className="space-y-1">
-      {tasks.map((t) => (
-        <li
-          key={t.id}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => onDropTask?.(t.id)}
-          className="group/task flex items-center gap-1.5 rounded-lg px-1 py-0.5 hover:bg-[var(--hairline)]"
-        >
-          <span
-            draggable
-            onDragStart={(e) => {
-              onDragStartTask?.(t.id);
-              e.dataTransfer.effectAllowed = "move";
-            }}
-            className="shrink-0 cursor-grab text-muted opacity-0 transition-opacity group-hover/task:opacity-50 active:cursor-grabbing"
-            title="Przeciągnij, aby zmienić kolejność"
+      {tasks.map((t) => {
+        const minutes = minutesByTask?.[t.id] ?? 0;
+        const isRunning = activeTaskId === t.id;
+        return (
+          <li
+            key={t.id}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => onDropTask?.(t.id)}
+            className="group/task flex items-center gap-1.5 rounded-lg px-1 py-0.5 hover:bg-[var(--hairline)]"
           >
-            <IconGripVertical size={13} />
-          </span>
-          <input
-            type="checkbox"
-            checked={t.done}
-            onChange={(e) => onToggle(t.id, e.target.checked)}
-            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
-          />
-          <span className={`flex-1 text-sm ${t.done ? "text-muted line-through" : ""}`}>{t.text}</span>
-          <button
-            onClick={() => onDelete(t.id)}
-            className="text-muted hover:text-red-400"
-            aria-label="Usuń zadanie"
-            title="Usuń"
-          >
-            <IconX size={14} />
-          </button>
-        </li>
-      ))}
+            <span
+              draggable
+              onDragStart={(e) => {
+                onDragStartTask?.(t.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              className="shrink-0 cursor-grab text-muted opacity-0 transition-opacity group-hover/task:opacity-50 active:cursor-grabbing"
+              title="Przeciągnij, aby zmienić kolejność"
+            >
+              <IconGripVertical size={13} />
+            </span>
+            <input
+              type="checkbox"
+              checked={t.done}
+              onChange={(e) => onToggle(t.id, e.target.checked)}
+              className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
+            />
+            <span className={`flex-1 text-sm ${t.done ? "text-muted line-through" : ""}`}>{t.text}</span>
+            {minutes > 0 && <span className="shrink-0 text-[11px] tabular-nums text-muted">{formatDuration(minutes)}</span>}
+            {(onStartTimer || onStopTimer) && (
+              <button
+                onClick={() => (isRunning ? onStopTimer?.() : onStartTimer?.(t.id))}
+                className={`shrink-0 transition-opacity ${isRunning ? "text-emerald-400" : "text-muted opacity-0 hover:text-[var(--fg)] group-hover/task:opacity-100"}`}
+                aria-label={isRunning ? "Zatrzymaj stoper" : "Uruchom stoper"}
+                title={isRunning ? "Zatrzymaj stoper" : "Uruchom stoper dla tego zadania"}
+              >
+                {isRunning ? <IconPlayerStop size={13} /> : <IconPlayerPlay size={13} />}
+              </button>
+            )}
+            <button
+              onClick={() => onDelete(t.id)}
+              className="text-muted hover:text-red-400"
+              aria-label="Usuń zadanie"
+              title="Usuń"
+            >
+              <IconX size={14} />
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

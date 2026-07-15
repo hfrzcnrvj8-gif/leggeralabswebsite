@@ -1107,3 +1107,42 @@ export async function ensureProjectReviewToken(sql: Sql, id: string, existingTok
   await sql`UPDATE projects SET review_token = ${token} WHERE id = ${id};`;
   return token;
 }
+
+let timeSchemaReady: Promise<void> | null = null;
+
+/** Moduł 19 (śledzenie czasu pracy): jeden wpis = albo ręcznie wpisana liczba
+ * minut, albo sesja stopera. `task_id` opcjonalny (czas można zalogować
+ * ogólnie na projekt, bez wybierania zadania) — `ON DELETE SET NULL`, żeby
+ * usunięcie zadania nie kasowało historii czasu. `ended_at IS NULL` = stoper
+ * aktualnie działa; panel jest jednoosobowy, więc w danym momencie może być
+ * aktywny co najwyżej jeden taki wiersz (pilnowane w API, nie w bazie). */
+async function createTimeSchema(): Promise<void> {
+  await ensureHubSchema();
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS time_entries (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      task_id TEXT REFERENCES project_tasks(id) ON DELETE SET NULL,
+      source TEXT NOT NULL DEFAULT 'manual',
+      entry_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      started_at TIMESTAMPTZ,
+      ended_at TIMESTAMPTZ,
+      minutes INTEGER NOT NULL DEFAULT 0,
+      note TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS time_entries_project_id_idx ON time_entries(project_id);`;
+  await sql`CREATE INDEX IF NOT EXISTS time_entries_task_id_idx ON time_entries(task_id);`;
+  // Szybkie wyszukanie aktywnego stopera (globalnie, bez filtra po projekcie).
+  await sql`CREATE INDEX IF NOT EXISTS time_entries_running_idx ON time_entries(ended_at) WHERE ended_at IS NULL;`;
+}
+
+/** Lazily tworzy tabelę modułu Śledzenie czasu. */
+export async function ensureTimeSchema(): Promise<void> {
+  if (!timeSchemaReady) timeSchemaReady = createTimeSchema();
+  await timeSchemaReady;
+}

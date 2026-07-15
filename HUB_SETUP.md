@@ -2014,6 +2014,53 @@ czasie (dataviz skill przeczytany przed pisaniem wykresu).
 - Nawigacja: `AppShell.tsx` — wpis "Statystyki" na KOŃCU listy `NAV` (to
   okresowy przegląd, nie krok w codziennym lejku pracy), chord `g s`.
 
+## Moduł 19 — Śledzenie czasu pracy (2026-07-15)
+
+Patrz `docs/plany-modulow/19-sledzenie-czasu.md`. Decyzje właściciela na
+starcie tego czatu: stoper start/stop ORAZ ręczny wpis godzin (oba, nie
+jedno albo drugie); czas przypięty per zadanie (`project_tasks`), z opcją
+zalogowania ogólnie na projekt bez wybierania zadania; wyłącznie narzędzie
+analityczne — brak wpływu na fakturowanie, brak pola "stawka klienta";
+efektywna stawka godzinowa widoczna ZAWSZE (nie tylko po zamknięciu
+projektu).
+
+- **`time_entries`** (`ensureTimeSchema()` w `lib/db.ts`) — jeden wiersz na
+  wpis, `source` = `'manual' | 'timer'`. `task_id` opcjonalny
+  (`ON DELETE SET NULL` — usunięcie zadania nie kasuje historii czasu).
+  `ended_at IS NULL` = stoper aktualnie działa; panel jest jednoosobowy, więc
+  w danym momencie może być aktywny co najwyżej jeden taki wiersz (pilnowane
+  w API, nie w bazie — start nowego stopera automatycznie zatrzymuje
+  poprzedni i zapisuje go jako zakończony wpis, z toastem informującym o
+  tym właściciela).
+- **`lib/time-tracking.ts`** — czyste funkcje: `formatDuration` ("2 godz. 15
+  min", bez "00:00" — to narzędzie do samopoznania, nie stoper sportowy),
+  `sumMinutes` (pomija niedokończony stoper), `effectiveHourlyRate` —
+  świadomie liczona od **zysku netto** (nie przychodu) ÷ godziny, żeby
+  pokazać prawdziwą rentowność liczoną też czasem właściciela, zgodnie z
+  motywacją modułu.
+- **`app/api/time/*`** — `GET/POST /api/time` (lista + ręczny wpis),
+  `PATCH/DELETE /api/time/:id`, `POST /api/time/start` (zatrzymuje
+  poprzedni aktywny, jeśli istnieje), `POST /api/time/stop`,
+  `GET /api/time/active` (globalny aktywny stoper, z nazwą projektu/zadania
+  przez JOIN — do wskaźnika w sidebarze).
+- **`ProjectDetailPanel.tsx`** — nowa karta "Czas pracy" (zawsze widoczna,
+  niezależnie od tego czy karta "Rentowność" w ogóle się renderuje —
+  efektywna stawka miała być widoczna ZAWSZE, więc żyje w osobnej karcie,
+  nie w Rentowności): żywy licznik działającego stopera, lista wpisów
+  (wpis w trakcie celowo pomijany z listy — jest już widoczny w banerze
+  powyżej), ręczny wpis (godziny + opcjonalne zadanie + data + notatka).
+  Przy każdym zadaniu (`TaskList`): ikona start/stop stopera (hover, chyba
+  że aktywny — wtedy zawsze widoczna) + suma zalogowanych minut.
+  Zarejestrowana komenda w palecie (Cmd+K): "⏱ Start/zatrzymaj stoper".
+- **Globalny wskaźnik w `AppShell.tsx`** — mały pill w sidebarze (nad
+  "Wyloguj") z nazwą projektu i żywym czasem, widoczny na KAŻDEJ stronie
+  panelu, nie tylko w widoku projektu (żeby nie zgubić, że stoper chodzi po
+  zamknięciu modala/zmianie strony). Synchronizacja bez pollingu: zwykły
+  `window` `CustomEvent` (`TIMER_CHANGED_EVENT`, eksportowany z
+  `AppShell.tsx`) który `ProjectDetailPanel` odpala po starcie/zatrzymaniu
+  — świadomie prostsze niż SWR/kontekst, bo w całym panelu i tak nigdzie
+  indziej nie ma pollingu cross-page live data.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na
