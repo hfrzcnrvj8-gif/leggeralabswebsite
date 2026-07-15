@@ -35,6 +35,16 @@ nie pokazuje trendów/wskaźników zdrowia całej działalności.
     rozkład statusów.
   - `data_platnosci`/`termin_platnosci` na fakturach → DSO, wiek
     zaległości (dokładniej po Module 13).
+- **Licznik poleceń — świadomie odłożony tu przez Moduł 17** (2026-07-15,
+  patrz `docs/plany-modulow/17-retencja-i-polecenia.md`): kategoria
+  źródła "Polecenie" (`SOURCE_CATEGORIES`, `lib/leads.ts:114-123`) już
+  istnieje i każdy lead ją zapisuje, ale ZERO miejsca w kodzie dziś to
+  agreguje — prosta agregacja `COUNT(*) WHERE zrodlo_kategoria =
+  'Polecenie'` po leadach/klientach. Moduł 17 dodał też zdarzenie
+  `nurture_contact_sent` na osi klienta (kiedy panel realnie wysłał
+  szkic z pytaniem o polecenie) — jeśli wskaźnik ma pokazywać nie tylko
+  "ile poleceń przyszło", ale też "ile razy o nie zapytaliśmy", to
+  źródło do policzenia.
 
 ## Otwarte pytania do zadania właścicielowi na starcie tego czatu
 
