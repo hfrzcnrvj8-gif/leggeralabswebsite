@@ -17,31 +17,67 @@ jeszcze?") regularnie generuje kolejne zlecenia i polecenia. Kategoria
 
 ## Stan faktyczny (co już jest — nie budować od zera)
 
-- Nurture leadów (Moduł 2, `docs/plany-modulow/02-nurture-automatyczny.md`)
-  — mechanika `next_followup`/przypomnień **już istnieje**, ale pilnuje
-  leadów PRZED zamknięciem sprzedaży. Ten moduł potrzebuje analogicznego
-  mechanizmu dla klientów PO zakończeniu projektu — do zbadania, czy da
-  się reużyć istniejące pole `next_followup`/`next_action` na kliencie
-  (`lib/clients.ts`), czy potrzebny osobny wyzwalacz.
-- `client_events`/`logClientEvent()` — do zapisania zdarzenia "kontakt
-  retencyjny wykonany".
-- `zrodlo_kategoria` na leadzie — źródło "Polecenie" już się liczy w
-  danych, tylko nic dziś nie pokazuje tego wskaźnika (patrz Moduł 18,
-  Pulpit).
+**WAŻNE — zaktualizowane 2026-07-15, po audycie kodu przy okazji Modułu
+15**: mechanizm automatycznego przypominania o kontakcie z klientem PO
+zamknięciu projektu **już istnieje i działa end-to-end** (zbudowany przy
+okazji Modułu 2, ale dotyczy też etapu POzamknięciowego, nie tylko
+leadów przed sprzedażą — poprzednia wersja tego briefu błędnie sugerowała,
+że trzeba to dopiero zbadać/zbudować):
+
+- **Wyzwalacz i zapis**: gdy status projektu zmienia się na zamknięty
+  (`CLOSED_PROJECT_STATUSES`, dziś tylko "Wdrożone"),
+  `app/api/projects/[id]/route.ts` (PATCH) wstawia do tabeli
+  `client_followups` DWA wiersze wg `NURTURE_OFFSETS`
+  (`lib/clients.ts`): **+14 dni** (`powod`: "kontakt kontrolny:
+  referencja/opinia") i **+90 dni** (`powod`: "kontakt kontrolny: kolejna
+  automatyzacja"). Idempotentnie (po `project_id`), loguje zdarzenie
+  `nurture_scheduled` na osi klienta.
+- **Odczyt i UI**: `GET /api/hub/today` zwraca `dueFollowups`
+  (wymagalne i nieobsłużone — `due_date <= dziś AND done_at IS NULL`),
+  pokazywane na Pulpicie w karcie "Klienci wymagający kontaktu" (wspólnie
+  z ręcznie ustawionym `next_followup`), z tekstem `powodu` i przyciskiem
+  "Obsłużone" (`PATCH /api/client-followups/[id]` ustawia `done_at`).
+- **Wniosek**: wyzwalacz, przechowywanie, odczyt i oznaczanie-jako-
+  zrobione są GOTOWE. Nie budować tego od nowa.
+
+**Czego faktycznie dziś brakuje** (to jest realny zakres tego modułu):
+
+1. **Szkic wiadomości** — `powod` to dziś tylko krótki tekst na
+   Pulpicie ("kontakt kontrolny: referencja/opinia"/"...kolejna
+   automatyzacja"), nie ma gotowego, edytowalnego tekstu do wysłania,
+   w przeciwieństwie do onboardingu/zamknięcia projektu (Moduły 14/15,
+   `buildOnboardingWelcomeMessage()`/`buildProjectClosingSummary()` w
+   `lib/projects.ts` — wzór do naśladowania: panel generuje szkic,
+   właściciel edytuje i wysyła, nigdy automatycznie).
+2. **Pytanie o polecenie** — nigdzie dziś nie ma miejsca, żeby o nie
+   poprosić.
+3. `client_events`/`logClientEvent()` — istnieje, gotowe do zapisania
+   zdarzenia "kontakt retencyjny wykonany"/"zapytano o polecenie" itp.
+4. `zrodlo_kategoria` na leadzie (`SOURCE_CATEGORIES`,
+   `lib/leads.ts:114-123`) już ma kategorię "Polecenie" i każdy lead ją
+   zapisuje — ale ZERO miejsca w kodzie dziś to agreguje/liczy (nie
+   Pulpit, nie raport, nigdzie).
 
 ## Otwarte pytania do zadania właścicielowi na starcie tego czatu
 
-1. **Wyzwalacz przypomnienia** — czy to ręcznie ustawiana data (jak dziś
-   `next_followup` na leadzie), czy automatycznie proponowana X miesięcy
-   po zamknięciu projektu (Moduł 15)? Jeśli automatyczna — jaki domyślny
-   odstęp (2-3 miesiące? do potwierdzenia)?
-2. **Treść kontaktu retencyjnego** — czy panel podpowiada gotowy szablon
-   wiadomości (jak przy leadach), czy to zostaje całkowicie w gestii
-   właściciela?
-3. **Pytanie o polecenie** — czy to osobny krok/podpowiedź, czy część tej
-   samej wiadomości retencyjnej?
-4. **Gdzie widoczne** — czy klienci "do sprawdzenia" pojawiają się na
-   Pulpicie analogicznie do leadów wymagających kontaktu?
+1. **Treść kontaktu retencyjnego** — czy panel podpowiada gotowy szablon
+   wiadomości (wzorem Modułów 14/15), czy zostaje całkowicie w gestii
+   właściciela? Jeśli szablon — jeden uniwersalny, czy osobny na +14
+   (opinia/referencja — uwaga: to się teraz **częściowo pokrywa z
+   Modułem 15**, który już ma własny mechanizm proszenia o opinię; do
+   ustalenia z właścicielem, czy +14 z tego modułu ma być tym samym
+   krokiem, czy odrębnym) i osobny na +90 (kolejna propozycja)?
+2. **Pytanie o polecenie** — osobny krok/podpowiedź, czy wpisane w treść
+   wiadomości retencyjnej (prawdopodobnie tej z +90 dni, gdy relacja już
+   dojrzała)?
+3. **Widoczność na Pulpicie** — dziś kontakty retencyjne są w tej samej
+   karcie co przeterminowani klienci ("Klienci wymagający kontaktu").
+   Wystarczy, czy właściciel chce je jakoś wyróżnić (osobna sekcja/inna
+   ikona), żeby odróżnić "klient milczy" od "zaplanowany rutynowy
+   kontakt"?
+4. **Licznik poleceń** — budować teraz w tym module (mały wskaźnik przy
+   Klientach/Leadach), czy świadomie zostawić do Modułu 18 (Pulpit:
+   wskaźniki), jak sugerował oryginalny zakres tej mapy?
 
 ## Zasady, które nadal obowiązują (z README.md, nie łamać bez pytania)
 
@@ -52,7 +88,10 @@ jeszcze?") regularnie generuje kolejne zlecenia i polecenia. Kategoria
 
 ## Definicja ukończenia
 
-Nie da się jej dziś w pełni spisać — zależy od odpowiedzi na pytania
-wyżej. Minimum: właściciel ma sposób ustawienia/otrzymania przypomnienia
-o kontakcie z klientem po zakończeniu projektu, a panel pokazuje, ile
-nowych leadów faktycznie przyszło z poleceń.
+Zaktualizowana po audycie: mechanizm przypominania już istnieje i działa,
+więc nie jest częścią definicji ukończenia. Minimum na koniec tego
+modułu: kontakt retencyjny (+14/+90 dni) ma gotowy, edytowalny szkic
+wiadomości (wzorem Modułu 14/15) zamiast pustego `powodu` do wypełnienia
+od zera, jest w nim miejsce na pytanie o polecenie, a właściciel wie
+(odpowiedź na pytanie 4), czy licznik poleceń wchodzi w zakres tego
+modułu.
