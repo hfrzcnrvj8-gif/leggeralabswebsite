@@ -2312,6 +2312,64 @@ RĘCZNIE, nie automatem po kraju klienta („mam wiedzieć, co podpinam").
 **DW (Cc)** przy odpowiadaniu — adresy trafiają też do koperty SMTP, inaczej
 nagłówek byłby widoczny, ale poczta by tam nie poszła.
 
+### Moduł 4c — podpis: symetria, gradient marki, dark mode (2026-07-15)
+
+Po obejrzeniu podpisu z trzeciej tury w prawdziwym Outlooku właściciel zgłosił
+trzy poprawki (`docs/plany-modulow/04c-podpis-mailowy.md`):
+
+- **Symetria lewej kolumny.** Zdjęcie i logo były jedno pod drugim, wyrównane
+  do góry — obok tekstowej kolumny (imię/rola/4 wiersze kontaktu) wyglądało
+  nierówno. Właściciel wybrał układ zdjęcie+logo **obok siebie w rzędzie**
+  zamiast jednego pod drugim; obie kolumny dostały `vertical-align:middle`, a
+  pionowa kreska (`border-left`) rozciąga się na pełną wysokość wiersza (tak
+  działają komórki tabeli — automatycznie, bez dodatkowego CSS). Logo
+  (wordmark 480×47px) w rzędzie obok zdjęcia 88px wychodzi bardzo niskie
+  (~13px przy szerokości 130px) — świadomy kompromis wynikający z proporcji
+  pliku, nie błąd.
+- **Gradient marki (fiolet→złoto) zamiast płaskiego fioletu** — na kresce pod
+  „Założyciel" i na banerze CTA. Technika „bulletproof background": VML
+  (`v:rect`/`v:roundrect` + `v:fill type="gradient"`) w komentarzu
+  `<!--[if mso]>` dla Outlooka, zwykły CSS `background-image` +
+  `bgcolor` fallback dla reszty klientów — bez obrazków, patrz
+  `gradientBar()`/`bannerHtml()` w `lib/mailSignature.ts`.
+  ⚠️ **Świadomie NIE dokładny kanon `.text-liquid`** (który na 100% dochodzi
+  do prawie białego kremu) — na pełnowymiarowym tle banera to psuło kontrast
+  nakładanego tekstu (nagłówek/tagline stawały się nieczytelne w jasnej
+  części gradientu). Banner trzyma się ciemnych odcieni
+  (`bannerBg → purple → gold`, bez jasnego kremowego stopu); CTA dostał
+  własną białą „pigułkę" z ciemnym tekstem, więc jest czytelne niezależnie od
+  tego, gdzie akurat wypadnie w gradiencie. Kreska pod „Założyciel" (mały
+  pasek 40×3px) używa pełnego dwustopniowego gradientu — tam kontrast nie
+  jest problemem, bo nic się na niej nie renderuje.
+  ⚠️ VML nie da się zobaczyć w Chrome (patrz „Jak podejrzeć efekt" w briefie)
+  — ostateczny test w prawdziwym Outlooku robi właściciel.
+- **Dark mode fallback.** Cała tabela podpisu dostała jawne jasne tło
+  (`#FFFFFE`, prawie biały — nie czysty `#FFFFFF`), żeby nie dziedziczyć tła
+  maila i nie paść ofiarą auto-inwersji kolorów w Outlooku/Apple Mail w
+  trybie ciemnym. Logo (przezroczyste tło PNG) dostało jasną „podkładkę" pod
+  spodem z tego samego powodu — inaczej mogłoby zlać się z ciemnym tłem.
+  Wszystkie pozostałe użycia czystego `#FFFFFF` w banerze/CTA też zamienione
+  na `#FFFFFE`.
+
+**Research wzorców stopek topowych firm** (Apple, Stripe, Linear, Notion,
+Figma, agencje kreatywne) — zatwierdzone przez właściciela do wdrożenia:
+dark mode fallback (zrobione wyżej), alt text (już był na zdjęciu/logo,
+banner nie ma obrazków więc nie potrzebuje), prawie-czarny/prawie-biały
+zamiast czystych skrajności (zrobione). **Świadomie odłożone bez zmiany**
+(nie cofać bez pytania):
+- `cid:` zamiast hostowanych obrazków — większość źródeł poleca linkowane
+  `https://`, ale to koliduje ze świadomą decyzją „bez remote-loadingu"
+  (patrz wyżej, trzecia tura); zostawione właścicielowi do przemyślenia.
+- Delimiter `--` (RFC 3676) — rekomendacja researchu: NIE dodawać (dotyczy
+  formalnie plain-textu/Usenetu, a część klientów chowa treść pod nim w
+  cytowaniach, co realnie mogłoby ukryć klauzulę poufności). Uwaga: wersja
+  tekstowa (`signatureText()`) ma `--` jako pierwszą linię od samego początku
+  (trzecia tura) — nie usunięte, bo właściciel o to nie poprosił, ale warto
+  wiedzieć, że to niespójne z rekomendacją i teoretycznie ten sam wektor
+  ryzyka dotyczy klauzuli poufności w wersji tekstowej.
+- Max-width 560px, emoji zamiast ikon, zdjęcie+baner razem — zostają, już w
+  normie.
+
 ## Bramka migracji — dlaczego panel przestał mielić przy wejściu (2026-07-15)
 
 Właściciel zgłosił: „wszystko wczytuje się bardzo wolno". Zmierzone, nie

@@ -43,15 +43,43 @@ export const SIGNATURE_IDENTITY = {
 } as const;
 
 /** Paleta marki — te same wartości co `brand.*` w tailwind.config.ts. W mailu
- * nie ma zmiennych CSS ani Tailwinda, więc muszą być wpisane wprost. */
+ * nie ma zmiennych CSS ani Tailwinda, więc muszą być wpisane wprost.
+ * `purpleLight`/`gold` to dokładnie stopy gradientu `.text-liquid`
+ * (`app/globals.css`) — kanon marki, patrz `gradientBar`/`bannerHtml`. */
 const BRAND = {
   purple: "#7C3AED",
+  purpleLight: "#A78BFA",
   gold: "#E0A93B",
   ink: "#141414",
   inkSoft: "#4A4A4A",
   hairline: "#E6E3DD",
   bannerBg: "#1B1033",
 } as const;
+
+/**
+ * Poziomy pasek w gradiencie marki (fiolet→złoto), tzw. "bulletproof
+ * background": Outlook na Windows (silnik Worda) NIE obsługuje
+ * `background-image` z CSS, więc dostaje osobno VML (`v:rect` +
+ * `v:fill type="gradient"`) w komentarzu warunkowym `<!--[if mso]>`, a
+ * wszystkie inne klienty — zwykłą komórkę tabeli z `background-image` i
+ * `bgcolor` jako ostatnią deską ratunku. Bez obrazków — nie psuje
+ * gwarancji "podpis czyta się bez wczytanych obrazków".
+ * Renderuje się TYLKO w Outlooku na Windows/prawdziwym mailu — Chrome nie
+ * interpretuje VML w ogóle, patrz „Jak podejrzeć efekt" w
+ * `docs/plany-modulow/04c-podpis-mailowy.md`.
+ */
+function gradientBar(widthPx: number, heightPx: number): string {
+  return `<!--[if mso]>
+<v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:${widthPx}px;height:${heightPx}px;">
+<v:fill type="gradient" color="${BRAND.purpleLight}" color2="${BRAND.gold}" angle="0" />
+</v:rect>
+<![endif]-->
+<!--[if !mso]><!-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+  <tr><td width="${widthPx}" height="${heightPx}" bgcolor="${BRAND.purple}" style="background-color:${BRAND.purple};background-image:linear-gradient(120deg, ${BRAND.purpleLight} 0%, ${BRAND.gold} 100%);font-size:1px;line-height:1px;">&nbsp;</td></tr>
+</table>
+<!--<![endif]-->`;
+}
 
 type SignatureCopy = {
   rola: string;
@@ -140,29 +168,109 @@ function row(icon: string, href: string, label: string): string {
 </tr>`;
 }
 
+/** Zawartość banera CTA — ta sama dla wersji VML (Outlook) i CSS (reszta
+ * klientów), patrz `bannerHtml`. */
+function bannerContentRows(t: SignatureCopy): string {
+  return `<tr>
+    <td style="padding:16px 18px;">
+      <div style="font-size:10px;letter-spacing:1.4px;font-weight:700;color:#B79CF7;padding-bottom:8px;">LEGGERA LABS.</div>
+      <div style="font-size:17px;line-height:23px;font-weight:700;color:#FFFFFE;">${t.bannerTytul}</div>
+      <div style="font-size:17px;line-height:23px;font-weight:700;color:#B79CF7;">${t.bannerAkcent}</div>
+      <div style="font-size:12px;line-height:18px;color:#C9C4D4;padding-top:8px;">${t.bannerTagline}</div>
+    </td>
+    <td style="padding:16px 18px;text-align:right;vertical-align:bottom;white-space:nowrap;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;display:inline-block;">
+        <tr><td bgcolor="#FFFFFE" style="background-color:#FFFFFE;border-radius:20px;padding:8px 14px;font-size:12px;font-weight:700;color:${BRAND.ink};white-space:nowrap;">${t.bannerCta}</td></tr>
+      </table>
+    </td>
+  </tr>`;
+}
+
+/**
+ * Baner CTA w gradiencie marki (fiolet→złoto), ten sam "bulletproof
+ * background" trik co `gradientBar`: Outlook widzi VML (`v:roundrect` +
+ * `v:fill type="gradient"`) z treścią zdublowaną w `v:textbox`, reszta
+ * klientów CSS `background-image` + `bgcolor` jako fallback. Treść
+ * zdublowana raz w każdej gałęzi to jedyny sposób, żeby Outlook nie
+ * renderował obu wersji naraz (dlatego gałąź CSS jest owinięta w
+ * `<!--[if !mso]><!-->` — bez tego mso widziałoby też płaską tabelę pod
+ * VML-em).
+ * Świadomie NIE dokładny kanon `.text-liquid` (który na 100% dochodzi do
+ * prawie białego kremu) — na pełnowymiarowym tle banera to psuje kontrast
+ * nakładanego tekstu (nagłówek, tagline). Gradient trzyma się tu ciemnych
+ * odcieni (`bannerBg` → `purple` → `gold`, bez jasnego kremowego stopu), a
+ * CTA dostał własną białą "pigułkę" z ciemnym tekstem, więc jest czytelne
+ * niezależnie od tego, w którym miejscu gradientu wypadnie.
+ * Szerokość/wysokość w `v:roundrect` to najlepsze przybliżenie (560×110px,
+ * zgodnie z `max-width:560px` podpisu) — VML nie mierzy się do treści jak
+ * HTML, więc przy dłuższych tłumaczeniach baner w Outlooku może mieć odrobinę
+ * inny odstęp. Nie do zweryfikowania w Chrome (patrz „Jak podejrzeć efekt" w
+ * `docs/plany-modulow/04c-podpis-mailowy.md`) — ostateczny test w prawdziwym
+ * Outlooku robi właściciel.
+ */
+function bannerHtml(t: SignatureCopy): string {
+  const rows = bannerContentRows(t);
+  const stops = `0% ${BRAND.bannerBg}, 55% ${BRAND.purple}, 100% ${BRAND.gold}`;
+  return `<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" arcsize="9%" fill="true" stroke="false" style="width:560px;height:110px;">
+<v:fill type="gradient" color="${BRAND.bannerBg}" color2="${BRAND.gold}" colors="${stops}" angle="90" />
+<v:textbox inset="0,0,0,0">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+${rows}
+</table>
+</v:textbox>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${BRAND.bannerBg}" style="border-collapse:collapse;background-color:${BRAND.bannerBg};background-image:linear-gradient(100deg, ${BRAND.bannerBg} 0%, ${BRAND.purple} 55%, ${BRAND.gold} 100%);border-radius:10px;">
+${rows}
+</table>
+<!--<![endif]-->`;
+}
+
 /**
  * Zwraca podpis jako HTML gotowy do wklejenia na koniec wiadomości.
  *
  * `bookingUrl` wstrzykiwany, a nie importowany z lib/site.ts, żeby ten plik dał
  * się przetestować bez env i żeby wołający jawnie decydował, dokąd prowadzi CTA.
+ *
+ * Tło całej tabeli (`SAFE_LIGHT`, prawie-biały #FFFFFE) jest świadomym
+ * fallbackiem na dark mode: bez jawnego tła podpis dziedziczyłby tło maila, a
+ * Outlook/Apple Mail w trybie ciemnym potrafią same odwrócić kolory jasnego
+ * bloku HTML (czarny tekst → biały na czarnym), co przy naszej stałej palecie
+ * marki wygląda losowo. Jawne jasne tło + prawie-biały zamiast czystego
+ * #FFFFFF (klienci czasem "naprawiają" czysty czarno-biały kontrast inaczej
+ * niż odcienie o 1 punkt od skrajności) trzyma wygląd przewidywalnym
+ * niezależnie od trybu klienta. To samo dlatego logo (transparentne tło PNG)
+ * dostaje jasną "podkładkę" pod spodem — inaczej na czarnym tle maila w dark
+ * mode mogłoby zlać się z tłem.
  */
 export function signatureHtml(lang: Locale, bookingUrl: string): string {
   const t = COPY[lang] ?? COPY.pl;
   const id = SIGNATURE_IDENTITY;
   const [photo, logo] = SIGNATURE_IMAGES;
+  const SAFE_LIGHT = "#FFFFFE";
 
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;max-width:560px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BRAND.ink};">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" bgcolor="${SAFE_LIGHT}" style="border-collapse:collapse;max-width:560px;background-color:${SAFE_LIGHT};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BRAND.ink};">
   <tr>
-    <td style="padding:0 20px 0 0;vertical-align:top;" width="100">
-      <img src="cid:${photo.cid}" alt="${t.altZdjecie}" width="88" height="88" style="display:block;width:88px;height:88px;border:0;outline:none;" />
-      <img src="cid:${logo.cid}" alt="${t.altLogo}" width="88" style="display:block;width:88px;height:auto;border:0;outline:none;margin-top:12px;" />
+    <td style="padding:0 20px 0 0;vertical-align:middle;" width="252">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="vertical-align:middle;padding:0 14px 0 0;">
+            <img src="cid:${photo.cid}" alt="${t.altZdjecie}" width="88" height="88" style="display:block;width:88px;height:88px;border:0;outline:none;" />
+          </td>
+          <td style="vertical-align:middle;background-color:${SAFE_LIGHT};border-radius:6px;padding:6px 10px;">
+            <img src="cid:${logo.cid}" alt="${t.altLogo}" width="130" style="display:block;width:130px;height:auto;border:0;outline:none;" />
+          </td>
+        </tr>
+      </table>
     </td>
-    <td style="padding:0 0 0 20px;vertical-align:top;border-left:1px solid ${BRAND.hairline};">
+    <td style="padding:0 0 0 20px;vertical-align:middle;border-left:1px solid ${BRAND.hairline};">
       <div style="font-size:19px;line-height:26px;font-weight:700;color:${BRAND.ink};">${id.imie}</div>
-      <div style="font-size:13px;line-height:20px;color:${BRAND.inkSoft};padding-bottom:10px;">
-        <span style="border-bottom:2px solid ${BRAND.purple};padding-bottom:2px;">${t.rola}</span>
-        &nbsp;·&nbsp; ${id.firma}
+      <div style="font-size:13px;line-height:20px;color:${BRAND.inkSoft};padding-bottom:6px;">
+        ${t.rola}&nbsp;·&nbsp;${id.firma}
       </div>
+      <div style="padding-bottom:8px;">${gradientBar(40, 3)}</div>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
         ${row("📞", `tel:${id.telefonHref}`, id.telefon)}
         ${row("✉️", `mailto:${id.email}`, id.email)}
@@ -173,21 +281,7 @@ export function signatureHtml(lang: Locale, bookingUrl: string): string {
   </tr>
   <tr>
     <td colspan="2" style="padding:18px 0 0 0;">
-      <a href="${bookingUrl}" style="text-decoration:none;color:#FFFFFF;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background-color:${BRAND.bannerBg};border-radius:10px;">
-          <tr>
-            <td style="padding:16px 18px;">
-              <div style="font-size:10px;letter-spacing:1.4px;font-weight:700;color:#B79CF7;padding-bottom:8px;">LEGGERA LABS.</div>
-              <div style="font-size:17px;line-height:23px;font-weight:700;color:#FFFFFF;">${t.bannerTytul}</div>
-              <div style="font-size:17px;line-height:23px;font-weight:700;color:#B79CF7;">${t.bannerAkcent}</div>
-              <div style="font-size:12px;line-height:18px;color:#C9C4D4;padding-top:8px;">${t.bannerTagline}</div>
-            </td>
-            <td style="padding:16px 18px;text-align:right;vertical-align:bottom;white-space:nowrap;">
-              <span style="font-size:12px;font-weight:700;color:${BRAND.gold};">${t.bannerCta}</span>
-            </td>
-          </tr>
-        </table>
-      </a>
+      <a href="${bookingUrl}" style="text-decoration:none;color:#FFFFFE;">${bannerHtml(t)}</a>
     </td>
   </tr>
   <tr>
