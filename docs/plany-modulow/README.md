@@ -37,12 +37,12 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 7 | AI: szkice odpowiedzi mailowych (wymaga 4 i 6) | średni | [07-ai-szkice-mailowe.md](07-ai-szkice-mailowe.md) |
 | 8 | ✅ AI: odczyt paragonów/faktur zakupowych — OCR w Kosztach (wymaga 6) | średni | [08-ai-ocr-koszty.md](08-ai-ocr-koszty.md) |
 | 9 | ✅ Koszty jako branżowy standard — metoda płatności, inspiracje z liderów (wymaga 8) | duży, wieloetapowy | [09-koszty-branzowy-standard.md](09-koszty-branzowy-standard.md) |
-| 10 | Dopracowanie Kalendarza — agregacja działań, tagi, dopasowanie do klienta | otwarty zakres, zacznij od pytań | [10-kalendarz-dopracowanie.md](10-kalendarz-dopracowanie.md) |
-| 11 | Umowy + NDA | duży, częściowo prawny | [11-umowy-i-nda.md](11-umowy-i-nda.md) |
-| 12 | Fundament linkowania (podstrony faktur/ofert + klikalna oś czasu klienta) | średni, infrastrukturalny | [12-fundament-linkowania.md](12-fundament-linkowania.md) |
-| 13 | Faktury: eskalacja windykacji + rezerwa podatkowa (wymaga 11 dla treści prawnej) | średni | [13-faktury-windykacja.md](13-faktury-windykacja.md) |
-| 14 | Onboarding klienta (wymaga 11) | mały/średni | [14-onboarding-klienta.md](14-onboarding-klienta.md) |
-| 15 | Zamknięcie projektu i opinie (najlepiej po 12) | mały/średni | [15-zamkniecie-i-opinie.md](15-zamkniecie-i-opinie.md) |
+| 10 | ✅ Dopracowanie Kalendarza — agregacja działań, tagi, dopasowanie do klienta | otwarty zakres, zacznij od pytań | [10-kalendarz-dopracowanie.md](10-kalendarz-dopracowanie.md) |
+| 11 | ✅ Umowy + NDA | duży, częściowo prawny | [11-umowy-i-nda.md](11-umowy-i-nda.md) |
+| 12 | ✅ Fundament linkowania (podstrony faktur/ofert + klikalna oś czasu klienta) | średni, infrastrukturalny | [12-fundament-linkowania.md](12-fundament-linkowania.md) |
+| 13 | ✅ Faktury: eskalacja windykacji + rezerwa podatkowa (wymaga 11 dla treści prawnej) | średni | [13-faktury-windykacja.md](13-faktury-windykacja.md) |
+| 14 | ✅ Onboarding klienta (wymaga 11) | mały/średni | [14-onboarding-klienta.md](14-onboarding-klienta.md) |
+| 15 | ✅ Zamknięcie projektu i opinie (najlepiej po 12) | mały/średni | [15-zamkniecie-i-opinie.md](15-zamkniecie-i-opinie.md) |
 | 16 | Wsparcie posprzedażowe — dopiero gdy będzie realna potrzeba | mały, otwarty zakres | [16-wsparcie-posprzedazowe.md](16-wsparcie-posprzedazowe.md) |
 | 17 | ✅ Retencja i polecenia | mały/średni | [17-retencja-i-polecenia.md](17-retencja-i-polecenia.md) |
 | 18 | ✅ Pulpit: wskaźniki zdrowia biznesu | średni | [18-pulpit-wskazniki.md](18-pulpit-wskazniki.md) |

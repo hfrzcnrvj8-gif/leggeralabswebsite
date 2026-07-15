@@ -4,6 +4,44 @@
 > Architektura ustalona z właścicielem 2026-07-13 — patrz „DECYZJA” niżej. To
 > NAJWIĘKSZY moduł; przed budową potwierdź tylko szczegóły z „Otwarte decyzje”.
 
+## Aktualizacja kontekstu (2026-07-15, przed startem)
+
+Ten brief powstał 2026-07-13, zanim zbudowano Moduły 3 i 12 — obie zmieniają
+sposób integracji poczty z kartą klienta/leada, więc przeczytaj to PRZED
+Krokiem 2 i 5 niżej:
+
+- **Moduł 3 (kanały kontaktu)** dodał `client_activity`/`lead_activity` z
+  kolumnami `kanal` (telefon/email/whatsapp/linkedin/spotkanie/inne) i
+  `kierunek` (`wychodzacy`/`przychodzacy`) — to już jest ten sam koncept co
+  "wątek maila in/out", tylko dla telefonu/WhatsAppu/LinkedIn. `GET
+  /api/clients/:id` scala `client_activity` + `client_events` +
+  `lead_activity` w jeden chronologiczny feed (`ClientDetailPanel.tsx`).
+  **Rekomendacja:** nie buduj osobnej sekcji "Wiadomości" na karcie klienta
+  (jak sugerował Krok 5 niżej) — zamiast tego przy każdym zsynchronizowanym
+  mailu (przychodzącym i odpowiedzi) dopisz też wiersz do
+  `client_activity`/`lead_activity` z `kanal='email'` i odpowiednim
+  `kierunek`, żeby mail pojawił się automatycznie w istniejącym scalonym
+  feedzie, z tą samą ikoną/kolorem co reszta kanałów (`CONTACT_CHANNEL_CLASS`
+  w `lib/contact.ts`) i tym samym progiem "czeka na odpowiedź". Pełna treść
+  maila zostaje w `mail_messages` (Krok 2) — wpis w `client_activity` to
+  tylko skrót (temat/pierwsza linia) + link do pełnego widoku w „Poczta”.
+  Prawdopodobnie trzeba dodać `client_activity.related_id`/
+  `mail_message_id` (analogicznie do `client_events.related_id` z Modułu 12)
+  do linkowania wprost do maila — potwierdź to podejście na starcie czatu,
+  to decyzja architektoniczna, nie biznesowa.
+- **Moduł 12 (fundament linkowania)** dodał klikalną oś czasu z
+  `related_id` na `client_events` (`CLIENT_EVENT_TARGET` w `lib/clients.ts`
+  ustala URL na podstawie `kind`) — jeśli wolisz logować maile jako
+  `client_events` zamiast `client_activity`, ten sam mechanizm linkowania
+  już istnieje i można go rozszerzyć o `kind='mail_received'`/
+  `'mail_sent'`. Do ustalenia w nowym czacie, które z dwóch pasuje lepiej
+  (rekomendacja: `client_activity`, bo mail to kontakt inicjowany przez
+  klienta/nas, jak telefon, nie "zdarzenie systemowe" typu wystawienie
+  faktury).
+- Reszta briefu (auto-przypisanie po adresie, IMAP/SMTP, dedup po
+  `message_id`, Pulpit „Wiadomości do odpowiedzi”, „Z maila → zadanie”)
+  nadal aktualna bez zmian.
+
 ## Czego chce właściciel (jego słowami, doprecyzowane)
 
 > „Dostaję maila → chcę to widzieć w aplikacji, z podglądem, dopasowane do
@@ -114,7 +152,9 @@ Bez AI, dwie warstwy:
 - Nowa pozycja nawigacji „Poczta” (`AppShell.tsx`, skrót `g m` lub wolny) —
   lista wiadomości + podgląd + odpowiadanie w panelu (albo skrót „otwórz w
   Outlooku”). Design system jak reszta (`.card-paper`, `.hairline`, `useUI()`).
-- **Karta klienta/leada:** sekcja „Wiadomości” (wątek in/out).
+- **Karta klienta/leada:** BEZ osobnej sekcji „Wiadomości” — patrz „Aktualizacja
+  kontekstu” na górze pliku (wpis w scalonym feedzie przez `client_activity`/
+  `lead_activity`, kanał=email, jak reszta kontaktów z Modułu 3).
 - **Pulpit:** sekcja „Wiadomości do odpowiedzi” (`status='nowy'`), „Obsłużone”
   jak przy leadach/klientach.
 - **Kolejka „Nieprzypisane”** + akcje „Przypisz do…”/„Utwórz leada”.
@@ -144,6 +184,9 @@ Przechowywanie treści maili = przetwarzanie danych osobowych:
 4. **Retencja** treści i załączników (RODO).
 5. **Częstotliwość auto-syncu** w cronie (przy otwarciu widoku i raz dziennie?
    częściej?).
+6. **`client_activity` czy `client_events`** dla wpisu maila na osi klienta
+   (patrz „Aktualizacja kontekstu” na górze) — to decyzja techniczna, możesz
+   ją podjąć sam wg rekomendacji, ale zasygnalizuj właścicielowi wybór.
 
 ## Definicja ukończenia (wersja startowa)
 - Przychodzące maile z az.pl pobierają się (on-demand + cron), auto-dopinają do
