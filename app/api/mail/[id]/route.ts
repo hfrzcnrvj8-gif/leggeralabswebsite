@@ -43,10 +43,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { html, blockedImages } = sanitizeMailHtml(message.body_html || "", allowImages);
 
+  // Pasek wątku (Moduł 4, Etap 3) — inne wiadomości TEGO SAMEGO wątku,
+  // NIEZALEŻNIE od folderu (odpowiedź wysłana z panelu ląduje w Wysłane,
+  // oryginał bywa w Odebranych — konwersacja ma sens tylko pokazana razem).
+  // `message.thread_id` bywa `null` w wąskim oknie przed pierwszym
+  // backfillThreadIds() — wtedy po prostu brak paska, bez błędu.
+  const thread = message.thread_id
+    ? ((await sql`
+        SELECT id, subject, from_addr, from_name, kierunek, folder, status, received_at
+        FROM mail_messages
+        WHERE thread_id = ${message.thread_id} AND id != ${id}
+        ORDER BY received_at ASC;
+      `) as unknown as {
+        id: string;
+        subject: string;
+        from_addr: string;
+        from_name: string;
+        kierunek: string;
+        folder: string;
+        status: string;
+        received_at: string;
+      }[])
+    : [];
+
   return NextResponse.json({
     message: { ...message, body_html: "" },
     html,
     blockedImages,
+    thread,
   });
 }
 

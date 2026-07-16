@@ -419,6 +419,29 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     return out;
   }, [messages, filter, catFilter, query, activeFolder]);
 
+  // Grupowanie w wątki (Moduł 4, Etap 3) — jeden wiersz na wątek zamiast
+  // jednego na wiadomość. `filtered` jest już `received_at DESC` z serwera,
+  // więc PIERWSZE wystąpienie danego thread_id to najnowsza wiadomość wątku
+  // — ona jest reprezentantem wiersza. Świadomie grupowanie TYLKO w obrębie
+  // aktualnie wczytanego folderu (serwer i tak zwraca jeden folder na raz) —
+  // licznik pokazuje więc "ile wiadomości TEGO wątku jest w tym folderze",
+  // nie prawdziwą wielkość całej rozmowy rozpiętej między folderami (tę
+  // pokazuje dopiero pasek wątku w podglądzie, patrz MailDetailPanel.tsx).
+  const threadGroups = useMemo(() => {
+    const byThread = new Map<string, { rep: MailMessageWithLinks; count: number }>();
+    const order: string[] = [];
+    for (const m of filtered) {
+      const key = m.thread_id || m.id; // fallback dla wierszy sprzed migracji wątkowania
+      const g = byThread.get(key);
+      if (g) g.count++;
+      else {
+        byThread.set(key, { rep: m, count: 1 });
+        order.push(key);
+      }
+    }
+    return order.map((k) => byThread.get(k)!);
+  }, [filtered]);
+
   // Nawigacja klawiaturą (Etap 2 Modułu 4b): j/k albo strzałki po liście,
   // Enter otwiera, spacja zaznacza, "r" otwiera odpowiedź na otwartej
   // wiadomości, "e" oznacza jako obsłużone (decyzja właściciela 2026-07-16:
@@ -435,7 +458,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
 
       if (e.key === "j" || e.key === "ArrowDown") {
         e.preventDefault();
-        setFocusedIndex((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
+        setFocusedIndex((i) => Math.min(i + 1, Math.max(threadGroups.length - 1, 0)));
         return;
       }
       if (e.key === "k" || e.key === "ArrowUp") {
@@ -443,14 +466,14 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         setFocusedIndex((i) => Math.max(i - 1, 0));
         return;
       }
-      if (e.key === "Enter" && filtered[focusedIndex]) {
+      if (e.key === "Enter" && threadGroups[focusedIndex]) {
         e.preventDefault();
-        setOpenId(filtered[focusedIndex].id);
+        setOpenId(threadGroups[focusedIndex].rep.id);
         return;
       }
-      if (e.key === " " && filtered[focusedIndex]) {
+      if (e.key === " " && threadGroups[focusedIndex]) {
         e.preventDefault();
-        toggleSelect(filtered[focusedIndex].id);
+        toggleSelect(threadGroups[focusedIndex].rep.id);
         return;
       }
       if (e.key === "r" && openId) {
@@ -471,15 +494,23 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         setReplyAllShortcutNonce((n) => n + 1);
         return;
       }
+      // Skróty niżej ("e"/"s"/"y"/Backspace) rozstrzygają cel przez
+      // threadGroups (reprezentanci wątków), nie przez surowe `filtered` —
+      // patrz komentarz przy threadGroups wyżej. Świadome ograniczenie v1:
+      // jeśli `openId` wskazuje wiadomość spoza aktualnie wczytanego folderu
+      // (siostra z wątku otwarta przez pasek w podglądzie —
+      // MailDetailPanel.tsx), te skróty stają się no-opem, dopóki właściciel
+      // nie wróci do wiadomości faktycznie obecnej na liście — to NIE błąd,
+      // kliknięcia myszką w samym podglądzie nadal działają normalnie.
       if (e.key === "e") {
-        const targetId = openId ?? filtered[focusedIndex]?.id;
+        const targetId = openId ?? threadGroups[focusedIndex]?.rep.id;
         if (targetId) {
           e.preventDefault();
           void setMailStatus(targetId, "obsłużony");
         }
       }
       if (e.key === "s") {
-        const target = filtered.find((m) => m.id === (openId ?? filtered[focusedIndex]?.id));
+        const target = threadGroups.map((g) => g.rep).find((m) => m.id === (openId ?? threadGroups[focusedIndex]?.rep.id));
         if (target) {
           e.preventDefault();
           void toggleFlag(target.id, !target.flagged);
@@ -489,14 +520,14 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       // otwartej LUB fokusowanej wiadomości (jak "e"/"s" wyżej), bez
       // potwierdzenia (patrz komentarz przy moveMail()).
       if (e.key === "y") {
-        const target = filtered.find((m) => m.id === (openId ?? filtered[focusedIndex]?.id));
+        const target = threadGroups.map((g) => g.rep).find((m) => m.id === (openId ?? threadGroups[focusedIndex]?.rep.id));
         if (target && configured && target.folder !== "archive") {
           e.preventDefault();
           void moveMail(target.id, "archive");
         }
       }
       if (e.key === "Backspace") {
-        const target = filtered.find((m) => m.id === (openId ?? filtered[focusedIndex]?.id));
+        const target = threadGroups.map((g) => g.rep).find((m) => m.id === (openId ?? threadGroups[focusedIndex]?.rep.id));
         if (target && configured && target.folder !== "trash") {
           e.preventDefault();
           void moveMail(target.id, "trash");
@@ -505,9 +536,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openId, filtered, focusedIndex, configured, toggleSelect, setMailStatus, toggleFlag, moveMail]);
-
-  const openMessage = messages?.find((m) => m.id === openId) ?? null;
+  }, [openId, threadGroups, focusedIndex, configured, toggleSelect, setMailStatus, toggleFlag, moveMail]);
 
   if (!messages) {
     return (
@@ -709,19 +738,19 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             zostawać przyklejoną do stałej wartości i wymuszać brutalne
             obcinanie nadawcy/tematu/podglądu w wierszu niżej. */}
         <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[38%] lg:min-w-[380px] lg:max-w-[620px] lg:shrink-0 lg:overflow-y-auto">
-          {filtered.length > 0 && (
+          {threadGroups.length > 0 && (
             <div className="sticky top-0 z-10 flex items-center gap-2 border-b hairline bg-[var(--bg-soft)] px-4 py-2 text-[11px] text-muted">
               <input
                 type="checkbox"
-                checked={filtered.every((m) => selectedIds.has(m.id))}
+                checked={threadGroups.every((g) => selectedIds.has(g.rep.id))}
                 onChange={(e) => toggleSelectAll(e.target.checked)}
                 className="h-3.5 w-3.5 cursor-pointer accent-brand-purple"
                 aria-label="Zaznacz wszystkie widoczne"
               />
-              <span>Zaznacz wszystkie widoczne ({filtered.length})</span>
+              <span>Zaznacz wszystkie widoczne ({threadGroups.length})</span>
             </div>
           )}
-          {filtered.length === 0 ? (
+          {threadGroups.length === 0 ? (
             <p className="p-8 text-center text-sm text-muted opacity-60">
               {activeFolder !== "inbox"
                 ? `Brak wiadomości w folderze „${MAIL_FOLDER_LABEL[activeFolder]}”.`
@@ -733,7 +762,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             </p>
           ) : (
             <ul ref={listRef} className="divide-y divide-[var(--hairline)]">
-              {filtered.map((m, i) => (
+              {threadGroups.map((g, i) => {
+                const m = g.rep;
+                return (
                 <li key={m.id} className="relative" data-idx={i}>
                   <div
                     role="button"
@@ -745,9 +776,17 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setOpenId(m.id);
                     }}
-                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition hover:bg-[var(--hairline)]/40 ${
-                      openId === m.id ? "bg-[var(--hairline)]/50" : ""
-                    } ${focusedIndex === i ? "ring-2 ring-inset ring-brand-purple/50" : ""}`}
+                    // Lżejsze oznaczenie wybranej/fokusowanej wiadomości (04e
+                    // runda 4, zgłoszone jako "toporne") — dotychczasowy
+                    // gruby `ring-2` w 50% krycia był widoczny na PIERWSZYM
+                    // wierszu już przy wejściu (focusedIndex zaczyna od 0),
+                    // więc wyglądał ciężko nawet bez żadnej interakcji.
+                    // Cieńszy ring (1px, 25%) + delikatny fioletowy odcień
+                    // zamiast szarego tła dla otwartej wiadomości, płynne
+                    // przejście zamiast skoku.
+                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-out hover:bg-[var(--hairline)]/40 ${
+                      openId === m.id ? "bg-brand-purple/[0.07]" : ""
+                    } ${focusedIndex === i ? "ring-1 ring-inset ring-brand-purple/25" : ""}`}
                   >
                     <span onClick={(e) => e.stopPropagation()} className="mt-1 shrink-0">
                       <input
@@ -799,6 +838,14 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                       </span>
                       <span className="mt-1 flex items-center gap-1.5">
                         <span className="min-w-0 flex-1 truncate text-[13px]">{m.subject || "(bez tematu)"}</span>
+                        {/* Licznik wątku (Moduł 4, Etap 3) — ile wiadomości TEGO
+                            wątku jest w TYM folderze (grupowanie jest świadomie
+                            folder-scoped, patrz threadGroups wyżej); pełny obraz
+                            rozmowy rozpiętej między folderami pokazuje dopiero
+                            pasek wątku w podglądzie. */}
+                        {g.count > 1 && (
+                          <span className="shrink-0 rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[11px] text-muted">({g.count})</span>
+                        )}
                         {/* Klikalne wprost z listy (zgłoszone przez
                             właściciela) — tak jak już działało w podglądzie
                             (MailDetailPanel.tsx). stopPropagation, żeby klik
@@ -889,16 +936,17 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     </div>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          {openMessage ? (
+          {openId ? (
             <MailDetailPanel
               lang={lang}
-              mailId={openMessage.id}
+              mailId={openId}
               configured={configured}
               onClose={() => setOpenId(null)}
               onChanged={load}
@@ -906,6 +954,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               forwardShortcut={forwardShortcutNonce}
               replyAllShortcut={replyAllShortcutNonce}
               onNavigateToContact={() => writeMailReturnState({ folder: activeFolder, filter, catFilter, openId })}
+              onOpenThreadMessage={setOpenId}
             />
           ) : (
             <div className="card-paper flex min-h-[300px] items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">

@@ -162,12 +162,15 @@ async function ensureSeeded(): Promise<void> {
       const mailLead = randomUUID();
       const mailUnknown = randomUUID();
       const mailNoise = randomUUID();
+      // `thread_id` seedowany od razu jako własny `message_id` (self-rooted) —
+      // reprezentuje stan "po backfillu" zamiast polegać na tym, że
+      // backfillThreadIds() zdąży zadziałać przed pierwszym obejrzeniem w devie.
       await raw(
-        `INSERT INTO mail_messages (id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr, subject, body_text, message_id, status, received_at)
-         VALUES ($1,$2,'in',$3,NULL,$4,$5,$6,$7,$8,$9,'nowy',now() - interval '2 hours'),
-                ($10,$11,'in',NULL,$12,$13,$14,$15,$16,$17,$18,'nowy',now() - interval '1 day'),
-                ($19,$20,'in',NULL,NULL,$21,$22,$23,$24,$25,$26,'nowy',now() - interval '3 hours'),
-                ($27,$28,'in',NULL,NULL,$29,$30,$31,$32,$33,$34,'zignorowany',now() - interval '5 hours')`,
+        `INSERT INTO mail_messages (id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, received_at)
+         VALUES ($1,$2,'in',$3,NULL,$4,$5,$6,$7,$8,$9,$9,'nowy',now() - interval '2 hours'),
+                ($10,$11,'in',NULL,$12,$13,$14,$15,$16,$17,$18,$18,'nowy',now() - interval '1 day'),
+                ($19,$20,'in',NULL,NULL,$21,$22,$23,$24,$25,$26,$26,'nowy',now() - interval '3 hours'),
+                ($27,$28,'in',NULL,NULL,$29,$30,$31,$32,$33,$34,$34,'zignorowany',now() - interval '5 hours')`,
         [
           mailClient, 101, clientA, "anna@nordwind.pl", "Anna Nowak", "kontakt@leggeralabs.pl",
           "Prośba o zmianę w panelu", "Cześć, czy dałoby się dodać eksport do CSV na liście zamówień?\n\nPozdrawiam,\nAnna", "<dev-client-1@nordwind.pl>",
@@ -187,6 +190,27 @@ async function ensureSeeded(): Promise<void> {
           "Twój alert o ofertach pracy na stanowisko Konsultant systemu SAP\nNowe oferty pracy pasują do Twoich preferencji.",
           "<dev-noise-1@linkedin.com>",
         ]
+      );
+
+      // Wątkowanie (Moduł 4, Etap 3) — druga połowa wątku "Re: Automatyzacja
+      // umów": to, co WYSŁALIŚMY do Marka WCZEŚNIEJ (Wysłane), na co mailLead
+      // (Odebrane) jest odpowiedzią. Jedyny sposób, żeby lokalnie sprawdzić
+      // pasek wątku ROZPIĘTY MIĘDZY DWOMA FOLDERAMI (Wysłane + Odebrane) — bez
+      // tego wiersza cross-folder thread strip nie miałby czego pokazać w devie.
+      const mailLeadOriginal = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, folder, lead_id, from_addr, to_addr, subject, body_text, message_id, thread_id, status, received_at)
+         VALUES ($1,100,'out','sent',$2,$3,$4,$5,$6,$7,$7,'obsłużony',now() - interval '2 days')`,
+        [
+          mailLeadOriginal, leadA, "kontakt@leggeralabs.pl", "biuro@kowalski.pl",
+          "Automatyzacja umów",
+          "Dzień dobry, przesyłam wstępną propozycję zakresu automatyzacji obiegu umów — dajcie znać, co Państwo o niej myślicie.",
+          "<dev-lead-1-original@leggeralabs.pl>",
+        ]
+      );
+      await raw(
+        `UPDATE mail_messages SET in_reply_to = $1, refs = $1, thread_id = $1 WHERE id = $2`,
+        ["<dev-lead-1-original@leggeralabs.pl>", mailLead]
       );
 
       // Wpisy na osi kontaktu — dokładnie to, co robi logMailOnTimeline()
@@ -232,8 +256,8 @@ async function ensureSeeded(): Promise<void> {
       // żeby nie renumerować placeholderów w tabeli czterowierszowej wyżej.
       const mailNewsletter = randomUUID();
       await raw(
-        `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, status, kategoria, list_unsubscribe, list_unsubscribe_url, received_at)
-         VALUES ($1,105,'in',$2,$3,$4,$5,$6,$7,'zignorowany','reklama',true,$8,now() - interval '6 hours')`,
+        `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, kategoria, list_unsubscribe, list_unsubscribe_url, received_at)
+         VALUES ($1,105,'in',$2,$3,$4,$5,$6,$7,$7,'zignorowany','reklama',true,$8,now() - interval '6 hours')`,
         [
           mailNewsletter, "newsletter@przyklad.pl", "Przykładowy Newsletter", "kontakt@leggeralabs.pl",
           "Nowości w tym tygodniu",

@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     SELECT m.id, m.uid, m.kierunek, m.folder, m.client_id, m.lead_id, m.invoice_id,
            m.from_addr, m.from_name, m.to_addr, m.subject, m.body_text,
            '' AS body_html,
-           m.message_id, m.in_reply_to, m.refs, m.status, m.kategoria, m.list_unsubscribe_url, m.flagged,
+           m.message_id, m.in_reply_to, m.refs, m.thread_id, m.status, m.kategoria, m.list_unsubscribe_url, m.flagged,
            m.received_at, m.handled_at,
            c.nazwa AS client_nazwa, l.firma AS lead_nazwa, i.numer AS invoice_numer
     FROM mail_messages m

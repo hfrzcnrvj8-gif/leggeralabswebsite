@@ -31,6 +31,11 @@ export function MailDetail({ id, lang }: { id: string; lang: Locale }) {
         configured
         onClose={() => router.push(`/${lang}/admin/mail`)}
         onChanged={() => router.refresh()}
+        // Pasek wątku (Moduł 4, Etap 3) — na samodzielnej podstronie "swap"
+        // to prawdziwa nawigacja (inny URL), w odróżnieniu od setOpenId()
+        // w MailDashboard.tsx, gdzie to tylko zmiana stanu w tej samej
+        // kolumnie podglądu.
+        onOpenThreadMessage={(siblingId) => router.push(`/${lang}/admin/mail/${siblingId}`)}
       />
     </div>
   );

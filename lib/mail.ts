@@ -87,6 +87,10 @@ export type MailMessage = {
   /** Flaga "ważne" (Moduł 4e, runda 2) — TYLKO lokalna, nie synchronizuje się
    * z `\Flagged` po IMAP (świadoma decyzja właściciela, patrz lib/db.ts). */
   flagged: boolean;
+  /** Wątek rozmowy (Moduł 4, Etap 3) — patrz resolveThreadId()
+   * (lib/mailSync.ts) i komentarz przy kolumnie w lib/db.ts. NULL tylko dla
+   * wierszy sprzed migracji, zanim backfillThreadIds() je dogoni. */
+  thread_id: string | null;
   received_at: string;
   handled_at: string | null;
 };
@@ -251,7 +255,10 @@ export const MAIL_CATEGORY_CLASS: Record<MailCategory, string> = {
   rachunek: "bg-brand-gold/15 text-brand-gold",
   urzedowe: "bg-blue-500/15 text-blue-400",
   oferta: "bg-brand-cyan/15 text-brand-cyan",
-  inne: "bg-brand-purple/15 text-brand-purple",
+  // Świadomie NIE brand-purple — to kolor tagu "Klient" w liście/podglądzie
+  // (MailDashboard.tsx/MailDetailPanel.tsx); ten sam kolor dla obu mylił się
+  // wizualnie (zgłoszone przez właściciela, 04e runda 4).
+  inne: "bg-brand-pink/15 text-brand-pink",
 };
 
 /** Domeny spraw urzędowych/bankowych — maile stąd nie mogą ginąć w reklamach.
@@ -329,6 +336,18 @@ export function forwardSubject(subject: string): string {
   if (!s) return "Fwd:";
   if (/^(fwd?|przeka[zż])\s*:/i.test(s)) return s;
   return `Fwd: ${s}`;
+}
+
+/** Odwrotność replySubject()/forwardSubject() — zdejmuje WSZYSTKIE prefiksy
+ * Re:/Odp:/Fwd:/Fw:/Przekaż: naraz (temat bywa "Odp: Fwd: Temat" po kilku
+ * rundach), do dopasowania wątku po temacie w resolveThreadId()
+ * (lib/mailSync.ts, fallback gdy References/In-Reply-To nic nie znajdą). */
+export function normalizeThreadSubject(subject: string): string {
+  let s = (subject || "").trim();
+  while (/^(re|odp|fwd?|przeka[zż])\s*:\s*/i.test(s)) {
+    s = s.replace(/^(re|odp|fwd?|przeka[zż])\s*:\s*/i, "").trim();
+  }
+  return s.toLowerCase();
 }
 
 /** Rozbija pole "DW"/"Do" wpisane ręcznie (adresy po przecinku/średniku) na

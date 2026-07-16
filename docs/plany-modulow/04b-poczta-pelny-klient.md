@@ -197,10 +197,10 @@ zrobione:**
   temu, cisza*. Deterministyczne (`out` bez `in` w wątku po N dniach).
   Dla solo goniącego oferty to potencjalnie najbardziej dochodowa funkcja
   w panelu.
-- **Wątkowanie** — ⚠️ `in_reply_to`/`refs` **JUŻ SĄ w bazie, tylko nikt ich
-  nie czyta**. Dodaj `thread_id`, grupuj algorytmem JWZ (References →
-  In-Reply-To → fallback temat+uczestnicy+okno czasu). Najlepszy stosunek
-  wartości do kosztu z całej listy.
+- **Wątkowanie ✅ ZROBIONE (2026-07-16)** — `thread_id` + algorytm JWZ-lite
+  (References/In-Reply-To → fallback temat+uczestnicy+okno 30 dni), grupa na
+  liście + pasek wątku w podglądzie (cross-folder). Szczegóły: `HUB_SETUP.md`
+  → „Moduł 4, Etap 3 — wątkowanie".
 
 ### Świadomie ODŁOŻONE
 - **Załączniki** — `simpleParser` już je parsuje, `parsed.attachments` jest

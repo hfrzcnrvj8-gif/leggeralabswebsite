@@ -134,19 +134,29 @@
     opacity: var(--orb-opacity);
   }
 
+  /* Obwódka zamiast wypełnienia gradientem (zgłoszone przez właściciela,
+     04e runda 4 — dotychczasowe pełne gradientowe tło "toporne"/ciężkie,
+     Linear/Apple trzymają się lżejszych, obrysowanych kontrolek). Przejście
+     na cubic-bezier(0.16,1,0.3,1) — ten sam "ease" co Popover/modal w
+     Menu.tsx, żeby hover czuł się spójnie z resztą panelu. */
   .btn-primary {
     position: relative;
-    background: linear-gradient(120deg, #7c3aed 0%, #e0a93b 50%, #7c3aed 100%);
-    background-size: 200% 200%;
-    color: #fff;
-    transition: background-position 0.6s ease, transform 0.3s ease,
-      box-shadow 0.3s ease;
-    box-shadow: 0 8px 30px rgba(124, 58, 237, 0.35);
+    background: rgba(124, 58, 237, 0.06);
+    color: #a78bfa;
+    border: 1.5px solid #7c3aed;
+    transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 0 rgba(124, 58, 237, 0);
+  }
+  .dark .btn-primary,
+  .admin-linear .btn-primary {
+    color: #c4b5fd;
   }
   .btn-primary:hover {
-    background-position: 100% 50%;
+    background: rgba(124, 58, 237, 0.14);
     transform: translateY(-1px);
-    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.45);
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.2);
   }
 
   .card-surface {

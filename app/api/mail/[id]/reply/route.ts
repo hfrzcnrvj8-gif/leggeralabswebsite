@@ -99,14 +99,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const replyId = randomUUID();
   try {
+    // thread_id: rodzic już go ma (albo, dla wiadomości sprzed migracji
+    // wątkowania, jeszcze nie doczekał się backfillu) — nie trzeba całego
+    // algorytmu resolveThreadId(), wystarczy przejąć/odziedziczyć.
+    const threadId = original.thread_id || original.message_id;
     await sql`
       INSERT INTO mail_messages (
         id, kierunek, folder, client_id, lead_id, invoice_id, from_addr, to_addr,
-        subject, body_text, message_id, in_reply_to, refs, status, received_at, handled_at
+        subject, body_text, message_id, in_reply_to, refs, thread_id, status, received_at, handled_at
       ) VALUES (
         ${replyId}, 'out', 'sent', ${original.client_id}, ${original.lead_id}, ${original.invoice_id},
         ${original.to_addr}, ${original.from_addr}, ${subject}, ${text},
-        ${sent.messageId}, ${original.message_id}, ${references}, 'obsłużony', now(), now()
+        ${sent.messageId}, ${original.message_id}, ${references}, ${threadId}, 'obsłużony', now(), now()
       )
       ON CONFLICT (message_id) DO NOTHING;
     `;

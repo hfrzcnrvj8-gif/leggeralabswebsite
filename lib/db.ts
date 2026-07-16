@@ -1546,6 +1546,21 @@ async function createMailSchema(): Promise<void> {
   // keywordów na az.pl/Dovecot.
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS flagged BOOLEAN NOT NULL DEFAULT false;`;
 
+  // Moduł 4, Etap 3 (2026-07-16) — wątkowanie (threading). Wątek BEZ
+  // dopasowania jest sam swoim korzeniem: `thread_id = message_id` własnej
+  // wiadomości, zero syntetycznych UUID-ów. Dopasowanie liczy
+  // resolveThreadId() (lib/mailSync.ts) — References/In-Reply-To najpierw,
+  // potem temat+uczestnicy+okno 30 dni jako fallback; historyczne wiersze
+  // dociąga backfillThreadIds(), wołane z syncMailbox() jak
+  // backfillCategories()/backfillCc(). ⚠️ W PRZECIWIEŃSTWIE do tamtych, ten
+  // backfill NIE jest w pełni samo-naprawiający się: wiersz raz
+  // samo-zakorzeniony (bo jego prawdziwy poprzednik nie był jeszcze
+  // zsynchronizowany) zostaje osobnym wątkiem na zawsze — backfill patrzy
+  // tylko na `WHERE thread_id IS NULL`. Akceptowalne przy chronologicznym
+  // napływie poczty jednej skrzynki.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS thread_id TEXT;`;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_thread_id_idx ON mail_messages(thread_id);`;
+
   await markSchemaApplied("mail");
 }
 

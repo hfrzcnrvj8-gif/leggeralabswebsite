@@ -10,6 +10,7 @@ import {
   MailCategoryTag,
   MAIL_STATUSES,
   MAIL_STATUS_LABEL,
+  MAIL_FOLDER_ICON,
   replySubject,
   forwardSubject,
   SIGNATURE_LANGS,
@@ -17,6 +18,7 @@ import {
   type SignatureLang,
   type MailMessageWithLinks,
   type MailStatus,
+  type MailFolder,
 } from "./shared";
 import { MailBodyHtml } from "./MailBodyHtml";
 import { MailComposeForm } from "./MailComposeForm";
@@ -24,6 +26,30 @@ import { TemplatePickerButton, useMailTemplates, type MailTemplate } from "./Tem
 import { useUndoSend } from "./useUndoSend";
 
 type Project = { id: string; tytul: string; status: string };
+
+/** Siostrzana wiadomość TEGO SAMEGO wątku (Moduł 4, Etap 3) — kształt zwracany
+ * przez GET /api/mail/[id] w polu `thread`, patrz app/api/mail/[id]/route.ts. */
+type ThreadSibling = {
+  id: string;
+  subject: string;
+  from_addr: string;
+  from_name: string;
+  kierunek: string;
+  folder: string;
+  status: string;
+  received_at: string;
+};
+
+/** Krótka data dla paska wątku — ten sam wzorzec co formatWhen()
+ * w MailDashboard.tsx, ale osobna kopia (świadomie nie eksportowana stamtąd,
+ * żeby nie ciągnąć zależności od pliku dashboardu z panelu podglądu). */
+function formatThreadWhen(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
+}
 
 /** Podgląd wiadomości. W `MailDashboard` renderowany bezpośrednio obok listy
  * (kolumna podglądu, nie modal — 04d pkt 4: pełna szerokość ekranu zamiast
@@ -41,6 +67,7 @@ export function MailDetailPanel({
   forwardShortcut,
   replyAllShortcut,
   onNavigateToContact,
+  onOpenThreadMessage,
 }: {
   lang: Locale;
   mailId: string;
@@ -61,11 +88,17 @@ export function MailDetailPanel({
    * filtry/otwarta wiadomość). Ten komponent nie zna tego stanu — należy do
    * rodzica, stąd callback zamiast własnej logiki localStorage tutaj. */
   onNavigateToContact?: () => void;
+  /** Pasek wątku (Moduł 4, Etap 3) — klik w siostrę wywołuje to zamiast
+   * lokalnej nawigacji, bo TEN komponent nie wie, czy żyje w kolumnie
+   * podglądu (`MailDashboard.tsx` → `setOpenId`) czy na samodzielnej
+   * podstronie (`[id]/MailDetail.tsx` → `router.push`). */
+  onOpenThreadMessage?: (id: string) => void;
 }) {
   const { toast, prompt } = useUI();
   const [mail, setMail] = useState<MailMessageWithLinks | null>(null);
   const [html, setHtml] = useState("");
   const [blockedImages, setBlockedImages] = useState(false);
+  const [thread, setThread] = useState<ThreadSibling[]>([]);
   const [showImages, setShowImages] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -93,6 +126,7 @@ export function MailDetailPanel({
     setMail(data.message);
     setHtml(data.html || "");
     setBlockedImages(Boolean(data.blockedImages));
+    setThread(Array.isArray(data.thread) ? data.thread : []);
   }, [mailId, showImages, toast]);
 
   useEffect(() => {
@@ -408,6 +442,34 @@ export function MailDetailPanel({
           </button>
         </div>
       </div>
+
+      {/* Pasek wątku (Moduł 4, Etap 3) — inne wiadomości TEJ SAMEJ rozmowy,
+          NIEZALEŻNIE od folderu (odpowiedź wysłana z panelu ląduje w
+          Wysłane, oryginał bywa w Odebranych — to normalny przypadek, nie
+          wyjątek). Świadomie minimalne: bez treści/podglądu, tylko tyle, żeby
+          zidentyfikować i przeskoczyć — pełny składany widok konwersacji to
+          NIE jest zakres tej rundy. */}
+      {thread.length > 0 && (
+        <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
+          {thread.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onOpenThreadMessage?.(s.id)}
+              className="flex shrink-0 items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+              title={s.subject || "(bez tematu)"}
+            >
+              <span aria-hidden>{s.kierunek === "out" ? "↩️" : "✉️"}</span>
+              <span className="max-w-[140px] truncate">{s.kierunek === "out" ? "Ty" : s.from_name || s.from_addr}</span>
+              {s.folder !== "inbox" && (
+                <span aria-hidden title={s.folder}>
+                  {MAIL_FOLDER_ICON[s.folder as MailFolder]}
+                </span>
+              )}
+              <span className="opacity-70">{formatThreadWhen(s.received_at)}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Pasek akcji na górze podglądu (Moduł 4e pkt 1) — zawsze widoczny bez
           przewijania, nawet przy długim mailu. Tryb odpowiedzi/przekazania

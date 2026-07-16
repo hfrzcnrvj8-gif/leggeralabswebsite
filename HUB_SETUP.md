@@ -2974,6 +2974,129 @@ folder/wiadomość od nowa.
   aktywnym filtrem "Wszystkie" I TĄ SAMĄ otwartą wiadomością, bez ręcznego
   wyszukiwania.
 
+### Moduł 4e, runda 4 — pierwszy krok w stronę lżejszego, "Apple/Linear" designu (2026-07-16)
+
+Właściciel: cały panel (nie tylko Poczta) wygląda "toporne, ociężałe" —
+zwłaszcza pełne gradientowe wypełnienia i mocne obrysy. Chce więcej
+lekkości/animacji wzorem Apple i Linear, **globalnie, dla wszystkich obecnych
+i przyszłych modułów** — nie tylko kosmetykę Poczty.
+
+- **`.btn-primary` przeprojektowany globalnie** (`app/globals.css`) — było:
+  stałe, animowane gradientowe tło fiolet→złoto→fiolet + biały tekst +
+  mocny cień. Jest: przezroczyste tło, cienka (1.5px) fioletowa obwódka,
+  fioletowy tekst, delikatny fioletowy fill na hover (`rgba(124,58,237,0.14)`)
+  zamiast przesuwania gradientu. To klasa GLOBALNA, używana w 14+ plikach
+  (każdy moduł ma swoje "jedno główne CTA") — zmiana propaguje się
+  automatycznie, bez ruszania poszczególnych dashboardów. Przejście
+  (`transition`) na `cubic-bezier(0.16,1,0.3,1)` — ten sam "ease" co
+  Popover/modal w `Menu.tsx`, żeby hover czuł się spójnie z resztą panelu
+  (Linear używa dokładnie tej krzywej).
+- **Kolizja kolorów tagów w Poczcie** — kategoria "Rozmowa" (`inne` w
+  `MAIL_CATEGORY_CLASS`, `lib/mail.ts`) miała TEN SAM kolor (brand-purple) co
+  tag "Klient" w liście/podglądzie, więc wizualnie się myliły. Zmienione na
+  brand-pink (jedyny nieużywany dotąd w Poczcie kolor marki) — kontrast
+  potwierdzony wizualnie.
+- **Lżejsze oznaczenie wybranej/fokusowanej wiadomości** (`MailDashboard.tsx`)
+  — to był główny źródło wrażenia "toporności": gruby `ring-2 ring-inset
+  ring-brand-purple/50` wokół fokusowanego wiersza, widoczny na PIERWSZYM
+  wierszu już przy samym wejściu w Pocztę (`focusedIndex` zaczyna od `0`),
+  więc wyglądał ciężko nawet bez żadnej interakcji użytkownika. Zamienione
+  na cieńszy ring (1px, 25% krycia) + delikatny fioletowy odcień tła zamiast
+  szarego dla otwartej wiadomości (`bg-brand-purple/[0.07]`), płynne
+  przejście (`transition-all duration-200 ease-out`) zamiast skoku.
+- **Świadomie ograniczony zakres tej rundy** — to PIERWSZY krok w stronę
+  szerszego odświeżenia designu, nie kompletny przegląd wszystkich modułów.
+  Zrobione: to, co ma efekt globalny przez wspólne klasy (`.btn-primary`) +
+  flagowy przykład w Poczcie (selection state, kolizja kolorów). NIE
+  zrobione: przejście animacjami/"liquid glass" przez każdy pozostały
+  dashboard (Leady/Klienci/Faktury/Projekty/itd.) — to celowo odłożone jako
+  osobna, przyrostowa praca, żeby nie robić ryzykownego, niekontrolowanego
+  sweepu po całym kodzie panelu na raz. `.glass` zostaje zarezerwowane dla
+  chrome (nagłówek, overlay peek panelu) zgodnie z istniejącą zasadą design
+  systemu — NIE rozszerzone na zwykłe karty w tej rundzie.
+- **Zweryfikowane lokalnie (2026-07-16, świeża karta przeglądarki):** `tsc`
+  czysty. "Nowa wiadomość" i "Odpisz" (oba `.btn-primary`) renderują się z
+  przezroczystym tłem i fioletową obwódką; tag "Rozmowa" (różowy) wyraźnie
+  odróżnia się od tagu klienta (fioletowy); otwarta wiadomość w liście ma
+  delikatny fioletowy odcień zamiast ciężkiego obramowania.
+
+### Moduł 4, Etap 3 — wątkowanie (2026-07-16)
+
+Pierwszy punkt Etapu 3 z `docs/plany-modulow/04b-poczta-pelny-klient.md`
+(właściciel wybrał go jako priorytet spośród screener/VIP/snooze/nudge/
+wątkowanie — "najlepszy stosunek wartości do kosztu", bo `in_reply_to`/`refs`/
+`message_id` już były w bazie, tylko nikt ich nie czytał). Pełny plan w
+`/Users/patrykpiecyk/.claude/plans/wiggly-tinkering-waterfall.md` (research +
+Plan agent przed implementacją — zmiana dotyka 6 miejsc insertujących do
+`mail_messages` + całą architekturę listy).
+
+- **Schemat**: nowa kolumna `mail_messages.thread_id TEXT` + indeks
+  (`lib/db.ts`, bramka migracji `"mail"`). Self-rooted: wątek bez dopasowania
+  używa WŁASNEGO `message_id` jako `thread_id` — zero syntetycznych UUID-ów.
+- **Algorytm JWZ-lite** (`lib/mailSync.ts`, `resolveThreadId()`): (1)
+  łańcuch References/In-Reply-To — jeśli którykolwiek message-id jest już w
+  bazie z przypisanym wątkiem, przejmij go; (2) fallback: znormalizowany
+  temat (`normalizeThreadSubject()`, `lib/mail.ts` — zdejmuje WSZYSTKIE
+  prefiksy Re:/Odp:/Fwd:/Przekaż: naraz) + nakładający się uczestnik w oknie
+  30 dni; (3) inaczej — nowy wątek, korzeniem jest sama wiadomość.
+  ⚠️ **Znane ograniczenie**: w przeciwieństwie do kategorii/cc_addr, krok (3)
+  NIE jest w pełni samo-naprawiający się — wiersz raz samo-zakorzeniony (bo
+  jego prawdziwy poprzednik nie był jeszcze zsynchronizowany) zostaje osobnym
+  wątkiem na zawsze, `backfillThreadIds()` patrzy tylko na `WHERE thread_id
+  IS NULL`. Akceptowalne przy chronologicznym napływie poczty jednej
+  skrzynki.
+- **Sześć miejsc zapisu** dostało `thread_id` — `saveIncoming()`/
+  `saveOutgoingFromServer()`/`saveArchivedOrTrashed()` (`lib/mailSync.ts`,
+  pełny algorytm przez współdzielony `ThreadContext` ładowany RAZ na przebieg
+  `syncMailbox()`, mutowany w locie żeby kolejne wiadomości w TYM SAMYM
+  syncu widziały już rozstrzygnięte wątki) oraz `reply`/`forward`/`compose`
+  route'y (`app/api/mail/[id]/reply|forward/route.ts`,
+  `app/api/mail/compose/route.ts` — reply dziedziczy `thread_id` rodzica
+  wprost, bez algorytmu; forward/compose to ZAWSZE nowy, self-rooted wątek,
+  zgodnie z istniejącym zamysłem tych tras).
+- **`backfillThreadIds()`** — ten sam wzorzec co `backfillCategories()`/
+  `backfillCc()`, ale `ORDER BY received_at ASC` (starsze wiadomości muszą
+  rozstrzygnąć się przed nowszymi, które mogą się do nich odwoływać).
+  Wołane z `syncMailbox()` zaraz po `backfillCc()`.
+- **Pasek wątku, świadomie MIĘDZY folderami** — konwersacja rozpięta między
+  Odebrane (przychodzące) i Wysłane (Twoje odpowiedzi z panelu) to normalny
+  przypadek, nie wyjątek. `GET /api/mail/[id]` (`app/api/mail/[id]/route.ts`)
+  dociąga siostrzane wiadomości wątku NIEZALEŻNIE od folderu; `MailDetailPanel.tsx`
+  pokazuje je jako pasek małych, klikalnych pigułek nad paskiem akcji (ikona
+  kierunku + nadawca/"Ty" + ikona folderu gdy inny niż bieżący + data),
+  świadomie BEZ treści/podglądu — pełny składany widok konwersacji (jak w
+  Gmailu) to NIE jest zakres tej rundy, tylko kandydat na kolejną, jeśli
+  właściciel po teście uzna że tego potrzebuje.
+- **Grupowanie na liście jest folder-scoped** (`MailDashboard.tsx`,
+  `threadGroups`) — jeden wiersz na wątek + licznik `(N)`, ale licznik liczy
+  TYLKO wiadomości tego wątku w AKTUALNIE wczytanym folderze (serwer i tak
+  zwraca jeden folder na raz), nie prawdziwą wielkość całej rozmowy — tę
+  pokazuje dopiero pasek wątku w podglądzie. Nawigacja klawiaturą (j/k/Enter/
+  Space/e/s/y/Backspace) i "zaznacz wszystkie widoczne" przełączone z
+  `filtered` na `threadGroups` (reprezentant = najnowsza wiadomość wątku).
+  Warunek renderowania podglądu zmieniony z `openMessage ? ...` (szukane w
+  `messages` bieżącego folderu — nie znalazłoby siostry z innego folderu) na
+  `openId ? <MailDetailPanel mailId={openId} .../> : ...` — `MailDetailPanel`
+  i tak zawsze pobiera samodzielnie po `mailId`, więc to naprawia przypadek
+  cross-folder "za darmo".
+- **Drugi konsument `MailDetailPanel`** (`app/[lang]/admin/mail/[id]/MailDetail.tsx`,
+  samodzielna podstrona z linków z osi kontaktu) też dostał
+  `onOpenThreadMessage` — tam to prawdziwa nawigacja (`router.push` na inny
+  URL), w odróżnieniu od `setOpenId()` w kolumnie podglądu.
+- **Fixture w devie** (`lib/dev-db.ts`) — dodana wiadomość WYCHODZĄCA
+  (Wysłane) będąca wcześniejszą połową istniejącego wątku "Re: Automatyzacja
+  umów" (Odebrane) — jedyny sposób, żeby lokalnie (PGlite, bez prawdziwego
+  IMAP-a) zweryfikować pasek wątku rozpięty między dwoma folderami.
+- **Zweryfikowane lokalnie (2026-07-16, świeża karta przeglądarki, restart
+  serwera dev):** `tsc` czysty. Otwarcie wiadomości Marka Kowalskiego
+  (Odebrane) pokazuje pasek wątku z siostrą w Wysłane (ikona 📤, "Ty", data);
+  klik w siostrę przełącza podgląd na oryginał (temat bez "Re:", status
+  "Obsłużony", bez przycisku Odpisz — bo `kierunek='out'`) BEZ zmiany
+  aktywnego folderu w sidebarze; pasek wątku na oryginale poprawnie pokazuje
+  odwrotny kierunek (✉️ Marek Kowalski). Samodzielna podstrona
+  `/admin/mail/[id]` — klik w pasek wątku robi prawdziwą nawigację
+  (potwierdzone zmianą URL, nie no-op).
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

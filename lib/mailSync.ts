@@ -21,7 +21,15 @@ import {
   type MailFolderRole,
   type DiscoveredFolder,
 } from "./mailbox";
-import { classifyMail, isNoiseMail, mailSummaryLine, MAIL_RETENTION_MONTHS, type MailHeaderHints } from "./mail";
+import {
+  classifyMail,
+  isNoiseMail,
+  mailSummaryLine,
+  extractEmailAddress,
+  normalizeThreadSubject,
+  MAIL_RETENTION_MONTHS,
+  type MailHeaderHints,
+} from "./mail";
 import { todayLocalISO } from "./dates";
 
 export type SyncResult = {
@@ -43,6 +51,186 @@ type FolderCursorRow = {
   uidvalidity: string | number | bigint | null;
   last_seen_uid: number;
 };
+
+/** Okno czasowe fallbacku po temacie w resolveThreadId() niżej — dopasowanie
+ * "ten sam temat + nakładający się uczestnik" tylko w obrębie tylu dni,
+ * zgodnie z briefem Etapu 3 (docs/plany-modulow/04b-poczta-pelny-klient.md). */
+const THREAD_SUBJECT_WINDOW_DAYS = 30;
+
+type ThreadCandidate = {
+  message_id: string;
+  thread_id: string;
+  subject: string;
+  from_addr: string;
+  to_addr: string;
+  cc_addr: string | null;
+  received_at: string | Date;
+};
+
+/** Kontekst wątkowania dla JEDNEGO przebiegu syncMailbox() — ładowany RAZ
+ * (loadThreadContext), mutowany w locie po każdym zapisie
+ * (registerThreadedRow), żeby kolejne wiadomości w TYM SAMYM syncu (także w
+ * innych folderach — foldery lecą równolegle, ale JS jest jednowątkowy, więc
+ * mutacja między await-ami jest bezpieczna) widziały już rozstrzygnięte
+ * wątki, zamiast odpytywać bazę przy każdej wiadomości z osobna. */
+type ThreadContext = {
+  /** message_id → thread_id, BEZ ograniczenia czasowego — References/
+   * In-Reply-To mogą wskazywać wiadomość sprzed lat, a to tylko dwie lekkie
+   * kolumny tekstowe, tanie nawet przy tysiącach wierszy. */
+  byMessageId: Map<string, string>;
+  /** Kandydaci do dopasowania po temacie — ograniczeni do okna czasowego
+   * (patrz THREAD_SUBJECT_WINDOW_DAYS), więc payload nie rośnie z wiekiem
+   * skrzynki. */
+  subjectCandidates: ThreadCandidate[];
+};
+
+async function loadThreadContext(sql: ReturnType<typeof getSql>): Promise<ThreadContext> {
+  const exact = (await sql`
+    SELECT message_id, thread_id FROM mail_messages WHERE thread_id IS NOT NULL;
+  `) as unknown as { message_id: string; thread_id: string }[];
+  const subjectRows = (await sql`
+    SELECT message_id, thread_id, subject, from_addr, to_addr, cc_addr, received_at
+    FROM mail_messages
+    WHERE thread_id IS NOT NULL AND received_at > now() - interval '35 days';
+  `) as unknown as ThreadCandidate[];
+  return {
+    byMessageId: new Map(exact.map((r) => [r.message_id, r.thread_id])),
+    subjectCandidates: subjectRows,
+  };
+}
+
+/** Adresy uczestników (from/to/cc, pole "to"/"cc" bywa listą po przecinku) do
+ * porównania "czy te dwie wiadomości mają wspólnego rozmówcę". */
+function participantAddrs(...raw: (string | null | undefined)[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of raw) {
+    for (const a of (r || "").split(",")) {
+      const e = extractEmailAddress(a);
+      if (e) out.add(e);
+    }
+  }
+  return out;
+}
+
+/**
+ * JWZ-lite: dopasuj wiadomość do istniejącego wątku.
+ * 1. Łańcuch References/In-Reply-To — jeśli którykolwiek message-id jest już
+ *    w bazie z przypisanym wątkiem, przejmij go (najpewniejszy sygnał, ZERO
+ *    zgadywania — to dokładnie to, co Message-ID/References mówią wprost).
+ * 2. Fallback: znormalizowany temat + nakładający się uczestnik w oknie
+ *    THREAD_SUBJECT_WINDOW_DAYS dni — dla wiadomości bez nagłówków wątku
+ *    (stare maile sprzed konwencji, albo klienci nie zawsze je wysyłają).
+ * 3. Inaczej: wiadomość jest korzeniem WŁASNEGO nowego wątku.
+ *
+ * ⚠️ Znane ograniczenie: krok 3 NIE jest samo-naprawiający się jak
+ * kategoria/cc_addr — patrz komentarz przy kolumnie w lib/db.ts.
+ */
+function resolveThreadId(
+  msg: {
+    message_id: string;
+    inReplyTo: string | null;
+    refs: string | null;
+    subject: string;
+    fromAddr: string;
+    toAddr: string;
+    ccAddr: string;
+    receivedAt: Date;
+  },
+  ctx: ThreadContext
+): string {
+  const chain = [...(msg.inReplyTo ? [msg.inReplyTo] : []), ...(msg.refs ? msg.refs.split(/\s+/).filter(Boolean) : [])];
+  for (const rid of chain) {
+    const found = ctx.byMessageId.get(rid);
+    if (found) return found;
+  }
+
+  const subj = normalizeThreadSubject(msg.subject);
+  if (subj) {
+    const mine = participantAddrs(msg.fromAddr, msg.toAddr, msg.ccAddr);
+    const cutoff = msg.receivedAt.getTime() - THREAD_SUBJECT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    let best: ThreadCandidate | null = null;
+    for (const cand of ctx.subjectCandidates) {
+      if (normalizeThreadSubject(cand.subject) !== subj) continue;
+      if (new Date(cand.received_at).getTime() < cutoff) continue;
+      const theirs = participantAddrs(cand.from_addr, cand.to_addr, cand.cc_addr);
+      if (![...mine].some((a) => theirs.has(a))) continue;
+      if (!best || new Date(cand.received_at) > new Date(best.received_at)) best = cand;
+    }
+    if (best) return best.thread_id;
+  }
+
+  return msg.message_id;
+}
+
+/** Rejestruje świeżo zapisaną/rozstrzygniętą wiadomość w kontekście — patrz
+ * komentarz przy ThreadContext wyżej. */
+function registerThreadedRow(
+  ctx: ThreadContext,
+  row: { message_id: string; thread_id: string; subject: string; from_addr: string; to_addr: string; cc_addr: string | null; received_at: string | Date }
+): void {
+  ctx.byMessageId.set(row.message_id, row.thread_id);
+  ctx.subjectCandidates.push(row);
+}
+
+/**
+ * Dociąga `thread_id` historycznym wiadomościom sprzed wprowadzenia
+ * wątkowania (Moduł 4, Etap 3). Ten sam wzorzec co backfillCategories()/
+ * backfillCc(): `WHERE thread_id IS NULL LIMIT 300`, pętla w JS, UPDATE per
+ * wiersz — ale `ORDER BY received_at ASC` jest tu KLUCZOWE (w odróżnieniu od
+ * tamtych): starsze wiadomości w tej samej paczce muszą rozstrzygnąć się
+ * PRZED nowszymi, które mogą się do nich odwoływać przez References.
+ */
+export async function backfillThreadIds(): Promise<{ updated: number }> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT id, message_id, in_reply_to, refs, subject, from_addr, to_addr, cc_addr, received_at
+    FROM mail_messages
+    WHERE thread_id IS NULL
+    ORDER BY received_at ASC
+    LIMIT 300;
+  `) as unknown as {
+    id: string;
+    message_id: string;
+    in_reply_to: string | null;
+    refs: string | null;
+    subject: string;
+    from_addr: string;
+    to_addr: string;
+    cc_addr: string | null;
+    received_at: string;
+  }[];
+  if (rows.length === 0) return { updated: 0 };
+
+  const ctx = await loadThreadContext(sql);
+  let updated = 0;
+  for (const r of rows) {
+    const threadId = resolveThreadId(
+      {
+        message_id: r.message_id,
+        inReplyTo: r.in_reply_to,
+        refs: r.refs,
+        subject: r.subject,
+        fromAddr: r.from_addr,
+        toAddr: r.to_addr,
+        ccAddr: r.cc_addr || "",
+        receivedAt: new Date(r.received_at),
+      },
+      ctx
+    );
+    await sql`UPDATE mail_messages SET thread_id = ${threadId} WHERE id = ${r.id};`;
+    registerThreadedRow(ctx, {
+      message_id: r.message_id,
+      thread_id: threadId,
+      subject: r.subject,
+      from_addr: r.from_addr,
+      to_addr: r.to_addr,
+      cc_addr: r.cc_addr,
+      received_at: r.received_at,
+    });
+    updated++;
+  }
+  return { updated };
+}
 
 /**
  * Pobierz nowe wiadomości ze WSZYSTKICH znanych folderów (Odebrane +, jeśli
@@ -80,6 +268,14 @@ export async function syncMailbox(): Promise<SyncResult> {
     console.error("[mailSync] backfill DW nie powiódł się", e);
   });
   console.log(`[mailSync:timing] po backfillCc: ${Date.now() - t0}ms`);
+
+  // Wątkowanie (Moduł 4, Etap 3) — dogoń historyczne wiersze PRZED
+  // załadowaniem kontekstu niżej, żeby nowe wiadomości z tego przebiegu
+  // mogły się dowiązać do w pełni nadgonionego stanu.
+  await backfillThreadIds().catch((e) => {
+    console.error("[mailSync] backfill wątków nie powiódł się", e);
+  });
+  console.log(`[mailSync:timing] po backfillThreadIds: ${Date.now() - t0}ms`);
 
   // I dopnij maile, które przyszły ZANIM istniał pasujący klient/lead —
   // saveIncoming() dopasowuje tylko raz, w chwili pobrania, więc bez tego
@@ -126,6 +322,10 @@ export async function syncMailbox(): Promise<SyncResult> {
   `) as unknown as FolderCursorRow[];
   console.log(`[mailSync:timing] przed pętlą folderów (${Date.now() - t0}ms) — wiersze:`, JSON.stringify(folderRows));
 
+  // Kontekst wątkowania — ładowany RAZ, dzielony między wszystkie foldery
+  // (mutowany w locie, patrz komentarz przy ThreadContext) tego przebiegu.
+  const threadCtx = await loadThreadContext(sql);
+
   // Każdy folder = osobne połączenie IMAP (TLS + AUTH + SELECT) — sekwencyjne
   // wołanie ich jedno po drugim (jak przy jednym INBOX-ie) sumowałoby czas
   // WSZYSTKICH połączeń. Foldery są od siebie niezależne (własny kursor,
@@ -136,7 +336,7 @@ export async function syncMailbox(): Promise<SyncResult> {
   // fetchu dla ról innych niż 'inbox' (zwraca puste wyniki), więc odrzucenie
   // tu praktycznie zdarza się tylko dla 'inbox' (świadomie przepuszczane
   // dalej, jak w oryginalnym, jednofolderowym kodzie).
-  const settled = await Promise.allSettled(folderRows.map((folder) => syncOneFolder(sql, folder, ownAddr, t0)));
+  const settled = await Promise.allSettled(folderRows.map((folder) => syncOneFolder(sql, folder, ownAddr, t0, threadCtx)));
   console.log(`[mailSync:timing] po wszystkich folderach: ${Date.now() - t0}ms`);
 
   let fetched = 0;
@@ -212,7 +412,8 @@ async function syncOneFolder(
   sql: ReturnType<typeof getSql>,
   folder: FolderCursorRow,
   ownAddr: string,
-  t0: number
+  t0: number,
+  threadCtx: ThreadContext
 ): Promise<SyncResult> {
   const empty: SyncResult = { fetched: 0, saved: 0, matched: 0, unassigned: 0, ignored: 0 };
   let sinceUid = Number(folder.last_seen_uid) || 0;
@@ -256,14 +457,14 @@ async function syncOneFolder(
   for (const msg of batch.messages) {
     try {
       if (folder.role === "inbox") {
-        const outcome = await saveIncoming(sql, msg);
+        const outcome = await saveIncoming(sql, msg, threadCtx);
         if (outcome === "duplicate") continue;
         saved++;
         if (outcome === "ignored") ignored++;
         else if (outcome === "matched") matched++;
         else unassigned++;
       } else if (folder.role === "sent") {
-        const outcome = await saveOutgoingFromServer(sql, msg);
+        const outcome = await saveOutgoingFromServer(sql, msg, threadCtx);
         if (outcome === "duplicate") continue;
         saved++;
         if (outcome === "matched") matched++;
@@ -272,7 +473,7 @@ async function syncOneFolder(
         // trash / archive — lekki odczyt: to dane już raz odrzucone przez
         // właściciela, świadomie BEZ klasyfikacji/dopasowania/wpisu na oś
         // kontaktu (nie mają automatycznie "ożywać" jako nowa aktywność).
-        const outcome = await saveArchivedOrTrashed(sql, msg, folder.role, ownAddr);
+        const outcome = await saveArchivedOrTrashed(sql, msg, folder.role, ownAddr, threadCtx);
         if (outcome === "saved") saved++;
       }
     } catch (e) {
@@ -313,7 +514,7 @@ async function syncOneFolder(
  * właściciela 2026-07-16: self-mail zniknął z Odebranych po pojawieniu się
  * w Wysłane) — Odebrane to kolejka "wymaga reakcji", więc priorytet ma
  * pozostać tam widoczna, nawet kosztem niewidoczności w Wysłane. */
-async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: FetchedMessage): Promise<"matched" | "unassigned" | "duplicate"> {
+async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: FetchedMessage, threadCtx: ThreadContext): Promise<"matched" | "unassigned" | "duplicate"> {
   const candidateAddrs = [msg.toAddr, ...msg.ccAddr.split(",").map((a) => a.trim())].filter(Boolean);
   let match: { type: "client" | "lead"; id: string } | undefined;
   for (const addr of candidateAddrs) {
@@ -326,14 +527,19 @@ async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: Fetch
   const clientId = match?.type === "client" ? match.id : null;
   const leadId = match?.type === "lead" ? match.id : null;
 
+  const threadId = resolveThreadId(
+    { message_id: msg.messageId, inReplyTo: msg.inReplyTo, refs: msg.refs, subject: msg.subject, fromAddr: msg.fromAddr, toAddr: msg.toAddr, ccAddr: msg.ccAddr, receivedAt: msg.receivedAt },
+    threadCtx
+  );
+
   const id = randomUUID();
   const written = (await sql`
     INSERT INTO mail_messages (
       id, uid, kierunek, folder, client_id, lead_id, from_addr, from_name, to_addr, cc_addr,
-      subject, body_text, body_html, message_id, in_reply_to, refs, status, received_at
+      subject, body_text, body_html, message_id, in_reply_to, refs, thread_id, status, received_at
     ) VALUES (
       ${id}, ${msg.uid}, 'out', 'sent', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr}, ${msg.ccAddr},
-      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
+      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs}, ${threadId},
       'obsłużony', ${msg.receivedAt.toISOString()}
     )
     ON CONFLICT (message_id) DO UPDATE SET folder = EXCLUDED.folder
@@ -342,6 +548,7 @@ async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: Fetch
   `) as unknown as { id: string }[];
 
   if (written.length === 0) return "duplicate";
+  registerThreadedRow(threadCtx, { message_id: msg.messageId, thread_id: threadId, subject: msg.subject, from_addr: msg.fromAddr, to_addr: msg.toAddr, cc_addr: msg.ccAddr, received_at: msg.receivedAt });
   if (!match) return "unassigned";
 
   // UWAGA: gdy INSERT trafił w ON CONFLICT (wiadomość już istniała pod INNYM
@@ -369,17 +576,22 @@ async function saveArchivedOrTrashed(
   sql: ReturnType<typeof getSql>,
   msg: FetchedMessage,
   folder: "trash" | "archive",
-  ownAddr: string
+  ownAddr: string,
+  threadCtx: ThreadContext
 ): Promise<"saved" | "duplicate"> {
   const kierunek = msg.fromAddr.toLowerCase() === ownAddr ? "out" : "in";
+  const threadId = resolveThreadId(
+    { message_id: msg.messageId, inReplyTo: msg.inReplyTo, refs: msg.refs, subject: msg.subject, fromAddr: msg.fromAddr, toAddr: msg.toAddr, ccAddr: msg.ccAddr, receivedAt: msg.receivedAt },
+    threadCtx
+  );
   const id = randomUUID();
   const written = (await sql`
     INSERT INTO mail_messages (
       id, uid, kierunek, folder, from_addr, from_name, to_addr, cc_addr,
-      subject, body_text, body_html, message_id, in_reply_to, refs, status, received_at
+      subject, body_text, body_html, message_id, in_reply_to, refs, thread_id, status, received_at
     ) VALUES (
       ${id}, ${msg.uid}, ${kierunek}, ${folder}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr}, ${msg.ccAddr},
-      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
+      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs}, ${threadId},
       'obsłużony', ${msg.receivedAt.toISOString()}
     )
     ON CONFLICT (message_id) DO UPDATE SET folder = EXCLUDED.folder
@@ -387,7 +599,9 @@ async function saveArchivedOrTrashed(
     RETURNING id;
   `) as unknown as { id: string }[];
 
-  return written.length === 0 ? "duplicate" : "saved";
+  if (written.length === 0) return "duplicate";
+  registerThreadedRow(threadCtx, { message_id: msg.messageId, thread_id: threadId, subject: msg.subject, from_addr: msg.fromAddr, to_addr: msg.toAddr, cc_addr: msg.ccAddr, received_at: msg.receivedAt });
+  return "saved";
 }
 
 /**
@@ -560,7 +774,7 @@ type SaveOutcome = "matched" | "unassigned" | "ignored" | "duplicate";
 
 /** Zapisz jedną przychodzącą wiadomość + (gdy dopasowana) wpis na osi
  * kontaktu klienta/leada. */
-async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage): Promise<SaveOutcome> {
+async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage, threadCtx: ThreadContext): Promise<SaveOutcome> {
   const noise = isNoiseMail(msg.fromAddr, msg.hints);
 
   // Dopasowanie liczymy PRZED kategoryzacją, bo "czy znamy nadawcę" jest
@@ -584,15 +798,20 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage)
   // reguł w classifyMail).
   const status = kategoria === "reklama" ? "zignorowany" : "nowy";
 
+  const threadId = resolveThreadId(
+    { message_id: msg.messageId, inReplyTo: msg.inReplyTo, refs: msg.refs, subject: msg.subject, fromAddr: msg.fromAddr, toAddr: msg.toAddr, ccAddr: msg.ccAddr, receivedAt: msg.receivedAt },
+    threadCtx
+  );
+
   const id = randomUUID();
   const inserted = (await sql`
     INSERT INTO mail_messages (
       id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr, cc_addr,
-      subject, body_text, body_html, message_id, in_reply_to, refs, status, kategoria,
+      subject, body_text, body_html, message_id, in_reply_to, refs, thread_id, status, kategoria,
       list_unsubscribe, precedence, auto_submitted, list_unsubscribe_url, received_at
     ) VALUES (
       ${id}, ${msg.uid}, 'in', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr}, ${msg.ccAddr},
-      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
+      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs}, ${threadId},
       ${status}, ${kategoria},
       ${msg.hints.listUnsubscribe}, ${msg.hints.precedence}, ${msg.hints.autoSubmitted}, ${msg.hints.listUnsubscribeUrl},
       ${msg.receivedAt.toISOString()}
@@ -603,6 +822,7 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage)
 
   // Pusty RETURNING = ON CONFLICT zadziałał, czyli znaliśmy już tę wiadomość.
   if (inserted.length === 0) return "duplicate";
+  registerThreadedRow(threadCtx, { message_id: msg.messageId, thread_id: threadId, subject: msg.subject, from_addr: msg.fromAddr, to_addr: msg.toAddr, cc_addr: msg.ccAddr, received_at: msg.receivedAt });
   if (kategoria === "reklama") return "ignored";
   if (!match) return "unassigned";
 

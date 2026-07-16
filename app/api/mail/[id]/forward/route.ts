@@ -117,14 +117,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const clientId = match?.type === "client" ? match.id : null;
     const leadId = match?.type === "lead" ? match.id : null;
 
+    // Przekazanie to ZAWSZE nowy wątek (patrz komentarz na górze pliku) —
+    // self-rooted, własny message_id jako thread_id.
     await sql`
       INSERT INTO mail_messages (
         id, kierunek, folder, client_id, lead_id, from_addr, to_addr, cc_addr,
-        subject, body_text, message_id, status, received_at, handled_at
+        subject, body_text, message_id, thread_id, status, received_at, handled_at
       ) VALUES (
         ${mailId}, 'out', 'sent', ${clientId}, ${leadId},
         '', ${to}, ${cc.join(", ")}, ${subject}, ${comment},
-        ${sent.messageId}, 'obsłużony', now(), now()
+        ${sent.messageId}, ${sent.messageId}, 'obsłużony', now(), now()
       )
       ON CONFLICT (message_id) DO NOTHING;
     `;
