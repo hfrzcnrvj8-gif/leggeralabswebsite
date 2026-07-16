@@ -823,6 +823,19 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage,
   // Pusty RETURNING = ON CONFLICT zadziałał, czyli znaliśmy już tę wiadomość.
   if (inserted.length === 0) return "duplicate";
   registerThreadedRow(threadCtx, { message_id: msg.messageId, thread_id: threadId, subject: msg.subject, from_addr: msg.fromAddr, to_addr: msg.toAddr, cc_addr: msg.ccAddr, received_at: msg.receivedAt });
+
+  // Screener nowych nadawców (Moduł 4, Etap 3) — 'oferta' jest jedyną
+  // kategorią przypisywaną naprawdę nieznanym, nie-spamowym nadawcom (patrz
+  // classifyMail w lib/mail.ts). ON CONFLICT DO NOTHING: nie nadpisuje decyzji
+  // (approved/blocked) już podjętej wcześniej dla tego adresu.
+  if (kategoria === "oferta") {
+    await sql`
+      INSERT INTO mail_senders (id, email, status)
+      VALUES (${randomUUID()}, ${msg.fromAddr}, 'pending')
+      ON CONFLICT (email) DO NOTHING;
+    `;
+  }
+
   if (kategoria === "reklama") return "ignored";
   if (!match) return "unassigned";
 

@@ -1561,6 +1561,23 @@ async function createMailSchema(): Promise<void> {
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS thread_id TEXT;`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_thread_id_idx ON mail_messages(thread_id);`;
 
+  // Moduł 4, Etap 3 (2026-07-16) — screener nowych nadawców. Wpis 'pending'
+  // powstaje TYLKO przy pierwszym zsynchronizowanym mailu kategorii 'oferta'
+  // (saveIncoming() w lib/mailSync.ts); zatwierdzenie/blokada to zapis JEDNEGO
+  // wiersza tutaj — bramkowanie widoczności w listach idzie przez LEFT JOIN
+  // przy odczycie (app/api/mail/route.ts), NIE przez flagę na wiadomości, więc
+  // decyzja działa od razu na całą historię tego nadawcy bez backfillu.
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_senders (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      decided_at TIMESTAMPTZ
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS mail_senders_status_idx ON mail_senders(status);`;
+
   await markSchemaApplied("mail");
 }
 

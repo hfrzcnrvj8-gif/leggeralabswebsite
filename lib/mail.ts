@@ -100,6 +100,12 @@ export type MailMessage = {
   handled_at: string | null;
 };
 
+/** Screener nowych nadawców (Moduł 4, Etap 3) — status wpisu w `mail_senders`,
+ * dołączany przez JOIN przy odczycie (nie zapisany na samej wiadomości), patrz
+ * komentarz przy tabeli w lib/db.ts. */
+export const MAIL_SENDER_STATUSES = ["pending", "approved", "blocked"] as const;
+export type MailSenderStatus = (typeof MAIL_SENDER_STATUSES)[number];
+
 /** Wiadomość + rozwiązane nazwy powiązanych rekordów — kształt zwracany przez
  * GET /api/mail (lista) i GET /api/mail/[id] (podgląd). Nazwy dołącza serwer,
  * żeby lista nie musiała dociągać każdego klienta osobno. */
@@ -107,6 +113,9 @@ export type MailMessageWithLinks = MailMessage & {
   client_nazwa: string | null;
   lead_nazwa: string | null;
   invoice_numer: string | null;
+  /** null = nadawca nigdy nie trafił do bramki (znany kontakt, poczta
+   * wychodząca, albo wiadomość nie-'oferta') — patrz MAIL_SENDER_STATUSES. */
+  sender_status: MailSenderStatus | null;
 };
 
 /** Normalizacja adresu do porównań i dedupu: małe litery, bez białych znaków.

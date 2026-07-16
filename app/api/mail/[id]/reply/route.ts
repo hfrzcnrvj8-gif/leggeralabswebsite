@@ -118,6 +118,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Odpowiedź zamyka temat — oryginał przestaje być "do odpowiedzi".
     await sql`UPDATE mail_messages SET status = 'obsłużony', handled_at = now() WHERE id = ${id};`;
 
+    // Screener nowych nadawców (Moduł 4, Etap 3) — Odpisz to jedyna akcja
+    // jednoznacznie mówiąca "chcę tę rozmowę", więc auto-zatwierdza pending
+    // nadawcę. No-op, jeśli nadawca nie był 'pending' (znany kontakt, albo już
+    // approved/blocked).
+    await sql`UPDATE mail_senders SET status = 'approved', decided_at = now() WHERE email = ${original.from_addr} AND status = 'pending';`;
+
     const match = original.client_id
       ? ({ type: "client", id: original.client_id } as const)
       : original.lead_id

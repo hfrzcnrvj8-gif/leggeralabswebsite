@@ -25,12 +25,13 @@ import { MailComposeForm } from "./MailComposeForm";
 // listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki". Sensowne
 // TYLKO w Odebranych (Etap 2 Modułu 4b) — Wysłane/Kosz/Archiwum nie mają
 // pojęcia "do odpowiedzi" ani klasyfikacji treści.
-type Filter = "nowy" | "unassigned" | "all";
+type Filter = "nowy" | "unassigned" | "screener" | "all";
 type CatFilter = "wszystkie" | "oferta" | "rachunek" | "urzedowe" | "inne" | "reklama";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "nowy", label: "Do odpowiedzi" },
   { id: "unassigned", label: "Nieprzypisane" },
+  { id: "screener", label: "Nowi nadawcy" },
   { id: "all", label: "Wszystkie" },
 ];
 
@@ -406,9 +407,26 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     // (np. "Rachunek") zostałby "przyklejony" i pokazywałby 0 wyników po
     // przełączeniu na Wysłane/Kosz/Archiwum, gdzie kategoria zawsze jest null.
     if (activeFolder === "inbox") {
-      if (filter === "nowy") out = out.filter((m) => m.status === "nowy" && m.kierunek === "in");
-      else if (filter === "unassigned") {
-        out = out.filter((m) => !m.client_id && !m.lead_id && m.kierunek === "in" && m.status !== "zignorowany");
+      // Screener (Moduł 4, Etap 3) — nadawca 'pending'/'blocked' jest
+      // wykluczony z "Do odpowiedzi"/"Nieprzypisane" (bramkowanie przy
+      // odczycie, patrz app/api/mail/route.ts) i widoczny TYLKO pod "Nowi
+      // nadawcy", dopóki właściciel nie podejmie decyzji.
+      if (filter === "nowy") {
+        out = out.filter(
+          (m) => m.status === "nowy" && m.kierunek === "in" && m.sender_status !== "pending" && m.sender_status !== "blocked"
+        );
+      } else if (filter === "unassigned") {
+        out = out.filter(
+          (m) =>
+            !m.client_id &&
+            !m.lead_id &&
+            m.kierunek === "in" &&
+            m.status !== "zignorowany" &&
+            m.sender_status !== "pending" &&
+            m.sender_status !== "blocked"
+        );
+      } else if (filter === "screener") {
+        out = out.filter((m) => m.sender_status === "pending" && m.kierunek === "in");
       }
       if (catFilter !== "wszystkie") {
         // Wiersze sprzed wprowadzenia kategorii mają null — traktujemy je jak
@@ -638,6 +656,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               {f.label}
               {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
               {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
+              {f.id === "screener" && counts.pending_screener > 0 ? ` (${counts.pending_screener})` : ""}
             </button>
           ))}
         </div>

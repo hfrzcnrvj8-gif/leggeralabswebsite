@@ -14,6 +14,7 @@ export {
   type MailDirection,
   type MailCategory,
   type MailFolder,
+  type MailSenderStatus,
   MAIL_STATUSES,
   MAIL_STATUS_LABEL,
   MAIL_STATUS_CLASS,

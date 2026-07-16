@@ -226,6 +226,34 @@ export function MailDetailPanel({
     await onChanged();
   }, [mail, mailId, load, onChanged, toast]);
 
+  /** Decyzja screenera (Moduł 4, Etap 3) — "Zatwierdź nadawcę"/"Zablokuj" z
+   * baneru niżej. Ten sam wzorzec co toggleFlag() wyżej: PATCH, potem load()
+   * + onChanged() (żeby licznik "Nowi nadawcy" i lista w tle od razu się
+   * zaktualizowały bez ręcznego odświeżania). */
+  const decideSender = useCallback(
+    async (decision: "approved" | "blocked") => {
+      if (!mail) return;
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/mail/${mailId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ senderDecision: decision }),
+        });
+        if (!res.ok) {
+          toast("Nie udało się zapisać decyzji o nadawcy.", "error");
+          return;
+        }
+        await load();
+        await onChanged();
+        toast(decision === "approved" ? "Nadawca zatwierdzony." : "Nadawca zablokowany.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [mail, mailId, load, onChanged, toast]
+  );
+
   const send = useCallback(() => {
     const text = replyText.trim();
     if (!text) {
@@ -713,6 +741,34 @@ export function MailDetailPanel({
           </>
         )}
       </div>
+
+      {/* Baner screenera nowych nadawców (Moduł 4, Etap 3) — TYLKO gdy
+          nadawca jest jeszcze 'pending' (dopiero wpadł do bramki, patrz
+          lib/mailSync.ts saveIncoming()). "Odpisz" działa niezależnie od tej
+          decyzji — wysłanie odpowiedzi auto-zatwierdza nadawcę samo
+          (app/api/mail/[id]/reply/route.ts), więc baner po prostu zniknie
+          przy następnym load() bez konieczności klikania tu. */}
+      {mail.sender_status === "pending" && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
+          <span className="text-muted">👋 Nowy nadawca — jeszcze nie zatwierdzony.</span>
+          <span className="flex items-center gap-2">
+            <button
+              onClick={() => void decideSender("approved")}
+              disabled={busy}
+              className="rounded-full border border-emerald-500/40 px-2.5 py-1 font-medium text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+            >
+              Zatwierdź nadawcę
+            </button>
+            <button
+              onClick={() => void decideSender("blocked")}
+              disabled={busy}
+              className="rounded-full border border-red-500/40 px-2.5 py-1 font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+            >
+              Zablokuj
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Baner listy dystrybucyjnej (Moduł 4e pkt 3) — wzorem Apple Mail, nad
           treścią maila. `list_unsubscribe_url` niesie GOTOWY link (http(s)

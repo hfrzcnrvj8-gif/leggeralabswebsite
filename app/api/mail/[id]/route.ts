@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema, ensureMailFoldersSchema } from "@/lib/db";
 import { MAIL_STATUSES, mailSummaryLine, type MailMessageWithLinks } from "@/lib/mail";
@@ -30,11 +31,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const sql = getSql();
 
   const rows = (await sql`
-    SELECT m.*, c.nazwa AS client_nazwa, l.firma AS lead_nazwa, i.numer AS invoice_numer
+    SELECT m.*, c.nazwa AS client_nazwa, l.firma AS lead_nazwa, i.numer AS invoice_numer,
+           ms.status AS sender_status
     FROM mail_messages m
     LEFT JOIN clients c ON c.id = m.client_id
     LEFT JOIN leads l ON l.id = m.lead_id
     LEFT JOIN invoices i ON i.id = m.invoice_id
+    LEFT JOIN mail_senders ms ON ms.email = m.from_addr
     WHERE m.id = ${id};
   `) as unknown as MailMessageWithLinks[];
 
@@ -92,6 +95,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     lead_id?: unknown;
     move?: unknown;
     flagged?: unknown;
+    senderDecision?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
 
@@ -104,6 +108,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     folder: string;
     subject: string;
     body_text: string;
+    from_addr: string;
     client_id: string | null;
     lead_id: string | null;
   }[];
@@ -178,6 +183,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Flaga "ważne" (Moduł 4e, runda 2) — TYLKO lokalna, nie dotyka IMAP-a.
   if (typeof body.flagged === "boolean") {
     await sql`UPDATE mail_messages SET flagged = ${body.flagged} WHERE id = ${id};`;
+  }
+
+  // Screener nowych nadawców (Moduł 4, Etap 3) — decyzja "Zatwierdź"/"Zablokuj"
+  // z baneru w podglądzie wiadomości. Upsert (nie goły UPDATE): odporne nawet
+  // gdyby wywołanie przyszło bez istniejącego wcześniej wpisu 'pending'.
+  if (typeof body.senderDecision === "string") {
+    if (body.senderDecision !== "approved" && body.senderDecision !== "blocked") {
+      return NextResponse.json({ error: "invalid sender decision" }, { status: 400 });
+    }
+    if (!mail.from_addr) {
+      return NextResponse.json({ error: "Ta wiadomość nie ma adresu nadawcy." }, { status: 400 });
+    }
+    await sql`
+      INSERT INTO mail_senders (id, email, status, decided_at)
+      VALUES (${randomUUID()}, ${mail.from_addr}, ${body.senderDecision}, now())
+      ON CONFLICT (email) DO UPDATE SET status = EXCLUDED.status, decided_at = now();
+    `;
   }
 
   // Ręczne przypisanie z kolejki "Nieprzypisane". Zawsze dokładnie jedna

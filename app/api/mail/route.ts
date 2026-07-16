@@ -48,11 +48,13 @@ export async function GET(req: NextRequest) {
            '' AS body_html,
            m.message_id, m.in_reply_to, m.refs, m.thread_id, m.status, m.kategoria, m.list_unsubscribe_url, m.flagged,
            m.received_at, m.handled_at,
-           c.nazwa AS client_nazwa, l.firma AS lead_nazwa, i.numer AS invoice_numer
+           c.nazwa AS client_nazwa, l.firma AS lead_nazwa, i.numer AS invoice_numer,
+           ms.status AS sender_status
     FROM mail_messages m
     LEFT JOIN clients c ON c.id = m.client_id
     LEFT JOIN leads l ON l.id = m.lead_id
     LEFT JOIN invoices i ON i.id = m.invoice_id
+    LEFT JOIN mail_senders ms ON ms.email = m.from_addr
     WHERE m.folder = ${folder}
       AND (${status}::text IS NULL OR m.status = ${status})
       AND (${unassignedOnly} = false OR (m.client_id IS NULL AND m.lead_id IS NULL))
@@ -78,18 +80,23 @@ export async function GET(req: NextRequest) {
   // do liczników w sidebarze folderów.
   const [counts] = (await sql`
     SELECT
-      COUNT(*) FILTER (WHERE status = 'nowy' AND kierunek = 'in' AND folder = 'inbox')::int AS nowe,
-      COUNT(*) FILTER (WHERE client_id IS NULL AND lead_id IS NULL AND kierunek = 'in' AND status != 'zignorowany' AND folder = 'inbox')::int AS nieprzypisane,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'oferta')::int AS oferta,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'rachunek')::int AS rachunek,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'urzedowe')::int AS urzedowe,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'inne')::int AS inne,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'reklama')::int AS reklama,
-      COUNT(*) FILTER (WHERE folder = 'inbox')::int AS folder_inbox,
-      COUNT(*) FILTER (WHERE folder = 'sent')::int AS folder_sent,
-      COUNT(*) FILTER (WHERE folder = 'trash')::int AS folder_trash,
-      COUNT(*) FILTER (WHERE folder = 'archive')::int AS folder_archive
-    FROM mail_messages;
+      COUNT(*) FILTER (WHERE m.status = 'nowy' AND m.kierunek = 'in' AND m.folder = 'inbox'
+        AND COALESCE(ms.status,'') NOT IN ('pending','blocked'))::int AS nowe,
+      COUNT(*) FILTER (WHERE m.client_id IS NULL AND m.lead_id IS NULL AND m.kierunek = 'in'
+        AND m.status != 'zignorowany' AND m.folder = 'inbox'
+        AND COALESCE(ms.status,'') NOT IN ('pending','blocked'))::int AS nieprzypisane,
+      COUNT(*) FILTER (WHERE m.kierunek = 'in' AND m.folder = 'inbox' AND COALESCE(m.kategoria, 'inne') = 'oferta')::int AS oferta,
+      COUNT(*) FILTER (WHERE m.kierunek = 'in' AND m.folder = 'inbox' AND COALESCE(m.kategoria, 'inne') = 'rachunek')::int AS rachunek,
+      COUNT(*) FILTER (WHERE m.kierunek = 'in' AND m.folder = 'inbox' AND COALESCE(m.kategoria, 'inne') = 'urzedowe')::int AS urzedowe,
+      COUNT(*) FILTER (WHERE m.kierunek = 'in' AND m.folder = 'inbox' AND COALESCE(m.kategoria, 'inne') = 'inne')::int AS inne,
+      COUNT(*) FILTER (WHERE m.kierunek = 'in' AND m.folder = 'inbox' AND COALESCE(m.kategoria, 'inne') = 'reklama')::int AS reklama,
+      COUNT(*) FILTER (WHERE m.kierunek = 'in' AND m.folder = 'inbox' AND ms.status = 'pending')::int AS pending_screener,
+      COUNT(*) FILTER (WHERE m.folder = 'inbox')::int AS folder_inbox,
+      COUNT(*) FILTER (WHERE m.folder = 'sent')::int AS folder_sent,
+      COUNT(*) FILTER (WHERE m.folder = 'trash')::int AS folder_trash,
+      COUNT(*) FILTER (WHERE m.folder = 'archive')::int AS folder_archive
+    FROM mail_messages m
+    LEFT JOIN mail_senders ms ON ms.email = m.from_addr;
   `) as unknown as Record<string, number>[];
 
   return NextResponse.json({ messages: rows, counts, configured: isMailboxConfigured() });

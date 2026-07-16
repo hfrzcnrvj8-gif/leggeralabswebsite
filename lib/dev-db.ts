@@ -192,6 +192,29 @@ async function ensureSeeded(): Promise<void> {
         ]
       );
 
+      // Screener nowych nadawców (Moduł 4, Etap 3) — dokładnie to, co
+      // saveIncoming() (lib/mailSync.ts) zapisałby dla ŚWIEŻO
+      // zsynchronizowanego maila kategorii 'oferta': sam wiersz w
+      // mail_messages (kategoria świadomie NIE NULL, w odróżnieniu od
+      // mailUnknown wyżej — ten reprezentuje pocztę sprzed wprowadzenia
+      // kategorii) + wpis 'pending' w mail_senders. Bez tego drugiego wiersza
+      // bramka nie miałaby czego pokazać w "Nowi nadawcy".
+      const mailScreener = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, kategoria, received_at)
+         VALUES ($1,106,'in',$2,$3,$4,$5,$6,$7,$7,'nowy','oferta',now() - interval '30 minutes')`,
+        [
+          mailScreener, "kontakt@nieznanafirma.pl", "Piotr Zieliński", "kontakt@leggeralabs.pl",
+          "Zapytanie o wdrożenie",
+          "Dzień dobry, natrafiłem na Państwa stronę i chciałbym zapytać o możliwość współpracy przy automatyzacji procesów.",
+          "<dev-screener-1@nieznanafirma.pl>",
+        ]
+      );
+      await raw(
+        `INSERT INTO mail_senders (id, email, status) VALUES ($1,$2,'pending')`,
+        [randomUUID(), "kontakt@nieznanafirma.pl"]
+      );
+
       // Wątkowanie (Moduł 4, Etap 3) — druga połowa wątku "Re: Automatyzacja
       // umów": to, co WYSŁALIŚMY do Marka WCZEŚNIEJ (Wysłane), na co mailLead
       // (Odebrane) jest odpowiedzią. Jedyny sposób, żeby lokalnie sprawdzić
@@ -267,7 +290,7 @@ async function ensureSeeded(): Promise<void> {
         ]
       );
 
-      await raw(`UPDATE mail_state SET last_seen_uid = 105 WHERE id = 'default'`, []);
+      await raw(`UPDATE mail_state SET last_seen_uid = 106 WHERE id = 'default'`, []);
     })();
   }
   await seedPromise;
