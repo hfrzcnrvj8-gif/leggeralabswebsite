@@ -555,6 +555,60 @@ własnym proxy na porcie **11435** (nie domyślny port Ollamy 11434).
   `ollamaHealth`) — obsługa obrazów (pole `images` w `/api/generate`) do
   dodania przy Module 8.
 
+## Moduł 7 — AI: szkice odpowiedzi mailowych (2026-07-16)
+
+W widoku odpowiadania na maila (`MailDetailPanel.tsx`, Moduł 4/4b) przycisk
+"✨ Zaproponuj szkic" — obok `TemplatePickerButton`, w tym samym rządku —
+generuje modelem tekstowym (Ollama) PROPOZYCJĘ treści odpowiedzi i wstawia ją
+do pola `replyText`. Właściciel czyta, poprawia, dopiero wtedy klika "Wyślij
+odpowiedź" — model nigdy nic nie wysyła sam (patrz CLAUDE.md, jedyny
+dopuszczony wyjątek od "zero AI w logice panelu", ten sam co Moduł 8).
+
+- **Model:** `qwen3.6:27b` (`DRAFT_MODEL`, `lib/mail-draft.ts`) — z listy
+  modeli tekstowych zainstalowanych na Macu właściciela (2026-07-16:
+  `qwen2.5vl:7b/32b`, `qwen3-vl:8b`, `qwen3.5:9b`, `qwen3.6:27b`,
+  `qwen3-coder:30b`, `qwen3:14b`, `gemma4:26b`, `nomic-embed-text` —
+  wybrany największy spośród ogólnych "qwen3.x", poza wariantami wizyjnymi
+  (te zarezerwowane pod OCR, Moduł 8), coderem i embeddingami. Jakość
+  polskiej prozy ma tu większe znaczenie niż przy OCR-owym odczycie pól, a
+  funkcja jest klikana pojedynczo, nie w pętli — większy/wolniejszy model
+  jest uzasadniony.
+- **Ton/długość (decyzja właściciela 2026-07-16):** neutralny, długość
+  dopasowana przez model do treści maila źródłowego (nie sztywno "krótko").
+- **Kontekst do modelu** (`buildDraftPrompt()`): temat + treść maila, na
+  który odpowiadamy, oraz — jeśli mail jest dopięty do klienta/leada —
+  nazwa firmy, branża, status i ostatnia notatka z `client_activity`/
+  `lead_activity` (`ORDER BY created_at DESC LIMIT 1`). Historia
+  wcześniejszej korespondencji z tym kontaktem świadomie NIE wchodzi do
+  promptu (decyzja właściciela 2026-07-16: prościej, szybciej, kontekst
+  klienta wystarcza). System prompt (`DRAFT_SYSTEM`) ma jawny zakaz
+  zmyślania faktów i instrukcję, żeby model nie dopisywał zamknięcia z
+  podpisem — ten dokleja się osobno (przełącznik PL/EN/DE/Bez podpisu, już
+  istniejący w `MailDetailPanel.tsx`).
+- **`POST /api/mail/:id/draft-reply`** (admin-only, `runtime = "nodejs"`,
+  `maxDuration = 60`): dociąga mail + LEFT JOIN `clients`/`leads` (ten sam
+  wzorzec co `GET /api/mail/:id`), osobnym zapytaniem ostatnią notatkę z
+  osi kontaktu, woła `ollamaGenerate()` (`lib/ollama.ts`, Moduł 6,
+  `DRAFT_TIMEOUT_MS = 45s`), zwraca `{ draft }` albo `503` z czytelnym
+  błędem ("Model AI chwilowo niedostępny — napisz odpowiedź ręcznie.") gdy
+  model niedostępny. Nigdy nic nie zapisuje/wysyła.
+- **UI:** klik nadpisuje CAŁE pole `replyText` treścią szkicu (decyzja
+  właściciela 2026-07-16 — to pełna propozycja odpowiedzi, nie fragment do
+  doklejenia jak szablon, inaczej niż `applyTemplate()`). Stan ładowania
+  ("Generuję…", przycisk disabled) i błąd przez `toast()` (`useUI()`) —
+  nigdy nie blokuje "Wyślij odpowiedź" ani ręcznego pisania.
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty; w dev (bez
+  `OLLAMA_API_URL`) endpoint poprawnie zwraca `503` z kontrolowanym
+  komunikatem (potwierdzone przez `GET`/`POST` w Network — brak 500,
+  brak zawieszenia), pole treści zostaje puste zamiast nadpisane śmieciem,
+  reszta panelu (Wyślij/Anuluj/szablony/podpis) w pełni używalna. Test
+  wykonany na mailu dopiętym do klienta (Nordwind Studio), więc ścieżka
+  LEFT JOIN + zapytanie o ostatnią notatkę z `client_activity` również
+  przeszła bez błędu. Jakość samego tekstu szkicu (polska proza modelu
+  `qwen3.6:27b` na żywej korespondencji) do potwierdzenia na produkcji z
+  prawdziwym Mac Studio właściciela — jeśli jakość zawiedzie, `DRAFT_MODEL`
+  to jedna stała do zmiany.
+
 ## Moduł 8 — OCR paragonów/faktur zakupowych w Kosztach (2026-07-14)
 
 Przy dodawaniu kosztu: po wgraniu załącznika (skan/PDF) pojawia się przycisk

@@ -54,6 +54,7 @@ export function MailDetailPanel({
   // 2026-07-15 — świadomie ręcznie, nie automatem po kraju klienta).
   const [podpis, setPodpis] = useState<SignatureLang | null>("pl");
   const [busy, setBusy] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
   const [projects, setProjects] = useState<Project[] | null>(null);
   const templates = useMailTemplates();
   // "Cofnij wysyłkę" (Etap 1 Modułu 4b) — dotyczy WSZYSTKICH ścieżek wysyłki,
@@ -148,6 +149,25 @@ export function MailDetailPanel({
   const applyTemplate = useCallback((t: MailTemplate) => {
     setReplyText((prev) => (prev.trim() ? `${prev}\n\n${t.tresc}` : t.tresc));
   }, []);
+
+  /** Szkic AI (Moduł 7) — zawsze NADPISUJE całe pole treścią propozycji
+   * (decyzja właściciela 2026-07-16): to pełna propozycja odpowiedzi, nie
+   * fragment do doklejenia jak szablon. Model nigdy nie wysyła nic sam —
+   * właściciel widzi tekst w polu i normalnie go poprawia/wysyła. */
+  const requestDraft = useCallback(async () => {
+    setDraftLoading(true);
+    try {
+      const res = await fetch(`/api/mail/${mailId}/draft-reply`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast(data?.error || "Model AI chwilowo niedostępny — napisz odpowiedź ręcznie.", "error");
+        return;
+      }
+      setReplyText(data.draft || "");
+    } finally {
+      setDraftLoading(false);
+    }
+  }, [mailId, toast]);
 
   /** Wspólne dla "Utwórz leada" i "Utwórz klienta" — te same kroki, inny
    * endpoint. Właściciel decyduje kliknięciem, czy piszący to dopiero lead do
@@ -376,7 +396,15 @@ export function MailDetailPanel({
             >
               Bez podpisu
             </button>
-            <span className="ml-auto">
+            <span className="ml-auto flex items-center gap-1">
+              <button
+                onClick={() => void requestDraft()}
+                disabled={draftLoading}
+                title="Model AI zaproponuje treść odpowiedzi na podstawie tego maila — do poprawienia przed wysłaniem"
+                className="rounded-full border hairline px-2.5 py-0.5 text-muted hover:text-[var(--fg)] disabled:opacity-50"
+              >
+                {draftLoading ? "Generuję…" : "✨ Zaproponuj szkic"}
+              </button>
               <TemplatePickerButton templates={templates} onPick={applyTemplate} />
             </span>
           </div>
