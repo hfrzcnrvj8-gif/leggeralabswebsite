@@ -224,6 +224,21 @@ export async function fetchMessagesInFolder(
         uidValidity = box.uidValidity != null ? Number(box.uidValidity) : null;
       }
 
+      // Tania kontrola PRZED kosztownym FETCH-em: `uidNext - 1` to UID
+      // OSTATNIEJ wiadomości, jaka kiedykolwiek istniała w tym folderze. Gdy
+      // to nie jest większe niż nasz kursor, w folderze NAPRAWDĘ nie ma nic
+      // nowego. Bez tej kontroli zakres `${sinceUid+1}:*` i tak dopasowałby
+      // OSTATNIĄ wiadomość (IMAP-owe "*" zawsze coś dopasowuje, nawet gdy nie
+      // jest nowa — patrz komentarz niżej) i ściągnęlibyśmy jej PEŁNĄ treść
+      // (source) na darmo przy KAŻDYM syncu, dla KAŻDEGO folderu — zauważalne
+      // spowolnienie zgłoszone przez właściciela 2026-07-16 po wprowadzeniu
+      // wielu folderów (Etap 2), szczególnie dotkliwe przy dużych mailach
+      // (załączniki) siedzących na końcu Archiwum/Kosza.
+      const uidNext = box && typeof box !== "boolean" ? box.uidNext : undefined;
+      if (uidNext != null && uidNext - 1 <= sinceUid) {
+        return { messages: [], uidValidity, highestUid: sinceUid };
+      }
+
       // `${from}:*` to zakres UID-ów wg RFC 3501. Uwaga na pułapkę: gdy w
       // skrzynce nie ma nic nowego, serwer i tak zwraca ostatnią wiadomość
       // (bo "*" zawsze coś dopasowuje) — dlatego niżej jawnie odfiltrowujemy

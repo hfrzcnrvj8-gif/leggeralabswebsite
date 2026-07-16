@@ -269,7 +269,17 @@ async function syncOneFolder(
  * ODBIORCY (to_addr/cc_addr), NIE po nadawcy jak w saveIncoming(). Konflikt
  * po message_id aktualizuje `folder`, jeśli się zmienił (np. mail przeniesiony
  * później do Archiwum w Outlooku) — w przeciwieństwie do saveIncoming(),
- * gdzie idempotentne "nic nie rób" jest właściwym zachowaniem dla INBOX-a. */
+ * gdzie idempotentne "nic nie rób" jest właściwym zachowaniem dla INBOX-a.
+ *
+ * ⚠️ WYJĄTEK: NIGDY nie nadpisuj folderu, jeśli wiadomość jest już w
+ * `'inbox'`. Mail wysłany DO SIEBIE (self-mail, częsty sposób testowania)
+ * fizycznie istnieje w DWÓCH folderach na serwerze naraz (Wysłane — nasza
+ * kopia, Odebrane — bo jesteśmy też odbiorcą) pod TYM SAMYM message_id, a
+ * nasz schemat trzyma jeden wiersz na message_id. Bez tej straży skan
+ * Wysłane potrafił "podkraść" wiadomość z Odebranych (zgłoszone przez
+ * właściciela 2026-07-16: self-mail zniknął z Odebranych po pojawieniu się
+ * w Wysłane) — Odebrane to kolejka "wymaga reakcji", więc priorytet ma
+ * pozostać tam widoczna, nawet kosztem niewidoczności w Wysłane. */
 async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: FetchedMessage): Promise<"matched" | "unassigned" | "duplicate"> {
   const candidateAddrs = [msg.toAddr, ...msg.ccAddr.split(",").map((a) => a.trim())].filter(Boolean);
   let match: { type: "client" | "lead"; id: string } | undefined;
@@ -294,7 +304,7 @@ async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: Fetch
       'obsłużony', ${msg.receivedAt.toISOString()}
     )
     ON CONFLICT (message_id) DO UPDATE SET folder = EXCLUDED.folder
-    WHERE mail_messages.folder <> EXCLUDED.folder
+    WHERE mail_messages.folder <> EXCLUDED.folder AND mail_messages.folder <> 'inbox'
     RETURNING id;
   `) as unknown as { id: string }[];
 

@@ -2719,6 +2719,48 @@ CLI zalogowane w tym środowisku — nie trzeba pytać właściciela o logi ręc
   `message_id` obroni przed duplikatem), i czy odświeżanie jest teraz
   wyraźnie szybsze.
 
+**Druga runda poprawek (2026-07-16, ten sam dzień)** — właściciel zgłosił
+dwie rzeczy po pierwszej rundzie: odświeżanie NADAL nie szybsze mimo
+zrównoleglenia, i self-mail zniknął z Odebranych (widoczny tylko w Wysłane).
+
+- **Prawdziwa przyczyna wolnego syncu, znaleziona w kodzie
+  `fetchMessagesInFolder()` (`lib/mailbox.ts`):** zrównoleglenie folderów z
+  pierwszej rundy skróciło TYLKO czas nawiązywania połączeń, ale nie dotknęło
+  prawdziwego winowajcy — zakres IMAP `${sinceUid+1}:*` dopasowuje OSTATNIĄ
+  wiadomość w folderze, NAWET GDY nie jest nowa (znana pułapka "*", opisana
+  już w komentarzu przy tej funkcji) — a zapytanie fetch pobierało jej PEŁNĄ
+  treść (`source: true`) zanim cokolwiek odfiltrowało ją jako "nie nowa". To
+  znaczy: KAŻDY sync, dla KAŻDEGO z 4 folderów, ściągał pełną treść co
+  najmniej jednego maila na darmo — przy dużych mailach (załączniki) w
+  Archiwum/Koszu to realny, wielosekundowy koszt, i to jeszcze PRZED moją
+  optymalizacją równoległości. Naprawione: tania kontrola `uidNext` (z
+  `client.mailbox`, dostępne od razu po SELECT/`getMailboxLock`, zero
+  dodatkowego zapytania) PRZED fetchem — jeśli `uidNext - 1 <= sinceUid`,
+  folder naprawdę nie ma nic nowego, funkcja wraca natychmiast bez
+  dotykania treści żadnej wiadomości.
+- **Self-mail znikający z Odebranych — realne ograniczenie schematu, nie
+  literalny bug do "naprawienia" w pełni.** Mail wysłany do siebie fizycznie
+  istnieje na serwerze W DWÓCH folderach naraz (Wysłane — nasza kopia,
+  Odebrane — bo jesteśmy też odbiorcą) pod TYM SAMYM `message_id`. Nasz
+  schemat (Etap 2) trzyma JEDEN wiersz na `message_id` z JEDNĄ wartością
+  `folder` — nie potrafi wprost reprezentować "ta sama wiadomość w dwóch
+  miejscach naraz". `saveOutgoingFromServer()` (`lib/mailSync.ts`) miał
+  "sprytną" logikę aktualizacji folderu przy konflikcie (żeby np. mail
+  przeniesiony później do Archiwum w Outlooku poprawnie "przeskoczył" folder)
+  — ale ta sama logika przy self-mailu podkradała wiadomość z Odebranych do
+  Wysłane. Naprawione częściowo: `'inbox'` jest teraz "chronione" — skan
+  Wysłane nigdy nie nadpisze wiadomości, która już jest w Odebranych
+  (Odebrane to kolejka "wymaga reakcji", ważniejsza niż widoczność w
+  Wysłane). Efekt uboczny, świadomie zaakceptowany: self-mail będzie
+  widoczny w Odebranych, ale NIE pojawi się DODATKOWO w Wysłane — pełne
+  rozwiązanie (jedna wiadomość widoczna w dwóch folderach naraz) wymagałoby
+  zmiany schematu (osobna tabela łącząca wiadomość z wieloma folderami),
+  którą warto rozważyć, jeśli self-mail jako test/przypomnienie do siebie
+  okaże się częstym, realnym przypadkiem użycia, nie tylko testem tej sesji.
+- **Zweryfikowane:** `tsc` czysty. Realna poprawa czasu syncu i poprawność
+  self-mail w Odebranych do potwierdzenia przez właściciela na produkcji po
+  tym wdrożeniu — nie da się zmierzyć z tej sesji (brak dostępu do az.pl).
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite
