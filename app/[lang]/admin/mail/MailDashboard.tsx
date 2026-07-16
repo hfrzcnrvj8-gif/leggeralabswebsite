@@ -553,7 +553,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     <div className="p-4 sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-liquid text-xl font-medium">Poczta</h1>
+          {/* Jasny wariant gradientu marki (04e runda 6) — .text-liquid-outline
+              to .text-liquid z jaśniejszymi stopniami, po tym jak wersja z
+              pustym konturem liter (poprzednia runda) okazała się
+              niezadowalająca. */}
+          <h1 className="text-liquid-outline text-xl font-medium">Poczta</h1>
           <p className="text-[13px] text-muted">
             {counts.nowe > 0 ? `${counts.nowe} do odpowiedzi` : "Wszystko obsłużone"}
             {counts.nieprzypisane > 0 ? ` · ${counts.nieprzypisane} nieprzypisane` : ""}

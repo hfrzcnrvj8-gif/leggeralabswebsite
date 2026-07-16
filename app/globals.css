@@ -122,6 +122,24 @@
     animation: gradient-pan 8s ease infinite;
   }
 
+  /* Nazwa modułu w nagłówku (np. "Poczta") — druga próba (04e runda 6): pusta
+     w środku litera z konturem okazała się nieczytelna/niezadowalająca
+     (glow-hack zamiast prawdziwego gradientu — CSS nie wspiera gradientu NA
+     OBRYSIE tekstu). Właściciel dał wybór: albo kontur jak `.btn-primary`,
+     albo z powrotem WYPEŁNIENIE, ale bardzo jasne. Wybrane drugie — prostsze,
+     niezawodne (ten sam sprawdzony mechanizm co `.text-liquid`, tylko
+     jaśniejsze/bledsze stopnie: jasny fiolet → jasne złoto → kremowa biel,
+     bez ciemniejszego złota z `.text-liquid`). */
+  .text-liquid-outline {
+    background: linear-gradient(120deg, #c4b5fd 0%, #fcd34d 55%, #fff7e8 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-stroke: 0.4px rgba(20, 18, 15, 0.15);
+    animation: gradient-pan 8s ease infinite;
+  }
+
   /* Liquid glass gradient orb */
   .orb {
     background: radial-gradient(
@@ -134,29 +152,49 @@
     opacity: var(--orb-opacity);
   }
 
-  /* Obwódka zamiast wypełnienia gradientem (zgłoszone przez właściciela,
-     04e runda 4 — dotychczasowe pełne gradientowe tło "toporne"/ciężkie,
-     Linear/Apple trzymają się lżejszych, obrysowanych kontrolek). Przejście
-     na cubic-bezier(0.16,1,0.3,1) — ten sam "ease" co Popover/modal w
-     Menu.tsx, żeby hover czuł się spójnie z resztą panelu. */
+  /* Obwódka zamiast wypełnienia gradientem (zgłoszone przez właściciela, 04e
+     runda 4/5) — ALE obwódka ma być sam GRADIENT marki (fiolet→złoto), nie
+     płaski jeden kolor jak w pierwszej wersji tej rundy (właściciel: "gdzie
+     zniknęły gradienty, muszą być, tylko jako kontur nie wypełnienie"). Ten
+     sam trik maski co `.glow-border` niżej (padding-box + mask-composite:
+     exclude — border-color nie przyjmuje gradientu wprost), tylko na stałe,
+     nie tylko na hover. Do tego szkło: `backdrop-filter: blur` + delikatne
+     półprzezroczyste tło + miękka poświata w barwach marki zamiast twardego
+     cienia — to jest "liquid glass" w stylu Apple, nie tylko obrys. */
   .btn-primary {
     position: relative;
-    background: rgba(124, 58, 237, 0.06);
+    background: rgba(124, 58, 237, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     color: #a78bfa;
-    border: 1.5px solid #7c3aed;
-    transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 0 0 rgba(124, 58, 237, 0);
+    transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 1px 2px rgba(124, 58, 237, 0.06);
+  }
+  .btn-primary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(120deg, #7c3aed 0%, #e0a93b 50%, #7c3aed 100%);
+    background-size: 200% 200%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: gradient-pan 7s ease infinite;
+    pointer-events: none;
   }
   .dark .btn-primary,
   .admin-linear .btn-primary {
-    color: #c4b5fd;
+    color: #ddd6fe;
   }
   .btn-primary:hover {
-    background: rgba(124, 58, 237, 0.14);
+    background: rgba(124, 58, 237, 0.16);
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.2);
+    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.22), 0 2px 10px rgba(224, 169, 59, 0.14);
   }
 
   .card-surface {

@@ -27,9 +27,14 @@ export const MAIL_FOLDER_LABEL: Record<MailFolder, string> = {
   archive: "Archiwum",
 };
 
+// 📥/📤 (poprzednio Odebrane/Wysłane) to ten sam piktogram tacki różniący się
+// TYLKO kierunkiem strzałki — na małym rozmiarze w sidebarze nie do
+// odróżnienia na pierwszy rzut oka (zgłoszone przez właściciela, 04e runda
+// 6). Samolocik dla Wysłane to zupełnie inna sylwetka, nie tylko odbita
+// strzałka — jednoznaczne bez czytania etykiety.
 export const MAIL_FOLDER_ICON: Record<MailFolder, string> = {
   inbox: "📥",
-  sent: "📤",
+  sent: "✈️",
   trash: "🗑️",
   archive: "🗄️",
 };

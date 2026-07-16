@@ -3097,6 +3097,56 @@ Plan agent przed implementacją — zmiana dotyka 6 miejsc insertujących do
   `/admin/mail/[id]` — klik w pasek wątku robi prawdziwą nawigację
   (potwierdzone zmianą URL, nie no-op).
 
+### Moduł 4e, runda 5 — gradienty muszą wrócić, tylko jako kontur (2026-07-16)
+
+Właściciel po zobaczeniu rundy 4 (obwódka `.btn-primary` w jednym kolorze):
+gradienty fioletowo-złote są częścią marki i MUSZĄ być widoczne — nie
+"zniknąć", tylko przejść z WYPEŁNIENIA na KONTUR. Do tego brak efektów
+"liquid glass" w stylu Apple, a sama obwódka nadal zbyt mocna/krawędziasta.
+
+- **`.btn-primary` — prawdziwy gradientowy kontur** (`app/globals.css`) —
+  poprzednia wersja tej rundy miała jednolity fioletowy `border`, nie
+  gradient (CSS `border-color` nie przyjmuje gradientu wprost). Naprawione
+  tym samym trikiem maski co istniejący `.glow-border` niżej w tym samym
+  pliku (`padding-box` + `mask-composite: exclude`) — teraz NA STAŁE, nie
+  tylko na hover jak w `.glow-border`. Do tego prawdziwe „liquid glass":
+  `backdrop-filter: blur(16px)` + półprzezroczyste tło + miękka poświata w
+  barwach marki na hover (`box-shadow` w fiolecie i złocie) zamiast twardego
+  jednolitego cienia.
+- **Nowa klasa `.text-liquid-outline`** — odwrotność istniejącego
+  `.text-liquid` (który zostaje bez zmian, używany dla liczb KPI w
+  `DashboardHome.tsx`/`StatsDashboard.tsx`): wypełnienie liter w kolorze TŁA,
+  kontur w barwach marki. CSS nie wspiera prawdziwego gradientu NA obrysie
+  tekstu (`-webkit-text-stroke-color` przyjmuje tylko jeden kolor) — rozwiązane
+  dwuwarstwowo: widoczny, ostry `-webkit-text-stroke` w jednym reprezentatywnym
+  fiolecie + `::before` z `content: attr(data-text)` renderujący TĘ SAMĄ
+  treść jako rozmytą, animowaną gradientową poświatę pod spodem (stąd
+  wymagany `data-text="..."` na elemencie, patrz użycie w
+  `MailDashboard.tsx`). Efekt: puste w środku litery z fioletowym konturem i
+  miękką fioletowo-złotą poświatą — zastosowane na nagłówku "Poczta" (jedyny
+  moduł z takim nagłówkiem w layoucie — sprawdzone grepem, inne dashboardy
+  polegają na etykietach w sidebarze, nie na własnym `<h1>`).
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. "Nowa wiadomość" i
+  "Odpisz" pokazują wyraźny gradient fiolet→złoto na obwódce (nie jeden
+  płaski kolor) z widoczną poświatą.
+- **Poprawka nagłówka "Poczta" (ta sama runda, od razu po pierwszej
+  weryfikacji)** — wariant z pustym konturem liter (opisany wyżej) okazał
+  się nieczytelny/niezadowalający dla właściciela. Zamiast dalej ciągnąć
+  fragile CSS-owy hack na obrysie tekstu (CSS nie wspiera gradientu NA
+  obrysie), `.text-liquid-outline` przeprojektowane na prostszy, niezawodny
+  mechanizm: WYPEŁNIENIE (ten sam sprawdzony `background-clip: text` co
+  `.text-liquid`), tylko jaśniejsze stopnie gradientu (jasny fiolet
+  `#c4b5fd` → jasne złoto `#fcd34d` → kremowa biel, bez ciemniejszego złota
+  z oryginalnego `.text-liquid`). `.text-liquid` sam pozostaje nietknięty
+  (dalej używany do liczb KPI w `DashboardHome.tsx`/`StatsDashboard.tsx`).
+- **Ikony Odebrane/Wysłane nie do odróżnienia** (`lib/mail.ts`,
+  `MAIL_FOLDER_ICON`) — 📥/📤 to ten sam piktogram tacki różniący się TYLKO
+  kierunkiem strzałki, na małym rozmiarze w sidebarze praktycznie identyczne
+  na pierwszy rzut oka. Wysłane dostało samolocik ✈️ — inna sylwetka, nie
+  tylko odbita strzałka, jednoznaczne bez czytania etykiety. Jedna zmiana w
+  źródle propaguje się automatycznie do sidebara I paska wątku w podglądzie
+  (oba czytają z tej samej stałej).
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite
