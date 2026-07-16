@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import {
@@ -44,6 +45,37 @@ const CAT_FILTERS: { id: CatFilter; label: string }[] = [
 
 type Counts = { nowe: number; nieprzypisane: number } & Record<string, number>;
 
+/** "Wróć do poczty" (zgłoszone przez właściciela) — klik w tag klienta/leada
+ * (tu albo w MailDetailPanel.tsx) zapamiętuje DOKŁADNIE gdzie byliśmy
+ * (folder/filtry/otwarta wiadomość), zanim przejdziemy na kartę kontaktu.
+ * Przy powrocie do Poczty (dowolną drogą — link "← Wróć do poczty" na karcie
+ * klienta/leada ALBO zwykłe wejście z sidebara) stan odtwarza się raz i jest
+ * kasowany, żeby nie "zostawał przyklejony" na zawsze. localStorage, nie
+ * URL — to samo podejście co inne zapamiętane widoki panelu (np.
+ * `leggera_clients_view`), tylko jednorazowe (konsumowane), nie trwałe. */
+const MAIL_RETURN_STATE_KEY = "leggera_mail_return_state";
+type MailReturnState = { folder: MailFolder; filter: Filter; catFilter: CatFilter; openId: string | null };
+
+function readMailReturnState(): MailReturnState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(MAIL_RETURN_STATE_KEY);
+    return raw ? (JSON.parse(raw) as MailReturnState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMailReturnState(state: MailReturnState) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MAIL_RETURN_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // localStorage niedostępny (np. tryb prywatny) — powrót po prostu nie
+    // zadziała, nic poza tym się nie psuje.
+  }
+}
+
 /** Data wiadomości w skali "dziś/wczoraj/dawniej" — przy poczcie liczy się
  * godzina (czy to sprzed chwili), a nie sama data, więc świadomie NIE
  * używamy tu formatPlDate() z lib/projects.ts (ten formatuje dzień). */
@@ -64,11 +96,16 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   const [messages, setMessages] = useState<MailMessageWithLinks[] | null>(null);
   const [counts, setCounts] = useState<Counts>({ nowe: 0, nieprzypisane: 0 });
   const [configured, setConfigured] = useState(true);
-  const [activeFolder, setActiveFolder] = useState<MailFolder>("inbox");
-  const [filter, setFilter] = useState<Filter>("nowy");
-  const [catFilter, setCatFilter] = useState<CatFilter>("wszystkie");
+  // Lazy initializery (nie zwykłe literały) — jeśli właściciel wrócił tu z
+  // karty klienta/leada (patrz MAIL_RETURN_STATE_KEY wyżej), stan startowy to
+  // DOKŁADNIE to, co zostawił, nie zawsze domyślne Odebrane/"Do odpowiedzi".
+  // Czyta wielokrotnie (raz na pole) — czysty odczyt bez efektu ubocznego,
+  // bezpieczny nawet przy podwójnym wywołaniu w React Strict Mode (dev).
+  const [activeFolder, setActiveFolder] = useState<MailFolder>(() => readMailReturnState()?.folder ?? "inbox");
+  const [filter, setFilter] = useState<Filter>(() => readMailReturnState()?.filter ?? "nowy");
+  const [catFilter, setCatFilter] = useState<CatFilter>(() => readMailReturnState()?.catFilter ?? "wszystkie");
   const [query, setQuery] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(() => readMailReturnState()?.openId ?? null);
   const [syncing, setSyncing] = useState(false);
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -305,6 +342,13 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     })();
     // Celowo raz przy wejściu — ponowny sync jest pod przyciskiem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Skonsumuj zapamiętany stan powrotu (wyżej, lazy initializery) — jednym
+  // razowo, żeby kolejne zwykłe wejścia w Pocztę nie zostały "przyklejone"
+  // do starego folderu/wiadomości na zawsze.
+  useEffect(() => {
+    window.localStorage.removeItem(MAIL_RETURN_STATE_KEY);
   }, []);
 
   // Przeładowanie listy przy zmianie folderu (NATYCHMIAST — to jedno
@@ -755,15 +799,38 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                       </span>
                       <span className="mt-1 flex items-center gap-1.5">
                         <span className="min-w-0 flex-1 truncate text-[13px]">{m.subject || "(bez tematu)"}</span>
-                        {m.client_nazwa && (
-                          <span className="shrink-0 rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-brand-purple">
+                        {/* Klikalne wprost z listy (zgłoszone przez
+                            właściciela) — tak jak już działało w podglądzie
+                            (MailDetailPanel.tsx). stopPropagation, żeby klik
+                            nie "przeciekał" do onClick wiersza (otwarcie
+                            maila). `?from=mail` + zapis stanu w localStorage
+                            (MAIL_RETURN_STATE_KEY wyżej) — karta klienta/leada
+                            pokaże wtedy "← Wróć do poczty" zamiast domyślnego
+                            "← Wróć do tablicy", a Poczta po powrocie otworzy
+                            DOKŁADNIE tę wiadomość w tym samym folderze. */}
+                        {m.client_id && m.client_nazwa && (
+                          <Link
+                            href={`/${lang}/admin/clients/${m.client_id}?from=mail`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              writeMailReturnState({ folder: activeFolder, filter, catFilter, openId: m.id });
+                            }}
+                            className="shrink-0 rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-brand-purple hover:opacity-80"
+                          >
                             {m.client_nazwa}
-                          </span>
+                          </Link>
                         )}
-                        {m.lead_nazwa && (
-                          <span className="shrink-0 rounded-full bg-brand-cyan/15 px-2 py-0.5 text-[11px] text-brand-cyan">
+                        {m.lead_id && m.lead_nazwa && (
+                          <Link
+                            href={`/${lang}/admin/leads/${m.lead_id}?from=mail`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              writeMailReturnState({ folder: activeFolder, filter, catFilter, openId: m.id });
+                            }}
+                            className="shrink-0 rounded-full bg-brand-cyan/15 px-2 py-0.5 text-[11px] text-brand-cyan hover:opacity-80"
+                          >
                             {m.lead_nazwa}
-                          </span>
+                          </Link>
                         )}
                         {!m.client_nazwa && !m.lead_nazwa && m.kierunek === "in" && m.status !== "zignorowany" && (
                           <span className="shrink-0 rounded-full bg-[var(--hairline)] px-2 py-0.5 text-[11px] text-muted">
@@ -838,6 +905,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               replyShortcut={replyShortcutNonce}
               forwardShortcut={forwardShortcutNonce}
               replyAllShortcut={replyAllShortcutNonce}
+              onNavigateToContact={() => writeMailReturnState({ folder: activeFolder, filter, catFilter, openId })}
             />
           ) : (
             <div className="card-paper flex min-h-[300px] items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">

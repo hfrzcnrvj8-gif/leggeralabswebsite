@@ -2927,6 +2927,53 @@ najlepszymi klientami pocztowymi (odpowiedź: patrz `docs/plany-modulow/04b-pocz
   seedowa wiadomość (`lib/dev-db.ts`) oflagowana na stałe do weryfikacji
   wizualnej gwiazdki.
 
+### Moduł 4e, runda 3 — klikalne tagi klienta/leada na liście + "Wróć do poczty" (2026-07-16)
+
+Właściciel: tagi klienta/leada na LIŚCIE wiadomości (nie tylko w podglądzie)
+powinny być klikalne i prowadzić do karty kontaktu; po czymś zrobionym tam
+chce wrócić DOKŁADNIE tam, gdzie zaczynał w Poczcie, zamiast ręcznie wybierać
+folder/wiadomość od nowa.
+
+- **Klikalne tagi na liście** (`MailDashboard.tsx`) — `m.client_nazwa`/
+  `m.lead_nazwa` były zwykłymi `<span>`, teraz `<Link>` do
+  `/admin/clients/:id` / `/admin/leads/:id`, tak jak już działało w
+  `MailDetailPanel.tsx`. `onClick` z `e.stopPropagation()`, żeby klik nie
+  "przeciekał" do onClick całego wiersza (otwarcie maila).
+- **"Wróć do poczty"** — pierwszy w panelu przypadek zapamiętywania
+  DOKŁADNEGO stanu widoku przy przejściu między modułami (zbadano: nie ma
+  istniejącej konwencji `returnTo`/`from` ani `router.back()` w panelu, tylko
+  statyczne breadcrumbi "← Wróć do tablicy" wskazujące zawsze na listę
+  modułu). Zbudowane z dwóch niezależnych części:
+  - **Zapis stanu**: klik w tag klienta/leada (na liście LUB w podglądzie)
+    zapisuje `{folder, filter, catFilter, openId}` do `localStorage`
+    (`leggera_mail_return_state`, `MailDashboard.tsx`) — `openId` to
+    KONKRETNA wiadomość, której tag kliknięto (nie musi być aktualnie
+    otwarta). W `MailDetailPanel.tsx` przez nowy callback prop
+    `onNavigateToContact` (komponent sam nie zna folderu/filtrów rodzica).
+  - **Odczyt stanu**: `MailDashboard.tsx` czyta ten klucz w lazy
+    initializerach `useState` (nie zwykłych literałach) — stan startowy to
+    DOKŁADNIE to, co właściciel zostawił, jeśli wrócił z karty kontaktu.
+    Skonsumowany RAZ (usunięty z localStorage w efekcie po mouncie), żeby
+    zwykłe wejście w Pocztę później nie zostało "przyklejone" do starego
+    stanu na zawsze.
+  - **Breadcrumb**: link do karty klienta/leada dokleja `?from=mail`;
+    `ClientDetail.tsx`/`LeadDetail.tsx` (cienkie wrappery podstron
+    `[id]/page.tsx`) czytają to przez `useSearchParams()` (ten sam hook już
+    używany w `CostsDashboard.tsx`, bez potrzeby Suspense — trasa i tak jest
+    w pełni dynamiczna przez `isAuthed()`) i pokazują "← Wróć do poczty"
+    zamiast domyślnego "← Wróć do tablicy".
+  - Świadomie NIE ruszone: `ClientDetailPanel.tsx`/`LeadDetailPanel.tsx`
+    (współdzielone z widokiem "peek" w tablicy) — "from mail" jest znane
+    tylko na poziomie cienkiego wrappera/strony, nie trzeba tego przepychać
+    przez propsy współdzielonego panelu.
+- **Zweryfikowane lokalnie (2026-07-16, świeża karta przeglądarki — stary
+  tab pokazywał fałszywy alarm React/Fast Refresh po wielu edycjach w tej
+  samej sesji, zniknął po restarcie serwera dev + nowej karcie):** klik w tag
+  leada na liście (folder "Wszystkie", otwarta wiadomość Marka Kowalskiego)
+  → karta leada pokazuje "← Wróć do poczty" → klik → Poczta wraca z
+  aktywnym filtrem "Wszystkie" I TĄ SAMĄ otwartą wiadomością, bez ręcznego
+  wyszukiwania.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

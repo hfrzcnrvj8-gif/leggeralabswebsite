@@ -40,6 +40,7 @@ export function MailDetailPanel({
   replyShortcut,
   forwardShortcut,
   replyAllShortcut,
+  onNavigateToContact,
 }: {
   lang: Locale;
   mailId: string;
@@ -55,6 +56,11 @@ export function MailDetailPanel({
    * runda 2, dorobione skróty wzorem Apple Mail zgłoszone przez właściciela. */
   forwardShortcut?: number;
   replyAllShortcut?: number;
+  /** "Wróć do poczty" — wołane TUŻ PRZED przejściem do karty klienta/leada
+   * (klik w tag niżej), żeby `MailDashboard` zapisał, gdzie byliśmy (folder/
+   * filtry/otwarta wiadomość). Ten komponent nie zna tego stanu — należy do
+   * rodzica, stąd callback zamiast własnej logiki localStorage tutaj. */
+  onNavigateToContact?: () => void;
 }) {
   const { toast, prompt } = useUI();
   const [mail, setMail] = useState<MailMessageWithLinks | null>(null);
@@ -600,13 +606,24 @@ export function MailDetailPanel({
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2 text-[12px]">
+        {/* `?from=mail` + onNavigateToContact() (04e runda 3, "wróć do
+            poczty" zgłoszone przez właściciela) — karta klienta/leada pokaże
+            "← Wróć do poczty" zamiast domyślnego "← Wróć do tablicy". */}
         {mail.client_id && mail.client_nazwa && (
-          <Link href={`/${lang}/admin/clients/${mail.client_id}`} className="rounded-full bg-brand-purple/15 px-2.5 py-1 text-brand-purple hover:opacity-80">
+          <Link
+            href={`/${lang}/admin/clients/${mail.client_id}?from=mail`}
+            onClick={() => onNavigateToContact?.()}
+            className="rounded-full bg-brand-purple/15 px-2.5 py-1 text-brand-purple hover:opacity-80"
+          >
             👤 {mail.client_nazwa}
           </Link>
         )}
         {mail.lead_id && mail.lead_nazwa && (
-          <Link href={`/${lang}/admin/leads/${mail.lead_id}`} className="rounded-full bg-brand-cyan/15 px-2.5 py-1 text-brand-cyan hover:opacity-80">
+          <Link
+            href={`/${lang}/admin/leads/${mail.lead_id}?from=mail`}
+            onClick={() => onNavigateToContact?.()}
+            className="rounded-full bg-brand-cyan/15 px-2.5 py-1 text-brand-cyan hover:opacity-80"
+          >
             🎯 {mail.lead_nazwa}
           </Link>
         )}
