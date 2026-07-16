@@ -7,9 +7,20 @@
 // Zero AI: komu przypisać maila wynika z równości adresu (findContactsByEmail),
 // a czy jest "do obsłużenia" — ze statusu. Treść nie jest przez nic czytana.
 import { randomUUID } from "node:crypto";
-import { getSql, ensureMailSchema } from "./db";
+import { getSql, ensureMailSchema, ensureMailFoldersSchema } from "./db";
 import { findContactsByEmail } from "./contactLookup";
-import { fetchNewMessages, fetchHintsByUids, fetchCcByUids, isMailboxConfigured, type FetchedMessage } from "./mailbox";
+import {
+  fetchMessagesInFolder,
+  fetchHintsByUids,
+  fetchCcByUids,
+  isMailboxConfigured,
+  mailboxConfig,
+  discoverMailFoldersOnce,
+  getFolderCursorStart,
+  type FetchedMessage,
+  type MailFolderRole,
+  type DiscoveredFolder,
+} from "./mailbox";
 import { classifyMail, isNoiseMail, mailSummaryLine, MAIL_RETENTION_MONTHS, type MailHeaderHints } from "./mail";
 import { todayLocalISO } from "./dates";
 
@@ -21,25 +32,40 @@ export type SyncResult = {
   ignored: number;
 };
 
-type MailState = { last_seen_uid: number; uid_validity: string | number | null };
+/** Role kursora w `mail_folders` — 'inbox' zawsze istnieje (migrowana z
+ * `mail_state`), reszta powstaje przy pierwszym udanym discovery. */
+type FolderRole = "inbox" | MailFolderRole;
+
+type FolderCursorRow = {
+  id: string;
+  role: FolderRole;
+  imap_path: string;
+  uidvalidity: string | number | bigint | null;
+  last_seen_uid: number;
+};
 
 /**
- * Pobierz nowe wiadomości, dopasuj do klienta/leada, zapisz.
+ * Pobierz nowe wiadomości ze WSZYSTKICH znanych folderów (Odebrane +, jeśli
+ * odkryte, Wysłane/Kosz/Archiwum), dopasuj do klienta/leada, zapisz.
+ *
+ * Etap 2 Modułu 4b (2026-07-16) — dotąd ta funkcja czytała wyłącznie INBOX
+ * z jednym globalnym kursorem w `mail_state`; teraz każdy folder ma własny
+ * kursor w `mail_folders` (lib/db.ts) i własną, dopasowaną do jego natury
+ * logikę zapisu (patrz saveIncoming/saveOutgoingFromServer/saveArchivedOrTrashed
+ * niżej).
  *
  * Idempotentne dzięki `message_id UNIQUE` — podwójny sync (otwarcie widoku +
  * cron) nie zdubluje niczego. Dlatego reset UID-ów przy zmianie UIDVALIDITY
- * jest bezpieczny: najwyżej przeczytamy skrzynkę ponownie, a INSERT-y się
- * odbiją.
+ * jest bezpieczny: najwyżej przeczytamy folder ponownie, a INSERT-y się odbiją.
  */
 export async function syncMailbox(): Promise<SyncResult> {
-  await ensureMailSchema();
+  await ensureMailFoldersSchema();
   const sql = getSql();
 
   // Najpierw dociągnij kategorie wiadomościom sprzed ich wprowadzenia —
   // samo-naprawiające się, więc właściciel nie musi nic klikać ani wiedzieć,
-  // że coś było do nadrobienia.
+  // że coś było do nadrobienia. Bez zmian — dotyczy tylko INBOX-a.
   await backfillCategories().catch((e) => {
-    // Backfill to porządki, nie powód, żeby nie pobrać nowej poczty.
     console.error("[mailSync] backfill kategorii nie powiódł się", e);
   });
 
@@ -54,30 +80,124 @@ export async function syncMailbox(): Promise<SyncResult> {
     console.error("[mailSync] ponowne dopasowanie nieprzypisanych nie powiodło się", e);
   });
 
-  const stateRows = (await sql`SELECT last_seen_uid, uid_validity FROM mail_state WHERE id = 'default';`) as unknown as MailState[];
-  const state = stateRows[0] ?? { last_seen_uid: 0, uid_validity: null };
-
-  let sinceUid = Number(state.last_seen_uid) || 0;
-
-  let batch: Awaited<ReturnType<typeof fetchNewMessages>>;
+  // Jedno LIST na cały przebieg — odkrywa/potwierdza Wysłane/Kosz/Archiwum.
+  // Awaria discovery nie może zatrzymać syncu INBOX-a (najważniejszej
+  // kolejki "do odpowiedzi") — po prostu ten przebieg nie dotknie
+  // dodatkowych folderów, spróbujemy znowu przy następnym.
+  let discovered: Record<MailFolderRole, DiscoveredFolder | null> | null = null;
   try {
-    batch = await fetchNewMessages(sinceUid);
+    discovered = await discoverMailFoldersOnce();
   } catch (e) {
-    // Zapisz powód, żeby zakładka Poczta mogła pokazać "ostatni sync nie
-    // wyszedł, bo ..." zamiast milczeć.
-    const msg = e instanceof Error ? e.message : String(e);
-    await sql`UPDATE mail_state SET last_error = ${msg.slice(0, 500)}, last_sync_at = now() WHERE id = 'default';`;
-    throw e;
+    console.error("[mailSync] discoverMailFoldersOnce nie powiodło się — pomijam foldery specjalne w tym przebiegu", e);
+  }
+  if (discovered) {
+    for (const role of ["sent", "trash", "archive"] as const) {
+      const found = discovered[role];
+      if (found) await upsertDiscoveredFolder(sql, role, found);
+    }
   }
 
-  // Serwer przenumerował skrzynkę (odtworzenie z backupu, migracja) — stare
-  // UID-y wskazują teraz inne wiadomości, więc kursor jest bezwartościowy.
-  // Czytamy od zera; dedup po message_id chroni przed duplikatami.
-  const prevValidity = state.uid_validity != null ? Number(state.uid_validity) : null;
+  const ownAddr = mailboxConfig().user.toLowerCase();
+
+  const folderRows = (await sql`
+    SELECT id, role, imap_path, uidvalidity, last_seen_uid FROM mail_folders;
+  `) as unknown as FolderCursorRow[];
+
+  let fetched = 0;
+  let saved = 0;
+  let matched = 0;
+  let unassigned = 0;
+  let ignored = 0;
+
+  for (const folder of folderRows) {
+    const result = await syncOneFolder(sql, folder, ownAddr);
+    fetched += result.fetched;
+    saved += result.saved;
+    matched += result.matched;
+    unassigned += result.unassigned;
+    ignored += result.ignored;
+  }
+
+  return { fetched, saved, matched, unassigned, ignored };
+}
+
+/** Upsertuje jeden odkryty folder specjalnego użycia do `mail_folders`. Nowa
+ * rola startuje kursor "od teraz" (bez historii — decyzja właściciela
+ * 2026-07-16); zmiana ścieżki względem zapisanej resetuje kursor do 0
+ * (analogicznie do zmiany UIDVALIDITY). */
+async function upsertDiscoveredFolder(
+  sql: ReturnType<typeof getSql>,
+  role: MailFolderRole,
+  found: DiscoveredFolder
+): Promise<void> {
+  const rows = (await sql`SELECT id, imap_path FROM mail_folders WHERE role = ${role};`) as unknown as { id: string; imap_path: string }[];
+  const existing = rows[0];
+
+  if (!existing) {
+    const start = await getFolderCursorStart(found.path).catch((e) => {
+      console.error(
+        `[mailSync] nie udało się wyznaczyć punktu startowego dla nowego folderu ${role} (${found.path}) — zaczynam od 0 (pełna historia tego folderu trafi do bazy przy najbliższym syncu)`,
+        e
+      );
+      return { highestUid: 0, uidValidity: null as number | null };
+    });
+    await sql`
+      INSERT INTO mail_folders (id, role, imap_path, special_use, uidvalidity, last_seen_uid)
+      VALUES (${randomUUID()}, ${role}, ${found.path}, ${found.specialUse}, ${start.uidValidity}, ${start.highestUid})
+      ON CONFLICT (role) DO NOTHING;
+    `;
+    return;
+  }
+
+  if (existing.imap_path !== found.path) {
+    console.warn(`[mailSync] folder ${role} zmienił ścieżkę (${existing.imap_path} → ${found.path}) — resetuję kursor.`);
+    await sql`
+      UPDATE mail_folders
+      SET imap_path = ${found.path}, special_use = ${found.specialUse}, last_seen_uid = 0, uidvalidity = NULL
+      WHERE role = ${role};
+    `;
+    return;
+  }
+
+  await sql`UPDATE mail_folders SET special_use = ${found.specialUse} WHERE role = ${role};`;
+}
+
+/** Synchronizuje jeden folder (własny kursor, własna logika zapisu wg roli).
+ * Błąd fetchu tego folderu (np. serwer offline) nie zatrzymuje syncu
+ * pozostałych — jedna felerna skrzynka nie może wywrócić całego przebiegu. */
+async function syncOneFolder(
+  sql: ReturnType<typeof getSql>,
+  folder: FolderCursorRow,
+  ownAddr: string
+): Promise<SyncResult> {
+  const empty: SyncResult = { fetched: 0, saved: 0, matched: 0, unassigned: 0, ignored: 0 };
+  let sinceUid = Number(folder.last_seen_uid) || 0;
+
+  let batch: Awaited<ReturnType<typeof fetchMessagesInFolder>>;
+  try {
+    batch = await fetchMessagesInFolder(folder.imap_path, sinceUid);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await sql`UPDATE mail_folders SET last_error = ${msg.slice(0, 500)}, last_sync_at = now() WHERE id = ${folder.id};`;
+    console.error(`[mailSync] fetch folderu ${folder.role} (${folder.imap_path}) nie powiódł się`, e);
+    if (folder.role === "inbox") throw e; // INBOX to nadal główna, oczekiwana ścieżka — jej błąd ma wypłynąć do UI jak dotąd.
+    return empty;
+  }
+
+  // Serwer przenumerował folder (odtworzenie z backupu, migracja) — stare
+  // UID-y wskazują teraz inne wiadomości. Czytamy od zera; dedup po
+  // message_id chroni przed duplikatami.
+  const prevValidity = folder.uidvalidity != null ? Number(folder.uidvalidity) : null;
   if (batch.uidValidity != null && prevValidity != null && batch.uidValidity !== prevValidity) {
-    console.warn(`[mailSync] UIDVALIDITY zmieniła się (${prevValidity} → ${batch.uidValidity}) — czytam skrzynkę od nowa.`);
+    console.warn(`[mailSync] UIDVALIDITY folderu ${folder.role} zmieniła się (${prevValidity} → ${batch.uidValidity}) — czytam od nowa.`);
     sinceUid = 0;
-    batch = await fetchNewMessages(0);
+    try {
+      batch = await fetchMessagesInFolder(folder.imap_path, 0);
+    } catch (e) {
+      console.error(`[mailSync] ponowny fetch folderu ${folder.role} po zmianie UIDVALIDITY nie powiódł się`, e);
+      if (folder.role === "inbox") throw e;
+      return empty;
+    }
   }
 
   let saved = 0;
@@ -87,29 +207,119 @@ export async function syncMailbox(): Promise<SyncResult> {
 
   for (const msg of batch.messages) {
     try {
-      const outcome = await saveIncoming(sql, msg);
-      if (outcome === "duplicate") continue;
-      saved++;
-      if (outcome === "ignored") ignored++;
-      else if (outcome === "matched") matched++;
-      else unassigned++;
+      if (folder.role === "inbox") {
+        const outcome = await saveIncoming(sql, msg);
+        if (outcome === "duplicate") continue;
+        saved++;
+        if (outcome === "ignored") ignored++;
+        else if (outcome === "matched") matched++;
+        else unassigned++;
+      } else if (folder.role === "sent") {
+        const outcome = await saveOutgoingFromServer(sql, msg);
+        if (outcome === "duplicate") continue;
+        saved++;
+        if (outcome === "matched") matched++;
+        else unassigned++;
+      } else {
+        // trash / archive — lekki odczyt: to dane już raz odrzucone przez
+        // właściciela, świadomie BEZ klasyfikacji/dopasowania/wpisu na oś
+        // kontaktu (nie mają automatycznie "ożywać" jako nowa aktywność).
+        const outcome = await saveArchivedOrTrashed(sql, msg, folder.role, ownAddr);
+        if (outcome === "saved") saved++;
+      }
     } catch (e) {
       // Jedna felerna wiadomość nie może zatrzymać całego syncu — ten sam
       // wzorzec "łykaj błędy per-item", co w cronie przy przypomnieniach.
-      console.error("[mailSync] nie udało się zapisać wiadomości", msg.messageId, e);
+      console.error(`[mailSync] nie udało się zapisać wiadomości z folderu ${folder.role}`, msg.messageId, e);
     }
   }
 
   await sql`
-    UPDATE mail_state
+    UPDATE mail_folders
     SET last_seen_uid = ${Math.max(batch.highestUid, sinceUid)},
-        uid_validity = ${batch.uidValidity},
+        uidvalidity = ${batch.uidValidity},
         last_sync_at = now(),
         last_error = NULL
-    WHERE id = 'default';
+    WHERE id = ${folder.id};
   `;
 
   return { fetched: batch.messages.length, saved, matched, unassigned, ignored };
+}
+
+/** Zapisuje mail widziany w folderze Wysłane. `from_addr` tej wiadomości to
+ * zawsze NASZ własny adres (wysłaliśmy ją) — dopasowanie kontaktu idzie po
+ * ODBIORCY (to_addr/cc_addr), NIE po nadawcy jak w saveIncoming(). Konflikt
+ * po message_id aktualizuje `folder`, jeśli się zmienił (np. mail przeniesiony
+ * później do Archiwum w Outlooku) — w przeciwieństwie do saveIncoming(),
+ * gdzie idempotentne "nic nie rób" jest właściwym zachowaniem dla INBOX-a. */
+async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: FetchedMessage): Promise<"matched" | "unassigned" | "duplicate"> {
+  const candidateAddrs = [msg.toAddr, ...msg.ccAddr.split(",").map((a) => a.trim())].filter(Boolean);
+  let match: { type: "client" | "lead"; id: string } | undefined;
+  for (const addr of candidateAddrs) {
+    const found = (await findContactsByEmail(addr))[0];
+    if (found) {
+      match = found;
+      break;
+    }
+  }
+  const clientId = match?.type === "client" ? match.id : null;
+  const leadId = match?.type === "lead" ? match.id : null;
+
+  const id = randomUUID();
+  const written = (await sql`
+    INSERT INTO mail_messages (
+      id, uid, kierunek, folder, client_id, lead_id, from_addr, from_name, to_addr, cc_addr,
+      subject, body_text, body_html, message_id, in_reply_to, refs, status, received_at
+    ) VALUES (
+      ${id}, ${msg.uid}, 'out', 'sent', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr}, ${msg.ccAddr},
+      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
+      'obsłużony', ${msg.receivedAt.toISOString()}
+    )
+    ON CONFLICT (message_id) DO UPDATE SET folder = EXCLUDED.folder
+    WHERE mail_messages.folder <> EXCLUDED.folder
+    RETURNING id;
+  `) as unknown as { id: string }[];
+
+  if (written.length === 0) return "duplicate";
+  if (!match) return "unassigned";
+
+  await logMailOnTimeline(sql, {
+    mailId: id,
+    match,
+    text: mailSummaryLine(msg.subject, msg.bodyText),
+    kierunek: "wychodzacy",
+  });
+  return "matched";
+}
+
+/** Lekki zapis dla Kosz/Archiwum — bez klasyfikacji, dopasowania klienta czy
+ * wpisu na oś kontaktu (patrz komentarz w syncOneFolder). Konflikt po
+ * message_id aktualizuje `folder`, gdy się zmienił — np. mail przeniesiony
+ * z Wysłane do Kosza w Outlooku poprawnie "przeskakuje" na kolejnym syncu
+ * tego, w jakim folderze go dziś widzimy. */
+async function saveArchivedOrTrashed(
+  sql: ReturnType<typeof getSql>,
+  msg: FetchedMessage,
+  folder: "trash" | "archive",
+  ownAddr: string
+): Promise<"saved" | "duplicate"> {
+  const kierunek = msg.fromAddr.toLowerCase() === ownAddr ? "out" : "in";
+  const id = randomUUID();
+  const written = (await sql`
+    INSERT INTO mail_messages (
+      id, uid, kierunek, folder, from_addr, from_name, to_addr, cc_addr,
+      subject, body_text, body_html, message_id, in_reply_to, refs, status, received_at
+    ) VALUES (
+      ${id}, ${msg.uid}, ${kierunek}, ${folder}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr}, ${msg.ccAddr},
+      ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
+      'obsłużony', ${msg.receivedAt.toISOString()}
+    )
+    ON CONFLICT (message_id) DO UPDATE SET folder = EXCLUDED.folder
+    WHERE mail_messages.folder <> EXCLUDED.folder
+    RETURNING id;
+  `) as unknown as { id: string }[];
+
+  return written.length === 0 ? "duplicate" : "saved";
 }
 
 /**

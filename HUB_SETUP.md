@@ -2562,6 +2562,115 @@ czytała `schema_state` zwykłym `SELECT`-em, poza `inMigration()` — przez co 
 dev seeder czekał na wersję, a wersja na seed. Wszystkie `/api/*` wisiały 60 s.
 Odczyt stanu migracji też jest migracją.
 
+### Moduł 4 — Etap 2 (foldery IMAP): Odebrane/Wysłane/Kosz/Archiwum, klawiatura, bulk actions (2026-07-16)
+
+Po audycie UX modułu Poczty na żywym zrzucie ekranu (właściciel: dużo pustego
+miejsca w layoucie, biały podgląd maila razi na ciemnym tle, brak prawdziwych
+"skrzynek" jak w Apple Mail, chce upodobnienie UX do topowych klientów
+pocztowych) zbudowany rdzeń "Etapu 2" z `docs/plany-modulow/04b-poczta-pelny-klient.md`
+— realne foldery IMAP, nie pseudo-foldery z samego `kierunek`. Właściciel
+wybrał to świadomie, znając koszt ("przepisanie fundamentu, nie dokładanie
+przycisków"), zamiast prostszej opcji.
+
+- **Bugfix nazwy nadawcy:** `mailFrom()` (`lib/mailbox.ts`) zwracała surowy
+  login skrzynki (`kontakt@leggeralabs.pl`) jako nagłówek `From` przy
+  wysyłce — odbiorca widział adres zamiast "Leggera Labs". Teraz domyślnie
+  `"Leggera Labs <" + cfg.user + ">"` (wzorzec z `RESEND_FROM` w
+  `lib/email.ts`), `MAIL_FROM` nadal pozwala nadpisać całość.
+- **Schemat bazy** (`lib/db.ts`): nowa tabela `mail_folders` (własna bramka
+  migracji `"mail_folders"`) — `role` ('inbox'/'sent'/'trash'/'archive'),
+  `imap_path` (realna ścieżka na serwerze, wynik discovery — bywa różna niż
+  `role`), `special_use`, `uidvalidity`, `last_seen_uid` per folder, zamiast
+  jednego globalnego kursora w `mail_state` (który zostaje w bazie, ale kod
+  przestał go aktualizować). Wiersz `role='inbox'` migrowany NATYCHMIAST z
+  `mail_state`, żeby nie zgubić postępu synchronizacji. Nowa kolumna
+  `mail_messages.folder` (domyślnie `'inbox'`), z backfillem
+  `kierunek='out' → folder='sent'` dla już wysłanych z panelu maili — "Wysłane"
+  nie jest puste od razu po wdrożeniu.
+- **`lib/mailbox.ts`:** `discoverMailFolders()` — `LIST (SPECIAL-USE)`
+  najpierw, fallback po nazwach dopiero potem (uogólnienie wzorca, który już
+  miał `appendToSent()` — ta funkcja przepisana, żeby go wołać zamiast mieć
+  własną zduplikowaną listę). `fetchNewMessages()` → `fetchMessagesInFolder()`
+  (przyjmuje dowolny `imapPath`, nie tylko `"INBOX"`). Nowe `moveMessage()` —
+  natywne IMAP MOVE (RFC 6851, atomowe) do Archiwum/Kosza; **komentarz w
+  kodzie wprost: NIGDY nie wołać EXPUNGE ręcznie** — jeśli serwer nie wspiera
+  MOVE, imapflow emuluje przez COPY+STORE+EXPUNGE, co bez UIDPLUS mogłoby
+  skasować też inne wiadomości oznaczone `\Deleted`; `moveMessage()` loguje
+  `console.warn`, jeśli brakuje capability `MOVE`/`UIDPLUS` (widoczne w
+  `vercel logs`, do zweryfikowania na produkcji — nie da się stąd sprawdzić
+  wobec az.pl). Nowe `getFolderCursorStart()` (tania komenda STATUS) —
+  punkt startowy kursora dla nowo odkrytego folderu.
+- **`lib/mailSync.ts`:** `syncMailbox()` iteruje po wszystkich wierszach
+  `mail_folders` z osobną logiką zapisu per rola: `inbox` — dokładnie
+  dotychczasowa ścieżka (`saveIncoming()`, klasyfikacja, dopasowanie,
+  oś kontaktu); `sent` — nowe `saveOutgoingFromServer()`, dopasowanie
+  kontaktu po ODBIORCY (`to_addr`/`cc_addr`), nie po nadawcy (ten to zawsze
+  nasz adres) — dedup po `message_id` sprawia, że kopia z Sent nie dubluje
+  wiersza zapisanego przy wysyłce z panelu; `trash`/`archive` — lekki odczyt
+  (`saveArchivedOrTrashed()`), świadomie BEZ klasyfikacji/dopasowania/wpisu
+  na oś kontaktu (to dane już raz odrzucone przez właściciela, nie mają
+  automatycznie "ożywać"). **Decyzja właściciela 2026-07-16: bez ściągania
+  historii** — nowo odkryty folder startuje kursor "od teraz", nie od zera.
+  Konflikt po `message_id` w `sent`/`trash`/`archive` aktualizuje `folder`,
+  jeśli się zmienił (np. mail przeniesiony później do innego folderu w
+  Outlooku) — w przeciwieństwie do `inbox`, gdzie `DO NOTHING` zostaje bez
+  zmian.
+- **API:** `GET /api/mail?folder=inbox|sent|trash|archive` (domyślnie
+  `inbox`), `counts` rozszerzone o `folder_inbox/sent/trash/archive` do
+  liczników w sidebarze; liczniki "Do odpowiedzi"/kategorii świadomie
+  ograniczone do `folder='inbox'`. `PATCH /api/mail/:id` rozszerzone o
+  `{ move: "trash"|"archive"|"inbox" }` — mapuje folder źródłowy/docelowy na
+  `mail_folders.imap_path`, woła `moveMessage()`, DOPIERO PO sukcesie
+  aktualizuje `mail_messages.folder` (błąd IMAP nigdy nie zmienia stanu bazy).
+  `reply`/`forward`/`compose` insertują `folder='sent'` od razu (nie czekają
+  na kolejny sync). `maxDuration` syncu podniesione 60→90 (discovery + do 4
+  folderów w jednym przebiegu).
+- **UI:** sidebar folderów (📥 Odebrane/📤 Wysłane/🗑️ Kosz/🗄️ Archiwum,
+  emoji zgodnie z decyzją projektu — NIE zamienione na bibliotekę ikon)
+  przed listą 420px w `MailDashboard.tsx`; filtry "Do odpowiedzi"/"Rodzaj"
+  renderują się tylko w Odebranych. Nawigacja klawiaturą (`isTypingTarget()`
+  z `app/[lang]/admin/ui.tsx`, już używane w `ClientsDashboard.tsx`, reużyte
+  nie napisane od nowa): j/↓, k/↑ po liście, Enter otwiera, spacja zaznacza,
+  `r` otwiera odpowiedź (nowy prop `replyShortcut` w `MailDetailPanel.tsx` —
+  inkrementowany nonce), `e` = Obsłużone (decyzja właściciela: status, NIE
+  MOVE — folder i status to dwie osobne osie), Escape zamyka podgląd.
+  Zaznaczanie wielu (`Set<string>`, wzorem `ClientsDashboard.tsx`) + pasek
+  "Zaznaczono: N" (Obsłużone/Archiwizuj/Usuń — sekwencyjne wywołania
+  istniejącego `PATCH`, bez nowego endpointu zbiorczego). "Wycisz" (status)
+  zostaje OBOK nowych "Archiwizuj"/"Usuń" (folder) — dwie niezależne akcje,
+  decyzja właściciela. Poprawki wizualne: `MailDetailPanel.tsx` — treść maila
+  wycentrowana (`mx-auto`) zamiast przy lewej krawędzi (mniej rażące puste
+  miejsce na szerokim ekranie); `MailBodyHtml.tsx` — subtelniejsza ramka
+  (padding + cień) wokół `<iframe>` treści maila — NIE wymuszamy ciemnego
+  tła na treści maila (ta ma często własne, wpisane w HTML białe tło —
+  tak samo robi Apple Mail/Gmail, to nie bug).
+- **Świadomie odłożone w tej samej sesji** (uzasadnienie w
+  `docs/plany-modulow/04b-poczta-pelny-klient.md` → Etap 2): Robocze
+  (Drafts, to nowa funkcja od zera — autosave + APPEND/delete dance,
+  UIDPLUS), CONDSTORE/QRESYNC (optymalizacja, zero wpływu na UX), pełne
+  dwukierunkowe flagi `\Seen`/`\Answered`/`\Flagged` (MOVE zachowuje flagi
+  przy przenoszeniu — to "za darmo"), przejście na architekturę outbox+cron
+  zamiast IMAP w ścieżce żądania (głębsza zmiana niż same foldery — dziś
+  `moveMessage()`/`syncMailbox()` nadal w ścieżce żądania, spójnie z
+  istniejącym `sendMail()`/`appendToSent()`).
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. W przeglądarce
+  (PGlite, tymczasowo odblokowane dane mailbox — patrz wzorzec z Modułu 7):
+  sidebar folderów przełącza widoki poprawnie (Wysłane puste jak
+  oczekiwano), nawigacja klawiaturą (j/k/Enter/Escape/e/r) działa zgodnie z
+  projektem, zaznaczanie wielu + pasek akcji zbiorczych działa, próba
+  "Usuń"/"Archiwizuj" bez prawdziwego IMAP-a zwraca kontrolowany błąd 502
+  ("Nie znaleziono folderu... sprawdź konfigurację skrzynki") — mail
+  zostaje na miejscu, panel w pełni używalny, bez crasha. **Realna
+  weryfikacja wobec az.pl (czy SPECIAL-USE działa, czy MOVE jest wspierane,
+  czy Wysłane/Kosz/Archiwum faktycznie się odkrywają) możliwa dopiero na
+  produkcji** — analogicznie do Modułu 8 (OCR), które było iteracyjnie
+  naprawiane na podstawie logów produkcyjnych po pierwszym wdrożeniu.
+  Właściciel powinien po wdrożeniu: wysłać testowego maila z Outlooka i
+  sprawdzić, czy pojawia się w "Wysłane" w panelu po odświeżeniu; kliknąć
+  "Usuń" na testowym mailu i potwierdzić w Outlooku, że wylądował w
+  prawdziwym Koszu (nie zniknął bezpowrotnie); sprawdzić `vercel logs` pod
+  kątem ostrzeżeń o brakujących capabilities MOVE/UIDPLUS.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

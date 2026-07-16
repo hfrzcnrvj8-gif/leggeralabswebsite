@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
 
     await sql`
       INSERT INTO mail_messages (
-        id, kierunek, client_id, lead_id, from_addr, to_addr, cc_addr,
+        id, kierunek, folder, client_id, lead_id, from_addr, to_addr, cc_addr,
         subject, body_text, message_id, status, received_at, handled_at
       ) VALUES (
-        ${mailId}, 'out', ${clientId}, ${leadId},
+        ${mailId}, 'out', 'sent', ${clientId}, ${leadId},
         '', ${to}, ${cc.join(", ")}, ${subject}, ${text},
         ${sent.messageId}, 'obsłużony', now(), now()
       )

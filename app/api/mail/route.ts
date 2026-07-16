@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema } from "@/lib/db";
-import { MAIL_STATUSES, MAIL_CATEGORIES, type MailMessageWithLinks } from "@/lib/mail";
+import { MAIL_STATUSES, MAIL_CATEGORIES, MAIL_FOLDERS, type MailMessageWithLinks } from "@/lib/mail";
 import { isMailboxConfigured } from "@/lib/mailbox";
 
 export const runtime = "nodejs";
 
 /**
- * GET /api/mail?status=nowy&filter=unassigned — lista wiadomości.
+ * GET /api/mail?folder=inbox&status=nowy&filter=unassigned — lista wiadomości
+ * w JEDNYM folderze (domyślnie 'inbox' — zachowuje dawne zachowanie sprzed
+ * Etapu 2 Modułu 4b dla wołających bez tego parametru).
  *
  * Nazwy powiązanych rekordów (klient/lead/faktura) dociągamy jednym LEFT JOIN,
  * żeby lista nie musiała odpytywać o każdego klienta osobno.
@@ -21,6 +23,8 @@ export async function GET(req: NextRequest) {
   await ensureMailSchema();
   const sql = getSql();
 
+  const folderParam = req.nextUrl.searchParams.get("folder");
+  const folder = (MAIL_FOLDERS as readonly string[]).includes(folderParam || "") ? (folderParam as string) : "inbox";
   const statusParam = req.nextUrl.searchParams.get("status");
   const status = (MAIL_STATUSES as readonly string[]).includes(statusParam || "") ? statusParam : null;
   const unassignedOnly = req.nextUrl.searchParams.get("filter") === "unassigned";
@@ -34,9 +38,12 @@ export async function GET(req: NextRequest) {
 
   // Neon HTTP nie składa fragmentów SQL, więc zamiast budować WHERE
   // dynamicznie, przekazujemy oba filtry jako parametry i wyłączamy je
-  // NULL-em (ten sam wzorzec co w innych listach panelu).
+  // NULL-em (ten sam wzorzec co w innych listach panelu). `folder` NIE jest
+  // wyłączane przez wyszukiwanie (w przeciwieństwie do status/kategoria) —
+  // szukanie działa w obrębie aktualnie wybranej "skrzynki", tak jak w
+  // Apple Mail/Outlooku, dopóki właściciel nie poprosi o "szukaj wszędzie".
   const rows = (await sql`
-    SELECT m.id, m.uid, m.kierunek, m.client_id, m.lead_id, m.invoice_id,
+    SELECT m.id, m.uid, m.kierunek, m.folder, m.client_id, m.lead_id, m.invoice_id,
            m.from_addr, m.from_name, m.to_addr, m.subject, m.body_text,
            '' AS body_html,
            m.message_id, m.in_reply_to, m.refs, m.status, m.kategoria, m.received_at, m.handled_at,
@@ -45,7 +52,8 @@ export async function GET(req: NextRequest) {
     LEFT JOIN clients c ON c.id = m.client_id
     LEFT JOIN leads l ON l.id = m.lead_id
     LEFT JOIN invoices i ON i.id = m.invoice_id
-    WHERE (${status}::text IS NULL OR m.status = ${status})
+    WHERE m.folder = ${folder}
+      AND (${status}::text IS NULL OR m.status = ${status})
       AND (${unassignedOnly} = false OR (m.client_id IS NULL AND m.lead_id IS NULL))
       AND (${kategoria}::text IS NULL OR m.kategoria = ${kategoria})
       AND (
@@ -61,16 +69,25 @@ export async function GET(req: NextRequest) {
   // pokazuje, przy reklamie nie"). Liczą wiadomości przychodzące w danej
   // szufladce niezależnie od statusu — inaczej "Reklama" pokazywałaby 0, bo
   // reklamy z definicji są od razu 'zignorowany'. Wyjątkiem jest `nowe`,
-  // które z natury dotyczy tylko nieobsłużonych.
+  // które z natury dotyczy tylko nieobsłużonych. Wszystkie te liczniki są
+  // świadomie ograniczone do folder='inbox' (Etap 2 Modułu 4b) — "Do
+  // odpowiedzi"/"Rodzaj" to pojęcia sensowne tylko dla Odebranych, mail
+  // przeniesiony do Archiwum/Kosza nie ma dalej "wymagać reakcji".
+  // `sent`/`trash`/`archive` to zwykłe liczby wiadomości w danym folderze —
+  // do liczników w sidebarze folderów.
   const [counts] = (await sql`
     SELECT
-      COUNT(*) FILTER (WHERE status = 'nowy' AND kierunek = 'in')::int AS nowe,
-      COUNT(*) FILTER (WHERE client_id IS NULL AND lead_id IS NULL AND kierunek = 'in' AND status != 'zignorowany')::int AS nieprzypisane,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'oferta')::int AS oferta,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'rachunek')::int AS rachunek,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'urzedowe')::int AS urzedowe,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'inne')::int AS inne,
-      COUNT(*) FILTER (WHERE kierunek = 'in' AND COALESCE(kategoria, 'inne') = 'reklama')::int AS reklama
+      COUNT(*) FILTER (WHERE status = 'nowy' AND kierunek = 'in' AND folder = 'inbox')::int AS nowe,
+      COUNT(*) FILTER (WHERE client_id IS NULL AND lead_id IS NULL AND kierunek = 'in' AND status != 'zignorowany' AND folder = 'inbox')::int AS nieprzypisane,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'oferta')::int AS oferta,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'rachunek')::int AS rachunek,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'urzedowe')::int AS urzedowe,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'inne')::int AS inne,
+      COUNT(*) FILTER (WHERE kierunek = 'in' AND folder = 'inbox' AND COALESCE(kategoria, 'inne') = 'reklama')::int AS reklama,
+      COUNT(*) FILTER (WHERE folder = 'inbox')::int AS folder_inbox,
+      COUNT(*) FILTER (WHERE folder = 'sent')::int AS folder_sent,
+      COUNT(*) FILTER (WHERE folder = 'trash')::int AS folder_trash,
+      COUNT(*) FILTER (WHERE folder = 'archive')::int AS folder_archive
     FROM mail_messages;
   `) as unknown as Record<string, number>[];
 

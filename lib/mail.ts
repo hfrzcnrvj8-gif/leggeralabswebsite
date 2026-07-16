@@ -11,6 +11,29 @@
 export const MAIL_DIRECTIONS = ["in", "out"] as const;
 export type MailDirection = (typeof MAIL_DIRECTIONS)[number];
 
+/** Realny folder na serwerze IMAP (Etap 2 Modułu 4b, 2026-07-16) —
+ * niezależna oś od `kierunek` (in/out) i od `status` (nowy/obsłużony/
+ * zignorowany): `folder` mówi GDZIE FIZYCZNIE leży wiadomość na serwerze,
+ * `kierunek` czy ją wysłaliśmy czy dostaliśmy, `status` czy wymaga reakcji.
+ * Drafts/Junk świadomie pominięte — poza zakresem tej sesji (patrz
+ * docs/plany-modulow/04b-poczta-pelny-klient.md → Etap 2). */
+export const MAIL_FOLDERS = ["inbox", "sent", "trash", "archive"] as const;
+export type MailFolder = (typeof MAIL_FOLDERS)[number];
+
+export const MAIL_FOLDER_LABEL: Record<MailFolder, string> = {
+  inbox: "Odebrane",
+  sent: "Wysłane",
+  trash: "Kosz",
+  archive: "Archiwum",
+};
+
+export const MAIL_FOLDER_ICON: Record<MailFolder, string> = {
+  inbox: "📥",
+  sent: "📤",
+  trash: "🗑️",
+  archive: "🗄️",
+};
+
 /** Status wiadomości przychodzącej. "nowy" = wymaga reakcji (ląduje na
  * Pulpicie), "obsłużony" = odpisane albo ręcznie odhaczone, "zignorowany" =
  * wyciszony szum (newsletter/no-reply), patrz isNoiseAddress(). Wychodzące
@@ -34,6 +57,8 @@ export type MailMessage = {
   id: string;
   uid: number | null;
   kierunek: MailDirection;
+  /** Realny folder na serwerze IMAP — patrz komentarz przy MAIL_FOLDERS. */
+  folder: MailFolder;
   client_id: string | null;
   lead_id: string | null;
   invoice_id: string | null;

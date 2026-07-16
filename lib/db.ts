@@ -1517,6 +1517,21 @@ async function createMailSchema(): Promise<void> {
   await sql`ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS mail_message_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS mail_message_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL;`;
 
+  // Etap 2 Modułu 4b (2026-07-16) — REALNY folder na serwerze IMAP
+  // (Odebrane/Wysłane/Kosz/Archiwum), niezależny od `kierunek` (in/out).
+  // Domyślnie 'inbox', bo dotąd panel czytał wyłącznie INBOX — patrz
+  // ensureMailFoldersSchema() dla kursorów per-folder.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS folder TEXT NOT NULL DEFAULT 'inbox';`;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_folder_idx ON mail_messages(folder);`;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_folder_received_idx ON mail_messages(folder, received_at DESC);`;
+  // Maile wysłane z panelu (kierunek='out') fizycznie lądują w Sent
+  // (appendToSent, lib/mailbox.ts) — bez tego backfillu "Wysłane" byłoby
+  // puste, dopóki discoverMailFolders() nie odkryje tego folderu (a wtedy i
+  // tak czyta go świadomie bez historii, patrz ensureMailFoldersSchema()).
+  // Idempotentne: po pierwszym przebiegu WHERE folder='inbox' nie dopasowuje
+  // już nic więcej.
+  await inMigration(() => sql`UPDATE mail_messages SET folder = 'sent' WHERE kierunek = 'out' AND folder = 'inbox';`);
+
   await markSchemaApplied("mail");
 }
 
@@ -1524,6 +1539,63 @@ async function createMailSchema(): Promise<void> {
 export async function ensureMailSchema(): Promise<void> {
   if (!mailSchemaReady) mailSchemaReady = createMailSchema();
   await mailSchemaReady;
+}
+
+let mailFoldersSchemaReady: Promise<void> | null = null;
+
+/** Etap 2 Modułu 4b (2026-07-16) — kursory PER FOLDER na serwerze IMAP,
+ * zamiast jednego globalnego `last_seen_uid` w `mail_state` (który zakładał,
+ * że istnieje tylko INBOX). `role` to NASZ własny, stabilny klucz
+ * ('inbox'/'sent'/'trash'/'archive') — `imap_path` to realna ścieżka na
+ * serwerze, wynik `discoverMailFolders()` (lib/mailbox.ts), bo ta bywa różna
+ * zależnie od serwera/locale ("Sent" vs "INBOX.Sent" vs "Wysłane").
+ * `special_use` mówi, czy serwer w ogóle zgłosił RFC 6154 (SPECIAL-USE) dla
+ * tego folderu, czy trafiliśmy fallbackiem po nazwie — przydatne do
+ * diagnostyki na produkcji (patrz vercel logs).
+ *
+ * Wiersz 'inbox' migrujemy NATYCHMIAST z istniejącego `mail_state`, żeby nie
+ * zgubić postępu synchronizacji. Wiersze 'sent'/'trash'/'archive' powstają
+ * dopiero przy pierwszym `syncMailbox()` po wdrożeniu (lib/mailSync.ts) — nie
+ * znamy ich `imap_path` bez połączenia z serwerem, a kursor dla nich
+ * świadomie startuje "od teraz" (bieżący najwyższy UID w danym folderze w
+ * chwili odkrycia), NIE od zera — właściciel nie chce, żeby stara, już raz
+ * odrzucona/zarchiwizowana korespondencja z Kosza/Archiwum nagle dopisała
+ * się na oś kontaktu klienta (decyzja 2026-07-16). */
+async function createMailFoldersSchema(): Promise<void> {
+  if (await schemaUpToDate("mail_folders")) return;
+  await ensureMailSchema();
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_folders (
+      id TEXT PRIMARY KEY,
+      role TEXT NOT NULL UNIQUE,
+      imap_path TEXT NOT NULL,
+      special_use TEXT,
+      uidvalidity BIGINT,
+      last_seen_uid INTEGER NOT NULL DEFAULT 0,
+      last_sync_at TIMESTAMPTZ,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  await inMigration(
+    () => sql`
+      INSERT INTO mail_folders (id, role, imap_path, uidvalidity, last_seen_uid)
+      SELECT ${randomUUID()}, 'inbox', 'INBOX', uid_validity, last_seen_uid
+      FROM mail_state WHERE id = 'default'
+      ON CONFLICT (role) DO NOTHING;
+    `
+  );
+
+  await markSchemaApplied("mail_folders");
+}
+
+/** Lazily tworzy tabelę kursorów per-folder (Etap 2 Modułu 4b). */
+export async function ensureMailFoldersSchema(): Promise<void> {
+  if (!mailFoldersSchemaReady) mailFoldersSchemaReady = createMailFoldersSchema();
+  await mailFoldersSchemaReady;
 }
 
 let mailTemplatesSchemaReady: Promise<void> | null = null;

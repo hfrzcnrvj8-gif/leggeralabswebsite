@@ -101,10 +101,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     await sql`
       INSERT INTO mail_messages (
-        id, kierunek, client_id, lead_id, invoice_id, from_addr, to_addr,
+        id, kierunek, folder, client_id, lead_id, invoice_id, from_addr, to_addr,
         subject, body_text, message_id, in_reply_to, refs, status, received_at, handled_at
       ) VALUES (
-        ${replyId}, 'out', ${original.client_id}, ${original.lead_id}, ${original.invoice_id},
+        ${replyId}, 'out', 'sent', ${original.client_id}, ${original.lead_id}, ${original.invoice_id},
         ${original.to_addr}, ${original.from_addr}, ${subject}, ${text},
         ${sent.messageId}, ${original.message_id}, ${references}, 'obsłużony', now(), now()
       )

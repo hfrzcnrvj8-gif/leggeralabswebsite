@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
@@ -34,12 +34,18 @@ export function MailDetailPanel({
   configured,
   onClose,
   onChanged,
+  replyShortcut,
 }: {
   lang: Locale;
   mailId: string;
   configured: boolean;
   onClose: () => void;
   onChanged: () => void | Promise<void>;
+  /** Inkrementowany nonce z `MailDashboard` (skrót klawiszowy "r", Etap 2
+   * Modułu 4b) — zmiana wartości otwiera pole odpowiedzi bez myszki. Osobny
+   * prop zamiast globalnego stanu, żeby ten komponent nie musiał nic wiedzieć
+   * o obsłudze klawiatury rodzica. */
+  replyShortcut?: number;
 }) {
   const { toast, prompt } = useUI();
   const [mail, setMail] = useState<MailMessageWithLinks | null>(null);
@@ -77,6 +83,19 @@ export function MailDetailPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Skrót "r" (MailDashboard) → otwórz odpowiedź. Pomijamy pierwsze
+  // wywołanie efektu (montaż), żeby domyślna wartość propa nie otwierała
+  // pola od razu przy wejściu w podgląd.
+  const firstReplyShortcut = useRef(true);
+  useEffect(() => {
+    if (firstReplyShortcut.current) {
+      firstReplyShortcut.current = false;
+      return;
+    }
+    if (mail?.kierunek === "in" && configured) setReplyOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyShortcut]);
 
   // Projekty klienta dociągamy tylko wtedy, gdy mail jest do klienta
   // przypisany — bez tego "Z maila → zadanie" nie ma do czego się podpiąć.
@@ -145,6 +164,37 @@ export function MailDetailPanel({
       }
     });
   }, [mailId, replyText, replyCc, podpis, load, onChanged, toast, start]);
+
+  /** Przenosi wiadomość między folderami na serwerze (Etap 2 Modułu 4b) —
+   * "Usuń"/"Archiwizuj"/"Przywróć do Odebranych" to zawsze prawdziwy MOVE
+   * (RFC 6851), osobna oś od `status` ("Wycisz" niżej to inna, wcześniej
+   * istniejąca akcja — zostaje jak była, decyzja właściciela 2026-07-16). */
+  const moveTo = useCallback(
+    async (folder: "trash" | "archive" | "inbox") => {
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/mail/${mailId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ move: folder }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          toast(data?.error || "Nie udało się przenieść wiadomości.", "error");
+          return;
+        }
+        await onChanged();
+        // Mail zniknął z aktualnie oglądanego folderu — lista i tak go
+        // zaraz nie pokaże, więc zamykamy podgląd zamiast zostawiać go
+        // otwartym na czymś, co już nie jest tu widoczne.
+        onClose();
+        toast(folder === "trash" ? "Przeniesiono do Kosza." : folder === "archive" ? "Zarchiwizowano." : "Przywrócono do Odebranych.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [mailId, onChanged, onClose, toast]
+  );
 
   const applyTemplate = useCallback((t: MailTemplate) => {
     setReplyText((prev) => (prev.trim() ? `${prev}\n\n${t.tresc}` : t.tresc));
@@ -309,8 +359,11 @@ export function MailDetailPanel({
 
       {/* HTML, gdy mail go ma (tak wygląda w Outlooku); wersja tekstowa jako
           zapas dla maili czysto tekstowych. max-w-[70ch] tylko na akapicie —
-          karta wokół może być szeroka (04d pkt 4), ale linijki tekstu nie. */}
-      <div className="mb-5 max-w-[70ch]">
+          karta wokół może być szeroka (04d pkt 4), ale linijki tekstu nie.
+          `mx-auto` wycentrowuje blok: bez tego, na szerokim ekranie, całe
+          puste miejsce lądowało tylko po prawej stronie (zgłoszone
+          2026-07-16) — wycentrowanie rozkłada je symetrycznie. */}
+      <div className="mb-5 mx-auto max-w-[70ch]">
         {html ? (
           <MailBodyHtml html={html} blockedImages={blockedImages} onShowImages={() => setShowImages(true)} />
         ) : (
@@ -487,6 +540,36 @@ export function MailDetailPanel({
               className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
             >
               Wycisz
+            </button>
+          )}
+          {mail.folder !== "archive" && (
+            <button
+              onClick={() => void moveTo("archive")}
+              disabled={busy || !configured}
+              title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
+              className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+            >
+              🗄️ Archiwizuj
+            </button>
+          )}
+          {mail.folder !== "trash" && (
+            <button
+              onClick={() => void moveTo("trash")}
+              disabled={busy || !configured}
+              title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
+              className="rounded-full border border-red-500/40 px-3 py-1.5 text-[12px] text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+            >
+              🗑️ Usuń
+            </button>
+          )}
+          {(mail.folder === "trash" || mail.folder === "archive") && (
+            <button
+              onClick={() => void moveTo("inbox")}
+              disabled={busy || !configured}
+              title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
+              className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+            >
+              📥 Przywróć do Odebranych
             </button>
           )}
           {mail.from_addr && (

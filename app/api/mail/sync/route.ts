@@ -7,8 +7,10 @@ import { isMailboxConfigured } from "@/lib/mailbox";
 // IMAP/SMTP to zwykły TCP — Edge tego nie potrafi.
 export const runtime = "nodejs";
 // Sync łączy się z az.pl, czyta i parsuje wiadomości — domyślne 10 s bywa za
-// mało przy pierwszym przebiegu na wolniejszej skrzynce.
-export const maxDuration = 60;
+// mało przy pierwszym przebiegu na wolniejszej skrzynce. Podniesione z 60 do
+// 90 przy Etapie 2 Modułu 4b (2026-07-16): discovery + do 4 folderów
+// (Odebrane/Wysłane/Kosz/Archiwum) w jednym przebiegu zamiast samego INBOX-a.
+export const maxDuration = 90;
 
 /**
  * POST /api/mail/sync — pobierz nowe wiadomości ze skrzynki az.pl.

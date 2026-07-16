@@ -2,14 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "@/i18n/config";
-import { useUI, useRegisterActions } from "../ui";
-import { MailStatusTag, MailCategoryTag, MAIL_CATEGORY_LABEL, type MailMessageWithLinks, type MailStatus } from "./shared";
+import { useUI, useRegisterActions, isTypingTarget } from "../ui";
+import {
+  MailStatusTag,
+  MailCategoryTag,
+  MAIL_CATEGORY_LABEL,
+  MAIL_FOLDERS,
+  MAIL_FOLDER_LABEL,
+  MAIL_FOLDER_ICON,
+  type MailMessageWithLinks,
+  type MailStatus,
+  type MailFolder,
+} from "./shared";
 import { MailDetailPanel } from "./MailDetailPanel";
 import { MailComposeForm } from "./MailComposeForm";
 
 // Filtry to dwie NIEZALEŻNE osie, jak status vs zdrowie projektu: co wymaga
 // mojej reakcji (góra) i czego dotyczy (dół, kategorie). Mieszanie ich w jedną
-// listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki".
+// listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki". Sensowne
+// TYLKO w Odebranych (Etap 2 Modułu 4b) — Wysłane/Kosz/Archiwum nie mają
+// pojęcia "do odpowiedzi" ani klasyfikacji treści.
 type Filter = "nowy" | "unassigned" | "all";
 type CatFilter = "wszystkie" | "oferta" | "rachunek" | "urzedowe" | "inne" | "reklama";
 
@@ -46,10 +58,11 @@ function formatWhen(iso: string): string {
 }
 
 export function MailDashboard({ lang }: { lang: Locale }) {
-  const { toast } = useUI();
+  const { toast, confirm } = useUI();
   const [messages, setMessages] = useState<MailMessageWithLinks[] | null>(null);
   const [counts, setCounts] = useState<Counts>({ nowe: 0, nieprzypisane: 0 });
   const [configured, setConfigured] = useState(true);
+  const [activeFolder, setActiveFolder] = useState<MailFolder>("inbox");
   const [filter, setFilter] = useState<Filter>("nowy");
   const [catFilter, setCatFilter] = useState<CatFilter>("wszystkie");
   const [query, setQuery] = useState("");
@@ -57,12 +70,26 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   const [syncing, setSyncing] = useState(false);
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  // Nawigacja klawiaturą (Etap 2 Modułu 4b) — pozycja "kursora" na liście,
+  // niezależna od `openId` (fokus klawiaturowy vs otwarty podgląd mogą być
+  // różnymi wierszami, tak jak w Gmailu/Superhuman).
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Inkrementowany nonce — skrót "r" wywołuje efekt w MailDetailPanel, który
+  // otwiera pole odpowiedzi (patrz replyShortcut tam).
+  const [replyShortcutNonce, setReplyShortcutNonce] = useState(0);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const load = useCallback(async () => {
     // Szukanie idzie do serwera, a nie filtruje wczytanej listy — lista ma
     // limit 200, więc filtrowanie po stronie przeglądarki gubiłoby starsze
-    // trafienia i "nie znajdowałoby" maili, które są w skrzynce.
-    const res = await fetch(`/api/mail${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`);
+    // trafienia i "nie znajdowałoby" maili, które są w skrzynce. `folder`
+    // zawsze jest wysyłane — serwer domyślnie zwraca 'inbox' bez parametru,
+    // ale wysyłamy jawnie, żeby nie polegać na tym domyślnym zachowaniu.
+    const params = new URLSearchParams({ folder: activeFolder });
+    if (query.trim()) params.set("q", query.trim());
+    const res = await fetch(`/api/mail?${params.toString()}`);
     if (res.status === 401) {
       window.location.reload();
       return;
@@ -75,7 +102,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     setMessages(data.messages);
     setCounts(data.counts ?? { nowe: 0, nieprzypisane: 0 });
     setConfigured(data.configured);
-  }, [query, toast]);
+  }, [activeFolder, query, toast]);
 
   const sync = useCallback(
     async (silent: boolean) => {
@@ -131,6 +158,81 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     [messages, load, toast]
   );
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(
+    (checked: boolean) => {
+      setSelectedIds(checked ? new Set((messages ?? []).map((m) => m.id)) : new Set());
+    },
+    [messages]
+  );
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  /** Zbiorcza zmiana statusu (pasek "Zaznaczono: N") — jeden podsumowujący
+   * toast zamiast N pojedynczych (w przeciwieństwie do setMailStatus() wyżej,
+   * które toastuje przy KAŻDYM pojedynczym kliknięciu — to normalne dla
+   * jednej wiadomości, ale ogłuszające przy dziesiątkach naraz). */
+  const bulkSetStatus = useCallback(
+    async (status: MailStatus) => {
+      const ids = [...selectedIds];
+      if (ids.length === 0) return;
+      setBulkBusy(true);
+      for (const id of ids) {
+        await fetch(`/api/mail/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+      }
+      setBulkBusy(false);
+      clearSelection();
+      await load();
+      toast(`Zaktualizowano status dla ${ids.length} wiadomości.`);
+    },
+    [selectedIds, clearSelection, load, toast]
+  );
+
+  /** Zbiorcze przeniesienie (Usuń/Archiwizuj/Przywróć) — prawdziwy MOVE na
+   * serwerze per wiadomość (PATCH .../route.ts), sekwencyjnie, bez nowego
+   * endpointu zbiorczego (ten sam wzorzec co bulkDelete w
+   * ClientsDashboard.tsx). "Usuń" prosi o potwierdzenie — dotyczy wielu
+   * wiadomości naraz, więc warto zapytać mimo że MOVE do Kosza jest
+   * odwracalne. */
+  const bulkMove = useCallback(
+    async (move: "trash" | "archive" | "inbox") => {
+      const ids = [...selectedIds];
+      if (ids.length === 0) return;
+      if (move === "trash") {
+        const ok = await confirm(`Przenieść ${ids.length} ${ids.length === 1 ? "wiadomość" : "wiadomości"} do Kosza?`, { danger: true });
+        if (!ok) return;
+      }
+      setBulkBusy(true);
+      let failed = 0;
+      for (const id of ids) {
+        const res = await fetch(`/api/mail/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ move }),
+        });
+        if (!res.ok) failed++;
+      }
+      setBulkBusy(false);
+      clearSelection();
+      await load();
+      if (failed > 0) toast(`${failed} z ${ids.length} nie udało się przenieść.`, "error");
+      else toast(`Przeniesiono ${ids.length} ${ids.length === 1 ? "wiadomość" : "wiadomości"}.`);
+    },
+    [selectedIds, confirm, clearSelection, load, toast]
+  );
+
   // Otwarcie widoku = pobranie nowych (decyzja właściciela 2026-07-15:
   // on-demand + raz dziennie w cronie). Najpierw pokazujemy to, co jest w
   // bazie, żeby lista nie czekała na IMAP-a.
@@ -143,18 +245,39 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Szukanie z opóźnieniem — bez tego każda litera to osobne zapytanie.
-  // Pomijamy pierwsze uruchomienie (pustą frazę), bo listę wczytał już
-  // efekt wejścia w widok.
-  const firstQueryRun = useRef(true);
+  // Przeładowanie listy przy zmianie folderu (NATYCHMIAST — to jedno
+  // kliknięcie, nie pisanie po znaku) albo frazy szukania (Z opóźnieniem —
+  // bez tego każda litera to osobne zapytanie). Zmiana folderu dodatkowo
+  // czyści zaznaczenie: zaznaczanie "w poprzek" folderów nie ma sensu.
+  const prevFolderRef = useRef(activeFolder);
+  const firstLoadEffectRun = useRef(true);
   useEffect(() => {
-    if (firstQueryRun.current) {
-      firstQueryRun.current = false;
+    if (firstLoadEffectRun.current) {
+      firstLoadEffectRun.current = false;
+      prevFolderRef.current = activeFolder;
+      return;
+    }
+    const folderChanged = prevFolderRef.current !== activeFolder;
+    prevFolderRef.current = activeFolder;
+    if (folderChanged) {
+      clearSelection();
+      void load();
       return;
     }
     const t = window.setTimeout(() => void load(), 250);
     return () => window.clearTimeout(t);
-  }, [query, load]);
+  }, [activeFolder, query, load, clearSelection]);
+
+  // Fokus klawiaturowy wraca na górę listy przy każdym świeżym wczytaniu
+  // (nowy folder, nowe wyniki szukania) — stara pozycja nie ma już sensu.
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [messages]);
+
+  useEffect(() => {
+    const el = listRef.current?.querySelector(`[data-idx="${focusedIndex}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [focusedIndex]);
 
   useRegisterActions(
     [
@@ -171,17 +294,75 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     // chcesz ją znaleźć wszędzie — także w wyciszonych reklamach czy w
     // obsłużonych. Inaczej wyszukiwarka "nie znajduje" maila, który jest.
     if (query.trim()) return out;
-    if (filter === "nowy") out = out.filter((m) => m.status === "nowy" && m.kierunek === "in");
-    else if (filter === "unassigned") {
-      out = out.filter((m) => !m.client_id && !m.lead_id && m.kierunek === "in" && m.status !== "zignorowany");
-    }
-    if (catFilter !== "wszystkie") {
-      // Wiersze sprzed wprowadzenia kategorii mają null — traktujemy je jak
-      // "inne", żeby nie znikały z widoku, zanim backfill je przeliczy.
-      out = out.filter((m) => (m.kategoria ?? "inne") === catFilter);
+    // "Do odpowiedzi"/"Nieprzypisane"/kategorie mają sens TYLKO w Odebranych
+    // (Etap 2 Modułu 4b) — serwer i tak zwraca tylko wiadomości aktywnego
+    // folderu, ale bez tej straży filtr z poprzedniej wizyty w Odebranych
+    // (np. "Rachunek") zostałby "przyklejony" i pokazywałby 0 wyników po
+    // przełączeniu na Wysłane/Kosz/Archiwum, gdzie kategoria zawsze jest null.
+    if (activeFolder === "inbox") {
+      if (filter === "nowy") out = out.filter((m) => m.status === "nowy" && m.kierunek === "in");
+      else if (filter === "unassigned") {
+        out = out.filter((m) => !m.client_id && !m.lead_id && m.kierunek === "in" && m.status !== "zignorowany");
+      }
+      if (catFilter !== "wszystkie") {
+        // Wiersze sprzed wprowadzenia kategorii mają null — traktujemy je jak
+        // "inne", żeby nie znikały z widoku, zanim backfill je przeliczy.
+        out = out.filter((m) => (m.kategoria ?? "inne") === catFilter);
+      }
     }
     return out;
-  }, [messages, filter, catFilter, query]);
+  }, [messages, filter, catFilter, query, activeFolder]);
+
+  // Nawigacja klawiaturą (Etap 2 Modułu 4b): j/k albo strzałki po liście,
+  // Enter otwiera, spacja zaznacza, "r" otwiera odpowiedź na otwartej
+  // wiadomości, "e" oznacza jako obsłużone (decyzja właściciela 2026-07-16:
+  // NIE archiwizacja — status i folder to dwie osobne osie), Escape zamyka
+  // podgląd. isTypingTarget() (już używane w innych modułach panelu, patrz
+  // ClientsDashboard.tsx) chroni pisanie w polu szukania/odpowiedzi.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (openId) setOpenId(null);
+        return;
+      }
+      if (isTypingTarget(e.target)) return;
+
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusedIndex((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
+        return;
+      }
+      if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusedIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" && filtered[focusedIndex]) {
+        e.preventDefault();
+        setOpenId(filtered[focusedIndex].id);
+        return;
+      }
+      if (e.key === " " && filtered[focusedIndex]) {
+        e.preventDefault();
+        toggleSelect(filtered[focusedIndex].id);
+        return;
+      }
+      if (e.key === "r" && openId) {
+        e.preventDefault();
+        setReplyShortcutNonce((n) => n + 1);
+        return;
+      }
+      if (e.key === "e") {
+        const targetId = openId ?? filtered[focusedIndex]?.id;
+        if (targetId) {
+          e.preventDefault();
+          void setMailStatus(targetId, "obsłużony");
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openId, filtered, focusedIndex, toggleSelect, setMailStatus]);
 
   const openMessage = messages?.find((m) => m.id === openId) ?? null;
 
@@ -193,6 +374,8 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       </div>
     );
   }
+
+  const folderCount = (f: MailFolder): number => (f === "inbox" ? counts.nowe : (counts[`folder_${f}`] ?? 0));
 
   return (
     <div className="p-4 sm:p-6">
@@ -266,67 +449,157 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
-      <div className="mb-2 flex gap-1">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setFilter(f.id)}
-            className={`rounded-full px-3 py-1 text-[12px] transition ${
-              filter === f.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
-            }`}
-          >
-            {f.label}
-            {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
-            {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
-          </button>
-        ))}
-      </div>
+      {activeFolder === "inbox" && (
+        <>
+          <div className="mb-2 flex gap-1">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`rounded-full px-3 py-1 text-[12px] transition ${
+                  filter === f.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
+                }`}
+              >
+                {f.label}
+                {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
+                {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
+              </button>
+            ))}
+          </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-1 border-t hairline pt-2">
-        <span className="mr-1 text-[11px] text-muted opacity-70">Rodzaj:</span>
-        {CAT_FILTERS.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => setCatFilter(c.id)}
-            className={`rounded-full px-2.5 py-0.5 text-[12px] transition ${
-              catFilter === c.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
-            }`}
-          >
-            {c.label}
-            {c.id !== "wszystkie" && counts[c.id] > 0 ? ` (${counts[c.id]})` : ""}
-          </button>
-        ))}
-      </div>
+          <div className="mb-3 flex flex-wrap items-center gap-1 border-t hairline pt-2">
+            <span className="mr-1 text-[11px] text-muted opacity-70">Rodzaj:</span>
+            {CAT_FILTERS.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setCatFilter(c.id)}
+                className={`rounded-full px-2.5 py-0.5 text-[12px] transition ${
+                  catFilter === c.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
+                }`}
+              >
+                {c.label}
+                {c.id !== "wszystkie" && counts[c.id] > 0 ? ` (${counts[c.id]})` : ""}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
-      {/* Dwie kolumny — lista + podgląd obok siebie (wzorem Outlooka), żeby
-          wykorzystać całą szerokość ekranu i żeby zmiana wiadomości nie
-          wymagała otwierania osobnego modala (04d pkt 3 i 4). Poniżej `lg`
-          kolumny się składają — lista nad podglądem. */}
+      {selectedIds.size > 0 && (
+        <div className="card-paper sticky top-2 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-[12px]">
+          <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
+          <button
+            onClick={() => void bulkSetStatus("obsłużony")}
+            disabled={bulkBusy}
+            className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+          >
+            Obsłużone
+          </button>
+          {activeFolder !== "archive" && (
+            <button
+              onClick={() => void bulkMove("archive")}
+              disabled={bulkBusy || !configured}
+              className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+            >
+              🗄️ Archiwizuj
+            </button>
+          )}
+          {activeFolder !== "trash" && (
+            <button
+              onClick={() => void bulkMove("trash")}
+              disabled={bulkBusy || !configured}
+              className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+            >
+              🗑️ Usuń
+            </button>
+          )}
+          {(activeFolder === "trash" || activeFolder === "archive") && (
+            <button
+              onClick={() => void bulkMove("inbox")}
+              disabled={bulkBusy || !configured}
+              className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+            >
+              📥 Przywróć
+            </button>
+          )}
+          <span className="flex-1" />
+          <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
+            Odznacz wszystko
+          </button>
+        </div>
+      )}
+
+      {/* Trzy kolumny — foldery (styl Apple Mail, Etap 2 Modułu 4b) + lista +
+          podgląd. Poniżej `lg` kolumny się składają: foldery jako poziomy
+          pasek pigułek (ten sam wzorzec co FILTERS wyżej), lista nad
+          podglądem. */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="flex flex-row flex-wrap gap-1 lg:w-40 lg:shrink-0 lg:flex-col lg:gap-0.5">
+          {MAIL_FOLDERS.map((f) => (
+            <button
+              key={f}
+              onClick={() => setActiveFolder(f)}
+              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-2 ${
+                activeFolder === f ? "bg-[var(--hairline)] font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+              }`}
+            >
+              <span aria-hidden>{MAIL_FOLDER_ICON[f]}</span>
+              <span className="lg:flex-1">{MAIL_FOLDER_LABEL[f]}</span>
+              {folderCount(f) > 0 && <span className="text-[11px] text-muted">{folderCount(f)}</span>}
+            </button>
+          ))}
+        </div>
+
         <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[420px] lg:shrink-0 lg:overflow-y-auto">
+          {filtered.length > 0 && (
+            <div className="sticky top-0 z-10 flex items-center gap-2 border-b hairline bg-[var(--bg-soft)] px-4 py-2 text-[11px] text-muted">
+              <input
+                type="checkbox"
+                checked={filtered.every((m) => selectedIds.has(m.id))}
+                onChange={(e) => toggleSelectAll(e.target.checked)}
+                className="h-3.5 w-3.5 cursor-pointer accent-brand-purple"
+                aria-label="Zaznacz wszystkie widoczne"
+              />
+              <span>Zaznacz wszystkie widoczne ({filtered.length})</span>
+            </div>
+          )}
           {filtered.length === 0 ? (
             <p className="p-8 text-center text-sm text-muted opacity-60">
-              {filter === "nowy"
-                ? "Nic — wszystko obsłużone."
-                : filter === "unassigned"
-                  ? "Nic nieprzypisanego."
-                  : "Brak wiadomości."}
+              {activeFolder !== "inbox"
+                ? `Brak wiadomości w folderze „${MAIL_FOLDER_LABEL[activeFolder]}”.`
+                : filter === "nowy"
+                  ? "Nic — wszystko obsłużone."
+                  : filter === "unassigned"
+                    ? "Nic nieprzypisanego."
+                    : "Brak wiadomości."}
             </p>
           ) : (
-            <ul className="divide-y divide-[var(--hairline)]">
-              {filtered.map((m) => (
-                <li key={m.id} className="relative">
+            <ul ref={listRef} className="divide-y divide-[var(--hairline)]">
+              {filtered.map((m, i) => (
+                <li key={m.id} className="relative" data-idx={i}>
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => setOpenId(m.id)}
+                    onClick={() => {
+                      setOpenId(m.id);
+                      setFocusedIndex(i);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setOpenId(m.id);
                     }}
                     className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3 text-left transition hover:bg-[var(--hairline)]/40 ${
                       openId === m.id ? "bg-[var(--hairline)]/50" : ""
-                    }`}
+                    } ${focusedIndex === i ? "ring-2 ring-inset ring-brand-purple/50" : ""}`}
                   >
+                    <span onClick={(e) => e.stopPropagation()} className="mt-1 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(m.id)}
+                        onChange={() => toggleSelect(m.id)}
+                        className="h-3.5 w-3.5 cursor-pointer accent-brand-purple"
+                        aria-label={`Zaznacz: ${m.subject || "bez tematu"}`}
+                      />
+                    </span>
                     {/* Kropka nieprzeczytanych wzorem Apple Mail — stała
                         kolumna (niewidoczna, gdy obsłużone), żeby wiersze nie
                         przeskakiwały w bok po odhaczeniu. */}
@@ -424,6 +697,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               configured={configured}
               onClose={() => setOpenId(null)}
               onChanged={load}
+              replyShortcut={replyShortcutNonce}
             />
           ) : (
             <div className="card-paper flex min-h-[300px] items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">

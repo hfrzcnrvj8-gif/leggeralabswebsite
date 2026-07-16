@@ -45,15 +45,23 @@ export function MailBodyHtml({ html, blockedImages, onShowImages }: { html: stri
           </button>
         </div>
       )}
-      <iframe
-        ref={ref}
-        srcDoc={srcDoc}
-        sandbox="allow-popups allow-popups-to-escape-sandbox"
-        referrerPolicy="no-referrer"
-        title="Treść wiadomości"
-        className="w-full rounded-xl border hairline bg-white dark:bg-[#141414]"
-        style={{ height }}
-      />
+      {/* Ramka dookoła (padding + delikatny cień) łagodzi przejście z
+          ciemnego UI panelu do treści maila — ta zwykle ma WŁASNE, wpisane w
+          HTML białe tło (faktury/stopki/newslettery), którego świadomie NIE
+          wymuszamy na ciemno (tak samo robi Apple Mail/Gmail — nie
+          przemalowują cudzej treści). To wyłącznie kosmetyka wokół, nie
+          zmiana samego renderowania (patrz buildMailSrcDoc, lib/mailHtml.ts). */}
+      <div className="rounded-2xl border hairline bg-[var(--hairline)]/10 p-2">
+        <iframe
+          ref={ref}
+          srcDoc={srcDoc}
+          sandbox="allow-popups allow-popups-to-escape-sandbox"
+          referrerPolicy="no-referrer"
+          title="Treść wiadomości"
+          className="w-full rounded-xl border hairline bg-white shadow-sm dark:bg-[#141414]"
+          style={{ height }}
+        />
+      </div>
     </div>
   );
 }

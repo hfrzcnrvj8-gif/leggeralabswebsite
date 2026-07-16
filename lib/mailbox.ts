@@ -77,10 +77,103 @@ export function mailboxConfig(): MailboxConfig {
   };
 }
 
-/** Adres, którym się przedstawiamy przy wysyłce. Domyślnie login skrzynki
- * (u az.pl login == adres), MAIL_FROM pozwala nadpisać wyświetlaną nazwę. */
+/** Adres, którym się przedstawiamy przy wysyłce. Domyślnie "Leggera Labs
+ * <login skrzynki>" — bez tego odbiorca widział surowy adres (np.
+ * "kontakt@leggeralabs.pl") zamiast nazwy firmy w nagłówku From (zgłoszone
+ * 2026-07-16). Wzorzec jak `RESEND_FROM` w lib/email.ts. MAIL_FROM pozwala
+ * nadpisać całość (np. inną nazwą wyświetlaną), gdyby zaszła taka potrzeba. */
 export function mailFrom(cfg: MailboxConfig): string {
-  return process.env.MAIL_FROM || cfg.user;
+  return process.env.MAIL_FROM || `Leggera Labs <${cfg.user}>`;
+}
+
+/** Nasz własny, stabilny klucz dla folderów specjalnego użycia — niezależny
+ * od tego, jak dokładnie nazywa się/gdzie leży folder na danym serwerze
+ * (patrz `mail_folders.role` w lib/db.ts, Etap 2 Modułu 4b). Drafts/Junk
+ * świadomie pominięte — poza zakresem tej sesji. */
+export type MailFolderRole = "sent" | "trash" | "archive";
+
+const SPECIAL_USE_FLAG: Record<MailFolderRole, string> = {
+  sent: "\\Sent",
+  trash: "\\Trash",
+  archive: "\\Archive",
+};
+
+/** Nazwy do zgadywania, gdy serwer NIE zgłasza RFC 6154 (SPECIAL-USE) —
+ * fallback, nie pierwsza strategia. Lista "sent" to dokładnie ta, którą
+ * dotąd `appendToSent()` miała zaszytą na sztywno. */
+const FOLDER_NAME_FALLBACKS: Record<MailFolderRole, string[]> = {
+  sent: ["Sent", "INBOX.Sent", "Sent Items", "Wysłane", "INBOX.Wysłane"],
+  trash: ["Trash", "INBOX.Trash", "Kosz", "INBOX.Kosz", "Deleted Items", "Deleted Messages"],
+  archive: ["Archive", "INBOX.Archive", "Archiwum", "INBOX.Archiwum", "All Mail"],
+};
+
+export type DiscoveredFolder = { path: string; specialUse: string | null };
+
+/**
+ * Znajduje realne ścieżki folderów specjalnego użycia na serwerze IMAP —
+ * NAJPIERW special-use (RFC 6154: `client.list()` zwraca pole `specialUse`,
+ * gdy serwer je wspiera), DOPIERO POTEM zgadywanie po nazwie jako fallback —
+ * nazwa bywa różna zależnie od serwera/locale ("Sent" vs "INBOX.Sent" vs
+ * "Wysłane"), a special-use jest jednoznaczne. Rola, której nie udało się
+ * znaleźć ani jednym, ani drugim sposobem, dostaje `null` — wołający
+ * (mailSync/moveMessage) ma się z tym obejść spokojnie (ta zakładka po
+ * prostu nie istnieje na tym koncie, zamiast się wywalać).
+ */
+export async function discoverMailFolders(client: ImapFlow): Promise<Record<MailFolderRole, DiscoveredFolder | null>> {
+  const out: Record<MailFolderRole, DiscoveredFolder | null> = { sent: null, trash: null, archive: null };
+
+  let list: Awaited<ReturnType<ImapFlow["list"]>>;
+  try {
+    list = await client.list();
+  } catch (e) {
+    console.error("[mailbox] discoverMailFolders: LIST nie powiodło się", e);
+    return out;
+  }
+
+  for (const role of Object.keys(out) as MailFolderRole[]) {
+    const flagged = list.find((m) => m.specialUse === SPECIAL_USE_FLAG[role]);
+    if (flagged) {
+      out[role] = { path: flagged.path, specialUse: flagged.specialUse ?? null };
+      continue;
+    }
+    const byName = list.find((m) => FOLDER_NAME_FALLBACKS[role].includes(m.path));
+    if (byName) out[role] = { path: byName.path, specialUse: null };
+  }
+  return out;
+}
+
+/** Jak discoverMailFolders(), ale zarządza własnym połączeniem — do użycia
+ * przez wołających spoza tego pliku (np. lib/mailSync.ts), którzy zgodnie z
+ * zasadą tego modułu ("cienka warstwa: łączy się, czyta/wysyła, rozłącza")
+ * nie powinni sami trzymać sesji IMAP. */
+export async function discoverMailFoldersOnce(): Promise<Record<MailFolderRole, DiscoveredFolder | null>> {
+  const cfg = mailboxConfig();
+  const client = await connectImap(cfg);
+  try {
+    return await discoverMailFolders(client);
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
+/** Zwraca bieżący najwyższy UID i UIDVALIDITY folderu BEZ pobierania jego
+ * zawartości (tania komenda STATUS, nie SELECT+FETCH) — używane do
+ * wyznaczenia punktu startowego kursora dla NOWO odkrytego folderu
+ * (Sent/Trash/Archive): "od teraz", nie od zera (decyzja właściciela
+ * 2026-07-16 — bez ściągania historii, patrz mail_folders w lib/db.ts). */
+export async function getFolderCursorStart(imapPath: string): Promise<{ highestUid: number; uidValidity: number | null }> {
+  const cfg = mailboxConfig();
+  const client = await connectImap(cfg);
+  try {
+    const status = await client.status(imapPath, { uidNext: true, uidValidity: true });
+    const uidNext = status.uidNext ?? 1;
+    return {
+      highestUid: Math.max(0, uidNext - 1),
+      uidValidity: status.uidValidity != null ? Number(status.uidValidity) : null,
+    };
+  } finally {
+    await client.logout().catch(() => {});
+  }
 }
 
 async function connectImap(cfg: MailboxConfig): Promise<ImapFlow> {
@@ -98,7 +191,10 @@ async function connectImap(cfg: MailboxConfig): Promise<ImapFlow> {
 }
 
 /**
- * Pobiera wiadomości z INBOX o UID większym niż `sinceUid`.
+ * Pobiera wiadomości z DOWOLNEGO folderu (`imapPath`) o UID większym niż
+ * `sinceUid` — Etap 2 Modułu 4b (2026-07-16) uogólnił to z hardkodowanego
+ * INBOX-a, żeby ta sama funkcja obsłużyła też Sent/Trash/Archive z własnymi
+ * kursorami per-folder (`mail_folders`, lib/db.ts).
  *
  * Zwraca też `uidValidity` — wołający MUSI porównać ją z zapisaną wcześniej i
  * przy zmianie zresetować `last_seen_uid` do 0 (serwer przenumerował
@@ -109,7 +205,8 @@ async function connectImap(cfg: MailboxConfig): Promise<ImapFlow> {
  * czasu funkcji serverless — bierzemy najnowsze wiadomości, resztę dociągną
  * kolejne przebiegi.
  */
-export async function fetchNewMessages(
+export async function fetchMessagesInFolder(
+  imapPath: string,
   sinceUid: number,
   limit = 50
 ): Promise<{ messages: FetchedMessage[]; uidValidity: number | null; highestUid: number }> {
@@ -120,7 +217,7 @@ export async function fetchNewMessages(
   let highestUid = sinceUid;
 
   try {
-    const lock = await client.getMailboxLock("INBOX");
+    const lock = await client.getMailboxLock(imapPath);
     try {
       const box = client.mailbox;
       if (box && typeof box !== "boolean") {
@@ -433,17 +530,17 @@ export async function appendToSent(raw: string): Promise<boolean> {
   const cfg = mailboxConfig();
   const client = await connectImap(cfg);
   try {
-    // Serwer zwykle sam oznacza właściwy folder flagą \Sent — to pewniejsze
-    // niż zgadywanie nazwy po locale.
+    // discoverMailFolders() sprawdza special-use PRZED zgadywaniem nazw —
+    // pewniejsze niż zgadywanie po locale. Gdyby z jakiegoś powodu odkryta
+    // ścieżka jednak zawiodła (np. serwer zgłosił specialUse dla folderu,
+    // do którego akurat nie da się dopisać), dalej próbujemy pełną listę
+    // nazw jako siatkę bezpieczeństwa — dokładnie jak dotychczas.
+    const discovered = await discoverMailFolders(client);
     const candidates: string[] = [];
-    try {
-      const list = await client.list();
-      const flagged = list.find((m) => m.specialUse === "\\Sent");
-      if (flagged) candidates.push(flagged.path);
-    } catch {
-      // Brak LIST-a nie przekreśla APPEND-a — lecimy na nazwach niżej.
+    if (discovered.sent) candidates.push(discovered.sent.path);
+    for (const name of FOLDER_NAME_FALLBACKS.sent) {
+      if (!candidates.includes(name)) candidates.push(name);
     }
-    candidates.push("Sent", "INBOX.Sent", "Sent Items", "Wysłane", "INBOX.Wysłane");
 
     for (const path of candidates) {
       try {
@@ -454,6 +551,40 @@ export async function appendToSent(raw: string): Promise<boolean> {
       }
     }
     return false;
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
+/**
+ * Przenosi wiadomość między folderami przez natywne IMAP MOVE (RFC 6851) —
+ * atomowe: serwer sam usuwa ją z folderu źródłowego, nie trzeba osobno
+ * EXPUNGE'ować. Używane do "Usuń" (→ Trash) i "Archiwizuj" (→ Archive) w UI
+ * — Etap 2 Modułu 4b (2026-07-16), zgodnie z zasadą projektu o
+ * nieodwracalnych operacjach: to ZAWSZE MOVE, NIGDY `\Deleted`+EXPUNGE.
+ *
+ * ⚠️ Jeśli serwer NIE zgłasza capability `MOVE`, imapflow emuluje je przez
+ * COPY + STORE `\Deleted` + EXPUNGE — a zwykły EXPUNGE bez UIDPLUS kasuje
+ * WSZYSTKIE wiadomości oznaczone `\Deleted` w danej skrzynce, nie tylko tę
+ * jedną. Logujemy capabilities przy każdym wywołaniu, żeby to ryzyko było
+ * widoczne w `vercel logs` PRZED tym, jak się zmaterializuje na produkcji —
+ * nie da się tego zweryfikować z tej sesji (brak dostępu do az.pl).
+ */
+export async function moveMessage(sourcePath: string, uid: number, destPath: string): Promise<void> {
+  const cfg = mailboxConfig();
+  const client = await connectImap(cfg);
+  try {
+    if (!client.capabilities.has("MOVE")) {
+      console.warn(
+        `[mailbox] moveMessage: serwer NIE zgłasza capability MOVE — imapflow przejdzie na COPY+STORE+EXPUNGE (ryzyko: EXPUNGE kasuje WSZYSTKIE wiadomości oznaczone \\Deleted w folderze, nie tylko tę). UIDPLUS: ${client.capabilities.has("UIDPLUS")}`
+      );
+    }
+    const lock = await client.getMailboxLock(sourcePath);
+    try {
+      await client.messageMove(uid, destPath, { uid: true });
+    } finally {
+      lock.release();
+    }
   } finally {
     await client.logout().catch(() => {});
   }

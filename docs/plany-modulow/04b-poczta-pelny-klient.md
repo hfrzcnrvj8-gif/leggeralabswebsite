@@ -5,6 +5,30 @@
 > Powstał 2026-07-15 po tym, jak właściciel przetestował Moduł 4 na żywo na
 > produkcji i zgłosił, czego brakuje. **Kolejność i decyzje są jego.**
 
+## Następny krok — nowy czat (po wdrożeniu 2026-07-16)
+
+2026-07-16 wdrożono **rdzeń Etapu 2** niżej (foldery IMAP: Odebrane/Wysłane/
+Kosz/Archiwum, bezpieczny MOVE, sidebar, nawigacja klawiaturą, zaznaczanie
+wielu) — pełny opis w `HUB_SETUP.md` → „Moduł 4 — Etap 2 (foldery IMAP)".
+**Zanim zaczniesz cokolwiek nowego budować w tym module, w nowym czacie:**
+
+1. Zapytaj właściciela, czy wykonał checklistę weryfikacji produkcyjnej z
+   `HUB_SETUP.md` (ta sama sekcja, na końcu): testowy mail z Outlooka →
+   pojawia się w „Wysłane"?; "Usuń"/"Archiwizuj" na testowym mailu →
+   faktycznie ląduje w prawdziwym Koszu/Archiwum w Outlooku (nie znika
+   bezpowrotnie)?; `vercel logs` bez ostrzeżeń o brakujących capabilities
+   `MOVE`/`UIDPLUS`? **Nie dało się tego zweryfikować z sesji, która to
+   zbudowała — brak dostępu do az.pl z tamtego środowiska.**
+2. Jeśli coś nie działa — napraw na podstawie realnych logów z produkcji
+   (ten sam wzorzec iteracyjnych poprawek, co przy Module 8/OCR: `vercel
+   logs`, konkretny błąd, poprawka, redeploy, sprawdź ponownie).
+3. Jeśli wszystko działa — zapytaj właściciela, co dalej:
+   - dokończenie Etapu 2 (Drafts/CONDSTORE/pełne flagi/outbox+cron — patrz
+     sekcja „Świadomie odłożone" niżej, każdy punkt ma uzasadnienie, czemu
+     nie wszedł w pierwszą rundę),
+   - czy przejście do **Etapu 3** (screener nowych nadawców, VIP, snooze,
+     follow-up nudge, wątkowanie wiadomości — opisany niżej, NIE zaczęty).
+
 ## Skąd to się wzięło
 
 Moduł 4 (poczta IMAP/SMTP az.pl) działa na produkcji: pobiera, dopina do
@@ -72,41 +96,86 @@ co tydzień. Jeśli właściciel poprosi o edycję z panelu, przenieść do
 `company_settings`.
 
 ### Etap 2 — Fundament: foldery i flagi IMAP
-**To jest przepisanie fundamentu, nie dokładanie przycisków.** Dziś panel
-czyta wyłącznie INBOX i trzyma własną kopię w `mail_messages`.
 
-- **Special-use folders (RFC 6154)** — `LIST (SPECIAL-USE)` zwraca
-  `\Sent \Drafts \Trash \Junk \Archive \All`. **NIGDY nie zgaduj nazw**
-  („Sent"/„Wysłane"/„[Gmail]/Sent Mail") — `appendToSent()` w `lib/mailbox.ts`
-  robi to dziś jako fallback i tak ma zostać, ale LIST idzie pierwszy.
-  Atrybuty są OPCJONALNE — potrzebny łańcuch: SPECIAL-USE → XLIST → nazwy.
-- **Kursory per folder** — klucz `(mailbox, uidvalidity, uid)`. Dziś
-  `mail_state` ma JEDEN `last_seen_uid` (tylko INBOX). Trzeba tabeli
-  `mail_folders` z własnym kursorem i `HIGHESTMODSEQ` na folder.
+**✅ RDZEŃ ZROBIONY 2026-07-16** (po audycie UX zgłoszonym przez właściciela —
+patrz `HUB_SETUP.md` → „Moduł 4 — Etap 2 (foldery IMAP)" dla pełnego opisu):
+prawdziwe foldery Odebrane/Wysłane/Kosz/Archiwum (special-use discovery,
+kursory per folder w `mail_folders`, bezpieczny MOVE zamiast EXPUNGE, czytanie
+Sent z powrotem), sidebar w stylu Apple Mail, nawigacja klawiaturą (j/k/Enter/
+r/e), zaznaczanie wielu + akcje zbiorcze. **Świadomie odłożone w tej samej
+sesji** (uzasadnienie niżej, nieprzekreślone punkty): CONDSTORE/QRESYNC,
+pełne dwukierunkowe flagi `\Seen`/`\Answered`/`\Flagged`, Robocze (Drafts),
+przepisanie na architekturę outbox+cron (dziś MOVE i sync nadal wołane
+synchronicznie z żądania, jak `sendMail`/`appendToSent` — utrzymanie status
+quo, nie pogłębienie długu).
+
+**Oryginalny zakres (przed sesją 2026-07-16) — nieprzekreślone punkty NIE są
+zrobione:**
+
+- ✅ **Special-use folders (RFC 6154)** — `discoverMailFolders()` w
+  `lib/mailbox.ts` (2026-07-16): `LIST (SPECIAL-USE)` najpierw, fallback po
+  nazwach dopiero potem (Sent/Trash/Archive; Drafts/Junk świadomie poza
+  zakresem). XLIST NIE dodany (starsze rozszerzenie Gmaila, ImapFlow/az.pl nie
+  wymaga go osobno) — jeśli SPECIAL-USE+nazwy okażą się niewystarczające na
+  produkcji, to kolejny krok.
+- ✅ **Kursory per folder** — tabela `mail_folders` (`lib/db.ts`, rola +
+  `imap_path` + `uidvalidity` + `last_seen_uid`), migrowana z `mail_state`
+  (INBOX) bez utraty postępu. `HIGHESTMODSEQ`/CONDSTORE NIE dodane — patrz
+  niżej.
 - **CONDSTORE/QRESYNC (RFC 7162)** — pobieraj TYLKO zmiany od ostatniego
   `HIGHESTMODSEQ`. To odpowiednik `history.list` z Gmail API. ImapFlow
-  wykrywa rozszerzenia automatycznie.
+  wykrywa rozszerzenia automatycznie. **Nadal odłożone** (2026-07-16) —
+  czysta optymalizacja wydajności syncu, zero wpływu na to, co widzi
+  właściciel; UID-range fetch per folder (już zaimplementowany) wystarcza na
+  pierwszą wersję.
 - **Flagi** — `\Seen`, `\Answered`, `\Flagged`, `\Draft`, `\Deleted`. Lustro w
   obie strony: oflagowane w Outlooku widać w panelu i odwrotnie.
   ⚠️ Sprawdzaj `PERMANENTFLAGS` na SELECT: `\*` = wolno tworzyć własne
   keywordy. Bez tego zapis keyworda może zostać **po cichu zignorowany**.
   **Wsparcie Dovecota (prawdopodobny silnik az.pl) dla własnych keywordów NIE
   zostało zweryfikowane — przetestuj empirycznie zanim na tym zbudujesz.**
-- **Kosz vs kasowanie** — trzy RÓŻNE rzeczy: archiwizacja = MOVE do
+  **Nadal odłożone** (2026-07-16) — osobna, spora funkcja (dwustronny sync).
+  Efekt uboczny za darmo: `messageMove()` (RFC 6851 MOVE) z definicji
+  zachowuje flagi wiadomości przy przenoszeniu, więc to nie jest zerowy postęp.
+- ✅ **Kosz vs kasowanie** — trzy RÓŻNE rzeczy: archiwizacja = MOVE do
   `\Archive`; usunięcie = MOVE do `\Trash`; `\Deleted`+EXPUNGE = nieodwracalne.
   **Każda akcja „usuń" w UI ma być MOVE do Trash. NIGDY nie EXPUNGE'uj
   automatycznie** (zgodne z zasadą projektu o nieodwracalnych operacjach).
-- **MOVE (RFC 6851)** — atomowe. Bez niego COPY+STORE+EXPUNGE, nieatomowo.
-- **Czytanie folderu Sent** — dziś Sent jest *tylko do zapisu*. Mail wysłany z
+  Zrobione: `moveMessage()` w `lib/mailbox.ts`, przyciski Archiwizuj/Usuń w
+  `MailDetailPanel.tsx` + pasek akcji zbiorczych w `MailDashboard.tsx`.
+- ✅ **MOVE (RFC 6851)** — atomowe. Bez niego COPY+STORE+EXPUNGE, nieatomowo.
+  `moveMessage()` loguje `console.warn`, jeśli serwer nie zgłasza capability
+  `MOVE` (widoczne w `vercel logs`) — ryzyko emulacji COPY+STORE+EXPUNGE nie
+  zostało zweryfikowane wobec az.pl z tej sesji (brak dostępu), do
+  potwierdzenia na produkcji.
+- ✅ **Czytanie folderu Sent** — dziś Sent jest *tylko do zapisu*. Mail wysłany z
   Outlooka jest dla panelu niewidoczny, co dziurawi oś kontaktu klienta.
+  Zrobione: `saveOutgoingFromServer()` w `lib/mailSync.ts`, dopasowanie
+  kontaktu po odbiorcy (nie po nadawcy, bo `from_addr` to zawsze nasz adres).
 - **Robocze (Drafts)** — IMAP nie ma „aktualizacji" wersji roboczej: APPEND
   nowej + skasowanie starej. **Debounce** (zapis na blur/co ~30 s, NIE co
   literę). Autorytatywny draft trzymaj w Postgresie, do IMAP-a synchronizuj na
   checkpointach. Potrzebny UIDPLUS (`APPENDUID`), inaczej po APPEND nie znasz
-  UID-a.
-- ⚠️ **Duplikaty w Sent:** Gmail/Outlook zapisują wysłane SAME. az.pl (zwykły
+  UID-a. **Nadal odłożone** (2026-07-16) — to nowa funkcja od zera (autosave
+  w UI + APPEND/delete dance), inny charakter pracy niż reszta Etapu 2;
+  osobna sesja.
+- ✅ ⚠️ **Duplikaty w Sent:** Gmail/Outlook zapisują wysłane SAME. az.pl (zwykły
   Dovecot) — NIE, musimy APPEND-ować. Dziś robimy APPEND zawsze; przy dodaniu
-  innej skrzynki trzeba wykrywać dostawcę.
+  innej skrzynki trzeba wykrywać dostawcę. Rozwiązane przez dedup po
+  `message_id` (już istniejący mechanizm) — `saveOutgoingFromServer()` widzi
+  kopię z Sent i poprawnie ją pomija, bo ma identyczny `message_id` jak
+  wiersz zapisany przy wysyłce z panelu.
+- **Bez ściągania historii Sent/Trash/Archive** (decyzja właściciela
+  2026-07-16, NIE była w oryginalnym zakresie): nowo odkryty folder startuje
+  kursor "od teraz" (`getFolderCursorStart()`, tania komenda IMAP STATUS), nie
+  od zera — stara, już raz odrzucona/zarchiwizowana korespondencja nie
+  dopisuje się nagle na oś kontaktu klienta. Świadome ograniczenie zakresu,
+  nie przeoczenie.
+- **Nadal na architekturze request-path** (świadomie, nie pogłębienie długu):
+  `moveMessage()`/`syncMailbox()` nadal łączą się z IMAP w ścieżce żądania,
+  jak dziś działający `sendMail()`/`appendToSent()`. Pełne przejście na
+  outbox+cron (patrz „Kluczowe ustalenia z researchu" niżej) to głębsza,
+  osobna zmiana architektury.
 
 ### Etap 3 — Porządek w skrzynce
 - **Screener nowych nadawców** (HEY × Spark × nasz CRM). Tabela
