@@ -3447,6 +3447,70 @@ wyszukiwania w `CommandPalette.tsx`, listy leadów/klientów z linkami do
 profili) — nie sprawdzone w tej sesji, bo sidebar (widoczny na KAŻDEJ
 stronie) był oczywistym, najbardziej opłacalnym punktem startu.
 
+## Menu rozwijane w całym panelu — "liquid glass" zamiast płaskiego czarnego (2026-07-16)
+
+Właściciel zgłosił (na przykładzie Poczty), że panel wygląda "poskładany z
+klocków" — konkretnie: rozwijane menu zmiany statusu (kliknięcie tagu
+"Do odpowiedzi"/"Obsłużony") renderowało się jako płaski, nieprzezroczysty
+czarny prostokąt (`bg-[#141518]`, zero blura) — kompletnie osobny język
+wizualny od już ustalonego "liquid glass" (`.glass` w `app/globals.css`,
+zarezerwowanego dla chrome per CLAUDE.md). Do tego natywny scrollbar
+przeglądarki wyglądał jak "doklejone okno" — nigdzie w kodzie nie było
+żadnego stylowania paska przewijania.
+
+**To NIE był problem samej Poczty** — `PropertyMenu`/`Popover`
+(`app/[lang]/admin/Menu.tsx`) to jeden, współdzielony komponent używany w
+Leadach, Klientach, Fakturach, Ofertach, Kosztach, Kalendarzu, Umowach,
+Projektach i Poczcie — jedna poprawka w jednym pliku naprawia wygląd
+wszędzie naraz. Dodatkowo w `MailDashboard.tsx` odkryto TRZECIĄ, osobną,
+ręcznie pisaną implementację tego samego wzorca (menu zmiany statusu przy
+wierszu na liście) — zamiast reużywać `Menu.tsx`, miała własny, płaski
+`.card-paper` box z `absolute right-4 top-11` (stąd dokładnie ten zrzut
+ekranu, który przysłał właściciel) — kolejny przykład "trzech różnych
+kawałków kodu dla jednego wzorca UI" wspominanego w zgłoszeniu.
+
+- **`.admin-linear` dostał własne zmienne `--glass-*`** (`app/globals.css`)
+  — bez tego `.glass` odziedziczyłby JASNE, białe wartości z `:root` (panel
+  `/admin` nigdy nie dostaje klasy `.dark`, ma własną, neutralną paletę
+  Linear — patrz komentarz w kodzie), więc jakikolwiek szklany element
+  wyglądałby jak biała mgła na czarnym tle. Nowe wartości dopasowane do
+  chłodnej, neutralnej palety `--fg`/`--fg-muted` panelu (nie ciepłej jak
+  w `.dark`).
+- **`PropertyMenu`/`Popover`** (`Menu.tsx`) — płaski `bg-[#141518]` +
+  hardkodowany hex border + statyczny cień zamienione na klasę `glass`
+  (blur 16px, saturacja 200%, delikatny połysk po przekątnej — gotowa,
+  wcześniej dopracowana definicja w `globals.css`, tylko dotąd nigdzie w
+  kodzie faktycznie nieużywana). Przy okazji `PropertyMenu` dostał brakującą
+  klasę `admin-linear` (miał ją już `Popover`, bez niej kolory zmiennych
+  poza scope'em AppShell spadały do złych tokenów — istniejąca
+  niespójność, teraz naprawiona).
+- **Trzeci przypadek w `MailDashboard.tsx`** (menu statusu przy wierszu
+  listy) — ten sam zabieg: `.card-paper border hairline shadow-lg` →
+  `.glass` (bez potrzeby dodawania `admin-linear` — ten element już żyje
+  wewnątrz scope'u AppShell, nie w portalu).
+- **Scrollbar** (`app/globals.css`) — cienki (10px), półprzezroczysty
+  (`color-mix(in srgb, var(--fg-muted) 45%, transparent)`), zaokrąglony,
+  przezroczysty track. Jedna deklaracja (`scrollbar-width`/`scrollbar-color`
+  + `::-webkit-scrollbar-*`) działająca poprawnie w jasnym `:root`, `.dark`
+  I `.admin-linear` naraz — oparta o już istniejący `--fg-muted`, bez
+  nowego, czwartego zestawu tokenów tylko dla scrollbara.
+- **Świadomie NIE ruszone w tej rundzie**: hardkodowane hex-y w
+  `MenuRow`/`MenuDivider`/`MenuLabel`/liście opcji `PropertyMenu`
+  (`text-[#e9e9ea]`, `hover:bg-[#232327]`, `border-[#2a2b2f]`,
+  `text-[#62666d]`) — czytelne na nowym szklanym tle, ale to osobna,
+  mniejsza niespójność (nie z tokenów motywu); scalenie trzeciej,
+  ręcznej implementacji w `MailDashboard.tsx` ze współdzielonym
+  `Menu.tsx` (usunięcie duplikacji na dobre, nie tylko wizualnie) —
+  większa zmiana zachowania (pozycjonowanie/klawiatura), nie tylko
+  stylu, świadomie odłożona.
+- **Zweryfikowane lokalnie**: `tsc` czysty, oba menu (lista + podgląd
+  wiadomości) w Poczcie potwierdzone wizualnie w przeglądarce — widoczny
+  efekt szkła (rozmyte tagi pod spodem) i cienki scrollbar zamiast
+  natywnego. Efekt w pozostałych modułach (Leady/Klienci/Faktury/...) nie
+  sprawdzony osobno w tej sesji — to ten sam komponent, więc powinien być
+  identyczny, ale warto rzucić okiem przy najbliższej wizycie w każdym z
+  nich.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

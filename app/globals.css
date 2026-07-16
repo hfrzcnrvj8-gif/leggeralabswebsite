@@ -61,6 +61,33 @@
   }
 }
 
+/* Cienki scrollbar dopasowany do motywu zamiast grubego, natywnego (zgłoszony
+   jako element, który wygląda jak "doklejone okno" — kontrastuje z resztą
+   spójnie ostylowanego UI). Półprzezroczysty przez color-mix(), nie osobną
+   zmienną — jedna deklaracja poprawnie dopasowuje się i do jasnego :root,
+   i do .dark, i do .admin-linear na bazie już istniejącego --fg-muted, bez
+   dodawania czwartego zestawu tokenów tylko dla scrollbara. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg-muted) 45%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--fg-muted) 70%, transparent);
+}
+
 @layer components {
   /* Liquid-glass surface. Heavy blur alone reads as fog, not glass — the
      first pass over-blurred (28px) and under-saturated the backdrop, so
@@ -251,6 +278,17 @@
   --fg: #f7f8f8;
   --fg-muted: #8a8f98;
   --hairline: #1f2023;
+  /* Bez tych nadpisań `.glass` (globals.css wyżej) dziedziczyłby jasne,
+     białe wartości z :root — panel /admin nigdy nie dostaje klasy `.dark`
+     (własna, neutralna paleta Linear, patrz komentarz wyżej), więc bez tego
+     jakikolwiek "szklany" element w panelu wyglądałby jak biała mgła na
+     czarnym tle. Stonowane, chłodne odcienie dopasowane do --fg/--fg-muted
+     powyżej (nie ciepłe jak w .dark — inna paleta). */
+  --glass-bg: rgba(13, 14, 16, 0.82);
+  --glass-border: rgba(247, 248, 248, 0.14);
+  --glass-highlight: rgba(247, 248, 248, 0.22);
+  --glass-sheen: rgba(247, 248, 248, 0.06);
+  --glass-shadow: rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 .admin-linear .card-paper {

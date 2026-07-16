@@ -122,7 +122,7 @@ export function Popover({
                 // AppShell, więc bez tej klasy var(--fg)/var(--fg-muted)/
                 // var(--hairline) spadają do jasnych tokenów strony publicznej
                 // (ciemny tekst na tym samym ciemnym tle popovera = nieczytelne).
-                className="admin-linear fixed z-[200] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 text-[var(--fg)] shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+                className="admin-linear glass fixed z-[200] overflow-hidden rounded-lg py-1 text-[var(--fg)]"
                 style={{ top: pos.top, left: pos.left, width }}
               >
                 {children(() => setOpen(false))}
@@ -282,7 +282,7 @@ export function PropertyMenu<T extends string>({
                 transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                 onClick={(e) => e.stopPropagation()}
                 role="menu"
-                className="fixed z-[200] w-max min-w-[190px] max-w-[340px] overflow-hidden rounded-lg border border-[#2a2b2f] bg-[#141518] py-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+                className="admin-linear glass fixed z-[200] w-max min-w-[190px] max-w-[340px] overflow-hidden rounded-lg py-1 text-[var(--fg)]"
                 style={{ top: pos.top, left: pos.left }}
               >
                 {options.map((opt, i) => (

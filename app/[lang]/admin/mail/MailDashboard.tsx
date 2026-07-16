@@ -984,7 +984,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
 
                   {statusMenuFor === m.id && (
                     <div
-                      className="card-paper absolute right-4 top-11 z-20 w-40 rounded-xl border hairline p-1 shadow-lg"
+                      className="glass absolute right-4 top-11 z-20 w-40 rounded-xl p-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {m.status !== "obsłużony" && (
