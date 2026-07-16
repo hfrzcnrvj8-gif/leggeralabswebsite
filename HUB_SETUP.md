@@ -78,11 +78,10 @@ Lewy pasek boczny (zwijany, stan zapamiętywany) przełącza między modułami:
     start/termin, powiązany lead, lista zasobów (linki do Figmy,
     dokumentów itp.).
 - **Notatnik** (`/admin/notes`) — szybkie zapisywanie pomysłów, z tagami
-  i zapamiętanym filtrem. Przycisk „→ Przekuj w projekt” tworzy z notatki
-  nowy projekt jednym kliknięciem. Każda notatka ma zwijany „Log” (jak
-  aktywność przy leadach/projektach, ale lżejszy — bez osobnej podstrony,
-  bo notatki nie mają peek panelu/detail page) do zapisywania kolejnych
-  ustaleń bez nadpisywania treści notatki.
+  i zapamiętanym filtrem, powiązaniem z klientem/leadem, przypięciem i
+  archiwum. „→ Przekuj w projekt” i „📅 Do kalendarza” przenoszą notatkę
+  dalej wraz z powiązaniem; każda ma profil (modal + podstrona `[id]`) z
+  logiem ustaleń. Szczegóły: „Moduł 26” niżej.
 - **Kalendarz** (`/admin/calendar`) — przełącznik widoku Miesiąc/Tydzień/
   Dzień, filtr po kliencie, klik w dzień (miesiąc) otwiera modal z pełną
   listą wydarzeń i formularzem dodawania nowego (tytuł + opcjonalna
@@ -3763,3 +3762,65 @@ musi poczekać, aż wszystkie powstaną. Dodaje kolumny wyżej + tabelę
   właściwie znaczy — nabywcę czy powiązanie z CRM.
 - UI notatnika (Moduł 26) i zakładki w kliencie/leadzie (Moduł 23) — poza
   zakresem, tutaj tylko fundament.
+
+## Moduł 26 — Notatnik: powiązania, naprawa duplikatów, przypięcie+archiwum, → kalendarz (2026-07-17)
+
+Notatnik był ostatnim modułem odciętym od CRM i jedynym bez profilu rekordu.
+Moduł 22 dołożył kolumny `notes.client_id`/`lead_id`/`project_id` bez UI — ten
+moduł na nich staje i domyka cztery punkty zatwierdzone przez właściciela.
+
+### 1. „Przekuj w projekt" tworzył N projektów (BŁĄD, nie brak funkcji)
+
+Dotąd robił to klient: `POST /api/projects` + `router.push`, **bez zapisania
+śladu**. Notatka nie wiedziała, że projekt powstał, więc każde kolejne
+kliknięcie tworzyło kolejny projekt.
+
+Naprawa: nowy `POST /api/notes/[id]/promote`. Idempotencja siedzi **na
+serwerze** (`notes.project_id` = jedyne źródło prawdy), nie w stanie przycisku
+— podwójny klik, dwie karty czy odświeżenie w złym momencie nie zrobią
+duplikatu. Zwraca `existing: true`, gdy projekt już był (to nie błąd, tylko
+„już zrobione"). W UI przycisk znika, a jego miejsce zajmuje plakietka-link do
+projektu. Analogicznie `POST /api/notes/[id]/schedule` + `notes.event_id`.
+
+Kolumny mają `ON DELETE SET NULL`: skasowanie projektu/wydarzenia **odblokowuje**
+notatkę (da się przekuć ponownie), zamiast zabierać ją ze sobą.
+
+### 2-4. Reszta zakresu
+
+| Punkt | Realizacja |
+|---|---|
+| Powiązanie z CRM | `LinkPicker` (`["client","lead"]`) w karcie, profilu i przy dodawaniu + filtr po kliencie/leadzie w pasku (wzorem Kalendarza, ale przez wspólny picker, nie `<select>`) |
+| Przypięcie + archiwum | **nowe kolumny** `notes.pinned`, `notes.archived_at`; sort `pinned DESC, updated_at DESC`; zakładki na wspólnym `FilterPills` (Moduł 21) |
+| → Kalendarz | mały formularz data+godzina w karcie (zostajemy w Notatniku); wydarzenie **dziedziczy powiązanie** klient/lead/projekt — ta sama zasada co `offerAccept.ts` |
+
+**Archiwum vs usuwanie** (decyzja właściciela 2026-07-17): oba, ale archiwum
+jest domyślne — „🗄️" w karcie archiwizuje, a trwałe „Usuń" jest dostępne
+wyłącznie z profilu notatki **już zarchiwizowanej**. Licznik „Notatnik · N"
+pomija archiwalne (ma znaczyć „tyle masz na biurku").
+
+**Ślad po przekuciu**: plakietka-link + wpis w logu dopisywany przez serwer
+(„Przekuto w projekt.", „Zaplanowano w kalendarzu na 12.08.2026, godz. 10:30.").
+
+### Profil notatki + podstrona `[id]`
+
+`NoteDetailPanel.tsx` renderowany w DWÓCH miejscach (modal na liście +
+`/admin/notes/[id]`) — jak `ProjectDetailPanel`; pobiera rekord sam po `id`.
+Log **przeniósł się z karty do profilu** (w karcie był doklejony do każdej z
+trzech kolumn siatki, bo notatka nie miała gdzie indziej mieszkać).
+Własny scroll (`max-h-[85vh]`) tylko w trybie modala — na podstronie przewija
+się cała strona.
+
+Wyszukiwarka widzi teraz **tytuł + treść + tagi + log** (dotąd tylko tytuł i
+treść). Log dokleja `GET /api/notes` podzapytaniem jako `log_text` — pole
+POCHODNE, wyłącznie do szukania; nie odsyłać go PATCH-em.
+
+### Naprawa przy okazji: `EditableTextarea` mierzyła wysokość raz
+
+Auto-wysokość liczyła się **tylko przy zmianie treści**, nigdy przy zmianie
+szerokości — a wysokość zależy od zawijania tekstu. Złapane na nowym profilu:
+pole montuje się w trakcie animacji wejścia strony, mierzy przy szerokości
+bliskiej zeru (jedna linijka zawija się na ~20), zapisuje **468 px** i zostaje
+z tym na zawsze. Dołożony `ResizeObserver` reagujący **tylko na zmianę
+szerokości** (obserwujemy element, któremu sami ustawiamy wysokość → bez tego
+warunku groziłaby pętla). Dotyczy wszystkich modułów używających tego pola
+(Leady, Klienci, Projekty, Notatnik) — sprawdzone, że nic się nie rozjechało.

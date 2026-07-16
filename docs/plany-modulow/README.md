@@ -58,7 +58,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 23 | ⏳ Zakładki w kliencie/leadzie (wizytówka / historia / logi zmian) + audyt zmian od zera + listy tylko do podglądu | duży, po 22 | [23-zakladki-klient-lead.md](23-zakladki-klient-lead.md) |
 | 24 | ⏳ Centrum powiadomień w panelu (dzwonek + historia; zdarzenia już istnieją w cronie, trzeba je przekierować z maila do UI) | średni | [24-centrum-powiadomien.md](24-centrum-powiadomien.md) |
 | 25 | ⏳ Menu kontekstowe (prawy przycisk) — `onContextMenu` nie występuje dziś w kodzie ani razu | średni | [25-menu-kontekstowe.md](25-menu-kontekstowe.md) |
-| 26 | ⏳ Notatnik — powiązania z CRM, naprawa duplikatów („Przekuj w projekt” tworzy N projektów), przypięcie+archiwum, → kalendarz | średni, po 22 | [26-notatnik.md](26-notatnik.md) |
+| 26 | ✅ Notatnik — powiązania z CRM (`LinkPicker` + filtry), naprawa duplikatów (idempotencja na serwerze: `notes.project_id`/`event_id`, nie stan przycisku), przypięcie+archiwum, → kalendarz z dziedziczeniem powiązania, profil + podstrona `[id]`, wyszukiwarka po tagach i logu. Przy okazji naprawiona wspólna `EditableTextarea` (mierzyła wysokość tylko przy zmianie treści) | średni, po 22 | [26-notatnik.md](26-notatnik.md) |
 | 27 | ⏳ Gęstość ekranu (puste przestrzenie) + liquid glass w przełącznikach — kontynuacja Modułu 21 | mały/średni | [27-gestosc-i-liquid-glass.md](27-gestosc-i-liquid-glass.md) |
 | 28 | ⏳ Kalendarz: pełna doba w widoku tygodnia/dnia (dziś 7–21). **Nie jest to zmiana jednej stałej** — każda kolumna dnia ma własny scroll, przy 24h rozjadą się z godzinami | mały/średni | [28-kalendarz-24h.md](28-kalendarz-24h.md) |
 

@@ -85,6 +85,31 @@ export function EditableTextarea({ value, onSave }: { value: string; onSave: (v:
     resize();
   }, [v]);
 
+  // Przelicz także przy zmianie SZEROKOŚCI pola, nie tylko treści. Wysokość
+  // zależy od zawijania tekstu, więc pomiar zrobiony przy innej szerokości jest
+  // nieaktualny — a dotąd nic go nie odświeżało. Złapane 2026-07-17 na nowym
+  // profilu notatki: pole montuje się w trakcie animacji wejścia strony, mierzy
+  // się przy szerokości bliskiej zeru (jedna linijka zawija się na ~20), zapisuje
+  // 468 px i zostaje z tym na zawsze. Ten sam błąd czyha wszędzie indziej, gdzie
+  // pole zmienia szerokość po zamontowaniu (zwijany sidebar, obrót telefonu).
+  //
+  // Reagujemy TYLKO na zmianę szerokości: obserwujemy element, któremu sami
+  // ustawiamy wysokość, więc bezwarunkowe resize() w callbacku potrafiłoby się
+  // zapętlić. Szerokości nie dotykamy, więc ten warunek przerywa sprzężenie.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let lastWidth = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      if (w === lastWidth) return;
+      lastWidth = w;
+      resize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <textarea
       ref={ref}

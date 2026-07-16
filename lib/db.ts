@@ -456,6 +456,12 @@ async function createHubSchema(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+  // Moduł 26 — przypięcie i archiwum. Do tej pory wszystkie notatki były
+  // równorzędne (sort zawsze updated_at DESC), a jedynym sposobem zejścia z
+  // biurka było skasowanie.
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT false;`;
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS notes_activity (
       id TEXT PRIMARY KEY,
@@ -491,6 +497,12 @@ async function createHubSchema(): Promise<void> {
   // ustawiona; NULL = nieznany/całodniowe. Napędza siatkę godzinową
   // (bloki wysokość=czas trwania) w widokach Dzień/Tydzień.
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS czas_trwania_min INTEGER;`;
+
+  // Moduł 26 — ślad po „Do kalendarza". Tu, a nie przy tabeli `notes`, bo
+  // REFERENCES wymaga istniejącej tabeli docelowej, a `events` powstaje wyżej
+  // dopiero teraz. ON DELETE SET NULL: skasowanie wydarzenia ma odblokować
+  // notatkę (da się zaplanować ponownie), nie zabrać jej ze sobą.
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS event_id TEXT REFERENCES events(id) ON DELETE SET NULL;`;
 
   await markSchemaApplied("hub");
 }
