@@ -59,6 +59,12 @@ type FolderCursorRow = {
  * jest bezpieczny: najwyżej przeczytamy folder ponownie, a INSERT-y się odbiją.
  */
 export async function syncMailbox(): Promise<SyncResult> {
+  // ⏱️ Instrumentacja diagnostyczna (2026-07-16, TYMCZASOWA) — właściciel
+  // zgłosił, że sync jest bardzo wolny mimo dwóch rund poprawek, i że
+  // "Wysłane" pokazuje coś, co wygląda na źle sklasyfikowane wiadomości.
+  // Loguje realne czasy każdego etapu i dokładne mapowanie odkrytych
+  // folderów — do usunięcia, gdy przyczyna zostanie znaleziona i naprawiona.
+  const t0 = Date.now();
   await ensureMailFoldersSchema();
   const sql = getSql();
 
@@ -68,10 +74,12 @@ export async function syncMailbox(): Promise<SyncResult> {
   await backfillCategories().catch((e) => {
     console.error("[mailSync] backfill kategorii nie powiódł się", e);
   });
+  console.log(`[mailSync:timing] po backfillCategories: ${Date.now() - t0}ms`);
 
   await backfillCc().catch((e) => {
     console.error("[mailSync] backfill DW nie powiódł się", e);
   });
+  console.log(`[mailSync:timing] po backfillCc: ${Date.now() - t0}ms`);
 
   // I dopnij maile, które przyszły ZANIM istniał pasujący klient/lead —
   // saveIncoming() dopasowuje tylko raz, w chwili pobrania, więc bez tego
@@ -79,6 +87,7 @@ export async function syncMailbox(): Promise<SyncResult> {
   await rematchUnassigned().catch((e) => {
     console.error("[mailSync] ponowne dopasowanie nieprzypisanych nie powiodło się", e);
   });
+  console.log(`[mailSync:timing] po rematchUnassigned: ${Date.now() - t0}ms`);
 
   // Jedno LIST na cały przebieg — odkrywa/potwierdza Wysłane/Kosz/Archiwum.
   // Awaria discovery nie może zatrzymać syncu INBOX-a (najważniejszej
@@ -87,6 +96,7 @@ export async function syncMailbox(): Promise<SyncResult> {
   let discovered: Record<MailFolderRole, DiscoveredFolder | null> | null = null;
   try {
     discovered = await discoverMailFoldersOnce();
+    console.log(`[mailSync:timing] po discoverMailFoldersOnce: ${Date.now() - t0}ms — mapowanie:`, JSON.stringify(discovered));
   } catch (e) {
     console.error("[mailSync] discoverMailFoldersOnce nie powiodło się — pomijam foldery specjalne w tym przebiegu", e);
   }
@@ -102,6 +112,7 @@ export async function syncMailbox(): Promise<SyncResult> {
   const folderRows = (await sql`
     SELECT id, role, imap_path, uidvalidity, last_seen_uid FROM mail_folders;
   `) as unknown as FolderCursorRow[];
+  console.log(`[mailSync:timing] przed pętlą folderów (${Date.now() - t0}ms) — wiersze:`, JSON.stringify(folderRows));
 
   // Każdy folder = osobne połączenie IMAP (TLS + AUTH + SELECT) — sekwencyjne
   // wołanie ich jedno po drugim (jak przy jednym INBOX-ie) sumowałoby czas
@@ -113,7 +124,8 @@ export async function syncMailbox(): Promise<SyncResult> {
   // fetchu dla ról innych niż 'inbox' (zwraca puste wyniki), więc odrzucenie
   // tu praktycznie zdarza się tylko dla 'inbox' (świadomie przepuszczane
   // dalej, jak w oryginalnym, jednofolderowym kodzie).
-  const settled = await Promise.allSettled(folderRows.map((folder) => syncOneFolder(sql, folder, ownAddr)));
+  const settled = await Promise.allSettled(folderRows.map((folder) => syncOneFolder(sql, folder, ownAddr, t0)));
+  console.log(`[mailSync:timing] po wszystkich folderach: ${Date.now() - t0}ms`);
 
   let fetched = 0;
   let saved = 0;
@@ -136,6 +148,7 @@ export async function syncMailbox(): Promise<SyncResult> {
 
   if (inboxError) throw inboxError;
 
+  console.log(`[mailSync:timing] CAŁKOWITY czas: ${Date.now() - t0}ms — fetched=${fetched} saved=${saved}`);
   return { fetched, saved, matched, unassigned, ignored };
 }
 
@@ -186,14 +199,19 @@ async function upsertDiscoveredFolder(
 async function syncOneFolder(
   sql: ReturnType<typeof getSql>,
   folder: FolderCursorRow,
-  ownAddr: string
+  ownAddr: string,
+  t0: number
 ): Promise<SyncResult> {
   const empty: SyncResult = { fetched: 0, saved: 0, matched: 0, unassigned: 0, ignored: 0 };
   let sinceUid = Number(folder.last_seen_uid) || 0;
+  console.log(`[mailSync:timing] ${folder.role} (${folder.imap_path}) start fetch, sinceUid=${sinceUid}, t=${Date.now() - t0}ms`);
 
   let batch: Awaited<ReturnType<typeof fetchMessagesInFolder>>;
   try {
     batch = await fetchMessagesInFolder(folder.imap_path, sinceUid);
+    console.log(
+      `[mailSync:timing] ${folder.role} fetch gotowy, t=${Date.now() - t0}ms, messages=${batch.messages.length}, highestUid=${batch.highestUid}`
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await sql`UPDATE mail_folders SET last_error = ${msg.slice(0, 500)}, last_sync_at = now() WHERE id = ${folder.id};`;
@@ -261,6 +279,9 @@ async function syncOneFolder(
     WHERE id = ${folder.id};
   `;
 
+  console.log(
+    `[mailSync:timing] ${folder.role} GOTOWE, t=${Date.now() - t0}ms, fetched=${batch.messages.length} saved=${saved} matched=${matched} unassigned=${unassigned} ignored=${ignored}`
+  );
   return { fetched: batch.messages.length, saved, matched, unassigned, ignored };
 }
 
