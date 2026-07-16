@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import {
@@ -12,6 +13,7 @@ import {
   MAIL_FOLDERS,
   MAIL_FOLDER_LABEL,
   MAIL_FOLDER_ICON,
+  formatPlDateTime,
   type MailMessageWithLinks,
   type MailStatus,
   type MailFolder,
@@ -25,12 +27,14 @@ import { MailComposeForm } from "./MailComposeForm";
 // listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki". Sensowne
 // TYLKO w Odebranych (Etap 2 Modułu 4b) — Wysłane/Kosz/Archiwum nie mają
 // pojęcia "do odpowiedzi" ani klasyfikacji treści.
-type Filter = "nowy" | "unassigned" | "screener" | "all";
+type Filter = "nowy" | "unassigned" | "vip" | "snoozed" | "screener" | "all";
 type CatFilter = "wszystkie" | "oferta" | "rachunek" | "urzedowe" | "inne" | "reklama";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "nowy", label: "Do odpowiedzi" },
   { id: "unassigned", label: "Nieprzypisane" },
+  { id: "vip", label: "VIP" },
+  { id: "snoozed", label: "Uśpione" },
   { id: "screener", label: "Nowi nadawcy" },
   { id: "all", label: "Wszystkie" },
 ];
@@ -411,9 +415,18 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       // wykluczony z "Do odpowiedzi"/"Nieprzypisane" (bramkowanie przy
       // odczycie, patrz app/api/mail/route.ts) i widoczny TYLKO pod "Nowi
       // nadawcy", dopóki właściciel nie podejmie decyzji.
+      // Snooze (Moduł 4, Etap 3) — odłożona-a-jeszcze-nie-należna wiadomość
+      // znika z "Do odpowiedzi"/"Nieprzypisane" (wraca SAMA, bez crona, gdy
+      // `snooze_until <= now()` — liczone tu, przy KAŻDYM renderze).
+      const notSnoozed = (m: MailMessageWithLinks) => !m.snooze_until || new Date(m.snooze_until) <= new Date();
       if (filter === "nowy") {
         out = out.filter(
-          (m) => m.status === "nowy" && m.kierunek === "in" && m.sender_status !== "pending" && m.sender_status !== "blocked"
+          (m) =>
+            m.status === "nowy" &&
+            m.kierunek === "in" &&
+            m.sender_status !== "pending" &&
+            m.sender_status !== "blocked" &&
+            notSnoozed(m)
         );
       } else if (filter === "unassigned") {
         out = out.filter(
@@ -423,12 +436,26 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             m.kierunek === "in" &&
             m.status !== "zignorowany" &&
             m.sender_status !== "pending" &&
-            m.sender_status !== "blocked"
+            m.sender_status !== "blocked" &&
+            notSnoozed(m)
         );
       } else if (filter === "screener") {
         out = out.filter((m) => m.sender_status === "pending" && m.kierunek === "in");
+      } else if (filter === "vip") {
+        // VIP bije KLASYFIKACJĘ ("Aktywny" klient = VIP z automatu) —
+        // świadomie BEZ warunków na status/kategoria/sender_status, w
+        // odróżnieniu od gałęzi wyżej. Dopasowany klient nigdy nie dostaje
+        // kategoria='reklama' (patrz komentarz w saveIncoming(),
+        // lib/mailSync.ts) — realny przypadek to ręcznie wyciszona/obsłużona
+        // wiadomość VIP-a, którą ta zakładka ma pokazać mimo wszystko.
+        out = out.filter((m) => m.client_status === "Aktywny" && m.kierunek === "in");
+      } else if (filter === "snoozed") {
+        out = out.filter((m) => m.kierunek === "in" && m.snooze_until && new Date(m.snooze_until) > new Date());
       }
-      if (catFilter !== "wszystkie") {
+      // Kategoria bije wszystkie zakładki OPRÓCZ VIP — VIP ma z definicji
+      // ignorować klasyfikację treści (patrz gałąź wyżej), więc pillsy
+      // kategorii nie mają tu zastosowania.
+      if (catFilter !== "wszystkie" && filter !== "vip") {
         // Wiersze sprzed wprowadzenia kategorii mają null — traktujemy je jak
         // "inne", żeby nie znikały z widoku, zanim backfill je przeliczy.
         out = out.filter((m) => (m.kategoria ?? "inne") === catFilter);
@@ -620,16 +647,21 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         </div>
       </div>
 
-      {composeOpen && (
-        <div
-          className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-          onClick={() => setComposeOpen(false)}
-        >
-          <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-            <MailComposeForm mode="compose" endpoint="/api/mail/compose" onSent={load} onClose={() => setComposeOpen(false)} />
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {composeOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
+            onClick={() => setComposeOpen(false)}
+          >
+            <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+              <MailComposeForm mode="compose" endpoint="/api/mail/compose" onSent={load} onClose={() => setComposeOpen(false)} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {!configured && (
         <div className="mb-4 rounded-xl border hairline bg-brand-gold/10 p-4 text-[13px]">
@@ -656,6 +688,8 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               {f.label}
               {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
               {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
+              {f.id === "vip" && counts.vip > 0 ? ` (${counts.vip})` : ""}
+              {f.id === "snoozed" && counts.snoozed > 0 ? ` (${counts.snoozed})` : ""}
               {f.id === "screener" && counts.pending_screener > 0 ? ` (${counts.pending_screener})` : ""}
             </button>
           ))}
@@ -781,7 +815,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                   ? "Nic — wszystko obsłużone."
                   : filter === "unassigned"
                     ? "Nic nieprzypisanego."
-                    : "Brak wiadomości."}
+                    : filter === "vip"
+                      ? "Brak poczty od klientów VIP."
+                      : filter === "snoozed"
+                        ? "Nic uśpionego."
+                        : "Brak wiadomości."}
             </p>
           ) : (
             <ul ref={listRef} className="divide-y divide-[var(--hairline)]">
@@ -857,6 +895,13 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                         >
                           {m.flagged ? "★" : "☆"}
                         </button>
+                        {/* Snooze (Moduł 4, Etap 3) — widoczna tylko dopóki
+                            termin nie minął; potem znika sama (patrz filtered). */}
+                        {m.snooze_until && new Date(m.snooze_until) > new Date() && (
+                          <span className="shrink-0 text-[12px]" title={`Uśpiona do ${formatPlDateTime(m.snooze_until)}`} aria-hidden>
+                            ⏰
+                          </span>
+                        )}
                         <span className="shrink-0 text-[11px] text-muted">{formatWhen(m.received_at)}</span>
                       </span>
                       <span className="mt-1 flex items-center gap-1.5">
@@ -889,6 +934,16 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                           >
                             {m.client_nazwa}
                           </Link>
+                        )}
+                        {/* VIP (Moduł 4, Etap 3) — klient ze statusem "Aktywny",
+                            widoczna niezależnie od aktywnej zakładki. */}
+                        {m.client_status === "Aktywny" && (
+                          <span
+                            className="shrink-0 rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[11px] text-brand-gold"
+                            title="Klient VIP (status „Aktywny”)"
+                          >
+                            ⭐ VIP
+                          </span>
                         )}
                         {m.lead_id && m.lead_nazwa && (
                           <Link

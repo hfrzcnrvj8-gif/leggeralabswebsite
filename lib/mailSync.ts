@@ -513,7 +513,17 @@ async function syncOneFolder(
  * Wysłane potrafił "podkraść" wiadomość z Odebranych (zgłoszone przez
  * właściciela 2026-07-16: self-mail zniknął z Odebranych po pojawieniu się
  * w Wysłane) — Odebrane to kolejka "wymaga reakcji", więc priorytet ma
- * pozostać tam widoczna, nawet kosztem niewidoczności w Wysłane. */
+ * pozostać tam widoczna, nawet kosztem niewidoczności w Wysłane.
+ *
+ * ⚠️ DRUGA POPRAWKA (2026-07-16, luka w powyższej): gdy wiadomość zostanie
+ * RĘCZNIE zarchiwizowana/usunięta z Odebranych (folder już NIE 'inbox'), straż
+ * wyżej przestaje chronić — ten sam self-mail, odkryty później w Wysłane,
+ * miał wtedy nadpisywany TYLKO `folder`, a `kierunek`/`status` zostawały ze
+ * starego zapisu ('in'/'nowy') — wiadomość lądowała w zakładce "Wysłane" z
+ * ikoną koperty i tagiem "Do odpowiedzi" (zgłoszone przez właściciela).
+ * `ON CONFLICT` aktualizuje teraz też `kierunek`/`status` w tym samym SET —
+ * skoro sync i tak w tym momencie decyduje, że wiersz należy do Wysłane, ma
+ * być spójny ze wszystkimi trzema polami naraz, nie tylko folderem. */
 async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: FetchedMessage, threadCtx: ThreadContext): Promise<"matched" | "unassigned" | "duplicate"> {
   const candidateAddrs = [msg.toAddr, ...msg.ccAddr.split(",").map((a) => a.trim())].filter(Boolean);
   let match: { type: "client" | "lead"; id: string } | undefined;
@@ -542,7 +552,10 @@ async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: Fetch
       ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs}, ${threadId},
       'obsłużony', ${msg.receivedAt.toISOString()}
     )
-    ON CONFLICT (message_id) DO UPDATE SET folder = EXCLUDED.folder
+    ON CONFLICT (message_id) DO UPDATE SET
+      folder = EXCLUDED.folder,
+      kierunek = EXCLUDED.kierunek,
+      status = EXCLUDED.status
     WHERE mail_messages.folder <> EXCLUDED.folder AND mail_messages.folder <> 'inbox'
     RETURNING id;
   `) as unknown as { id: string }[];
@@ -571,7 +584,12 @@ async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: Fetch
  * wpisu na oś kontaktu (patrz komentarz w syncOneFolder). Konflikt po
  * message_id aktualizuje `folder`, gdy się zmienił — np. mail przeniesiony
  * z Wysłane do Kosza w Outlooku poprawnie "przeskakuje" na kolejnym syncu
- * tego, w jakim folderze go dziś widzimy. */
+ * tego, w jakim folderze go dziś widzimy. Aktualizuje przy okazji
+ * `kierunek`/`status` (ten sam problem i poprawka co w
+ * saveOutgoingFromServer() wyżej) — mail zarchiwizowany/skasowany
+ * bezpośrednio w Outlooku (nie przez panel) ma tu przestać wisieć jako
+ * "Do odpowiedzi" tylko dlatego, że jego pierwszy zapis (przez
+ * saveIncoming()) tak go oznaczył, zanim trafił do Kosza/Archiwum. */
 async function saveArchivedOrTrashed(
   sql: ReturnType<typeof getSql>,
   msg: FetchedMessage,
@@ -594,7 +612,10 @@ async function saveArchivedOrTrashed(
       ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs}, ${threadId},
       'obsłużony', ${msg.receivedAt.toISOString()}
     )
-    ON CONFLICT (message_id) DO UPDATE SET folder = EXCLUDED.folder
+    ON CONFLICT (message_id) DO UPDATE SET
+      folder = EXCLUDED.folder,
+      kierunek = EXCLUDED.kierunek,
+      status = EXCLUDED.status
     WHERE mail_messages.folder <> EXCLUDED.folder
     RETURNING id;
   `) as unknown as { id: string }[];

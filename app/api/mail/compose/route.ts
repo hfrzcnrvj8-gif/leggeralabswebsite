@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema } from "@/lib/db";
-import { extractEmailAddress, mailSummaryLine, parseAddressList, textToHtml } from "@/lib/mail";
+import { mailSummaryLine, parseAddressList, textToHtml, MAIL_ATTACHMENT_MIME_TYPES, MAIL_ATTACHMENT_MAX_FILE_BYTES, MAIL_ATTACHMENT_MAX_TOTAL_BYTES } from "@/lib/mail";
 import { findContactsByEmail } from "@/lib/contactLookup";
 import { appendToSent, fetchSignatureImages, isMailboxConfigured, sendMail } from "@/lib/mailbox";
 import { logMailOnTimeline } from "@/lib/mailSync";
@@ -32,22 +32,46 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = (await req.json().catch(() => null)) as
-    | { to?: unknown; cc?: unknown; subject?: unknown; text?: unknown; podpis?: unknown }
-    | null;
+  // FormData zamiast JSON (druga runda Etapu 1 Modułu 4b) — wymagane dla
+  // załączników, ten sam duch co app/api/costs/[id]/attachment/route.ts.
+  const formData = await req.formData().catch(() => null);
+  if (!formData) return NextResponse.json({ error: "Nieprawidłowe dane formularza." }, { status: 400 });
 
-  const to = extractEmailAddress(typeof body?.to === "string" ? body.to : "");
-  if (!to) return NextResponse.json({ error: "Adres odbiorcy jest nieprawidłowy." }, { status: 400 });
+  const to = parseAddressList(String(formData.get("to") ?? ""));
+  if (to.length === 0) return NextResponse.json({ error: "Adres odbiorcy jest nieprawidłowy." }, { status: 400 });
 
-  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  const text = String(formData.get("text") ?? "").trim();
   if (!text) return NextResponse.json({ error: "Treść wiadomości nie może być pusta." }, { status: 400 });
 
-  const subject = typeof body?.subject === "string" ? body.subject.trim() : "";
-  const cc = typeof body?.cc === "string" ? parseAddressList(body.cc) : [];
+  const subject = String(formData.get("subject") ?? "").trim();
+  const cc = parseAddressList(String(formData.get("cc") ?? ""));
+  const bcc = parseAddressList(String(formData.get("bcc") ?? ""));
 
   // Język podpisu wybiera właściciel przy pisaniu (decyzja 2026-07-15:
   // przełącznik ręczny, NIE automat po kraju klienta).
-  const podpis = (i18n.locales as readonly string[]).includes(body?.podpis as string) ? (body!.podpis as Locale) : null;
+  const podpisRaw = formData.get("podpis");
+  const podpis = (i18n.locales as readonly string[]).includes(podpisRaw as string) ? (podpisRaw as Locale) : null;
+
+  // Załączniki — walidacja MIME/rozmiaru PO STRONIE SERWERA (obrona w głąb,
+  // front już waliduje, ale klientowi nie ufamy), ten sam duch co
+  // app/api/costs/[id]/attachment/route.ts. TYLKO w pamięci na czas tego
+  // żądania — patrz komentarz przy MAIL_ATTACHMENT_* w lib/mail.ts.
+  const files = formData.getAll("attachments").filter((f): f is File => f instanceof File && f.size > 0);
+  const attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
+  let totalBytes = 0;
+  for (const file of files) {
+    if (!(MAIL_ATTACHMENT_MIME_TYPES as readonly string[]).includes(file.type)) {
+      return NextResponse.json({ error: `Niedozwolony typ pliku: ${file.name}.` }, { status: 400 });
+    }
+    if (file.size > MAIL_ATTACHMENT_MAX_FILE_BYTES) {
+      return NextResponse.json({ error: `Plik za duży: ${file.name}.` }, { status: 400 });
+    }
+    totalBytes += file.size;
+    if (totalBytes > MAIL_ATTACHMENT_MAX_TOTAL_BYTES) {
+      return NextResponse.json({ error: "Łączny rozmiar załączników jest za duży." }, { status: 400 });
+    }
+    attachments.push({ filename: file.name.slice(0, 300), content: Buffer.from(await file.arrayBuffer()), contentType: file.type || undefined });
+  }
 
   await ensureMailSchema();
   const sql = getSql();
@@ -59,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   let sent: { messageId: string; raw: string };
   try {
-    sent = await sendMail({ to, cc, subject, text: fullText, html: fullHtml, inlineImages });
+    sent = await sendMail({ to, cc, bcc, subject, text: fullText, html: fullHtml, inlineImages, attachments });
   } catch (e) {
     console.error("[POST /api/mail/compose] wysyłka nie powiodła się", e);
     const message = e instanceof Error ? e.message : "Nieznany błąd wysyłki.";
@@ -79,7 +103,10 @@ export async function POST(req: NextRequest) {
 
   const mailId = randomUUID();
   try {
-    const match = (await findContactsByEmail(to))[0];
+    // Dopasowanie do klienta/leada po PIERWSZYM adresie "Do" — baza wspiera
+    // jeden powiązany kontakt na wiadomość, wieloosobowe "Do" nie zmienia
+    // tego (świadome ograniczenie zakresu, patrz plan tej rundy).
+    const match = (await findContactsByEmail(to[0]))[0];
     const clientId = match?.type === "client" ? match.id : null;
     const leadId = match?.type === "lead" ? match.id : null;
 
@@ -87,11 +114,11 @@ export async function POST(req: NextRequest) {
     // self-rooted, własny message_id jako thread_id.
     await sql`
       INSERT INTO mail_messages (
-        id, kierunek, folder, client_id, lead_id, from_addr, to_addr, cc_addr,
+        id, kierunek, folder, client_id, lead_id, from_addr, to_addr, cc_addr, bcc_addr,
         subject, body_text, message_id, thread_id, status, received_at, handled_at
       ) VALUES (
         ${mailId}, 'out', 'sent', ${clientId}, ${leadId},
-        '', ${to}, ${cc.join(", ")}, ${subject}, ${text},
+        '', ${to.join(", ")}, ${cc.join(", ")}, ${bcc.join(", ")}, ${subject}, ${text},
         ${sent.messageId}, ${sent.messageId}, 'obsłużony', now(), now()
       )
       ON CONFLICT (message_id) DO NOTHING;

@@ -1578,6 +1578,38 @@ async function createMailSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS mail_senders_status_idx ON mail_senders(status);`;
 
+  // Moduł 4, Etap 3 (2026-07-16) — Snooze/Odłóż. Kolumna WPROST na
+  // wiadomości (nie osobna tabela jak mail_senders) — snooze jest
+  // własnością POJEDYNCZEJ wiadomości, nie nadawcy. NULL = nie odłożona.
+  // "Wraca sam" NIE wymaga crona: widoczność liczy się w locie przy KAŻDYM
+  // odczycie (snooze_until IS NULL OR snooze_until <= now()) po stronie
+  // przeglądarki (MailDashboard.tsx, filtered) — ten sam duch co bramka
+  // screenera, tylko bez SQL-a, bo lista i tak ma LIMIT 200/folder.
+  // Świadomie BEZ własnego indeksu, ten sam wzorzec co `flagged` wyżej.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS snooze_until TIMESTAMPTZ;`;
+
+  // Etap 1 Modułu 4b, druga runda (2026-07-16) — UDW (Bcc) wychodzącej
+  // wiadomości, zapisane dla WŁASNEGO wglądu właściciela w panelu. Adres
+  // NIGDY nie trafia do nagłówków samego maila (patrz sendMail() w
+  // lib/mailbox.ts — Bcc idzie tylko do koperty SMTP) — to jedynie kopia w
+  // naszej bazie, ten sam wzorzec co cc_addr wyżej.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS bcc_addr TEXT;`;
+
+  // Jednorazowy backfill (2026-07-16) — naprawa luki w saveOutgoingFromServer()/
+  // saveArchivedOrTrashed() (lib/mailSync.ts): ON CONFLICT aktualizował TYLKO
+  // `folder`, więc self-mail przeniesiony ręcznie z Odebranych do Archiwum/
+  // Kosza, a potem odkryty w Wysłane, kończył jako folder='sent' z
+  // kierunek='in'/status='nowy' nienaruszonymi — wiadomość w zakładce
+  // "Wysłane" z ikoną koperty i tagiem "Do odpowiedzi" (zgłoszone przez
+  // właściciela). Sam kod od teraz tego nie powtórzy, ale JUŻ zepsute wiersze
+  // same się nie naprawią (guard `folder <> EXCLUDED.folder` w ON CONFLICT nie
+  // odpali się drugi raz, skoro folder już jest 'sent') — stąd to jednorazowe
+  // dogonienie istniejących danych. Bezpieczne uruchamiać wielokrotnie: po
+  // pierwszym przebiegu warunek WHERE nie znajduje już żadnych wierszy.
+  await inMigration(
+    () => sql`UPDATE mail_messages SET kierunek = 'out', status = 'obsłużony' WHERE folder = 'sent' AND kierunek = 'in';`
+  );
+
   await markSchemaApplied("mail");
 }
 

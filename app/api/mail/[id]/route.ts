@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema, ensureMailFoldersSchema } from "@/lib/db";
-import { MAIL_STATUSES, mailSummaryLine, type MailMessageWithLinks } from "@/lib/mail";
+import { MAIL_STATUSES, mailSummaryLine, isPlausibleTimestamp, type MailMessageWithLinks } from "@/lib/mail";
 import { logMailOnTimeline } from "@/lib/mailSync";
 import { sanitizeMailHtml } from "@/lib/mailHtml";
 import { isMailboxConfigured, moveMessage } from "@/lib/mailbox";
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const sql = getSql();
 
   const rows = (await sql`
-    SELECT m.*, c.nazwa AS client_nazwa, l.firma AS lead_nazwa, i.numer AS invoice_numer,
+    SELECT m.*, c.nazwa AS client_nazwa, c.status AS client_status, l.firma AS lead_nazwa, i.numer AS invoice_numer,
            ms.status AS sender_status
     FROM mail_messages m
     LEFT JOIN clients c ON c.id = m.client_id
@@ -96,6 +96,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     move?: unknown;
     flagged?: unknown;
     senderDecision?: unknown;
+    snoozeUntil?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
 
@@ -200,6 +201,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       VALUES (${randomUUID()}, ${mail.from_addr}, ${body.senderDecision}, now())
       ON CONFLICT (email) DO UPDATE SET status = EXCLUDED.status, decided_at = now();
     `;
+  }
+
+  // Snooze / Odłóż (Moduł 4, Etap 3) — `null` = "Wróć teraz"/nigdy nie było
+  // odłożone, string = ISO jednej z NAZWANYCH opcji snoozeOptions()
+  // (lib/mail.ts). Właściciel nigdy nie wpisuje tu daty ręcznie (CLAUDE.md,
+  // pułapka <input type="date">) — mimo to walidujemy, bo endpoint jest
+  // wywoływalny bezpośrednio. Widoczność wraca sama przy odczycie, bez
+  // dodatkowej logiki tutaj (patrz lib/db.ts).
+  if (body.snoozeUntil === null || typeof body.snoozeUntil === "string") {
+    if (typeof body.snoozeUntil === "string" && !isPlausibleTimestamp(body.snoozeUntil)) {
+      return NextResponse.json({ error: "invalid snooze date" }, { status: 400 });
+    }
+    await sql`UPDATE mail_messages SET snooze_until = ${body.snoozeUntil} WHERE id = ${id};`;
   }
 
   // Ręczne przypisanie z kolejki "Nieprzypisane". Zawsze dokładnie jedna

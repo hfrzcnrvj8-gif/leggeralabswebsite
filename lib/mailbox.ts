@@ -432,8 +432,15 @@ export async function fetchCcByUids(uids: number[]): Promise<Map<number, string>
  * trafia DOKŁADNIE to, co poszło do odbiorcy, bajt w bajt — nie rekonstrukcja.
  */
 export async function sendMail(params: {
-  to: string;
+  to: string[];
   cc?: string[];
+  /** UDW — TYLKO koperta SMTP, NIGDY przekazywane do MailComposer poniżej:
+   * MailComposer zapisałby nagłówek `Bcc:` wprost do surowego MIME (patrz
+   * node_modules/nodemailer/lib/mail-composer), a to ten sam `raw`, który
+   * ląduje w folderze Sent przez appendToSent() — każdy klient czytający
+   * kopię z Sent zobaczyłby wtedy adresy UDW. Prawidłowe miejsce na Bcc jest
+   * WYŁĄCZNIE koperta transportera, niżej. */
+  bcc?: string[];
   subject: string;
   text: string;
   /** Wersja HTML (z podpisem). Gdy podana, mail leci jako multipart:
@@ -442,6 +449,10 @@ export async function sendMail(params: {
   html?: string;
   /** Obrazki osadzone (podpis) — dołączane jako `cid:`, nie zdalne linki. */
   inlineImages?: { cid: string; filename: string; content: Buffer }[];
+  /** Załączniki wychodzące wskazane przez właściciela (druga runda Etapu 1
+   * Modułu 4b) — TYLKO w pamięci, nigdy nie trafiają do Postgresa (patrz
+   * MAIL_ATTACHMENT_* w lib/mail.ts). */
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
   inReplyTo?: string | null;
   references?: string | null;
 }): Promise<{ messageId: string; raw: string }> {
@@ -454,6 +465,21 @@ export async function sendMail(params: {
   const domain = from.split("@")[1]?.replace(/>$/, "").trim() || "localhost";
   const messageId = `<${randomUUID()}@${domain}>`;
 
+  const allAttachments = [
+    ...(params.inlineImages ?? []).map((i) => ({
+      cid: i.cid,
+      filename: i.filename,
+      content: i.content,
+      contentDisposition: "inline" as const,
+    })),
+    ...(params.attachments ?? []).map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType,
+      contentDisposition: "attachment" as const,
+    })),
+  ];
+
   const raw = (
     await new MailComposer({
       from,
@@ -464,17 +490,9 @@ export async function sendMail(params: {
       ...(params.html ? { html: params.html } : {}),
       // `cid` + `contentDisposition: "inline"` sprawia, że obrazek jest
       // częścią wiadomości (a nie załącznikiem do pobrania) i nie podlega
-      // blokadzie zdalnych obrazków.
-      ...(params.inlineImages && params.inlineImages.length > 0
-        ? {
-            attachments: params.inlineImages.map((i) => ({
-              cid: i.cid,
-              filename: i.filename,
-              content: i.content,
-              contentDisposition: "inline" as const,
-            })),
-          }
-        : {}),
+      // blokadzie zdalnych obrazków. Prawdziwe załączniki mają
+      // `contentDisposition: "attachment"` — jedna tablica, dwa rodzaje.
+      ...(allAttachments.length > 0 ? { attachments: allAttachments } : {}),
       messageId,
       ...(params.inReplyTo ? { inReplyTo: params.inReplyTo } : {}),
       ...(params.references ? { references: params.references } : {}),
@@ -492,12 +510,12 @@ export async function sendMail(params: {
 
   // `raw` + jawna koperta: wysyłamy dokładnie tę treść, którą złożyliśmy
   // wyżej (sendMail nie przepisuje wtedy nagłówków po swojemu). Koperta musi
-  // zawierać też DW — inaczej nagłówek Cc byłby widoczny, ale poczta by tam
-  // nie poszła.
+  // zawierać też DW/UDW — inaczej ci odbiorcy nie dostaną poczty, mimo że
+  // (dla DW) nagłówek Cc by ją zapowiadał.
   await transporter.sendMail({
     envelope: {
       from: extractEmailAddress(from) || from,
-      to: [params.to, ...(params.cc ?? [])],
+      to: [...params.to, ...(params.cc ?? []), ...(params.bcc ?? [])],
     },
     raw,
   });

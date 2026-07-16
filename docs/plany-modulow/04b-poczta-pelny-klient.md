@@ -26,8 +26,10 @@ wielu) — pełny opis w `HUB_SETUP.md` → „Moduł 4 — Etap 2 (foldery IMAP
    - dokończenie Etapu 2 (Drafts/CONDSTORE/pełne flagi/outbox+cron — patrz
      sekcja „Świadomie odłożone" niżej, każdy punkt ma uzasadnienie, czemu
      nie wszedł w pierwszą rundę),
-   - czy przejście do **Etapu 3** (screener nowych nadawców, VIP, snooze,
-     follow-up nudge, wątkowanie wiadomości — opisany niżej, NIE zaczęty).
+   - czy przejście do **Etapu 3** (screener/wątkowanie/VIP/snooze ✅ ZROBIONE
+     2026-07-16 — patrz `HUB_SETUP.md`; zostaje TYLKO follow-up nudge, opisany
+     niżej, NIE zaczęty — inny kształt pracy, agregacja na poziomie wątku w
+     poprzek folderów).
 
 ## Skąd to się wzięło
 
@@ -189,12 +191,19 @@ zrobione:**
   zakładał brief; screener *ukrywa*, nie odrzuca (⚠️ ograniczenie wskazane
   niżej — nie jesteśmy serwerem MX jak HEY). Szczegóły: `HUB_SETUP.md` →
   „Moduł 4, Etap 3 — screener nowych nadawców".
-- **VIP** — Apple Mail: VIP bije klasyfikację treści. U nas naturalnie:
-  klient ze statusem „Aktywny" = VIP z automatu.
-- **Snooze / Odłóż** — nazwane terminy („Jutro 8:00", „Poniedziałek"), NIE
-  kalendarz. ⚠️ Omija to pułapkę `<input type="date">` z CLAUDE.md. Kolumna
-  `snooze_until` + filtr przy renderze; wraca sam (cron już jest).
-  IMAP nie ma snooze w protokole — robimy po swojej stronie.
+- **VIP ✅ ZROBIONE (2026-07-16)** — klient ze statusem „Aktywny" = VIP z
+  automatu, czysto odczytowe (bez zmian w `saveIncoming()`). Zakładka „VIP"
+  pokazuje WSZYSTKO od VIP-a niezależnie od statusu/kategorii (dosłowny
+  przypadek z brifu — VIP bije `kategoria='reklama'` — jest strukturalnie
+  nieosiągalny dla dopasowanego klienta, patrz uzasadnienie w
+  `HUB_SETUP.md`; realny odpowiednik to ręcznie wyciszona/obsłużona
+  wiadomość VIP-a). Złota plakietka `⭐ VIP` w liście i podglądzie.
+  Szczegóły: `HUB_SETUP.md` → „Moduł 4, Etap 3 — VIP + Snooze".
+- **Snooze / Odłóż ✅ ZROBIONE (2026-07-16)** — nazwane terminy („Jutro rano
+  8:00", „Ten weekend", „Przyszły tydzień", „Później dziś"), NIE kalendarz.
+  Kolumna `snooze_until` + filtr przy renderze; wraca sam BEZ crona
+  (widoczność liczy się przy każdym odczycie). Szczegóły: `HUB_SETUP.md` →
+  „Moduł 4, Etap 3 — VIP + Snooze".
 - **Follow-up nudge (kierunek WYCHODZĄCY)** — panel ma „Wiadomości do
   odpowiedzi" dla przychodzących; brakuje odwrotności: *wysłałeś ofertę 5 dni
   temu, cisza*. Deterministyczne (`out` bez `in` w wątku po N dniach).

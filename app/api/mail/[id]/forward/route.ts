@@ -3,13 +3,15 @@ import { randomUUID } from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema } from "@/lib/db";
 import {
-  extractEmailAddress,
   forwardHtml,
   forwardHeaderText,
   forwardSubject,
   mailSummaryLine,
   parseAddressList,
   textToHtml,
+  MAIL_ATTACHMENT_MIME_TYPES,
+  MAIL_ATTACHMENT_MAX_FILE_BYTES,
+  MAIL_ATTACHMENT_MAX_TOTAL_BYTES,
   type MailMessage,
 } from "@/lib/mail";
 import { findContactsByEmail } from "@/lib/contactLookup";
@@ -28,9 +30,13 @@ export const maxDuration = 60;
  * 4b). Świadomie NOWY wątek (bez `in_reply_to`/`refs`) — tak samo zachowuje
  * się Gmail/Outlook przy "Fwd:", w odróżnieniu od odpowiedzi.
  *
- * Załączniki NIE są przekazywane — świadomie odłożone w planie modułu
- * (`docs/plany-modulow/04b-poczta-pelny-klient.md`, "Świadomie ODŁOŻONE"):
- * panel dziś w ogóle nie przechowuje treści załączników.
+ * Załączniki ORYGINAŁU NIE są automatycznie doklejane przy przekazywaniu —
+ * świadomie odłożone w planie modułu (`docs/plany-modulow/
+ * 04b-poczta-pelny-klient.md`, "Świadomie ODŁOŻONE"): panel dziś w ogóle nie
+ * przechowuje treści załączników przychodzącej poczty. To NIE dotyczy
+ * NOWEGO pliku, który właściciel może ręcznie dołączyć przy przekazywaniu
+ * (druga runda Etapu 1) — to inna, niezależna możliwość, patrz `attachments`
+ * niżej.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -43,16 +49,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  const body = (await req.json().catch(() => null)) as
-    | { to?: unknown; cc?: unknown; text?: unknown; podpis?: unknown }
-    | null;
+  const formData = await req.formData().catch(() => null);
+  if (!formData) return NextResponse.json({ error: "Nieprawidłowe dane formularza." }, { status: 400 });
 
-  const to = extractEmailAddress(typeof body?.to === "string" ? body.to : "");
-  if (!to) return NextResponse.json({ error: "Adres odbiorcy jest nieprawidłowy." }, { status: 400 });
+  const to = parseAddressList(String(formData.get("to") ?? ""));
+  if (to.length === 0) return NextResponse.json({ error: "Adres odbiorcy jest nieprawidłowy." }, { status: 400 });
 
-  const comment = typeof body?.text === "string" ? body.text.trim() : "";
-  const cc = typeof body?.cc === "string" ? parseAddressList(body.cc) : [];
-  const podpis = (i18n.locales as readonly string[]).includes(body?.podpis as string) ? (body!.podpis as Locale) : null;
+  const comment = String(formData.get("text") ?? "").trim();
+  const cc = parseAddressList(String(formData.get("cc") ?? ""));
+  const bcc = parseAddressList(String(formData.get("bcc") ?? ""));
+  const podpisRaw = formData.get("podpis");
+  const podpis = (i18n.locales as readonly string[]).includes(podpisRaw as string) ? (podpisRaw as Locale) : null;
+
+  // Załączniki — walidacja MIME/rozmiaru PO STRONIE SERWERA, ten sam duch co
+  // app/api/costs/[id]/attachment/route.ts. TYLKO w pamięci, patrz komentarz
+  // przy MAIL_ATTACHMENT_* w lib/mail.ts.
+  const files = formData.getAll("attachments").filter((f): f is File => f instanceof File && f.size > 0);
+  const attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
+  let totalBytes = 0;
+  for (const file of files) {
+    if (!(MAIL_ATTACHMENT_MIME_TYPES as readonly string[]).includes(file.type)) {
+      return NextResponse.json({ error: `Niedozwolony typ pliku: ${file.name}.` }, { status: 400 });
+    }
+    if (file.size > MAIL_ATTACHMENT_MAX_FILE_BYTES) {
+      return NextResponse.json({ error: `Plik za duży: ${file.name}.` }, { status: 400 });
+    }
+    totalBytes += file.size;
+    if (totalBytes > MAIL_ATTACHMENT_MAX_TOTAL_BYTES) {
+      return NextResponse.json({ error: "Łączny rozmiar załączników jest za duży." }, { status: 400 });
+    }
+    attachments.push({ filename: file.name.slice(0, 300), content: Buffer.from(await file.arrayBuffer()), contentType: file.type || undefined });
+  }
 
   await ensureMailSchema();
   const sql = getSql();
@@ -93,7 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let sent: { messageId: string; raw: string };
   try {
-    sent = await sendMail({ to, cc, subject, text: fullText, html: fullHtml, inlineImages });
+    sent = await sendMail({ to, cc, bcc, subject, text: fullText, html: fullHtml, inlineImages, attachments });
   } catch (e) {
     console.error("[POST /api/mail/[id]/forward] wysyłka nie powiodła się", e);
     const message = e instanceof Error ? e.message : "Nieznany błąd wysyłki.";
@@ -113,7 +140,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const mailId = randomUUID();
   try {
-    const match = (await findContactsByEmail(to))[0];
+    // Dopasowanie po PIERWSZYM adresie "Do" — patrz komentarz w
+    // app/api/mail/compose/route.ts, ten sam wzorzec.
+    const match = (await findContactsByEmail(to[0]))[0];
     const clientId = match?.type === "client" ? match.id : null;
     const leadId = match?.type === "lead" ? match.id : null;
 
@@ -121,11 +150,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // self-rooted, własny message_id jako thread_id.
     await sql`
       INSERT INTO mail_messages (
-        id, kierunek, folder, client_id, lead_id, from_addr, to_addr, cc_addr,
+        id, kierunek, folder, client_id, lead_id, from_addr, to_addr, cc_addr, bcc_addr,
         subject, body_text, message_id, thread_id, status, received_at, handled_at
       ) VALUES (
         ${mailId}, 'out', 'sent', ${clientId}, ${leadId},
-        '', ${to}, ${cc.join(", ")}, ${subject}, ${comment},
+        '', ${to.join(", ")}, ${cc.join(", ")}, ${bcc.join(", ")}, ${subject}, ${comment},
         ${sent.messageId}, ${sent.messageId}, 'obsłużony', now(), now()
       )
       ON CONFLICT (message_id) DO NOTHING;

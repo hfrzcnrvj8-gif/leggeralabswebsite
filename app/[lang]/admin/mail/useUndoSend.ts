@@ -13,8 +13,21 @@ export const UNDO_SEND_DELAY_MS = 10_000;
 
 export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS) {
   const [countdown, setCountdown] = useState<number | null>(null);
+  // Faktyczna wysyłka w toku — od końca odliczania do rozstrzygnięcia się
+  // action() (sukces LUB błąd). Odrębne od `sending` (=odliczanie), bo bez
+  // tego UI wracał do stanu bezczynności w chwili końca odliczania, mimo że
+  // prawdziwy fetch (SMTP+IMAP, kilka sekund) wciąż trwał — wyglądało to jak
+  // zawieszenie, zgłoszone przez właściciela.
+  const [submitting, setSubmitting] = useState(false);
   const timeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const clear = useCallback(() => {
     if (timeoutRef.current != null) window.clearTimeout(timeoutRef.current);
@@ -35,13 +48,20 @@ export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS) {
       timeoutRef.current = window.setTimeout(() => {
         clear();
         setCountdown(null);
-        void action();
+        setSubmitting(true);
+        Promise.resolve()
+          .then(action)
+          .finally(() => {
+            if (mountedRef.current) setSubmitting(false);
+          });
       }, delayMs);
     },
     [clear, delayMs]
   );
 
   const cancel = useCallback(() => {
+    // Cancel ma sens TYLKO w trakcie odliczania — po starcie prawdziwej
+    // wysyłki fetch już leci, nie ma czego anulować.
     clear();
     setCountdown(null);
   }, [clear]);
@@ -50,5 +70,5 @@ export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS) {
   // po cichu w tle.
   useEffect(() => clear, [clear]);
 
-  return { countdown, start, cancel, sending: countdown !== null };
+  return { countdown, start, cancel, sending: countdown !== null, submitting };
 }

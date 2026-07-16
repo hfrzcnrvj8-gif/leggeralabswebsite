@@ -1,17 +1,19 @@
 "use client";
 
-// Etap 1 Modułu 4b — pole odbiorcy dla "Nowa wiadomość"/"Przekaż": wpisanie
+// Etap 1 Modułu 4b — pole odbiorcy dla "Nowa wiadomość"/"Przekaż": chipy
+// (jak Apple Mail) zamiast gołego tekstu, żeby dało się mieć NAPRAWDĘ kilku
+// odbiorców w jednym polu (Do/DW/UDW) — nie tylko tekst po przecinku, który
+// serwer i tak dawniej parsował jako JEDEN adres dla "Do". Wpisanie
 // dowolnego adresu RĘCZNIE (decyzja właściciela 2026-07-15 — odbiorca nie
-// musi być w CRM) + podpowiedź "z bazy" (klienci/leady z adresem e-mail),
-// wzorem ClientPickerButton z ../components.tsx (faktury/oferty), ale
-// zwracająca sam adres, nie cały rekord klienta.
+// musi być w CRM) + podpowiedź "z bazy" (klienci/leady z adresem e-mail).
 import { useEffect, useState } from "react";
 import { Popover } from "../Menu";
+import { parseAddressList } from "./shared";
 
 type ContactOption = { id: string; nazwa: string; email: string; type: "client" | "lead" };
 
 /** Wspólne dociąganie klientów+leadów z adresem e-mail — jeden fetch na
- * otwarcie formularza wysyłki, współdzielony przez pole "Do" i "DW". */
+ * otwarcie formularza wysyłki, współdzielony przez pola Do/DW/UDW. */
 export function useMailContacts(): ContactOption[] | null {
   const [contacts, setContacts] = useState<ContactOption[] | null>(null);
   useEffect(() => {
@@ -32,30 +34,76 @@ export function useMailContacts(): ContactOption[] | null {
   return contacts;
 }
 
-/** Pole "Do"/"DW": input z dowolnym adresem + przycisk "Z bazy" obok, który
- * wstawia adres wybranego klienta/leada. `multiple` pozwala doklejać kolejne
- * adresy po przecinku (pole DW) zamiast nadpisywać (pole Do). */
+/** Pole "Do"/"DW"/"UDW": chipy usuwalne + input do dopisywania kolejnych +
+ * przycisk "Z bazy" obok. Enter/przecinek/blur/wklejenie z przecinkami
+ * zamieniają wpisany tekst w chip(y) (przez parseAddressList — ten sam
+ * parser co reszta modułu, więc "a@x.pl, b@y.pl" wklejone naraz daje dwa
+ * chipy). Backspace na pustym polu usuwa ostatni chip (wzorem Apple Mail/
+ * Gmaila). */
 export function RecipientField({
+  label,
   value,
   onChange,
   contacts,
   placeholder,
-  multiple = false,
 }: {
-  value: string;
-  onChange: (v: string) => void;
+  label: string;
+  value: string[];
+  onChange: (v: string[]) => void;
   contacts: ContactOption[] | null;
-  placeholder: string;
-  multiple?: boolean;
+  placeholder?: string;
 }) {
+  const [draft, setDraft] = useState("");
+
+  const commit = (raw: string) => {
+    const parts = parseAddressList(raw);
+    if (parts.length === 0) return;
+    onChange(Array.from(new Set([...value, ...parts])));
+    setDraft("");
+  };
+
   return (
-    <div className="flex items-center gap-1.5">
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[13px] outline-none focus:border-brand-purple/50"
-      />
+    <div className="flex items-start gap-1.5 border-b hairline py-2">
+      <span className="mt-1.5 w-11 shrink-0 text-[12px] text-muted">{label}</span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+        {value.map((email) => (
+          <span key={email} className="flex items-center gap-1 rounded-full bg-[var(--hairline)] px-2 py-0.5 text-[12px]">
+            {email}
+            <button
+              type="button"
+              onClick={() => onChange(value.filter((v) => v !== email))}
+              aria-label={`Usuń ${email}`}
+              className="text-muted hover:text-[var(--fg)]"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              commit(draft);
+            } else if (e.key === "Backspace" && draft === "" && value.length > 0) {
+              onChange(value.slice(0, -1));
+            }
+          }}
+          onPaste={(e) => {
+            const text = e.clipboardData.getData("text");
+            if (/[,;]/.test(text)) {
+              e.preventDefault();
+              commit(text);
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) commit(draft);
+          }}
+          placeholder={value.length === 0 ? placeholder : ""}
+          className="min-w-[140px] flex-1 bg-transparent py-1 text-[13px] outline-none"
+        />
+      </div>
       {contacts && contacts.length > 0 && (
         <Popover
           width={280}
@@ -67,7 +115,7 @@ export function RecipientField({
               className="shrink-0 rounded-full border hairline px-2.5 py-1.5 text-[12px] text-muted hover:text-[var(--fg)]"
               title="Wybierz z klientów/leadów"
             >
-              🔍 Z bazy
+              🔍
             </button>
           )}
         >
@@ -75,7 +123,7 @@ export function RecipientField({
             <ContactPickerList
               contacts={contacts}
               onPick={(c) => {
-                onChange(multiple && value.trim() ? `${value.trim()}, ${c.email}` : c.email);
+                onChange(Array.from(new Set([...value, c.email])));
                 close();
               }}
             />

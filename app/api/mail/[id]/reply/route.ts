@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let sent: { messageId: string; raw: string };
   try {
     sent = await sendMail({
-      to: original.from_addr,
+      to: [original.from_addr],
       cc,
       subject,
       text: fullText,

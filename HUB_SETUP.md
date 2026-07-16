@@ -3155,6 +3155,64 @@ Spark, z przewagą że znani klienci/leady omijają bramkę automatycznie.
   w devie, wysyłka blokuje się wcześniej) — kod analogiczny do reszty,
   do potwierdzenia na produkcji.
 
+### Moduł 4, Etap 3 — VIP + Snooze (2026-07-16)
+
+Trzeci i czwarty punkt Etapu 3 (Nudge zostaje na osobną rundę — inny kształt
+pracy, agregacja na poziomie WĄTKU w poprzek folderów). Pełny plan w
+`/Users/patrykpiecyk/.claude/plans/eager-swinging-puzzle.md`.
+
+**VIP** — zero zmian schematu, zero zmian w `saveIncoming()`, czysto
+odczytowe: `c.status AS client_status` dołączany JOIN-em przy każdym odczycie
+(`app/api/mail/route.ts`, `app/api/mail/[id]/route.ts` — tam `SELECT m.*` nie
+dociąga kolumn z JOIN-a automatycznie, stąd jawny dopisek). `status='Aktywny'`
+= VIP z automatu. **Ustalenie architektoniczne, koryguje dosłowne brzmienie
+brifu** („VIP bije klasyfikację treści"): sprawdzone w `saveIncoming()` —
+`isNoiseMail()` zeruje dopasowanie kontaktu PRZED klasyfikacją, więc
+`kategoria='reklama'` i `client_id` VIP-a nigdy nie mogą współistnieć,
+dosłowny przypadek z brifu jest strukturalnie nieosiągalny. Realny, osiągalny
+odpowiednik: właściciel ręcznie wyciszy VIP-a albo odpisze (status
+`obsłużony`/`zignorowany`) — dziś taka wiadomość znika ze wszystkich zakładek
+oprócz „Wszystkie". Nowa zakładka „VIP" w `MailDashboard.tsx` to naprawia:
+pokazuje WSZYSTKO od klienta „Aktywny", świadomie BEZ warunków na
+`status`/`kategoria`/`sender_status` (jedyna zakładka, która też ignoruje
+pigułki kategorii). Złota plakietka `⭐ VIP` obok tagu klienta — w wierszu
+listy i w nagłówku podglądu, widoczna w KAŻDEJ zakładce, nie tylko w „VIP".
+
+**Snooze / Odłóż** — nowa kolumna `mail_messages.snooze_until TIMESTAMPTZ`
+(`lib/db.ts`, bez własnego indeksu, ten sam styl co `flagged`). **„Wraca sam"
+NIE wymaga crona** — widoczność liczy się przy KAŻDYM odczycie
+(`snooze_until IS NULL OR snooze_until <= now()`) po stronie przeglądarki w
+`filtered` useMemo (`MailDashboard.tsx`), ten sam duch co bramka screenera.
+Licznik `nowe`/`nieprzypisane` też wyklucza jeszcze-nie-należne odłożenia
+(dokładnie jak `pending`/`blocked` nadawców) — inaczej plakietka liczyłaby
+więcej niż faktycznie pokazuje zakładka. Nazwane terminy —
+`snoozeOptions()` w `lib/mail.ts` (czysta funkcja, bez DB): „Później dziś
+(18:00)" (tylko przed 16:00), „Jutro rano (8:00)", „Ten weekend (sobota
+9:00)" (tylko pon–czw), „Przyszły tydzień (poniedziałek 8:00)" — każda opcja
+niesie gotowy docelowy ISO, UI tylko renderuje etykiety. Dwa nowe helpery w
+`lib/dates.ts`: `warsawWallTimeToUtcISO()` (zegarek warszawski → poprawny
+UTC, z uwzględnieniem czasu letniego) i `warsawNowMinutes()`. `PATCH
+/api/mail/[id]` (`{ snoozeUntil: string | null }`) — `null` = „Wróć teraz".
+Przycisk „⏰ Odłóż" w `MailDetailPanel.tsx` (Popover/MenuRow, ten sam
+komponent co menu „•••"), baner „Uśpiona do {data}" + „Wróć teraz" gdy termin
+w przyszłości. Nowa zakładka „Uśpione" + wskaźnik `⏰` w wierszu listy.
+
+- **Fixture w devie** (`lib/dev-db.ts`): druga wiadomość od `clientA` (VIP)
+  ze statusem `obsłużony` — dowód, że VIP ignoruje status; dwie wiadomości ze
+  `snooze_until` (jedna w przyszłości, jedna w przeszłości) — dowód, że
+  przeszły termin wraca sam bez żadnej akcji.
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. Zakładka „VIP"
+  pokazuje obie wiadomości od Nordwind Studio (status `nowy` i `obsłużony`)
+  — potwierdzone w przeglądarce. Zakładka „Uśpione" pokazuje dokładnie
+  przyszłościowy fixture; przeszły fixture (Rafał Sowa) widoczny w „Do
+  odpowiedzi" od razu po zalogowaniu, bez żadnej ręcznej akcji ani crona.
+  Przycisk „Odłóż" → wybór „Jutro rano (8:00)" → baner z poprawną datą
+  (17.07.2026, 08:00), licznik „Do odpowiedzi" spadł natychmiast. „Wróć
+  teraz" → wiadomość natychmiast wróciła, baner zniknął, liczniki się
+  zaktualizowały. Próg „Później dziś" (16:00) potwierdzony NA ŻYWO — o
+  17:37 czasu lokalnego opcja nie pojawiła się na liście, zgodnie z
+  oczekiwaniem.
+
 ### Moduł 4e, runda 5 — gradienty muszą wrócić, tylko jako kontur (2026-07-16)
 
 Właściciel po zobaczeniu rundy 4 (obwódka `.btn-primary` w jednym kolorze):
@@ -3204,6 +3262,140 @@ gradienty fioletowo-złote są częścią marki i MUSZĄ być widoczne — nie
   tylko odbita strzałka, jednoznaczne bez czytania etykiety. Jedna zmiana w
   źródle propaguje się automatycznie do sidebara I paska wątku w podglądzie
   (oba czytają z tej samej stałej).
+
+### Moduł 4b, Etap 1 — okno kompozycji maila, poprawki po teście na żywo (2026-07-16)
+
+Właściciel przetestował na produkcji wysyłkę próbnego maila i zgłosił osiem
+problemów naraz: za małe okno, brak załączników, tylko jeden odbiorca "Do",
+brak UDW (Bcc), za mało podobne wizualnie do Apple Mail, wysyłka "wygląda na
+zawieszoną" po końcu 10-sekundowego odliczenia, brak animacji zamknięcia
+okna, brak widocznego potwierdzenia wysłania. Pełny plan w
+`/Users/patrykpiecyk/.claude/plans/eager-swinging-puzzle.md`. Dotyczy
+`MailComposeForm` (Nowa wiadomość + Przekaż) — formularz Odpowiedz/Odpowiedz
+wszystkim w `MailDetailPanel.tsx` (ręcznie pisany, ma dodatkowo "✨
+Zaproponuj szkic") świadomie zostaje NIETKNIĘTY wizualnie w tej rundzie.
+
+- **Przyczyna "wysyłka wygląda na zawieszoną"** — realny błąd stanu w
+  `useUndoSend.ts`: `setCountdown(null)` wykonywał się SYNCHRONICZNIE,
+  zanim prawdziwy `fetch` (SMTP+IMAP, kilka sekund na produkcji) w ogóle
+  wystartował, więc UI wracał do "Wyślij"/"Anuluj" na kilka sekund PRZED
+  faktycznym zakończeniem wysyłki. Naprawione addytywnie: nowy `submitting:
+  boolean`, prawdziwy od końca odliczania do rozstrzygnięcia się `action()`
+  (sukces LUB błąd), z `mountedRef` guardem. `sending`/`countdown` bez zmiany
+  znaczenia — `MailDetailPanel.tsx` (reply/replyAll) używa tego samego hooka
+  bez żadnych zmian.
+- **Chipy zamiast tekstu dla Do/DW/UDW** (`RecipientPicker.tsx` —
+  `RecipientField`) — `value: string[]` zamiast `string`, `multiple` prop
+  usunięty (każde pole jest teraz z natury wieloosobowe). Enter/przecinek/
+  blur/wklejenie z przecinkami → commit przez `parseAddressList()`
+  (reużycie), Backspace na pustym polu usuwa ostatni chip. Załatwia naraz
+  "działający wieloosobowy Do" i "bliżej Apple Mail wizualnie" — jedna
+  zmiana zamiast dwóch.
+- **UDW (Bcc)** — nowe pole w `MailComposeForm.tsx`, chowane razem z DW za
+  jednym przełącznikiem "Cc/Bcc" (wzorem Apple Mail — jeden link odsłania
+  oba pola naraz). ⚠️ **Bcc dopisywany WYŁĄCZNIE do koperty SMTP
+  (`transporter.sendMail({ envelope: { to: [...] } })`), NIGDY przekazywany
+  do `MailComposer`** — `MailComposer` zapisałby nagłówek `Bcc:` wprost do
+  surowego MIME, a to ten sam `raw`, który ląduje w Sent przez
+  `appendToSent()`, więc każdy klient czytający kopię z Sent zobaczyłby
+  adresy UDW. Zweryfikowane w kodzie `nodemailer/lib/mail-composer`.
+  Zapisywane też w naszej bazie jako `bcc_addr` (nowa kolumna,
+  `lib/db.ts`, ten sam wzorzec co `cc_addr`) — dla własnego wglądu
+  właściciela w panelu, nie trafia do żadnego nagłówka maila.
+- **Załączniki — TYLKO wysyłka, w pamięci, NIE zapisywane w Postgresie.**
+  `MAIL_ATTACHMENT_MIME_TYPES`/`MAIL_ATTACHMENT_MAX_FILE_BYTES` (3 MB/plik)/
+  `MAIL_ATTACHMENT_MAX_TOTAL_BYTES` (4 MB łącznie — margines pod platformowy
+  pułap treści żądania Vercel Functions, ok. 4.5 MB) w `lib/mail.ts`.
+  Przycisk "📎 Załącz plik" + drop-zone na treści w `MailComposeForm.tsx`,
+  walidacja MIME/rozmiaru PO STRONIE KLIENTA (toast) I PO STRONIE SERWERA
+  (obrona w głąb, ten sam duch co `app/api/costs/[id]/attachment/route.ts`).
+  `sendMail()` (`lib/mailbox.ts`) łączy nowe załączniki z istniejącą tablicą
+  `inlineImages` w jednym `MailComposer({ attachments: [...] })`,
+  różnicowane przez `contentDisposition: "inline"` vs `"attachment"`.
+  Odbieranie/przechowywanie załączników z PRZYCHODZĄCEJ poczty (`parsed.
+  attachments` w `lib/mailbox.ts`, dalej ignorowane) zostaje POZA zakresem —
+  wymagałoby nowej tabeli + decyzji o retencji RODO, świadomie odłożone.
+- **`req.json()` → `req.formData()`** w `app/api/mail/compose/route.ts` i
+  `.../[id]/forward/route.ts` (wymagane dla plików) — `to`/`cc`/`bcc` przez
+  `parseAddressList()` na polach tekstowych. `sendMail()` zmienia sygnaturę:
+  `to: string` → `to: string[]` — mechaniczna, jednolinijkowa poprawka też w
+  `app/api/mail/[id]/reply/route.ts` (`to: [original.from_addr]`), ten
+  formularz poza tym nietknięty.
+- **Większe okno + animacja** — `max-w-2xl` → `max-w-4xl`, stały wysoki
+  kontener (`h-[80vh]`, flex-column: nagłówek/przewijalna treść/stopka),
+  pola Do:/DW:/UDW:/Temat: jako cienkie wiersze z etykietą (styl Apple
+  Mail) zamiast boksowanych inputów. Root jako `motion.div`, dokładnie ten
+  sam spring co istniejący modal potwierdzenia w `ui.tsx`
+  (`{ type: "spring", stiffness: 420, damping: 32 }`) — reużycie ustalonego
+  języka animacji, nie nowy. `composeOpen` w `MailDashboard.tsx` owinięty w
+  `AnimatePresence` (dziś plain `{cond && (...)}`, natychmiastowe
+  znikanie) — żeby animacja wyjścia faktycznie się odtworzyła.
+  ⚠️ Analogiczny wrap dla inline "Przekaż" w `MailDetailPanel.tsx` ŚWIADOMIE
+  POMINIĘTY — ten blok jest częścią trzy-gałęziowego ternara (forward/
+  reply/default), poprawne opakowanie w `AnimatePresence` wymagałoby
+  restrukturyzacji wszystkich trzech gałęzi z kluczami, większe ryzyko niż
+  warte dla efektu kosmetycznego; "Przekaż" nadal dostaje animację WEJŚCIA
+  (z samego `MailComposeForm`), tylko nie animację wyjścia.
+- **Stopka z czterema stanami zamiast dwóch**: idle (Wyślij/Anuluj) →
+  odliczanie (Wysyłam za Ns…/Cofnij) → `submitting` (spinner "Wysyłam…",
+  przycisk disabled) → `justSent` (✓ "Wiadomość wysłana.", `onClose()` z
+  opóźnieniem ~900ms). Bezpośrednio naprawia "brak potwierdzenia" — razem z
+  poprawką `useUndoSend` daje uczciwy obraz tego, co się dzieje.
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. Ponieważ przycisk
+  "Nowa wiadomość" jest `disabled` gdy `!isMailboxConfigured()` (zawsze
+  prawda w dev — brak `.env.local` z danymi az.pl), do weryfikacji UI
+  TYMCZASOWO dopisano fałszywe `MAIL_IMAP_HOST=localhost`/`MAIL_USER`/
+  `MAIL_PASS` do `.env.local`, przetestowano, i USUNIĘTO przed
+  zakończeniem sesji (`.env.local` jest w `.gitignore`, bez śladu w gicie).
+  Potwierdzone w przeglądarce: większe okno w stylu Apple Mail; chipy
+  Do/DW/UDW (Enter, wklejenie "a@x.pl, b@y.pl" poprawnie rozbite na dwa
+  chipy); przełącznik Cc/Bcc; odrzucenie złego typu pliku (`.exe`) z
+  toastem, dodanie poprawnego (`oferta.pdf`, chip z rozmiarem); pełny cykl
+  wysyłki: odliczanie → `submitting` → żądanie doszło do serwera z
+  poprawnymi `to`/`cc`/`bcc`/`attachments` (potwierdzone w logach
+  `POST /api/mail/compose`), błąd tylko na fałszywym SMTP/IMAP (oczekiwane).
+  **Prawdziwa wysyłka SMTP/IMAP, doręczenie UDW (bez nagłówka Bcc w kopii w
+  Sent) i doręczenie załącznika — możliwe do potwierdzenia TYLKO na
+  produkcji** (ten sam, już wcześniej ustalony wzorzec dla Modułu 4 — brak
+  dostępu do az.pl z tej sesji).
+
+### Naprawa: wysłane wiadomości pokazywały się jako "Do odpowiedzi" (2026-07-16)
+
+Właściciel zgłosił, że niektóre wiadomości w zakładce "Wysłane" mają ikonę
+✉️ (przychodząca) i tag "Do odpowiedzi", mimo że to jego własna wysłana
+poczta. Zdiagnozowane przez podgląd logów produkcyjnych na żywo
+(`npx vercel logs https://www.leggeralabs.pl --follow --json`, po tym jak
+właściciel kliknął "Pobierz nowe") — mapowanie folderów (`sent`→`SENT` itd.)
+było poprawne, wykluczyło to najbardziej oczywistą hipotezę (pomylone
+foldery). Rzeczywista przyczyna: luka w poprawce z wcześniejszej sesji
+(komentarz w `saveOutgoingFromServer()`, `lib/mailSync.ts`) — self-mail
+(wysłany do siebie, częsty sposób testowania) istnieje fizycznie w DWÓCH
+folderach IMAP naraz (Wysłane + Odebrane) pod tym samym `message_id`.
+Wcześniejsza poprawka dodała straż "nigdy nie nadpisuj folderu, jeśli
+wiadomość jest już w `'inbox'`" — działa, DOPÓKI wiadomość tam zostaje. Gdy
+właściciel ręcznie zarchiwizuje/skasuje taką wiadomość z Odebranych (folder
+przestaje być `'inbox'`), straż przestaje chronić, a kolejny sync foldera
+Wysłane odkrywa ten sam `message_id` i **aktualizuje TYLKO `folder` →
+`'sent'`, zostawiając `kierunek`/`status` nietknięte** (`'in'`/`'nowy'`) —
+stąd wiadomość w "Wysłane" z ikoną koperty i tagiem "Do odpowiedzi".
+
+- **Poprawka** — `ON CONFLICT (message_id) DO UPDATE SET` w
+  `saveOutgoingFromServer()` i analogicznie w `saveArchivedOrTrashed()`
+  aktualizuje teraz `kierunek`/`status` RAZEM z `folder`, nie tylko sam
+  folder — skoro sync i tak w tym momencie decyduje, że wiersz należy do
+  danego folderu, ma być spójny we wszystkich trzech polach naraz.
+- **Jednorazowy backfill** (`lib/db.ts`, `createMailSchema()`, w
+  `inMigration()`) — `UPDATE mail_messages SET kierunek='out',
+  status='obsłużony' WHERE folder='sent' AND kierunek='in'` — kod od teraz
+  nie powtórzy błędu, ale JUŻ zepsute wiersze same by się nie naprawiły
+  (guard `folder <> EXCLUDED.folder` w `ON CONFLICT` nie odpala się drugi
+  raz, skoro folder już jest `'sent'`). Bezpieczne przy wielokrotnym
+  uruchomieniu — po pierwszym przebiegu WHERE nie znajduje już nic do
+  poprawienia.
+- **Weryfikacja**: `tsc` czysty. Rzeczywisty efekt backfillu (czy zniknął
+  konkretny wiersz zgłoszony przez właściciela) możliwy do potwierdzenia
+  dopiero po wdrożeniu i kolejnym zimnym starcie na produkcji — wtedy
+  `createMailSchema()` przejdzie migrację raz, przy pierwszym request-cie.
 
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 

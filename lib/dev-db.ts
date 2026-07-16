@@ -290,7 +290,54 @@ async function ensureSeeded(): Promise<void> {
         ]
       );
 
-      await raw(`UPDATE mail_state SET last_seen_uid = 106 WHERE id = 'default'`, []);
+      // VIP (Moduł 4, Etap 3) — druga wiadomość od TEGO SAMEGO klienta
+      // (clientA, status 'Aktywny' = VIP z automatu), ale już OBSŁUŻONA. Bez
+      // tego wiersza nie da się odróżnić zakładki "VIP" (pokazuje WSZYSTKO
+      // od VIP-a, niezależnie od statusu) od "Do odpowiedzi" — mailClient
+      // wyżej ma i tak status='nowy' i jest widoczny wszędzie. UWAGA
+      // architektoniczna: dosłowny przypadek z brifu ("VIP bije
+      // kategoria='reklama'") jest NIEOSIĄGALNY dla dopasowanego klienta —
+      // saveIncoming() zeruje dopasowanie PRZED klasyfikacją, gdy nadawca
+      // jest szumem (patrz komentarz w lib/mailSync.ts), więc
+      // kategoria='reklama' i client_id nigdy nie współistnieją. Realny
+      // odpowiednik: właściciel odpisał/wyciszył — VIP i tak zostaje widoczny.
+      const mailVip = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, client_id, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, handled_at, received_at)
+         VALUES ($1,107,'in',$2,$3,$4,$5,$6,$7,$8,$8,'obsłużony',now() - interval '1 hour',now() - interval '4 hours')`,
+        [
+          mailVip, clientA, "anna@nordwind.pl", "Anna Nowak", "kontakt@leggeralabs.pl",
+          "Re: Prośba o zmianę w panelu",
+          "Dzięki za szybką odpowiedź, wszystko jasne!",
+          "<dev-vip-1@nordwind.pl>",
+        ]
+      );
+
+      // Snooze / Odłóż (Moduł 4, Etap 3) — jeden wiersz odłożony W PRZYSZŁOŚĆ
+      // (musi zniknąć z "Do odpowiedzi"/"Nieprzypisane" i pokazać się w
+      // "Uśpione"), drugi odłożony W PRZESZŁOŚĆ (termin minął — musi wrócić
+      // SAM, bez żadnego crona, bo widoczność liczy się przy odczycie, patrz
+      // lib/db.ts).
+      const mailSnoozeFuture = randomUUID();
+      const mailSnoozePast = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, snooze_until, received_at)
+         VALUES ($1,108,'in',$2,$3,$4,$5,$6,$7,$7,'nowy', now() + interval '2 days', now() - interval '7 hours'),
+                ($8,109,'in',$9,$10,$11,$12,$13,$14,$14,'nowy', now() - interval '1 hour', now() - interval '2 days')`,
+        [
+          mailSnoozeFuture, "biuro@innafirma.pl", "Kasia Zaręba", "kontakt@leggeralabs.pl",
+          "Pytanie o wolny termin we wrześniu",
+          "Dzień dobry, chciałabym zapytać o wolny termin — odezwę się bliżej, proszę odłożyć.",
+          "<dev-snooze-future-1@innafirma.pl>",
+
+          mailSnoozePast, "kontakt@budzik.pl", "Rafał Sowa", "kontakt@leggeralabs.pl",
+          "Wracam do rozmowy",
+          "Dzień dobry, wracam do wcześniejszej rozmowy — jest Pan/Pani dostępny/a w tym tygodniu?",
+          "<dev-snooze-past-1@budzik.pl>",
+        ]
+      );
+
+      await raw(`UPDATE mail_state SET last_seen_uid = 109 WHERE id = 'default'`, []);
     })();
   }
   await seedPromise;

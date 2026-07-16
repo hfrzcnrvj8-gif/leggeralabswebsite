@@ -15,6 +15,8 @@ import {
   forwardSubject,
   SIGNATURE_LANGS,
   SIGNATURE_LANG_LABEL,
+  snoozeOptions,
+  formatPlDateTime,
   type SignatureLang,
   type MailMessageWithLinks,
   type MailStatus,
@@ -247,6 +249,34 @@ export function MailDetailPanel({
         await load();
         await onChanged();
         toast(decision === "approved" ? "Nadawca zatwierdzony." : "Nadawca zablokowany.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [mail, mailId, load, onChanged, toast]
+  );
+
+  /** Snooze / Odłóż (Moduł 4, Etap 3) — `targetIso` z jednej z nazwanych
+   * opcji snoozeOptions() (lib/mail.ts), albo `null` dla "Wróć teraz". Ten
+   * sam wzorzec co decideSender() wyżej. Widoczność wraca sama przy
+   * kolejnym odczycie — bez dodatkowej logiki tutaj poza load()/onChanged(). */
+  const snoozeMail = useCallback(
+    async (targetIso: string | null) => {
+      if (!mail) return;
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/mail/${mailId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ snoozeUntil: targetIso }),
+        });
+        if (!res.ok) {
+          toast("Nie udało się odłożyć wiadomości.", "error");
+          return;
+        }
+        await load();
+        await onChanged();
+        toast(targetIso ? "Odłożono." : "Wróciła do „Do odpowiedzi”.");
       } finally {
         setBusy(false);
       }
@@ -630,6 +660,45 @@ export function MailDetailPanel({
           >
             ➜ Przekaż
           </button>
+          {mail.kierunek === "in" && (
+            <Popover
+              width={220}
+              trigger={(open) => (
+                <button
+                  onClick={open}
+                  disabled={busy}
+                  title="Odłóż na nazwany termin"
+                  className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                >
+                  ⏰ Odłóż
+                </button>
+              )}
+            >
+              {(close) => (
+                <div>
+                  {snoozeOptions().map((opt) => (
+                    <MenuRow
+                      key={opt.id}
+                      label={opt.label}
+                      onClick={() => {
+                        void snoozeMail(opt.targetIso);
+                        close();
+                      }}
+                    />
+                  ))}
+                  {mail.snooze_until && (
+                    <MenuRow
+                      label="Wróć teraz"
+                      onClick={() => {
+                        void snoozeMail(null);
+                        close();
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </Popover>
+          )}
           {mail.folder !== "archive" && (
             <button
               onClick={() => void moveTo("archive")}
@@ -708,6 +777,13 @@ export function MailDetailPanel({
             👤 {mail.client_nazwa}
           </Link>
         )}
+        {/* VIP (Moduł 4, Etap 3) — klient ze statusem "Aktywny", widoczna
+            niezależnie od statusu/kategorii tej konkretnej wiadomości. */}
+        {mail.client_status === "Aktywny" && (
+          <span className="rounded-full bg-brand-gold/15 px-2.5 py-1 font-medium text-brand-gold" title="Klient VIP (status „Aktywny”)">
+            ⭐ VIP
+          </span>
+        )}
         {mail.lead_id && mail.lead_nazwa && (
           <Link
             href={`/${lang}/admin/leads/${mail.lead_id}?from=mail`}
@@ -741,6 +817,21 @@ export function MailDetailPanel({
           </>
         )}
       </div>
+
+      {/* Baner snooze (Moduł 4, Etap 3) — TYLKO gdy termin jest w przyszłości;
+          po jego minięciu znika sam przy kolejnym odczycie, bez akcji. */}
+      {mail.snooze_until && new Date(mail.snooze_until) > new Date() && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
+          <span className="text-muted">⏰ Uśpiona do {formatPlDateTime(mail.snooze_until)}.</span>
+          <button
+            onClick={() => void snoozeMail(null)}
+            disabled={busy}
+            className="rounded-full border hairline px-2.5 py-1 font-medium hover:bg-[var(--hairline)]/60 disabled:opacity-50"
+          >
+            Wróć teraz
+          </button>
+        </div>
+      )}
 
       {/* Baner screenera nowych nadawców (Moduł 4, Etap 3) — TYLKO gdy
           nadawca jest jeszcze 'pending' (dopiero wpadł do bramki, patrz

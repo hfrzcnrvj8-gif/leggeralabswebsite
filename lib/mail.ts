@@ -8,6 +8,9 @@
 // Zero AI: dopasowanie do klienta idzie po adresie nadawcy, a "do obsłużenia"
 // wynika ze statusu wpisu — nic nie jest zgadywane z treści przez model.
 
+import type { ClientStatus } from "./clients";
+import { todayLocalISO, addDaysToISO, warsawWallTimeToUtcISO, warsawNowMinutes } from "./dates";
+
 export const MAIL_DIRECTIONS = ["in", "out"] as const;
 export type MailDirection = (typeof MAIL_DIRECTIONS)[number];
 
@@ -74,6 +77,11 @@ export type MailMessage = {
    * pobraniu i, dla starszych wiadomości, przez backfillCc() (lib/mailSync.ts).
    * NULL = jeszcze nie sprawdzone (patrz kategoria: to samo rozróżnienie). */
   cc_addr: string | null;
+  /** UDW wiadomości WYCHODZĄCEJ napisanej z panelu (adresy po przecinku) —
+   * zapisane dla własnego wglądu właściciela, nigdy nie trafia do nagłówków
+   * samego maila (patrz sendMail() w lib/mailbox.ts). NULL dla wiadomości
+   * przychodzących i tych sprzed wprowadzenia tego pola. */
+  bcc_addr: string | null;
   subject: string;
   body_text: string;
   body_html: string;
@@ -96,6 +104,13 @@ export type MailMessage = {
    * (lib/mailSync.ts) i komentarz przy kolumnie w lib/db.ts. NULL tylko dla
    * wierszy sprzed migracji, zanim backfillThreadIds() je dogoni. */
   thread_id: string | null;
+  /** Snooze / Odłóż (Moduł 4, Etap 3) — NULL = nie odłożona. Termin w
+   * przyszłości ukrywa wiadomość z "Do odpowiedzi"/"Nieprzypisane"; wraca
+   * SAMA (bez crona) w chwili gdy `snooze_until <= now()`, bo widoczność
+   * liczy się przy odczycie (patrz lib/db.ts). Zawsze pochodzi z NAZWANEJ
+   * opcji (snoozeOptions() niżej) — nigdy z <input type="date">, patrz
+   * CLAUDE.md. */
+  snooze_until: string | null;
   received_at: string;
   handled_at: string | null;
 };
@@ -116,6 +131,13 @@ export type MailMessageWithLinks = MailMessage & {
   /** null = nadawca nigdy nie trafił do bramki (znany kontakt, poczta
    * wychodząca, albo wiadomość nie-'oferta') — patrz MAIL_SENDER_STATUSES. */
   sender_status: MailSenderStatus | null;
+  /** Status klienta z tabeli `clients`, dołączany przy odczycie (Moduł 4,
+   * Etap 3 — VIP). null = brak przypisanego klienta (lead/nieprzypisane/
+   * poczta wychodząca). `status === 'Aktywny'` = VIP z automatu —
+   * apple-mailowe "VIP bije klasyfikację treści" odtworzone jako:
+   * dedykowana zakładka ignorująca `status`/`kategoria` wiadomości, patrz
+   * MailDashboard.tsx. */
+  client_status: ClientStatus | null;
 };
 
 /** Normalizacja adresu do porównań i dedupu: małe litery, bez białych znaków.
@@ -442,8 +464,89 @@ export function mailSummaryLine(subject: string, bodyText: string, maxLen = 160)
   return base.length > maxLen ? `${base.slice(0, maxLen - 1)}…` : base;
 }
 
+/** Załączniki WYCHODZĄCE (Etap 1 Modułu 4b, druga runda) — TYLKO wysyłka, w
+ * pamięci serwera na czas jednego żądania, NIGDY zapisywane w Postgresie
+ * (odbieranie/przechowywanie załączników z przychodzącej poczty to osobna,
+ * świadomie odłożona sprawa — wymaga tabeli + decyzji o retencji RODO, patrz
+ * docs/plany-modulow/04b-poczta-pelny-klient.md → "Świadomie ODŁOŻONE").
+ * Limity dobrane z marginesem pod platformowy pułap treści żądania Vercel
+ * Functions (Node.js runtime, ok. 4.5 MB, niekonfigurowalny) — zweryfikuj
+ * aktualną wartość przed podnoszeniem tych stałych. */
+export const MAIL_ATTACHMENT_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+  "application/zip",
+] as const;
+
+export const MAIL_ATTACHMENT_MAX_FILE_BYTES = 3 * 1024 * 1024; // 3 MB/plik
+export const MAIL_ATTACHMENT_MAX_TOTAL_BYTES = 4 * 1024 * 1024; // 4 MB łącznie
+
 /** Retencja treści maili — decyzja właściciela 2026-07-15 (RODO): 24
  * miesiące. Starsze wiadomości kasuje dzienny cron (app/api/leads/notify);
  * oryginały i tak zostają na serwerze az.pl, panel jest tylko roboczą kopią.
  * Wartość MUSI zgadzać się z polityką prywatności — patrz PO_REJESTRACJI.md. */
 export const MAIL_RETENTION_MONTHS = 24;
+
+/** Snooze / Odłóż (Moduł 4, Etap 3) — nazwane terminy, NIGDY kalendarz
+ * (CLAUDE.md, pułapka <input type="date">). Czysta funkcja opcji dostępnych
+ * "teraz" — świadomie parametryzowana `now` (testowalność), domyślnie
+ * prawdziwy zegar. Każda opcja niesie GOTOWY docelowy ISO — UI tylko
+ * renderuje etykiety i wysyła wybraną wartość, nie liczy nic samo. */
+export type SnoozeOptionId = "later_today" | "tomorrow_morning" | "this_weekend" | "next_week";
+export type SnoozeOption = { id: SnoozeOptionId; label: string; targetIso: string };
+
+const SNOOZE_LATER_TODAY_CUTOFF_MIN = 16 * 60; // po 16:00 "Później dziś" nie ma sensu
+
+export function snoozeOptions(now: Date = new Date()): SnoozeOption[] {
+  const today = todayLocalISO();
+  const nowMin = warsawNowMinutes(now);
+  const [y, m, d] = today.split("-").map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Nd..6=Sob
+
+  const options: SnoozeOption[] = [];
+  if (nowMin < SNOOZE_LATER_TODAY_CUTOFF_MIN) {
+    options.push({ id: "later_today", label: "Później dziś (18:00)", targetIso: warsawWallTimeToUtcISO(today, "18:00") });
+  }
+  options.push({
+    id: "tomorrow_morning",
+    label: "Jutro rano (8:00)",
+    targetIso: warsawWallTimeToUtcISO(addDaysToISO(today, 1), "8:00"),
+  });
+  // "Ten weekend" — tylko pon-czw (1-4): w piątek/weekend byłby "za rogiem"
+  // albo już minął, myli się z "Jutro".
+  if (weekday >= 1 && weekday <= 4) {
+    const sat = addDaysToISO(today, 6 - weekday);
+    options.push({ id: "this_weekend", label: "Ten weekend (sobota 9:00)", targetIso: warsawWallTimeToUtcISO(sat, "9:00") });
+  }
+  // Najbliższy poniedziałek ŚCIŚLE po dziś (nawet gdy dziś jest poniedziałek
+  // — to ma być odległy termin, nie "za chwilę").
+  const daysToNextMonday = ((1 - weekday + 7) % 7) || 7;
+  options.push({
+    id: "next_week",
+    label: "Przyszły tydzień (poniedziałek 8:00)",
+    targetIso: warsawWallTimeToUtcISO(addDaysToISO(today, daysToNextMonday), "8:00"),
+  });
+  return options;
+}
+
+/** Waliduje `snoozeUntil` z PATCH /api/mail/[id] — wartość ZAWSZE pochodzi z
+ * jednej z opcji snoozeOptions() (obliczonej przez klienta), nigdy nie jest
+ * wpisywana ręcznie — stąd inna walidacja niż isPlausibleDateString() w
+ * lib/projects.ts (ta chroni <input type="date"> przed niepełnym rokiem przy
+ * utracie fokusu; tu nie ma pola tekstowego). Mimo to sprawdzamy sensowność,
+ * bo endpoint jest wywoływalny bezpośrednio. */
+export function isPlausibleTimestamp(s: string): boolean {
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return false;
+  const year = new Date(t).getUTCFullYear();
+  return year >= 2000 && year <= 2100;
+}
