@@ -7,12 +7,14 @@ import {
   MailStatusTag,
   MailCategoryTag,
   MAIL_CATEGORY_LABEL,
+  MAIL_CATEGORY_ICON,
   MAIL_FOLDERS,
   MAIL_FOLDER_LABEL,
   MAIL_FOLDER_ICON,
   type MailMessageWithLinks,
   type MailStatus,
   type MailFolder,
+  type MailCategory,
 } from "./shared";
 import { MailDetailPanel } from "./MailDetailPanel";
 import { MailComposeForm } from "./MailComposeForm";
@@ -462,39 +464,21 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       )}
 
       {activeFolder === "inbox" && (
-        <>
-          <div className="mb-2 flex gap-1">
-            {FILTERS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`rounded-full px-3 py-1 text-[12px] transition ${
-                  filter === f.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
-                }`}
-              >
-                {f.label}
-                {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
-                {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
-              </button>
-            ))}
-          </div>
-
-          <div className="mb-3 flex flex-wrap items-center gap-1 border-t hairline pt-2">
-            <span className="mr-1 text-[11px] text-muted opacity-70">Rodzaj:</span>
-            {CAT_FILTERS.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCatFilter(c.id)}
-                className={`rounded-full px-2.5 py-0.5 text-[12px] transition ${
-                  catFilter === c.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
-                }`}
-              >
-                {c.label}
-                {c.id !== "wszystkie" && counts[c.id] > 0 ? ` (${counts[c.id]})` : ""}
-              </button>
-            ))}
-          </div>
-        </>
+        <div className="mb-3 flex gap-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`rounded-full px-3 py-1 text-[12px] transition ${
+                filter === f.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
+              }`}
+            >
+              {f.label}
+              {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
+              {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
+            </button>
+          ))}
+        </div>
       )}
 
       {selectedIds.size > 0 && (
@@ -541,25 +525,53 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
-      {/* Trzy kolumny — foldery (styl Apple Mail, Etap 2 Modułu 4b) + lista +
-          podgląd. Poniżej `lg` kolumny się składają: foldery jako poziomy
-          pasek pigułek (ten sam wzorzec co FILTERS wyżej), lista nad
+      {/* Trzy kolumny — sidebar (foldery + "Rodzaj", styl "Inteligentne
+          skrzynki pocztowe" Apple Mail, Moduł 4e) + lista + podgląd. Poniżej
+          `lg` obie sekcje sidebara stają się poziomymi paskami pigułek (ten
+          sam wzorzec co FILTERS wyżej), oddzielonymi linią, lista nad
           podglądem. */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <div className="flex flex-row flex-wrap gap-1 lg:w-40 lg:shrink-0 lg:flex-col lg:gap-0.5">
-          {MAIL_FOLDERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setActiveFolder(f)}
-              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-2 ${
-                activeFolder === f ? "bg-[var(--hairline)] font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
-              }`}
-            >
-              <span aria-hidden>{MAIL_FOLDER_ICON[f]}</span>
-              <span className="lg:flex-1">{MAIL_FOLDER_LABEL[f]}</span>
-              {folderCount(f) > 0 && <span className="text-[11px] text-muted">{folderCount(f)}</span>}
-            </button>
-          ))}
+        <div className="flex flex-col gap-1 lg:w-44 lg:shrink-0">
+          <div className="flex flex-row flex-wrap gap-1 lg:flex-col lg:gap-0.5">
+            {MAIL_FOLDERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setActiveFolder(f)}
+                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-2 ${
+                  activeFolder === f ? "bg-[var(--hairline)] font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+                }`}
+              >
+                <span aria-hidden>{MAIL_FOLDER_ICON[f]}</span>
+                <span className="lg:flex-1">{MAIL_FOLDER_LABEL[f]}</span>
+                {folderCount(f) > 0 && <span className="text-[11px] text-muted">{folderCount(f)}</span>}
+              </button>
+            ))}
+          </div>
+
+          {/* "Rodzaj" — wzorem "Inteligentnych skrzynek pocztowych" Apple
+              Mail (04e pkt 2): dawniej poziomy rządek pigułek nad listą,
+              teraz osobna sekcja sidebara pod folderami. Sensowne TYLKO w
+              Odebranych — Wysłane/Kosz/Archiwum nie mają kategorii treści. */}
+          {activeFolder === "inbox" && (
+            <div className="mt-3 border-t hairline pt-3 lg:mt-4 lg:pt-4">
+              <div className="mb-1 px-3 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60 lg:px-3">Rodzaj</div>
+              <div className="flex flex-row flex-wrap gap-1 lg:flex-col lg:gap-0.5">
+                {CAT_FILTERS.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCatFilter(c.id)}
+                    className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-1.5 ${
+                      catFilter === c.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+                    }`}
+                  >
+                    {c.id !== "wszystkie" && <span aria-hidden>{MAIL_CATEGORY_ICON[c.id as MailCategory]}</span>}
+                    <span className="lg:flex-1">{c.label}</span>
+                    {c.id !== "wszystkie" && counts[c.id] > 0 && <span className="text-[11px] text-muted">{counts[c.id]}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[420px] lg:shrink-0 lg:overflow-y-auto">
@@ -599,7 +611,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setOpenId(m.id);
                     }}
-                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3 text-left transition hover:bg-[var(--hairline)]/40 ${
+                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition hover:bg-[var(--hairline)]/40 ${
                       openId === m.id ? "bg-[var(--hairline)]/50" : ""
                     } ${focusedIndex === i ? "ring-2 ring-inset ring-brand-purple/50" : ""}`}
                   >

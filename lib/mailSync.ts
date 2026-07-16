@@ -412,7 +412,7 @@ export async function backfillCategories(): Promise<{ updated: number }> {
   const sql = getSql();
   const rows = (await sql`
     SELECT id, uid, from_addr, subject, client_id, lead_id, status, kategoria,
-           list_unsubscribe, precedence, auto_submitted
+           list_unsubscribe, precedence, auto_submitted, list_unsubscribe_url
     FROM mail_messages
     WHERE kierunek = 'in' AND (kategoria IS NULL OR list_unsubscribe IS NULL)
     LIMIT 300;
@@ -428,6 +428,7 @@ export async function backfillCategories(): Promise<{ updated: number }> {
     list_unsubscribe: boolean | null;
     precedence: string | null;
     auto_submitted: string | null;
+    list_unsubscribe_url: string | null;
   }[];
   if (rows.length === 0) return { updated: 0 };
 
@@ -448,7 +449,12 @@ export async function backfillCategories(): Promise<{ updated: number }> {
     const hints =
       fetched ??
       (r.list_unsubscribe !== null
-        ? { listUnsubscribe: r.list_unsubscribe, precedence: r.precedence, autoSubmitted: r.auto_submitted }
+        ? {
+            listUnsubscribe: r.list_unsubscribe,
+            precedence: r.precedence,
+            autoSubmitted: r.auto_submitted,
+            listUnsubscribeUrl: r.list_unsubscribe_url,
+          }
         : undefined);
 
     const kategoria = classifyMail({
@@ -465,7 +471,8 @@ export async function backfillCategories(): Promise<{ updated: number }> {
           status = ${newStatus},
           list_unsubscribe = ${hints ? hints.listUnsubscribe : r.list_unsubscribe},
           precedence = ${hints ? hints.precedence : r.precedence},
-          auto_submitted = ${hints ? hints.autoSubmitted : r.auto_submitted}
+          auto_submitted = ${hints ? hints.autoSubmitted : r.auto_submitted},
+          list_unsubscribe_url = ${hints ? hints.listUnsubscribeUrl : r.list_unsubscribe_url}
       WHERE id = ${r.id};
     `;
     updated++;
@@ -582,12 +589,12 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage)
     INSERT INTO mail_messages (
       id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr, cc_addr,
       subject, body_text, body_html, message_id, in_reply_to, refs, status, kategoria,
-      list_unsubscribe, precedence, auto_submitted, received_at
+      list_unsubscribe, precedence, auto_submitted, list_unsubscribe_url, received_at
     ) VALUES (
       ${id}, ${msg.uid}, 'in', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr}, ${msg.ccAddr},
       ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
       ${status}, ${kategoria},
-      ${msg.hints.listUnsubscribe}, ${msg.hints.precedence}, ${msg.hints.autoSubmitted},
+      ${msg.hints.listUnsubscribe}, ${msg.hints.precedence}, ${msg.hints.autoSubmitted}, ${msg.hints.listUnsubscribeUrl},
       ${msg.receivedAt.toISOString()}
     )
     ON CONFLICT (message_id) DO NOTHING

@@ -1532,6 +1532,12 @@ async function createMailSchema(): Promise<void> {
   // już nic więcej.
   await inMigration(() => sql`UPDATE mail_messages SET folder = 'sent' WHERE kierunek = 'out' AND folder = 'inbox';`);
 
+  // Moduł 4e (2026-07-16) — wartość linku wypisu z listy dystrybucyjnej, nie
+  // sama obecność nagłówka (tę już trzyma `list_unsubscribe` wyżej). Nullable
+  // bez DEFAULT, ten sam wzorzec co `cc_addr`/`kategoria`: NULL = jeszcze nie
+  // sprawdzone, '' = sprawdzone ale bez sensownego linku, string = realny URL.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS list_unsubscribe_url TEXT;`;
+
   await markSchemaApplied("mail");
 }
 

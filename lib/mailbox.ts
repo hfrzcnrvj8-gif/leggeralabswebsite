@@ -12,7 +12,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
-import { extractEmailAddress, type MailHeaderHints } from "./mail";
+import { extractEmailAddress, parseUnsubscribeUrl, type MailHeaderHints } from "./mail";
 import { SIGNATURE_IMAGES } from "./mailSignature";
 import { siteUrl } from "./site";
 
@@ -294,6 +294,7 @@ export async function fetchMessagesInFolder(
           listUnsubscribe: parsed.headers?.has("list-unsubscribe") ?? false,
           precedence: header("precedence"),
           autoSubmitted: header("auto-submitted"),
+          listUnsubscribeUrl: parseUnsubscribeUrl(header("list-unsubscribe")),
         };
 
         messages.push({
@@ -368,6 +369,7 @@ export async function fetchHintsByUids(uids: number[]): Promise<Map<number, Mail
           listUnsubscribe: /^list-unsubscribe:/im.test(raw),
           precedence: pick("precedence"),
           autoSubmitted: pick("auto-submitted"),
+          listUnsubscribeUrl: parseUnsubscribeUrl(pick("list-unsubscribe")),
         });
       }
     } finally {

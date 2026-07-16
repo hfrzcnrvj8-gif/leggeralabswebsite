@@ -2798,6 +2798,73 @@ odczuwalnie szybszy (oczekiwane: bliżej ~3.5s zamiast ~5.3s przy kolejnych
 syncach, bo discovery już się nie powtarza), i czy przełączanie folderów
 zawsze pokazuje właściwą zawartość.
 
+### Moduł 4e — upodobnienie UX do Apple Mail (2026-07-16)
+
+Po audycie UX/wydajności Etapu 2 (sekcje wyżej) właściciel przesłał zrzuty
+ekranu (nasz panel + realny Apple Mail na jego Macu) i wskazał Apple Mail
+jako "złoty standard". Brief zatwierdzony w
+`docs/plany-modulow/04e-poczta-apple-mail-ux.md` — WYŁĄCZNIE runda
+wizualna/strukturalna, backend folderów/MOVE/syncu z Etapu 2 bez zmian, poza
+jednym maleńkim dodatkiem (link wypisu, patrz niżej).
+
+- **Pasek akcji przeniesiony na górę podglądu** (`MailDetailPanel.tsx`) —
+  wcześniej rządek przycisków renderował się PO treści maila, na samym
+  dole karty; teraz jest bezpośrednio pod nagłówkiem (temat + tagi +
+  zamknij), widoczny bez przewijania nawet przy długim mailu. Tryb
+  odpowiedzi/przekazania nadal ZASTĘPUJE pasek w tym samym miejscu (nie
+  osobna sekcja). Grupowanie: główna akcja (`.btn-primary`, "Odpisz") →
+  drugorzędne zawsze widoczne ("Odpowiedz wszystkim" gdy jest DW, "Przekaż",
+  "Archiwizuj", "Usuń") → rzadziej używane schowane w menu "•••"
+  ("Wycisz", "Obsłużone"/"Przywróć do odpowiedzi" zależnie od stanu,
+  "Przywróć do Odebranych" w Koszu/Archiwum, "Otwórz w Outlooku") —
+  overflow zbudowany na `Popover`/`MenuRow` z `app/[lang]/admin/Menu.tsx`,
+  ten sam komponent co pasek akcji zbiorczych w `ClientsDashboard.tsx`,
+  bez pisania nowego menu od zera.
+- **Kategorie ("Rodzaj") przeniesione do sidebara** (`MailDashboard.tsx`) —
+  wzorem "Inteligentnych skrzynek pocztowych" Apple Mail: wcześniej
+  `CAT_FILTERS` renderowały się jako poziomy rządek pigułek nad listą,
+  teraz osobna sekcja sidebara POD folderami, z nagłówkiem "Rodzaj" i tymi
+  samymi licznikami (`counts[c.id]`, bez zmian w API), renderowana TYLKO w
+  Odebranych. Filtry statusu ("Do odpowiedzi"/"Nieprzypisane"/"Wszystkie")
+  celowo ZOSTAJĄ jako rządek pigułek nad listą — to była świadomie zawężona
+  decyzja właściciela, nie przeoczenie.
+- **Baner "Wiadomość z listy dystrybucyjnej"** (jedyna zmiana backendu tej
+  rundy) — dotąd `mail_messages.list_unsubscribe` trzymał tylko BOOLEAN
+  obecności nagłówka, nie samą wartość (link do wypisania). Nowa nullable
+  kolumna `list_unsubscribe_url TEXT` (bramka migracji `"mail"`, ta sama
+  wersja podniesiona); `parseUnsubscribeUrl()` (`lib/mail.ts`) parsuje
+  `List-Unsubscribe` wg RFC 2369/8058 (`<https://...>, <mailto:...>`),
+  preferuje `http(s)://` nad `mailto:`, zwraca `null` gdy nagłówek jest
+  pusty/nie do sparsowania — nigdy nie zgaduje URL-a. Dociąganie surowej
+  wartości nagłówka: `fetchMessagesInFolder()` i `fetchHintsByUids()`
+  (`lib/mailbox.ts`); zapis: `saveIncoming()` i `backfillCategories()`
+  (`lib/mailSync.ts`); SELECT: `GET /api/mail`. UI: baner nad treścią maila
+  (pod paskiem akcji), widoczny gdy `list_unsubscribe_url` niepuste — link
+  "Anuluj subskrypcję" otwiera się w nowej karcie dla `http(s)`, zwykłym
+  `mailto:` dla adresu e-mail. To zwykły klik użytkownika — panel nigdy sam
+  nie odpytuje ani nie POST-uje do cudzego URL-a wypisu w tle.
+- **Dopracowanie wizualne** (`MailDetailPanel.tsx`/`MailDashboard.tsx`):
+  hierarchia nagłówka podglądu odwrócona wzorem Apple Mail — nazwa nadawcy
+  teraz NAJBARDZIEJ wyróżniony element (większy, pogrubiony), adres
+  przygaszony tuż obok, temat mniejszy pod spodem (wcześniej odwrotnie:
+  temat `text-lg`, nadawca mały). Odstępy pionowe na liście wiadomości
+  zwiększone (`py-3` → `py-3.5`) dla większego "oddechu" zgodnie ze zrzutem
+  właściciela. Sidebar poszerzony (`lg:w-40` → `lg:w-44`) pod dwie sekcje
+  (foldery + Rodzaj) zamiast jednej.
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. W przeglądarce
+  (PGlite + dev-login) — dodana jedna seedowa wiadomość z syntetycznym
+  `list_unsubscribe_url` (`lib/dev-db.ts`, `ensureSeeded()`) do wizualnej
+  weryfikacji banera bez dostępu do prawdziwych nagłówków IMAP: sidebar
+  pokazuje sekcję "Rodzaj" z poprawnymi licznikami, pasek akcji widoczny na
+  górze bez przewijania, menu "•••" pokazuje tylko akcje właściwe dla
+  bieżącego stanu wiadomości (np. "Przywróć do odpowiedzi" zamiast
+  "Obsłużone" dla już obsłużonej), baner wypisu renderuje się z klikalnym
+  linkiem do `https://example.com/unsubscribe?id=test`. **Realne dociągnięcie
+  prawdziwej wartości `list_unsubscribe_url` z działającej skrzynki (czy
+  parsowanie nagłówka faktycznie wyciąga poprawny URL z prawdziwego
+  newslettera) do potwierdzenia na produkcji** — analogicznie do innych
+  zmian dotykających parsowania IMAP w tym module.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

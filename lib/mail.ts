@@ -79,6 +79,11 @@ export type MailMessage = {
   /** null = wiersz sprzed wprowadzenia kategorii; uzupełni go
    * backfillCategories() przy najbliższym syncu (lib/mailSync.ts). */
   kategoria: MailCategory | null;
+  /** URL/mailto wyciągnięty z nagłówka `List-Unsubscribe` (Moduł 4e) —
+   * NULL = jeszcze nie sprawdzone, "" = nagłówek sprawdzony ale bez sensownego
+   * linku, niepusty string = realny link do wypisania. Patrz
+   * parseUnsubscribeUrl() niżej. */
+  list_unsubscribe_url: string | null;
   received_at: string;
   handled_at: string | null;
 };
@@ -135,7 +140,25 @@ export type MailHeaderHints = {
   listUnsubscribe: boolean;
   precedence: string | null;
   autoSubmitted: string | null;
+  /** Wartość linku z `List-Unsubscribe`, patrz parseUnsubscribeUrl() niżej.
+   * Osobne od `listUnsubscribe` (bool) — ten sam nagłówek bywa OBECNY, ale
+   * bez sensownego URL-a do sparsowania (np. tylko mailto bez adresu). */
+  listUnsubscribeUrl: string | null;
 };
+
+/** Wyciąga link do wypisania z nagłówka `List-Unsubscribe` (RFC 2369/8058):
+ * format `<https://...>, <mailto:...>`, jeden lub oba warianty w nawiasach
+ * kątowych, oddzielone przecinkiem. Preferujemy `http(s)://` (otwiera się
+ * jednym kliknięciem w przeglądarce), `mailto:` jest fallbackiem. Zwraca
+ * null, gdy nagłówek jest pusty/nie do sparsowania — nigdy nie zgadujemy ani
+ * nie konstruujemy URL-a samodzielnie. */
+export function parseUnsubscribeUrl(headerValue: string | null): string | null {
+  if (!headerValue) return null;
+  const candidates = [...headerValue.matchAll(/<([^<>]+)>/g)].map((m) => m[1].trim()).filter(Boolean);
+  const http = candidates.find((u) => /^https?:\/\//i.test(u));
+  if (http) return http;
+  return candidates.find((u) => /^mailto:/i.test(u)) || null;
+}
 
 /** Adresy automatów. Historia: pierwsza wersja porównywała `startsWith`, przez
  * co przepuściła `jobalerts-noreply@linkedin.com` (właściciel zgłosił

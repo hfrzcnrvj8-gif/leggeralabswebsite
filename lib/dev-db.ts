@@ -222,7 +222,24 @@ async function ensureSeeded(): Promise<void> {
         ]
       );
 
-      await raw(`UPDATE mail_state SET last_seen_uid = 104 WHERE id = 'default'`, []);
+      // Mail z linkiem wypisu (Moduł 4e) — bez tego wiersza nie da się
+      // lokalnie zweryfikować banera "Wiadomość z listy dystrybucyjnej",
+      // PGlite nie ma dostępu do prawdziwych nagłówków IMAP. Osobny INSERT,
+      // żeby nie renumerować placeholderów w tabeli czterowierszowej wyżej.
+      const mailNewsletter = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, status, kategoria, list_unsubscribe, list_unsubscribe_url, received_at)
+         VALUES ($1,105,'in',$2,$3,$4,$5,$6,$7,'zignorowany','reklama',true,$8,now() - interval '6 hours')`,
+        [
+          mailNewsletter, "newsletter@przyklad.pl", "Przykładowy Newsletter", "kontakt@leggeralabs.pl",
+          "Nowości w tym tygodniu",
+          "Cześć! Oto najnowsze wiadomości i promocje z naszego sklepu.",
+          "<dev-newsletter-1@przyklad.pl>",
+          "https://example.com/unsubscribe?id=test",
+        ]
+      );
+
+      await raw(`UPDATE mail_state SET last_seen_uid = 105 WHERE id = 'default'`, []);
     })();
   }
   await seedPromise;

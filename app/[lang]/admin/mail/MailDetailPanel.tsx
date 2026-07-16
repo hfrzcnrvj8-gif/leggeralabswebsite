@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
+import { Popover, MenuRow } from "../Menu";
 import {
   MailStatusTag,
   MailCategoryTag,
@@ -303,12 +304,19 @@ export function MailDetailPanel({
     <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-lg font-medium">{mail.subject || "(bez tematu)"}</h2>
-          <p className="mt-1 text-[13px] text-muted">
-            {mail.kierunek === "out" ? "Do: " : "Od: "}
-            {mail.from_name ? `${mail.from_name} <${mail.kierunek === "out" ? mail.to_addr : mail.from_addr}>` : mail.kierunek === "out" ? mail.to_addr : mail.from_addr}
+          {/* Hierarchia wzorem Apple Mail (04e pkt 4, porównanie ze zrzutem
+              właściciela): nadawca to NAJBARDZIEJ wyróżniony element —
+              większy niż temat, z adresem przygaszonym tuż obok. Wcześniej
+              było odwrotnie (temat text-lg, nadawca mały pod spodem). */}
+          <p className="truncate text-[16px] font-semibold leading-snug">
+            {mail.kierunek === "out" ? "Do: " : ""}
+            {mail.kierunek === "out" ? mail.to_addr : mail.from_name || mail.from_addr}
+            {mail.kierunek === "in" && mail.from_name && (
+              <span className="ml-2 text-[12px] font-normal text-muted opacity-60">{mail.from_addr}</span>
+            )}
           </p>
-          <p className="text-[12px] text-muted opacity-70">
+          <p className="mt-1 truncate text-[13px] text-muted">{mail.subject || "(bez tematu)"}</p>
+          <p className="mt-0.5 text-[11px] text-muted opacity-60">
             {new Date(mail.received_at).toLocaleString("pl-PL", { dateStyle: "long", timeStyle: "short" })}
           </p>
         </div>
@@ -321,92 +329,29 @@ export function MailDetailPanel({
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-[12px]">
-        {mail.client_id && mail.client_nazwa && (
-          <Link href={`/${lang}/admin/clients/${mail.client_id}`} className="rounded-full bg-brand-purple/15 px-2.5 py-1 text-brand-purple hover:opacity-80">
-            👤 {mail.client_nazwa}
-          </Link>
-        )}
-        {mail.lead_id && mail.lead_nazwa && (
-          <Link href={`/${lang}/admin/leads/${mail.lead_id}`} className="rounded-full bg-brand-cyan/15 px-2.5 py-1 text-brand-cyan hover:opacity-80">
-            🎯 {mail.lead_nazwa}
-          </Link>
-        )}
-        {mail.invoice_id && mail.invoice_numer && (
-          <Link href={`/${lang}/admin/invoices/${mail.invoice_id}`} className="rounded-full bg-brand-gold/15 px-2.5 py-1 text-brand-gold hover:opacity-80">
-            🧾 {mail.invoice_numer}
-          </Link>
-        )}
-        {unassigned && (
-          <>
-            <button
-              onClick={() => void createContact("lead")}
-              disabled={busy}
-              className="rounded-full border border-brand-cyan/40 px-2.5 py-1 text-brand-cyan hover:bg-brand-cyan/10 disabled:opacity-50"
-            >
-              🎯 Utwórz leada
-            </button>
-            <button
-              onClick={() => void createContact("client")}
-              disabled={busy}
-              className="rounded-full border border-brand-purple/40 px-2.5 py-1 text-brand-purple hover:bg-brand-purple/10 disabled:opacity-50"
-            >
-              👤 Utwórz klienta
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* HTML, gdy mail go ma (tak wygląda w Outlooku); wersja tekstowa jako
-          zapas dla maili czysto tekstowych. max-w-[70ch] tylko na akapicie —
-          karta wokół może być szeroka (04d pkt 4), ale linijki tekstu nie.
-          `mx-auto` wycentrowuje blok: bez tego, na szerokim ekranie, całe
-          puste miejsce lądowało tylko po prawej stronie (zgłoszone
-          2026-07-16) — wycentrowanie rozkłada je symetrycznie. */}
-      <div className="mb-5 mx-auto max-w-[70ch]">
-        {html ? (
-          <MailBodyHtml html={html} blockedImages={blockedImages} onShowImages={() => setShowImages(true)} />
-        ) : (
-          <div className="rounded-xl border hairline bg-[var(--hairline)]/20 p-4">
-            <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed">
-              {mail.body_text || "(pusta treść)"}
-            </pre>
-          </div>
-        )}
-      </div>
-
-      {projects && projects.length > 0 && (
-        <div className="mb-5">
-          <p className="mb-2 text-[12px] font-medium text-muted">Z maila → zadanie w projekcie:</p>
-          <div className="flex flex-wrap gap-2">
-            {projects.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => void toTask(p.id)}
-                disabled={busy}
-                className="rounded-full border hairline px-2.5 py-1 text-[12px] hover:bg-[var(--hairline)]/50 disabled:opacity-50"
-              >
-                📋 {p.tytul}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* Pasek akcji na górze podglądu (Moduł 4e pkt 1) — zawsze widoczny bez
+          przewijania, nawet przy długim mailu. Tryb odpowiedzi/przekazania
+          ZASTĘPUJE pasek w tym samym miejscu, tak jak wcześniej robił to na
+          dole. Grupowanie: główna akcja (.btn-primary) → drugorzędne, zawsze
+          widoczne → rzadziej używane schowane w menu "•••" (Popover/MenuRow z
+          ../Menu, ten sam komponent co pasek akcji zbiorczych w
+          ClientsDashboard.tsx). */}
       {forwardOpen ? (
-        <MailComposeForm
-          mode="forward"
-          initialSubject={forwardSubject(mail.subject)}
-          hint="Poniżej zostanie doklejona oryginalna wiadomość (nagłówek + treść)."
-          endpoint={`/api/mail/${mailId}/forward`}
-          onSent={async () => {
-            await load();
-            await onChanged();
-          }}
-          onClose={() => setForwardOpen(false)}
-        />
+        <div className="mb-4">
+          <MailComposeForm
+            mode="forward"
+            initialSubject={forwardSubject(mail.subject)}
+            hint="Poniżej zostanie doklejona oryginalna wiadomość (nagłówek + treść)."
+            endpoint={`/api/mail/${mailId}/forward`}
+            onSent={async () => {
+              await load();
+              await onChanged();
+            }}
+            onClose={() => setForwardOpen(false)}
+          />
+        </div>
       ) : replyOpen ? (
-        <div className="space-y-2">
+        <div className="mb-4 space-y-2">
           <p className="text-[12px] text-muted">
             Odpowiedź do <span className="font-medium">{mail.from_addr}</span> — temat: {replySubject(mail.subject)}
           </p>
@@ -483,7 +428,7 @@ export function MailDetailPanel({
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           {mail.kierunek === "in" && (
             <button
               onClick={() => setReplyOpen(true)}
@@ -515,33 +460,6 @@ export function MailDetailPanel({
           >
             ➜ Przekaż
           </button>
-          {mail.status === "nowy" && (
-            <button
-              onClick={() => void setStatus("obsłużony")}
-              disabled={busy}
-              className="rounded-full border border-orange-500/40 px-3 py-1.5 text-[12px] text-orange-400 hover:bg-orange-500/10 disabled:opacity-50"
-            >
-              Obsłużone
-            </button>
-          )}
-          {mail.status !== "nowy" && mail.kierunek === "in" && (
-            <button
-              onClick={() => void setStatus("nowy")}
-              disabled={busy}
-              className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
-            >
-              Przywróć do odpowiedzi
-            </button>
-          )}
-          {mail.status !== "zignorowany" && mail.kierunek === "in" && (
-            <button
-              onClick={() => void setStatus("zignorowany")}
-              disabled={busy}
-              className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
-            >
-              Wycisz
-            </button>
-          )}
           {mail.folder !== "archive" && (
             <button
               onClick={() => void moveTo("archive")}
@@ -562,24 +480,161 @@ export function MailDetailPanel({
               🗑️ Usuń
             </button>
           )}
-          {(mail.folder === "trash" || mail.folder === "archive") && (
+
+          <Popover
+            align="right"
+            width={200}
+            trigger={(open) => (
+              <button
+                onClick={open}
+                title="Więcej akcji"
+                aria-label="Więcej akcji"
+                className="rounded-full border hairline px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)]"
+              >
+                •••
+              </button>
+            )}
+          >
+            {(close) => (
+              <div>
+                {mail.status !== "zignorowany" && mail.kierunek === "in" && (
+                  <MenuRow
+                    label="Wycisz"
+                    onClick={() => {
+                      void setStatus("zignorowany");
+                      close();
+                    }}
+                  />
+                )}
+                {mail.status === "nowy" && (
+                  <MenuRow
+                    label="Obsłużone"
+                    onClick={() => {
+                      void setStatus("obsłużony");
+                      close();
+                    }}
+                  />
+                )}
+                {mail.status !== "nowy" && mail.kierunek === "in" && (
+                  <MenuRow
+                    label="Przywróć do odpowiedzi"
+                    onClick={() => {
+                      void setStatus("nowy");
+                      close();
+                    }}
+                  />
+                )}
+                {(mail.folder === "trash" || mail.folder === "archive") && (
+                  <MenuRow
+                    label="Przywróć do Odebranych"
+                    onClick={() => {
+                      void moveTo("inbox");
+                      close();
+                    }}
+                  />
+                )}
+                {mail.from_addr && (
+                  <a
+                    href={`mailto:${mail.from_addr}?subject=${encodeURIComponent(replySubject(mail.subject))}`}
+                    onClick={close}
+                    className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] text-[#e9e9ea] hover:bg-[#232327]"
+                  >
+                    Otwórz w Outlooku
+                  </a>
+                )}
+              </div>
+            )}
+          </Popover>
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-[12px]">
+        {mail.client_id && mail.client_nazwa && (
+          <Link href={`/${lang}/admin/clients/${mail.client_id}`} className="rounded-full bg-brand-purple/15 px-2.5 py-1 text-brand-purple hover:opacity-80">
+            👤 {mail.client_nazwa}
+          </Link>
+        )}
+        {mail.lead_id && mail.lead_nazwa && (
+          <Link href={`/${lang}/admin/leads/${mail.lead_id}`} className="rounded-full bg-brand-cyan/15 px-2.5 py-1 text-brand-cyan hover:opacity-80">
+            🎯 {mail.lead_nazwa}
+          </Link>
+        )}
+        {mail.invoice_id && mail.invoice_numer && (
+          <Link href={`/${lang}/admin/invoices/${mail.invoice_id}`} className="rounded-full bg-brand-gold/15 px-2.5 py-1 text-brand-gold hover:opacity-80">
+            🧾 {mail.invoice_numer}
+          </Link>
+        )}
+        {unassigned && (
+          <>
             <button
-              onClick={() => void moveTo("inbox")}
-              disabled={busy || !configured}
-              title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
-              className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+              onClick={() => void createContact("lead")}
+              disabled={busy}
+              className="rounded-full border border-brand-cyan/40 px-2.5 py-1 text-brand-cyan hover:bg-brand-cyan/10 disabled:opacity-50"
             >
-              📥 Przywróć do Odebranych
+              🎯 Utwórz leada
             </button>
-          )}
-          {mail.from_addr && (
-            <a
-              href={`mailto:${mail.from_addr}?subject=${encodeURIComponent(replySubject(mail.subject))}`}
-              className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)]"
+            <button
+              onClick={() => void createContact("client")}
+              disabled={busy}
+              className="rounded-full border border-brand-purple/40 px-2.5 py-1 text-brand-purple hover:bg-brand-purple/10 disabled:opacity-50"
             >
-              Otwórz w Outlooku
-            </a>
-          )}
+              👤 Utwórz klienta
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Baner listy dystrybucyjnej (Moduł 4e pkt 3) — wzorem Apple Mail, nad
+          treścią maila. `list_unsubscribe_url` niesie GOTOWY link (http(s)
+          albo mailto:) wyciągnięty z nagłówka `List-Unsubscribe` — to zwykły
+          klik użytkownika, panel nigdy sam nie odpytuje ani nie POST-uje do
+          cudzego URL-a wypisu w tle. */}
+      {mail.list_unsubscribe_url && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
+          <span className="text-muted">📭 Wiadomość z listy dystrybucyjnej.</span>
+          <a
+            href={mail.list_unsubscribe_url}
+            {...(mail.list_unsubscribe_url.startsWith("mailto:") ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+            className="font-medium text-brand-purple hover:opacity-80"
+          >
+            Anuluj subskrypcję
+          </a>
+        </div>
+      )}
+
+      {/* HTML, gdy mail go ma (tak wygląda w Outlooku); wersja tekstowa jako
+          zapas dla maili czysto tekstowych. max-w-[70ch] tylko na akapicie —
+          karta wokół może być szeroka (04d pkt 4), ale linijki tekstu nie.
+          `mx-auto` wycentrowuje blok: bez tego, na szerokim ekranie, całe
+          puste miejsce lądowało tylko po prawej stronie (zgłoszone
+          2026-07-16) — wycentrowanie rozkłada je symetrycznie. */}
+      <div className="mb-5 mx-auto max-w-[70ch]">
+        {html ? (
+          <MailBodyHtml html={html} blockedImages={blockedImages} onShowImages={() => setShowImages(true)} />
+        ) : (
+          <div className="rounded-xl border hairline bg-[var(--hairline)]/20 p-4">
+            <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed">
+              {mail.body_text || "(pusta treść)"}
+            </pre>
+          </div>
+        )}
+      </div>
+
+      {projects && projects.length > 0 && (
+        <div className="mb-5">
+          <p className="mb-2 text-[12px] font-medium text-muted">Z maila → zadanie w projekcie:</p>
+          <div className="flex flex-wrap gap-2">
+            {projects.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => void toTask(p.id)}
+                disabled={busy}
+                className="rounded-full border hairline px-2.5 py-1 text-[12px] hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+              >
+                📋 {p.tytul}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
