@@ -2814,6 +2814,40 @@ czekania na seed. Świadomie **nie** rozpoznajemy tego po treści SQL-a (np.
 „INSERT … ON CONFLICT DO NOTHING”), bo identyczny kształt mają zapytania
 runtime, które na seed czekać MUSZĄ — choćby dedup poczty w `lib/mailSync.ts`.
 
+## Wydajność nawigacji: sidebar prefetchował WSZYSTKIE strony na każde wejście (2026-07-16)
+
+Właściciel zgłosił po Etapie 2 Poczty (foldery IMAP), że "cała aplikacja ma
+problemy z wydajnością", nie tylko poczta — a mierzony czas synchronizacji
+poczty (~3.2s po optymalizacjach, patrz sekcja wyżej) nie tłumaczył
+odczuwalnego ~20-sekundowego opóźnienia przy wejściu w zakładkę. Diagnoza z
+`vercel logs`: zaraz po KAŻDYM wejściu na dowolną stronę panelu, serwer
+dostawał **12 równoległych żądań GET** — po jednym do KAŻDEJ pozycji w
+sidebarze (Pulpit/Leady/Klienci/Oferty/Umowy/Projekty/Faktury/Koszty/Poczta/
+Kalendarz/Notatnik/Statystyki), czasem zdublowane. To NIE był problem
+konkretnej strony — to domyślne zachowanie `<Link>` z Next.js: sidebar
+pokazuje wszystkie 12 pozycji na raz, więc IntersectionObserver widzi je
+wszystkie od razu jako "w viewporcie" i odpala prefetch dla KAŻDEJ, na
+KAŻDEJ stronie panelu — nawet jeśli właściciel patrzy tylko na jedną.
+
+Skutek: każde jedno wejście do panelu = 12 dodatkowych zapytań do serwera
+(każde z własnym ensureXSchema()/zapytaniami do bazy), niezależnie od tego,
+którą stronę właściciel faktycznie chciał zobaczyć. To dotyczy WSZYSTKICH
+stron panelu, nie tylko Poczty — Poczta tylko to uwypukliła, bo jej własny
+sync (osobno) też jest wolny, więc dwa niezależne opóźnienia się sumowały.
+
+Naprawione: `<Link>` w `AppShell.tsx` (rządek sidebara, `NAV.map(...)`)
+dostał `prefetch={false}`. Klik w link działa dokładnie tak samo (zwykła
+nawigacja), tylko bez wcześniejszego "podgrzewania" wszystkich 12 stron w
+tle. Zweryfikowane: `tsc` czysty. Realną redukcję liczby zapytań przy
+wejściu do panelu i odczuwalną poprawę czasu nawigacji trzeba potwierdzić
+na produkcji — nie da się zmierzyć z tej sesji.
+
+⚠️ Do rozważenia w przyszłości, jeśli to nie wystarczy: to samo zjawisko
+może dotyczyć innych miejsc z wieloma linkami widocznymi naraz (np. wyniki
+wyszukiwania w `CommandPalette.tsx`, listy leadów/klientów z linkami do
+profili) — nie sprawdzone w tej sesji, bo sidebar (widoczny na KAŻDEJ
+stronie) był oczywistym, najbardziej opłacalnym punktem startu.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

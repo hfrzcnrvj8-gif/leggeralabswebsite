@@ -332,6 +332,19 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
                 <Link
                   key={item.href}
                   href={href}
+                  // Sidebar pokazuje WSZYSTKIE 12 pozycji naraz, na KAŻDEJ
+                  // stronie panelu — domyślne prefetch={true} Next.jsa
+                  // odpala (przez IntersectionObserver, bo linki są od razu
+                  // w viewporcie) request do KAŻDEJ z tych stron przy
+                  // KAŻDYM wejściu do panelu, mimo że właściciel patrzy
+                  // tylko na jedną. Zmierzone 2026-07-16 (docs/HUB_SETUP.md
+                  // → "Poczta — Etap 2, trzecia runda"): 12 równoległych
+                  // GET-ów, czasem zdublowane, tuż po każdym wejściu na
+                  // /admin/mail — realny koszt dla wszystkich stron
+                  // panelu, nie tylko poczty. prefetch={false} wyłącza to
+                  // wstępne pobieranie; klik nadal działa normalnie, tylko
+                  // bez podgrzania z wyprzedzeniem.
+                  prefetch={false}
                   className={`relative flex shrink-0 items-center gap-2.5 rounded-md px-1.5 py-1.5 text-[13px] transition-colors ${
                     active
                       ? "admin-nav-active text-[var(--fg)]"
