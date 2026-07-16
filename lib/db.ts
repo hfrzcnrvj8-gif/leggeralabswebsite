@@ -1841,3 +1841,56 @@ export async function ensureLinksSchema(): Promise<void> {
   if (!linksSchemaReady) linksSchemaReady = createLinksSchema();
   await linksSchemaReady;
 }
+
+let auditSchemaReady: Promise<void> | null = null;
+
+/**
+ * Audyt zmian pól (Moduł 23) — „kiedy i z czego na co".
+ *
+ * Panel dotąd NIE zapisywał historii zmian nigdzie: PATCH-e aktualizowały samo
+ * `updated_at`, więc po poprawieniu numeru telefonu stara wartość znikała bez
+ * śladu. `client_events` to co innego — log zdarzeń BIZNESOWYCH (oferta
+ * wysłana, faktura opłacona), a leady nie mają nawet tego.
+ *
+ * Panel jest jednoosobowy, więc świadomie NIE ma tu kolumny „kto" — zawsze
+ * jest to ten sam człowiek. Wartość jest w „kiedy i z czego na co".
+ *
+ * `entity` jest tekstem od początku ("client"/"lead"), a nie osobną tabelą na
+ * moduł, żeby dołożenie faktur/ofert/projektów później było jedną linią w ich
+ * PATCH-u, bez migracji. Decyzja właściciela 2026-07-17: na start wpinamy hook
+ * TYLKO w klientów i leady.
+ *
+ * Świadomie BEZ `REFERENCES` — log ma przeżyć skasowanie rekordu, do którego
+ * się odnosi (usunięcie klienta nie powinno kasować historii jego zmian).
+ */
+async function createAuditSchema(): Promise<void> {
+  if (await schemaUpToDate("audit")) return;
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS field_changes (
+      id TEXT PRIMARY KEY,
+      entity TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      field TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  // Jedyne zapytanie, jakie robi UI: „log zmian TEGO rekordu, od najnowszej".
+  await sql`
+    CREATE INDEX IF NOT EXISTS field_changes_entity_idx
+      ON field_changes (entity, entity_id, created_at DESC);
+  `;
+
+  await markSchemaApplied("audit");
+}
+
+/** Lazily tworzy tabelę audytu zmian pól (Moduł 23). */
+export async function ensureAuditSchema(): Promise<void> {
+  if (!auditSchemaReady) auditSchemaReady = createAuditSchema();
+  await auditSchemaReady;
+}

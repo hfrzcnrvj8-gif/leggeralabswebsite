@@ -31,6 +31,9 @@ import { LinkPicker } from "../LinkPicker";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
+import { ViewTabs, ViewSwitch } from "../ViewTabs";
+import { FieldChangesTab } from "../FieldChangesTab";
+import type { FieldChange } from "@/lib/audit";
 
 /**
  * Rdzeń widoku szczegółów leada — pola, log aktywności. Używany zarówno
@@ -73,6 +76,10 @@ export function LeadDetailPanel({
   const [saving, setSaving] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [sendingNda, setSendingNda] = useState(false);
+  const [changes, setChanges] = useState<FieldChange[]>([]);
+  // Moduł 23 — zakładki, jak u klienta (ClientDetailPanel). Stan tutaj, nie w
+  // wrapperach, więc działa i w modalu z listy, i na podstronie [id].
+  const [tab, setTab] = useState<"card" | "history" | "changes">("card");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/leads/${id}`);
@@ -94,8 +101,25 @@ export function LeadDetailPanel({
   useEffect(() => {
     setLead(null);
     setNotFound(false);
+    setTab("card");
     load();
   }, [load]);
+
+  // Log zmian dociągany po otwarciu zakładki — i za każdym jej otwarciem, bo
+  // właściciel mógł właśnie coś zmienić w wizytówce obok.
+  useEffect(() => {
+    if (tab !== "changes") return;
+    let cancelled = false;
+    fetch(`/api/leads/${id}/changes`)
+      .then((res) => (res.ok ? res.json() : { changes: [] }))
+      .then((data: { changes: FieldChange[] }) => {
+        if (!cancelled) setChanges(data.changes ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, id]);
 
   const updateLead = async (field: string, value: string) => {
     setLead((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -303,253 +327,281 @@ export function LeadDetailPanel({
         <div className="mt-4">
           <ContactQuickActions telefon={lead.telefon} email={lead.email} linkedinUrl={lead.linkedin_url} />
         </div>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Field label="Branża">
-            <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
-          </Field>
-          <Field label="Telefon">
-            <EditableText value={lead.telefon} onSave={(v) => updateLead("telefon", v)} />
-          </Field>
-          <Field label="Email">
-            <EditableText value={lead.email} onSave={(v) => updateLead("email", v)} />
-          </Field>
-          <Field label="WWW">
-            <EditableText value={lead.www} onSave={(v) => updateLead("www", v)} />
-          </Field>
-          <Field label="LinkedIn">
-            <EditableText value={lead.linkedin_url} onSave={(v) => updateLead("linkedin_url", v)} />
-          </Field>
-          <Field label="Ulica">
-            <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
-          </Field>
-          <Field label="Kod / Miasto">
-            <div className="flex gap-2">
-              <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
-              <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
-            </div>
-          </Field>
-          <Field label="Kraj">
-            <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />
-          </Field>
-          <Field label="Źródło">
-            <PillPicker
-              value={lead.zrodlo_kategoria}
-              options={SOURCE_CATEGORIES}
-              onChange={(v) => updateLead("zrodlo_kategoria", v)}
-              placeholder="— wybierz kategorię —"
-              title="Zmień kategorię źródła"
-            />
-          </Field>
-          <Field label="Szczegóły źródła">
-            <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
-          </Field>
-          <Field label="Ostatni kontakt">
-            <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
-          </Field>
-          <Field label="Przypomnij mi">
-            <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
-          </Field>
-          {lead.next_followup && (
-            <Field label="Następny krok (po co przypomnienie)">
-              <EditableText value={lead.next_action} onSave={(v) => updateLead("next_action", v)} />
-            </Field>
-          )}
-        </div>
-
-        <div className="mt-4">
-          <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
-          <EditableTextarea value={lead.notatki} onSave={(v) => updateLead("notatki", v)} />
-        </div>
       </div>
 
-      <div className="mt-6 border-t hairline pt-6">
-        <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
+      {/* Nazwa, status, „Utwórz klienta"/NDA i szybkie akcje zostają NAD
+          zakładkami — to tożsamość leada i główne akcje dnia, więc mają być
+          pod ręką niezależnie od czytanej zakładki (jak u klienta). */}
+      <div className="mt-5 flex h-9 items-center gap-4 border-b hairline">
+        <ViewTabs
+          value={tab}
+          onChange={setTab}
+          layoutId="lead-detail-tab-underline"
+          tabs={[
+            { id: "card", label: "Wizytówka" },
+            { id: "history", label: "Historia kontaktu" },
+            { id: "changes", label: "Logi zmian" },
+          ]}
+        />
+      </div>
 
-        <form onSubmit={submitNote} className="mb-6 space-y-2">
-          <textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                e.currentTarget.form?.requestSubmit();
-              }
-            }}
-            placeholder="Co się wydarzyło? np. zadzwoniłem, obiecał odpowiedzieć do piątku… (Cmd+Enter, by zapisać)"
-            rows={3}
-            className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
-          />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <PillPicker
-              value={noteChannel ? CONTACT_CHANNEL_LABEL[noteChannel as keyof typeof CONTACT_CHANNEL_LABEL] : ""}
-              options={CONTACT_CHANNELS.map((c) => CONTACT_CHANNEL_LABEL[c])}
-              onChange={(label) => {
-                const found = CONTACT_CHANNELS.find((c) => CONTACT_CHANNEL_LABEL[c] === label);
-                setNoteChannel(found ?? "");
-              }}
-              placeholder="Kanał — wybierz"
-              title="Jakim kanałem?"
-            />
-            <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
-              {CONTACT_DIRECTIONS.map((dir) => (
-                <button
-                  key={dir}
-                  type="button"
-                  onClick={() => setNoteDirection(dir)}
-                  className={`min-h-[30px] px-2.5 ${
-                    noteDirection === dir ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
-                  }`}
-                >
-                  {CONTACT_DIRECTION_LABEL[dir]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {noteChannel === "telefon" && (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
-                {CALL_OUTCOMES.map((o) => (
-                  <button
-                    key={o}
-                    type="button"
-                    onClick={() => setNoteOutcome(o)}
-                    className={`flex min-h-[30px] items-center gap-1 px-2.5 ${
-                      noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
-                    }`}
-                  >
-                    <span aria-hidden>{CALL_OUTCOME_ICON[o]}</span>
-                    {CALL_OUTCOME_LABEL[o]}
-                  </button>
-                ))}
-              </div>
-              {noteOutcome === "odebrane" && (
-                <div className="flex items-center gap-1.5 text-xs text-muted">
-                  <input
-                    type="number"
-                    min={0}
-                    value={noteDurationMin}
-                    onChange={(e) => setNoteDurationMin(e.target.value)}
-                    placeholder="0"
-                    className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
-                  />
-                  min
-                  <input
-                    type="number"
-                    min={0}
-                    max={59}
-                    value={noteDurationSec}
-                    onChange={(e) => setNoteDurationSec(e.target.value)}
-                    placeholder="0"
-                    className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
-                  />
-                  s
+      <ViewSwitch viewKey={tab}>
+        {tab === "card" && (
+          <div>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <Field label="Branża">
+                <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
+              </Field>
+              <Field label="Telefon">
+                <EditableText value={lead.telefon} onSave={(v) => updateLead("telefon", v)} />
+              </Field>
+              <Field label="Email">
+                <EditableText value={lead.email} onSave={(v) => updateLead("email", v)} />
+              </Field>
+              <Field label="WWW">
+                <EditableText value={lead.www} onSave={(v) => updateLead("www", v)} />
+              </Field>
+              <Field label="LinkedIn">
+                <EditableText value={lead.linkedin_url} onSave={(v) => updateLead("linkedin_url", v)} />
+              </Field>
+              <Field label="Ulica">
+                <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
+              </Field>
+              <Field label="Kod / Miasto">
+                <div className="flex gap-2">
+                  <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
+                  <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
                 </div>
+              </Field>
+              <Field label="Kraj">
+                <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />
+              </Field>
+              <Field label="Źródło">
+                <PillPicker
+                  value={lead.zrodlo_kategoria}
+                  options={SOURCE_CATEGORIES}
+                  onChange={(v) => updateLead("zrodlo_kategoria", v)}
+                  placeholder="— wybierz kategorię —"
+                  title="Zmień kategorię źródła"
+                />
+              </Field>
+              <Field label="Szczegóły źródła">
+                <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
+              </Field>
+              <Field label="Ostatni kontakt">
+                <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
+              </Field>
+              <Field label="Przypomnij mi">
+                <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
+              </Field>
+              {lead.next_followup && (
+                <Field label="Następny krok (po co przypomnienie)">
+                  <EditableText value={lead.next_action} onSave={(v) => updateLead("next_action", v)} />
+                </Field>
               )}
             </div>
-          )}
 
-          {noteChannel === "telefon" && noteDirection === "przychodzacy" && noteOutcome === "nieodebrane" && !noteFollowup && (
-            <button
-              type="button"
-              onClick={() => {
-                setNoteFollowup(addDaysLocalISO(1));
-                setNoteAction("Oddzwonić");
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
-            >
-              📵 Nieodebrane od klienta — ustaw przypomnienie na jutro
-            </button>
-          )}
-
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs text-muted">
-              <input
-                type="checkbox"
-                checked={markContacted}
-                onChange={(e) => setMarkContacted(e.target.checked)}
-              />
-              Oznacz jako dzisiejszy kontakt
-            </label>
-            <label className="flex items-center gap-2 text-xs text-muted">
-              Przypomnij mi:
-              <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
-            </label>
-            <QuickDateChips onPick={setNoteFollowup} />
-          </div>
-          {noteFollowup && (
-            <input
-              value={noteAction}
-              onChange={(e) => setNoteAction(e.target.value)}
-              placeholder="Następny krok — po co to przypomnienie? np. oddzwonić, spytać o budżet"
-              className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-xs text-[var(--fg)] placeholder:text-muted"
-            />
-          )}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={saving || !noteText.trim()}
-              className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? "Zapisuję…" : "Dodaj wpis"}
-            </button>
-          </div>
-        </form>
-
-        {activity.length === 0 ? (
-          <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
-        ) : (
-          groupActivityByDay(activity).map((group) => (
-            <div key={group.label} className="mb-4 last:mb-0">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
-              <ul className="space-y-2">
-                {group.items.map((a) => {
-                  const badge = activityBadge(a);
-                  return (
-                    <li key={a.id} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
-                      <span
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
-                        aria-hidden
-                      >
-                        {badge.icon}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-0.5 flex items-center justify-between gap-2">
-                          <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                            {formatTime(a.created_at)}
-                            {a.czas_trwania_sek != null && <span>· {formatCallDuration(a.czas_trwania_sek)}</span>}
-                            {a.kierunek && (
-                              <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
-                                {CONTACT_DIRECTION_LABEL[a.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
-                              </span>
-                            )}
-                          </span>
-                          <button
-                            onClick={() => deleteNote(a.id)}
-                            className="text-muted hover:text-red-400"
-                            aria-label="Usuń wpis"
-                            title="Usuń wpis"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        <p className="whitespace-pre-wrap">{a.text}</p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+            <div className="mt-4">
+              <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
+              <EditableTextarea value={lead.notatki} onSave={(v) => updateLead("notatki", v)} />
             </div>
-          ))
-        )}
-      </div>
 
-      <div className="mt-6 border-t hairline pt-6">
-        <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
-        <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
-      </div>
+            {/* Mapa procesu zostaje na wizytówce — „gdzie jesteśmy z tym
+                leadem" to kontekst do danych obok, a nie historia. */}
+            <div className="mt-6 border-t hairline pt-6">
+              <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
+              <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
+            </div>
+          </div>
+        )}
+
+        {tab === "history" && (
+          <div className="mt-6">
+            <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
+
+            <form onSubmit={submitNote} className="mb-6 space-y-2">
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder="Co się wydarzyło? np. zadzwoniłem, obiecał odpowiedzieć do piątku… (Cmd+Enter, by zapisać)"
+                rows={3}
+                className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+              />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <PillPicker
+                  value={noteChannel ? CONTACT_CHANNEL_LABEL[noteChannel as keyof typeof CONTACT_CHANNEL_LABEL] : ""}
+                  options={CONTACT_CHANNELS.map((c) => CONTACT_CHANNEL_LABEL[c])}
+                  onChange={(label) => {
+                    const found = CONTACT_CHANNELS.find((c) => CONTACT_CHANNEL_LABEL[c] === label);
+                    setNoteChannel(found ?? "");
+                  }}
+                  placeholder="Kanał — wybierz"
+                  title="Jakim kanałem?"
+                />
+                <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+                  {CONTACT_DIRECTIONS.map((dir) => (
+                    <button
+                      key={dir}
+                      type="button"
+                      onClick={() => setNoteDirection(dir)}
+                      className={`min-h-[30px] px-2.5 ${
+                        noteDirection === dir ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
+                      }`}
+                    >
+                      {CONTACT_DIRECTION_LABEL[dir]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {noteChannel === "telefon" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+                    {CALL_OUTCOMES.map((o) => (
+                      <button
+                        key={o}
+                        type="button"
+                        onClick={() => setNoteOutcome(o)}
+                        className={`flex min-h-[30px] items-center gap-1 px-2.5 ${
+                          noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
+                        }`}
+                      >
+                        <span aria-hidden>{CALL_OUTCOME_ICON[o]}</span>
+                        {CALL_OUTCOME_LABEL[o]}
+                      </button>
+                    ))}
+                  </div>
+                  {noteOutcome === "odebrane" && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted">
+                      <input
+                        type="number"
+                        min={0}
+                        value={noteDurationMin}
+                        onChange={(e) => setNoteDurationMin(e.target.value)}
+                        placeholder="0"
+                        className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                      />
+                      min
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        value={noteDurationSec}
+                        onChange={(e) => setNoteDurationSec(e.target.value)}
+                        placeholder="0"
+                        className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                      />
+                      s
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {noteChannel === "telefon" && noteDirection === "przychodzacy" && noteOutcome === "nieodebrane" && !noteFollowup && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNoteFollowup(addDaysLocalISO(1));
+                    setNoteAction("Oddzwonić");
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
+                >
+                  📵 Nieodebrane od klienta — ustaw przypomnienie na jutro
+                </button>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={markContacted}
+                    onChange={(e) => setMarkContacted(e.target.checked)}
+                  />
+                  Oznacz jako dzisiejszy kontakt
+                </label>
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  Przypomnij mi:
+                  <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
+                </label>
+                <QuickDateChips onPick={setNoteFollowup} />
+              </div>
+              {noteFollowup && (
+                <input
+                  value={noteAction}
+                  onChange={(e) => setNoteAction(e.target.value)}
+                  placeholder="Następny krok — po co to przypomnienie? np. oddzwonić, spytać o budżet"
+                  className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-xs text-[var(--fg)] placeholder:text-muted"
+                />
+              )}
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={saving || !noteText.trim()}
+                  className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Zapisuję…" : "Dodaj wpis"}
+                </button>
+              </div>
+            </form>
+
+            {activity.length === 0 ? (
+              <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
+            ) : (
+              groupActivityByDay(activity).map((group) => (
+                <div key={group.label} className="mb-4 last:mb-0">
+                  <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
+                  <ul className="space-y-2">
+                    {group.items.map((a) => {
+                      const badge = activityBadge(a);
+                      return (
+                        <li key={a.id} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
+                          <span
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
+                            aria-hidden
+                          >
+                            {badge.icon}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-0.5 flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                                {formatTime(a.created_at)}
+                                {a.czas_trwania_sek != null && <span>· {formatCallDuration(a.czas_trwania_sek)}</span>}
+                                {a.kierunek && (
+                                  <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
+                                    {CONTACT_DIRECTION_LABEL[a.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
+                                  </span>
+                                )}
+                              </span>
+                              <button
+                                onClick={() => deleteNote(a.id)}
+                                className="text-muted hover:text-red-400"
+                                aria-label="Usuń wpis"
+                                title="Usuń wpis"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <p className="whitespace-pre-wrap">{a.text}</p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {tab === "changes" && <FieldChangesTab entity="lead" changes={changes} />}
+      </ViewSwitch>
     </div>
   );
 }

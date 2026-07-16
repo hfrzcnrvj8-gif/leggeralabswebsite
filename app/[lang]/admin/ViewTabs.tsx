@@ -11,16 +11,25 @@ import type { ReactNode } from "react";
 //
 // `layoutId` sprawia, że framer traktuje podkreślenie jako JEDEN element
 // zmieniający pozycję, a nie dwa różne znikające/pojawiające się — stąd
-// przejazd. Wartość jest stała, bo na stronie jest zawsze najwyżej jeden
-// zestaw zakładek widoku.
+// przejazd.
+//
+// Moduł 23: `layoutId` był stały ("na stronie jest zawsze najwyżej jeden
+// zestaw zakładek"), a to przestało być prawdą — profil klienta/leada dostał
+// własne zakładki i otwiera się MODALEM NAD listą, która ma swoje. Przy dwóch
+// zestawach o tym samym `layoutId` framer uznaje oba podkreślenia za ten sam
+// element i animuje przejazd z zakładek listy do zakładek modala. Każdy zestaw
+// podaje więc własny `layoutId`; wartość domyślna zachowuje zachowanie
+// wcześniejszych wywołań (Leady/Klienci/Projekty).
 export function ViewTabs<T extends string>({
   value,
   onChange,
   tabs,
+  layoutId = "view-tab-underline",
 }: {
   value: T;
   onChange: (v: T) => void;
   tabs: { id: T; label: string }[];
+  layoutId?: string;
 }) {
   return (
     <>
@@ -35,7 +44,7 @@ export function ViewTabs<T extends string>({
           {t.label}
           {value === t.id && (
             <motion.span
-              layoutId="view-tab-underline"
+              layoutId={layoutId}
               transition={{ type: "spring", stiffness: 420, damping: 32 }}
               className="bg-brand-accent absolute inset-x-0 bottom-0 h-[2px] rounded-full"
             />

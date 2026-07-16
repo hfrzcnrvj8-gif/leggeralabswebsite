@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
+import { logFieldChanges } from "@/lib/auditLog";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     // 04-skrzynka-mailowa.md o braku osobnej sekcji).
     sql`SELECT id, subject, kierunek, status, received_at FROM mail_messages WHERE client_id = ${id} ORDER BY received_at DESC LIMIT 100;`,
   ]);
+  // Audyt zmian (Moduł 23) świadomie NIE jest tutaj — ma własny endpoint
+  // `/changes`, dociągany dopiero po otwarciu zakładki. Dwa powody: profil nie
+  // płaci zapytania za log, którego zwykle nikt nie otworzy, a log zostaje
+  // aktualny po edycji pola w wizytówce (inaczej pokazywałby stan sprzed
+  // zmiany aż do przeładowania całego profilu).
 
   // Scalony feed — trzy różne źródła, wspólny kształt, posortowane
   // chronologicznie (najnowsze pierwsze). `source: "lead"` oznacza wpisy
@@ -117,40 +123,92 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return isPlausibleDateString(t) ? t : undefined;
   };
 
-  if ("nazwa" in body) await sql`UPDATE clients SET nazwa = ${str(body.nazwa, 300)}, updated_at = now() WHERE id = ${id};`;
-  if ("nip" in body) await sql`UPDATE clients SET nip = ${str(body.nip, 30)}, updated_at = now() WHERE id = ${id};`;
-  if ("ulica" in body) await sql`UPDATE clients SET ulica = ${str(body.ulica, 300)}, updated_at = now() WHERE id = ${id};`;
-  if ("kod" in body) await sql`UPDATE clients SET kod = ${str(body.kod, 20)}, updated_at = now() WHERE id = ${id};`;
-  if ("miasto" in body) await sql`UPDATE clients SET miasto = ${str(body.miasto, 200)}, updated_at = now() WHERE id = ${id};`;
-  if ("kraj" in body) await sql`UPDATE clients SET kraj = ${str(body.kraj, 100)}, updated_at = now() WHERE id = ${id};`;
+  // Audyt zmian (Moduł 23) — stan sprzed zapisu, do porównania „z czego na co".
+  // Jeden SELECT na cały PATCH, nie na pole: neon() płaci rundę HTTP za każde
+  // zapytanie. Brak wiersza = klient skasowany w międzyczasie; UPDATE-y niżej
+  // i tak nic nie trafią, a log zostaje pusty zamiast zmyślać starą wartość.
+  const beforeRows = await sql`SELECT * FROM clients WHERE id = ${id};`;
+  const before = (beforeRows[0] ?? {}) as Record<string, unknown>;
+  // Co realnie ustawiamy — zbierane po walidacji, żeby log nie zapisał
+  // wartości, której baza nie przyjęła.
+  const applied: Record<string, unknown> = {};
+
+  if ("nazwa" in body) {
+    applied.nazwa = str(body.nazwa, 300);
+    await sql`UPDATE clients SET nazwa = ${applied.nazwa}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("nip" in body) {
+    applied.nip = str(body.nip, 30);
+    await sql`UPDATE clients SET nip = ${applied.nip}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("ulica" in body) {
+    applied.ulica = str(body.ulica, 300);
+    await sql`UPDATE clients SET ulica = ${applied.ulica}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("kod" in body) {
+    applied.kod = str(body.kod, 20);
+    await sql`UPDATE clients SET kod = ${applied.kod}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("miasto" in body) {
+    applied.miasto = str(body.miasto, 200);
+    await sql`UPDATE clients SET miasto = ${applied.miasto}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("kraj" in body) {
+    applied.kraj = str(body.kraj, 100);
+    await sql`UPDATE clients SET kraj = ${applied.kraj}, updated_at = now() WHERE id = ${id};`;
+  }
   if ("email" in body) {
     const email = str(body.email, 200);
+    applied.email = email;
     await sql`UPDATE clients SET email = ${email}, updated_at = now() WHERE id = ${id};`;
     // Nowy/zmieniony adres — dopnij od razu zaległą korespondencję (04d pkt 1).
     if (email.trim()) {
       await rematchUnassigned().catch((e) => console.error("[clients] rematch poczty nie powiódł się", e));
     }
   }
-  if ("telefon" in body) await sql`UPDATE clients SET telefon = ${str(body.telefon, 100)}, updated_at = now() WHERE id = ${id};`;
-  if ("www" in body) await sql`UPDATE clients SET www = ${str(body.www, 200)}, updated_at = now() WHERE id = ${id};`;
-  if ("linkedin_url" in body) await sql`UPDATE clients SET linkedin_url = ${str(body.linkedin_url, 300)}, updated_at = now() WHERE id = ${id};`;
-  if ("next_action" in body) await sql`UPDATE clients SET next_action = ${str(body.next_action, 500)}, updated_at = now() WHERE id = ${id};`;
-  if ("branza" in body) await sql`UPDATE clients SET branza = ${str(body.branza, 200)}, updated_at = now() WHERE id = ${id};`;
-  if ("notatki" in body) await sql`UPDATE clients SET notatki = ${str(body.notatki, 4000)}, updated_at = now() WHERE id = ${id};`;
+  if ("telefon" in body) {
+    applied.telefon = str(body.telefon, 100);
+    await sql`UPDATE clients SET telefon = ${applied.telefon}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("www" in body) {
+    applied.www = str(body.www, 200);
+    await sql`UPDATE clients SET www = ${applied.www}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("linkedin_url" in body) {
+    applied.linkedin_url = str(body.linkedin_url, 300);
+    await sql`UPDATE clients SET linkedin_url = ${applied.linkedin_url}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("next_action" in body) {
+    applied.next_action = str(body.next_action, 500);
+    await sql`UPDATE clients SET next_action = ${applied.next_action}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("branza" in body) {
+    applied.branza = str(body.branza, 200);
+    await sql`UPDATE clients SET branza = ${applied.branza}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("notatki" in body) {
+    applied.notatki = str(body.notatki, 4000);
+    await sql`UPDATE clients SET notatki = ${applied.notatki}, updated_at = now() WHERE id = ${id};`;
+  }
   if ("status" in body) {
     const v = typeof body.status === "string" && (CLIENT_STATUSES as readonly string[]).includes(body.status) ? body.status : "Prospekt";
+    applied.status = v;
     await sql`UPDATE clients SET status = ${v}, updated_at = now() WHERE id = ${id};`;
   }
   if ("ostatni_kontakt" in body) {
     const v = dateOrNull(body.ostatni_kontakt);
     if (v === undefined) return NextResponse.json({ error: "invalid ostatni_kontakt" }, { status: 400 });
+    applied.ostatni_kontakt = v;
     await sql`UPDATE clients SET ostatni_kontakt = ${v}, updated_at = now() WHERE id = ${id};`;
   }
   if ("next_followup" in body) {
     const v = dateOrNull(body.next_followup);
     if (v === undefined) return NextResponse.json({ error: "invalid next_followup" }, { status: 400 });
+    applied.next_followup = v;
     await sql`UPDATE clients SET next_followup = ${v}, updated_at = now() WHERE id = ${id};`;
   }
+
+  await logFieldChanges("client", id, before, applied);
 
   return NextResponse.json({ ok: true });
 }

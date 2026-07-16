@@ -3824,3 +3824,93 @@ z tym na zawsze. Dołożony `ResizeObserver` reagujący **tylko na zmianę
 szerokości** (obserwujemy element, któremu sami ustawiamy wysokość → bez tego
 warunku groziłaby pętla). Dotyczy wszystkich modułów używających tego pola
 (Leady, Klienci, Projekty, Notatnik) — sprawdzone, że nic się nie rozjechało.
+
+## Moduł 23 — Zakładki w kliencie/leadzie, audyt zmian, listy tylko do podglądu (2026-07-17)
+
+Zgłoszenie właściciela (2026-07-16): *„lista klientów to tylko spis, ale w
+wizytówce chcę oddzielne zakładki — wizytówka, historia kontaktu, logi zmian,
+żeby nie wszystko kumulowało się na jednej stronie. W leadach analogicznie."*
+
+Rozpoznanie pokazało, że **zgłoszenie było odwrotne do stanu faktycznego**:
+lista klientów pozwalała edytować inline 7 pól, a to lista **leadów** była już
+samym spisem. Robota polegała więc na ściągnięciu Klientów do wzorca Leadów,
+nie odwrotnie.
+
+### Trzy zakładki, WEWNĄTRZ `*DetailPanel.tsx`
+
+`Wizytówka` (dane + notatka + Powiązane + mapa procesu) · `Historia kontaktu`
+(Korespondencja + pełna oś wpisów) · `Logi zmian` (nowe, patrz niżej).
+
+Zakładki siedzą w `ClientDetailPanel.tsx`/`LeadDetailPanel.tsx`, NIE w
+wrapperach — dzięki temu działają automatycznie w obu trybach (modal z listy i
+podstrona `[id]`), bo oba renderują ten sam komponent. Sprawdzone w obu.
+
+**Nazwa, status, szybkie akcje (i „Utwórz klienta"/NDA w leadzie) zostają NAD
+zakładkami** — to tożsamość rekordu i główne akcje dnia, mają być pod ręką
+niezależnie od czytanej zakładki. Zakładka `Korespondencja` trafiła do
+`Historii kontaktu` (decyzja właściciela), a nie na wizytówkę — wizytówka miała
+się skrócić, to był cel całej zmiany.
+
+`ViewTabs` (Moduł 21) dostał **prop `layoutId`** (domyślnie stary
+`"view-tab-underline"`). Powód: `layoutId` był stały, bo „na stronie jest
+zawsze najwyżej jeden zestaw zakładek" — przestało to być prawdą, gdy profil z
+własnymi zakładkami otwiera się modalem NAD listą, która ma swoje. Bez tego
+framer uznaje oba podkreślenia za JEDEN element i animuje przejazd z zakładek
+listy do modala.
+
+### Audyt zmian — nowa tabela `field_changes`
+
+Panel dotąd NIE zapisywał historii zmian nigdzie: PATCH-e aktualizowały samo
+`updated_at`, więc stara wartość znikała bez śladu (`client_events` to co
+innego — log zdarzeń BIZNESOWYCH; leady nie miały nawet tego).
+
+`field_changes` (`entity`, `entity_id`, `field`, `old_value`, `new_value`,
+`created_at`) + `createAuditSchema()` z bramką migracji. Świadomie **bez
+kolumny „kto"** (panel jednoosobowy — wartość jest w „kiedy i z czego na co”) i
+**bez `REFERENCES`** (log ma przeżyć skasowanie rekordu). `entity` jest tekstem
+od początku, więc dołożenie faktur/ofert/projektów później to jedna linia w ich
+PATCH-u, bez migracji. **Decyzja właściciela: na start hook tylko w klientach i
+leadach.**
+
+Wzorzec w PATCH-u: jeden `SELECT *` przed zapisem (`before`) + zbieranie tego,
+co realnie ustawiamy, do `applied` (po walidacji, żeby log nie zapisał wartości,
+której baza nie przyjęła) → `logFieldChanges()` na końcu. Loguje TYLKO pola,
+które faktycznie się zmieniły — `normalize()` zrównuje `null` z `""` i `Date`
+(PGlite) ze stringiem (neon), inaczej każdy zapis daty wyglądałby na zmianę.
+Zapis to jeden `INSERT ... UNNEST` (neon = 1 rundy HTTP na zapytanie), a błąd
+audytu świadomie NIE wywala PATCH-a. `leads.client_id` jest świadomie POZA
+`applied` — log pokazałby surowe id, co właścicielowi nic nie mówi.
+
+**Podział na dwa pliki jest konieczny, nie kosmetyczny:** `lib/audit.ts` =
+czysta logika (typy, polskie etykiety pól) importowana przez kliencki
+`FieldChangesTab.tsx`; `lib/auditLog.ts` = warstwa bazodanowa (serwer). Gdy
+wszystko było w jednym pliku, `lib/db` ciągnął `node:async_hooks` do bundla
+przeglądarki i **build się wywalał** („chunking context does not support
+external modules"). Ten sam podział co `mailSync.ts`/`contactLookup.ts` obok
+`lib/mail.ts`/`lib/clients.ts`.
+
+Log ma **własny endpoint** `/api/{clients,leads}/[id]/changes`, dociągany
+dopiero po otwarciu zakładki (i za każdym otwarciem). Dwa powody: profil nie
+płaci zapytania za log, którego zwykle nikt nie otworzy, a log nie robi się
+nieaktualny po edycji pola w wizytówce obok.
+
+Długie wartości (notatka): skrót do 80 znaków + „Pokaż całość" (decyzja
+właściciela) — pełna treść leci do bazy, limit dotyczy wyświetlania.
+
+### Listy tylko do podglądu
+
+Z `clients/TableView.tsx` zdjęta edycja inline 7 pól; **został sam status** —
+jedyna rzecz zmieniana w tabeli setki razy w tygodniu i nie „dana stała", tylko
+bieżący etap pracy (to samo uzasadnienie co w `leads/TableView.tsx`). Nazwa
+otwiera profil. Obie listy są teraz symetryczne.
+
+### Pułapka weryfikacji: przeglądarka w panelu nie dostaje klatek
+
+Przy sprawdzaniu zakładek: `document.visibilityState === "hidden"` i
+`requestAnimationFrame` **nigdy nie odpala** w podglądzie przeglądarki. Animacje
+framer-motion nie postępują, `exit` w `AnimatePresence mode="wait"`
+(`ViewSwitch`) nigdy się nie kończy i **nowa zakładka się nie montuje** — wygląda
+to jak zepsuty przełącznik, także ten zastany (Tablica/Tabela) w dashboardach.
+To artefakt narzędzia, NIE błąd aplikacji: w prawdziwej przeglądarce działa.
+Zrzut ekranu wymusza klatkę, więc żeby zobaczyć przełączenie, trzeba klikać i
+robić `screenshot` — nie `wait`. **Nie „naprawiaj" tu `ViewSwitch`.**

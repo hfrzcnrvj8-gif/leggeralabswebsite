@@ -11,12 +11,22 @@ import {
   CONTACT_CHANNEL_ICON,
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_CLASS,
-  EditableText,
-  EditableTextarea,
   StatusTag,
 } from "./shared";
-import { DateField } from "../DatePicker";
+import { Truncate } from "../components";
+import { formatPlDate } from "@/lib/projects";
 
+/**
+ * Lista = tylko podgląd (Moduł 23, decyzja właściciela 2026-07-16: „lista jest
+ * spisem, dane zmienia się w wizytówce" — WSZĘDZIE, nie tylko w leadach).
+ *
+ * Do 2026-07-17 dało się tu edytować inline 7 pól (nazwa, branża, telefon,
+ * email, status, ostatni kontakt, notatki), co rozjeżdżało się z listą leadów,
+ * która od początku była samym spisem. Zostaje wyłącznie **status** — jedyna
+ * rzecz zmieniana w tabeli setki razy w tygodniu, i to nie „dana stała", tylko
+ * bieżący etap pracy (dokładnie to samo uzasadnienie co w leads/TableView.tsx).
+ * Reszta idzie przez profil, otwierany klikiem w nazwę albo ikoną obok.
+ */
 export function TableView({
   clients,
   lang,
@@ -120,9 +130,13 @@ export function TableView({
                   </td>
                   <td className="p-2">
                     <div className="flex min-w-0 items-center gap-1.5">
-                      <div className="min-w-0 flex-1">
-                        <EditableText value={client.nazwa} onSave={(v) => onUpdate(client.id, "nazwa", v)} />
-                      </div>
+                      <button
+                        onClick={() => onOpen(client.id)}
+                        className="block min-w-0 flex-1 truncate text-left font-medium text-[var(--fg)] hover:underline"
+                        title={client.nazwa}
+                      >
+                        {client.nazwa}
+                      </button>
                       {client.ostatni_kanal && (
                         <span
                           aria-hidden
@@ -137,14 +151,16 @@ export function TableView({
                     </div>
                   </td>
                   <td className="p-2">
-                    <EditableText value={client.branza} onSave={(v) => onUpdate(client.id, "branza", v)} />
+                    <Truncate value={client.branza} />
                   </td>
                   <td className="p-2">
-                    <EditableText value={client.telefon} onSave={(v) => onUpdate(client.id, "telefon", v)} />
+                    <Truncate value={client.telefon} />
                   </td>
                   <td className="p-2">
-                    <EditableText value={client.email} onSave={(v) => onUpdate(client.id, "email", v)} />
-                    {client.linkedin_url && <div className="mt-0.5 truncate text-[11px] text-muted opacity-80">🔗 {client.linkedin_url}</div>}
+                    <Truncate value={client.email} />
+                    {client.linkedin_url && (
+                      <Truncate value={`🔗 ${client.linkedin_url}`} className="text-[11px] text-muted opacity-80" />
+                    )}
                   </td>
                   <td className="p-2">
                     <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
@@ -159,13 +175,13 @@ export function TableView({
                     )}
                   </td>
                   <td className="p-2">
-                    <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => onUpdate(client.id, "ostatni_kontakt", v)} placeholder="—" />
+                    <Truncate value={formatPlDate(client.ostatni_kontakt)} />
                   </td>
                   <td className="p-2">
                     {d === null ? "—" : <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>{d} dni</span>}
                   </td>
                   <td className="p-2">
-                    <EditableTextarea value={client.notatki} onSave={(v) => onUpdate(client.id, "notatki", v)} />
+                    <Truncate value={client.notatki} />
                   </td>
                   <td className="p-2">
                     <div className="flex items-center gap-2">
