@@ -16,6 +16,7 @@ import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { ClientLinkChip } from "../components";
 import { PropertyMenu } from "../Menu";
+import { LinkPicker } from "../LinkPicker";
 
 export function ContractEditor({
   id,
@@ -141,6 +142,16 @@ export function ContractEditor({
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-xs text-muted">
           {CONTRACT_TYP_LABEL[contract.typ]} / <span className="text-[var(--fg)]">{contract.klient_nazwa || "(bez nazwy)"}</span>
+          {/* Moduł 22 — powiązanie było chipem TYLKO do odczytu, a PATCH nie
+              przyjmował żadnej z czterech kolumn `*_id`: umowę przypiętą do
+              złego klienta dało się naprawić wyłącznie usuwając ją i tworząc
+              od nowa. Chip-link zostaje obok, bo prowadzi na kartę klienta —
+              picker tylko zmienia powiązanie. */}
+          <LinkPicker
+            kinds={["client", "lead"]}
+            value={{ client_id: contract.client_id, lead_id: contract.lead_id }}
+            onPick={(next) => patch(next)}
+          />
           <ClientLinkChip clientId={contract.client_id} lang={lang} />
         </span>
         <div className="flex items-center gap-3">

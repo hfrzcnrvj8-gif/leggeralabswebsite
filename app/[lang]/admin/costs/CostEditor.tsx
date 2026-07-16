@@ -35,6 +35,7 @@ import { lookupSupplierByNip, normalizeAccountNumber } from "@/lib/vies";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { LinkPicker } from "../LinkPicker";
 import { StatusTag } from "./shared";
 
 type ProjectOption = { id: string; tytul: string };
@@ -464,6 +465,27 @@ export function CostEditor({
               </div>
             )}
           </Popover>
+        </label>
+
+        {/* Moduł 22 — koszt „na rzecz" konkretnego klienta/leada, niezależnie
+            od projektu. Osobno od pola Projekt niżej: nie każdy koszt klienta
+            ma projekt (np. licencja kupiona pod jedno wdrożenie), a dotąd
+            klient dało się wywnioskować TYLKO przez projekt. */}
+        <label className="block">
+          <span className="mb-1 block text-[11px] text-muted">Klient / lead</span>
+          <LinkPicker
+            kinds={["client", "lead"]}
+            value={{ client_id: cost.client_id, lead_id: cost.lead_id }}
+            onPick={(next) => patch(next)}
+            trigger={(picked, open) => (
+              <button
+                onClick={open}
+                className="flex w-full items-center justify-between rounded-md border hairline px-2.5 py-1.5 text-left text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)]"
+              >
+                {picked ? picked.nazwa : <span className="text-muted">Brak</span>}
+              </button>
+            )}
+          />
         </label>
 
         <label className="block">

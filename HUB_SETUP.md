@@ -3677,3 +3677,89 @@ komponent na Leadach, nie bezpośrednio.
   osobny i większy zakres (wymaga certyfikatów/uwierzytelniania API
   Ministerstwa Finansów). Podobnie brak linków do płatności online
   (Stripe/Przelewy24) — nie było w zatwierdzonym zakresie.
+
+## Moduł 22 — Powiązania wszędzie: jeden `LinkPicker` (2026-07-16)
+
+Punkt wyjścia: właściciel poprosił, żeby „na każdym kroku dało się dodawać
+zależności od klienta czy leada". Inwentarz kodu pokazał, że **baza była w
+większości gotowa — to UI jej nie używało**. Ten moduł nie dobudowuje relacji,
+tylko dokańcza UI i PATCH-e do relacji, które już istniały.
+
+### Wspólny picker zamiast trzech wzorców
+
+`app/[lang]/admin/LinkPicker.tsx` + czysta logika w `lib/links.ts`. Zastąpił:
+`ClientPickerButton` (tam, gdzie chodziło o *powiązanie*), własne selecty
+`PropTrigger` w Projektach i surowe `<select>`y w Kalendarzu. Dołożył to,
+czego nie było nigdzie: **wybór leada**.
+
+- Jedno pole = jedna odpowiedź na „czyj to rekord". Wyszukiwarka, sekcje
+  Klienci/Leady/Projekty, strzałki + Enter, pozycja „brak powiązania".
+- Listy pobierane raz na sesję (cache modułowy) — wcześniej siedem ekranów
+  ciągnęło `/api/clients` osobno. `invalidateLinkTargets()` po utworzeniu
+  klienta/leada.
+- Użyty w: Poczcie, Leadach, Umowach, Projektach, Kalendarzu, Kosztach.
+
+### Relacja jest WYŁĄCZNA (decyzja właściciela 2026-07-16)
+
+Wybór klienta czyści leada i odwrotnie (`linkValueFor()`). Tak od początku
+zachowywał się `PATCH /api/mail/[id]`.
+
+> **Uwaga, świadoma niespójność:** automatyczne dziedziczenie przy akceptacji
+> oferty (`lib/offerAccept.ts`) dalej ustawia `lead_id` I `client_id` naraz —
+> tam oba pola to ślad pochodzenia rekordu, nie ręczny wybór. Przy takim
+> rekordzie picker pokazuje klienta (`pickedTarget()` — kolejność `kinds` to
+> kolejność pierwszeństwa), a ręczna zmiana wyczyści leada. Nie zmieniaj
+> offerAccept bez pytania: `lead_id` na projekcie/fakturze jest używane w
+> zapytaniach osi czasu leada.
+
+### Aliasy adresów e-mail — najważniejsza domknięta luka
+
+Auto-dopasowanie poczty umiało tylko **równość adresu** z kartoteką
+(`findContactsByEmail`), więc gdy klient napisał z prywatnej skrzynki,
+wiadomość zostawała „Nieprzypisana" **na zawsze** — panel nie miał czym tego
+poprawić (`PATCH` przyjmował `client_id` od Modułu 4d, ale nic go nie wołało).
+
+- `MailDetailPanel` ma picker („🔗 Przypisz do klienta/leada"), stojący PRZED
+  „Utwórz leada/klienta" — bo gdy klient już jest w bazie, tworzenie go od nowa
+  produkuje duplikat.
+- Gdy z tego adresu wiszą zaległości, panel **pyta**: „Zapamiętać, że X to Y?"
+  Po zgodzie → wpis w `mail_address_links` + przypięcie zaległych. Kolejne maile
+  dopasowują się same. Zawsze pytanie, nigdy po cichu (zasada „podpowiedź
+  informuje, właściciel zatwierdza").
+- Dopasowanie zostaje w 100% **deterministyczne** (równość znormalizowanego
+  adresu) — źródeł prawdy są dwa: kartoteka i zapamiętany alias. Żadnego AI.
+- Zweryfikowane na żywo (PGlite): klientka z adresem `anna@nordwind.pl` w
+  kartotece, piszącą z `anna.nowak.prywatnie@gmail.com` — po zapamiętaniu
+  aliasu `rematchUnassigned()` dopina obie wiadomości sam.
+
+### Domknięte luki „kolumna jest, UI nie ma"
+
+| Moduł | Co doszło |
+|---|---|
+| Poczta | picker + aliasy adresów; **naprawiony `PATCH`**: warunek `if (clientId \|\| leadId)` po cichu ignorował odpięcie (dwa `null`-e), więc „brak powiązania" nic nie robiło |
+| Leady | `client_id` w `PATCH` + picker „🔗 Podepnij istniejącego" obok „+ Utwórz klienta" — dotąd jedyna droga produkowała duplikaty |
+| Umowy | `PATCH` obsługuje `client_id`/`lead_id`/`project_id`/`offer_id` (dotąd ŻADNEGO — źle przypiętej umowy nie dało się naprawić z panelu) |
+| Projekty | dwa selecty → jedno pole „Powiązanie" |
+| Kalendarz | trzy `<select>`y → picker kontaktu + picker projektu (filtry u góry to osobna sprawa, zostały selectami) |
+| Koszty | **nowe kolumny** `client_id`/`lead_id` (+ `recurring_costs`) + pole „Klient / lead” w edytorze — dotąd klient tylko pośrednio przez projekt |
+| Notatnik | **nowe kolumny** `client_id`/`lead_id`/`project_id` — bez UI, fundament pod Moduł 26 |
+
+### Migracje
+
+Osobny schemat `createLinksSchema()` / `ensureLinksSchema()` (bramka `links`,
+patrz „Bramka migracji") — osobny, bo dotyka tabel z czterech schematów naraz i
+musi poczekać, aż wszystkie powstaną. Dodaje kolumny wyżej + tabelę
+`mail_address_links` (`email` jako PRIMARY KEY: jeden adres = jeden właściciel,
+`ON CONFLICT` naprawia pomyłkę).
+
+### Świadomie NIE zrobione w tej rundzie
+
+- **Faktury/Oferty — `lead_id`/`project_id` w UI** (punkt 4 briefu). Tamtejszy
+  `ClientPickerButton` robi coś INNEGO niż linkowanie: kopiuje dane nabywcy
+  (nazwa/NIP/adres) na dokument jako niezależną migawkę i przy okazji ustawia
+  `client_id`. Dołożenie tam wyłącznego pola klient/lead rozjechałoby
+  powiązanie z danymi nabywcy (wybór leada wyczyściłby `client_id`, zostawiając
+  skopiowane dane klienta). Wymaga osobnej decyzji, co `client_id` na fakturze
+  właściwie znaczy — nabywcę czy powiązanie z CRM.
+- UI notatnika (Moduł 26) i zakładki w kliencie/leadzie (Moduł 23) — poza
+  zakresem, tutaj tylko fundament.

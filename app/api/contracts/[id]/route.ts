@@ -35,6 +35,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return isPlausibleDateString(t) ? t : undefined;
     };
 
+    // Moduł 22 — powiązania z CRM. Umowa miała cztery kolumny (`lead_id`,
+    // `client_id`, `project_id`, `offer_id`) wypełniane WYŁĄCZNIE przy
+    // tworzeniu (api/contracts/route.ts), a UI pokazywało je jako chip tylko
+    // do odczytu — raz źle przypiętej umowy nie dało się naprawić z panelu.
+    // Pusty string / brak wartości = odepnij.
+    const linkOrNull = (v: unknown) => (typeof v === "string" && v ? v : null);
+    if ("client_id" in body) await sql`UPDATE contracts SET client_id = ${linkOrNull(body.client_id)}, updated_at = now() WHERE id = ${id};`;
+    if ("lead_id" in body) await sql`UPDATE contracts SET lead_id = ${linkOrNull(body.lead_id)}, updated_at = now() WHERE id = ${id};`;
+    if ("project_id" in body) await sql`UPDATE contracts SET project_id = ${linkOrNull(body.project_id)}, updated_at = now() WHERE id = ${id};`;
+    if ("offer_id" in body) await sql`UPDATE contracts SET offer_id = ${linkOrNull(body.offer_id)}, updated_at = now() WHERE id = ${id};`;
+
     if ("klient_nazwa" in body) await sql`UPDATE contracts SET klient_nazwa = ${str(body.klient_nazwa, 300)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_nip" in body) await sql`UPDATE contracts SET klient_nip = ${str(body.klient_nip, 30)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_ulica" in body) await sql`UPDATE contracts SET klient_ulica = ${str(body.klient_ulica, 300)}, updated_at = now() WHERE id = ${id};`;

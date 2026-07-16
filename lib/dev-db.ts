@@ -215,6 +215,37 @@ async function ensureSeeded(): Promise<void> {
         [randomUUID(), "kontakt@nieznanafirma.pl"]
       );
 
+      // Moduł 22 — DWIE wiadomości z tego samego, nieznanego adresu.
+      //
+      // Odwzorowuje lukę, dla której powstał ten moduł: klientka (Anna z
+      // Nordwind Studio) pisze z prywatnej skrzynki, więc auto-dopasowanie
+      // po równości adresu (findContactsByEmail) nie ma się o co zaczepić i
+      // KAŻDA jej wiadomość ląduje w "Nieprzypisane". Dwie sztuki, bo dopiero
+      // przy zaległości panel pyta "zapamiętać ten adres?" — przy jednej
+      // wiadomości pytanie nie ma sensu i nie pada.
+      const mailAliasA = randomUUID();
+      const mailAliasB = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, kategoria, received_at)
+         VALUES ($1,107,'in',$2,$3,$4,$5,$6,$7,$7,'nowy','rozmowa',now() - interval '3 hours')`,
+        [
+          mailAliasA, "anna.nowak.prywatnie@gmail.com", "Anna Nowak", "kontakt@leggeralabs.pl",
+          "Pytanie z prywatnej skrzynki",
+          "Cześć, piszę z prywatnego adresu, bo służbowa poczta mi dziś nie działa. Czy zdążymy z panelem na piątek?",
+          "<dev-alias-1@gmail.com>",
+        ]
+      );
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, kategoria, received_at)
+         VALUES ($1,108,'in',$2,$3,$4,$5,$6,$7,$7,'nowy','rozmowa',now() - interval '2 hours')`,
+        [
+          mailAliasB, "anna.nowak.prywatnie@gmail.com", "Anna Nowak", "kontakt@leggeralabs.pl",
+          "Jeszcze jedno pytanie",
+          "I druga sprawa — czy fakturę wystawicie na koniec miesiąca, czy po odbiorze?",
+          "<dev-alias-2@gmail.com>",
+        ]
+      );
+
       // Wątkowanie (Moduł 4, Etap 3) — druga połowa wątku "Re: Automatyzacja
       // umów": to, co WYSŁALIŚMY do Marka WCZEŚNIEJ (Wysłane), na co mailLead
       // (Odebrane) jest odpowiedzią. Jedyny sposób, żeby lokalnie sprawdzić

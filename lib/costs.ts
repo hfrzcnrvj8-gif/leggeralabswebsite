@@ -97,6 +97,10 @@ export type Cost = {
   status: CostStatus;
   data_platnosci: string | null;
   project_id: string | null;
+  /** Moduł 22 — klient/lead wprost na koszcie, niezależnie od projektu.
+   * Relacja wyłączna: ustawiony jest co najwyżej jeden z nich. */
+  client_id: string | null;
+  lead_id: string | null;
   /** Jak koszt został/zostanie zapłacony — patrz PAYMENT_METHODS. NULL = nieustawiona. */
   metoda_platnosci: PaymentMethod | string | null;
   /** Numer konta dostawcy (IBAN) — do „Kopiuj dane do przelewu", nie do

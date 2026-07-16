@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureCostsSchema } from "@/lib/db";
+import { getSql, ensureCostsSchema, ensureLinksSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
@@ -12,10 +12,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   await ensureCostsSchema();
+  // client_id/lead_id żyją w schemacie "links" (Moduł 22), nie w "costs" —
+  // bez tego SELECT niżej wywala się na nieistniejącej kolumnie.
+  await ensureLinksSchema();
   const sql = getSql();
   const rows = await sql`
     SELECT id, dostawca_nazwa, dostawca_nip, kategoria, opis, data_wydatku,
       kwota_netto, vat_stawka, kwota_brutto, status, data_platnosci, project_id,
+      client_id, lead_id,
       created_at, updated_at, zalacznik_nazwa, zalacznik_typ, ksef_numer, ksef_tryb,
       metoda_platnosci, dostawca_konto, numer_faktury, data_wplywu,
       vat_odliczenie_procent, duplikat_potwierdzony
@@ -55,6 +59,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("project_id" in body) {
       const v = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id : null;
       await sql`UPDATE costs SET project_id = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    // Moduł 22 — klient/lead wprost na koszcie. Dotąd dało się go wywnioskować
+    // TYLKO pośrednio, przez projekt: koszt „na rzecz" klienta, ale bez
+    // projektu (np. licencja kupiona pod jedno wdrożenie) nie miał tego gdzie
+    // zapisać. Relacja wyłączna — patrz linkValueFor() w lib/links.ts.
+    if ("client_id" in body || "lead_id" in body) {
+      await ensureLinksSchema();
+      const c = typeof body.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+      const l = typeof body.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;
+      await sql`UPDATE costs SET client_id = ${c}, lead_id = ${l}, updated_at = now() WHERE id = ${id};`;
     }
     if ("metoda_platnosci" in body) {
       const v = typeof body.metoda_platnosci === "string" && (PAYMENT_METHODS as readonly string[]).includes(body.metoda_platnosci) ? body.metoda_platnosci : null;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
 import { Popover, PropertyMenu, MenuRow } from "../Menu";
+import { LinkPicker, type LinkTarget, type LinkValue } from "../LinkPicker";
 import {
   MailStatusTag,
   MailCategoryTag,
@@ -96,8 +97,11 @@ export function MailDetailPanel({
    * podstronie (`[id]/MailDetail.tsx` → `router.push`). */
   onOpenThreadMessage?: (id: string) => void;
 }) {
-  const { toast, prompt } = useUI();
+  const { toast, prompt, confirm } = useUI();
   const [mail, setMail] = useState<MailMessageWithLinks | null>(null);
+  // Moduł 22 — ile INNYCH wiadomości z tego adresu wisi nieprzypisanych.
+  // Decyduje, czy po wyborze klienta pada pytanie „przypiąć też pozostałe N?".
+  const [sameAddress, setSameAddress] = useState(0);
   const [html, setHtml] = useState("");
   const [blockedImages, setBlockedImages] = useState(false);
   const [thread, setThread] = useState<ThreadSibling[]>([]);
@@ -129,6 +133,7 @@ export function MailDetailPanel({
     setHtml(data.html || "");
     setBlockedImages(Boolean(data.blockedImages));
     setThread(Array.isArray(data.thread) ? data.thread : []);
+    setSameAddress(typeof data.unassignedSameAddress === "number" ? data.unassignedSameAddress : 0);
   }, [mailId, showImages, toast]);
 
   useEffect(() => {
@@ -227,6 +232,62 @@ export function MailDetailPanel({
     await load();
     await onChanged();
   }, [mail, mailId, load, onChanged, toast]);
+
+  /**
+   * Moduł 22 — ręczne przypięcie wiadomości do klienta/leada.
+   *
+   * Domyka lukę, przez którą mail od klienta piszącego z INNEGO adresu niż
+   * zapisany w kartotece zostawał "Nieprzypisany" na zawsze: auto-dopasowanie
+   * umie tylko równość adresu, a panel nie miał czym tego poprawić (PATCH
+   * przyjmował client_id/lead_id od Modułu 4d, ale nic go nie wołało).
+   *
+   * Przy nieprzypisanych zaległościach z tego samego adresu pytamy, czy
+   * rozciągnąć decyzję na cały adres. Pytamy, a nie robimy po cichu — zasada
+   * projektu brzmi „podpowiedź informuje, właściciel zatwierdza".
+   */
+  const linkTo = useCallback(
+    async (next: LinkValue, picked: LinkTarget | null) => {
+      if (!mail || !picked) return;
+
+      let applyToAddress = false;
+      if (sameAddress > 0) {
+        // Wprost o tym, co robi "Anuluj" — bez tego zdania brzmi ono jak
+        // „odwołaj całe przypisanie", a znaczy „tylko ta jedna wiadomość".
+        // Wiadomość jest przypisywana tak czy siak; pytanie dotyczy WYŁĄCZNIE
+        // rozciągnięcia decyzji na adres.
+        applyToAddress = await confirm(
+          `Zapamiętać, że ${mail.from_addr} to ${picked.nazwa}?\n\n` +
+            `Potwierdź — przypnę też ${sameAddress} ${sameAddress === 1 ? "zaległą wiadomość" : "zaległe wiadomości"} ` +
+            `z tego adresu, a kolejne dopasują się same.\n` +
+            `Anuluj — przypnę tylko tę jedną wiadomość.`
+        );
+      }
+
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/mail/${mailId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...next, applyToAddress }),
+        });
+        if (!res.ok) {
+          toast("Nie udało się przypisać wiadomości.", "error");
+          return;
+        }
+        toast(
+          applyToAddress
+            ? `Przypisano do: ${picked.nazwa}. Adres zapamiętany.`
+            : `Przypisano do: ${picked.nazwa}.`,
+          "success"
+        );
+        await load();
+        await onChanged();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [mail, mailId, sameAddress, confirm, load, onChanged, toast]
+  );
 
   /** Decyzja screenera (Moduł 4, Etap 3) — "Zatwierdź nadawcę"/"Zablokuj" z
    * baneru niżej. Ten sam wzorzec co toggleFlag() wyżej: PATCH, potem load()
@@ -798,6 +859,26 @@ export function MailDetailPanel({
             🧾 {mail.invoice_numer}
           </Link>
         )}
+        {/* Moduł 22 — RĘCZNE przypięcie do istniejącego klienta/leada.
+            Stoi PRZED "Utwórz leada/klienta", bo gdy klient już jest w bazie
+            (tylko napisał z innego adresu), utworzenie go od nowa produkuje
+            dokładnie ten duplikat, którego ten moduł ma się pozbyć.
+            Widoczne też dla wiadomości już przypisanej — pomyłkę trzeba dać
+            się poprawić, nie tylko wypełnić puste pole. */}
+        <LinkPicker
+          kinds={["client", "lead"]}
+          value={{ client_id: mail.client_id, lead_id: mail.lead_id }}
+          onPick={(next, picked) => void linkTo(next, picked)}
+          trigger={(picked, open) => (
+            <button
+              onClick={open}
+              disabled={busy}
+              className="rounded-full border hairline px-2.5 py-1 text-muted hover:text-[var(--fg)] disabled:opacity-50"
+            >
+              {picked ? "🔗 Zmień powiązanie" : "🔗 Przypisz do klienta/leada"}
+            </button>
+          )}
+        />
         {unassigned && (
           <>
             <button

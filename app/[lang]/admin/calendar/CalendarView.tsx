@@ -12,6 +12,7 @@ import type { Deadline, DeadlineKind } from "@/app/api/events/deadlines/route";
 import { todayLocalISO as todayISO, addDaysToISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover } from "../Menu";
+import { LinkPicker } from "../LinkPicker";
 
 type KindStyle = { border: string; bg: string; text: string; dot: string; label: string };
 
@@ -1664,37 +1665,41 @@ function AddEventForm({
           />
         </div>
       )}
+      {/* Moduł 22 — trzy surowe <select>y zastąpione wspólnym LinkPickerem
+          (ten sam wygląd, wyszukiwarka i klawiatura co w Poczcie/Leadach/
+          Umowach). Dwa pola, nie trzy: kontakt (klient ALBO lead — relacja
+          wyłączna) i osobno projekt, bo "spotkanie u klienta X w sprawie
+          projektu Y" to dwie różne, niesprzeczne informacje. */}
       <div className="flex flex-wrap gap-2">
-        <select
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11px] text-muted"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Powiąż z klientem (opcjonalnie)</option>
-          {(clients ?? []).map((c) => (
-            <option key={c.id} value={c.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{c.nazwa}</option>
-          ))}
-        </select>
-        <select
-          value={leadId}
-          onChange={(e) => setLeadId(e.target.value)}
-          className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11px] text-muted"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Powiąż z leadem (opcjonalnie)</option>
-          {(leads ?? []).map((l) => (
-            <option key={l.id} value={l.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{l.firma}</option>
-          ))}
-        </select>
-        <select
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11px] text-muted"
-        >
-          <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Powiąż z projektem (opcjonalnie)</option>
-          {(projects ?? []).map((p) => (
-            <option key={p.id} value={p.id} className="bg-[var(--bg-soft)] text-[var(--fg)]">{p.tytul}</option>
-          ))}
-        </select>
+        <LinkPicker
+          kinds={["client", "lead"]}
+          value={{ client_id: clientId || null, lead_id: leadId || null }}
+          onPick={(next) => {
+            setClientId(next.client_id ?? "");
+            setLeadId(next.lead_id ?? "");
+          }}
+          trigger={(picked, open) => (
+            <button
+              onClick={open}
+              className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+            >
+              {picked ? `🔗 ${picked.nazwa}` : "Powiąż z klientem/leadem (opcjonalnie)"}
+            </button>
+          )}
+        />
+        <LinkPicker
+          kinds={["project"]}
+          value={{ project_id: projectId || null }}
+          onPick={(next) => setProjectId(next.project_id ?? "")}
+          trigger={(picked, open) => (
+            <button
+              onClick={open}
+              className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+            >
+              {picked ? `📁 ${picked.nazwa}` : "Powiąż z projektem (opcjonalnie)"}
+            </button>
+          )}
+        />
       </div>
     </div>
   );

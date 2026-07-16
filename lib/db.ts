@@ -1759,3 +1759,73 @@ export async function ensureMailTemplatesSchema(): Promise<void> {
   if (!mailTemplatesSchemaReady) mailTemplatesSchemaReady = createMailTemplatesSchema();
   await mailTemplatesSchemaReady;
 }
+
+/* ------------------------------------------------- Moduł 22 — powiązania --- */
+
+let linksSchemaReady: Promise<void> | null = null;
+
+/** Moduł 22 — domknięcie powiązań z CRM tam, gdzie brakowało kolumny.
+ *
+ * Osobny schemat (a nie dopisek do `clients`/`costs`), bo dotyka tabel z
+ * czterech różnych schematów naraz — musi więc poczekać, aż wszystkie
+ * powstaną. Bramka `links` pozwala mu przy tym kosztować zero zapytań na
+ * zimny start jak reszta (patrz HUB_SETUP.md → „Bramka migracji").
+ *
+ * Świadomie NIE dokłada tu UI notatnika — to Moduł 26. Kolumny powstają
+ * wcześniej, żeby 26 miał na czym stanąć.
+ */
+async function createLinksSchema(): Promise<void> {
+  if (await schemaUpToDate("links")) return;
+
+  // Każdy `REFERENCES` poniżej wymaga istniejącej tabeli docelowej ORAZ
+  // źródłowej: clients/leads (cel), notes+events (hub), costs, mail.
+  await ensureClientsSchema();
+  await ensureCostsSchema();
+  await ensureMailSchema();
+
+  const sql = getSql();
+
+  // Koszty — dotąd klient dało się wywnioskować TYLKO pośrednio, przez
+  // projekt (costs.project_id). Koszt bez projektu, ale „na rzecz" klienta
+  // (np. licencja kupiona pod jedno wdrożenie) nie miał gdzie tego zapisać.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL;`;
+
+  // ...i to samo w szablonie kosztu cyklicznego, żeby wygenerowany koszt
+  // dziedziczył powiązanie zamiast gubić je co miesiąc.
+  await sql`ALTER TABLE recurring_costs ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE recurring_costs ADD COLUMN IF NOT EXISTS lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL;`;
+
+  // Notatnik był jedynym modułem całkowicie odciętym od CRM — zero kolumn
+  // powiązań.
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES clients(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;`;
+
+  // Aliasy adresów e-mail (decyzja właściciela 2026-07-16).
+  //
+  // Auto-dopasowanie poczty umie tylko równość adresu z tym zapisanym w
+  // kartotece (findContactsByEmail), więc gdy klient napisze z prywatnej
+  // czy nowej skrzynki, wiadomość ląduje w „Nieprzypisane" — i lądowała tam
+  // KAŻDA kolejna, bo ręczne przypięcie dotyczyło jednej wiadomości. Ta
+  // tabela zapamiętuje decyzję „ten adres to ten klient" raz.
+  //
+  // `email` jako PRIMARY KEY: jeden adres = jeden właściciel. Nadpisanie
+  // (ON CONFLICT) to naturalny sposób poprawienia pomyłki.
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_address_links (
+      email TEXT PRIMARY KEY,
+      client_id TEXT REFERENCES clients(id) ON DELETE CASCADE,
+      lead_id TEXT REFERENCES leads(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  await markSchemaApplied("links");
+}
+
+/** Lazily tworzy kolumny powiązań Modułu 22 + tabelę aliasów adresów. */
+export async function ensureLinksSchema(): Promise<void> {
+  if (!linksSchemaReady) linksSchemaReady = createLinksSchema();
+  await linksSchemaReady;
+}

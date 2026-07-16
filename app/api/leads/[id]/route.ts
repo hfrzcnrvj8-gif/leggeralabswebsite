@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { rematchUnassigned } from "@/lib/mailSync";
@@ -48,6 +48,17 @@ export async function PATCH(
   const sql = getSql();
 
   const str = (v: unknown) => (typeof v === "string" ? v : "");
+
+  // Moduł 22 — powiązanie z ISTNIEJĄCYM klientem. Kolumna `leads.client_id`
+  // istniała od Modułu 12, ale wypełniał ją wyłącznie awans leada
+  // (api/leads/[id]/promote), więc jedyną drogą z panelu było „Utwórz
+  // klienta" — a to przy kliencie już będącym w bazie tworzy duplikat.
+  // `null` = odepnij; pusty string też, bo tak picker sygnalizuje „— brak —".
+  if ("client_id" in body) {
+    await ensureClientsSchema();
+    const clientId = typeof body.client_id === "string" && body.client_id ? body.client_id : null;
+    await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${id};`;
+  }
 
   if ("firma" in body) {
     await sql`UPDATE leads SET firma = ${str(body.firma)}, updated_at = now() WHERE id = ${id};`;

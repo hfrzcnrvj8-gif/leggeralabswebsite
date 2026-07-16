@@ -27,6 +27,7 @@ import {
   StatusTag,
 } from "./shared";
 import { ProcessMap, PillPicker } from "../components";
+import { LinkPicker } from "../LinkPicker";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
@@ -257,14 +258,36 @@ export function LeadDetailPanel({
               → Karta klienta
             </Link>
           ) : (
-            <button
-              onClick={promoteToClient}
-              disabled={promoting}
-              title="Gdy rozmowa realnie się zaczęła — utwórz klienta, żeby mieć jego historię kontaktu w jednym miejscu"
-              className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
-            >
-              {promoting ? "Tworzę…" : "+ Utwórz klienta"}
-            </button>
+            <>
+              {/* Moduł 22 — „ten lead to firma, którą już mam w bazie".
+                  Kolumna leads.client_id istniała od Modułu 12, ale wypełniał
+                  ją tylko awans, więc jedynym wyjściem było „+ Utwórz
+                  klienta" — czyli drugi rekord tej samej firmy. Picker stoi
+                  PRZED przyciskiem właśnie dlatego. */}
+              <LinkPicker
+                kinds={["client"]}
+                value={{ client_id: lead.client_id }}
+                onPick={(next) => updateLead("client_id", next.client_id ?? "")}
+                placeholder="🔗 Podepnij istniejącego"
+                trigger={(picked, open) => (
+                  <button
+                    onClick={open}
+                    title="Gdy ta firma jest już w bazie klientów — podepnij ją zamiast tworzyć duplikat"
+                    className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+                  >
+                    {picked ? `🔗 ${picked.nazwa}` : "🔗 Podepnij istniejącego"}
+                  </button>
+                )}
+              />
+              <button
+                onClick={promoteToClient}
+                disabled={promoting}
+                title="Gdy rozmowa realnie się zaczęła — utwórz klienta, żeby mieć jego historię kontaktu w jednym miejscu"
+                className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+              >
+                {promoting ? "Tworzę…" : "+ Utwórz klienta"}
+              </button>
+            </>
           )}
           <button
             onClick={sendNda}

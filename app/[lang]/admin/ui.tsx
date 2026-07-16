@@ -147,7 +147,11 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
               role="alertdialog"
               aria-modal="true"
             >
-              <p className="text-sm leading-relaxed">{confirmState.message}</p>
+              {/* whitespace-pre-line — komunikat bywa wielolinijkowy (np.
+                  pytanie o alias adresu w Poczcie rozbija na osobne linie, co
+                  robi "Potwierdź", a co "Anuluj"). Jednolinijkowe komunikaty
+                  wyglądają tak samo jak dotąd. */}
+              <p className="whitespace-pre-line text-sm leading-relaxed">{confirmState.message}</p>
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   autoFocus

@@ -25,6 +25,7 @@ import {
   ProjectIconPicker,
 } from "./shared";
 import { EditableText, EditableTextarea, ClientLinkChip } from "../components";
+import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { PropertyMenu, Popover, MenuRow, type MenuOption } from "../Menu";
 import { DateField } from "../DatePicker";
 import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
@@ -410,6 +411,28 @@ export function ProjectDetailPanel({
     onFieldChange?.(id, "dependencies", "");
   };
 
+  /** Moduł 22 — zapis powiązania. Osobno od updateProject(), bo LinkPicker
+   * zmienia DWA pola naraz (wybór klienta czyści leada), a updateProject
+   * przyjmuje jedno pole i jeden string. */
+  const updateProjectLink = async (next: LinkValue) => {
+    setProject((prev) => (prev ? { ...prev, ...next } : prev));
+    setSaveState("saving");
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    });
+    if (!res.ok) {
+      setSaveState("idle");
+      toast("Nie udało się zapisać powiązania.", "error");
+      load();
+      return;
+    }
+    setSaveState("saved");
+    if (savedTimer.current) window.clearTimeout(savedTimer.current);
+    savedTimer.current = window.setTimeout(() => setSaveState("idle"), 1800);
+  };
+
   const updateProject = async (field: string, value: string) => {
     // Natywne <input type="date"> potrafi zapisać niepełny rok (np. "0202"
     // zamiast "2026"), jeśli pole straci fokus w trakcie wpisywania —
@@ -756,14 +779,6 @@ export function ProjectDetailPanel({
 
   const unmilestoned = tasks.filter((t) => !t.milestone_id);
   const overall = progressOf(tasks);
-  const leadOptions: MenuOption<string>[] = [
-    { value: "", label: "— brak —" },
-    ...(leads ?? []).map((l) => ({ value: l.id, label: l.firma })),
-  ];
-  const clientOptions: MenuOption<string>[] = [
-    { value: "", label: "— brak —" },
-    ...(clients ?? []).map((c) => ({ value: c.id, label: c.nazwa || "(bez nazwy)" })),
-  ];
 
   return (
     <div>
@@ -1418,27 +1433,23 @@ export function ProjectDetailPanel({
                 <DeadlineHint termin={project.termin} closed={project.status === "Wdrożone"} />
               </div>
             </MetaRow>
-            <MetaRow icon={<IconTargetArrow size={15} />} title="Lead">
-              <PropertyMenu
-                value={project.lead_id ?? ""}
-                options={leadOptions}
-                onChange={(v) => updateProject("lead_id", v)}
-                title="Powiązany lead"
-                full
-              >
-                <PropTrigger label={project.lead_id ? (leads?.find((l) => l.id === project.lead_id)?.firma ?? "—") : "— brak —"} />
-              </PropertyMenu>
-            </MetaRow>
-            <MetaRow icon={<IconUsers size={15} />} title="Klient">
-              <PropertyMenu
-                value={project.client_id ?? ""}
-                options={clientOptions}
-                onChange={(v) => updateProject("client_id", v)}
-                title="Powiązany klient"
-                full
-              >
-                <PropTrigger label={project.client_id ? (clients?.find((c) => c.id === project.client_id)?.nazwa || "(bez nazwy)") : "— brak —"} />
-              </PropertyMenu>
+            {/* Moduł 22 — dwa osobne selecty ("Lead" i "Klient") zastąpione
+                jednym polem: relacja jest wyłączna (decyzja właściciela
+                2026-07-16), więc drugie pole i tak zawsze zostawało puste.
+                Projekt z ZAAKCEPTOWANEJ oferty ma w bazie oba pola (dziedziczy
+                je z oferty, lib/offerAccept.ts) — wtedy pokazujemy klienta
+                (aktualniejsza relacja), a ręczna zmiana czyści leada. */}
+            <MetaRow icon={<IconUsers size={15} />} title="Powiązanie">
+              <LinkPicker
+                kinds={["client", "lead"]}
+                value={{ client_id: project.client_id, lead_id: project.lead_id }}
+                onPick={(next) => void updateProjectLink(next)}
+                trigger={(picked, open) => (
+                  <button onClick={open} className="w-full text-left">
+                    <PropTrigger label={picked ? picked.nazwa : "— brak —"} />
+                  </button>
+                )}
+              />
             </MetaRow>
           </div>
 

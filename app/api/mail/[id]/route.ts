@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema, ensureMailFoldersSchema } from "@/lib/db";
 import { MAIL_STATUSES, mailSummaryLine, isPlausibleTimestamp, type MailMessageWithLinks } from "@/lib/mail";
 import { logMailOnTimeline } from "@/lib/mailSync";
+import { countUnassignedFromAddress, rememberAddressLink } from "@/lib/contactLookup";
 import { sanitizeMailHtml } from "@/lib/mailHtml";
 import { isMailboxConfigured, moveMessage } from "@/lib/mailbox";
 
@@ -69,11 +70,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }[])
     : [];
 
+  // Moduł 22 — ile INNYCH wiadomości z tego adresu wisi nieprzypisanych.
+  // Liczone tu, a nie po przypięciu, bo panel musi zadać pytanie „przypiąć
+  // też pozostałe N?" ZANIM właściciel wybierze klienta. Tylko dla
+  // przychodzących i tylko gdy ta wiadomość sama jest nieprzypisana — w
+  // pozostałych przypadkach pytanie i tak nie padnie, więc nie ma po co
+  // płacić za zapytanie.
+  const unassignedSameAddress =
+    message.kierunek === "in" && !message.client_id && !message.lead_id
+      ? await countUnassignedFromAddress(message.from_addr, id)
+      : 0;
+
   return NextResponse.json({
     message: { ...message, body_html: "" },
     html,
     blockedImages,
     thread,
+    unassignedSameAddress,
   });
 }
 
@@ -98,6 +111,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     senderDecision?: unknown;
     snoozeUntil?: unknown;
     nudgeDismissed?: unknown;
+    /** Moduł 22 — rozciągnij to przypisanie na CAŁY adres nadawcy:
+     * zapamiętaj alias na przyszłość i przypnij zaległe nieprzypisane
+     * wiadomości z tego adresu. Zawsze jawna zgoda właściciela (panel pyta),
+     * nigdy domyślne. */
+    applyToAddress?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
 
@@ -230,18 +248,59 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const clientId = typeof body.client_id === "string" && body.client_id ? body.client_id : null;
   const leadId = typeof body.lead_id === "string" && body.lead_id ? body.lead_id : null;
 
-  if (clientId || leadId) {
+  // Obecność pola w body, nie jego prawdziwość — LinkPicker wysyła OBA pola,
+  // a przy wyborze "— brak —" oba są `null`. Warunek `if (clientId || leadId)`
+  // po cichu ignorował taki request, więc odpiąć źle przypisanej wiadomości
+  // po prostu się nie dało.
+  if ("client_id" in body || "lead_id" in body) {
     await sql`UPDATE mail_messages SET client_id = ${clientId}, lead_id = ${leadId} WHERE id = ${id};`;
 
+    const match: { type: "client" | "lead"; id: string } | null = clientId
+      ? { type: "client", id: clientId }
+      : leadId
+        ? { type: "lead", id: leadId }
+        : null;
+
     // Nie dubluj wpisu, gdy mail był już przypisany do tego samego rekordu.
+    // Odpięcie (match === null) nie ma czego dopisywać na oś — wpis z
+    // poprzedniego przypisania zostaje jako ślad historii.
     const alreadyLinked = (clientId && mail.client_id === clientId) || (leadId && mail.lead_id === leadId);
-    if (!alreadyLinked) {
+    if (match && !alreadyLinked) {
       await logMailOnTimeline(sql, {
         mailId: id,
-        match: clientId ? { type: "client", id: clientId } : { type: "lead", id: leadId! },
+        match,
         text: mailSummaryLine(mail.subject, mail.body_text),
         kierunek: "przychodzacy",
       });
+    }
+
+    // Moduł 22 — „ten adres to ten klient". Bez tego auto-dopasowanie umie
+    // tylko równość adresu z kartoteką, więc każda kolejna wiadomość z
+    // prywatnej skrzynki klienta wracała do "Nieprzypisane" i trzeba było
+    // przypinać ją od nowa.
+    if (match && body.applyToAddress === true && mail.from_addr) {
+      await rememberAddressLink(mail.from_addr, match);
+
+      // Zaległe wiadomości z tego adresu — tylko NIEPRZYPISANE, żeby nie
+      // nadpisać wcześniejszej, świadomej decyzji właściciela o innym
+      // przypięciu.
+      const backlog = (await sql`
+        SELECT id, subject, body_text FROM mail_messages
+        WHERE LOWER(TRIM(from_addr)) = LOWER(TRIM(${mail.from_addr}))
+          AND id != ${id}
+          AND client_id IS NULL AND lead_id IS NULL
+          AND kierunek = 'in';
+      `) as unknown as { id: string; subject: string; body_text: string }[];
+
+      for (const m of backlog) {
+        await sql`UPDATE mail_messages SET client_id = ${clientId}, lead_id = ${leadId} WHERE id = ${m.id};`;
+        await logMailOnTimeline(sql, {
+          mailId: m.id,
+          match,
+          text: mailSummaryLine(m.subject, m.body_text),
+          kierunek: "przychodzacy",
+        });
+      }
     }
   }
 
