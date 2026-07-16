@@ -14,10 +14,12 @@ import {
   MAIL_FOLDER_LABEL,
   MAIL_FOLDER_ICON,
   formatPlDateTime,
+  daysSinceISO,
   type MailMessageWithLinks,
   type MailStatus,
   type MailFolder,
   type MailCategory,
+  type NudgeThread,
 } from "./shared";
 import { MailDetailPanel } from "./MailDetailPanel";
 import { MailComposeForm } from "./MailComposeForm";
@@ -27,7 +29,7 @@ import { MailComposeForm } from "./MailComposeForm";
 // listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki". Sensowne
 // TYLKO w Odebranych (Etap 2 Modułu 4b) — Wysłane/Kosz/Archiwum nie mają
 // pojęcia "do odpowiedzi" ani klasyfikacji treści.
-type Filter = "nowy" | "unassigned" | "vip" | "snoozed" | "screener" | "all";
+type Filter = "nowy" | "unassigned" | "vip" | "snoozed" | "screener" | "all" | "nudge";
 type CatFilter = "wszystkie" | "oferta" | "rachunek" | "urzedowe" | "inne" | "reklama";
 
 const FILTERS: { id: Filter; label: string }[] = [
@@ -37,6 +39,14 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "snoozed", label: "Uśpione" },
   { id: "screener", label: "Nowi nadawcy" },
   { id: "all", label: "Wszystkie" },
+];
+
+// Moduł 4f — sensowne TYLKO w Wysłane (agregacja na poziomie wątku w
+// poprzek folderów, patrz getNudgeThreads() w lib/db.ts), stąd osobny zestaw
+// pigułek od FILTERS wyżej (te są dla Odebranych).
+const SENT_FILTERS: { id: Filter; label: string }[] = [
+  { id: "all", label: "Wszystkie" },
+  { id: "nudge", label: "Bez odpowiedzi" },
 ];
 
 const CAT_FILTERS: { id: CatFilter; label: string }[] = [
@@ -101,6 +111,13 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   const [messages, setMessages] = useState<MailMessageWithLinks[] | null>(null);
   const [counts, setCounts] = useState<Counts>({ nowe: 0, nieprzypisane: 0 });
   const [configured, setConfigured] = useState(true);
+  // Nudge/Follow-up (Moduł 4f) — osobny stan, NIE część `messages`: to
+  // agregat na poziomie wątku w poprzek folderów (getNudgeThreads(),
+  // lib/db.ts), którego generyczna lista jednego folderu nie zwraca.
+  // Wczytywany raz przy wejściu (żeby liczba na pigułce była od razu
+  // widoczna) i po każdym syncu/wyciszeniu.
+  const [nudgeThreads, setNudgeThreads] = useState<NudgeThread[] | null>(null);
+  const [nudgeBusyId, setNudgeBusyId] = useState<string | null>(null);
   // Lazy initializery (nie zwykłe literały) — jeśli właściciel wrócił tu z
   // karty klienta/leada (patrz MAIL_RETURN_STATE_KEY wyżej), stan startowy to
   // DOKŁADNIE to, co zostawił, nie zawsze domyślne Odebrane/"Do odpowiedzi".
@@ -164,6 +181,39 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     setConfigured(data.configured);
   }, [activeFolder, query, toast]);
 
+  /** Moduł 4f — osobne zapytanie, patrz komentarz przy stanie `nudgeThreads`
+   * wyżej. Cicho ignoruje błąd (brak `res.ok` check poza 401): licznik na
+   * pigułce po prostu zostaje 0, to nie jest krytyczna ścieżka jak `load()`. */
+  const loadNudge = useCallback(async () => {
+    const res = await fetch("/api/mail/nudge");
+    if (res.status === 401) return;
+    if (!res.ok) return;
+    const data = await res.json().catch(() => null);
+    setNudgeThreads(Array.isArray(data?.threads) ? data.threads : []);
+  }, []);
+
+  /** Wycisz pojedynczy przypominacz — jedyny naturalny powrót to wysłanie
+   * kolejnej wiadomości w wątku (patrz komentarz przy PATCH /api/mail/[id]).
+   * Optymistycznie znika z listy od razu, bez czekania na load(). */
+  const dismissNudge = useCallback(
+    async (thread: NudgeThread) => {
+      setNudgeBusyId(thread.id);
+      const res = await fetch(`/api/mail/${thread.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nudgeDismissed: true }),
+      });
+      setNudgeBusyId(null);
+      if (!res.ok) {
+        toast("Nie udało się wyciszyć przypomnienia.", "error");
+        return;
+      }
+      setNudgeThreads((cur) => (cur ? cur.filter((t) => t.id !== thread.id) : cur));
+      toast("Wyciszono przypomnienie.");
+    },
+    [toast]
+  );
+
   const sync = useCallback(
     async (silent: boolean) => {
       setSyncing(true);
@@ -184,6 +234,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           return;
         }
         await load();
+        void loadNudge(); // nowo pobrana poczta może zawierać odpowiedź, która czyści nudge
         if (!silent) {
           toast(data.saved > 0 ? `Pobrano ${data.saved} now${data.saved === 1 ? "ą wiadomość" : "e wiadomości"}.` : "Brak nowych wiadomości.");
         }
@@ -191,7 +242,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         setSyncing(false);
       }
     },
-    [load, toast]
+    [load, loadNudge, toast]
   );
 
   /** Zmiana statusu wprost z plakietki na liście — bez otwierania podglądu
@@ -343,6 +394,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   useEffect(() => {
     void (async () => {
       await load();
+      // Osobno od sync(true) NIE wewnątrz niego — sync() wraca wcześniej,
+      // gdy skrzynka nie jest skonfigurowana (configured===false, zawsze
+      // lokalnie), więc licznik nudge zostałby wiecznie pusty mimo że dane
+      // leżą w bazie niezależnie od IMAP-a.
+      void loadNudge();
       void sync(true);
     })();
     // Celowo raz przy wejściu — ponowny sync jest pod przyciskiem.
@@ -372,6 +428,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     prevFolderRef.current = activeFolder;
     if (folderChanged) {
       clearSelection();
+      // Zakładki filtrów są inne w Odebranych ("Do odpowiedzi"…) i w Wysłane
+      // ("Bez odpowiedzi") — bez resetu przełączenie folderu zostawiałoby
+      // np. `filter === "nudge"` aktywne w Odebranych, gdzie nic takiego nie
+      // istnieje (patrz SENT_FILTERS/FILTERS wyżej).
+      setFilter(activeFolder === "inbox" ? "nowy" : "all");
       void load();
       return;
     }
@@ -594,6 +655,12 @@ export function MailDashboard({ lang }: { lang: Locale }) {
 
   const folderCount = (f: MailFolder): number => (f === "inbox" ? counts.nowe : (counts[`folder_${f}`] ?? 0));
 
+  // Moduł 4f — zakładka "Bez odpowiedzi" pokazuje zupełnie inne dane
+  // (agregat NudgeThread z /api/mail/nudge, nie MailMessageWithLinks z
+  // `messages`), więc lista niżej ma dwie gałęzie renderowania zamiast
+  // filtrowania wspólnego źródła jak VIP/Uśpione.
+  const isNudgeView = activeFolder === "sent" && filter === "nudge";
+
   return (
     <div className="p-4 sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -675,9 +742,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
-      {activeFolder === "inbox" && (
+      {(activeFolder === "inbox" || activeFolder === "sent") && (
         <div className="mb-3 flex gap-1">
-          {FILTERS.map((f) => (
+          {(activeFolder === "inbox" ? FILTERS : SENT_FILTERS).map((f) => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
@@ -691,6 +758,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               {f.id === "vip" && counts.vip > 0 ? ` (${counts.vip})` : ""}
               {f.id === "snoozed" && counts.snoozed > 0 ? ` (${counts.snoozed})` : ""}
               {f.id === "screener" && counts.pending_screener > 0 ? ` (${counts.pending_screener})` : ""}
+              {f.id === "nudge" && (nudgeThreads?.length ?? 0) > 0 ? ` (${nudgeThreads!.length})` : ""}
             </button>
           ))}
         </div>
@@ -795,6 +863,80 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             zostawać przyklejoną do stałej wartości i wymuszać brutalne
             obcinanie nadawcy/tematu/podglądu w wierszu niżej. */}
         <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[38%] lg:min-w-[380px] lg:max-w-[620px] lg:shrink-0 lg:overflow-y-auto">
+          {isNudgeView ? (
+            nudgeThreads === null ? (
+              <p className="p-8 text-center text-sm text-muted opacity-60">Wczytuję…</p>
+            ) : nudgeThreads.length === 0 ? (
+              <p className="p-8 text-center text-sm text-muted opacity-60">Nic — na wszystko dostałeś odpowiedź.</p>
+            ) : (
+              <ul className="divide-y divide-[var(--hairline)]">
+                {nudgeThreads.map((t) => (
+                  <li key={t.id} className="relative">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setOpenId(t.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setOpenId(t.id);
+                      }}
+                      className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-out hover:bg-[var(--hairline)]/40 ${
+                        openId === t.id ? "bg-brand-purple/[0.07]" : ""
+                      }`}
+                    >
+                      <span className="mt-0.5 shrink-0 text-base" aria-hidden>
+                        ⏰
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">Do: {t.to_addr}</span>
+                          <span className="shrink-0 text-[11px] text-brand-gold">{daysSinceISO(t.received_at)} dni ciszy</span>
+                        </span>
+                        <span className="mt-1 flex items-center gap-1.5">
+                          <span className="min-w-0 flex-1 truncate text-[13px]">{t.subject || "(bez tematu)"}</span>
+                          {t.client_id && t.client_nazwa && (
+                            <Link
+                              href={`/${lang}/admin/clients/${t.client_id}?from=mail`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                writeMailReturnState({ folder: activeFolder, filter, catFilter, openId: t.id });
+                              }}
+                              className="shrink-0 rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-brand-purple hover:opacity-80"
+                            >
+                              {t.client_nazwa}
+                            </Link>
+                          )}
+                          {t.lead_id && t.lead_nazwa && (
+                            <Link
+                              href={`/${lang}/admin/leads/${t.lead_id}?from=mail`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                writeMailReturnState({ folder: activeFolder, filter, catFilter, openId: t.id });
+                              }}
+                              className="shrink-0 rounded-full bg-brand-cyan/15 px-2 py-0.5 text-[11px] text-brand-cyan hover:opacity-80"
+                            >
+                              {t.lead_nazwa}
+                            </Link>
+                          )}
+                        </span>
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void dismissNudge(t);
+                        }}
+                        disabled={nudgeBusyId === t.id}
+                        title="Przestań przypominać o tym wątku"
+                        className="shrink-0 self-center rounded-full border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                      >
+                        Wycisz
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <>
           {threadGroups.length > 0 && (
             <div className="sticky top-0 z-10 flex items-center gap-2 border-b hairline bg-[var(--bg-soft)] px-4 py-2 text-[11px] text-muted">
               <input
@@ -1017,6 +1159,8 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                 );
               })}
             </ul>
+          )}
+            </>
           )}
         </div>
 

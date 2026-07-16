@@ -111,9 +111,45 @@ export type MailMessage = {
    * opcji (snoozeOptions() niżej) — nigdy z <input type="date">, patrz
    * CLAUDE.md. */
   snooze_until: string | null;
+  /** Nudge/Follow-up (Moduł 4f) — ręczne wyciszenie POJEDYNCZEGO
+   * przypominacza ("wiem że nie odpowie, przestań przypominać"), wzorem
+   * snooze_until. NULL = nie wyciszony. W przeciwieństwie do snooze NIE
+   * wraca samo z upływem czasu — jedyny sposób wyzerowania to wysłanie
+   * KOLEJNEJ wiadomości w tym wątku (nowy reprezentant wątku ma własne,
+   * puste pole), patrz getNudgeThreads() w lib/db.ts. */
+  nudge_dismissed_at: string | null;
   received_at: string;
   handled_at: string | null;
 };
+
+/** Follow-up nudge (Moduł 4f, 2026-07-16) — "wysłałeś, cisza od N dni". Jeden
+ * wpis NA WĄTEK, reprezentowany przez NAJNOWSZĄ wychodzącą wiadomość
+ * (kierunek='out', folder='sent') bez ŻADNEJ odpowiedzi (kierunek='in') w
+ * tym samym wątku, niezależnie od folderu odpowiedzi. Kształt zwracany przez
+ * getNudgeThreads() (lib/db.ts) — WSPÓLNY dla zakładki „Bez odpowiedzi" w
+ * panelu i dla dziennego digestu (app/api/leads/notify/route.ts), żeby obie
+ * ścieżki zawsze zgadzały się co do tego, co liczy się jako nudge. */
+export type NudgeThread = {
+  /** Id reprezentatywnej wiadomości WYCHODZĄCEJ — do PATCH /api/mail/[id]
+   * (wyciszenie) i otwarcia w podglądzie. */
+  id: string;
+  thread_id: string;
+  to_addr: string;
+  subject: string;
+  /** Data wysłania reprezentatywnej wiadomości — liczba dni ciszy to
+   * daysSinceISO(received_at) z lib/dates.ts. */
+  received_at: string;
+  client_id: string | null;
+  lead_id: string | null;
+  client_nazwa: string | null;
+  lead_nazwa: string | null;
+};
+
+/** Próg dni ciszy zanim wątek trafi do nudge — stała w kodzie (nie
+ * ustawienie w UI), zgodnie z resztą panelu (CLAUDE.md). Wartość z
+ * oryginalnego briefu (docs/plany-modulow/04f-poczta-nudge.md), potwierdzona
+ * z właścicielem przy starcie tej rundy. Zmiana wymaga edycji kodu. */
+export const MAIL_NUDGE_DAYS = 5;
 
 /** Screener nowych nadawców (Moduł 4, Etap 3) — status wpisu w `mail_senders`,
  * dołączany przez JOIN przy odczycie (nie zapisany na samej wiadomości), patrz

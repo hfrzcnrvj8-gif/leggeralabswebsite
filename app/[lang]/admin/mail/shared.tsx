@@ -35,13 +35,16 @@ export {
   MAIL_ATTACHMENT_MIME_TYPES,
   MAIL_ATTACHMENT_MAX_FILE_BYTES,
   MAIL_ATTACHMENT_MAX_TOTAL_BYTES,
+  type NudgeThread,
+  MAIL_NUDGE_DAYS,
 } from "@/lib/mail";
 
 export { CONTACT_CHANNEL_ICON, CONTACT_CHANNEL_CLASS } from "@/lib/contact";
 
 // Formatowanie daty+godziny snooza (Moduł 4, Etap 3) — jak formatPlDate()
 // w lib/projects.ts, ale z godziną, bo snooze_until to TIMESTAMPTZ.
-export { formatPlDateTime } from "@/lib/dates";
+// daysSinceISO (Moduł 4f) — "cisza od N dni" w zakładce nudge.
+export { formatPlDateTime, daysSinceISO } from "@/lib/dates";
 
 // Podpisy — tylko stałe (nazwy języków). Sam generator HTML-a
 // (signatureHtml) zostaje po stronie serwera: nie ma po co wysyłać do

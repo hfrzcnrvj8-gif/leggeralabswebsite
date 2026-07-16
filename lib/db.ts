@@ -1,6 +1,7 @@
 import { neon, Pool, type NeonQueryFunction } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 import { inMigration } from "./migration-ctx";
+import { MAIL_NUDGE_DAYS, type NudgeThread } from "./mail";
 
 export type Sql = NeonQueryFunction<false, false>;
 
@@ -1595,6 +1596,22 @@ async function createMailSchema(): Promise<void> {
   // naszej bazie, ten sam wzorzec co cc_addr wyżej.
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS bcc_addr TEXT;`;
 
+  // Moduł 4f (2026-07-16) — Nudge/Follow-up ("wysłałeś, cisza od N dni").
+  // Kolumna WPROST na wiadomości wychodzącej — pozwala ręcznie wyciszyć
+  // pojedynczy przypominacz ("wiem że nie odpowie, przestań przypominać"),
+  // wzorem snooze_until wyżej. NULL = nie wyciszony. W PRZECIWIEŃSTWIE do
+  // snooze_until MA własny indeks częściowy: getNudgeThreads() (niżej)
+  // odpytuje go przy KAŻDYM odczycie zakładki „Bez odpowiedzi" i dziennego
+  // digestu, a warunek WHERE kierunek='out' AND folder='sent' zawęża go do
+  // ułamka wszystkich wiadomości — snooze filtruje cały folder='inbox' z
+  // naturalnym limitem 200, tu takiego ogranicznika nie ma.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS nudge_dismissed_at TIMESTAMPTZ;`;
+  await sql`
+    CREATE INDEX IF NOT EXISTS mail_messages_nudge_idx
+      ON mail_messages(thread_id, received_at DESC)
+      WHERE kierunek = 'out' AND folder = 'sent';
+  `;
+
   // Jednorazowy backfill (2026-07-16) — naprawa luki w saveOutgoingFromServer()/
   // saveArchivedOrTrashed() (lib/mailSync.ts): ON CONFLICT aktualizował TYLKO
   // `folder`, więc self-mail przeniesiony ręcznie z Odebranych do Archiwum/
@@ -1617,6 +1634,43 @@ async function createMailSchema(): Promise<void> {
 export async function ensureMailSchema(): Promise<void> {
   if (!mailSchemaReady) mailSchemaReady = createMailSchema();
   await mailSchemaReady;
+}
+
+/** Moduł 4f (2026-07-16) — wątki bez odpowiedzi: wysłałeś OSTATNIĄ wiadomość
+ * w wątku (kierunek='out', folder='sent') i minęło `days` dni bez ŻADNEJ
+ * odpowiedzi (kierunek='in') w tym samym wątku — niezależnie od folderu,
+ * odpowiedź może leżeć w Odebranych/Archiwum/Koszu. Dlatego to NIE jest
+ * filtr na już pobranej liście jednego folderu (jak VIP/Snooze) — wymaga
+ * osobnego zapytania w poprzek dwóch folderów, patrz
+ * docs/plany-modulow/04f-poczta-nudge.md.
+ *
+ * `DISTINCT ON (thread_id)` wybiera reprezentanta wątku — NAJNOWSZĄ
+ * wychodzącą wiadomość — więc próg dni i wyciszenie (nudge_dismissed_at)
+ * liczą się od NIEJ, nie od pierwszej wiadomości w wątku (jeśli dosłałeś
+ * przypomnienie, licznik startuje od przypomnienia). Współdzielone przez
+ * zakładkę „Bez odpowiedzi" (app/api/mail/nudge/route.ts) i dzienny digest
+ * (app/api/leads/notify/route.ts) — jedna definicja w obu miejscach, żeby
+ * nigdy się nie rozjechały. */
+export async function getNudgeThreads(sql: Sql, days: number = MAIL_NUDGE_DAYS): Promise<NudgeThread[]> {
+  return (await sql`
+    SELECT t.id, t.thread_id, t.to_addr, t.subject, t.received_at, t.client_id, t.lead_id,
+           c.nazwa AS client_nazwa, l.firma AS lead_nazwa
+    FROM (
+      SELECT DISTINCT ON (m.thread_id)
+        m.id, m.thread_id, m.to_addr, m.subject, m.received_at, m.client_id, m.lead_id
+      FROM mail_messages m
+      WHERE m.kierunek = 'out' AND m.folder = 'sent' AND m.thread_id IS NOT NULL
+        AND m.nudge_dismissed_at IS NULL
+      ORDER BY m.thread_id, m.received_at DESC
+    ) t
+    LEFT JOIN clients c ON c.id = t.client_id
+    LEFT JOIN leads l ON l.id = t.lead_id
+    WHERE t.received_at <= now() - make_interval(days => ${days})
+      AND NOT EXISTS (
+        SELECT 1 FROM mail_messages r WHERE r.thread_id = t.thread_id AND r.kierunek = 'in'
+      )
+    ORDER BY t.received_at ASC;
+  `) as unknown as NudgeThread[];
 }
 
 let mailFoldersSchemaReady: Promise<void> | null = null;

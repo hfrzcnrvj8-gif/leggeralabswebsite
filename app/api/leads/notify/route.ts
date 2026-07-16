@@ -11,6 +11,7 @@ import {
   ensureFollowupsSchema,
   ensureCostsSchema,
   logClientEvent,
+  getNudgeThreads,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
@@ -35,7 +36,7 @@ import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
 import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
-import { todayLocalISO } from "@/lib/dates";
+import { todayLocalISO, daysSinceISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 // Podniesione z 30 s przy Module 4: do raportu doszło pobranie poczty przez
@@ -272,7 +273,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   // pomijałby maile pobrane tego samego ranka.
   const mail = await syncMailAndPurge();
 
-  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, pendingMails, invoiceReminders, recurring, recurringCosts] = await Promise.all([
+  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, pendingMails, nudgeThreads, invoiceReminders, recurring, recurringCosts] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
@@ -321,6 +322,10 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     ` as unknown as Promise<
       { from_addr: string; from_name: string; subject: string; client_nazwa: string | null; lead_nazwa: string | null }[]
     >,
+    // Moduł 4f — nudge/follow-up ("wysłałeś, cisza od N dni"). Ta sama
+    // definicja co zakładka „Bez odpowiedzi" w panelu, patrz getNudgeThreads()
+    // w lib/db.ts.
+    getNudgeThreads(sql),
     sendOverdueInvoiceReminders(),
     generateDueRecurringInvoices(),
     generateDueRecurringCosts(),
@@ -364,6 +369,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     overdueClients.length +
     dueFollowups.length +
     pendingMails.length +
+    nudgeThreads.length +
     dueProjects.length +
     overdueMilestones.length +
     draftInvoices.length;
@@ -373,6 +379,12 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
         .map((m) => `  • ${m.client_nazwa || m.lead_nazwa || m.from_name || m.from_addr} — ${m.subject || "(bez tematu)"}`)
         .join("\n")
     : "  (nic — wszystko obsłużone)";
+
+  const nudgeLines = nudgeThreads.length
+    ? nudgeThreads
+        .map((t) => `  • ${t.client_nazwa || t.lead_nazwa || t.to_addr} — ${t.subject || "(bez tematu)"} (${daysSinceISO(t.received_at)} dni ciszy)`)
+        .join("\n")
+    : "  (nic — na wszystko dostałeś odpowiedź)";
 
   const text = [
     "Dzień dobry,",
@@ -390,6 +402,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Wiadomości do odpowiedzi (${pendingMails.length}):`,
     mailLines,
+    "",
+    `Wysłane, bez odpowiedzi od klienta (${nudgeThreads.length}):`,
+    nudgeLines,
     "",
     `Projekty z minionym terminem (${dueProjects.length}):`,
     projectLines,

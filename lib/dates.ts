@@ -78,6 +78,15 @@ export function warsawNowMinutes(now: Date = new Date()): number {
   return hh * 60 + mm;
 }
 
+/** Liczba PEŁNYCH dni od znacznika czasu (TIMESTAMPTZ) do "teraz" — w
+ * odróżnieniu od daysBetweenISO() (daty "YYYY-MM-DD", arytmetyka
+ * kalendarzowa w UTC) ta liczy z realnego zegara, bo źródło (np.
+ * `received_at`) niesie też godzinę i minutę. Do wyświetlania "cisza od N
+ * dni" (nudge, Moduł 4f, lib/mail.ts). */
+export function daysSinceISO(iso: string, now: Date = new Date()): number {
+  return Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000);
+}
+
 /** Data + godzina po polsku ("16.07.2026, 18:00") — jak formatPlDate()
  * w lib/projects.ts, ale z godziną; do TIMESTAMPTZ-ów jak snooze_until,
  * gdzie sama data nie wystarcza. */

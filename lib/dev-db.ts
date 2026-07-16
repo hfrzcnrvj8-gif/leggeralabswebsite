@@ -337,7 +337,49 @@ async function ensureSeeded(): Promise<void> {
         ]
       );
 
-      await raw(`UPDATE mail_state SET last_seen_uid = 109 WHERE id = 'default'`, []);
+      // Nudge/Follow-up (Moduł 4f) — wątek BEZ odpowiedzi (musi pojawić się
+      // w zakładce "Bez odpowiedzi" i w digescie) oraz wątek KONTROLNY, który
+      // wygląda podobnie (mail wychodzący, cisza kilka dni), ale MA
+      // odpowiedź — musi zostać wykluczony. Bez tej pary nie da się lokalnie
+      // odróżnić poprawnego NOT EXISTS w getNudgeThreads() (lib/db.ts) od
+      // przypadkowo zawsze-prawdziwego.
+      const mailNudgeSent = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, folder, from_addr, to_addr, subject, body_text, message_id, thread_id, status, received_at)
+         VALUES ($1,110,'out','sent',$2,$3,$4,$5,$6,$6,'obsłużony', now() - interval '8 days')`,
+        [
+          mailNudgeSent, "kontakt@leggeralabs.pl", "biuro@cisza.pl",
+          "Oferta na wdrożenie automatyzacji",
+          "Dzień dobry, w załączeniu przesyłam ofertę — czekam na odzew.",
+          "<dev-nudge-sent-1@leggeralabs.pl>",
+        ]
+      );
+
+      const mailNudgeControlSent = randomUUID();
+      const mailNudgeControlReply = randomUUID();
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, folder, from_addr, to_addr, subject, body_text, message_id, thread_id, status, received_at)
+         VALUES ($1,111,'out','sent',$2,$3,$4,$5,$6,$6,'obsłużony', now() - interval '9 days')`,
+        [
+          mailNudgeControlSent, "kontakt@leggeralabs.pl", "biuro@odpowiada.pl",
+          "Propozycja współpracy",
+          "Dzień dobry, przesyłam propozycję współpracy — czekam na odpowiedź.",
+          "<dev-nudge-control-1@leggeralabs.pl>",
+        ]
+      );
+      await raw(
+        `INSERT INTO mail_messages (id, uid, kierunek, folder, from_addr, to_addr, subject, body_text, message_id, in_reply_to, refs, thread_id, status, received_at)
+         VALUES ($1,112,'in','inbox',$2,$3,$4,$5,$6,$7,$7,$7,'obsłużony', now() - interval '2 days')`,
+        [
+          mailNudgeControlReply, "biuro@odpowiada.pl", "kontakt@leggeralabs.pl",
+          "Re: Propozycja współpracy",
+          "Dzień dobry, dziękuję za propozycję — jesteśmy zainteresowani, umówmy rozmowę.",
+          "<dev-nudge-control-2@odpowiada.pl>",
+          "<dev-nudge-control-1@leggeralabs.pl>",
+        ]
+      );
+
+      await raw(`UPDATE mail_state SET last_seen_uid = 112 WHERE id = 'default'`, []);
     })();
   }
   await seedPromise;

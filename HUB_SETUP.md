@@ -3213,6 +3213,73 @@ w przyszłości. Nowa zakładka „Uśpione" + wskaźnik `⏰` w wierszu listy.
   17:37 czasu lokalnego opcja nie pojawiła się na liście, zgodnie z
   oczekiwaniem.
 
+### Moduł 4f — Nudge/Follow-up: "wysłałeś, cisza od N dni" (2026-07-16)
+
+Ostatni nieskończony punkt Etapu 3 (patrz komentarz w sekcji „VIP + Snooze"
+wyżej) — świadomie osobna runda, bo wymaga agregacji NA POZIOMIE WĄTKU w
+poprzek DWÓCH folderów (Wysłane + gdziekolwiek leży ewentualna odpowiedź),
+czego generyczna lista jednego folderu (`app/api/mail/route.ts`) nie robi.
+Pełny brief: `docs/plany-modulow/04f-poczta-nudge.md`.
+
+**Odpowiedzi właściciela na pytania z briefu:** nowa kolumna do ręcznego
+wyciszenia (nie czysto obliczeniowe jak VIP), próg 5 dni, widoczne w UI
+PANELU i w dziennym digescie (jedno zapytanie zasila oba), grupowanie
+jeden-wpis-na-wątek licząc dni od NAJNOWSZEJ wychodzącej wiadomości.
+
+- **`mail_messages.nudge_dismissed_at TIMESTAMPTZ`** (`lib/db.ts`) — nowa
+  kolumna, wzorem `snooze_until`, ale W PRZECIWIEŃSTWIE do niej MA własny
+  indeks częściowy (`mail_messages_nudge_idx`, `WHERE kierunek='out' AND
+  folder='sent'`) — snooze filtruje `folder='inbox'` z naturalnym limitem
+  200, nudge nie ma takiego ogranicznika. NULL = nie wyciszony; w
+  przeciwieństwie do snooze NIE wraca samo z czasem — jedyny naturalny
+  powrót to wysłanie KOLEJNEJ wiadomości w wątku (nowy reprezentant wątku ma
+  własne, puste pole).
+- **`getNudgeThreads(sql, days)`** (`lib/db.ts`) — WSPÓLNA funkcja dla
+  zakładki panelu i digestu (jedna definicja, nigdy się nie rozjadą).
+  `DISTINCT ON (thread_id)` wybiera NAJNOWSZĄ wychodzącą wiadomość jako
+  reprezentanta wątku, potem `NOT EXISTS` sprawdza brak `kierunek='in'` w
+  całym wątku niezależnie od folderu, próg dni przez `make_interval(days =>
+  ...)`. Osobne zapytanie, NIE filtr na już pobranej liście — to jedyny
+  sposób sprawdzenia obu folderów naraz.
+- **`GET /api/mail/nudge`** — nowy, lekki endpoint zwracający
+  `{ threads: NudgeThread[] }`, zasila zakładkę w panelu.
+- **`PATCH /api/mail/[id]`** — dorobione pole `{ nudgeDismissed: true }`
+  (ten sam wzorzec co `flagged`/`snoozeUntil` na tym samym endponcie, nie
+  osobna zagnieżdżona trasa — wyciszenie to zwykły zapis kolumny, nie akcja
+  z efektem ubocznym jak wysyłka).
+- **`MailDashboard.tsx`** — nowy zestaw pigułek `SENT_FILTERS` („Wszystkie"/
+  „Bez odpowiedzi"), widoczny TYLKO w folderze „Wysłane" (osobny od
+  `FILTERS` dla Odebranych — inny sens filtrów w innym folderze). Zakładka
+  „Bez odpowiedzi" renderuje ZUPEŁNIE INNĄ gałąź niż `threadGroups`
+  (agregat `NudgeThread` z osobnego stanu, nie filtr na `messages`) —
+  klik w wiersz otwiera ten sam `MailDetailPanel` (id reprezentanta wątku
+  działa jak każde inne id), przycisk „Wycisz" woła PATCH i optymistycznie
+  usuwa wiersz z listy. **Pułapka złapana podczas budowy:** `loadNudge()`
+  musiało dostać WŁASNE wywołanie w efekcie startowym, NIE tylko wewnątrz
+  `sync()` — `sync()` wraca wcześniej, gdy skrzynka nie jest skonfigurowana
+  (`configured===false`, zawsze lokalnie i przed podłączeniem az.pl na
+  produkcji), więc licznik nudge zostawałby wiecznie pusty mimo że dane
+  leżą w bazie niezależnie od stanu IMAP-a.
+- **Dzienny digest** (`app/api/leads/notify/route.ts`) — nowa sekcja
+  „Wysłane, bez odpowiedzi od klienta (N)" między „Wiadomości do
+  odpowiedzi" a „Projekty z minionym terminem", licząca się do
+  `totalActionable` (liczba w temacie maila). Ta sama `getNudgeThreads()`
+  co UI, dorzucona do istniejącego `Promise.all`.
+- **`daysSinceISO()`** (`lib/dates.ts`) — nowy helper, timestampowy (nie
+  data-only jak `daysBetweenISO()`), do „N dni ciszy" w UI i digescie.
+
+- **Fixture w devie** (`lib/dev-db.ts`): wątek BEZ odpowiedzi (`biuro@cisza.pl`,
+  wysłany 8 dni temu) i wątek KONTROLNY, który wygląda podobnie (wysłany 9 dni
+  temu), ale MA odpowiedź (`biuro@odpowiada.pl`) — musi zostać wykluczony.
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. Zakładka „Bez
+  odpowiedzi" w Wysłane pokazuje dokładnie jeden wątek (`biuro@cisza.pl`,
+  „8 dni ciszy"), kontrolny wątek z odpowiedzią poprawnie wykluczony,
+  widoczny tylko pod „Wszystkie". Klik w wiersz otwiera podgląd. Przycisk
+  „Wycisz" → wiersz zniknął z listy, licznik na pigułce spadł do zera; po
+  twardym przeładowaniu strony wyciszenie zostało (persystencja w bazie, nie
+  tylko stan optymistyczny). Realną wysyłkę digestu z nową sekcją można
+  potwierdzić dopiero na produkcji (lokalnie brak `RESEND_API_KEY`).
+
 ### Moduł 4e, runda 5 — gradienty muszą wrócić, tylko jako kontur (2026-07-16)
 
 Właściciel po zobaczeniu rundy 4 (obwódka `.btn-primary` w jednym kolorze):

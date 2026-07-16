@@ -97,6 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     flagged?: unknown;
     senderDecision?: unknown;
     snoozeUntil?: unknown;
+    nudgeDismissed?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
 
@@ -214,6 +215,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "invalid snooze date" }, { status: 400 });
     }
     await sql`UPDATE mail_messages SET snooze_until = ${body.snoozeUntil} WHERE id = ${id};`;
+  }
+
+  // Nudge/Follow-up (Moduł 4f) — "przestań mi przypominać o tym wątku".
+  // TYLKO `true` zapisuje wyciszenie; w przeciwieństwie do snooze nie ma tu
+  // "wróć teraz" — jedyny naturalny powrót to wysłanie kolejnej wiadomości w
+  // wątku (patrz komentarz przy getNudgeThreads(), lib/db.ts).
+  if (body.nudgeDismissed === true) {
+    await sql`UPDATE mail_messages SET nudge_dismissed_at = now() WHERE id = ${id};`;
   }
 
   // Ręczne przypisanie z kolejki "Nieprzypisane". Zawsze dokładnie jedna

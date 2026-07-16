@@ -26,10 +26,9 @@ wielu) — pełny opis w `HUB_SETUP.md` → „Moduł 4 — Etap 2 (foldery IMAP
    - dokończenie Etapu 2 (Drafts/CONDSTORE/pełne flagi/outbox+cron — patrz
      sekcja „Świadomie odłożone" niżej, każdy punkt ma uzasadnienie, czemu
      nie wszedł w pierwszą rundę),
-   - czy przejście do **Etapu 3** (screener/wątkowanie/VIP/snooze ✅ ZROBIONE
-     2026-07-16 — patrz `HUB_SETUP.md`; zostaje TYLKO follow-up nudge, opisany
-     niżej, NIE zaczęty — inny kształt pracy, agregacja na poziomie wątku w
-     poprzek folderów).
+   - **Etap 3 jest teraz w całości ✅ ZROBIONY** (screener/wątkowanie/VIP/
+     snooze 2026-07-16, follow-up nudge 2026-07-16 — patrz `HUB_SETUP.md` →
+     „Moduł 4f").
 
 ## Skąd to się wzięło
 
@@ -204,11 +203,13 @@ zrobione:**
   Kolumna `snooze_until` + filtr przy renderze; wraca sam BEZ crona
   (widoczność liczy się przy każdym odczycie). Szczegóły: `HUB_SETUP.md` →
   „Moduł 4, Etap 3 — VIP + Snooze".
-- **Follow-up nudge (kierunek WYCHODZĄCY)** — panel ma „Wiadomości do
-  odpowiedzi" dla przychodzących; brakuje odwrotności: *wysłałeś ofertę 5 dni
-  temu, cisza*. Deterministyczne (`out` bez `in` w wątku po N dniach).
-  Dla solo goniącego oferty to potencjalnie najbardziej dochodowa funkcja
-  w panelu.
+- **Follow-up nudge (kierunek WYCHODZĄCY) ✅ ZROBIONE (2026-07-16)** — panel
+  miał „Wiadomości do odpowiedzi" tylko dla przychodzących; teraz też
+  odwrotność: *wysłałeś ofertę 5 dni temu, cisza*. Deterministyczne (`out`
+  bez `in` w wątku po 5 dniach, `getNudgeThreads()` w `lib/db.ts`), zakładka
+  „Bez odpowiedzi" w Wysłane + sekcja w dziennym digescie, ręczne
+  wyciszenie przez `nudge_dismissed_at`. Szczegóły: `HUB_SETUP.md` →
+  „Moduł 4f — Nudge/Follow-up".
 - **Wątkowanie ✅ ZROBIONE (2026-07-16)** — `thread_id` + algorytm JWZ-lite
   (References/In-Reply-To → fallback temat+uczestnicy+okno 30 dni), grupa na
   liście + pasek wątku w podglądzie (cross-folder). Szczegóły: `HUB_SETUP.md`
