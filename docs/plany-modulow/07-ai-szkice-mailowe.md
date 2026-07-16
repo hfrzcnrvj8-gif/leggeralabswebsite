@@ -6,6 +6,27 @@
 > **`docs/plany-modulow/04-skrzynka-mailowa.md`** (musi istnieć skrzynka
 > mailowa w panelu — bez niej nie ma czego "szkicować").
 
+**Aktualizacja kontekstu (2026-07-15):** ten brief pisano przed Modułami
+4b/4c/4d, więc poniższy „Krok 2" mówi ogólnie o „widoku odpowiadania na maila
+(`MailThread`/`ReplyBox` czy jak się ostatecznie nazwie)" — dziś to konkretnie
+`app/[lang]/admin/mail/MailDetailPanel.tsx`. Odpowiedź (`replyOpen` state,
+pole `<textarea value={replyText}>`) jest już tam zbudowana i ma obok siebie
+przełącznik podpisu (PL/EN/DE) oraz `<TemplatePickerButton>` (Moduł 4b,
+wstawia gotowy szablon do `replyText`) — **to jest gotowy wzorzec do
+naśladowania**: przycisk „✨ Zaproponuj szkic" powinien usiąść obok
+`TemplatePickerButton` (ten sam rządek `flex items-center gap-1`) i tak samo
+wypełniać `replyText` przez `setReplyText(...)`, tylko że jego treść pochodzi
+z `POST /api/mail/[id]/draft-reply`, nie ze statycznego szablonu z bazy.
+Wysyłka we wszystkich ścieżkach (Odpisz/Wszystkim/Przekaż/Nowa) ma już
+10-sekundowe „cofnij wysyłkę" (`useUndoSend()`, `app/[lang]/admin/mail/useUndoSend.ts`)
+— szkic AI wchodzi PRZED tym krokiem, nie zmienia go.
+
+Osobno: `MailComposeForm.tsx` (Moduł 4b) obsługuje Nową wiadomość/Przekaż z
+własnym, prostszym stanem treści — jeśli właściciel po zbudowaniu szkiców do
+odpowiedzi zechce też szkiców do NOWYCH wiadomości (bez maila źródłowego do
+kontekstu), to osobna, mniejsza decyzja do zapytania, nie zakładaj jej z
+góry w tej sesji.
+
 ## Problem (nietechnicznie)
 
 Moduł 4 (poczta) daje wgląd w maile i możliwość odpowiedzi z panelu, ale
