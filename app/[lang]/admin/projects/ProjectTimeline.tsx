@@ -383,8 +383,11 @@ export function ProjectTimeline({
             <button
               key={g}
               onClick={() => setGroupBy(g)}
+              // Stan aktywny tym samym akcentem marki co pigułki filtrów w
+              // Poczcie/Notatniku (`.pill-active`, audyt 2026-07-16) — wcześniej
+              // płaska szarość, czyli kolejny osobny język dla „to jest wybrane”.
               className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
-                groupBy === g ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:text-[var(--fg)]"
+                groupBy === g ? "pill-active" : "text-muted hover:text-[var(--fg)]"
               }`}
             >
               {label}
@@ -397,7 +400,7 @@ export function ProjectTimeline({
               key={z}
               onClick={() => setZoom(z)}
               className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
-                zoom === z ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:text-[var(--fg)]"
+                zoom === z ? "pill-active" : "text-muted hover:text-[var(--fg)]"
               }`}
             >
               {ZOOM_LABEL[z]}

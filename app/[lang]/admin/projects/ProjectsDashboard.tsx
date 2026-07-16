@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
@@ -10,6 +9,8 @@ import { SavedViews } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectTimeline } from "./ProjectTimeline";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
+import { Modal } from "../Modal";
+import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
 
@@ -266,28 +267,14 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           filtry/dodawanie jako małe ikony po prawej. Bez dużego nagłówka
           strony (Linear go nie ma — patrz docs: "reduce visual noise"). */}
       <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
-        <button
-          onClick={() => switchView("kanban")}
-          className={`relative flex h-full items-center px-1 text-[13px] ${
-            view === "kanban" ? "text-[var(--fg)]" : "text-muted"
-          }`}
-        >
-          Tablica
-          {view === "kanban" && (
-            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
-          )}
-        </button>
-        <button
-          onClick={() => switchView("timeline")}
-          className={`relative flex h-full items-center px-1 text-[13px] ${
-            view === "timeline" ? "text-[var(--fg)]" : "text-muted"
-          }`}
-        >
-          Oś czasu
-          {view === "timeline" && (
-            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
-          )}
-        </button>
+        <ViewTabs
+          value={view}
+          onChange={switchView}
+          tabs={[
+            { id: "kanban", label: "Tablica" },
+            { id: "timeline", label: "Oś czasu" },
+          ]}
+        />
         <span className="flex-1" />
         <input
           value={search}
@@ -495,6 +482,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
+      <ViewSwitch viewKey={view}>
       {view === "kanban" ? (
         <ProjectKanban
           projects={filtered}
@@ -514,42 +502,33 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           filter={{ status: filterStatus, priority: filterPriority, health: filterHealth }}
         />
       )}
+      </ViewSwitch>
       </div>
 
-      <AnimatePresence>
+      <Modal
+        open={!!openId}
+        onClose={() => {
+          setOpenId(null);
+          bumpTimelineRefresh();
+        }}
+        card="card-paper my-auto w-full max-w-4xl rounded-2xl border hairline p-5 sm:p-6"
+      >
         {openId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setOpenId(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 6 }}
-              transition={{ type: "spring", stiffness: 420, damping: 34 }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-4xl rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <ProjectDetailPanel
-                id={openId}
-                onClose={() => {
-                  setOpenId(null);
-                  bumpTimelineRefresh();
-                }}
-                onFieldChange={reflectFieldChange}
-                onDeleted={(id) => {
-                  setProjects((prev) => prev?.filter((p) => p.id !== id) ?? prev);
-                  setOpenId(null);
-                  bumpTimelineRefresh();
-                }}
-              />
-            </motion.div>
-          </motion.div>
+          <ProjectDetailPanel
+            id={openId}
+            onClose={() => {
+              setOpenId(null);
+              bumpTimelineRefresh();
+            }}
+            onFieldChange={reflectFieldChange}
+            onDeleted={(id) => {
+              setProjects((prev) => prev?.filter((p) => p.id !== id) ?? prev);
+              setOpenId(null);
+              bumpTimelineRefresh();
+            }}
+          />
         )}
-      </AnimatePresence>
+      </Modal>
     </div>
   );
 }

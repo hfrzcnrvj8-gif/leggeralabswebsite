@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconX, IconExternalLink, IconLayoutGrid } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, isOfferExpired, weightedOfferValue } from "@/lib/offers";
@@ -11,6 +10,7 @@ import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { OfferEditor } from "./OfferEditor";
 import { OfferTemplatesPanel } from "./OfferTemplatesPanel";
+import { Modal } from "../Modal";
 
 type OfferRow = Offer & { kwota: number };
 
@@ -162,7 +162,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
           align="right"
           width={220}
           trigger={(open) => (
-            <button onClick={open} className="rounded-md px-2 py-1 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
+            <button onClick={open} className="flex h-6 items-center rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
               {filterStatus || "Status: wszystkie"}
             </button>
           )}
@@ -345,60 +345,33 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         )}
       </div>
 
-      <AnimatePresence>
+      <Modal
+        open={!!openId}
+        onClose={() => setOpenId(null)}
+        card="card-paper my-auto w-full max-w-3xl rounded-2xl border hairline p-5 sm:p-6"
+      >
         {openId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setOpenId(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-3xl rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <OfferEditor
-                id={openId}
-                lang={lang}
-                onClose={() => setOpenId(null)}
-                onChange={load}
-                onDeleted={(id) => {
-                  setOffers((prev) => prev?.filter((o) => o.id !== id) ?? prev);
-                  setOpenId(null);
-                }}
-              />
-            </motion.div>
-          </motion.div>
+          <OfferEditor
+            id={openId}
+            lang={lang}
+            onClose={() => setOpenId(null)}
+            onChange={load}
+            onDeleted={(id) => {
+              setOffers((prev) => prev?.filter((o) => o.id !== id) ?? prev);
+              setOpenId(null);
+            }}
+          />
         )}
-      </AnimatePresence>
+      </Modal>
 
-      <AnimatePresence>
-        {templatesOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setTemplatesOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <OfferTemplatesPanel onClose={() => setTemplatesOpen(false)} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal
+        open={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        z={95}
+        card="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
+      >
+        <OfferTemplatesPanel onClose={() => setTemplatesOpen(false)} />
+      </Modal>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconBuildingStore, IconExternalLink, IconX, IconRepeat, IconBan } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
@@ -22,6 +21,7 @@ import { ExportCsvButton } from "../components";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { CompanySettingsPanel } from "./CompanySettingsPanel";
 import { RecurringPanel } from "./RecurringPanel";
+import { Modal } from "../Modal";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number };
 
@@ -221,7 +221,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
           align="right"
           width={220}
           trigger={(open) => (
-            <button onClick={open} className="rounded-md px-2 py-1 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
+            <button onClick={open} className="flex h-6 items-center rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
               {filterStatus || "Status: wszystkie"}
             </button>
           )}
@@ -462,86 +462,45 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       </div>
 
       {/* Modal edytora faktury */}
-      <AnimatePresence>
+      <Modal
+        open={!!openId}
+        onClose={() => setOpenId(null)}
+        card="card-paper my-auto w-full max-w-7xl rounded-2xl border hairline p-5 sm:p-6"
+      >
         {openId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setOpenId(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-7xl rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <InvoiceEditor
-                id={openId}
-                lang={lang}
-                onClose={() => setOpenId(null)}
-                onChange={load}
-                onDeleted={(id) => {
-                  setInvoices((prev) => prev?.filter((i) => i.id !== id) ?? prev);
-                  setOpenId(null);
-                }}
-                onOpenInvoice={(rid) => setOpenId(rid)}
-              />
-            </motion.div>
-          </motion.div>
+          <InvoiceEditor
+            id={openId}
+            lang={lang}
+            onClose={() => setOpenId(null)}
+            onChange={load}
+            onDeleted={(id) => {
+              setInvoices((prev) => prev?.filter((i) => i.id !== id) ?? prev);
+              setOpenId(null);
+            }}
+            onOpenInvoice={(rid) => setOpenId(rid)}
+          />
         )}
-      </AnimatePresence>
+      </Modal>
 
       {/* Modal danych firmy */}
-      <AnimatePresence>
-        {settingsOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setSettingsOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <CompanySettingsPanel onClose={() => setSettingsOpen(false)} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        z={95}
+        card="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-5 sm:p-6"
+      >
+        <CompanySettingsPanel onClose={() => setSettingsOpen(false)} />
+      </Modal>
 
       {/* Modal faktur cyklicznych */}
-      <AnimatePresence>
-        {recurringOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setRecurringOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <RecurringPanel onClose={() => setRecurringOpen(false)} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal
+        open={recurringOpen}
+        onClose={() => setRecurringOpen(false)}
+        z={95}
+        card="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
+      >
+        <RecurringPanel onClose={() => setRecurringOpen(false)} />
+      </Modal>
     </div>
   );
 }

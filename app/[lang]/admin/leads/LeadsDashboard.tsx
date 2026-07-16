@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag, IconFileExport } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Lead, STATUSES, SEED, isOverdue, overdueReason, leadSourceLabel, guessSourceCategory, findSimilarLead } from "./shared";
@@ -10,6 +9,8 @@ import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
 import { SavedViews } from "../components";
+import { Modal } from "../Modal";
+import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
@@ -325,28 +326,14 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       {/* Kompaktowy pasek — zakładki widoku + filtry + akcje jako małe ikony,
           bez dużego nagłówka strony i bez kolorowych kart statystyk. */}
       <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
-        <button
-          onClick={() => switchView("kanban")}
-          className={`relative flex h-full items-center px-1 text-[13px] ${
-            view === "kanban" ? "text-[var(--fg)]" : "text-muted"
-          }`}
-        >
-          Tablica
-          {view === "kanban" && (
-            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
-          )}
-        </button>
-        <button
-          onClick={() => switchView("table")}
-          className={`relative flex h-full items-center px-1 text-[13px] ${
-            view === "table" ? "text-[var(--fg)]" : "text-muted"
-          }`}
-        >
-          Tabela
-          {view === "table" && (
-            <span className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#E0A93B]" />
-          )}
-        </button>
+        <ViewTabs
+          value={view}
+          onChange={switchView}
+          tabs={[
+            { id: "kanban", label: "Tablica" },
+            { id: "table", label: "Tabela" },
+          ]}
+        />
         <span className="flex-1" />
         <input
           ref={searchRef}
@@ -545,6 +532,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
+      <ViewSwitch viewKey={view}>
       {view === "kanban" ? (
         <KanbanBoard
           leads={filtered}
@@ -568,43 +556,27 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenLeadId}
         />
       )}
+      </ViewSwitch>
       </div>
 
       {/* Wyśrodkowany, szeroki modal szczegółów leada (wzorem edytora
           faktury/oferty) — zastąpił dawny wąski panel wysuwany z prawej,
           który był zbyt ciasny na gęstą treść profilu (dane + adres +
           źródło + log aktywności + mapa procesu). */}
-      <AnimatePresence>
+      <Modal open={!!openLeadId} onClose={() => setOpenLeadId(null)}>
         {openLeadId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setOpenLeadId(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="my-auto w-full"
-            >
-              <LeadDetailPanel
-                id={openLeadId}
-                lang={lang}
-                onClose={() => setOpenLeadId(null)}
-                onFieldChange={reflectFieldChange}
-                onDeleted={(id) => {
-                  setLeads((prev) => prev?.filter((l) => l.id !== id) ?? prev);
-                  setOpenLeadId(null);
-                }}
-              />
-            </motion.div>
-          </motion.div>
+          <LeadDetailPanel
+            id={openLeadId}
+            lang={lang}
+            onClose={() => setOpenLeadId(null)}
+            onFieldChange={reflectFieldChange}
+            onDeleted={(id) => {
+              setLeads((prev) => prev?.filter((l) => l.id !== id) ?? prev);
+              setOpenLeadId(null);
+            }}
+          />
         )}
-      </AnimatePresence>
+      </Modal>
     </div>
   );
 }

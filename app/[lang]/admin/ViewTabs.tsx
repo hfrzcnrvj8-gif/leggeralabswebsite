@@ -1,0 +1,70 @@
+"use client";
+
+import { AnimatePresence, motion } from "framer-motion";
+import type { ReactNode } from "react";
+
+// Zakładki przełączania widoku (Tablica / Tabela / Oś czasu) — wspólne dla
+// Leadów, Klientów i Projektów. Audyt wizualny 2026-07-16 (Moduł 21):
+// wcześniej ten sam markup był przepisany w trzech dashboardach, a gradientowe
+// podkreślenie POJAWIAŁO SIĘ skokowo pod nową zakładką (`{view === "x" && <span/>}`)
+// zamiast przejechać pod nią.
+//
+// `layoutId` sprawia, że framer traktuje podkreślenie jako JEDEN element
+// zmieniający pozycję, a nie dwa różne znikające/pojawiające się — stąd
+// przejazd. Wartość jest stała, bo na stronie jest zawsze najwyżej jeden
+// zestaw zakładek widoku.
+export function ViewTabs<T extends string>({
+  value,
+  onChange,
+  tabs,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  tabs: { id: T; label: string }[];
+}) {
+  return (
+    <>
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => onChange(t.id)}
+          className={`relative flex h-full items-center px-1 text-[13px] transition-colors ${
+            value === t.id ? "text-[var(--fg)]" : "text-muted hover:text-[var(--fg)]"
+          }`}
+        >
+          {t.label}
+          {value === t.id && (
+            <motion.span
+              layoutId="view-tab-underline"
+              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              className="bg-brand-accent absolute inset-x-0 bottom-0 h-[2px] rounded-full"
+            />
+          )}
+        </button>
+      ))}
+    </>
+  );
+}
+
+/** Zawartość przełączana zakładkami — znika i pojawia się przenikaniem
+ *  zamiast podmieniać się w jednej klatce. `mode="wait"` czeka, aż stary
+ *  widok zniknie, żeby przez moment nie było widać dwóch list na sobie.
+ *
+ *  Świadomie animujemy WYŁĄCZNIE `opacity`, bez przesunięcia: `transform`
+ *  na rodzicu tworzy nowy blok zawierający dla `position: fixed` potomków,
+ *  a Kanban/Tabela mają w środku przypięte paski akcji. */
+export function ViewSwitch({ viewKey, children }: { viewKey: string; children: ReactNode }) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={viewKey}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}

@@ -58,10 +58,15 @@ export function KanbanBoard({
             setDragOverStatus(null);
             setDraggingId(null);
           }}
-          className={`w-72 shrink-0 rounded-2xl border p-2 transition-colors ${
-            dragOverStatus === col.status
-              ? "border-[#4ea7fc]/50 bg-[#4ea7fc]/[0.05]"
-              : "border hairline bg-[var(--bg-soft)]/60"
+          // Kolumna bez ramki i bez własnego tła (audyt wizualny 2026-07-16) —
+          // wcześniej karta leada w obramowanej kolumnie dawała ramkę w ramce,
+          // czyli dokładnie ten „poskładany z klocków” efekt, który zgłosił
+          // właściciel. Tak samo wygląda Kanban Projektów i tak robi Linear.
+          // Cenę za brak ramki płacimy przy przeciąganiu (nie widać pudełka
+          // celu), więc stan `dragOver` jest tu MOCNIEJSZY niż był: obrys
+          // `ring` + wyraźniejsze tło zamiast samej zmiany koloru ramki.
+          className={`w-72 shrink-0 rounded-lg p-2 transition-colors ${
+            dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.08] ring-1 ring-[#4ea7fc]/40" : ""
           }`}
         >
           <div className="mb-2 flex items-center gap-2 px-1">

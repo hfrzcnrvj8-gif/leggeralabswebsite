@@ -53,7 +53,7 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 18 | ✅ Pulpit: wskaźniki zdrowia biznesu | średni | [18-pulpit-wskazniki.md](18-pulpit-wskazniki.md) |
 | 19 | ✅ Śledzenie czasu pracy | mały/średni | [19-sledzenie-czasu.md](19-sledzenie-czasu.md) |
 | 20 | ✅ Szablony ofert / pakiety usług | mały | [20-szablony-ofert.md](20-szablony-ofert.md) |
-| 21 | ⏳ Audyt wizualny: panel na poziomie Apple/Linear (przejścia, animacje, liquid glass, gradient marki) | otwarty zakres, zacznij od zrzutów ekranu | [21-audyt-wizualny-premium.md](21-audyt-wizualny-premium.md) |
+| 21 | ✅ Audyt wizualny: panel na poziomie Apple/Linear — wspólny `Modal` (10 kopii → 1, jeden spring), `ViewTabs`/`ViewSwitch` (przejeżdżające podkreślenie + przenikanie list), gradient marki jako jedna klasa + jeden stan „wybrane” w całym panelu, Kanban bez ramek. Odłożone świadomie: struktura pasków narzędzi, emoji vs ikony (patrz `HUB_SETUP.md` → „Audyt wizualny”) | otwarty zakres, zacznij od zrzutów ekranu | [21-audyt-wizualny-premium.md](21-audyt-wizualny-premium.md) |
 
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
 jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM

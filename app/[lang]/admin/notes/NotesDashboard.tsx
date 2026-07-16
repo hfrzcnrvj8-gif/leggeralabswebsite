@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Locale } from "@/i18n/config";
 import { type Note, type NoteActivity, parseTags } from "@/lib/notes";
 import { EditableText, EditableTextarea } from "../components";
+import { FilterPills } from "../FilterPills";
 import { useUI, useRegisterActions } from "../ui";
 
 export function NotesDashboard({ lang }: { lang: Locale }) {
@@ -158,21 +159,12 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
 
       {allTags.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-1.5">
-          <button
-            onClick={() => setTagFilter("")}
-            className={`rounded-full px-2.5 py-1 text-[11px] ${!tagFilter ? "bg-[var(--fg)] text-[var(--bg)]" : "border hairline text-muted"}`}
-          >
-            Wszystkie
-          </button>
-          {allTags.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTagFilter(t)}
-              className={`rounded-full px-2.5 py-1 text-[11px] ${tagFilter === t ? "bg-[var(--fg)] text-[var(--bg)]" : "border hairline text-muted"}`}
-            >
-              {t}
-            </button>
-          ))}
+          <FilterPills
+            value={tagFilter}
+            onChange={setTagFilter}
+            size="sm"
+            pills={[{ id: "", label: "Wszystkie" }, ...allTags.map((t) => ({ id: t, label: t }))]}
+          />
         </div>
       )}
 

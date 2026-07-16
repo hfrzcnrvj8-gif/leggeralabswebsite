@@ -131,6 +131,34 @@
     color: var(--fg-muted);
   }
 
+  /* Gradient marki jako AKCENT na powierzchni (nie na tekście — od tego jest
+     `.text-liquid` niżej). Audyt wizualny 2026-07-16 (Moduł 21): te same dwa
+     przystanki purpura→złoto były wklepane hexami w czterech plikach
+     (podkreślenia zakładek w Leadach/Klientach/Projektach), więc zmiana
+     gradientu marki wymagała polowania po repo. Tu jest jedno miejsce.
+     Świadomie BEZ trzeciego, kremowego przystanku z `.text-liquid` — na
+     pasku 2 px near-white koniec czytałby się jak wyblakła krawędź, nie
+     jak złoto. */
+  .bg-brand-accent {
+    background-image: linear-gradient(100deg, #7c3aed 0%, #e0a93b 100%);
+  }
+
+  /* Aktywna pigułka filtra (Poczta, Notatnik — patrz `FilterPills`). Ten sam
+     gradient marki co `.bg-brand-accent`, ale mocno wytłumiony: pigułka jest
+     TŁEM POD TEKSTEM, więc pełne nasycenie zabijałoby czytelność etykiety i
+     krzyczało głośniej niż jedno CTA na widok (`.btn-primary`). Do audytu
+     2026-07-16 każdy moduł malował aktywną pigułkę po swojemu — Poczta
+     płaskim `--hairline`, Notatnik odwróconą bielą `--fg`. */
+  .pill-active {
+    background-image: linear-gradient(
+      100deg,
+      rgba(124, 58, 237, 0.3) 0%,
+      rgba(224, 169, 59, 0.3) 100%
+    );
+    color: var(--fg);
+    border: 1px solid transparent;
+  }
+
   /* Liquid glass gradient text — purple to gold, no pink, so it stays on
      brand everywhere it's used (headings, icons, links). A faint dark
      stroke keeps the near-white tail end legible on light backgrounds. */

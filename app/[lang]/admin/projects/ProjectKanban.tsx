@@ -126,8 +126,11 @@ export function ProjectKanban({
               setDragOverStatus(null);
               setDraggingId(null);
             }}
+            // Ten sam stan `dragOver` co w Leadach/Klientach (audyt
+            // 2026-07-16) — wcześniej samo bledziutkie tło 0.04 bez obrysu,
+            // ledwo widoczne przy przeciąganiu.
             className={`w-[300px] shrink-0 rounded-lg transition-colors ${
-              dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.04]" : ""
+              dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.08] ring-1 ring-[#4ea7fc]/40" : ""
             }`}
           >
             {/* Nagłówek kolumny — ikona statusu + nazwa + licznik, bez ramki */}

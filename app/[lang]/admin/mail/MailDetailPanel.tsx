@@ -580,7 +580,7 @@ export function MailDetailPanel({
                 key={l}
                 onClick={() => setPodpis(l as SignatureLang)}
                 className={`rounded-full px-2.5 py-0.5 transition ${
-                  podpis === l ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
+                  podpis === l ? "pill-active font-medium" : "text-muted hover:text-[var(--fg)]"
                 }`}
               >
                 {SIGNATURE_LANG_LABEL[l as SignatureLang]}

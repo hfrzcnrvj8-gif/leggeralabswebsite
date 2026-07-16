@@ -3578,6 +3578,88 @@ kawałków kodu dla jednego wzorca UI" wspominanego w zgłoszeniu.
   identyczny, ale warto rzucić okiem przy najbliższej wizycie w każdym z
   nich.
 
+## Audyt wizualny: jeden modal, jedne zakładki, jeden gradient (2026-07-16, Moduł 21)
+
+Kontynuacja „Menu rozwijane w całym panelu” wyżej. Tamta runda naprawiła
+JEDEN dźwigniowy element (menu); ta przeszła systematycznie przez wszystkie
+dwanaście ekranów panelu (zrzut ekranu każdego, potem przegląd kodu pod
+kątem WZORCÓW, nie pojedynczych miejsc) wzdłuż trzech osi zgłoszonych przez
+właściciela: przejścia/animacje, spójność „liquid glass”, gradient marki.
+
+**Znalezione i naprawione:**
+
+- **`Modal.tsx` — jeden modal zamiast dziesięciu kopii.** Ten sam wzorzec
+  (overlay `bg-black/50 backdrop-blur-[2px]` + karta) był przepisany ręcznie
+  w dziesięciu miejscach i animowany na TRZY sposoby: dziewięć modali miało
+  `duration: 0.14 easeOut` (140 ms — mignięcie, nie przejście), Projekty
+  spring 420/34, a okno kompozycji w Poczcie **nie animowało karty w ogóle**
+  (tylko przyciemnienie tła). Teraz wszystkie idą przez `Modal` ze spring
+  420/32 — tą samą krzywą co `confirm`/`prompt` w `ui.tsx`, świadomie NIE
+  wymyślaną od nowa. Warstwa (`z={90}` profil rekordu / `z={95}` modal nad
+  modalem) i klasy karty (`card` — moduły mają różne `max-w`, to zostaje)
+  są parametrami.
+- **`ViewTabs.tsx` — zakładki widoku + przejście zawartości.** Podkreślenie
+  gradientem marki POJAWIAŁO SIĘ skokowo pod nową zakładką
+  (`{view === "x" && <span/>}`, markup potrojony w Leadach/Klientach/
+  Projektach); teraz `layoutId` sprawia, że przejeżdża. `ViewSwitch` w tym
+  samym pliku daje przenikanie zawartości przy zmianie widoku (Leady/Klienci/
+  Projekty) i filtra/folderu/kategorii (Poczta) — wcześniej lista podmieniała
+  się w jednej klatce. Animuje WYŁĄCZNIE `opacity`, bez przesunięcia:
+  `transform` na rodzicu tworzy blok zawierający dla `position: fixed`
+  potomków, a listy mają w środku przypięte paski.
+- **Gradient marki jako AKCENT — jedno miejsce.** Dwustopniowy
+  `from-[#7C3AED] to-[#E0A93B]` był wklepany hexami sześć razy w trzech
+  dashboardach (podkreślenia zakładek). Teraz `.bg-brand-accent`
+  (`globals.css`). Obok `.pill-active` — ten sam gradient mocno wytłumiony
+  (0.3 alfa), bo to tło POD TEKSTEM. **Uwaga:** trzystopniowe gradienty
+  TEKSTOWE (purpura → złoto → kremowa biel) to osobna rodzina i zostały
+  nietknięte — `.text-liquid`/`.text-liquid-outline` w `globals.css` oraz
+  logo w `AppShell.tsx:51` (inline `backgroundImage`, wciąż jedyny hex w
+  panelu). Kremowy koniec ma sens na literach, na pasku 2 px czytałby się
+  jak wyblakła krawędź, dlatego akcent jest osobny, a nie ten sam token.
+- **Jeden stan „to jest wybrane” w całym panelu** (`FilterPills.tsx` +
+  `.pill-active`). Do audytu każdy moduł malował go po swojemu: Poczta
+  płaskim `--hairline`, Notatnik odwróconą bielą `--fg`, oś czasu Projektów
+  jeszcze inaczej. Teraz akcent marki niosą: pigułki filtrów Poczty, tagi
+  Notatnika, foldery i kategorie Poczty, wybór języka podpisu, segmentowane
+  kontrolki osi czasu (grupowanie/zoom). Nieaktywne pigułki mają obramowanie
+  **przezroczyste**, nie brak obramowania — `.pill-active` ma 1 px ramki,
+  więc inaczej skakałyby o piksel przy przełączeniu.
+- **Kanban bez ramek w Leadach/Klientach** (decyzja właściciela). Karta w
+  obramowanej kolumnie dawała ramkę w ramce — dokładnie ten „poskładany z
+  klocków” efekt, który był źródłem całego modułu. Projekty były już
+  bezramkowe (jawny komentarz w kodzie), tak robi Linear. Cena: przy
+  przeciąganiu nie widać pudełka celu, więc stan `dragOver` jest teraz
+  MOCNIEJSZY we wszystkich trzech tablicach (`ring` + wyraźniejsze tło
+  zamiast samej zmiany koloru ramki).
+- **Wysokość kontrolek w paskach akcji** — tekstowe filtry („Status:
+  wszystkie”) miały `py-1`, przyciski-ikony `h-6`; 2 px rozjazdu w jednym
+  pasku. Wyrównane na `h-6` w Fakturach/Kosztach/Ofertach/Umowach.
+
+**Świadome decyzje tej rundy (nie cofaj bez pytania):**
+
+- **Karty modali zostają `.card-paper`, NIE `.glass`** — decyzja właściciela
+  zgodna z CLAUDE.md („`.glass` tylko chrome”). Modale mają gęstą treść
+  (formularze, tabele pozycji faktur); szkło pod tekstem pogarsza
+  czytelność. Premium robimy animacją, nie przezroczystością.
+- **Struktura pasków narzędzi zostaje różna** — panel ma trzy języki paska
+  (kompaktowy 44 px z zakładkami w Leadach/Klientach/Projektach; tekstowe
+  przyciski w Fakturach/Kosztach/Ofertach/Umowach; duży nagłówek w Poczcie).
+  Właściciel świadomie wybrał ujednolicenie SAMYCH STYLÓW kontrolek, bez
+  przebudowy nagłówków pięciu ekranów — to kandydat na osobną rundę.
+- **Emoji vs ikony `@tabler` NIE ruszane** — realna niespójność (Leady/
+  Projekty/Faktury/Koszty/Oferty/Umowy używają ikon, Poczta i reszta emoji),
+  zgłoszona właścicielowi, świadomie zostawiona na osobną decyzję.
+- **Trzecia implementacja menu w `MailDashboard.tsx`** — nadal nie przechodzi
+  przez `Menu.tsx` (odłożone już w rundzie menu 2026-07-16, nadal otwarte).
+
+**Zweryfikowane lokalnie**: `tsc` czysty po każdej paczce; każda poprawka
+wzorca sprawdzona wzrokowo na WIĘCEJ NIŻ jednym ekranie, który go używa
+(modal → Leady; zakładki → Leady i Projekty; pigułki → Poczta i Notatnik;
+Kanban → Leady i Projekty). Okno kompozycji w Poczcie jest w dev wyłączone
+(brak konfiguracji skrzynki), więc jego modal zweryfikowany przez wspólny
+komponent na Leadach, nie bezpośrednio.
+
 ## Czego świadomie nie ma (na razie)
 
 - Brak zależności między zadaniami/projektami (np. „projekt B czeka na

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import {
@@ -23,6 +22,9 @@ import {
 } from "./shared";
 import { MailDetailPanel } from "./MailDetailPanel";
 import { MailComposeForm } from "./MailComposeForm";
+import { Modal } from "../Modal";
+import { FilterPills } from "../FilterPills";
+import { ViewSwitch } from "../ViewTabs";
 
 // Filtry to dwie NIEZALEŻNE osie, jak status vs zdrowie projektu: co wymaga
 // mojej reakcji (góra) i czego dotyczy (dół, kategorie). Mieszanie ich w jedną
@@ -655,6 +657,26 @@ export function MailDashboard({ lang }: { lang: Locale }) {
 
   const folderCount = (f: MailFolder): number => (f === "inbox" ? counts.nowe : (counts[`folder_${f}`] ?? 0));
 
+  /** Licznik doklejany do etykiety pigułki filtra, np. „VIP (2)”. Zero
+   *  chowamy — pigułka „Uśpione (0)” tylko dodaje szumu. */
+  const filterCountSuffix = (id: Filter): string => {
+    const n =
+      id === "nowy"
+        ? counts.nowe
+        : id === "unassigned"
+          ? counts.nieprzypisane
+          : id === "vip"
+            ? counts.vip
+            : id === "snoozed"
+              ? counts.snoozed
+              : id === "screener"
+                ? counts.pending_screener
+                : id === "nudge"
+                  ? (nudgeThreads?.length ?? 0)
+                  : 0;
+    return n > 0 ? ` (${n})` : "";
+  };
+
   // Moduł 4f — zakładka "Bez odpowiedzi" pokazuje zupełnie inne dane
   // (agregat NudgeThread z /api/mail/nudge, nie MailMessageWithLinks z
   // `messages`), więc lista niżej ma dwie gałęzie renderowania zamiast
@@ -714,21 +736,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         </div>
       </div>
 
-      <AnimatePresence>
-        {composeOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setComposeOpen(false)}
-          >
-            <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
-              <MailComposeForm mode="compose" endpoint="/api/mail/compose" onSent={load} onClose={() => setComposeOpen(false)} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal open={composeOpen} onClose={() => setComposeOpen(false)} card="my-auto w-full max-w-4xl">
+        <MailComposeForm mode="compose" endpoint="/api/mail/compose" onSent={load} onClose={() => setComposeOpen(false)} />
+      </Modal>
 
       {!configured && (
         <div className="mb-4 rounded-xl border hairline bg-brand-gold/10 p-4 text-[13px]">
@@ -744,23 +754,14 @@ export function MailDashboard({ lang }: { lang: Locale }) {
 
       {(activeFolder === "inbox" || activeFolder === "sent") && (
         <div className="mb-3 flex gap-1">
-          {(activeFolder === "inbox" ? FILTERS : SENT_FILTERS).map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
-              className={`rounded-full px-3 py-1 text-[12px] transition ${
-                filter === f.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:text-[var(--fg)]"
-              }`}
-            >
-              {f.label}
-              {f.id === "nowy" && counts.nowe > 0 ? ` (${counts.nowe})` : ""}
-              {f.id === "unassigned" && counts.nieprzypisane > 0 ? ` (${counts.nieprzypisane})` : ""}
-              {f.id === "vip" && counts.vip > 0 ? ` (${counts.vip})` : ""}
-              {f.id === "snoozed" && counts.snoozed > 0 ? ` (${counts.snoozed})` : ""}
-              {f.id === "screener" && counts.pending_screener > 0 ? ` (${counts.pending_screener})` : ""}
-              {f.id === "nudge" && (nudgeThreads?.length ?? 0) > 0 ? ` (${nudgeThreads!.length})` : ""}
-            </button>
-          ))}
+          <FilterPills
+            value={filter}
+            onChange={setFilter}
+            pills={(activeFolder === "inbox" ? FILTERS : SENT_FILTERS).map((f) => ({
+              id: f.id,
+              label: f.label + filterCountSuffix(f.id),
+            }))}
+          />
         </div>
       )}
 
@@ -821,7 +822,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                 key={f}
                 onClick={() => setActiveFolder(f)}
                 className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-2 ${
-                  activeFolder === f ? "bg-[var(--hairline)] font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+                  activeFolder === f ? "pill-active font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
                 }`}
               >
                 <span aria-hidden>{MAIL_FOLDER_ICON[f]}</span>
@@ -844,7 +845,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     key={c.id}
                     onClick={() => setCatFilter(c.id)}
                     className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-1.5 ${
-                      catFilter === c.id ? "bg-[var(--hairline)] font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+                      catFilter === c.id ? "pill-active font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
                     }`}
                   >
                     {c.id !== "wszystkie" && <span aria-hidden>{MAIL_CATEGORY_ICON[c.id as MailCategory]}</span>}
@@ -863,6 +864,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             zostawać przyklejoną do stałej wartości i wymuszać brutalne
             obcinanie nadawcy/tematu/podglądu w wierszu niżej. */}
         <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[38%] lg:min-w-[380px] lg:max-w-[620px] lg:shrink-0 lg:overflow-y-auto">
+          {/* Przenikanie przy zmianie folderu/filtra/kategorii — do audytu
+              2026-07-16 lista podmieniała się w jednej klatce. Ramka karty
+              zostaje na zewnątrz, żeby przenikała tylko TREŚĆ, a nie całe
+              pudełko wraz z obrysem. */}
+          <ViewSwitch viewKey={`${activeFolder}:${filter}:${catFilter}`}>
           {isNudgeView ? (
             nudgeThreads === null ? (
               <p className="p-8 text-center text-sm text-muted opacity-60">Wczytuję…</p>
@@ -1162,6 +1168,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           )}
             </>
           )}
+          </ViewSwitch>
         </div>
 
         <div className="min-w-0 flex-1">

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
 import { IconPlus, IconX, IconPaperclip, IconCloudDownload, IconRepeat } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Cost, type PaymentMethod, COST_STATUSES, COST_CATEGORIES, PAYMENT_METHOD_ICON, PAYMENT_METHOD_LABEL, formatMoney } from "@/lib/costs";
@@ -16,6 +15,7 @@ import { StatusTag } from "./shared";
 import { CostEditor } from "./CostEditor";
 import { RecurringCostsPanel } from "./RecurringCostsPanel";
 import { SpendTrendChart } from "./SpendTrendChart";
+import { Modal } from "../Modal";
 
 /** Import faktur zakupowych z KSeF (Faza 3, część 2). Odpytuje rządowy KSeF o
  * faktury, gdzie jesteśmy nabywcą, i tworzy z nich gotowe wpisy w Kosztach.
@@ -112,6 +112,18 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
   const [recurringOpen, setRecurringOpen] = useState(false);
   const projectFilter = searchParams.get("project");
 
+  // Zamknięcie edytora kosztu jest warunkowe — w trakcie odczytu AI (OCR
+  // paragonu) zamknięcie porzuciłoby trwający odczyt, więc zamiast tego
+  // pokazujemy podpowiedź. Jedna funkcja obsługuje i kliknięcie w tło
+  // modala, i przycisk „Zamknij” w samym edytorze.
+  const closeEditor = useCallback(() => {
+    if (editorBusy) {
+      toast("Trwa odczyt AI — poczekaj na zakończenie przed zamknięciem.");
+      return;
+    }
+    setOpenId(null);
+  }, [editorBusy, toast]);
+
   const load = useCallback(async () => {
     const res = await fetch("/api/costs");
     if (res.status === 401) {
@@ -206,7 +218,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
           align="right"
           width={200}
           trigger={(open) => (
-            <button onClick={open} className="rounded-md px-2 py-1 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
+            <button onClick={open} className="flex h-6 items-center rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
               {filterKategoria || "Kategoria: wszystkie"}
             </button>
           )}
@@ -224,7 +236,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
           align="right"
           width={180}
           trigger={(open) => (
-            <button onClick={open} className="rounded-md px-2 py-1 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
+            <button onClick={open} className="flex h-6 items-center rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
               {filterStatus || "Status: wszystkie"}
             </button>
           )}
@@ -338,72 +350,33 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
         </div>
       </div>
 
-      <AnimatePresence>
+      <Modal
+        open={!!openId}
+        onClose={closeEditor}
+        card="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
+      >
         {openId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => {
-              if (editorBusy) {
-                toast("Trwa odczyt AI — poczekaj na zakończenie przed zamknięciem.");
-                return;
-              }
+          <CostEditor
+            id={openId}
+            onClose={closeEditor}
+            onChange={load}
+            onDeleted={(id) => {
+              setCosts((prev) => prev?.filter((c) => c.id !== id) ?? prev);
               setOpenId(null);
             }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <CostEditor
-                id={openId}
-                onClose={() => {
-                  if (editorBusy) {
-                    toast("Trwa odczyt AI — poczekaj na zakończenie przed zamknięciem.");
-                    return;
-                  }
-                  setOpenId(null);
-                }}
-                onChange={load}
-                onDeleted={(id) => {
-                  setCosts((prev) => prev?.filter((c) => c.id !== id) ?? prev);
-                  setOpenId(null);
-                }}
-                onBusyChange={setEditorBusy}
-              />
-            </motion.div>
-          </motion.div>
+            onBusyChange={setEditorBusy}
+          />
         )}
-      </AnimatePresence>
+      </Modal>
 
-      <AnimatePresence>
-        {recurringOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[95] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setRecurringOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              onClick={(e) => e.stopPropagation()}
-              className="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
-            >
-              <RecurringCostsPanel onClose={() => setRecurringOpen(false)} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal
+        open={recurringOpen}
+        onClose={() => setRecurringOpen(false)}
+        z={95}
+        card="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
+      >
+        <RecurringCostsPanel onClose={() => setRecurringOpen(false)} />
+      </Modal>
     </div>
   );
 }
