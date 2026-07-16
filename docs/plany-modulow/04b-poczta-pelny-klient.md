@@ -178,14 +178,17 @@ zrobione:**
   osobna zmiana architektury.
 
 ### Etap 3 — Porządek w skrzynce
-- **Screener nowych nadawców** (HEY × Spark × nasz CRM). Tabela
-  `mail_senders(email, status, bucket)`. **Nasza przewaga nad HEY: mamy
-  `clients` i `leads`** — każdy znany kontakt omija bramkę automatycznie
-  (patent Sparka), więc bramka dotyczy WYŁĄCZNIE naprawdę nieznanych.
-  Deterministyczne, zero AI. To rozwiązuje problem Calendly u źródła:
-  zamiast zgadywać kategorię, pytamy raz i zapamiętujemy.
-  ⚠️ Ograniczenie: nasz screener *ukrywa*, nie odrzuca (HEY blokuje na MX, bo
-  JEST serwerem). Mail i tak zajmie miejsce w skrzynce.
+- **Screener nowych nadawców ✅ ZROBIONE (2026-07-16)** — tabela
+  `mail_senders(email, status, decided_at)` (bez kolumny `bucket` z
+  oryginalnego briefu — brak jasnej definicji podziału, odłożona do ALTER,
+  jeśli się okaże potrzebna), bramkowanie przez `LEFT JOIN` przy odczycie
+  (nie flagą na wiadomości — zatwierdzenie/blokada działa od razu na całą
+  historię nadawcy bez backfillu), zakładka „Nowi nadawcy" + baner
+  Zatwierdź/Zablokuj w podglądzie + auto-zatwierdzenie przy Odpisz. Znani
+  `clients`/`leads` omijają bramkę automatycznie (patent Sparka), jak
+  zakładał brief; screener *ukrywa*, nie odrzuca (⚠️ ograniczenie wskazane
+  niżej — nie jesteśmy serwerem MX jak HEY). Szczegóły: `HUB_SETUP.md` →
+  „Moduł 4, Etap 3 — screener nowych nadawców".
 - **VIP** — Apple Mail: VIP bije klasyfikację treści. U nas naturalnie:
   klient ze statusem „Aktywny" = VIP z automatu.
 - **Snooze / Odłóż** — nazwane terminy („Jutro 8:00", „Poniedziałek"), NIE

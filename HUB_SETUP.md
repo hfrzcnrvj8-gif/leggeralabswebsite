@@ -3097,6 +3097,64 @@ Plan agent przed implementacją — zmiana dotyka 6 miejsc insertujących do
   `/admin/mail/[id]` — klik w pasek wątku robi prawdziwą nawigację
   (potwierdzone zmianą URL, nie no-op).
 
+### Moduł 4, Etap 3 — screener nowych nadawców (2026-07-16)
+
+Drugi punkt Etapu 3 z `docs/plany-modulow/04b-poczta-pelny-klient.md`
+(spośród screener/VIP/snooze/nudge — wątkowanie już zrobione wyżej). Pełny
+plan w `/Users/patrykpiecyk/.claude/plans/wiggly-tinkering-waterfall.md`.
+Rozwiązuje problem Calendly u źródła (opisany w briefie): nieznany-ale-
+niebędący-spamem nadawca (`classifyMail()` → `oferta`) dotąd trafiał od razu
+do „Do odpowiedzi" — teraz panel pyta się RAZ, potem pamięta, wzorem HEY/
+Spark, z przewagą że znani klienci/leady omijają bramkę automatycznie.
+
+- **Nowa tabela `mail_senders(id, email UNIQUE, status, created_at,
+  decided_at)`**, `status` ∈ `pending | approved | blocked` (`lib/db.ts`,
+  bramka migracji `"mail"`). Wpis `'pending'` powstaje WYŁĄCZNIE przy
+  pierwszym zsynchronizowanym mailu kategorii `oferta` (`saveIncoming()`,
+  `lib/mailSync.ts`, `ON CONFLICT (email) DO NOTHING` — nie nadpisuje decyzji
+  już podjętej).
+- **Bramkowanie przez JOIN przy odczycie, NIE flagą na wiadomości** —
+  `mail_messages.status` zostaje kompletnie nietknięty. `GET /api/mail`
+  (`app/api/mail/route.ts`) dokłada `LEFT JOIN mail_senders ms ON ms.email =
+  m.from_addr` do listy i liczników, wyklucza `pending`/`blocked` z `nowe`/
+  `nieprzypisane`, dodaje `pending_screener`. **Zaleta**: zatwierdzenie/
+  blokada działa natychmiast na CAŁĄ historię danego nadawcy (przeszłą i
+  przyszłą) bez backfillu — jeden UPDATE wiersza w `mail_senders` wystarczy.
+  `'blocked'` jest wykluczone z tych samych list co `'pending'`; „Wszystkie"
+  zostaje BEZ wykluczenia (ukrywa, nie odrzuca — mail nadal zajmuje miejsce
+  w bazie/skrzynce, jak zastrzega brief).
+- **Decyzja właściciela** — `PATCH /api/mail/[id]` (`{ senderDecision:
+  "approved" | "blocked" }`) upsertuje wiersz w `mail_senders`. Baner
+  „Zatwierdź nadawcę"/"Zablokuj" w `MailDetailPanel.tsx`, renderowany TYLKO
+  gdy `mail.sender_status === "pending"`. Nowa zakładka filtra „Nowi
+  nadawcy" w `MailDashboard.tsx` (między „Nieprzypisane" a „Wszystkie").
+- **Auto-zatwierdzenie przy Odpisz** — `POST /api/mail/[id]/reply`
+  (`app/api/mail/[id]/reply/route.ts`) po wysłaniu robi `UPDATE mail_senders
+  SET status='approved' WHERE email=... AND status='pending'` — no-op, gdy
+  nadawca nie był `pending`. Świadomie TYLKO Odpisz (jedyna akcja
+  jednoznacznie mówiąca „chcę tę rozmowę") — Przekaż/Nowa wiadomość NIE
+  auto-zatwierdzają.
+- **Świadomie NIE zbudowane**: kolumna `bucket` z oryginalnego briefu (brak
+  jasnej definicji podziału zatwierdzonych nadawców — dodamy przez `ALTER`,
+  jeśli się okaże potrzebna), backfill screenera dla już zsynchronizowanych
+  historycznych wiadomości (bramka dotyczy TYLKO poczty synchronizowanej od
+  teraz — nie chowamy nagle czegoś, co właściciel już widział).
+- **Fixture w devie** (`lib/dev-db.ts`) — piąty wiersz `mail_messages`
+  (kategoria `'oferta'`, nowy nieużywany gdzie indziej adres) + osobny INSERT
+  do `mail_senders` ze statusem `'pending'` — dokładnie to, co zapisałby
+  `saveIncoming()` przy prawdziwym syncu.
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. „Do odpowiedzi" nie
+  pokazuje seedowanego pending-nadawcy; „Nowi nadawcy" pokazuje dokładnie tę
+  jedną wiadomość z licznikiem (1); baner z dwoma przyciskami w podglądzie;
+  klik „Zatwierdź nadawcę" → baner znika, toast, i BEZ ręcznego odświeżania
+  przełączenie na „Do odpowiedzi" pokazuje wiadomość; PATCH na `blocked`
+  (przetestowany bezpośrednio przez fetch) poprawnie zeruje `nowe`/
+  `nieprzypisane`/`pending_screener`, a wiadomość zostaje widoczna przez
+  surowe `GET /api/mail` (czyli pod „Wszystkie"). Auto-zatwierdzenie po
+  Odpisz NIE zweryfikowane lokalnie (skrzynka az.pl nie jest skonfigurowana
+  w devie, wysyłka blokuje się wcześniej) — kod analogiczny do reszty,
+  do potwierdzenia na produkcji.
+
 ### Moduł 4e, runda 5 — gradienty muszą wrócić, tylko jako kontur (2026-07-16)
 
 Właściciel po zobaczeniu rundy 4 (obwódka `.btn-primary` w jednym kolorze):
