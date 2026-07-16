@@ -81,6 +81,10 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   // Inkrementowany nonce — skrót "r" wywołuje efekt w MailDetailPanel, który
   // otwiera pole odpowiedzi (patrz replyShortcut tam).
   const [replyShortcutNonce, setReplyShortcutNonce] = useState(0);
+  // Analogiczne nonce dla "f" (Przekaż) i "a" (Odpowiedz wszystkim) — 04e
+  // runda 2, dorobione skróty wzorem Apple Mail.
+  const [forwardShortcutNonce, setForwardShortcutNonce] = useState(0);
+  const [replyAllShortcutNonce, setReplyAllShortcutNonce] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
   // Numer kolejny każdego load() — chroni przed wyścigiem, gdy odpowiedzi z
   // serwera wrócą w innej kolejności niż zostały wysłane (patrz load() niżej).
@@ -170,6 +174,50 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       void load();
     },
     [messages, load, toast]
+  );
+
+  /** Flaga "ważne" (04e runda 2) — TYLKO lokalna (decyzja właściciela), więc
+   * przełącza się natychmiast bez czekania na żaden zewnętrzny serwer.
+   * Ten sam optymistyczny wzorzec co setMailStatus() wyżej. */
+  const toggleFlag = useCallback(
+    async (id: string, flagged: boolean) => {
+      const prev = messages;
+      setMessages((cur) => (cur ? cur.map((m) => (m.id === id ? { ...m, flagged } : m)) : cur));
+      const res = await fetch(`/api/mail/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flagged }),
+      });
+      if (!res.ok) {
+        setMessages(prev);
+        toast("Nie udało się zmienić flagi.", "error");
+      }
+    },
+    [messages, toast]
+  );
+
+  /** Przenosi POJEDYNCZĄ wiadomość między folderami — skróty klawiszowe "y"
+   * (Archiwizuj) i Backspace (Usuń), 04e runda 2. Ten sam PATCH co
+   * `moveTo()` w MailDetailPanel.tsx i pętla w bulkMove() niżej, ale bez
+   * potwierdzenia (tak jak pojedynczy przycisk "Usuń" w podglądzie — tylko
+   * akcja ZBIORCZA pyta o potwierdzenie, bo dotyczy wielu wiadomości naraz). */
+  const moveMail = useCallback(
+    async (id: string, move: "trash" | "archive" | "inbox") => {
+      const res = await fetch(`/api/mail/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ move }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast(data?.error || "Nie udało się przenieść wiadomości.", "error");
+        return;
+      }
+      if (openId === id) setOpenId(null);
+      await load();
+      toast(move === "trash" ? "Przeniesiono do Kosza." : move === "archive" ? "Zarchiwizowano." : "Przywrócono do Odebranych.");
+    },
+    [openId, load, toast]
   );
 
   const toggleSelect = useCallback((id: string) => {
@@ -366,6 +414,19 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         setReplyShortcutNonce((n) => n + 1);
         return;
       }
+      // "f" (Przekaż) i "a" (Odpowiedz wszystkim) — 04e runda 2, wymagają
+      // otwartego podglądu (potrzebują formularza z MailComposeForm/pola DW,
+      // które żyją tylko w MailDetailPanel), analogicznie do "r" wyżej.
+      if (e.key === "f" && openId) {
+        e.preventDefault();
+        setForwardShortcutNonce((n) => n + 1);
+        return;
+      }
+      if (e.key === "a" && openId) {
+        e.preventDefault();
+        setReplyAllShortcutNonce((n) => n + 1);
+        return;
+      }
       if (e.key === "e") {
         const targetId = openId ?? filtered[focusedIndex]?.id;
         if (targetId) {
@@ -373,10 +434,34 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           void setMailStatus(targetId, "obsłużony");
         }
       }
+      if (e.key === "s") {
+        const target = filtered.find((m) => m.id === (openId ?? filtered[focusedIndex]?.id));
+        if (target) {
+          e.preventDefault();
+          void toggleFlag(target.id, !target.flagged);
+        }
+      }
+      // "y" (Archiwizuj) i Backspace (Usuń) — 04e runda 2, działają na
+      // otwartej LUB fokusowanej wiadomości (jak "e"/"s" wyżej), bez
+      // potwierdzenia (patrz komentarz przy moveMail()).
+      if (e.key === "y") {
+        const target = filtered.find((m) => m.id === (openId ?? filtered[focusedIndex]?.id));
+        if (target && configured && target.folder !== "archive") {
+          e.preventDefault();
+          void moveMail(target.id, "archive");
+        }
+      }
+      if (e.key === "Backspace") {
+        const target = filtered.find((m) => m.id === (openId ?? filtered[focusedIndex]?.id));
+        if (target && configured && target.folder !== "trash") {
+          e.preventDefault();
+          void moveMail(target.id, "trash");
+        }
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openId, filtered, focusedIndex, toggleSelect, setMailStatus]);
+  }, [openId, filtered, focusedIndex, configured, toggleSelect, setMailStatus, toggleFlag, moveMail]);
 
   const openMessage = messages?.find((m) => m.id === openId) ?? null;
 
@@ -574,7 +659,12 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           )}
         </div>
 
-        <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[420px] lg:shrink-0 lg:overflow-y-auto">
+        {/* Szerokość responsywna, nie sztywne 420px (04e runda 2, zgłoszone
+            przez właściciela) — na szerokim ekranie kolumna rośnie razem ze
+            stroną (dzięki pełnej szerokości Poczty w AppShell.tsx), zamiast
+            zostawać przyklejoną do stałej wartości i wymuszać brutalne
+            obcinanie nadawcy/tematu/podglądu w wierszu niżej. */}
+        <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[38%] lg:min-w-[380px] lg:max-w-[620px] lg:shrink-0 lg:overflow-y-auto">
           {filtered.length > 0 && (
             <div className="sticky top-0 z-10 flex items-center gap-2 border-b hairline bg-[var(--bg-soft)] px-4 py-2 text-[11px] text-muted">
               <input
@@ -635,11 +725,36 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     <span className="mt-0.5 shrink-0 text-base" aria-hidden>
                       {m.kierunek === "out" ? "↩️" : "✉️"}
                     </span>
+                    {/* Treść wiersza rozłożona na TRZY linie zamiast jednej
+                        linii tekstu + osobnej, stałej-szerokości kolumny
+                        znaczników z boku (04e runda 2) — poprzedni układ
+                        rezerwował ~200px na kategorię/status/czas NIEZALEŻNIE
+                        od tego, ile miejsca miał do dyspozycji nadawca/temat/
+                        podgląd, więc te trzy pola obcinały się brutalnie nawet
+                        na szerokiej kolumnie. Teraz każdy znacznik dzieli
+                        szerokość TYLKO ze swoją linią. */}
                     <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-[13px] font-medium">
+                      <span className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
                           {m.kierunek === "out" ? `Do: ${m.to_addr}` : m.from_name || m.from_addr}
                         </span>
+                        {/* Flaga "ważne" (04e runda 2) — lokalna, klik od razu
+                            przełącza bez otwierania podglądu, ten sam wzorzec
+                            co status niżej. */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void toggleFlag(m.id, !m.flagged);
+                          }}
+                          title={m.flagged ? "Usuń flagę" : "Oflaguj jako ważne"}
+                          className={`shrink-0 text-[13px] leading-none ${m.flagged ? "text-brand-gold" : "text-muted opacity-40 hover:opacity-80"}`}
+                        >
+                          {m.flagged ? "★" : "☆"}
+                        </button>
+                        <span className="shrink-0 text-[11px] text-muted">{formatWhen(m.received_at)}</span>
+                      </span>
+                      <span className="mt-1 flex items-center gap-1.5">
+                        <span className="min-w-0 flex-1 truncate text-[13px]">{m.subject || "(bez tematu)"}</span>
                         {m.client_nazwa && (
                           <span className="shrink-0 rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-brand-purple">
                             {m.client_nazwa}
@@ -656,23 +771,22 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                           </span>
                         )}
                       </span>
-                      <span className="mt-0.5 block truncate text-[13px]">{m.subject || "(bez tematu)"}</span>
-                      <span className="mt-0.5 block truncate text-[12px] text-muted opacity-70">
-                        {(m.body_text || "").slice(0, 120)}
+                      <span className="mt-1 flex items-center gap-1.5">
+                        <span className="min-w-0 flex-1 truncate text-[12px] text-muted opacity-70">
+                          {(m.body_text || "").slice(0, 160)}
+                        </span>
+                        {m.kategoria && <MailCategoryTag kategoria={m.kategoria} />}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStatusMenuFor((cur) => (cur === m.id ? null : m.id));
+                          }}
+                          title="Zmień status"
+                          className="shrink-0"
+                        >
+                          <MailStatusTag status={m.status as MailStatus} />
+                        </button>
                       </span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      {m.kategoria && <MailCategoryTag kategoria={m.kategoria} />}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setStatusMenuFor((cur) => (cur === m.id ? null : m.id));
-                        }}
-                        title="Zmień status"
-                      >
-                        <MailStatusTag status={m.status as MailStatus} />
-                      </button>
-                      <span className="w-14 text-right text-[11px] text-muted">{formatWhen(m.received_at)}</span>
                     </span>
                   </div>
 
@@ -722,6 +836,8 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               onClose={() => setOpenId(null)}
               onChanged={load}
               replyShortcut={replyShortcutNonce}
+              forwardShortcut={forwardShortcutNonce}
+              replyAllShortcut={replyAllShortcutNonce}
             />
           ) : (
             <div className="card-paper flex min-h-[300px] items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">

@@ -1538,6 +1538,14 @@ async function createMailSchema(): Promise<void> {
   // sprawdzone, '' = sprawdzone ale bez sensownego linku, string = realny URL.
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS list_unsubscribe_url TEXT;`;
 
+  // Moduł 4e, runda 2 (2026-07-16) — flaga "ważne", świadomie TYLKO lokalna
+  // (decyzja właściciela): nie synchronizuje się z `\Flagged` po IMAP, to
+  // czysto nasz znacznik w panelu. Pełna dwustronna synchronizacja flag z
+  // Outlookiem zostaje odłożona jak w `docs/plany-modulow/04b-poczta-pelny-klient.md`
+  // (Etap 2, "Flagi") — większy zakres, niezweryfikowane wsparcie własnych
+  // keywordów na az.pl/Dovecot.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS flagged BOOLEAN NOT NULL DEFAULT false;`;
+
   await markSchemaApplied("mail");
 }
 

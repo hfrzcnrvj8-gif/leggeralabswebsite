@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
-import { Popover, MenuRow } from "../Menu";
+import { Popover, PropertyMenu, MenuRow } from "../Menu";
 import {
   MailStatusTag,
   MailCategoryTag,
+  MAIL_STATUSES,
+  MAIL_STATUS_LABEL,
   replySubject,
   forwardSubject,
   SIGNATURE_LANGS,
@@ -36,6 +38,8 @@ export function MailDetailPanel({
   onClose,
   onChanged,
   replyShortcut,
+  forwardShortcut,
+  replyAllShortcut,
 }: {
   lang: Locale;
   mailId: string;
@@ -47,6 +51,10 @@ export function MailDetailPanel({
    * prop zamiast globalnego stanu, żeby ten komponent nie musiał nic wiedzieć
    * o obsłudze klawiatury rodzica. */
   replyShortcut?: number;
+  /** Analogiczne nonce dla "f" (Przekaż) i "a" (Odpowiedz wszystkim) — 04e
+   * runda 2, dorobione skróty wzorem Apple Mail zgłoszone przez właściciela. */
+  forwardShortcut?: number;
+  replyAllShortcut?: number;
 }) {
   const { toast, prompt } = useUI();
   const [mail, setMail] = useState<MailMessageWithLinks | null>(null);
@@ -98,6 +106,33 @@ export function MailDetailPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replyShortcut]);
 
+  // Skrót "f" → otwórz przekazanie. Ten sam wzorzec co replyShortcut wyżej
+  // (04e runda 2, dorobione skróty wzorem Apple Mail).
+  const firstForwardShortcut = useRef(true);
+  useEffect(() => {
+    if (firstForwardShortcut.current) {
+      firstForwardShortcut.current = false;
+      return;
+    }
+    if (configured) setForwardOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forwardShortcut]);
+
+  // Skrót "a" → otwórz odpowiedź z DW wypełnionym z oryginału ("Odpowiedz
+  // wszystkim"), analogicznie do przycisku w pasku akcji.
+  const firstReplyAllShortcut = useRef(true);
+  useEffect(() => {
+    if (firstReplyAllShortcut.current) {
+      firstReplyAllShortcut.current = false;
+      return;
+    }
+    if (mail?.kierunek === "in" && configured) {
+      setReplyCc(mail.cc_addr || "");
+      setReplyOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyAllShortcut]);
+
   // Projekty klienta dociągamy tylko wtedy, gdy mail jest do klienta
   // przypisany — bez tego "Z maila → zadanie" nie ma do czego się podpiąć.
   useEffect(() => {
@@ -133,6 +168,23 @@ export function MailDetailPanel({
     },
     [mailId, load, onChanged, toast]
   );
+
+  /** Flaga "ważne" (04e runda 2) — TYLKO lokalna (decyzja właściciela), nie
+   * dotyka IMAP-a — patrz komentarz w lib/db.ts. */
+  const toggleFlag = useCallback(async () => {
+    if (!mail) return;
+    const res = await fetch(`/api/mail/${mailId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flagged: !mail.flagged }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się zmienić flagi.", "error");
+      return;
+    }
+    await load();
+    await onChanged();
+  }, [mail, mailId, load, onChanged, toast]);
 
   const send = useCallback(() => {
     const text = replyText.trim();
@@ -321,8 +373,30 @@ export function MailDetailPanel({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {/* Flaga "ważne" (04e runda 2) — lokalna, patrz toggleFlag() wyżej. */}
+          <button
+            onClick={() => void toggleFlag()}
+            title={mail.flagged ? "Usuń flagę" : "Oflaguj jako ważne"}
+            className={`text-[16px] leading-none ${mail.flagged ? "text-brand-gold" : "text-muted opacity-40 hover:opacity-80"}`}
+          >
+            {mail.flagged ? "★" : "☆"}
+          </button>
           {mail.kategoria && <MailCategoryTag kategoria={mail.kategoria} />}
-          <MailStatusTag status={mail.status as MailStatus} />
+          {/* Status klikalny wprost w tagu (04e runda 2, zgłoszone przez
+              właściciela) — wcześniej zmiana statusu żyła WYŁĄCZNIE w menu
+              "•••", tag był tylko do odczytu. `PropertyMenu` (../Menu, ten
+              sam komponent co np. status leada) konsoliduje wszystkie trzy
+              przejścia (Do odpowiedzi/Obsłużony/Zignorowany) w jednym
+              miejscu — dlatego usunięte z overflow menu niżej. */}
+          <PropertyMenu
+            value={mail.status as MailStatus}
+            options={MAIL_STATUSES.map((s) => ({ value: s, label: MAIL_STATUS_LABEL[s] }))}
+            onChange={(s) => void setStatus(s)}
+            align="right"
+            title="Zmień status"
+          >
+            <MailStatusTag status={mail.status as MailStatus} />
+          </PropertyMenu>
           <button onClick={onClose} className="rounded-full px-2 py-0.5 text-lg leading-none text-muted hover:text-[var(--fg)]" aria-label="Zamknij">
             ×
           </button>
@@ -497,33 +571,10 @@ export function MailDetailPanel({
           >
             {(close) => (
               <div>
-                {mail.status !== "zignorowany" && mail.kierunek === "in" && (
-                  <MenuRow
-                    label="Wycisz"
-                    onClick={() => {
-                      void setStatus("zignorowany");
-                      close();
-                    }}
-                  />
-                )}
-                {mail.status === "nowy" && (
-                  <MenuRow
-                    label="Obsłużone"
-                    onClick={() => {
-                      void setStatus("obsłużony");
-                      close();
-                    }}
-                  />
-                )}
-                {mail.status !== "nowy" && mail.kierunek === "in" && (
-                  <MenuRow
-                    label="Przywróć do odpowiedzi"
-                    onClick={() => {
-                      void setStatus("nowy");
-                      close();
-                    }}
-                  />
-                )}
+                {/* Wycisz/Obsłużone/Przywróć do odpowiedzi — przeniesione do
+                    klikalnego tagu statusu w nagłówku (PropertyMenu wyżej),
+                    04e runda 2. Zostaje tu tylko to, co NIE jest zmianą
+                    statusu: przeniesienie folderu i skrót do Outlooka. */}
                 {(mail.folder === "trash" || mail.folder === "archive") && (
                   <MenuRow
                     label="Przywróć do Odebranych"

@@ -2865,6 +2865,68 @@ jednym maleńkim dodatkiem (link wypisu, patrz niżej).
   newslettera) do potwierdzenia na produkcji** — analogicznie do innych
   zmian dotykających parsowania IMAP w tym module.
 
+### Moduł 4e, runda 2 — szerokość, obcinanie tekstu, flagi, więcej skrótów (2026-07-16)
+
+Właściciel obejrzał wdrożenie rundy 1 na żywo (zrzut ekranu z szerokiego
+monitora) i zgłosił: dużo czarnej przestrzeni marnowanej po prawej stronie
+i między kolumnami, nazwa nadawcy/temat/podgląd na liście brutalnie obcinane,
+status wiadomości powinien być klikalny wprost w tagu (nie tylko w menu
+"•••"), brak możliwości flagowania wiadomości, i pytanie o porównanie z
+najlepszymi klientami pocztowymi (odpowiedź: patrz `docs/plany-modulow/04b-poczta-pelny-klient.md`
+→ Etap 3, nieprzekreślone punkty — screener/VIP/snooze/nudge/wątkowanie,
+świadomie NIE zaczęte w tej rundzie, zbyt duży zakres na jedną sesję).
+
+- **Pełna szerokość ekranu TYLKO dla Poczty** (`AppShell.tsx`) — globalny
+  wrapper treści panelu (`mx-auto max-w-[1800px]`, dotyczy WSZYSTKICH modułów)
+  marnował przestrzeń najbardziej widocznie na gęstym, trójkolumnowym
+  dashboardzie Poczty na szerokich/ultra-szerokich monitorach. Naprawione
+  warunkiem po `pathname` (już dostępny w `ShellBody`): trasa `/admin/mail`
+  dostaje `max-w-none`, reszta modułów (Faktury/Projekty/formularze) zostaje
+  przy dotychczasowym limicie — **nie ujednolicaj bez potrzeby**, to świadomie
+  odrębna decyzja dla jednego modułu, nie zmiana globalnego designu.
+- **Wiersz listy przebudowany z jednej linii + bocznej kolumny znaczników na
+  TRZY linie** (`MailDashboard.tsx`) — poprzedni układ miał osobny,
+  stałej-szerokości sibling (`flex shrink-0`) z kategorią+statusem+czasem
+  (~200px), który zabierał miejsce NIEZALEŻNIE od tego, ile go potrzebowały
+  nadawca/temat/podgląd w sąsiedniej kolumnie `flex-1` — stąd brutalne
+  obcinanie nawet przy szerokiej kolumnie. Teraz: wiersz 1 = nadawca + flaga +
+  czas, wiersz 2 = temat + tagi klienta/leada, wiersz 3 = podgląd treści +
+  kategoria + status (klikalny). Każdy znacznik dzieli szerokość TYLKO ze
+  swoją linią, nie z całą wysokością wiersza. Dodatkowo kolumna listy zmieniona
+  ze sztywnych `420px` na responsywną (`lg:w-[38%] lg:min-w-[380px] lg:max-w-[620px]`)
+  — rośnie razem ze stroną zamiast zostawać przyklejona do stałej wartości.
+- **Status klikalny wprost w tagu nagłówka** (`MailDetailPanel.tsx`) — tag
+  statusu owinięty w `PropertyMenu` (`../Menu`, ten sam komponent co np.
+  status leada) z trzema opcjami (Do odpowiedzi/Obsłużony/Zignorowany).
+  Konsoliduje wszystkie trzy przejścia statusu w jednym miejscu, dlatego
+  usunięte z overflow menu "•••" (zostaje tam tylko "Przywróć do Odebranych" i
+  "Otwórz w Outlooku" — to, co NIE jest zmianą statusu).
+- **Flaga "ważne"** (`★`/`☆`) — świadomie TYLKO lokalna (decyzja właściciela,
+  zapytany wprost: lekka flaga w naszej bazie vs. pełna dwustronna
+  synchronizacja `\Flagged` z Outlookiem — ta druga to większy, osobny zakres
+  z niezweryfikowanym ryzykiem wsparcia własnych keywordów na az.pl/Dovecot,
+  patrz "Flagi" w `docs/plany-modulow/04b-poczta-pelny-klient.md` → Etap 2,
+  nadal odłożone). Nowa kolumna `mail_messages.flagged BOOLEAN NOT NULL
+  DEFAULT false` (bramka migracji `"mail"`), klikalna gwiazdka w liście i w
+  nagłówku podglądu, PATCH `{flagged: boolean}`.
+- **Nowe skróty klawiszowe** (wzorem Apple Mail, `MailDashboard.tsx` +
+  `MailDetailPanel.tsx`): `f` (Przekaż) i `a` (Odpowiedz wszystkim) — działają
+  TYLKO przy otwartym podglądzie (potrzebują formularza/pola DW, które żyją
+  tam), ten sam wzorzec nonce co istniejące `r`; `s` (flaga), `y`
+  (Archiwizuj), `Backspace` (Usuń) — działają na otwartej LUB fokusowanej
+  wiadomości w liście (jak istniejące `e`), bez potwierdzenia (tak jak
+  pojedynczy przycisk "Usuń" w podglądzie — tylko akcja ZBIORCZA pyta).
+- **Zweryfikowane lokalnie (2026-07-16):** `tsc` czysty. W przeglądarce
+  (PGlite + dev-login, viewport 1920×1000) — Poczta wypełnia pełną szerokość
+  ekranu (zero czarnego marginesu po prawej), wiersze listy pokazują pełną
+  nazwę nadawcy/temat bez obcinania, klik w tag statusu w podglądzie otwiera
+  `PropertyMenu` z trzema opcjami i poprawnie aktualizuje (potwierdzone przez
+  PATCH w sieci + zniknięcie z licznika "Do odpowiedzi"), flaga przełącza się
+  klikiem w liście i w podglądzie (gwiazdka złota/pusta), menu "•••" pokazuje
+  już tylko "Otwórz w Outlooku" (bez zdublowanych akcji statusu). Jedna
+  seedowa wiadomość (`lib/dev-db.ts`) oflagowana na stałe do weryfikacji
+  wizualnej gwiazdki.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

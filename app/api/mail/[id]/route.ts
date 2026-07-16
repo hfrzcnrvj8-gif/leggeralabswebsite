@@ -67,6 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     client_id?: unknown;
     lead_id?: unknown;
     move?: unknown;
+    flagged?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: "invalid body" }, { status: 400 });
 
@@ -148,6 +149,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // zniknąć, inaczej zostałaby data z poprzedniego odhaczenia.
     const handledAt = body.status === "obsłużony" ? new Date().toISOString() : null;
     await sql`UPDATE mail_messages SET status = ${body.status}, handled_at = ${handledAt} WHERE id = ${id};`;
+  }
+
+  // Flaga "ważne" (Moduł 4e, runda 2) — TYLKO lokalna, nie dotyka IMAP-a.
+  if (typeof body.flagged === "boolean") {
+    await sql`UPDATE mail_messages SET flagged = ${body.flagged} WHERE id = ${id};`;
   }
 
   // Ręczne przypisanie z kolejki "Nieprzypisane". Zawsze dokładnie jedna

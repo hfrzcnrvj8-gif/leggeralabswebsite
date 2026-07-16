@@ -200,6 +200,10 @@ async function ensureSeeded(): Promise<void> {
         [randomUUID(), leadA, "Re: Automatyzacja umów — Dzień dobry, wracam do tematu — kiedy moglibyśmy porozmawiać?", mailLead]
       );
 
+      // Jedna wiadomość oflagowana jako "ważne" (04e runda 2) — bez tego nie
+      // da się lokalnie zweryfikować gwiazdki w liście/podglądzie.
+      await raw(`UPDATE mail_messages SET flagged = true WHERE id = $1`, [mailLead]);
+
       // HTML dla maila "reklamowego" — sprawdza renderowanie w izolowanej
       // ramce (lib/mailHtml.ts + MailBodyHtml.tsx). Zawiera CELOWO trzy
       // rzeczy, które MUSZĄ zostać wycięte przez odkażanie: <script>, atrybut

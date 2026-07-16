@@ -405,7 +405,13 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       </aside>
 
       <div className="min-w-0 flex-1">
-        <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6">
+        {/* Poczta ma świadomie odrębny kształt treści od reszty panelu —
+            gęsty trójkolumnowy dashboard (foldery + lista + podgląd), gdzie
+            globalny limit `max-w-[1800px]` marnował widoczną przestrzeń na
+            szerokich monitorach (zgłoszone przez właściciela, Moduł 4e runda
+            2). Inne moduły (Faktury/Projekty, formularze) zostają przy
+            dotychczasowym limicie — nie ujednolicaj bez potrzeby. */}
+        <div className={`mx-auto px-4 py-5 sm:px-6 ${pathname.startsWith(`${base}/mail`) ? "max-w-none" : "max-w-[1800px]"}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={pathname}

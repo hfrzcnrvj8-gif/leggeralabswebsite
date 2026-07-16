@@ -84,6 +84,9 @@ export type MailMessage = {
    * linku, niepusty string = realny link do wypisania. Patrz
    * parseUnsubscribeUrl() niżej. */
   list_unsubscribe_url: string | null;
+  /** Flaga "ważne" (Moduł 4e, runda 2) — TYLKO lokalna, nie synchronizuje się
+   * z `\Flagged` po IMAP (świadoma decyzja właściciela, patrz lib/db.ts). */
+  flagged: boolean;
   received_at: string;
   handled_at: string | null;
 };
