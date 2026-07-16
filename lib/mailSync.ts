@@ -103,20 +103,38 @@ export async function syncMailbox(): Promise<SyncResult> {
     SELECT id, role, imap_path, uidvalidity, last_seen_uid FROM mail_folders;
   `) as unknown as FolderCursorRow[];
 
+  // Każdy folder = osobne połączenie IMAP (TLS + AUTH + SELECT) — sekwencyjne
+  // wołanie ich jedno po drugim (jak przy jednym INBOX-ie) sumowałoby czas
+  // WSZYSTKICH połączeń. Foldery są od siebie niezależne (własny kursor,
+  // własne wiersze do zapisania), więc lecą równolegle — czas syncu ograniczony
+  // przez NAJWOLNIEJSZY folder, nie sumę wszystkich. `allSettled`, nie `all`:
+  // awaria jednego folderu (np. serwer akurat wolny na Trash) nie może
+  // przerwać zapisu pozostałych — syncOneFolder() już łapie własne błędy
+  // fetchu dla ról innych niż 'inbox' (zwraca puste wyniki), więc odrzucenie
+  // tu praktycznie zdarza się tylko dla 'inbox' (świadomie przepuszczane
+  // dalej, jak w oryginalnym, jednofolderowym kodzie).
+  const settled = await Promise.allSettled(folderRows.map((folder) => syncOneFolder(sql, folder, ownAddr)));
+
   let fetched = 0;
   let saved = 0;
   let matched = 0;
   let unassigned = 0;
   let ignored = 0;
+  let inboxError: unknown = null;
 
-  for (const folder of folderRows) {
-    const result = await syncOneFolder(sql, folder, ownAddr);
-    fetched += result.fetched;
-    saved += result.saved;
-    matched += result.matched;
-    unassigned += result.unassigned;
-    ignored += result.ignored;
-  }
+  settled.forEach((result, i) => {
+    if (result.status === "fulfilled") {
+      fetched += result.value.fetched;
+      saved += result.value.saved;
+      matched += result.value.matched;
+      unassigned += result.value.unassigned;
+      ignored += result.value.ignored;
+    } else if (folderRows[i].role === "inbox") {
+      inboxError = result.reason;
+    }
+  });
+
+  if (inboxError) throw inboxError;
 
   return { fetched, saved, matched, unassigned, ignored };
 }
@@ -283,8 +301,15 @@ async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: Fetch
   if (written.length === 0) return "duplicate";
   if (!match) return "unassigned";
 
+  // UWAGA: gdy INSERT trafił w ON CONFLICT (wiadomość już istniała pod INNYM
+  // id — np. wcześniej zapisana przez saveIncoming(), bo self-mail wpadł do
+  // INBOX-a i Sent pod tym samym message_id), `written[0].id` to PRAWDZIWY id
+  // istniejącego wiersza, różny od lokalnie wygenerowanego `id` powyżej.
+  // Użycie tego drugiego tutaj psuło klucz obcy client_activity/lead_activity
+  // (błąd na produkcji 2026-07-16: "Key (mail_message_id)=... is not present
+  // in table mail_messages").
   await logMailOnTimeline(sql, {
-    mailId: id,
+    mailId: written[0].id,
     match,
     text: mailSummaryLine(msg.subject, msg.bodyText),
     kierunek: "wychodzacy",

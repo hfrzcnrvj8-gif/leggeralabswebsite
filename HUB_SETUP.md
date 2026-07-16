@@ -2671,6 +2671,54 @@ przycisków"), zamiast prostszej opcji.
   prawdziwym Koszu (nie zniknął bezpowrotnie); sprawdzić `vercel logs` pod
   kątem ostrzeżeń o brakujących capabilities MOVE/UIDPLUS.
 
+**Pierwsza runda poprawek po realnym teście (2026-07-16, ten sam dzień)** —
+właściciel wysłał testowego maila z Outlooka do siebie i zgłosił: mail nie
+pojawił się w "Wysłane" w panelu, odświeżanie ("Pobierz nowe") trwało
+zauważalnie długo, i nadal nie widział "Leggera Labs" jako nadawcy.
+Zdiagnozowane z `vercel logs` (`npx vercel logs <url-ostatniego-deploya>`,
+CLI zalogowane w tym środowisku — nie trzeba pytać właściciela o logi ręcznie):
+
+- **Prawdziwy bug w `saveOutgoingFromServer()`** (`lib/mailSync.ts`):
+  `logMailOnTimeline()` dostawał lokalnie wygenerowany `id` zamiast
+  `written[0].id` zwróconego przez zapytanie. Dla ŚWIEŻEGO INSERT-u oba są
+  identyczne (bez objawów), ale gdy INSERT trafił w `ON CONFLICT` (bo
+  wiadomość self-mail wpadła też do INBOX-a pod tym samym `message_id` i
+  `saveIncoming()` zdążył ją zapisać pod SWOIM id pierwszy) — `written[0].id`
+  to prawdziwy id istniejącego wiersza, a lokalny `id` wskazuje donikąd.
+  Efekt na produkcji: `NeonDbError 23503` — "insert or update on table
+  client_activity violates foreign key constraint... Key (mail_message_id)=
+  (...) is not present in table mail_messages". INSERT/UPDATE samej
+  wiadomości i tak się udawał (błąd leciał w kroku PO nim), więc mail
+  faktycznie trafiał do bazy z `folder='sent'` — ale rzucony wyjątek
+  przerywał liczenie w tej iteracji, przez co właściciel nie miał pewności,
+  czy się zapisał. Naprawione: `mailId: written[0].id`.
+- **Wolniejsze odświeżanie — nie bug, oczekiwany koszt architektury, ale
+  do złagodzenia:** każdy folder (`inbox`/`sent`/`trash`/`archive`) to
+  OSOBNE połączenie IMAP (TLS+AUTH+SELECT), a `syncOneFolder()` był wołany
+  sekwencyjnie w pętli — czas syncu rósł liniowo z liczbą odkrytych
+  folderów (do 4) zamiast być ograniczonym najwolniejszym z nich.
+  Naprawione: `Promise.allSettled()` zamiast pętli `for` w `syncMailbox()` —
+  foldery synchronizują się równolegle. `allSettled`, nie `all`: awaria
+  jednego folderu (rzadka, ale możliwa — np. serwer akurat wolny na Trash)
+  nie przerywa zapisu pozostałych; błąd INBOX-a (jedyna rola, która nadal
+  rzuca dalej) jest świadomie przepuszczany po zebraniu wyników reszty.
+- **"Leggera Labs" wciąż nie widoczne — to NIE bug, tylko test niewłaściwej
+  ścieżki.** Właściciel testował, wysyłając mail BEZPOŚREDNIO Z OUTLOOKA —
+  `mailFrom()` (poprawiony wcześniej tego samego dnia) wpływa WYŁĄCZNIE na
+  maile wysyłane Z PANELU (Odpisz/Przekaż/Nowa wiadomość, przez `sendMail()`
+  w `lib/mailbox.ts`). Mail skomponowany wprost w Outlooku ma nazwę nadawcy
+  całkowicie z ustawień konta Outlooka — panel nigdy nie jest na tej ścieżce.
+  Potwierdzone przez `npx vercel env ls production`: `MAIL_FROM` NIE jest
+  ustawione na Vercelu, więc domyślna wartość z kodu (`"Leggera Labs <" +
+  adres + ">"`) powinna już działać dla maili wysłanych z panelu — do
+  potwierdzenia przez właściciela osobnym testem (Nowa wiadomość → do
+  zewnętrznego adresu, nie do siebie przez Outlooka).
+- Do potwierdzenia po tej rundzie poprawek: czy testowy self-mail faktycznie
+  pojawił się w "Wysłane" (kliknij "Pobierz nowe" ponownie — insert z
+  poprzedniej próby prawdopodobnie już się udał mimo błędu w logu, dedup po
+  `message_id` obroni przed duplikatem), i czy odświeżanie jest teraz
+  wyraźnie szybsze.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite
