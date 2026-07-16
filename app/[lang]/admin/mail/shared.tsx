@@ -22,6 +22,7 @@ export {
   MAIL_CATEGORY_CLASS,
   MAIL_RETENTION_MONTHS,
   replySubject,
+  forwardSubject,
   extractEmailAddress,
 } from "@/lib/mail";
 

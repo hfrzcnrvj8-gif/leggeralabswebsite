@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureClientsSchema, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { CLIENT_STATUSES } from "@/lib/clients";
+import { rematchUnassigned } from "@/lib/mailSync";
 
 export const runtime = "nodejs";
 
@@ -68,6 +69,12 @@ export async function POST(req: NextRequest) {
   `;
   if (leadId) {
     await sql`UPDATE leads SET client_id = ${id}, updated_at = now() WHERE id = ${leadId};`;
+  }
+
+  // Klient dostał adres — dopnij mu od razu korespondencję, która przyszła
+  // zanim istniał (04d pkt 1), zamiast czekać na kolejny sync poczty.
+  if (email.trim()) {
+    await rematchUnassigned().catch((e) => console.error("[clients] rematch poczty nie powiódł się", e));
   }
 
   return NextResponse.json({ ok: true, id });

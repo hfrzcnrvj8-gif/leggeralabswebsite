@@ -8,6 +8,7 @@ import {
   MailStatusTag,
   MailCategoryTag,
   replySubject,
+  forwardSubject,
   SIGNATURE_LANGS,
   SIGNATURE_LANG_LABEL,
   type SignatureLang,
@@ -15,14 +16,18 @@ import {
   type MailStatus,
 } from "./shared";
 import { MailBodyHtml } from "./MailBodyHtml";
+import { MailComposeForm } from "./MailComposeForm";
+import { TemplatePickerButton, useMailTemplates, type MailTemplate } from "./TemplatePickerButton";
+import { useUndoSend } from "./useUndoSend";
 
 type Project = { id: string; tytul: string; status: string };
 
-/** Profil wiadomości = wyśrodkowany modal (CLAUDE.md: dotyczy WSZYSTKICH
- * modułów). Overlay siedzi w MailDashboard, karta tutaj — wzorem
- * LeadDetailPanel/InvoiceEditor. Świadomie max-w-5xl (limit nadaje
- * dashboard): treść maila to jedna kolumna tekstu, więc pełna szerokość
- * ekranu pogorszyłaby czytelność, inaczej niż przy gęstym profilu leada. */
+/** Podgląd wiadomości. W `MailDashboard` renderowany bezpośrednio obok listy
+ * (kolumna podglądu, nie modal — 04d pkt 4: pełna szerokość ekranu zamiast
+ * wąskiego okna), na `[id]/page.tsx` jako samodzielna strona pod stałym
+ * linkiem. Karta sama może być szeroka, ale treść maila to jedna kolumna
+ * tekstu — `max-w-[70ch]` niżej ogranicza TYLKO akapit, żeby długie linie nie
+ * ciągnęły się przez cały ekran. */
 export function MailDetailPanel({
   lang,
   mailId,
@@ -44,12 +49,17 @@ export function MailDetailPanel({
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replyCc, setReplyCc] = useState("");
+  const [forwardOpen, setForwardOpen] = useState(false);
   // Domyślnie polski; przełącznik przy pisaniu (decyzja właściciela
   // 2026-07-15 — świadomie ręcznie, nie automatem po kraju klienta).
   const [podpis, setPodpis] = useState<SignatureLang | null>("pl");
-  const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState<Project[] | null>(null);
+  const templates = useMailTemplates();
+  // "Cofnij wysyłkę" (Etap 1 Modułu 4b) — dotyczy WSZYSTKICH ścieżek wysyłki,
+  // tu: Odpisz/Odpowiedz wszystkim. Przekazanie ma własną instancję w
+  // MailComposeForm.
+  const { countdown, start, cancel, sending } = useUndoSend();
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/mail/${mailId}${showImages ? "?images=1" : ""}`);
@@ -103,14 +113,13 @@ export function MailDetailPanel({
     [mailId, load, onChanged, toast]
   );
 
-  const send = useCallback(async () => {
+  const send = useCallback(() => {
     const text = replyText.trim();
     if (!text) {
       toast("Treść odpowiedzi nie może być pusta.", "error");
       return;
     }
-    setSending(true);
-    try {
+    start(async () => {
       const res = await fetch(`/api/mail/${mailId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,10 +142,12 @@ export function MailDetailPanel({
       } else {
         toast("Odpowiedź wysłana.");
       }
-    } finally {
-      setSending(false);
-    }
-  }, [mailId, replyText, replyCc, podpis, load, onChanged, toast]);
+    });
+  }, [mailId, replyText, replyCc, podpis, load, onChanged, toast, start]);
+
+  const applyTemplate = useCallback((t: MailTemplate) => {
+    setReplyText((prev) => (prev.trim() ? `${prev}\n\n${t.tresc}` : t.tresc));
+  }, []);
 
   /** Wspólne dla "Utwórz leada" i "Utwórz klienta" — te same kroki, inny
    * endpoint. Właściciel decyduje kliknięciem, czy piszący to dopiero lead do
@@ -277,8 +288,9 @@ export function MailDetailPanel({
       </div>
 
       {/* HTML, gdy mail go ma (tak wygląda w Outlooku); wersja tekstowa jako
-          zapas dla maili czysto tekstowych. */}
-      <div className="mb-5">
+          zapas dla maili czysto tekstowych. max-w-[70ch] tylko na akapicie —
+          karta wokół może być szeroka (04d pkt 4), ale linijki tekstu nie. */}
+      <div className="mb-5 max-w-[70ch]">
         {html ? (
           <MailBodyHtml html={html} blockedImages={blockedImages} onShowImages={() => setShowImages(true)} />
         ) : (
@@ -308,7 +320,19 @@ export function MailDetailPanel({
         </div>
       )}
 
-      {replyOpen ? (
+      {forwardOpen ? (
+        <MailComposeForm
+          mode="forward"
+          initialSubject={forwardSubject(mail.subject)}
+          hint="Poniżej zostanie doklejona oryginalna wiadomość (nagłówek + treść)."
+          endpoint={`/api/mail/${mailId}/forward`}
+          onSent={async () => {
+            await load();
+            await onChanged();
+          }}
+          onClose={() => setForwardOpen(false)}
+        />
+      ) : replyOpen ? (
         <div className="space-y-2">
           <p className="text-[12px] text-muted">
             Odpowiedź do <span className="font-medium">{mail.from_addr}</span> — temat: {replySubject(mail.subject)}
@@ -352,15 +376,29 @@ export function MailDetailPanel({
             >
               Bez podpisu
             </button>
+            <span className="ml-auto">
+              <TemplatePickerButton templates={templates} onPick={applyTemplate} />
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={send} disabled={sending} className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50">
-              {sending ? "Wysyłam…" : "Wyślij odpowiedź"}
-            </button>
-            <button onClick={() => setReplyOpen(false)} className="rounded-full px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)]">
-              Anuluj
-            </button>
+            {sending ? (
+              <>
+                <span className="rounded-full bg-[var(--hairline)] px-4 py-1.5 text-[13px] text-muted">Wysyłam za {countdown}s…</span>
+                <button onClick={cancel} className="rounded-full border hairline px-3 py-1.5 text-[13px] hover:bg-[var(--hairline)]/50">
+                  Cofnij
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={send} className="btn-primary rounded-full px-4 py-1.5 text-[13px]">
+                  Wyślij odpowiedź
+                </button>
+                <button onClick={() => setReplyOpen(false)} className="rounded-full px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)]">
+                  Anuluj
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -375,6 +413,27 @@ export function MailDetailPanel({
               ↩︎ Odpisz
             </button>
           )}
+          {mail.kierunek === "in" && mail.cc_addr && (
+            <button
+              onClick={() => {
+                setReplyCc(mail.cc_addr || "");
+                setReplyOpen(true);
+              }}
+              disabled={!configured}
+              title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
+              className="rounded-full border hairline px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+            >
+              ↩︎ Odpowiedz wszystkim
+            </button>
+          )}
+          <button
+            onClick={() => setForwardOpen(true)}
+            disabled={!configured}
+            title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
+            className="rounded-full border hairline px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            ➜ Przekaż
+          </button>
           {mail.status === "nowy" && (
             <button
               onClick={() => void setStatus("obsłużony")}

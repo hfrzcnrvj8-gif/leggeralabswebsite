@@ -1464,6 +1464,14 @@ async function createMailSchema(): Promise<void> {
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS list_unsubscribe BOOLEAN;`;
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS precedence TEXT;`;
   await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS auto_submitted TEXT;`;
+
+  // DW (Cc) oryginalnej wiadomości — Etap 1 Modułu 4b (2026-07-15), potrzebne
+  // do "Odpowiedz wszystkim". Ten sam wzorzec co `kategoria`: nullable BEZ
+  // DEFAULT, żeby NULL ("jeszcze nie sprawdzone") różniło się od ""
+  // ("sprawdzone, bez DW") — backfillCc() (lib/mailSync.ts) dociąga braki po
+  // UID-zie, dedup po message_id nie pozwala pobrać starych wiadomości
+  // ponownie w całości.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS cc_addr TEXT;`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_kategoria_idx ON mail_messages(kategoria);`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_client_id_idx ON mail_messages(client_id);`;
   await sql`CREATE INDEX IF NOT EXISTS mail_messages_lead_id_idx ON mail_messages(lead_id);`;
@@ -1516,4 +1524,34 @@ async function createMailSchema(): Promise<void> {
 export async function ensureMailSchema(): Promise<void> {
   if (!mailSchemaReady) mailSchemaReady = createMailSchema();
   await mailSchemaReady;
+}
+
+let mailTemplatesSchemaReady: Promise<void> | null = null;
+
+/** Moduł 4b, Etap 1 — szablony wiadomości (Superhuman Snippets). Ten sam
+ * kształt co `offer_templates`: nazwa + gotowa treść do wstawienia, tu
+ * dodatkowo `temat` (przydatny głównie przy "Nowa wiadomość" pisanej od
+ * zera — Odpowiedź/Przekazanie i tak biorą temat z wątku). Bez seeda —
+ * właściciel tworzy własne od zera, nie ma tu gotowego kanonu jak przy
+ * ofertach. */
+async function createMailTemplatesSchema(): Promise<void> {
+  if (await schemaUpToDate("mail_templates")) return;
+  const sql = getSql();
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_templates (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL DEFAULT '',
+      temat TEXT NOT NULL DEFAULT '',
+      tresc TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await markSchemaApplied("mail_templates");
+}
+
+/** Lazily tworzy tabelę szablonów wiadomości. */
+export async function ensureMailTemplatesSchema(): Promise<void> {
+  if (!mailTemplatesSchemaReady) mailTemplatesSchemaReady = createMailTemplatesSchema();
+  await mailTemplatesSchemaReady;
 }

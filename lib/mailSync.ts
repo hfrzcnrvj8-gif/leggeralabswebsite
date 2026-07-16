@@ -9,7 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { getSql, ensureMailSchema } from "./db";
 import { findContactsByEmail } from "./contactLookup";
-import { fetchNewMessages, fetchHintsByUids, isMailboxConfigured, type FetchedMessage } from "./mailbox";
+import { fetchNewMessages, fetchHintsByUids, fetchCcByUids, isMailboxConfigured, type FetchedMessage } from "./mailbox";
 import { classifyMail, isNoiseMail, mailSummaryLine, MAIL_RETENTION_MONTHS, type MailHeaderHints } from "./mail";
 import { todayLocalISO } from "./dates";
 
@@ -41,6 +41,17 @@ export async function syncMailbox(): Promise<SyncResult> {
   await backfillCategories().catch((e) => {
     // Backfill to porządki, nie powód, żeby nie pobrać nowej poczty.
     console.error("[mailSync] backfill kategorii nie powiódł się", e);
+  });
+
+  await backfillCc().catch((e) => {
+    console.error("[mailSync] backfill DW nie powiódł się", e);
+  });
+
+  // I dopnij maile, które przyszły ZANIM istniał pasujący klient/lead —
+  // saveIncoming() dopasowuje tylko raz, w chwili pobrania, więc bez tego
+  // takie maile zostają nieprzypisane na zawsze.
+  await rematchUnassigned().catch((e) => {
+    console.error("[mailSync] ponowne dopasowanie nieprzypisanych nie powiodło się", e);
   });
 
   const stateRows = (await sql`SELECT last_seen_uid, uid_validity FROM mail_state WHERE id = 'default';`) as unknown as MailState[];
@@ -184,6 +195,82 @@ export async function backfillCategories(): Promise<{ updated: number }> {
   return { updated };
 }
 
+/**
+ * Dociąga DW (Cc) wiadomościom pobranym PRZED wprowadzeniem kolumny
+ * `cc_addr` (2026-07-15, Etap 1 Modułu 4b) — bez tego "Odpowiedz wszystkim"
+ * na starszej korespondencji nie miałoby skąd wziąć adresów. Ten sam wzorzec
+ * co backfillCategories(): dociągamy TANI fragment (sam nagłówek, nie całą
+ * treść) po UID-zie, bo dedup po message_id nie pozwala pobrać wiadomości
+ * ponownie w całości.
+ */
+export async function backfillCc(): Promise<{ updated: number }> {
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT id, uid FROM mail_messages
+    WHERE kierunek = 'in' AND cc_addr IS NULL AND uid IS NOT NULL
+    LIMIT 300;
+  `) as unknown as { id: string; uid: number }[];
+  if (rows.length === 0 || !isMailboxConfigured()) return { updated: 0 };
+
+  const ccByUid = await fetchCcByUids(rows.map((r) => r.uid)).catch((e) => {
+    console.error("[mailSync] nie udało się dociągnąć DW ze skrzynki", e);
+    return new Map<number, string>();
+  });
+  if (ccByUid.size === 0) return { updated: 0 };
+
+  let updated = 0;
+  for (const r of rows) {
+    const cc = ccByUid.get(r.uid);
+    if (cc === undefined) continue; // serwer już nie zna tego UID-a — zostaw w spokoju
+    await sql`UPDATE mail_messages SET cc_addr = ${cc} WHERE id = ${r.id};`;
+    updated++;
+  }
+  return { updated };
+}
+
+/**
+ * Dopasowuje ponownie maile, które w chwili pobrania nie miały pasującego
+ * klienta/leada — bo `saveIncoming()` sprawdza adres TYLKO raz, przy
+ * zapisie. Właściciel dopiero buduje bazę klientów, więc "mail przyszedł
+ * przed kontaktem" jest normalnym, codziennym przypadkiem, nie wyjątkiem
+ * (decyzja 2026-07-15, `docs/plany-modulow/04d-...md` pkt 1).
+ *
+ * Reklamy pomijamy — nie ma sensu dopinać newslettera do klienta, nawet
+ * gdyby jego adres akurat pasował.
+ */
+export async function rematchUnassigned(): Promise<{ matched: number }> {
+  // Wołane też spoza syncMailbox() (POST/PATCH klientów i leadów), gdzie
+  // nikt wcześniej nie gwarantuje, że schemat poczty już istnieje.
+  await ensureMailSchema();
+  const sql = getSql();
+  const rows = (await sql`
+    SELECT id, from_addr, subject, body_text
+    FROM mail_messages
+    WHERE kierunek = 'in' AND client_id IS NULL AND lead_id IS NULL
+      AND (kategoria IS NULL OR kategoria <> 'reklama')
+    LIMIT 300;
+  `) as unknown as { id: string; from_addr: string; subject: string; body_text: string }[];
+  if (rows.length === 0) return { matched: 0 };
+
+  let matched = 0;
+  for (const r of rows) {
+    const match = (await findContactsByEmail(r.from_addr))[0];
+    if (!match) continue;
+
+    const clientId = match.type === "client" ? match.id : null;
+    const leadId = match.type === "lead" ? match.id : null;
+    await sql`UPDATE mail_messages SET client_id = ${clientId}, lead_id = ${leadId} WHERE id = ${r.id};`;
+    await logMailOnTimeline(sql, {
+      mailId: r.id,
+      match,
+      text: mailSummaryLine(r.subject, r.body_text),
+      kierunek: "przychodzacy",
+    });
+    matched++;
+  }
+  return { matched };
+}
+
 type SaveOutcome = "matched" | "unassigned" | "ignored" | "duplicate";
 
 /** Zapisz jedną przychodzącą wiadomość + (gdy dopasowana) wpis na osi
@@ -215,11 +302,11 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage)
   const id = randomUUID();
   const inserted = (await sql`
     INSERT INTO mail_messages (
-      id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr,
+      id, uid, kierunek, client_id, lead_id, from_addr, from_name, to_addr, cc_addr,
       subject, body_text, body_html, message_id, in_reply_to, refs, status, kategoria,
       list_unsubscribe, precedence, auto_submitted, received_at
     ) VALUES (
-      ${id}, ${msg.uid}, 'in', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr},
+      ${id}, ${msg.uid}, 'in', ${clientId}, ${leadId}, ${msg.fromAddr}, ${msg.fromName}, ${msg.toAddr}, ${msg.ccAddr},
       ${msg.subject}, ${msg.bodyText}, ${msg.bodyHtml}, ${msg.messageId}, ${msg.inReplyTo}, ${msg.refs},
       ${status}, ${kategoria},
       ${msg.hints.listUnsubscribe}, ${msg.hints.precedence}, ${msg.hints.autoSubmitted},

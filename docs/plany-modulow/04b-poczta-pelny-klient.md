@@ -36,7 +36,7 @@ UID-zie dla starych maili (Calendly lądował w „Zapytaniach").
 
 ## Kolejność (wg decyzji właściciela)
 
-### Etap 1 — Pisanie i odpowiadanie (W TOKU)
+### Etap 1 — Pisanie i odpowiadanie (✅ ZAMKNIĘTY 2026-07-15)
 
 **✅ ZROBIONE 2026-07-15** (szczegóły w `HUB_SETUP.md` → „Moduł 4 — trzecia tura"):
 - **Podpisy PL/EN/DE** — `lib/mailSignature.ts`, przełącznik przy pisaniu
@@ -50,20 +50,26 @@ UID-zie dla starych maili (Calendly lądował w „Zapytaniach").
 - **„Utwórz klienta z maila"** obok „Utwórz leada"
   (`POST /api/mail/[id]/create-client`).
 
-**Zostało w tym etapie:**
-- **Nowa wiadomość** (compose od zera), **Przekaż**, **Odpowiedz wszystkim**.
-  Dziś jest wyłącznie „Odpisz" do nadawcy. Compose wymaga wyboru odbiorcy z
-  bazy (klienci/leady) — jest już `findContactsByEmail` i klient-picker w
-  edytorze faktur do podpatrzenia.
-- **Cofnij wysyłkę** — opóźnienie ~10 s przed przekazaniem do SMTP. Czysto po
-  naszej stronie, tanie, ratuje skórę. Gmail daje 5–30 s (domyślnie 5).
-- **Szablony wiadomości** — naturalne przedłużenie podpisów. Wzorzec:
-  Superhuman Snippets (wstawianie inline). W panelu jest już
-  `offer_templates` — ten sam kształt.
-- ⚠️ **Do rozważenia:** dane podpisu (telefon, rola) siedzą dziś w kodzie
-  (`SIGNATURE_IDENTITY`). Świadomie — to zasób marki, nie ustawienie do zmiany
-  co tydzień. Jeśli właściciel poprosi o edycję z panelu, przenieść do
-  `company_settings`.
+**✅ ZROBIONE 2026-07-15, druga część Etapu 1** (szczegóły w `HUB_SETUP.md` →
+„Moduł 4b — Etap 1: pisanie i odpowiadanie"):
+- **Nowa wiadomość** (`POST /api/mail/compose`), **Przekaż**
+  (`POST /api/mail/[id]/forward`), **Odpowiedz wszystkim** (prefill pola DW z
+  `mail_messages.cc_addr` oryginału — bez osobnej trasy). Odbiorca: z bazy
+  (klienci/leady z e-mailem) LUB dowolny adres wpisany ręcznie (decyzja
+  właściciela — odbiorca nie musi być w CRM).
+- **DW przychodzących** (`cc_addr`, nullable, backfill po UID-zie dla starej
+  korespondencji) — bez tego "Odpowiedz wszystkim" nie miałoby skąd wziąć
+  adresów.
+- **Cofnij wysyłkę** — 10 s odliczania PO STRONIE KLIENTA (nie kolejka
+  serwerowa — Vercel nie utrzymuje stanu między zimnymi startami), dotyczy
+  wszystkich ścieżek wysyłki (Odpisz/Wszystkim/Przekaż/Nowa).
+- **Szablony wiadomości** (`mail_templates`: nazwa+temat+treść) — wzorem
+  `offer_templates`, bez seeda.
+
+⚠️ **Nadal do rozważenia:** dane podpisu (telefon, rola) siedzą dziś w kodzie
+(`SIGNATURE_IDENTITY`). Świadomie — to zasób marki, nie ustawienie do zmiany
+co tydzień. Jeśli właściciel poprosi o edycję z panelu, przenieść do
+`company_settings`.
 
 ### Etap 2 — Fundament: foldery i flagi IMAP
 **To jest przepisanie fundamentu, nie dokładanie przycisków.** Dziś panel
@@ -206,9 +212,22 @@ udostępnić odkładania wiadomości klientom zewnętrznym*.** Szkic
 (`draft-ietf-extra-email-snooze`) wygasł i nigdy nie został RFC. Nie ma czego
 szukać w protokole.
 
-## Definicja ukończenia (Etap 1)
-- Da się napisać nową wiadomość, przekazać, odpowiedzieć wszystkim.
-- Podpis PL/EN/DE wybierany przełącznikiem, wysyłany jako HTML, poprawnie
-  wyświetlany u odbiorcy (przetestować na prawdziwym mailu do siebie).
-- Cofnij wysyłkę działa.
-- `npx tsc --noEmit`, weryfikacja lokalna (mock), `HUB_SETUP.md` zaktualizowany.
+## Definicja ukończenia (Etap 1) — ✅ ZAMKNIĘTY 2026-07-15
+- ✅ Da się napisać nową wiadomość, przekazać, odpowiedzieć wszystkim.
+- ✅ Podpis PL/EN/DE wybierany przełącznikiem, wysyłany jako HTML (bez zmian w
+  tym etapie — zbudowane w trzeciej turze Modułu 4, dopracowane w Module 4c).
+  ⚠️ **Nie zweryfikowane w prawdziwym mailu do siebie** — Claude nie ma
+  dostępu do skrzynki az.pl; właściciel powinien wysłać próbną wiadomość
+  każdą nową ścieżką (Nowa/Przekaż/Wszystkim) i sprawdzić wygląd w Outlooku.
+- ✅ Cofnij wysyłkę działa (10 s, po stronie klienta, wszystkie ścieżki
+  wysyłki).
+- ✅ `npx tsc --noEmit` bez błędów. ⚠️ Weryfikacja w przeglądarce NIE wykonana
+  w tej sesji — inna sesja Claude miała w tym momencie uruchomiony własny
+  `next dev` na tym samym katalogu roboczym (Next.js nie pozwala na dwa
+  serwery dev jednocześnie w tym samym repo), a zatrzymanie jego procesu
+  byłoby destrukcyjne wobec cudzej pracy. Właściciel powinien przetestować
+  ręcznie: Nowa wiadomość, Przekaż, Odpowiedz wszystkim, Cofnij wysyłkę,
+  Szablony (dodaj/wstaw/edytuj/usuń) — najlepiej lokalnie
+  (`npm run dev` + dev-login) przed wdrożeniem.
+- ✅ `HUB_SETUP.md` zaktualizowany („Moduł 4b — Etap 1: pisanie i
+  odpowiadanie").

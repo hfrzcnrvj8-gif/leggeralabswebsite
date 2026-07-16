@@ -32,10 +32,14 @@ import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
+import { MailStatusTag, type MailStatus } from "../mail/shared";
 
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
 type LinkedInvoice = { id: string; numer: string | null; status: string; typ_dokumentu: string; created_at: string };
 type LinkedProject = { id: string; tytul: string; status: string; termin: string | null; created_at: string };
+/** Kartoteka korespondencji (04d pkt 2) — osobny rejestr obok scalonego
+ * feedu, na wyraźną prośbę właściciela 2026-07-15. */
+type ClientMail = { id: string; subject: string; kierunek: "in" | "out"; status: string; received_at: string };
 
 /** Jeden scalony chronologiczny feed z trzech źródeł (patrz
  * app/api/clients/[id]/route.ts): ręczne notatki klienta, notatki
@@ -86,6 +90,7 @@ export function ClientDetailPanel({
   const [offers, setOffers] = useState<LinkedOffer[]>([]);
   const [invoices, setInvoices] = useState<LinkedInvoice[]>([]);
   const [projects, setProjects] = useState<LinkedProject[]>([]);
+  const [mail, setMail] = useState<ClientMail[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteFollowup, setNoteFollowup] = useState("");
@@ -115,12 +120,14 @@ export function ClientDetailPanel({
       offers: LinkedOffer[];
       invoices: LinkedInvoice[];
       projects: LinkedProject[];
+      mail: ClientMail[];
     };
     setClient(data.client);
     setFeed(data.feed);
     setOffers(data.offers);
     setInvoices(data.invoices);
     setProjects(data.projects);
+    setMail(data.mail ?? []);
     setNoteFollowup(data.client.next_followup ?? "");
     setNoteAction(data.client.next_action ?? "");
   }, [id]);
@@ -359,6 +366,32 @@ export function ClientDetailPanel({
               </LinkedGroup>
             )}
           </div>
+        </div>
+      )}
+
+      {mail.length > 0 && (
+        <div className="mt-6 border-t hairline pt-6">
+          <h2 className="mb-1 text-lg font-semibold">Korespondencja</h2>
+          <p className="mb-4 text-[12px] text-muted opacity-70">
+            Wszystkie maile tego klienta — pełna treść w Poczcie pod linkiem.
+          </p>
+          <ul className="space-y-1.5">
+            {mail.map((m) => (
+              <li key={m.id}>
+                <Link
+                  href={`/${lang}/admin/mail/${m.id}`}
+                  className="flex items-center gap-2.5 rounded-xl border hairline px-3 py-2 text-sm hover:bg-[var(--hairline)]/40"
+                >
+                  <span className="shrink-0 text-base" aria-hidden>
+                    {m.kierunek === "out" ? "↩️" : "✉️"}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{m.subject || "(bez tematu)"}</span>
+                  <MailStatusTag status={m.status as MailStatus} />
+                  <span className="shrink-0 text-[11px] text-muted">{formatPlDate(m.received_at)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

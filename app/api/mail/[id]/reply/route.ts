@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema } from "@/lib/db";
-import { buildReferences, extractEmailAddress, mailSummaryLine, replySubject, type MailMessage } from "@/lib/mail";
-import { appendToSent, fetchSignatureImages, isMailboxConfigured, sendReply } from "@/lib/mailbox";
+import { buildReferences, mailSummaryLine, parseAddressList, replySubject, textToHtml, type MailMessage } from "@/lib/mail";
+import { appendToSent, fetchSignatureImages, isMailboxConfigured, sendMail } from "@/lib/mailbox";
 import { logMailOnTimeline } from "@/lib/mailSync";
 import { signatureHtml, signatureText } from "@/lib/mailSignature";
 import { getBookingUrl } from "@/lib/site";
@@ -11,19 +11,6 @@ import { i18n, type Locale } from "@/i18n/config";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-/** Zamienia to, co właściciel wpisał, na bezpieczny HTML: escape'uje znaki
- * specjalne (żeby "<" w treści nie stał się tagiem) i zamienia entery na
- * <br />. Świadomie NIE parsujemy markdownu — właściciel pisze zwykły tekst,
- * a każda "inteligentna" zamiana to niespodzianka w wysłanym mailu. */
-function textToHtml(text: string): string {
-  const esc = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:14px;line-height:22px;color:#141414;white-space:pre-wrap;">${esc}</div>`;
-}
 
 /**
  * POST /api/mail/[id]/reply — odpowiedz na wiadomość przez SMTP az.pl.
@@ -57,13 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const podpis = (i18n.locales as readonly string[]).includes(body?.podpis as string) ? (body!.podpis as Locale) : null;
 
   // DW — adresy oddzielone przecinkiem/średnikiem, odsiane z pustych.
-  const cc =
-    typeof body?.cc === "string"
-      ? body.cc
-          .split(/[,;]/)
-          .map((s) => extractEmailAddress(s))
-          .filter(Boolean)
-      : [];
+  const cc = typeof body?.cc === "string" ? parseAddressList(body.cc) : [];
 
   await ensureMailSchema();
   const sql = getSql();
@@ -89,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let sent: { messageId: string; raw: string };
   try {
-    sent = await sendReply({
+    sent = await sendMail({
       to: original.from_addr,
       cc,
       subject,

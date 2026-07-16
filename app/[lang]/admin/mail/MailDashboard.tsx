@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions } from "../ui";
 import { MailStatusTag, MailCategoryTag, MAIL_CATEGORY_LABEL, type MailMessageWithLinks, type MailStatus } from "./shared";
 import { MailDetailPanel } from "./MailDetailPanel";
+import { MailComposeForm } from "./MailComposeForm";
 
 // Filtry to dwie NIEZALEŻNE osie, jak status vs zdrowie projektu: co wymaga
 // mojej reakcji (góra) i czego dotyczy (dół, kategorie). Mieszanie ich w jedną
@@ -55,6 +55,8 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const load = useCallback(async () => {
     // Szukanie idzie do serwera, a nie filtruje wczytanej listy — lista ma
@@ -105,6 +107,30 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     [load, toast]
   );
 
+  /** Zmiana statusu wprost z plakietki na liście — bez otwierania podglądu
+   * (04d pkt 3). Optymistycznie: lista reaguje od razu, `load()` na końcu
+   * tylko dociąga policzone na nowo liczniki filtrów. */
+  const setMailStatus = useCallback(
+    async (id: string, status: MailStatus) => {
+      setStatusMenuFor(null);
+      const prev = messages;
+      setMessages((cur) => (cur ? cur.map((m) => (m.id === id ? { ...m, status } : m)) : cur));
+      const res = await fetch(`/api/mail/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        setMessages(prev);
+        toast("Nie udało się zmienić statusu.", "error");
+        return;
+      }
+      toast(status === "obsłużony" ? "Oznaczono jako obsłużone." : status === "zignorowany" ? "Wyciszono." : "Przywrócono do odpowiedzi.");
+      void load();
+    },
+    [messages, load, toast]
+  );
+
   // Otwarcie widoku = pobranie nowych (decyzja właściciela 2026-07-15:
   // on-demand + raz dziennie w cronie). Najpierw pokazujemy to, co jest w
   // bazie, żeby lista nie czekała na IMAP-a.
@@ -131,7 +157,10 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   }, [query, load]);
 
   useRegisterActions(
-    [{ id: "sync", label: "Pobierz nowe wiadomości", run: () => void sync(false) }],
+    [
+      { id: "add", label: "Nowa wiadomość", run: () => setComposeOpen(true) },
+      { id: "sync", label: "Pobierz nowe wiadomości", run: () => void sync(false) },
+    ],
     [sync]
   );
 
@@ -199,12 +228,31 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           <button
             onClick={() => void sync(false)}
             disabled={syncing}
-            className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50"
+            className="rounded-full border hairline px-4 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
           >
             {syncing ? "Pobieram…" : "Pobierz nowe"}
           </button>
+          <button
+            onClick={() => setComposeOpen(true)}
+            disabled={!configured}
+            title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
+            className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50"
+          >
+            ✎ Nowa wiadomość
+          </button>
         </div>
       </div>
+
+      {composeOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
+          onClick={() => setComposeOpen(false)}
+        >
+          <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <MailComposeForm mode="compose" endpoint="/api/mail/compose" onSent={load} onClose={() => setComposeOpen(false)} />
+          </div>
+        </div>
+      )}
 
       {!configured && (
         <div className="mb-4 rounded-xl border hairline bg-brand-gold/10 p-4 text-[13px]">
@@ -250,93 +298,142 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         ))}
       </div>
 
-      <div className="card-paper rounded-xl border hairline">
-        {filtered.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted opacity-60">
-            {filter === "nowy"
-              ? "Nic — wszystko obsłużone."
-              : filter === "unassigned"
-                ? "Nic nieprzypisanego."
-                : "Brak wiadomości."}
-          </p>
-        ) : (
-          <ul className="divide-y divide-[var(--hairline)]">
-            {filtered.map((m) => (
-              <li key={m.id}>
-                <button
-                  onClick={() => setOpenId(m.id)}
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[var(--hairline)]/40"
-                >
-                  {/* Kropka nieprzeczytanych wzorem Apple Mail — stała
-                      kolumna (niewidoczna, gdy obsłużone), żeby wiersze nie
-                      przeskakiwały w bok po odhaczeniu. */}
-                  <span className="mt-1.5 flex w-2 shrink-0 justify-center" aria-hidden>
-                    {m.status === "nowy" && m.kierunek === "in" && (
-                      <span className="h-2 w-2 rounded-full bg-brand-cyan" title="Nieprzeczytana" />
-                    )}
-                  </span>
-                  <span className="mt-0.5 shrink-0 text-base" aria-hidden>
-                    {m.kierunek === "out" ? "↩️" : "✉️"}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-[13px] font-medium">
-                        {m.kierunek === "out" ? `Do: ${m.to_addr}` : m.from_name || m.from_addr}
+      {/* Dwie kolumny — lista + podgląd obok siebie (wzorem Outlooka), żeby
+          wykorzystać całą szerokość ekranu i żeby zmiana wiadomości nie
+          wymagała otwierania osobnego modala (04d pkt 3 i 4). Poniżej `lg`
+          kolumny się składają — lista nad podglądem. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[420px] lg:shrink-0 lg:overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="p-8 text-center text-sm text-muted opacity-60">
+              {filter === "nowy"
+                ? "Nic — wszystko obsłużone."
+                : filter === "unassigned"
+                  ? "Nic nieprzypisanego."
+                  : "Brak wiadomości."}
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--hairline)]">
+              {filtered.map((m) => (
+                <li key={m.id} className="relative">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setOpenId(m.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setOpenId(m.id);
+                    }}
+                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3 text-left transition hover:bg-[var(--hairline)]/40 ${
+                      openId === m.id ? "bg-[var(--hairline)]/50" : ""
+                    }`}
+                  >
+                    {/* Kropka nieprzeczytanych wzorem Apple Mail — stała
+                        kolumna (niewidoczna, gdy obsłużone), żeby wiersze nie
+                        przeskakiwały w bok po odhaczeniu. */}
+                    <span className="mt-1.5 flex w-2 shrink-0 justify-center" aria-hidden>
+                      {m.status === "nowy" && m.kierunek === "in" && (
+                        <span className="h-2 w-2 rounded-full bg-brand-cyan" title="Nieprzeczytana" />
+                      )}
+                    </span>
+                    <span className="mt-0.5 shrink-0 text-base" aria-hidden>
+                      {m.kierunek === "out" ? "↩️" : "✉️"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-[13px] font-medium">
+                          {m.kierunek === "out" ? `Do: ${m.to_addr}` : m.from_name || m.from_addr}
+                        </span>
+                        {m.client_nazwa && (
+                          <span className="shrink-0 rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-brand-purple">
+                            {m.client_nazwa}
+                          </span>
+                        )}
+                        {m.lead_nazwa && (
+                          <span className="shrink-0 rounded-full bg-brand-cyan/15 px-2 py-0.5 text-[11px] text-brand-cyan">
+                            {m.lead_nazwa}
+                          </span>
+                        )}
+                        {!m.client_nazwa && !m.lead_nazwa && m.kierunek === "in" && m.status !== "zignorowany" && (
+                          <span className="shrink-0 rounded-full bg-[var(--hairline)] px-2 py-0.5 text-[11px] text-muted">
+                            Nieprzypisany
+                          </span>
+                        )}
                       </span>
-                      {m.client_nazwa && (
-                        <span className="shrink-0 rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-brand-purple">
-                          {m.client_nazwa}
-                        </span>
-                      )}
-                      {m.lead_nazwa && (
-                        <span className="shrink-0 rounded-full bg-brand-cyan/15 px-2 py-0.5 text-[11px] text-brand-cyan">
-                          {m.lead_nazwa}
-                        </span>
-                      )}
-                      {!m.client_nazwa && !m.lead_nazwa && m.kierunek === "in" && m.status !== "zignorowany" && (
-                        <span className="shrink-0 rounded-full bg-[var(--hairline)] px-2 py-0.5 text-[11px] text-muted">
-                          Nieprzypisany
-                        </span>
-                      )}
+                      <span className="mt-0.5 block truncate text-[13px]">{m.subject || "(bez tematu)"}</span>
+                      <span className="mt-0.5 block truncate text-[12px] text-muted opacity-70">
+                        {(m.body_text || "").slice(0, 120)}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-[13px]">{m.subject || "(bez tematu)"}</span>
-                    <span className="mt-0.5 block truncate text-[12px] text-muted opacity-70">
-                      {(m.body_text || "").slice(0, 120)}
+                    <span className="flex shrink-0 items-center gap-2">
+                      {m.kategoria && <MailCategoryTag kategoria={m.kategoria} />}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStatusMenuFor((cur) => (cur === m.id ? null : m.id));
+                        }}
+                        title="Zmień status"
+                      >
+                        <MailStatusTag status={m.status as MailStatus} />
+                      </button>
+                      <span className="w-14 text-right text-[11px] text-muted">{formatWhen(m.received_at)}</span>
                     </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {m.kategoria && <MailCategoryTag kategoria={m.kategoria} />}
-                    <MailStatusTag status={m.status as MailStatus} />
-                    <span className="w-14 text-right text-[11px] text-muted">{formatWhen(m.received_at)}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                  </div>
+
+                  {statusMenuFor === m.id && (
+                    <div
+                      className="card-paper absolute right-4 top-11 z-20 w-40 rounded-xl border hairline p-1 shadow-lg"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {m.status !== "obsłużony" && (
+                        <button
+                          onClick={() => void setMailStatus(m.id, "obsłużony")}
+                          className="block w-full rounded-lg px-3 py-1.5 text-left text-[12px] hover:bg-[var(--hairline)]/60"
+                        >
+                          Obsłużone
+                        </button>
+                      )}
+                      {m.status !== "zignorowany" && (
+                        <button
+                          onClick={() => void setMailStatus(m.id, "zignorowany")}
+                          className="block w-full rounded-lg px-3 py-1.5 text-left text-[12px] hover:bg-[var(--hairline)]/60"
+                        >
+                          Wycisz
+                        </button>
+                      )}
+                      {m.status !== "nowy" && (
+                        <button
+                          onClick={() => void setMailStatus(m.id, "nowy")}
+                          className="block w-full rounded-lg px-3 py-1.5 text-left text-[12px] hover:bg-[var(--hairline)]/60"
+                        >
+                          Przywróć
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          {openMessage ? (
+            <MailDetailPanel
+              lang={lang}
+              mailId={openMessage.id}
+              configured={configured}
+              onClose={() => setOpenId(null)}
+              onChanged={load}
+            />
+          ) : (
+            <div className="card-paper flex min-h-[300px] items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">
+              Wybierz wiadomość z listy.
+            </div>
+          )}
+        </div>
       </div>
 
-      <AnimatePresence>
-        {openMessage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-[2px] sm:p-8"
-            onClick={() => setOpenId(null)}
-          >
-            <div className="w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
-              <MailDetailPanel
-                lang={lang}
-                mailId={openMessage.id}
-                configured={configured}
-                onClose={() => setOpenId(null)}
-                onChanged={load}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {statusMenuFor && <div className="fixed inset-0 z-10" onClick={() => setStatusMenuFor(null)} />}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { rematchUnassigned } from "@/lib/mailSync";
 
 export const runtime = "nodejs";
 
@@ -60,6 +61,12 @@ export async function POST(req: NextRequest) {
     INSERT INTO leads (id, firma, osoba_kontaktowa, branza, kontakt, telefon, email, www, ulica, kod, miasto, kraj, zrodlo_kategoria, zrodlo, status, ostatni_kontakt, notatki)
     VALUES (${id}, ${firma.slice(0, 300)}, ${osobaKontaktowa}, ${branza}, ${kontakt}, ${telefon}, ${email}, ${www}, ${ulica}, ${kod}, ${miasto}, ${kraj}, ${zrodloKategoria}, ${zrodlo}, ${status}, ${ostatniKontakt}, ${notatki});
   `;
+
+  // Lead dostał adres — dopnij mu od razu korespondencję, która przyszła
+  // zanim istniał (04d pkt 1), zamiast czekać na kolejny sync poczty.
+  if (email.trim()) {
+    await rematchUnassigned().catch((e) => console.error("[leads] rematch poczty nie powiódł się", e));
+  }
 
   return NextResponse.json({ ok: true, id });
 }

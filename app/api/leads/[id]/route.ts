@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
+import { rematchUnassigned } from "@/lib/mailSync";
 
 export const runtime = "nodejs";
 
@@ -64,7 +65,12 @@ export async function PATCH(
     await sql`UPDATE leads SET telefon = ${str(body.telefon)}, updated_at = now() WHERE id = ${id};`;
   }
   if ("email" in body) {
-    await sql`UPDATE leads SET email = ${str(body.email)}, updated_at = now() WHERE id = ${id};`;
+    const email = str(body.email);
+    await sql`UPDATE leads SET email = ${email}, updated_at = now() WHERE id = ${id};`;
+    // Nowy/zmieniony adres — dopnij od razu zaległą korespondencję (04d pkt 1).
+    if (email.trim()) {
+      await rematchUnassigned().catch((e) => console.error("[leads] rematch poczty nie powiódł się", e));
+    }
   }
   if ("www" in body) {
     await sql`UPDATE leads SET www = ${str(body.www)}, updated_at = now() WHERE id = ${id};`;

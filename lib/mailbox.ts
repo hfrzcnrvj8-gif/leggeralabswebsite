@@ -22,6 +22,8 @@ export type FetchedMessage = {
   fromAddr: string;
   fromName: string;
   toAddr: string;
+  /** DW — adresy po przecinku, "" gdy brak. Potrzebne do "Odpowiedz wszystkim" */
+  ccAddr: string;
   subject: string;
   bodyText: string;
   bodyHtml: string;
@@ -151,6 +153,15 @@ export async function fetchNewMessages(
             : parsed.to.text
           : "";
 
+        // DW — bierzemy `.address` z KAŻDEGO wpisu (nie łączony `.text`),
+        // żeby jeden przecinek w nazwie ("Kowalski, Jan") nie rozjechał
+        // parsowania na dwa fałszywe adresy.
+        const ccEntries = parsed.cc ? (Array.isArray(parsed.cc) ? parsed.cc.flatMap((c) => c.value) : parsed.cc.value) : [];
+        const ccAddr = ccEntries
+          .map((e) => extractEmailAddress(e.address || ""))
+          .filter(Boolean)
+          .join(", ");
+
         // Bez Message-ID nie da się deduplikować ani wątkować — syntetyzujemy
         // stabilny zastępczy z UID-a skrzynki (ten sam mail da ten sam klucz
         // przy powtórnym syncu, więc dedup dalej działa).
@@ -178,6 +189,7 @@ export async function fetchNewMessages(
           fromAddr: extractEmailAddress(fromEntry?.address || parsed.from?.text || ""),
           fromName: (fromEntry?.name || "").trim(),
           toAddr: extractEmailAddress(toText),
+          ccAddr,
           subject: (parsed.subject || "").trim(),
           bodyText: (parsed.text || "").trim(),
           bodyHtml: typeof parsed.html === "string" ? parsed.html : "",
@@ -256,18 +268,56 @@ export async function fetchHintsByUids(uids: number[]): Promise<Map<number, Mail
 }
 
 /**
- * Wysyła odpowiedź przez SMTP az.pl z nagłówkami wątku (In-Reply-To/
- * References) — dzięki nim odpowiedź wpada w ten sam wątek w Outlooku, a nie
- * zakłada nowego. Zwraca Message-ID wysłanej wiadomości (zapisujemy go, żeby
- * dedup nie wciągnął naszej własnej odpowiedzi drugi raz jako "przychodzącej",
- * gdyby kopia wróciła do INBOX-a) ORAZ jej surową treść dla appendToSent().
+ * Dociąga SAM nagłówek `Cc` dla podanych UID-ów — analogicznie do
+ * fetchHintsByUids(), dla wiadomości pobranych PRZED wprowadzeniem kolumny
+ * `cc_addr` (2026-07-15, Etap 1 Modułu 4b). Bez tego "Odpowiedz wszystkim"
+ * na starej korespondencji nie miałoby skąd wziąć adresów DW — dedup po
+ * `message_id` nie pozwala pobrać ich ponownie w całości.
  *
- * Wiadomość składamy sami (MailComposer) zamiast zdać się na sendMail(), bo
- * `info` z nodemailera nie oddaje surowej treści, a bez niej nie da się
- * dopisać kopii do "Sent". Efekt uboczny jest pożądany: do "Sent" trafia
- * DOKŁADNIE to, co poszło do klienta, bajt w bajt — nie rekonstrukcja.
+ * Zwraca "" (nie brak wpisu) dla wiadomości bez DW, żeby wołający mógł
+ * odróżnić "sprawdzone, pusto" od "jeszcze nie sprawdzone" (NULL w bazie).
  */
-export async function sendReply(params: {
+export async function fetchCcByUids(uids: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (uids.length === 0) return out;
+
+  const cfg = mailboxConfig();
+  const client = await connectImap(cfg);
+  try {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      for await (const msg of client.fetch(uids, { uid: true, envelope: true }, { uid: true })) {
+        const cc = (msg.envelope?.cc ?? [])
+          .map((a) => extractEmailAddress(a.address || ""))
+          .filter(Boolean)
+          .join(", ");
+        out.set(msg.uid, cc);
+      }
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout().catch(() => {});
+  }
+  return out;
+}
+
+/**
+ * Wysyła pocztę przez SMTP az.pl — odpowiedź, przekazanie albo zupełnie nową
+ * wiadomość. `inReplyTo`/`references` (nagłówki wątku RFC 5322) są opcjonalne:
+ * podane przy odpowiedzi (żeby wpadła w ten sam wątek w Outlooku), pominięte
+ * przy przekazaniu/nowej wiadomości (to świadomie NOWY wątek — tak samo robi
+ * Gmail/Outlook z "Fwd:"). Zwraca Message-ID wysłanej wiadomości (zapisujemy
+ * go, żeby dedup nie wciągnął naszej własnej wiadomości drugi raz jako
+ * "przychodzącej", gdyby kopia wróciła do INBOX-a) ORAZ jej surową treść dla
+ * appendToSent().
+ *
+ * Wiadomość składamy sami (MailComposer) zamiast zdać się na sendMail()
+ * nodemailera, bo `info` z nodemailera nie oddaje surowej treści, a bez niej
+ * nie da się dopisać kopii do "Sent". Efekt uboczny jest pożądany: do "Sent"
+ * trafia DOKŁADNIE to, co poszło do odbiorcy, bajt w bajt — nie rekonstrukcja.
+ */
+export async function sendMail(params: {
   to: string;
   cc?: string[];
   subject: string;
@@ -278,8 +328,8 @@ export async function sendReply(params: {
   html?: string;
   /** Obrazki osadzone (podpis) — dołączane jako `cid:`, nie zdalne linki. */
   inlineImages?: { cid: string; filename: string; content: Buffer }[];
-  inReplyTo: string | null;
-  references: string | null;
+  inReplyTo?: string | null;
+  references?: string | null;
 }): Promise<{ messageId: string; raw: string }> {
   const cfg = mailboxConfig();
   const from = mailFrom(cfg);

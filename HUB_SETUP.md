@@ -2312,6 +2312,53 @@ RĘCZNIE, nie automatem po kraju klienta („mam wiedzieć, co podpinam").
 **DW (Cc)** przy odpowiadaniu — adresy trafiają też do koperty SMTP, inaczej
 nagłówek byłby widoczny, ale poczta by tam nie poszła.
 
+### Moduł 4b — Etap 1: pisanie i odpowiadanie (2026-07-15)
+
+Brief: `docs/plany-modulow/04b-poczta-pelny-klient.md`. Po tym, jak właściciel
+przetestował Moduł 4 na produkcji i powiedział wprost „lepiej, ale wciąż
+daleko od ideału" — panel umiał tylko odpisać nadawcy. Etap 1 dogania
+podstawowe funkcje każdego klienta pocztowego:
+
+- **Nowa wiadomość** (`POST /api/mail/compose`) i **Przekaż**
+  (`POST /api/mail/[id]/forward`) — obie generalizują dawne `sendReply()` do
+  `sendMail()` w `lib/mailbox.ts` (odpowiedź/przekazanie/nowa wiadomość to ten
+  sam mechanizm SMTP+APPEND-do-Sent, różni się tylko obecnością nagłówków
+  wątku). Przekazanie świadomie zakłada NOWY wątek (bez `In-Reply-To`) — tak
+  samo robi Gmail/Outlook z "Fwd:". Cytowana treść (nagłówek "Od/Data/Temat/Do"
+  + oryginalna treść w blockquote) — `forwardHtml()`/`forwardHeaderText()` w
+  `lib/mail.ts`. **Załączniki NIE są przekazywane** — świadomie odłożone,
+  panel w ogóle nie przechowuje ich treści.
+- **Odbiorca — z bazy LUB dowolny adres ręcznie** (decyzja właściciela
+  2026-07-15): `RecipientField` (`app/[lang]/admin/mail/RecipientPicker.tsx`)
+  łączy zwykły input z podpowiedzią klientów/leadów mających e-mail. Odbiorca
+  nie musi być w CRM.
+- **Odpowiedz wszystkim** — bez zmian po stronie serwera: przycisk w
+  `MailDetailPanel` po prostu wstępnie wypełnia pole DW wartością `cc_addr`
+  oryginału i otwiera zwykły formularz odpowiedzi. Prostsze niż osobna trasa.
+- **DW przychodzących wiadomości** (`mail_messages.cc_addr`) — dotąd w ogóle
+  nie zapisywane, więc "Odpowiedz wszystkim" nie miało skąd wziąć adresów.
+  Nullable bez DEFAULT (ten sam wzorzec co `kategoria`): NULL = jeszcze nie
+  sprawdzone, "" = sprawdzone, brak DW. `backfillCc()` (`lib/mailSync.ts`,
+  wołane w `syncMailbox()`) dociąga brakujące DW starym wiadomościom po
+  UID-zie (`fetchCcByUids()` w `lib/mailbox.ts`) — dedup po `message_id` nie
+  pozwala pobrać ich ponownie w całości.
+- **Cofnij wysyłkę — po stronie KLIENTA** (`useUndoSend`,
+  `app/[lang]/admin/mail/useUndoSend.ts`): 10 s odliczania z przyciskiem
+  "Cofnij" PRZED faktycznym wywołaniem API wysyłki. Świadomie bez kolejki
+  serwerowej — Vercel nie utrzymuje stanu między zimnymi startami, a
+  odroczona wysyłka wymagałaby crona co minutę (dziś jest raz dziennie).
+  Dotyczy WSZYSTKICH ścieżek wysyłki (Odpisz/Wszystkim/Przekaż/Nowa) — jedna
+  implementacja, spójne zachowanie.
+- **Szablony wiadomości** (`mail_templates`: nazwa+temat+treść,
+  `app/api/mail-templates/`) — wzorem `offer_templates`, bez seeda
+  (właściciel tworzy własne od zera). `TemplatePickerButton` wstawia treść do
+  pola (dokleja, nie nadpisuje) — dostępny przy odpowiedzi, przekazaniu i
+  nowej wiadomości.
+
+**Zostało (Etap 2/3, świadomie osobne sesje wg briefu):** fundament
+IMAP (special-use foldery, CONDSTORE, flagi, Kosz≠kasowanie), screener
+nowych nadawców, snooze, follow-up nudge, wątkowanie JWZ.
+
 ### Moduł 4c — podpis: symetria, gradient marki, dark mode (2026-07-15)
 
 Po obejrzeniu podpisu z trzeciej tury w prawdziwym Outlooku właściciel zgłosił
@@ -2369,6 +2416,51 @@ zamiast czystych skrajności (zrobione). **Świadomie odłożone bez zmiany**
   ryzyka dotyczy klauzuli poufności w wersji tekstowej.
 - Max-width 560px, emoji zamiast ikon, zdjęcie+baner razem — zostają, już w
   normie.
+
+### Moduł 4d — dopasowanie do klienta, kartoteka, szybkie akcje, szerokość (2026-07-15)
+
+Właściciel używał poczty na produkcji i zgłosił cztery braki
+(`docs/plany-modulow/04d-poczta-powiazanie-i-ux.md`):
+
+- **⚠️ Luka w logice, nie kosmetyka: mail od znanego klienta nie był
+  rozpoznawany, gdy kontakt powstał PO otrzymaniu maila.** `findContactsByEmail()`
+  było wołane wyłącznie w `saveIncoming()` przy pobraniu wiadomości — mail,
+  który przyszedł zanim właściciel założył klienta/leada, zostawał
+  `client_id = NULL` na zawsze, bo nic go potem nie sprawdzało ponownie. Skoro
+  właściciel dopiero buduje bazę klientów, to był codzienny przypadek, nie
+  wyjątek. Naprawione dwutorowo:
+  - `rematchUnassigned()` w `lib/mailSync.ts` — wzorem `backfillCategories()`,
+    wołane w `syncMailbox()` przy każdym otwarciu zakładki/cronie: bierze do
+    300 maili `client_id IS NULL AND lead_id IS NULL AND kategoria <> 'reklama'`
+    i próbuje dopasować ponownie, dopisując wpis na oś (`logMailOnTimeline`,
+    z tą samą ochroną przed duplikatem co ręczne przypisanie).
+  - Ta sama funkcja wołana też **od razu** z `POST`/`PATCH` `/api/clients` i
+    `/api/leads`, gdy pojawia się/zmienia się `email` — właściciel nie czeka
+    na kolejny sync, zaległa korespondencja dopina się w momencie zapisania
+    klienta.
+- **Kartoteka korespondencji na karcie klienta.** Świadoma zmiana wcześniejszej
+  decyzji z `04-skrzynka-mailowa.md` („bez osobnej sekcji, mail wpada w
+  scalony feed") — właściciel po naprawie punktu 1 wprost potwierdził, że
+  nadal chce osobnego rejestru. Sekcja „Korespondencja" na
+  `ClientDetailPanel.tsx`, lista maili (temat, kierunek, status, data) z
+  linkiem do pełnej treści w Poczcie. `GET /api/clients/[id]` dociąga teraz
+  też `mail` (do 100 wiadomości `WHERE client_id = ...`), obok istniejącego
+  scalonego `feed`.
+- **Szybkie akcje bez otwierania podglądu.** Klik w plakietkę statusu NA
+  LIŚCIE (`MailDashboard.tsx`) otwiera małe menu (Obsłużone/Wycisz/Przywróć)
+  zamiast wymagać otwarcia całego podglądu — `stopPropagation`, optymistyczna
+  zmiana stanu listy, PATCH `/api/mail/[id]` w tle. Wiersz listy zmienił się z
+  zagnieżdżonego `<button>` na `<div role="button">` (żeby plakietka mogła być
+  osobnym, prawdziwym `<button>` w środku — HTML nie pozwala zagnieżdżać
+  buttonów).
+- **Pełna szerokość ekranu.** Modal `max-w-5xl` zastąpiony układem
+  dwukolumnowym w `MailDashboard.tsx`: lista (stała szerokość 420px) + podgląd
+  wybranej wiadomości obok, na całą resztę szerokości (wzorem Outlooka —
+  rozwiązuje też punkt szybkich akcji, bo zmiana wiadomości nie wymaga już
+  modala). Standalone `[id]/page.tsx` (`MailDetail.tsx`) też stracił
+  `max-w-5xl` — pełna szerokość, margines tylko z paddingu. Czytelność akapitu
+  (bardzo długie linijki) pilnuje `max-w-[70ch]` w samej treści maila
+  (`MailDetailPanel.tsx`), NIE na całej karcie.
 
 ## Bramka migracji — dlaczego panel przestał mielić przy wejściu (2026-07-15)
 

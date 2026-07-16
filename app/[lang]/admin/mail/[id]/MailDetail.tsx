@@ -7,8 +7,12 @@ import { MailDetailPanel } from "../MailDetailPanel";
 
 /** Podstrona wiadomości — dla bezpośrednich linków (z osi kontaktu klienta,
  * z Pulpitu, z zakładek przeglądarki). Renderuje ten sam MailDetailPanel co
- * modal w zakładce Poczta, tylko w normalnym przepływie strony — wzorzec z
- * CLAUDE.md: profil rekordu ma i modal, i własny URL.
+ * kolumna podglądu w zakładce Poczta, tylko w normalnym przepływie strony —
+ * wzorzec z CLAUDE.md: profil rekordu ma i modal/kolumnę, i własny URL.
+ *
+ * Bez `max-w` (04d pkt 4) — pełna szerokość ekranu, margines tylko z
+ * paddingu; czytelność akapitu pilnuje `max-w-[70ch]` w samym
+ * MailDetailPanel.
  *
  * `configured` przekazujemy jako true: ta podstrona nie odpytuje o stan
  * skrzynki, a jedyny skutek to aktywny przycisk "Odpisz" — gdy skrzynki nie
@@ -17,7 +21,7 @@ export function MailDetail({ id, lang }: { id: string; lang: Locale }) {
   const router = useRouter();
 
   return (
-    <div className="mx-auto max-w-5xl p-4 sm:p-6">
+    <div className="w-full p-4 sm:p-6">
       <Link href={`/${lang}/admin/mail`} className="mb-3 inline-block text-[13px] text-muted hover:text-[var(--fg)]">
         ← Poczta
       </Link>

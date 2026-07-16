@@ -40,6 +40,10 @@ export type MailMessage = {
   from_addr: string;
   from_name: string;
   to_addr: string;
+  /** DW oryginalnej wiadomości (adresy po przecinku) — dociągane przy
+   * pobraniu i, dla starszych wiadomości, przez backfillCc() (lib/mailSync.ts).
+   * NULL = jeszcze nie sprawdzone (patrz kategoria: to samo rozróżnienie). */
+  cc_addr: string | null;
   subject: string;
   body_text: string;
   body_html: string;
@@ -266,6 +270,26 @@ export function replySubject(subject: string): string {
   return `Re: ${s}`;
 }
 
+/** Temat przekazania — analogicznie do replySubject(), ale z "Fwd: "
+ * ("Fw:"/"Przekaż:" też uznajemy za już-oznaczone, żeby nie dublować przy
+ * wielokrotnym przekazywaniu). */
+export function forwardSubject(subject: string): string {
+  const s = (subject || "").trim();
+  if (!s) return "Fwd:";
+  if (/^(fwd?|przeka[zż])\s*:/i.test(s)) return s;
+  return `Fwd: ${s}`;
+}
+
+/** Rozbija pole "DW"/"Do" wpisane ręcznie (adresy po przecinku/średniku) na
+ * listę poprawnych adresów — współdzielone przez odpowiedź/przekazanie/nową
+ * wiadomość, żeby nie duplikować tego samego parsowania w każdej trasie. */
+export function parseAddressList(raw: string): string[] {
+  return raw
+    .split(/[,;]/)
+    .map((s) => extractEmailAddress(s))
+    .filter(Boolean);
+}
+
 /** Nagłówek `References` odpowiedzi wg RFC 5322: dotychczasowy łańcuch +
  * Message-ID wiadomości, na którą odpisujemy. To ono sprawia, że odpowiedź
  * wpada w ten sam wątek w Outlooku/Gmailu, zamiast zakładać nowy. */
@@ -275,6 +299,51 @@ export function buildReferences(original: { message_id: string; refs: string | n
   if (!id) return prev;
   if (!prev) return id;
   return `${prev} ${id}`;
+}
+
+/** Zamienia to, co właściciel wpisał, na bezpieczny HTML: escape'uje znaki
+ * specjalne (żeby "&lt;" w treści nie stał się tagiem) i zamienia entery na
+ * &lt;br /&gt;. Świadomie NIE parsujemy markdownu — właściciel pisze zwykły
+ * tekst, a każda "inteligentna" zamiana to niespodzianka w wysłanym mailu.
+ * Współdzielone przez odpowiedź/przekazanie/nową wiadomość. */
+export function textToHtml(text: string): string {
+  const esc = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:14px;line-height:22px;color:#141414;white-space:pre-wrap;">${esc}</div>`;
+}
+
+/** Blok nagłówka przekazanej wiadomości — wzorem Gmaila/Outlooka
+ * ("---------- Wiadomość przekazana ----------"). Współdzielony przez
+ * tekstową i HTML-ową wersję maila przekazania. */
+function forwardHeaderLines(original: { fromName: string; fromAddr: string; receivedAt: string; subject: string; toAddr: string }): string[] {
+  const from = original.fromName ? `${original.fromName} <${original.fromAddr}>` : original.fromAddr;
+  const date = new Date(original.receivedAt).toLocaleString("pl-PL", { dateStyle: "long", timeStyle: "short" });
+  return [
+    `Od: ${from}`,
+    `Data: ${date}`,
+    `Temat: ${original.subject || "(bez tematu)"}`,
+    `Do: ${original.toAddr || "—"}`,
+  ];
+}
+
+export function forwardHeaderText(original: { fromName: string; fromAddr: string; receivedAt: string; subject: string; toAddr: string }): string {
+  return ["---------- Wiadomość przekazana ----------", ...forwardHeaderLines(original), ""].join("\n");
+}
+
+/** Wersja HTML nagłówka przekazania + cytowana treść w blockquote (obramowanie
+ * po lewej, jak w każdym normalnym kliencie pocztowym) — `quotedHtml` MUSI być
+ * już odkażony (sanitizeMailHtml w lib/mailHtml.ts), bo to obcy kod HTML. */
+export function forwardHtml(
+  original: { fromName: string; fromAddr: string; receivedAt: string; subject: string; toAddr: string },
+  quotedHtml: string
+): string {
+  const lines = forwardHeaderLines(original)
+    .map((l) => `<div>${l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`)
+    .join("");
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:13px;line-height:20px;color:#4A4A4A;margin-bottom:12px;">---------- Wiadomość przekazana ----------${lines}</div><blockquote style="margin:0;padding-left:12px;border-left:2px solid #E6E3DD;">${quotedHtml}</blockquote>`;
 }
 
 /** Skrót treści na oś kontaktu klienta (wpis w client_activity to tylko

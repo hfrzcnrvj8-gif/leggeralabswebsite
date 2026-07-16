@@ -3,6 +3,7 @@ import { getSql, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { CLIENT_STATUSES } from "@/lib/clients";
+import { rematchUnassigned } from "@/lib/mailSync";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     mail_message_id: string | null;
     created_at: string;
   };
-  const [clientActivity, leadActivity, events, offers, invoices, projects] = await Promise.all([
+  const [clientActivity, leadActivity, events, offers, invoices, projects, mail] = await Promise.all([
     sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
     leadId
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
@@ -41,6 +42,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, tytul, status, termin, created_at FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    // Kartoteka korespondencji (04d pkt 2) — osobny rejestr obok scalonego
+    // feedu, na wyraźną prośbę właściciela (nadpisuje wcześniejszą decyzję z
+    // 04-skrzynka-mailowa.md o braku osobnej sekcji).
+    sql`SELECT id, subject, kierunek, status, received_at FROM mail_messages WHERE client_id = ${id} ORDER BY received_at DESC LIMIT 100;`,
   ]);
 
   // Scalony feed — trzy różne źródła, wspólny kształt, posortowane
@@ -92,7 +97,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return NextResponse.json({ client, feed, offers, invoices, projects });
+  return NextResponse.json({ client, feed, offers, invoices, projects, mail });
 }
 
 /** PATCH /api/clients/:id — aktualizacja pól karty klienta. */
@@ -118,7 +123,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("kod" in body) await sql`UPDATE clients SET kod = ${str(body.kod, 20)}, updated_at = now() WHERE id = ${id};`;
   if ("miasto" in body) await sql`UPDATE clients SET miasto = ${str(body.miasto, 200)}, updated_at = now() WHERE id = ${id};`;
   if ("kraj" in body) await sql`UPDATE clients SET kraj = ${str(body.kraj, 100)}, updated_at = now() WHERE id = ${id};`;
-  if ("email" in body) await sql`UPDATE clients SET email = ${str(body.email, 200)}, updated_at = now() WHERE id = ${id};`;
+  if ("email" in body) {
+    const email = str(body.email, 200);
+    await sql`UPDATE clients SET email = ${email}, updated_at = now() WHERE id = ${id};`;
+    // Nowy/zmieniony adres — dopnij od razu zaległą korespondencję (04d pkt 1).
+    if (email.trim()) {
+      await rematchUnassigned().catch((e) => console.error("[clients] rematch poczty nie powiódł się", e));
+    }
+  }
   if ("telefon" in body) await sql`UPDATE clients SET telefon = ${str(body.telefon, 100)}, updated_at = now() WHERE id = ${id};`;
   if ("www" in body) await sql`UPDATE clients SET www = ${str(body.www, 200)}, updated_at = now() WHERE id = ${id};`;
   if ("linkedin_url" in body) await sql`UPDATE clients SET linkedin_url = ${str(body.linkedin_url, 300)}, updated_at = now() WHERE id = ${id};`;
