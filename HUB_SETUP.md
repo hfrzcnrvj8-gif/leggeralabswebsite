@@ -2761,6 +2761,43 @@ zrównoleglenia, i self-mail zniknął z Odebranych (widoczny tylko w Wysłane).
   self-mail w Odebranych do potwierdzenia przez właściciela na produkcji po
   tym wdrożeniu — nie da się zmierzyć z tej sesji (brak dostępu do az.pl).
 
+**Trzecia runda — DIAGNOZA Z REALNYCH LOGÓW, nie zgadywanie (2026-07-16).**
+Właściciel zgłosił brak poprawy mimo dwóch poprzednich rund. Dodane
+tymczasowe `console.log` z czasem każdego etapu `syncMailbox()`/
+`syncOneFolder()` ujawniły PRAWDZIWY rozkład ~5.3s syncu (po wcześniejszych
+poprawkach — wcześniej bliżej ~20s):
+- ~1s: `backfillCategories`/`backfillCc`/`rematchUnassigned` (porządki bazowe).
+- **~1.8s: samo `discoverMailFoldersOnce()`** (osobne połączenie IMAP:
+  TLS+AUTH+LIST) — okazało się największym pojedynczym kosztem, i to
+  **niepotrzebnym przy każdym syncu**, bo foldery na serwerze prawie nigdy
+  się nie zmieniają.
+- ~2s: 3 równoległe połączenia (Odebrane/Wysłane/Kosz) — nawet z pustym
+  fetchem (0 wiadomości, wcześniejsza optymalizacja `uidNext` zadziałała)
+  samo połączenie+SELECT do tego serwera pocztowego kosztuje ~2s.
+
+Naprawione: `discoverMailFoldersOnce()` woła się TYLKO gdy w `mail_folders`
+nie ma jeszcze ŻADNEGO wiersza `sent`/`trash`/`archive` (czyli praktycznie
+tylko przy pierwszym syncu po wdrożeniu) — kolejne synce pomijają je
+całkowicie. Świadomy kompromis: zmiana nazwy folderu na serwerze albo nowo
+utworzone Archiwum nie zostaną wykryte automatycznie (trzeba by ręcznie
+skasować odpowiednie wiersze `mail_folders`, żeby wymusić ponowne discovery)
+— akceptowalne, bo to rzadkie zdarzenie, a oszczędność jest spora (~1.8s z
+~5.3s, czyli ~1/3 całkowitego czasu).
+
+**Osobno znaleziona przyczyna "58 reklam w Wysłane" (bug frontendowy, NIE
+bazodanowy):** `load()` w `MailDashboard.tsx` nie chronił się przed
+odpowiedziami, które wracają w INNEJ kolejności niż zostały wysłane — przy
+szybkim przełączaniu folderów starsza odpowiedź (np. dla Kosza) mogła
+przyjść PO nowszej (dla Wysłane) i nadpisać jej wynik, mimo że sidebar
+pokazywał już poprawnie wybrane "Wysłane". Naprawione: `loadSeqRef` —
+monotonicznie rosnący numer żądania, odpowiedź stosowana tylko, gdy wciąż
+jest najnowsza; starsze, spóźnione odpowiedzi są po cichu odrzucane.
+
+Do zweryfikowania przez właściciela po tym wdrożeniu: czy sync jest teraz
+odczuwalnie szybszy (oczekiwane: bliżej ~3.5s zamiast ~5.3s przy kolejnych
+syncach, bo discovery już się nie powtarza), i czy przełączanie folderów
+zawsze pokazuje właściwą zawartość.
+
 ### Naprawa przy okazji: zakleszczenie dev-bazy (2026-07-15)
 
 Dodanie `ensureMailSchema()`/`ensureClientsSchema()` do seedera PGlite

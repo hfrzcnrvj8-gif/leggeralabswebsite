@@ -80,6 +80,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   // otwiera pole odpowiedzi (patrz replyShortcut tam).
   const [replyShortcutNonce, setReplyShortcutNonce] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
+  // Numer kolejny każdego load() — chroni przed wyścigiem, gdy odpowiedzi z
+  // serwera wrócą w innej kolejności niż zostały wysłane (patrz load() niżej).
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(async () => {
     // Szukanie idzie do serwera, a nie filtruje wczytanej listy — lista ma
@@ -87,6 +90,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     // trafienia i "nie znajdowałoby" maili, które są w skrzynce. `folder`
     // zawsze jest wysyłane — serwer domyślnie zwraca 'inbox' bez parametru,
     // ale wysyłamy jawnie, żeby nie polegać na tym domyślnym zachowaniu.
+    const seq = ++loadSeqRef.current;
     const params = new URLSearchParams({ folder: activeFolder });
     if (query.trim()) params.set("q", query.trim());
     const res = await fetch(`/api/mail?${params.toString()}`);
@@ -99,6 +103,14 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       return;
     }
     const data = await res.json();
+    // Ochrona przed wyścigiem: przy szybkim przełączaniu folderów starsze
+    // żądanie mogło odpowiedzieć PÓŹNIEJ niż nowsze (kolejność w sieci nie
+    // jest gwarantowana) — bez tej kontroli nadpisywało wynik nowszego kliku
+    // danymi z zupełnie innego folderu (zgłoszone przez właściciela
+    // 2026-07-16: "Wysłane" pokazywało treść, która wyglądała jak inny
+    // folder). Odrzucamy odpowiedź, jeśli w międzyczasie poleciał już
+    // kolejny load().
+    if (seq !== loadSeqRef.current) return;
     setMessages(data.messages);
     setCounts(data.counts ?? { nowe: 0, nieprzypisane: 0 });
     setConfigured(data.configured);

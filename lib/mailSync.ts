@@ -89,22 +89,34 @@ export async function syncMailbox(): Promise<SyncResult> {
   });
   console.log(`[mailSync:timing] po rematchUnassigned: ${Date.now() - t0}ms`);
 
-  // Jedno LIST na cały przebieg — odkrywa/potwierdza Wysłane/Kosz/Archiwum.
-  // Awaria discovery nie może zatrzymać syncu INBOX-a (najważniejszej
-  // kolejki "do odpowiedzi") — po prostu ten przebieg nie dotknie
-  // dodatkowych folderów, spróbujemy znowu przy następnym.
+  // Discovery to OSOBNE połączenie IMAP (~2s samego TLS+AUTH+LIST, zmierzone
+  // 2026-07-16) — foldery na serwerze prawie nigdy się nie zmieniają, więc
+  // nie ma sensu płacić ten koszt przy KAŻDYM syncu. Robimy je TYLKO gdy
+  // jeszcze nigdy nie znaleźliśmy żadnego folderu specjalnego (pierwszy sync
+  // po wdrożeniu) — po pierwszym udanym discovery kolejne synce lecą prosto
+  // do pętli folderów z tego, co już wiemy. Koszt: nie wykryjemy automatycznie
+  // zmiany nazwy folderu na serwerze ani nowo utworzonego Archiwum bez
+  // ręcznego "resetu" (usunięcia wierszy sent/trash/archive z mail_folders) —
+  // świadomy kompromis, do rewizji, jeśli kiedyś stanie się to problemem.
+  const knownSpecialFolders = (await sql`
+    SELECT 1 FROM mail_folders WHERE role IN ('sent', 'trash', 'archive') LIMIT 1;
+  `) as unknown as unknown[];
   let discovered: Record<MailFolderRole, DiscoveredFolder | null> | null = null;
-  try {
-    discovered = await discoverMailFoldersOnce();
-    console.log(`[mailSync:timing] po discoverMailFoldersOnce: ${Date.now() - t0}ms — mapowanie:`, JSON.stringify(discovered));
-  } catch (e) {
-    console.error("[mailSync] discoverMailFoldersOnce nie powiodło się — pomijam foldery specjalne w tym przebiegu", e);
-  }
-  if (discovered) {
-    for (const role of ["sent", "trash", "archive"] as const) {
-      const found = discovered[role];
-      if (found) await upsertDiscoveredFolder(sql, role, found);
+  if (knownSpecialFolders.length === 0) {
+    try {
+      discovered = await discoverMailFoldersOnce();
+      console.log(`[mailSync:timing] po discoverMailFoldersOnce: ${Date.now() - t0}ms — mapowanie:`, JSON.stringify(discovered));
+    } catch (e) {
+      console.error("[mailSync] discoverMailFoldersOnce nie powiodło się — pomijam foldery specjalne w tym przebiegu", e);
     }
+    if (discovered) {
+      for (const role of ["sent", "trash", "archive"] as const) {
+        const found = discovered[role];
+        if (found) await upsertDiscoveredFolder(sql, role, found);
+      }
+    }
+  } else {
+    console.log(`[mailSync:timing] discovery pominięte (już znane), t=${Date.now() - t0}ms`);
   }
 
   const ownAddr = mailboxConfig().user.toLowerCase();
