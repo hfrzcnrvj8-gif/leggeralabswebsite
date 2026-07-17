@@ -3577,6 +3577,116 @@ kawałków kodu dla jednego wzorca UI" wspominanego w zgłoszeniu.
   identyczny, ale warto rzucić okiem przy najbliższej wizycie w każdym z
   nich.
 
+## Moduł 27 — Gęstość ekranu + liquid glass w przełącznikach (2026-07-17)
+
+Kontynuacja audytu wizualnego (Moduł 21) wzdłuż dwóch osi zgłoszonych przez
+właściciela: „w wielu miejscach nie ma pełnego wykorzystania ekranu” oraz
+„liquid glass + animacje przy zmianie opcji, jak w centrum powiadomień macOS”.
+
+**Realna szerokość treści to 1576 px, nie 1800** (sidebar ~200 px + padding) —
+`AppShell.tsx` ma `max-w-[1800px]`. Licz pustkę od 1576.
+
+### Część A — gęstość
+
+| Gdzie | Było | Jest |
+|---|---|---|
+| `invoices/InvoicesDashboard.tsx` | `sm:max-w-2xl sm:grid-cols-3` — trzy karty KPI na 672 px, obok **904 px martwego pasa** | `sm:grid-cols-3 xl:grid-cols-6` na pełną szerokość, jak Pulpit |
+| `offers/OffersDashboard.tsx` | identycznie | identycznie, symetrycznie z Fakturami |
+| `costs/SpendTrendChart.tsx` | legenda `grid ... sm:grid-cols-3` dzieliła **całą** szerokość karty (953 px) — przy dwóch kategoriach nazwa przy lewej krawędzi, kwota pół ekranu dalej | `flex flex-wrap` + wpis `w-[190px]`; zmierzone: wpis 317 px → **190 px** |
+
+**Decyzja właściciela (2026-07-17):** odzyskane miejsce w Fakturach/Ofertach
+wypełniają **nowe kolumny KPI**, nie wykres — samo zdjęcie `max-w` rozciągnęłoby
+trzy karty i wyglądało gorzej niż zbite. Dołożone wskaźniki:
+
+- Faktury: **Najstarsza zaległość** (dni; progi kolorów 10/21 = progi eskalacji
+  `REMINDER_LEVELS` — świadomie MAX, nie średnia: średnia rozmywa tę jedną
+  fakturę, która wisi kwartał, a to ona decyduje o wezwaniu), **Opłacone (ten
+  mies.)**, **Szkice do wystawienia**.
+- Oferty: **Skuteczność** (tylko z ofert ROZSTRZYGNIĘTYCH — wliczanie otwartych
+  zaniżałoby ją tym bardziej, im więcej ofert właśnie wisi), **Wygasają w 7 dni**,
+  **Średnia wartość oferty**.
+
+**Wykres w Kosztach świadomie zostaje mały** — nagłówek `SpendTrendChart.tsx`
+dokumentuje tę decyzję z Modułu 9 („dodatkowa szerokość idzie na legendę, nie na
+powiększanie wykresu”). Naprawiona została legenda, nie rozmiar wykresu. Przy
+2–3 kategoriach w karcie i tak zostaje pusto — usunięcie tego wymaga cofnięcia
+decyzji z Modułu 9, więc **wymaga pytania właściciela**, nie jest zaniedbaniem.
+
+### Część B — przełączniki
+
+Wszystko sprowadziło się do rozciągnięcia gotowego wzorca `ViewTabs`
+(`layoutId` + kanoniczny spring `{ stiffness: 420, damping: 32 }`):
+
+- **`FilterPills.tsx`** — miał TYLKO `transition-colors`, aktywna pigułka
+  **przeskakiwała**. Gradient przeniesiony z klasy na `<button>` do osobnej
+  warstwy `motion.span` pod tekstem (framer musi mieć JEDEN element zmieniający
+  pozycję, nie dwa tła zapalane/gaszone). Jedna zmiana ulepszyła Pocztę
+  I Notatnik naraz.
+- **`ProjectTimeline.tsx`** — dwa ręcznie sklecone przełączniki segmentowe
+  (grupowanie, zoom) → jeden lokalny `SegmentedSwitch`. Świadomie NIE `FilterPills`:
+  tam pigułki są wolno stojące, tu siedzą w kontenerze-segmencie. Dwa kształty,
+  nie duplikat.
+- **`mail/MailDashboard.tsx`** — pasek akcji zaznaczenia dostał `AnimatePresence`
+  z animacją `height` + `opacity` (samo przenikanie zostawiłoby skok układu
+  o wysokość paska).
+
+**Szkło (decyzja właściciela 2026-07-17):** `.glass` na kontenerze segmentowym —
+pigułki Poczty, zakładki Notatnika, oba przełączniki Osi czasu. Zweryfikowane
+wzrokowo: nie robi mgły. **Tagi w Notatniku świadomie BEZ szkła** — siedzą pod
+polem notatki, szkło zrobiłoby z nich drugą kartę na karcie.
+
+### 🚨 `layoutId` bez wartości domyślnej — i dlaczego
+
+`FilterPills` i `SegmentedSwitch` mają `layoutId` **wymagany**, w odróżnieniu od
+`ViewTabs` (który dostał ten prop dopiero po fakcie, w Module 23). Powód: oba
+komponenty są renderowane **po dwa zestawy naraz** — Notatnik ma rząd zakładek
+I rząd tagów, Oś czasu ma grupowanie I zoom obok siebie. Przy wspólnym `layoutId`
+framer uzna oba podświetlenia za ten sam element i przeleci gradientem z jednego
+rzędu do drugiego. Brak domyślki wymusza decyzję na wywołującym, zamiast czekać
+na regresję.
+
+Zweryfikowane wzrokowo: w Notatniku zakładka i tag mają **niezależne**
+podświetlenia, żadne nie przeskakuje między rzędami.
+
+### Mobile — stan zastany, nie regresja
+
+Zmierzone na 375 px: `document.scrollWidth` = **530 px przed zmianami**, 538 po.
+Poziomy scroll panelu na wąskim ekranie **istniał wcześniej** i należy do
+Modułu 5 (PWA). `FilterPillsBar` dostał `flex-wrap max-w-full`, żeby nie
+dokładać do tego kolejnych pikseli. Siatki KPI schodzą do `grid-cols-2` i nie
+rozjeżdżają się.
+
+### ⚠️ Pułapka narzędzia (uderzyła kilka razy w tej sesji)
+
+Podgląd przeglądarki ma `visibilityState === "hidden"` i **nigdy nie odpala
+`requestAnimationFrame`** — animacje framer-motion nie postępują. Objawy złapane
+w tej sesji, wszystkie były artefaktem, nie błędem:
+
+- Pasek akcji Poczty „nie pojawił się” po zaznaczeniu. `getComputedStyle`
+  pokazał: pasek ma realne 46 px, ale wrapper stoi na `height: 10.2px`,
+  `opacity: 0.177`. Kolejny `screenshot` wymusił klatkę i pasek dojechał.
+- Lista Poczty „nie przefiltrowała się” po kliknięciu VIP — zrzut złapał klatkę
+  w trakcie przenikania `ViewSwitch`. Drugi zrzut pokazał poprawne 2 wyniki.
+- Oś czasu wyrenderowała się pusta + konsola pokazywała błąd parsowania
+  `MailDashboard.tsx` — **nieaktualny** wpis z chwilowego, połamanego stanu
+  między dwiema edycjami. `tsc` przechodził; przeładowanie naprawiło.
+
+Zasada: klikaj i rób `screenshot` (nie `wait`), a przed uznaniem czegoś za błąd
+zmierz `getComputedStyle`. Nie „naprawiaj” `AnimatePresence`/`layoutId` pod ten
+objaw.
+
+### Dev-seed nie ma faktur, ofert ani kosztów
+
+Żeby zobaczyć te widoki z treścią, trzeba wstawić rekordy przez API i usunąć po
+zrzutach (PGlite, izolowana). **Sandbox Claude blokuje `curl` na localhost** —
+zasiew idzie przez `fetch` z konsoli strony (ten sam origin, dev-login działa).
+Dwie pułapki API złapane w tej sesji:
+
+- `POST /api/invoices` zwraca `{ok, id}`, **nie** `{invoice: {id}}`.
+- `POST /api/offers/[id]/items` **zawsze tworzy pozycję z ceną 0** — cena idzie
+  osobnym `PATCH /api/offers/[id]/items/[itemId]`. Bez tego wszystkie KPI ofert
+  pokazują 0,00 zł i wygląda to na błąd, którym nie jest.
+
 ## Audyt wizualny: jeden modal, jedne zakładki, jeden gradient (2026-07-16, Moduł 21)
 
 Kontynuacja „Menu rozwijane w całym panelu” wyżej. Tamta runda naprawiła

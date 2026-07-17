@@ -168,9 +168,16 @@ export function SpendTrendChart() {
         {totalsByCategory.length === 0 ? (
           <p className="text-[10.5px] text-muted opacity-60">Brak wydatków w tym okresie.</p>
         ) : (
-          <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+          /* Moduł 27: było `grid ... sm:grid-cols-3` — kolumny siatki dzieliły
+             CAŁĄ szerokość karty (~950 px na oknie 1800), więc przy dwóch
+             kategoriach nazwa lądowała przy lewej krawędzi, a kwota pół ekranu
+             dalej. Teraz wpis ma stałą szerokość i wpisy pakują się od lewej:
+             nazwa i kwota zostają obok siebie niezależnie od tego, ile jest
+             kategorii. Wykres świadomie zostaje mały (decyzja z Modułu 9,
+             patrz nagłówek pliku) — naprawiamy legendę, nie rozmiar wykresu. */
+          <div className="flex min-w-0 flex-1 flex-wrap content-center gap-x-6 gap-y-1.5">
             {totalsByCategory.map((c) => (
-              <div key={c.kategoria} className="flex items-center gap-1.5 text-[11px]">
+              <div key={c.kategoria} className="flex w-[190px] items-center gap-1.5 text-[11px]">
                 <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: `var(--s${c.slot + 1})` }} />
                 <span className="min-w-0 flex-1 truncate text-muted">{c.kategoria}</span>
                 <span className="shrink-0 font-medium text-[var(--fg)]">{formatMoney(c.total)}</span>

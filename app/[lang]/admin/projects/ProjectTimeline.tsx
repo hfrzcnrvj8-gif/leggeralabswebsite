@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import type { Locale } from "@/i18n/config";
 import { ProjectIcon, formatPlDate, PROJECT_STATUS_HEX, DEFAULT_STATUS_HEX } from "./shared";
 import { statusIconEl } from "./ProjectKanban";
@@ -374,39 +375,22 @@ export function ProjectTimeline({
     <div>
       {/* Pasek narzędzi: grupowanie + zoom */}
       <div className="mb-2 flex items-center justify-end gap-2">
-        <div className="flex items-center rounded-lg border hairline p-0.5">
-          {([
-            ["none", "Bez grup"],
-            ["status", "Status"],
-            ["zdrowie", "Zdrowie"],
-          ] as const).map(([g, label]) => (
-            <button
-              key={g}
-              onClick={() => setGroupBy(g)}
-              // Stan aktywny tym samym akcentem marki co pigułki filtrów w
-              // Poczcie/Notatniku (`.pill-active`, audyt 2026-07-16) — wcześniej
-              // płaska szarość, czyli kolejny osobny język dla „to jest wybrane”.
-              className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
-                groupBy === g ? "pill-active" : "text-muted hover:text-[var(--fg)]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center rounded-lg border hairline p-0.5">
-          {(["quarter", "month", "week"] as Zoom[]).map((z) => (
-            <button
-              key={z}
-              onClick={() => setZoom(z)}
-              className={`rounded-md px-2.5 py-1 text-[12px] transition-colors ${
-                zoom === z ? "pill-active" : "text-muted hover:text-[var(--fg)]"
-              }`}
-            >
-              {ZOOM_LABEL[z]}
-            </button>
-          ))}
-        </div>
+        <SegmentedSwitch
+          value={groupBy}
+          onChange={setGroupBy}
+          layoutId="timeline-group-segment"
+          segments={[
+            { id: "none", label: "Bez grup" },
+            { id: "status", label: "Status" },
+            { id: "zdrowie", label: "Zdrowie" },
+          ]}
+        />
+        <SegmentedSwitch
+          value={zoom}
+          onChange={setZoom}
+          layoutId="timeline-zoom-segment"
+          segments={(["quarter", "month", "week"] as Zoom[]).map((z) => ({ id: z, label: ZOOM_LABEL[z] }))}
+        />
       </div>
 
       <div className={`card-paper overflow-x-auto rounded-2xl ${drag ? "select-none" : ""}`} ref={scrollRef}>
@@ -600,6 +584,58 @@ export function ProjectTimeline({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Przełącznik segmentowy paska narzędzi Osi czasu (grupowanie, zoom).
+ *
+ *  Moduł 27: oba przełączniki były przepisane w markupie dwa razy i żaden nie
+ *  animował — `.pill-active` zapalało się skokowo pod nowym segmentem. Tu
+ *  podświetlenie PRZEJEŻDŻA (`layoutId` + kanoniczny spring, ten sam co
+ *  `ViewTabs`/`FilterPills`).
+ *
+ *  Świadomie NIE jest to `FilterPills`: tam pigułki są wolno stojące, tu
+ *  siedzą w jednym kontenerze-segmencie na szkle. Dwa różne kształty, nie
+ *  duplikat do sklejenia (patrz brief Modułu 27).
+ *
+ *  `layoutId` bez domyślki — oba przełączniki stoją obok siebie na tym samym
+ *  pasku, więc wspólna wartość przerzuciłaby podświetlenie z grupowania na
+ *  zoom (ten sam błąd co w Module 23).
+ */
+function SegmentedSwitch<T extends string>({
+  value,
+  onChange,
+  segments,
+  layoutId,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  segments: { id: T; label: string }[];
+  layoutId: string;
+}) {
+  return (
+    // `.glass` zamiast `border hairline` — pasek narzędzi to chrome, więc
+    // szkło jest tu zgodne z regułą z CLAUDE.md.
+    <div className="glass flex items-center rounded-lg p-0.5">
+      {segments.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => onChange(s.id)}
+          className={`relative rounded-md px-2.5 py-1 text-[12px] transition-colors ${
+            value === s.id ? "text-[var(--fg)]" : "text-muted hover:text-[var(--fg)]"
+          }`}
+        >
+          {value === s.id && (
+            <motion.span
+              layoutId={layoutId}
+              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              className="pill-active absolute inset-0 rounded-md"
+            />
+          )}
+          <span className="relative">{s.label}</span>
+        </button>
+      ))}
     </div>
   );
 }

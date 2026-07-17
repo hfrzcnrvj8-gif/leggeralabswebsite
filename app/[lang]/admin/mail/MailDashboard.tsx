@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget, useCopy } from "../ui";
@@ -26,7 +27,7 @@ import { MailDetailPanel } from "./MailDetailPanel";
 import { MailComposeForm } from "./MailComposeForm";
 import { Modal } from "../Modal";
 import { ContextMenu, ContextMenuItem, MenuDivider, MenuLabel, PropertyMenu, useContextMenu } from "../Menu";
-import { FilterPills } from "../FilterPills";
+import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { ViewSwitch } from "../ViewTabs";
 
 // Filtry to dwie NIEZALEŻNE osie, jak status vs zdrowie projektu: co wymaga
@@ -756,61 +757,80 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       )}
 
       {(activeFolder === "inbox" || activeFolder === "sent") && (
-        <div className="mb-3 flex gap-1">
-          <FilterPills
-            value={filter}
-            onChange={setFilter}
-            pills={(activeFolder === "inbox" ? FILTERS : SENT_FILTERS).map((f) => ({
-              id: f.id,
-              label: f.label + filterCountSuffix(f.id),
-            }))}
-          />
+        <div className="mb-3 flex">
+          <FilterPillsBar>
+            <FilterPills
+              value={filter}
+              onChange={setFilter}
+              layoutId="mail-filter-pill"
+              pills={(activeFolder === "inbox" ? FILTERS : SENT_FILTERS).map((f) => ({
+                id: f.id,
+                label: f.label + filterCountSuffix(f.id),
+              }))}
+            />
+          </FilterPillsBar>
         </div>
       )}
 
-      {selectedIds.size > 0 && (
-        <div className="card-paper sticky top-2 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-[12px]">
-          <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
-          <button
-            onClick={() => void bulkSetStatus("obsłużony")}
-            disabled={bulkBusy}
-            className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+      {/* Moduł 27: pasek pojawiał się i znikał w jednej klatce. `height`
+          animujemy razem z `opacity`, żeby lista pod spodem nie podskakiwała
+          o wysokość paska — samo przenikanie zostawiłoby skok układu.
+          `overflow-hidden` na czas animacji trzyma treść w kurczącym się
+          pasku; `sticky` żyje na wewnętrznym divie, bo animowany rodzic z
+          `overflow-hidden` przyklejenie by zabił. */}
+      <AnimatePresence initial={false}>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            className="overflow-hidden"
           >
-            Obsłużone
-          </button>
-          {activeFolder !== "archive" && (
-            <button
-              onClick={() => void bulkMove("archive")}
-              disabled={bulkBusy || !configured}
-              className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
-            >
-              🗄️ Archiwizuj
-            </button>
-          )}
-          {activeFolder !== "trash" && (
-            <button
-              onClick={() => void bulkMove("trash")}
-              disabled={bulkBusy || !configured}
-              className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-            >
-              🗑️ Usuń
-            </button>
-          )}
-          {(activeFolder === "trash" || activeFolder === "archive") && (
-            <button
-              onClick={() => void bulkMove("inbox")}
-              disabled={bulkBusy || !configured}
-              className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
-            >
-              📥 Przywróć
-            </button>
-          )}
-          <span className="flex-1" />
-          <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
-            Odznacz wszystko
-          </button>
-        </div>
-      )}
+            <div className="card-paper sticky top-2 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-[12px]">
+              <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
+              <button
+                onClick={() => void bulkSetStatus("obsłużony")}
+                disabled={bulkBusy}
+                className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+              >
+                Obsłużone
+              </button>
+              {activeFolder !== "archive" && (
+                <button
+                  onClick={() => void bulkMove("archive")}
+                  disabled={bulkBusy || !configured}
+                  className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+                >
+                  🗄️ Archiwizuj
+                </button>
+              )}
+              {activeFolder !== "trash" && (
+                <button
+                  onClick={() => void bulkMove("trash")}
+                  disabled={bulkBusy || !configured}
+                  className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  🗑️ Usuń
+                </button>
+              )}
+              {(activeFolder === "trash" || activeFolder === "archive") && (
+                <button
+                  onClick={() => void bulkMove("inbox")}
+                  disabled={bulkBusy || !configured}
+                  className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+                >
+                  📥 Przywróć
+                </button>
+              )}
+              <span className="flex-1" />
+              <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
+                Odznacz wszystko
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Trzy kolumny — sidebar (foldery + "Rodzaj", styl "Inteligentne
           skrzynki pocztowe" Apple Mail, Moduł 4e) + lista + podgląd. Poniżej

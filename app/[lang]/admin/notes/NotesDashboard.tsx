@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "@/i18n/config";
 import { formatPlDate } from "@/lib/projects";
 import { EditableText, EditableTextarea } from "../components";
-import { FilterPills } from "../FilterPills";
+import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { Modal } from "../Modal";
 import { useUI, useRegisterActions } from "../ui";
@@ -166,17 +166,26 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
         </div>
 
         {/* Dwa rzędy pigułek, nie jeden: stan (zakładka) i tag to niezależne
-            osie — da się chcieć „przypięte z tagiem marketing". */}
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          <FilterPills value={tab} onChange={setTab} size="sm" pills={NOTE_TABS} />
+            osie — da się chcieć „przypięte z tagiem marketing".
+            Każdy rząd MUSI mieć własny `layoutId` — oba są na ekranie naraz,
+            więc wspólny sprawiłby, że podświetlenie przelatuje z zakładek do
+            tagów (patrz komentarz w FilterPills.tsx). */}
+        <div className="mb-3 flex">
+          <FilterPillsBar>
+            <FilterPills value={tab} onChange={setTab} size="sm" pills={NOTE_TABS} layoutId="notes-tab-pill" />
+          </FilterPillsBar>
         </div>
 
         {allTags.length > 0 && (
+          // Tagi świadomie BEZ szkła: siedzą pod polem notatki, a `.glass` na
+          // karcie robiłby z nich drugą kartę na karcie. Szkło dostaje rząd
+          // zakładek (chrome listy), nie ten.
           <div className="mb-4 flex flex-wrap gap-1.5">
             <FilterPills
               value={tagFilter}
               onChange={setTagFilter}
               size="sm"
+              layoutId="notes-tag-pill"
               pills={[{ id: "", label: "Wszystkie tagi" }, ...allTags.map((t) => ({ id: t, label: t }))]}
             />
           </div>

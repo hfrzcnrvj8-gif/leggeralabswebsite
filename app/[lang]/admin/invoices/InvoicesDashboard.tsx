@@ -14,7 +14,7 @@ import {
 } from "@/lib/invoices";
 import { KSEF_STATUS_CLASS, KSEF_STATUS_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
-import { todayLocalISO } from "@/lib/dates";
+import { daysBetweenISO, todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
 import {
   Popover,
@@ -181,15 +181,31 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
     const list = invoices ?? [];
     const nieoplacone = new Map<string, number>();
     const poTerminie = new Map<string, number>();
-    const thisMonth = todayLocalISO().slice(0, 7);
+    const oplaconeMiesiac = new Map<string, number>();
+    const today = todayLocalISO();
+    const thisMonth = today.slice(0, 7);
     let ksefMonthSalesPln = 0;
+    let szkice = 0;
+    let najstarszaZaleglosc = 0;
     for (const i of list) {
       // Proforma nie jest dokumentem fiskalnym — nie liczy się do przychodu/KPI.
       if (i.typ_dokumentu === "proforma") continue;
       const currency = i.waluta || "PLN";
       const overdue = isInvoiceOverdue(i);
       if (i.status === "Wystawiona" || overdue) nieoplacone.set(currency, (nieoplacone.get(currency) ?? 0) + i.brutto);
-      if (overdue) poTerminie.set(currency, (poTerminie.get(currency) ?? 0) + i.brutto);
+      if (overdue) {
+        poTerminie.set(currency, (poTerminie.get(currency) ?? 0) + i.brutto);
+        // Wiek NAJSTARSZEJ zaległości, nie średnia: przy kilku fakturach
+        // średnia rozmywa tę jedną, która wisi od trzech miesięcy — a to ona
+        // decyduje, czy pora na wezwanie (progi eskalacji, REMINDER_LEVELS).
+        if (i.termin_platnosci) {
+          najstarszaZaleglosc = Math.max(najstarszaZaleglosc, daysBetweenISO(i.termin_platnosci, today));
+        }
+      }
+      if (i.status === "Szkic") szkice += 1;
+      if (i.status === "Opłacona" && i.data_wystawienia?.slice(0, 7) === thisMonth) {
+        oplaconeMiesiac.set(currency, (oplaconeMiesiac.get(currency) ?? 0) + i.brutto);
+      }
       // Licznik progu KSeF dla mikrofirm — tylko faktury w PLN, wystawione
       // (nie szkice/anulowane), wg daty wystawienia w bieżącym miesiącu.
       if (
@@ -201,7 +217,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
         ksefMonthSalesPln += i.brutto;
       }
     }
-    return { nieoplacone, poTerminie, ksefMonthSalesPln };
+    return { nieoplacone, poTerminie, oplaconeMiesiac, ksefMonthSalesPln, szkice, najstarszaZaleglosc };
   }, [invoices]);
 
   const formatKpi = (byCurrency: Map<string, number>) => {
@@ -271,8 +287,11 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       </div>
 
       <div className="px-4 py-4 sm:px-6">
-        {/* KPI: nieopłacone / po terminie / próg KSeF dla mikrofirm */}
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-2xl sm:grid-cols-3">
+        {/* KPI: należności / eskalacja / wpływy / szkice / próg KSeF dla mikrofirm.
+            Moduł 27: było `sm:max-w-2xl sm:grid-cols-3` — trzy karty stały
+            stłoczone w lewych 40% ekranu, a obok zostawało ~900 px pustki.
+            Sześć kolumn na szerokim ekranie, jak Pulpit (DashboardHome). */}
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Nieopłacone</div>
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatKpi(kpi.nieoplacone)}</div>
@@ -282,6 +301,20 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             <div className={`mt-0.5 text-lg font-semibold ${kpi.poTerminie.size > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
               {formatKpi(kpi.poTerminie)}
             </div>
+          </div>
+          <div className="card-paper rounded-xl border hairline p-3" title="Ile dni po terminie wisi najstarsza nieopłacona faktura. Progi eskalacji: 3 dni — uprzejme przypomnienie, 10 — stanowcze, 21 — formalne wezwanie do zapłaty.">
+            <div className="text-[11px] text-muted">Najstarsza zaległość</div>
+            <div className={`mt-0.5 text-lg font-semibold ${kpi.najstarszaZaleglosc >= 21 ? "text-red-400" : kpi.najstarszaZaleglosc >= 10 ? "text-brand-gold" : "text-[var(--fg)]"}`}>
+              {kpi.najstarszaZaleglosc > 0 ? `${kpi.najstarszaZaleglosc} dni` : "—"}
+            </div>
+          </div>
+          <div className="card-paper rounded-xl border hairline p-3">
+            <div className="text-[11px] text-muted">Opłacone (ten mies.)</div>
+            <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatKpi(kpi.oplaconeMiesiac)}</div>
+          </div>
+          <div className="card-paper rounded-xl border hairline p-3">
+            <div className="text-[11px] text-muted">Szkice do wystawienia</div>
+            <div className={`mt-0.5 text-lg font-semibold ${kpi.szkice > 0 ? "text-brand-gold" : "text-[var(--fg)]"}`}>{kpi.szkice}</div>
           </div>
           <div className="card-paper rounded-xl border hairline p-3" title="Mikroprzedsiębiorcy mogą do końca 2026 wystawiać faktury poza KSeF, dopóki miesięczna sprzedaż nie przekroczy tego progu.">
             <div className="text-[11px] text-muted">Sprzedaż (ten mies.) / próg KSeF</div>
