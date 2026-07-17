@@ -12,7 +12,8 @@ Zrób moduł opisany w `docs/plany-modulow/31-umowy-widoczne.md`. Najpierw
 przeczytaj ten plik, `CLAUDE.md`, `docs/plany-modulow/00-mapa-drogi-klienta.md`
 (Krok 3) i `docs/plany-modulow/11-umowy-i-nda.md` (moduł źródłowy), potem
 zaproponuj plan i zapytaj o otwarte decyzje (brief ma sekcję „Do rozstrzygnięcia
-z właścicielem" — pięć pytań, nie zgaduj za mnie), dopiero potem działaj.
+z właścicielem" — **pytanie 1 jest już rozstrzygnięte, zostają 2–5**), dopiero
+potem działaj.
 
 Ten brief powstał z audytu Modułu 29 (2026-07-17) i jest OSTATNIM z trzech
 (32 → 30 → 31). Moduły 32 i 30 są zamknięte.
@@ -44,11 +45,16 @@ Uwagi, które oszczędzą Ci czasu:
   je logują** (sprawdzone) — oś czasu klienta umowy widzi. Niewidoczne są w
   Pulpicie, dziennym mailu, wyszukiwarce, dzwonku i sekcji „Powiązane" na karcie
   klienta. Nie buduj czegoś, co już jest.
-* Pytanie 1 (czy bramka ma obejmować ręczne projekty) to **decyzja produktowa,
-  nie techniczna** — bramka umowy jest jedynym twardym wyjątkiem od zasady
-  „miękkie podpowiedzi, nigdy twarde bramki" i była **świadomie zatwierdzona**
-  (komentarz w `projects/[id]/route.ts:135-140` opisuje dlaczego). Nie znoś jej
-  z własnej inicjatywy — zapytaj.
+* **Pytanie 1 jest już rozstrzygnięte (2026-07-17) — nie pytaj o nie ponownie,
+  przeczytaj ramkę „ROZSTRZYGNIĘTE" w briefie.** Skrót: bramka zostaje TWARDA,
+  ale obejmuje **tylko projekty z `client_id`**; projekty bez klienta
+  (wewnętrzne) są wolne. Powód: `POST /api/projects` nigdy nie ustawia
+  `client_id`, więc dziś ręczny projekt — także „przebudowa własnej strony" —
+  nie przejdzie na „W trakcie" nigdy, a umowy nie ma z kim podpisać. Ramka
+  zawiera też **znane, zaakceptowane wady** tej decyzji: nie „naprawiaj" ich z
+  własnej inicjatywy. Bramka była świadomym wyjątkiem od zasady „miękkie
+  podpowiedzi, nigdy twarde bramki" (komentarz w `projects/[id]/route.ts:135-140`)
+  — **nie znoś jej**.
 * Pytanie 4 (nowe rodzaje powiadomień) koliduje ze **świadomą decyzją Modułu
   24**: dzwonek to *kronika zdarzeń*, celowo NIE druga lista „do zrobienia"
   (Pulpit liczy stan na żywo). Zapytaj, zamiast zakładać.

@@ -21,6 +21,8 @@ potwierdziły się co do linii** — nie trać czasu na ponowne sprawdzanie:
 | `clients/[id]/route.ts:37-45` pobiera oferty/faktury/projekty, **nie umowy** | ✅ potwierdzone |
 | `search/route.ts:33-37` — leady/klienci/projekty/notatki/wydarzenia, bez umów/ofert/faktur | ✅ potwierdzone |
 | `lib/notifications.ts` — brak `offer_accepted`/`contract_signed`/`review_collected` | ✅ potwierdzone |
+| **(spoza briefu)** `POST /api/projects` nie ustawia `client_id` w ogóle | ✅ każdy ręczny projekt rodzi się bez klienta → **przesądziło pytanie 1** |
+| **(spoza briefu)** routes umów realnie wołają `logClientEvent` (`contract_created`/`sent`/`signed`) | ✅ oś czasu klienta umowy **widzi** — Część B jest węższa, niż brzmi |
 
 ### ❗ Sprostowanie A — „naprawa jednej linii" z Części A jest PUŁAPKĄ
 
@@ -143,6 +145,58 @@ właściciel, bo Moduł 24 świadomie odrzucił kilka kandydatów.
    projekty wolne; (c) zamienić twardą bramkę na miękką podpowiedź, zgodnie z
    ogólną zasadą panelu. **Rekomendacja: (a)** — najmniejsza zmiana, zachowuje
    zatwierdzony sens bramki.
+
+   > ### ✅ ROZSTRZYGNIĘTE 2026-07-17 — (a) z zawężeniem do projektów z klientem
+   >
+   > **Decyzja właściciela: bramka zostaje TWARDA, ale obejmuje tylko projekty
+   > mające `client_id`.** Projekty bez klienta (wewnętrzne) są wolne.
+   >
+   > **Fakt, którego brief nie zauważył, a który przesądził sprawę:**
+   > `POST /api/projects` (**„+ Dodaj projekt"**) **nigdy nie ustawia
+   > `client_id`** — sprawdzone gretem 2026-07-17, kolumny nie ma w `INSERT`.
+   > Czyli każdy ręczny projekt rodzi się bez klienta i dziś nie przejdzie na
+   > „W trakcie" **nigdy**. Dotyczy to też roboty wewnętrznej („przebudowa
+   > własnej strony", demo do portfolio, automatyzacja u siebie) — panel żąda
+   > podpisanej umowy od projektu, który **nie ma z kim jej podpisać**. Przy
+   > zerze klientów (patrz pamięć projektu) to większość dzisiejszych projektów.
+   > Wariant (a) w czystej postaci zmuszałby do klikania **fikcyjnych umów**,
+   > czyli uczyłby obchodzenia panelu.
+   >
+   > **Dlaczego zawężenie po kliencie, a nie po pochodzeniu z oferty (wariant b):**
+   > kryterium „czy powstał z oferty" nie ma nic wspólnego z tym, czy jest
+   > klient — klient z polecenia + ręcznie założony projekt prześlizgnąłby się
+   > **bez bramki dokładnie tam, gdzie jest ona najbardziej potrzebna**. Warunek
+   > „ma klienta" tłumaczy się sam (*projekt bez klienta = robota wewnętrzna;
+   > projekt z klientem = potrzebny papier*) i włącza dyscyplinę w tym samym
+   > momencie, w którym projekt staje się pracą dla kogoś. `ProjectDetailPanel`
+   > ma już `LinkPicker` z `client_id`, więc przypięcie klienta do ręcznego
+   > projektu jest możliwe — i to ono ma uzbrajać bramkę.
+   >
+   > **Dlaczego nie (c) — miękka podpowiedź:** praca bez papieru to wg mapy
+   > (Etap 3) **najczęstszy błąd początkującego przedsiębiorcy**, a bramka jest
+   > jedynym bezpiecznikiem przed nim. Znoszenie jej po pierwszym otarciu
+   > zmarnowałoby świadomą decyzję. Złagodzenie do (c) później to zmiana
+   > jednego warunku; dokładanie bramki po fakcie jest dużo trudniejsze — więc
+   > zaczynamy od twardej.
+   >
+   > **Znane, zaakceptowane wady tej decyzji** (nie „naprawiaj" ich sam):
+   > - Twarda bramka **nie powstrzymuje przed pracą bez umowy, tylko przed
+   >   zapisaniem, że się pracuje**. Scenariusz „klient mówi: zaczynamy w
+   >   poniedziałek, papier w czwartek" = trzy dni projektu wiszącego na
+   >   „Planowanie", z czasem i statusem zdrowia pod złym statusem. Uznane za
+   >   drobiazg.
+   > - Jedyne legalne wyjście to oznaczyć umowę „Podpisana" — twarda bramka może
+   >   kusić, żeby kliknąć to **przed** faktycznym podpisem, czyli skłamać w
+   >   dokumencie o znaczeniu prawnym. Uznane za akceptowalne, bo to świadomy
+   >   akt, nie przypadek. **Gdyby to zaczęło uwierać w praktyce — wróć do
+   >   właściciela z pytaniem o (c), nie decyduj sam.**
+   >
+   > **Zakres tej decyzji:** warunek bramki w `app/api/projects/[id]/route.ts:141`
+   > („`nv === "W trakcie"`…") ma najpierw sprawdzić, czy projekt ma `client_id`,
+   > i tylko wtedy pytać o umowę. Komunikat 409 niech prowadzi do legalnego
+   > wyjścia (przypnij podpisaną umowę), zamiast tylko odmawiać. Bramka opiera
+   > się na `client_id`, które **do Modułu 30 gubiło się na czterech trasach** —
+   > dlatego ta zmiana ma sens dopiero teraz.
 2. **Czy Umowy mają wejść na Pulpit i do dziennego maila?** („umowa wysłana X dni
    temu, wciąż niepodpisana"). Jeśli tak — po ilu dniach ciszy?
 3. **Czy dołożyć wskaźnik „% projektów z podpisaną umową"** do Statystyk (mapa go
@@ -154,7 +208,13 @@ właściciel, bo Moduł 24 świadomie odrzucił kilka kandydatów.
 
 ## Zakres (po odpowiedziach)
 
-- `"project"` w `kinds` `LinkPicker`-a w `ContractEditor.tsx` (naprawa pułapki)
+- **Zawężenie bramki do projektów z `client_id`** (`app/api/projects/[id]/route.ts:141`)
+  — decyzja właściciela z 2026-07-17, patrz pytanie 1 wyżej. Projekt bez klienta
+  = robota wewnętrzna = bez bramki.
+- **Osobny picker projektu w `ContractEditor.tsx`** — `kinds={["project"]}` z
+  własnym `value={{ project_id }}`. **NIE dopisuj `"project"` do istniejącego
+  `kinds={["client","lead"]}`** — patrz Sprostowanie A, wyzerowałoby `client_id`
+  umowy i rozwaliło Część B.
 - Umowy w `app/api/clients/[id]/route.ts` → sekcja „Powiązane" na karcie klienta
 - Opcjonalnie: zapytanie o umowy w `hub/today` + dzienny mail
 - Opcjonalnie: nowe rodzaje w `lib/notifications.ts` + hooki w miejscu zdarzenia
