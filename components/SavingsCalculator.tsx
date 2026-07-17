@@ -244,7 +244,7 @@ export function SavingsCalculator({
                       <button
                         type="submit"
                         disabled={status === "sending"}
-                        className="btn-primary shrink-0 rounded-full px-6 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+                        className="btn-cta shrink-0 rounded-full px-6 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {status === "sending" ? formDict.sending : dict.submit}
                       </button>

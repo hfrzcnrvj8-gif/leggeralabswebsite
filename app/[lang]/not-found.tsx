@@ -14,7 +14,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/"
-        className="btn-primary mt-10 inline-block rounded-full px-8 py-3.5 text-base font-semibold"
+        className="btn-cta mt-10 inline-block rounded-full px-8 py-3.5 text-base font-semibold"
       >
         Strona główna · Home · Startseite
       </Link>

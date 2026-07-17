@@ -126,7 +126,7 @@ export default async function BlogPostPage({
                 <p className="text-lg font-medium">{dict.blog.ctaText}</p>
                 <a
                   href={bookingUrl}
-                  className="btn-primary mt-6 inline-block rounded-full px-6 py-3 text-sm font-semibold"
+                  className="btn-cta mt-6 inline-block rounded-full px-6 py-3 text-sm font-semibold"
                   {...(bookingUrl.startsWith("http")
                     ? { target: "_blank", rel: "noopener noreferrer" }
                     : {})}

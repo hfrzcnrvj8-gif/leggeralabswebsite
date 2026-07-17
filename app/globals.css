@@ -252,6 +252,28 @@
     box-shadow: 0 8px 24px rgba(124, 58, 237, 0.22), 0 2px 10px rgba(224, 169, 59, 0.14);
   }
 
+  /* Marketing-site CTA — the solid gradient `.btn-primary` had BEFORE the
+     2026-07-16 admin-panel audit (04e runda 4) switched it to a lighter
+     outline. That change was meant for the panel only, but `.btn-primary`
+     is a shared class, so the public site's buttons (Header, ContactForm,
+     Hero, etc.) went outline too. Restored the original solid look here
+     under its own name instead of reverting the shared class, so the panel
+     keeps its intentional lighter style. */
+  .btn-cta {
+    position: relative;
+    background: linear-gradient(120deg, #7c3aed 0%, #e0a93b 50%, #7c3aed 100%);
+    background-size: 200% 200%;
+    color: #fff;
+    transition: background-position 0.6s ease, transform 0.3s ease,
+      box-shadow 0.3s ease;
+    box-shadow: 0 8px 30px rgba(124, 58, 237, 0.35);
+  }
+  .btn-cta:hover {
+    background-position: 100% 50%;
+    transform: translateY(-1px);
+    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.45);
+  }
+
   .card-surface {
     background: rgb(var(--surface) / 0.6);
     border: 1px solid var(--glass-border);

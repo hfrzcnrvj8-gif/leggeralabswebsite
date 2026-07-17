@@ -220,7 +220,7 @@ export function ContactForm({
         <button
           type="submit"
           disabled={status === "sending"}
-          className="btn-primary w-full rounded-full px-8 py-4 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+          className="btn-cta w-full rounded-full px-8 py-4 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
         >
           {status === "sending" ? dict.sending : dict.submit}
         </button>

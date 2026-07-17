@@ -96,7 +96,7 @@ export function Hero({ dict }: { dict: Dictionary["hero"] }) {
         >
           <a
             href="#contact"
-            className="btn-primary w-full rounded-full px-8 py-3.5 text-base font-semibold sm:w-auto"
+            className="btn-cta w-full rounded-full px-8 py-3.5 text-base font-semibold sm:w-auto"
           >
             {dict.ctaPrimary}
           </a>

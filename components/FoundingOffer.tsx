@@ -23,7 +23,7 @@ export function FoundingOffer({ dict }: { dict: Dictionary["founding"] }) {
               <p className="mt-6 text-muted">{dict.description}</p>
               <a
                 href="#contact"
-                className="btn-primary mt-8 inline-block rounded-full px-7 py-3 text-sm font-semibold"
+                className="btn-cta mt-8 inline-block rounded-full px-7 py-3 text-sm font-semibold"
               >
                 {dict.cta}
               </a>

@@ -112,7 +112,7 @@ export default async function ReferencesPage({ params }: { params: Promise<{ lan
           <div className="card-paper mt-14 rounded-2xl border hairline p-8 text-center sm:p-12">
             <h2 className="text-xl font-semibold">{t.emptyTitle}</h2>
             <p className="mx-auto mt-3 max-w-md text-muted">{t.emptyBody}</p>
-            <Link href={`/${lang}`} className="btn-primary mt-6 inline-block rounded-lg px-5 py-2.5 text-sm font-semibold">
+            <Link href={`/${lang}`} className="btn-cta mt-6 inline-block rounded-lg px-5 py-2.5 text-sm font-semibold">
               {t.ctaLabel}
             </Link>
           </div>

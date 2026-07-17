@@ -115,7 +115,7 @@ export function Header({
 
             <a
               href={`/${lang}#contact`}
-              className="btn-primary hidden rounded-full px-5 py-2 text-sm font-semibold md:inline-block"
+              className="btn-cta hidden rounded-full px-5 py-2 text-sm font-semibold md:inline-block"
             >
               {nav.contact}
             </a>
@@ -159,7 +159,7 @@ export function Header({
                   <a
                     href={`/${lang}#contact`}
                     onClick={() => setMenuOpen(false)}
-                    className="btn-primary mt-2 block rounded-2xl px-4 py-3 text-center text-sm font-semibold md:hidden"
+                    className="btn-cta mt-2 block rounded-2xl px-4 py-3 text-center text-sm font-semibold md:hidden"
                   >
                     {nav.contact}
                   </a>
