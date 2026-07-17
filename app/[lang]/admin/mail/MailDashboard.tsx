@@ -1,6 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  IconArrowUpRight,
+  IconMail,
+  IconNote,
+  IconSearch,
+  IconPencil,
+  IconArchive,
+  IconTrash,
+  IconArrowBackUp,
+  IconCornerUpLeft,
+  IconStar,
+  IconStarFilled,
+} from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
@@ -9,10 +22,10 @@ import {
   MailStatusTag,
   MailCategoryTag,
   MAIL_CATEGORY_LABEL,
-  MAIL_CATEGORY_ICON,
+  MailCategoryIcon,
   MAIL_FOLDERS,
   MAIL_FOLDER_LABEL,
-  MAIL_FOLDER_ICON,
+  MailFolderIcon,
   MAIL_STATUSES,
   MAIL_STATUS_LABEL,
   formatPlDateTime,
@@ -709,8 +722,8 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               placeholder="Szukaj w poczcie…"
               className="w-56 rounded-full border hairline bg-transparent py-1.5 pl-8 pr-7 text-[13px] outline-none focus:border-brand-purple/50"
             />
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-muted" aria-hidden>
-              🔍
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden>
+              <IconSearch size={13} />
             </span>
             {query && (
               <button
@@ -735,7 +748,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
             className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50"
           >
-            ✎ Nowa wiadomość
+            <IconPencil size={13} className="mr-1 inline align-[-2px]" />Nowa wiadomość
           </button>
         </div>
       </div>
@@ -802,7 +815,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                   disabled={bulkBusy || !configured}
                   className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
                 >
-                  🗄️ Archiwizuj
+                  <IconArchive size={13} className="mr-1 inline align-[-2px]" />Archiwizuj
                 </button>
               )}
               {activeFolder !== "trash" && (
@@ -811,7 +824,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                   disabled={bulkBusy || !configured}
                   className="rounded-full border border-red-500/40 px-3 py-1 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                 >
-                  🗑️ Usuń
+                  <IconTrash size={13} className="mr-1 inline align-[-2px]" />Usuń
                 </button>
               )}
               {(activeFolder === "trash" || activeFolder === "archive") && (
@@ -820,7 +833,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                   disabled={bulkBusy || !configured}
                   className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
                 >
-                  📥 Przywróć
+                  <IconArrowBackUp size={13} className="mr-1 inline align-[-2px]" />Przywróć
                 </button>
               )}
               <span className="flex-1" />
@@ -848,7 +861,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                   activeFolder === f ? "pill-active font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
                 }`}
               >
-                <span aria-hidden>{MAIL_FOLDER_ICON[f]}</span>
+                <MailFolderIcon folder={f} size={15} />
                 <span className="lg:flex-1">{MAIL_FOLDER_LABEL[f]}</span>
                 {folderCount(f) > 0 && <span className="text-[11px] text-muted">{folderCount(f)}</span>}
               </button>
@@ -871,7 +884,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                       catFilter === c.id ? "pill-active font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
                     }`}
                   >
-                    {c.id !== "wszystkie" && <span aria-hidden>{MAIL_CATEGORY_ICON[c.id as MailCategory]}</span>}
+                    {c.id !== "wszystkie" && <MailCategoryIcon kind={c.id as MailCategory} size={14} />}
                     <span className="lg:flex-1">{c.label}</span>
                     {c.id !== "wszystkie" && counts[c.id] > 0 && <span className="text-[11px] text-muted">{counts[c.id]}</span>}
                   </button>
@@ -1041,8 +1054,8 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                         <span className="h-2 w-2 rounded-full bg-brand-cyan" title="Nieprzeczytana" />
                       )}
                     </span>
-                    <span className="mt-0.5 shrink-0 text-base" aria-hidden>
-                      {m.kierunek === "out" ? "↩️" : "✉️"}
+                    <span className="mt-0.5 shrink-0 text-muted" aria-hidden>
+                      {m.kierunek === "out" ? <IconCornerUpLeft size={15} /> : <IconMail size={15} />}
                     </span>
                     {/* Treść wiersza rozłożona na TRZY linie zamiast jednej
                         linii tekstu + osobnej, stałej-szerokości kolumny
@@ -1068,7 +1081,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                           title={m.flagged ? "Usuń flagę" : "Oflaguj jako ważne"}
                           className={`shrink-0 text-[13px] leading-none ${m.flagged ? "text-brand-gold" : "text-muted opacity-40 hover:opacity-80"}`}
                         >
-                          {m.flagged ? "★" : "☆"}
+                          {m.flagged ? <IconStarFilled size={13} /> : <IconStar size={13} />}
                         </button>
                         {/* Snooze (Moduł 4, Etap 3) — widoczna tylko dopóki
                             termin nie minął; potem znika sama (patrz filtered). */}
@@ -1201,9 +1214,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           const addr = m.kierunek === "out" ? m.to_addr : m.from_addr;
           return (
             <>
-              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => setOpenId(m.id))} />
+              <ContextMenuItem icon={<IconArrowUpRight size={14} />} label="Otwórz" onClick={() => run(() => setOpenId(m.id))} />
               <ContextMenuItem
-                icon={m.flagged ? "☆" : "⭐"}
+                icon={m.flagged ? <IconStar size={14} /> : <IconStarFilled size={14} />}
                 label={m.flagged ? "Usuń flagę" : "Oflaguj"}
                 onClick={() => run(() => void toggleFlag(m.id, !m.flagged))}
               />
@@ -1211,12 +1224,12 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               <MenuDivider />
               <MenuLabel>Kopiuj</MenuLabel>
               <ContextMenuItem
-                icon="✉️"
+                icon={<IconMail size={14} />}
                 label="Adres e-mail"
                 onClick={() => run(() => void copy(addr, "Adres e-mail"))}
               />
               <ContextMenuItem
-                icon="📝"
+                icon={<IconNote size={14} />}
                 label="Temat"
                 onClick={() => run(() => void copy(m.subject, "Temat"))}
               />

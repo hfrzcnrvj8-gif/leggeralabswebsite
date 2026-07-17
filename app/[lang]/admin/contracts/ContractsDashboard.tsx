@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconX, IconExternalLink } from "@tabler/icons-react";
+import { IconPlus, IconX, IconExternalLink, IconFileText } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Contract,
@@ -246,5 +246,9 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
 }
 
 function IconContractEmpty() {
-  return <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-lg">📝</div>;
+  return (
+    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted">
+      <IconFileText size={20} />
+    </div>
+  );
 }

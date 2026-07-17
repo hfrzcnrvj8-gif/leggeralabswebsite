@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { IconRepeat } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Lead } from "@/lib/leads";
 import { type Project, formatPlDate } from "@/lib/projects";
@@ -503,7 +504,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                 <div>
                   {data.overdueClients.length > 0 && (
                     <div className="mb-1.5 mt-1 flex items-center gap-1 text-[10.5px] uppercase tracking-wide text-muted opacity-70">
-                      <span>🔁</span>
+                      <IconRepeat size={12} />
                       <span>Zaplanowany kontakt retencyjny</span>
                     </div>
                   )}
@@ -512,9 +513,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                       <li key={f.id} className="text-sm">
                         <div className="flex items-center justify-between gap-2">
                           <span>
-                            <span className="mr-1" title="Zaplanowany kontakt retencyjny (Moduł 17)">
-                              🔁
-                            </span>
+                            <IconRepeat size={12} className="mr-1 inline align-[-2px]" aria-label="Zaplanowany kontakt retencyjny (Moduł 17)" />
                             <Link href={`/${lang}/admin/clients/${f.client_id}`} className="font-medium hover:underline">
                               {f.client_nazwa}
                             </Link>
@@ -742,7 +741,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             </Link>
           </div>
           {data.todayEvents.length === 0 ? (
-            <p className="text-sm text-muted opacity-60">🗓️ Brak wydarzeń na dziś.</p>
+            <p className="text-sm text-muted opacity-60">Brak wydarzeń na dziś.</p>
           ) : (
             <ul className="space-y-2">
               {data.todayEvents.map((e) => (
@@ -773,7 +772,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             </Link>
           </div>
           {data.recentNotes.length === 0 ? (
-            <p className="text-sm text-muted opacity-60">📝 Brak notatek.</p>
+            <p className="text-sm text-muted opacity-60">Brak notatek.</p>
           ) : (
             <ul className="space-y-2">
               {data.recentNotes.map((n) => (

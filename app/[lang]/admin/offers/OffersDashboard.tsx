@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconX, IconExternalLink, IconLayoutGrid } from "@tabler/icons-react";
+import { IconPlus, IconX, IconExternalLink, IconLayoutGrid, IconFileDescription } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, CLOSED_OFFER_STATUSES, isOfferExpired, weightedOfferValue } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
@@ -446,5 +446,9 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
 }
 
 function IconOfferEmpty() {
-  return <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-lg">📄</div>;
+  return (
+    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted">
+      <IconFileDescription size={20} />
+    </div>
+  );
 }

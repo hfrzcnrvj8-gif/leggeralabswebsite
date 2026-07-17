@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconBuildingStore, IconExternalLink, IconX, IconRepeat, IconBan } from "@tabler/icons-react";
+import { IconPlus, IconBuildingStore, IconExternalLink, IconX, IconRepeat, IconBan, IconArrowUpRight, IconPrinter, IconFileInvoice, IconBuilding, IconHash, IconCoin, IconTrash } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Invoice,
@@ -582,10 +582,10 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
           };
           return (
             <>
-              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => setOpenId(inv.id))} />
+              <ContextMenuItem icon={<IconArrowUpRight size={14} />} label="Otwórz" onClick={() => run(() => setOpenId(inv.id))} />
               {inv.numer && (
                 <ContextMenuItem
-                  icon="🖨"
+                  icon={<IconPrinter size={14} />}
                   label="Podgląd / wydruk"
                   onClick={() =>
                     run(() =>
@@ -599,23 +599,23 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               <MenuLabel>Kopiuj</MenuLabel>
               {inv.numer && (
                 <ContextMenuItem
-                  icon="🧾"
+                  icon={<IconFileInvoice size={14} />}
                   label="Numer faktury"
                   onClick={() => run(() => void copy(inv.numer, "Numer faktury"))}
                 />
               )}
               <ContextMenuItem
-                icon="🏢"
+                icon={<IconBuilding size={14} />}
                 label="Nazwa klienta"
                 onClick={() => run(() => void copy(inv.klient_nazwa, "Nazwa klienta"))}
               />
               <ContextMenuItem
-                icon="#️⃣"
+                icon={<IconHash size={14} />}
                 label="NIP klienta"
                 onClick={() => run(() => void copy(inv.klient_nip, "NIP klienta"))}
               />
               <ContextMenuItem
-                icon="💰"
+                icon={<IconCoin size={14} />}
                 label="Kwota brutto"
                 onClick={() =>
                   run(() => void copy(formatMoney(inv.brutto, inv.waluta || "PLN"), "Kwota brutto"))
@@ -625,14 +625,14 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               <MenuDivider />
               {!inv.numer ? (
                 <ContextMenuItem
-                  icon="🗑"
+                  icon={<IconTrash size={14} />}
                   label="Usuń szkic"
                   danger
                   onClick={() => run(() => deleteInvoice(inv.id, inv.numer))}
                 />
               ) : inv.status !== "Anulowana" ? (
                 <ContextMenuItem
-                  icon="🚫"
+                  icon={<IconBan size={14} />}
                   label="Anuluj fakturę"
                   danger
                   onClick={() => run(() => cancelInvoice(inv.id, inv.numer))}
@@ -647,5 +647,9 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
 }
 
 function IconReceiptEmpty() {
-  return <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-lg">🧾</div>;
+  return (
+    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted">
+      <IconFileInvoice size={20} />
+    </div>
+  );
 }

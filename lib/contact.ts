@@ -17,14 +17,8 @@ export const CONTACT_CHANNEL_LABEL: Record<ContactChannel, string> = {
   inne: "Inne",
 };
 
-export const CONTACT_CHANNEL_ICON: Record<ContactChannel, string> = {
-  telefon: "📞",
-  email: "✉️",
-  whatsapp: "💬",
-  linkedin: "🔗",
-  spotkanie: "🤝",
-  inne: "📝",
-};
+/* Ikona kanału mieszka w `app/[lang]/admin/icons.tsx` (`<ContactChannelIcon>`,
+ * Moduł 33) — renderuje JSX, a ten plik jest czystą logiką bez Reacta. */
 
 /** Kolor odznaki per kanał — stały i rozpoznawalny (zamiast dawnego
  * płaskiego szarego tła), żeby dało się skanować oś wzrokiem. WhatsApp i
@@ -61,10 +55,7 @@ export const CALL_OUTCOME_LABEL: Record<CallOutcome, string> = {
   nieodebrane: "Nieodebrane",
 };
 
-export const CALL_OUTCOME_ICON: Record<CallOutcome, string> = {
-  odebrane: "📞",
-  nieodebrane: "📵",
-};
+/* Ikona wyniku połączenia: `<CallOutcomeIcon>` w `app/[lang]/admin/icons.tsx`. */
 
 /** Kolor jak w dzienniku połączeń iPhone'a — zielony = odebrane, czerwony
  * = nieodebrane. Jedyne miejsce w panelu, gdzie świadomie odchodzimy od

@@ -49,14 +49,8 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   apple_pay: "Apple Pay",
 };
 
-export const PAYMENT_METHOD_ICON: Record<PaymentMethod, string> = {
-  przelew: "🏦",
-  karta: "💳",
-  gotowka: "💵",
-  blik: "📱",
-  paypal: "🅿️",
-  apple_pay: "🍎",
-};
+/* Ikona metody płatności: `<PaymentMethodIcon method={…} />` w
+ * `app/[lang]/admin/icons.tsx` (Moduł 33). Kolory zostają niżej. */
 
 export const PAYMENT_METHOD_CLASS: Record<PaymentMethod, string> = {
   przelew: "bg-brand-cyan/15 text-brand-cyan",

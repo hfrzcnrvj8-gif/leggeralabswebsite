@@ -100,7 +100,7 @@ export function NoteActivityLog({
           {activity === null ? (
             <p className="text-[11px] text-muted opacity-60">Wczytuję…</p>
           ) : activity.length === 0 ? (
-            <p className="text-[11px] text-muted opacity-60">📭 Brak wpisów.</p>
+            <p className="text-[11px] text-muted opacity-60">Brak wpisów.</p>
           ) : (
             <ul className="space-y-1.5">
               {activity.map((a) => (

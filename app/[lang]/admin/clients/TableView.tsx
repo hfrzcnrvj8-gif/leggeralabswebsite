@@ -2,13 +2,13 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { IconArrowUpRight, IconX, IconInbox } from "@tabler/icons-react";
+import { IconArrowUpRight, IconX, IconInbox, IconBrandLinkedin } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
   clientDaysSince,
   isClientOverdue,
-  CONTACT_CHANNEL_ICON,
+  ContactChannelIcon,
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_CLASS,
   StatusTag,
@@ -145,11 +145,11 @@ export function TableView({
                         <span
                           aria-hidden
                           title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? client.ostatni_kanal}`}
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
                             CONTACT_CHANNEL_CLASS[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
                           }`}
                         >
-                          {CONTACT_CHANNEL_ICON[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
+                          <ContactChannelIcon kind={client.ostatni_kanal} size={10} />
                         </span>
                       )}
                     </div>
@@ -163,7 +163,10 @@ export function TableView({
                   <td className="p-2">
                     <Truncate value={client.email} />
                     {client.linkedin_url && (
-                      <Truncate value={`🔗 ${client.linkedin_url}`} className="text-[11px] text-muted opacity-80" />
+                      <span className="flex items-center gap-1 text-[11px] text-muted opacity-80">
+                        <IconBrandLinkedin size={11} className="shrink-0" />
+                        <Truncate value={client.linkedin_url} />
+                      </span>
                     )}
                   </td>
                   <td className="p-2">

@@ -6,10 +6,10 @@ import { IconBell } from "@tabler/icons-react";
 import { Popover } from "./Menu";
 import {
   notificationAge,
-  notificationEmoji,
   notificationHref,
   type Notification,
 } from "@/lib/notifications";
+import { NotificationIcon } from "./icons";
 
 /**
  * Centrum powiadomień (Moduł 24) — dzwonek w sidebarze.
@@ -156,7 +156,9 @@ export function NotificationBell({ base, collapsed }: { base: string; collapsed:
                     n.read_at ? "opacity-55" : ""
                   }`}
                 >
-                  <span className="mt-px shrink-0 text-[13px]">{notificationEmoji(n.kind)}</span>
+                  <span className="mt-0.5 shrink-0 text-[#8a8f98]">
+                    <NotificationIcon kind={n.kind} size={14} />
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block text-[12.5px] leading-snug ${n.read_at ? "text-[#c7c9cd]" : "text-[#e9e9ea] font-medium"}`}>
                       {n.title}

@@ -105,27 +105,10 @@ export type ClientEvent = {
   created_at: string;
 };
 
-export const CLIENT_EVENT_ICON: Record<string, string> = {
-  client_created: "🤝",
-  offer_created: "📝",
-  offer_sent: "📤",
-  offer_accepted: "✅",
-  invoice_issued: "🧾",
-  invoice_sent: "📤",
-  invoice_reminder: "🔔",
-  payment_received: "💰",
-  invoice_paid: "✅",
-  invoice_dunning_sent: "⚠️",
-  project_status_changed: "📁",
-  nurture_scheduled: "📅",
-  contract_created: "📄",
-  contract_sent: "📤",
-  contract_signed: "✍️",
-  nda_created: "🔒",
-  review_requested: "📮",
-  review_collected: "⭐",
-  nurture_contact_sent: "🔁",
-};
+/* Ikony osi czasu klienta mieszkają w `app/[lang]/admin/icons.tsx`
+ * (`<ClientEventIcon kind={…} />`, Moduł 33) — ten plik zostaje czystą logiką
+ * bez Reacta. Rodzaje zdarzeń nadal są zwykłym tekstem w bazie, więc mapa tam
+ * ma fallback na kropkę dla nieznanego `kind`. */
 
 /** Moduł 12 (fundament linkowania) — do jakiego segmentu URL-a
  * (`/admin/<segment>/<id>`) prowadzi dane zdarzenie, na podstawie `kind`.

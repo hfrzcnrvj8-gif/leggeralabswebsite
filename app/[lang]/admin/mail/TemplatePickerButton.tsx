@@ -4,6 +4,7 @@
 // dropdownu szablonów ofert w OfferEditor.tsx: Popover z listą, kliknięcie
 // wstawia gotową treść (i temat, jeśli pole na niego przyjmuje).
 import { useEffect, useState } from "react";
+import { IconFileText } from "@tabler/icons-react";
 import { Popover } from "../Menu";
 
 export type MailTemplate = { id: string; nazwa: string; temat: string; tresc: string };
@@ -31,7 +32,7 @@ export function TemplatePickerButton({ templates, onPick }: { templates: MailTem
           className="rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:text-[var(--fg)]"
           title="Wstaw gotowy szablon"
         >
-          📄 Szablon
+          <IconFileText size={12} className="mr-1 inline align-[-2px]" />Szablon
         </button>
       )}
     >

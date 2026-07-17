@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconSparkles } from "@tabler/icons-react";
 
 const BRANZE = [
   "Kancelaria prawna",
@@ -67,7 +68,7 @@ export function DiscoverPanel({
         onClick={() => onOpenChange(true)}
         className="rounded-full border hairline px-3 py-1.5 text-xs font-medium text-[#4ea7fc]"
       >
-        ✨ Znajdź nowe leady
+        <IconSparkles size={14} className="mr-1 inline align-[-2px]" />Znajdź nowe leady
       </button>
     );
   }

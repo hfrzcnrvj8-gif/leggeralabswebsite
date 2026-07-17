@@ -13,6 +13,7 @@
 // podstrona musiałaby ciągnąć całą listę, żeby znaleźć w niej jeden wiersz.
 
 import { useCallback, useEffect, useState } from "react";
+import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { EditableText, EditableTextarea } from "../components";
 import { LinkPicker } from "../LinkPicker";
@@ -61,7 +62,7 @@ export function NoteDetailPanel({
   if (missing) {
     return (
       <div className="card-paper rounded-2xl p-6">
-        <p className="text-sm text-muted">🕳️ Nie ma takiej notatki — mogła zostać usunięta.</p>
+        <p className="text-sm text-muted">Nie ma takiej notatki — mogła zostać usunięta.</p>
       </div>
     );
   }
@@ -86,7 +87,7 @@ export function NoteDetailPanel({
           className="shrink-0 rounded-md px-1 py-0.5 text-[15px] transition-opacity hover:opacity-100"
           style={{ opacity: note.pinned ? 1 : 0.35 }}
         >
-          📌
+          {note.pinned ? <IconPinFilled size={15} /> : <IconPin size={15} />}
         </button>
         <div className="min-w-0 flex-1 text-[15px] font-medium">
           <EditableText value={note.tytul} onSave={(v) => patch(note.id, { tytul: v })} />
@@ -147,7 +148,7 @@ export function NoteDetailPanel({
           onClick={() => setArchived(note, !note.archived_at)}
           className="rounded-md border hairline px-2.5 py-1 text-[11px] text-muted transition-colors hover:text-[var(--fg)]"
         >
-          {note.archived_at ? "↩︎ Przywróć" : "🗄️ Archiwizuj"}
+{note.archived_at ? (<><IconArchiveOff size={12} className="mr-1 inline align-[-2px]" />Przywróć</>) : (<><IconArchive size={12} className="mr-1 inline align-[-2px]" />Archiwizuj</>)}
         </button>
         {note.archived_at && (
           <button

@@ -84,19 +84,9 @@ export function linkSearchPlaceholder(kinds: LinkKind[]): string {
   return parts.length === 1 ? `Szukaj ${last}…` : `Szukaj ${parts.slice(0, -1).join(", ")} lub ${last}…`;
 }
 
-/** Emoji rodzaju rekordu.
- *
- * Uzasadnienie „emoji zamiast ikon — świadoma decyzja projektu" było
- * NIEAKTUALNE już w chwili pisania (decyzja odwrócona 2026-07-11, panel ma
- * @tabler/icons-react). Kierunek jest rozstrzygnięty — w panelu ikony, w
- * mailach emoji — a zamiana ma własny Moduł 33. Do tego czasu te emoji
- * ZOSTAJĄ: wyrywanie ich przy okazji innych zmian rozjechałoby panel na pół
- * drogi. Patrz CLAUDE.md → „Emoji vs ikony". */
-export const LINK_KIND_EMOJI: Record<LinkKind, string> = {
-  client: "🤝",
-  lead: "🎯",
-  project: "📁",
-};
+/* Ikona rodzaju rekordu: `<LinkKindIcon kind={…} />` w
+ * `app/[lang]/admin/icons.tsx`. Emoji zamienione w Module 33 — kierunek
+ * zapowiadany w tym komentarzu jest już wdrożony. */
 
 /** Buduje `LinkValue` dla wyboru `picked` spośród pól `kinds`.
  *

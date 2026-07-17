@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { formatPlDate } from "@/lib/projects";
 import { EditableText, EditableTextarea } from "../components";
@@ -194,10 +195,10 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
         {filtered.length === 0 ? (
           <p className="text-sm text-muted opacity-60">
             {tab === "archived"
-              ? "🗄️ Archiwum jest puste."
+              ? "Archiwum jest puste."
               : notes.length === 0
-                ? "📝 Brak notatek — dodaj pierwszą powyżej."
-                : "🔍 Nic nie pasuje do tych filtrów."}
+                ? "Brak notatek — dodaj pierwszą powyżej."
+                : "Nic nie pasuje do tych filtrów."}
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -210,7 +211,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
                     className="shrink-0 text-[13px] transition-opacity"
                     style={{ opacity: n.pinned ? 1 : 0.3 }}
                   >
-                    📌
+                    {n.pinned ? <IconPinFilled size={14} /> : <IconPin size={14} />}
                   </button>
                   <div className="min-w-0 flex-1">
                     <EditableText value={n.tytul} onSave={(v) => patch(n.id, { tytul: v })} />
@@ -266,7 +267,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
                     aria-label={n.archived_at ? "Przywróć na biurko" : "Do archiwum"}
                     className="shrink-0 text-muted hover:text-[var(--fg)]"
                   >
-                    {n.archived_at ? "↩︎" : "🗄️"}
+                    {n.archived_at ? <IconArchiveOff size={14} /> : <IconArchive size={14} />}
                   </button>
                 </div>
 

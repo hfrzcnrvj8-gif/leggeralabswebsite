@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { IconMessageCircle, IconPhoneOff, IconLink } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
@@ -11,13 +12,13 @@ import {
   LEAD_STATUS_STEP,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
-  CONTACT_CHANNEL_ICON,
+  ContactChannelIcon,
   CONTACT_CHANNEL_CLASS,
   CONTACT_DIRECTIONS,
   CONTACT_DIRECTION_LABEL,
   CALL_OUTCOMES,
   CALL_OUTCOME_LABEL,
-  CALL_OUTCOME_ICON,
+  CallOutcomeIcon,
   CALL_OUTCOME_CLASS,
   formatCallDuration,
   ContactQuickActions,
@@ -292,14 +293,14 @@ export function LeadDetailPanel({
                 kinds={["client"]}
                 value={{ client_id: lead.client_id }}
                 onPick={(next) => updateLead("client_id", next.client_id ?? "")}
-                placeholder="🔗 Podepnij istniejącego"
+                placeholder="Podepnij istniejącego"
                 trigger={(picked, open) => (
                   <button
                     onClick={open}
                     title="Gdy ta firma jest już w bazie klientów — podepnij ją zamiast tworzyć duplikat"
                     className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
                   >
-                    {picked ? `🔗 ${picked.nazwa}` : "🔗 Podepnij istniejącego"}
+                    <><IconLink size={12} className="mr-1 inline align-[-2px]" />{picked ? picked.nazwa : "Podepnij istniejącego"}</>
                   </button>
                 )}
               />
@@ -473,7 +474,7 @@ export function LeadDetailPanel({
                           noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
                         }`}
                       >
-                        <span aria-hidden>{CALL_OUTCOME_ICON[o]}</span>
+                        <CallOutcomeIcon kind={o} size={13} />
                         {CALL_OUTCOME_LABEL[o]}
                       </button>
                     ))}
@@ -513,7 +514,7 @@ export function LeadDetailPanel({
                   }}
                   className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
                 >
-                  📵 Nieodebrane od klienta — ustaw przypomnienie na jutro
+                  <IconPhoneOff size={12} className="mr-1 inline align-[-2px]" />Nieodebrane od klienta — ustaw przypomnienie na jutro
                 </button>
               )}
 
@@ -552,7 +553,7 @@ export function LeadDetailPanel({
             </form>
 
             {activity.length === 0 ? (
-              <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
+              <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
             ) : (
               groupActivityByDay(activity).map((group) => (
                 <div key={group.label} className="mb-4 last:mb-0">
@@ -634,18 +635,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 /** Kolorowa odznaka wpisu na osi — wzorem iOS: nieodebrane połączenie ma
  * pierwszeństwo (czerwone) przed zwykłym kolorem kanału, inne kanały mają
- * swój stały kolor (CONTACT_CHANNEL_CLASS), brak kanału = neutralna 💬. */
-function activityBadge(a: { kanal: string | null; wynik: string | null }): { icon: string; cls: string } {
+ * swój stały kolor (CONTACT_CHANNEL_CLASS), brak kanału = neutralny dymek. */
+function activityBadge(a: { kanal: string | null; wynik: string | null }): { icon: ReactNode; cls: string } {
   if (a.kanal === "telefon" && a.wynik === "nieodebrane") {
-    return { icon: CALL_OUTCOME_ICON.nieodebrane, cls: CALL_OUTCOME_CLASS.nieodebrane };
+    return { icon: <CallOutcomeIcon kind="nieodebrane" size={14} />, cls: CALL_OUTCOME_CLASS.nieodebrane };
   }
   if (a.kanal) {
     return {
-      icon: CONTACT_CHANNEL_ICON[a.kanal as keyof typeof CONTACT_CHANNEL_ICON],
+      icon: <ContactChannelIcon kind={a.kanal} size={14} />,
       cls: CONTACT_CHANNEL_CLASS[a.kanal as keyof typeof CONTACT_CHANNEL_CLASS],
     };
   }
-  return { icon: "💬", cls: "bg-[var(--hairline)] text-muted" };
+  return { icon: <IconMessageCircle size={14} />, cls: "bg-[var(--hairline)] text-muted" };
 }
 
 /** "Dziś" / "Wczoraj" / "DD.MM.YYYY" — czysto kosmetyczne grupowanie osi po

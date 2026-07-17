@@ -825,7 +825,7 @@ export function InvoiceEditor({
                 <p className="mb-1 font-medium">Jak działa korekta</p>
                 <p className="text-[var(--fg)]/80">
                   Popraw pozycje tak, jak faktura <span className="font-medium">powinna wyglądać po zmianie</span> (stan
-                  docelowy). Usługę niewykonaną <span className="font-medium">usuń</span> (🗑). Aby zmniejszyć ilość lub cenę —
+                  docelowy). Usługę niewykonaną <span className="font-medium">usuń</span> (<IconTrash size={12} className="inline align-[-2px]" />). Aby zmniejszyć ilość lub cenę —
                   wpisz nową, <span className="font-medium">dodatnią</span> wartość. Nie wpisuj ilości ujemnej ani{" "}
                   <span className="font-medium">0</span>. System sam policzy różnicę względem faktury pierwotnej{" "}
                   <span className="font-medium">{koryguje.numer ?? "…"}</span> i wyśle ją do KSeF.

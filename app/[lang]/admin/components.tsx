@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { IconUsers, IconDownload, IconInfoCircle } from "@tabler/icons-react";
+import { ContactChannelIcon } from "./icons";
 import type { Locale } from "@/i18n/config";
 import type { Client } from "@/lib/clients";
 import { PROCESS_STEPS } from "@/lib/process";
@@ -184,24 +185,26 @@ export function ContactQuickActions({
 
   return (
     <div className="flex flex-wrap gap-2">
+      {/* Ikony przez ContactChannelIcon (Moduł 33) — ten sam znak kanału co na
+          osi kontaktu i w odznakach list, z jednego źródła. */}
       {telefon && (
         <a href={`tel:${telefon}`} className={cls} title="Zadzwoń">
-          📞 Zadzwoń
+          <ContactChannelIcon kind="telefon" size={15} /> Zadzwoń
         </a>
       )}
       {email && (
         <a href={`mailto:${email}`} className={cls} title="Napisz maila">
-          ✉️ Mail
+          <ContactChannelIcon kind="email" size={15} /> Mail
         </a>
       )}
       {wa && (
         <a href={wa} target="_blank" rel="noopener noreferrer" className={cls} title="Otwórz WhatsApp">
-          💬 WhatsApp
+          <ContactChannelIcon kind="whatsapp" size={15} /> WhatsApp
         </a>
       )}
       {li && (
         <a href={li} target="_blank" rel="noopener noreferrer" className={cls} title="Otwórz profil LinkedIn">
-          🔗 LinkedIn
+          <ContactChannelIcon kind="linkedin" size={15} /> LinkedIn
         </a>
       )}
     </div>

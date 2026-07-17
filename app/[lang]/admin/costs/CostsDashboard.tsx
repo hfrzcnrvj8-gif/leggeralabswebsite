@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { IconPlus, IconX, IconPaperclip, IconCloudDownload, IconRepeat } from "@tabler/icons-react";
+import { IconPlus, IconX, IconPaperclip, IconCloudDownload, IconRepeat, IconArrowUpRight, IconBuilding, IconHash, IconCoin, IconTrash, IconCash } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Cost, type PaymentMethod, COST_STATUSES, COST_CATEGORIES, PAYMENT_METHOD_ICON, PAYMENT_METHOD_LABEL, formatMoney } from "@/lib/costs";
+import { type Cost, type PaymentMethod, COST_STATUSES, COST_CATEGORIES, PAYMENT_METHOD_LABEL, formatMoney } from "@/lib/costs";
+import { PaymentMethodIcon } from "../icons";
 import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
@@ -304,7 +305,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
         <div className="min-w-0">
             {rows.length === 0 ? (
               <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
-                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-lg">💸</div>
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted"><IconCash size={20} /></div>
                 <p className="mt-2">{filterStatus || filterKategoria || projectFilter ? "Brak kosztów spełniających filtry." : "Brak kosztów — dodaj pierwszy przyciskiem +."}</p>
               </div>
             ) : (
@@ -340,7 +341,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                         <td className="p-2.5 text-muted">{c.project_tytul ?? "—"}</td>
                         <td className="p-2.5 text-right tabular-nums">{formatMoney(c.kwota_brutto)}</td>
                         <td className="p-2.5 text-muted" title={c.metoda_platnosci ? PAYMENT_METHOD_LABEL[c.metoda_platnosci as PaymentMethod] ?? c.metoda_platnosci : ""}>
-                          {c.metoda_platnosci ? PAYMENT_METHOD_ICON[c.metoda_platnosci as PaymentMethod] ?? "" : "—"}
+                          {c.metoda_platnosci ? <PaymentMethodIcon method={c.metoda_platnosci as PaymentMethod} size={14} /> : "—"}
                         </td>
                         <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                           <StatusTag status={c.status} onChange={(v) => updateStatus(c.id, v)} />
@@ -398,24 +399,24 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
           };
           return (
             <>
-              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => setOpenId(c.id))} />
+              <ContextMenuItem icon={<IconArrowUpRight size={14} />} label="Otwórz" onClick={() => run(() => setOpenId(c.id))} />
 
               <MenuDivider />
               <MenuLabel>Kopiuj</MenuLabel>
               <ContextMenuItem
-                icon="🏢"
+                icon={<IconBuilding size={14} />}
                 label="Dostawca"
                 onClick={() => run(() => void copy(c.dostawca_nazwa, "Dostawca"))}
               />
               {c.dostawca_nip && (
                 <ContextMenuItem
-                  icon="#️⃣"
+                  icon={<IconHash size={14} />}
                   label="NIP dostawcy"
                   onClick={() => run(() => void copy(c.dostawca_nip, "NIP dostawcy"))}
                 />
               )}
               <ContextMenuItem
-                icon="💰"
+                icon={<IconCoin size={14} />}
                 label="Kwota brutto"
                 onClick={() => run(() => void copy(formatMoney(c.kwota_brutto), "Kwota brutto"))}
               />
@@ -432,7 +433,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
 
               <MenuDivider />
               <ContextMenuItem
-                icon="🗑"
+                icon={<IconTrash size={14} />}
                 label="Usuń"
                 danger
                 onClick={() => run(() => void deleteCost(c.id, c.dostawca_nazwa))}

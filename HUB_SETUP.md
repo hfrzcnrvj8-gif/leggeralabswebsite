@@ -3765,6 +3765,7 @@ właściciela: przejścia/animacje, spójność „liquid glass”, gradient mar
 - **Emoji vs ikony `@tabler` NIE ruszane** — realna niespójność (Leady/
   Projekty/Faktury/Koszty/Oferty/Umowy używają ikon, Poczta i reszta emoji),
   zgłoszona właścicielowi, świadomie zostawiona na osobną decyzję.
+  **Domknięte w Module 33 (2026-07-17)** — patrz „Moduł 33" na końcu pliku.
 - **Trzecia implementacja menu w `MailDashboard.tsx`** — nadal nie przechodzi
   przez `Menu.tsx` (odłożone już w rundzie menu 2026-07-16, nadal otwarte).
 
@@ -4914,3 +4915,82 @@ klientem" na seedzie).
 stronę mimo poprawnie renderującego się panelu — wtedy czytaj treść przez
 `javascript_tool` (`innerText` sekcji), a klikaj z przeliczeniem skali (zrzut
 800×450 vs okno 1600×900, czyli ×2), nie po współrzędnych ze zrzutu.
+
+## Moduł 33 — Ikony zamiast emoji w panelu (2026-07-17)
+
+Dokończenie migracji zaczętej 2026-07-11, nie nowy kierunek. **W panelu ikony
+`@tabler/icons-react`, w mailach emoji** (decyzja właściciela 2026-07-17).
+Runda wizualna: zero zmian zachowania, zero zmian w bazie.
+
+**Efekt: w `app/[lang]/admin` nie ma już ani jednego emoji w roli ikony.**
+Sprawdzone na żywo: sześć tras panelu zwraca 200 i **zero emoji w HTML**, brak
+błędów konsoli.
+
+### Cztery decyzje właściciela przy starcie
+
+1. **Mapy ikon → `app/[lang]/admin/icons.tsx`** (nie `shared.tsx`, jak
+   sugerował brief). Powód: `ContactChannelIcon` renderuje **9 plików z czterech
+   modułów** (Leady, Klienci, Poczta, Quick-log) — żaden nie jest właścicielem
+   mapy, więc `shared.tsx` dałby trzy źródła prawdy zamiast jednego. Korzeń
+   `admin/` to miejsce rzeczy ponadmodułowych (`Menu.tsx`, `LinkPicker.tsx`,
+   `NotificationBell.tsx`). Omija też pułapkę `lib/notifications.ts`
+   (kliencki dzwonek — nie wolno mu ciągnąć zbędnych importów).
+2. **Puste stany Kanbanów: sam tekst „Pusto"** (bez 🌤️). Pusta kolumna jest
+   widocznie pusta. Pełnoekranowe puste stany zostają z ikoną (`IconInbox`) —
+   inna waga, jak w Linear.
+3. **Kanały kontaktu: marki dla WhatsAppa/LinkedIna**, neutralne dla reszty.
+   Kolory odznak (`CONTACT_CHANNEL_CLASS`) zostają, więc czytelność nie spadła.
+4. **Nagłówek Poczty (`<h1>`) — osobna runda.** To układ, nie ikony; ten moduł
+   był już szeroki. **Nadal otwarte**, razem z trzecią implementacją menu.
+
+### Sprostowania do briefu (znalezione w kodzie, nie w dokumentacji)
+
+- **Ikona projektu NIE jest chrome — jest daną w bazie.** Brief (Sprostowanie A)
+  wciągał `lib/projects.ts` w zakres. Realnie `PROJECT_ICONS` to **paleta 16
+  emoji do wyboru**, a wybrana wartość jest **zapisana per projekt**
+  (`lib/db.ts` → „tożsamość projektu"); szablony dają tylko wartość domyślną.
+  To treść wybierana przez właściciela — kategoria, którą brief sam każe
+  zostawić („emoji wyłącznie dla treści wybieranej przez użytkownika, ikona
+  projektu"), myląc się tylko w tym, że panel takiej treści nie ma. Zamiana =
+  migracja produkcyjnej bazy + odebranie wyboru. **Wyłączone z zakresu**, 📁
+  nadal renderuje się na Projektach.
+- **Folder „Wysłane" to ✈️, nie 📤.** Brief podawał 📥/📤/🗑️/🗄️. Samolocik był
+  świadomą poprawką z Modułu 4e (runda 6): dwie tacki różniące się tylko
+  kierunkiem strzałki były w sidebarze nieodróżnialne. Decyzja utrzymana —
+  `IconInbox` (tacka) vs `IconSend` (samolot) to nadal różne sylwetki, opisane
+  w `icons.tsx`.
+- **`lib/mail.ts` miesza chrome z treścią wychodzącą.** Brief kazał go nie
+  ruszać jako „treść wychodząca", ale trzymał też `MAIL_FOLDER_ICON` **i
+  `MAIL_CATEGORY_ICON`** (chipy screenera — brief ich w ogóle nie wymieniał),
+  czyli sidebar i filtry panelu. Obie przeniesione; szablony nietknięte.
+- **33 wywołania `icon="…"`, nie 24.** Brief liczył tylko emoji; pozostałe 9 to
+  `↗`/`⧉` w tych samych menu. Zamienione też (`IconArrowUpRight`,
+  `IconExternalLink`) — inaczej jedno menu miałoby trzy języki naraz.
+- **`lib/mailSignature.ts` tylko *wspomina* `CONTACT_CHANNEL_ICON` w
+  komentarzu** — nie importuje go, ma własne zahardkodowane znaki. Kod
+  nietknięty; poprawiony sam komentarz, bo uzasadniał się nieaktualną regułą
+  („panel i tak używa emoji zamiast biblioteki ikon (CLAUDE.md)"). To samo
+  robiły `KIND_EMOJI` i `LINK_KIND_EMOJI`.
+
+### Czego `tsc` tu nie łapie (i co z tego wyszło)
+
+- **Panel `/admin` jest jednomotywowy — ciemny.** Weryfikacja miała iść „w obu
+  motywach", ale `.admin-linear` (`app/globals.css:303`) ma własną paletę i
+  **nigdy nie dostaje klasy `.dark`**; jasny/ciemny dotyczy tylko strony
+  publicznej. Jasnego panelu nie ma czego sprawdzać.
+- **Dziedziczenie koloru potwierdzone wzrokowo** na kolorowych kontekstach:
+  kosz przy „Usuń" jest czerwony z klasy `danger`, a koperta na osi czasu
+  klienta bierze bursztyn z `CONTACT_CHANNEL_CLASS`. To jest cały sens zmiany —
+  emoji tego nie potrafiło.
+- **Typ `TablerIcon`**: `ComponentType<{size?, className?}>`, bo Tabler oddaje
+  `ForwardRefExoticComponent`, nie zwykłą funkcję — sygnatura funkcyjna nie
+  przejdzie (`tsc` to akurat złapał, ale dopiero po napisaniu).
+
+### Odnotowane, NIE naprawione
+
+- **Znaki typograficzne zostają** (`✕`, `★`, `●`, `✓`, `→`) — dziedziczą kolor i
+  nie mają problemu emoji (różny render per system). Ale `✕` jest niespójne:
+  część panelu używa `IconX`, część znaku. Osobna, węższa runda.
+- **Nagłówek Poczty i trzecia implementacja menu** — decyzja 4 wyżej.
+- **Wydruki (`*/print/*.tsx`) nietknięte** — `⚠`/`✓` w umowie/ofercie/wezwaniu
+  to treść dokumentu dla klienta, nie chrome panelu.

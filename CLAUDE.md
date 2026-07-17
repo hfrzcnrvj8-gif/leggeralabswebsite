@@ -17,13 +17,12 @@ poprawiał kodu — jeśli coś wymaga decyzji nietechnicznej, zapytaj wprost.
   jako zwykłe tablice obiektów, NIE `{rows}` jak w node-postgres
 - Deploy: Vercel, auto-deploy z GitHuba (branch `main`)
 - Routing z prefiksem języka: `app/[lang]/...` (`i18n/config.ts`)
-- framer-motion i `@tabler/icons-react` są w zależnościach. **Uwaga: ten plik
-  do 2026-07-17 twierdził, że „nie ma żadnej biblioteki ikon" i że „zamiast
-  ikon używamy emoji" — to była nieprawda od 2026-07-11** (commit `c5552c0`,
-  `HUB_SETUP.md` linia 16: *„Ikony: `@tabler/icons-react` — świadome odejście
-  od wcześniejszej decyzji z uwagi na wymóg wizualnej wierności Linear"*).
-  Stan faktyczny opisuje sekcja „Emoji vs ikony" niżej — przeczytaj ją, zanim
-  cokolwiek dodasz lub usuniesz.
+- framer-motion i `@tabler/icons-react` są w zależnościach. **Ikony panelu to
+  `@tabler/icons-react`** — od 2026-07-11 (commit `c5552c0`), a od Modułu 33
+  (2026-07-17) konsekwentnie w całym panelu. Mapy „rodzaj → ikona" mieszkają w
+  `app/[lang]/admin/icons.tsx`. Emoji zostają w dwóch miejscach: w tym, co
+  wychodzi mailem, i w ikonie projektu wybieranej przez właściciela — patrz
+  sekcja „Emoji vs ikony" niżej, przeczytaj ją, zanim cokolwiek dodasz.
 
 ## Autoryzacja i baza
 
@@ -161,35 +160,54 @@ czekaj na Vercel → zgaduj"):
   pełne cykle z przypisywaniem, to nowy, większy zakres — dopytaj.
 - Panel dąży do wyglądu/UX Linear, ale NIE 1:1 (brak zespołów, integracji
   z Gitem, itd.) — to świadomie mniejszy produkt dla jednej osoby.
-### Emoji vs ikony — stan faktyczny (sprostowane 2026-07-17)
+### Emoji vs ikony — WDROŻONE (Moduł 33, 2026-07-17)
 
-**Panel MA bibliotekę ikon** (`@tabler/icons-react`, ~25 plików). Decyzja
-„emoji zamiast ikon" została **świadomie odwrócona 2026-07-11** przy
-upodabnianiu panelu do Linear — ale ten plik nosił starą regułę jeszcze przez
-sześć dni i osiemnaście modułów, każąc kolejnym czatom „nie zamieniać emoji na
-ikony". Jeśli widzisz gdzieś powtórzoną starą regułę — jest nieaktualna.
+**Reguła: w panelu ikony `@tabler/icons-react`, w mailach emoji.** Migracja
+zaczęta 2026-07-11 jest **dokończona** — w `app/[lang]/admin` nie ma już ani
+jednego emoji pełniącego rolę ikony. Jeśli gdzieś widzisz starą regułę („emoji
+zamiast ikon", „dopasuj się do otoczenia pliku") — jest nieaktualna.
 
-Realny stan (potwierdzony gretem 2026-07-17, opisany też w `HUB_SETUP.md` →
-„Moduł 21"): **niespójność mieszana, znana i świadomie nierozstrzygnięta**:
-- **Ikony `@tabler`**: sidebar, paski narzędzi, menu, `LinkPicker`,
-  powiadomienia, dashboardy Leadów/Klientów/Projektów/Faktur/Kosztów/Ofert/Umów.
-- **Emoji**: Poczta (foldery 📥/📤/🗑️/🗄️), puste stany Kanbanów („🌤️ Pusto"),
-  menu kontekstowe, podpis mailowy, kanały kontaktu (📞).
+**Dokładając cokolwiek do panelu, użyj ikony Tablera, nie emoji.**
 
-**DECYZJA WŁAŚCICIELA 2026-07-17: docelowo w panelu ikony, w mailach emoji.**
-Kierunek jest rozstrzygnięty, **wdrożenie zaplanowane jako Moduł 33, PO
-Modułach 30 i 31** (`docs/plany-modulow/33-ikony-zamiast-emoji.md`).
+#### Gdzie mieszkają mapy „rodzaj → ikona"
 
-Wyjątek, który zostaje na stałe (**nie „naprawiaj" go**): podpis mailowy, mail
-dzienny i szablony wychodzące **zostają na emoji** — w HTML-u maila nie
-wyrenderujesz komponentu React, a ikony-obrazki bywają blokowane przez klienty
-pocztowe. `HUB_SETUP.md` (Moduł 4c) opisuje podpis jako „już w normie".
+`app/[lang]/admin/icons.tsx` — jedno źródło prawdy, komponenty:
+`ContactChannelIcon`, `CallOutcomeIcon`, `ClientEventIcon`, `NotificationIcon`,
+`LinkKindIcon`, `PaymentMethodIcon`, `MailFolderIcon`, `MailCategoryIcon`.
 
-**Zasada na TERAZ, dopóki Moduł 33 nie ruszy:** dopasuj się do otoczenia pliku,
-który edytujesz — nie wprowadzaj emoji do chrome opartego na ikonach i **nie
-wyrywaj emoji hurtem** przy okazji innego zadania. Migracja ma swój moduł i
-swoją kolejkę; robienie jej kawałkami przy innych zmianach rozjedzie panel na
-pół drogi.
+Świadomie **NIE** w `lib/<moduł>.ts` (to czysta logika bez Reacta — `lib/` jest
+w 100 % `.ts`) i **NIE** w `<moduł>/shared.tsx` mimo wzorca `StatusTag`:
+te mapy dzieli po kilka modułów naraz (`ContactChannelIcon` renderuje 9 plików
+z czterech modułów), więc żaden nie jest ich właścicielem. Miejsce jak
+`Menu.tsx`/`LinkPicker.tsx`/`NotificationBell.tsx`: korzeń `admin/`.
+Moduły re-eksportują je przez swój `shared.tsx`. W `lib/` zostały typy,
+etykiety i klasy kolorów — ikon tam już nie ma.
+
+#### Dwa wyjątki, które ZOSTAJĄ na emoji (nie „naprawiaj" ich)
+
+1. **Co wychodzi mailem** — podpis (`lib/mailSignature.ts`), mail dzienny
+   (`app/api/leads/notify`), szablony (`lib/mail.ts`, `lib/mailSync.ts`).
+   W HTML-u maila nie wyrenderujesz komponentu React, a ikony-obrazki bywają
+   blokowane przez klienty pocztowe. `HUB_SETUP.md` (Moduł 4c) opisuje podpis
+   jako „już w normie".
+2. **Ikona projektu** — `PROJECT_ICONS`/`DEFAULT_PROJECT_ICON` w
+   `lib/projects.ts`: paleta 16 emoji do wyboru, wybrana wartość **zapisana w
+   bazie** per projekt (`lib/db.ts` → „tożsamość projektu"). To treść wybierana
+   przez właściciela, nie afordancja systemu — dokładnie ta kategoria, w której
+   Linear/Notion emoji zostawiają. Zamiana wymagałaby migracji danych i
+   odebrałaby wybór. Brief Modułu 33 błędnie wciągał to w zakres.
+
+Uwaga na `lib/mail.ts`: miesza jedno z drugim — `MAIL_FOLDER_ICON`/
+`MAIL_CATEGORY_ICON` (chrome, przeniesione do `icons.tsx`) mieszkały obok
+szablonów wychodzących (emoji, zostają). Nie traktuj całego pliku jednakowo.
+
+Znaki typograficzne (`✕`, `★`, `●`, `✓`, `→`) świadomie zostawione — dziedziczą
+kolor i nie mają problemu emoji (różny render per system). To osobna, wciąż
+otwarta niespójność (część panelu używa `IconX`), nie ten moduł.
+
+**Panel `/admin` jest jednomotywowy — ciemny.** `.admin-linear`
+(`app/globals.css:303`) ma własną paletę i nigdy nie dostaje klasy `.dark`;
+motyw jasny/ciemny dotyczy tylko strony publicznej. Nie szukaj jasnego panelu.
 
 ## Dokumentacja
 

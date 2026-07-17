@@ -12,7 +12,6 @@ export {
   CLIENT_STATUS_DOT,
   CLIENT_STATUS_HINT,
   CLIENT_STATUS_STEP,
-  CLIENT_EVENT_ICON,
   CLIENT_EVENT_TARGET,
   clientDaysSince,
   isClientOverdue,
@@ -25,18 +24,20 @@ export {
   type CallOutcome,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
-  CONTACT_CHANNEL_ICON,
   CONTACT_CHANNEL_CLASS,
   CONTACT_DIRECTIONS,
   CONTACT_DIRECTION_LABEL,
   CALL_OUTCOMES,
   CALL_OUTCOME_LABEL,
-  CALL_OUTCOME_ICON,
   CALL_OUTCOME_CLASS,
   formatCallDuration,
   waLink,
   linkedinLink,
 } from "@/lib/contact";
+
+/* Ikony (Moduł 33) — komponenty, nie mapy emoji; mieszkają w `admin/icons.tsx`,
+ * bo dzielą je Leady, Klienci, Poczta i Quick-log. */
+export { ContactChannelIcon, CallOutcomeIcon, ClientEventIcon } from "../icons";
 
 export { SummaryCard, EditableText, EditableTextarea, ContactQuickActions, QuickDateChips } from "../components";
 

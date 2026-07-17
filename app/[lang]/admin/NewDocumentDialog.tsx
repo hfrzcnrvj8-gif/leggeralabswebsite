@@ -22,7 +22,8 @@ import { IconUsers } from "@tabler/icons-react";
 import { Modal } from "./Modal";
 import { MenuLabel, MenuDivider } from "./Menu";
 import { useLinkTargets, invalidateLinkTargets } from "./LinkPicker";
-import { LINK_KIND_EMOJI, LINK_KIND_LABEL_PLURAL, type LinkKind, type LinkTarget, type LinkValue } from "@/lib/links";
+import { LINK_KIND_LABEL_PLURAL, type LinkKind, type LinkTarget, type LinkValue } from "@/lib/links";
+import { LinkKindIcon } from "./icons";
 import { useUI } from "./ui";
 
 const KINDS: LinkKind[] = ["client", "lead"];
@@ -120,7 +121,9 @@ export function NewDocumentDialog({
                   onClick={() => pickTarget(t)}
                   className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]"
                 >
-                  <span className="w-4 shrink-0 text-center text-[12px]">{LINK_KIND_EMOJI[t.kind]}</span>
+                  <span className="flex w-4 shrink-0 justify-center text-muted">
+                    <LinkKindIcon kind={t.kind} size={13} />
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-[var(--fg)]">{t.nazwa}</span>
                     {t.hint && <span className="block truncate text-[11px] text-muted">{t.hint}</span>}

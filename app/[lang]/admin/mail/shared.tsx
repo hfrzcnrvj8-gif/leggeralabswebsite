@@ -20,11 +20,9 @@ export {
   MAIL_STATUS_CLASS,
   MAIL_CATEGORIES,
   MAIL_CATEGORY_LABEL,
-  MAIL_CATEGORY_ICON,
   MAIL_CATEGORY_CLASS,
   MAIL_FOLDERS,
   MAIL_FOLDER_LABEL,
-  MAIL_FOLDER_ICON,
   MAIL_RETENTION_MONTHS,
   replySubject,
   forwardSubject,
@@ -39,7 +37,12 @@ export {
   MAIL_NUDGE_DAYS,
 } from "@/lib/mail";
 
-export { CONTACT_CHANNEL_ICON, CONTACT_CHANNEL_CLASS } from "@/lib/contact";
+export { CONTACT_CHANNEL_CLASS } from "@/lib/contact";
+
+/* Ikony (Moduł 33) — komponenty w `admin/icons.tsx`, wspólne dla modułów.
+ * `MailCategoryIcon` jest też importowany niżej, bo używa go MailCategoryTag. */
+export { ContactChannelIcon, MailFolderIcon, MailCategoryIcon } from "../icons";
+import { MailCategoryIcon } from "../icons";
 
 // Formatowanie daty+godziny snooza (Moduł 4, Etap 3) — jak formatPlDate()
 // w lib/projects.ts, ale z godziną, bo snooze_until to TIMESTAMPTZ.
@@ -56,7 +59,6 @@ import {
   MAIL_STATUS_CLASS,
   MAIL_STATUS_LABEL,
   MAIL_CATEGORY_CLASS,
-  MAIL_CATEGORY_ICON,
   MAIL_CATEGORY_LABEL,
   type MailCategory,
   type MailStatus,
@@ -78,7 +80,7 @@ export function MailCategoryTag({ kategoria }: { kategoria: MailCategory | strin
   const k = (MAIL_CATEGORY_LABEL as Record<string, string>)[kategoria] ? (kategoria as MailCategory) : "inne";
   return (
     <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${MAIL_CATEGORY_CLASS[k]}`}>
-      <span aria-hidden>{MAIL_CATEGORY_ICON[k]}</span>
+      <MailCategoryIcon kind={k} size={12} />
       {MAIL_CATEGORY_LABEL[k]}
     </span>
   );

@@ -7,6 +7,7 @@
 // dowolnego adresu RĘCZNIE (decyzja właściciela 2026-07-15 — odbiorca nie
 // musi być w CRM) + podpowiedź "z bazy" (klienci/leady z adresem e-mail).
 import { useEffect, useState } from "react";
+import { IconSearch, IconUser, IconTarget } from "@tabler/icons-react";
 import { Popover } from "../Menu";
 import { parseAddressList } from "./shared";
 
@@ -115,7 +116,7 @@ export function RecipientField({
               className="shrink-0 rounded-full border hairline px-2.5 py-1.5 text-[12px] text-muted hover:text-[var(--fg)]"
               title="Wybierz z klientów/leadów"
             >
-              🔍
+              <IconSearch size={13} />
             </button>
           )}
         >
@@ -160,7 +161,7 @@ function ContactPickerList({ contacts, onPick }: { contacts: ContactOption[]; on
             className="flex w-full flex-col px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]"
           >
             <span className="truncate text-[13px] text-[var(--fg)]">
-              {c.type === "client" ? "👤" : "🎯"} {c.nazwa || "(bez nazwy)"}
+              {c.type === "client" ? <IconUser size={12} className="mr-1 inline align-[-2px]" /> : <IconTarget size={12} className="mr-1 inline align-[-2px]" />}{c.nazwa || "(bez nazwy)"}
             </span>
             <span className="truncate text-[11px] text-muted">{c.email}</span>
           </button>

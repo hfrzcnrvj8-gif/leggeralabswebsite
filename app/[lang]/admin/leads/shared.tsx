@@ -30,18 +30,19 @@ export {
   type CallOutcome,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
-  CONTACT_CHANNEL_ICON,
   CONTACT_CHANNEL_CLASS,
   CONTACT_DIRECTIONS,
   CONTACT_DIRECTION_LABEL,
   CALL_OUTCOMES,
   CALL_OUTCOME_LABEL,
-  CALL_OUTCOME_ICON,
   CALL_OUTCOME_CLASS,
   formatCallDuration,
   waLink,
   linkedinLink,
 } from "@/lib/contact";
+
+/* Ikony (Moduł 33) — patrz `admin/icons.tsx`. */
+export { ContactChannelIcon, CallOutcomeIcon } from "../icons";
 
 export { SummaryCard, EditableText, EditableTextarea, ContactQuickActions, QuickDateChips } from "../components";
 

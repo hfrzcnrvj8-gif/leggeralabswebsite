@@ -1,6 +1,15 @@
 "use client";
 
 import type { Locale } from "@/i18n/config";
+import {
+  IconArrowUpRight,
+  IconExternalLink,
+  IconBuilding,
+  IconHash,
+  IconMail,
+  IconPhone,
+  IconTrash,
+} from "@tabler/icons-react";
 import { ContextMenuItem, MenuDivider, MenuLabel } from "../Menu";
 import { useCopy } from "../ui";
 import { type Client, CLIENT_STATUSES } from "./shared";
@@ -34,9 +43,9 @@ export function ClientMenuItems({
 
   return (
     <>
-      <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => onOpen(client.id))} />
+      <ContextMenuItem icon={<IconArrowUpRight size={14} />} label="Otwórz" onClick={() => run(() => onOpen(client.id))} />
       <ContextMenuItem
-        icon="⧉"
+        icon={<IconExternalLink size={14} />}
         label="Otwórz w nowej karcie"
         onClick={() =>
           run(() => window.open(`/${lang}/admin/clients/${client.id}`, "_blank", "noopener"))
@@ -46,23 +55,23 @@ export function ClientMenuItems({
       <MenuDivider />
       <MenuLabel>Kopiuj</MenuLabel>
       <ContextMenuItem
-        icon="🏢"
+        icon={<IconBuilding size={14} />}
         label="Nazwa"
         onClick={() => run(() => void copy(client.nazwa, "Nazwa"))}
       />
       {client.nip && (
-        <ContextMenuItem icon="#️⃣" label="NIP" onClick={() => run(() => void copy(client.nip, "NIP"))} />
+        <ContextMenuItem icon={<IconHash size={14} />} label="NIP" onClick={() => run(() => void copy(client.nip, "NIP"))} />
       )}
       {client.email && (
         <ContextMenuItem
-          icon="✉️"
+          icon={<IconMail size={14} />}
           label="E-mail"
           onClick={() => run(() => void copy(client.email, "E-mail"))}
         />
       )}
       {client.telefon && (
         <ContextMenuItem
-          icon="📞"
+          icon={<IconPhone size={14} />}
           label="Telefon"
           onClick={() => run(() => void copy(client.telefon, "Telefon"))}
         />
@@ -76,7 +85,7 @@ export function ClientMenuItems({
 
       <MenuDivider />
       <ContextMenuItem
-        icon="🗑"
+        icon={<IconTrash size={14} />}
         label="Usuń"
         danger
         onClick={() => run(() => onDelete(client.id, client.nazwa))}

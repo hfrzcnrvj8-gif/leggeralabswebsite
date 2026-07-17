@@ -10,6 +10,7 @@
 // które z czasem się rozjadą.
 
 import Link from "next/link";
+import { IconCalendar, IconCalendarPlus, IconFolder } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { Locale } from "@/i18n/config";
@@ -129,12 +130,12 @@ export function NoteBadges({ note, lang }: { note: Note; lang: Locale }) {
     <div className="mt-2 flex flex-wrap gap-1.5">
       {note.project_id && (
         <Link href={`/${lang}/admin/projects/${note.project_id}`} className={cls}>
-          📁 <span className="max-w-[16ch] truncate">{note.project_tytul || "Projekt"}</span>
+          <IconFolder size={12} /> <span className="max-w-[16ch] truncate">{note.project_tytul || "Projekt"}</span>
         </Link>
       )}
       {note.event_id && (
         <Link href={`/${lang}/admin/calendar`} className={cls}>
-          📅 {note.event_data ? formatPlDate(note.event_data) : "W kalendarzu"}
+          <IconCalendar size={12} /> {note.event_data ? formatPlDate(note.event_data) : "W kalendarzu"}
         </Link>
       )}
     </div>
@@ -170,7 +171,7 @@ export function NoteScheduleForm({
         onClick={() => setOpen(true)}
         className="rounded-md border hairline px-2.5 py-1 text-[11px] text-muted transition-colors hover:text-[var(--fg)]"
       >
-        📅 Do kalendarza
+        <IconCalendarPlus size={12} className="mr-1 inline align-[-2px]" />Do kalendarza
       </button>
     );
   }

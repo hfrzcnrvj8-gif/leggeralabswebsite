@@ -1,23 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { IconMessageCircle, IconCornerUpLeft, IconMail, IconPhoneOff } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
   CLIENT_STATUS_HINT,
   CLIENT_STATUS_STEP,
-  CLIENT_EVENT_ICON,
+  ClientEventIcon,
   CLIENT_EVENT_TARGET,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
-  CONTACT_CHANNEL_ICON,
+  ContactChannelIcon,
   CONTACT_CHANNEL_CLASS,
   CONTACT_DIRECTIONS,
   CONTACT_DIRECTION_LABEL,
   CALL_OUTCOMES,
   CALL_OUTCOME_LABEL,
-  CALL_OUTCOME_ICON,
+  CallOutcomeIcon,
   CALL_OUTCOME_CLASS,
   formatCallDuration,
   ContactQuickActions,
@@ -278,7 +279,7 @@ export function ClientDetailPanel({
 
   const FEED_FILTERS: { value: typeof feedFilter; label: string }[] = [
     { value: "all", label: "Wszystko" },
-    { value: "calls", label: "📞 Połączenia" },
+    { value: "calls", label: "Połączenia" },
     { value: "system", label: "Systemowe" },
     { value: "notes", label: "Notatki" },
   ];
@@ -472,7 +473,7 @@ export function ClientDetailPanel({
                         className="flex items-center gap-2.5 rounded-xl border hairline px-3 py-2 text-sm hover:bg-[var(--hairline)]/40"
                       >
                         <span className="shrink-0 text-base" aria-hidden>
-                          {m.kierunek === "out" ? "↩️" : "✉️"}
+                          {m.kierunek === "out" ? <IconCornerUpLeft size={13} /> : <IconMail size={13} />}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{m.subject || "(bez tematu)"}</span>
                         <MailStatusTag status={m.status as MailStatus} />
@@ -544,7 +545,7 @@ export function ClientDetailPanel({
                             noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
                           }`}
                         >
-                          <span aria-hidden>{CALL_OUTCOME_ICON[o]}</span>
+                          <CallOutcomeIcon kind={o} size={13} />
                           {CALL_OUTCOME_LABEL[o]}
                         </button>
                       ))}
@@ -584,7 +585,7 @@ export function ClientDetailPanel({
                     }}
                     className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
                   >
-                    📵 Nieodebrane od klienta — ustaw przypomnienie na jutro
+                    <IconPhoneOff size={12} className="mr-1 inline align-[-2px]" />Nieodebrane od klienta — ustaw przypomnienie na jutro
                   </button>
                 )}
 
@@ -636,7 +637,7 @@ export function ClientDetailPanel({
               )}
 
               {feed.length === 0 ? (
-                <p className="text-sm text-muted opacity-60">📭 Brak wpisów — dodaj pierwszy powyżej.</p>
+                <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
               ) : filteredFeed.length === 0 ? (
                 <p className="text-sm text-muted opacity-60">Brak wpisów w tym filtrze.</p>
               ) : (
@@ -746,18 +747,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /** Kolorowa odznaka wpisu na osi — wzorem iOS: nieodebrane połączenie
  * czerwone, inne kanały mają swój stały kolor, zdarzenia systemowe i
  * notatki bez kanału dostają neutralne tło. */
-function feedBadge(f: { kanal: string | null; wynik: string | null; kind: string }): { icon: string; cls: string } {
+function feedBadge(f: { kanal: string | null; wynik: string | null; kind: string }): { icon: ReactNode; cls: string } {
   if (f.kanal === "telefon" && f.wynik === "nieodebrane") {
-    return { icon: CALL_OUTCOME_ICON.nieodebrane, cls: CALL_OUTCOME_CLASS.nieodebrane };
+    return { icon: <CallOutcomeIcon kind="nieodebrane" size={14} />, cls: CALL_OUTCOME_CLASS.nieodebrane };
   }
   if (f.kanal) {
     return {
-      icon: CONTACT_CHANNEL_ICON[f.kanal as keyof typeof CONTACT_CHANNEL_ICON],
+      icon: <ContactChannelIcon kind={f.kanal} size={14} />,
       cls: CONTACT_CHANNEL_CLASS[f.kanal as keyof typeof CONTACT_CHANNEL_CLASS],
     };
   }
-  if (f.kind === "note") return { icon: "💬", cls: "bg-[var(--hairline)] text-muted" };
-  return { icon: CLIENT_EVENT_ICON[f.kind] ?? "•", cls: "bg-[var(--hairline)] text-muted" };
+  if (f.kind === "note") return { icon: <IconMessageCircle size={14} />, cls: "bg-[var(--hairline)] text-muted" };
+  return { icon: <ClientEventIcon kind={f.kind} size={14} />, cls: "bg-[var(--hairline)] text-muted" };
 }
 
 /** "Dziś" / "Wczoraj" / "DD.MM.YYYY" — kosmetyczne grupowanie osi po dniu

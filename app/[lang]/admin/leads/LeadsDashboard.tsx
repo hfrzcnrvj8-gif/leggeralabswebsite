@@ -297,9 +297,9 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       { id: "add", label: "+ Dodaj leada", hint: "N", run: addLead },
       { id: "kanban", label: "Widok: Tablica", run: () => switchView("kanban") },
       { id: "table", label: "Widok: Tabela", run: () => switchView("table") },
-      { id: "discover", label: "✨ Znajdź nowe leady", run: () => setDiscoverOpen(true) },
+      { id: "discover", label: "Znajdź nowe leady", run: () => setDiscoverOpen(true) },
       { id: "report", label: "Wyślij dzienny raport teraz", run: sendReportNow },
-      { id: "tidy-sources", label: "🏷️ Uporządkuj źródła (auto-kategoryzacja)", run: tidySources },
+      { id: "tidy-sources", label: "Uporządkuj źródła (auto-kategoryzacja)", run: tidySources },
     ],
     [addLead, switchView, sendReportNow, tidySources]
   );

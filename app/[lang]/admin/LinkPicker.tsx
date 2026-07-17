@@ -14,8 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Popover, MenuLabel, MenuDivider } from "./Menu";
 import { IconCheck } from "@tabler/icons-react";
+import { LinkKindIcon } from "./icons";
 import {
-  LINK_KIND_EMOJI,
   LINK_KIND_LABEL,
   LINK_KIND_LABEL_PLURAL,
   linkSearchPlaceholder,
@@ -142,8 +142,8 @@ function LinkRow({
         active ? "bg-[#232327]" : ""
       }`}
     >
-      <span className="flex w-4 shrink-0 justify-center text-[12px]">
-        {target ? LINK_KIND_EMOJI[target.kind] : "—"}
+      <span className="flex w-4 shrink-0 justify-center text-[#8a8f98]">
+        {target ? <LinkKindIcon kind={target.kind} size={13} /> : "—"}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate">{target ? target.nazwa : "brak powiązania"}</span>
@@ -216,7 +216,9 @@ export function LinkPicker({
           >
             {picked ? (
               <>
-                <span className="text-[11px]">{LINK_KIND_EMOJI[picked.kind]}</span>
+                <span className="shrink-0 text-muted">
+                  <LinkKindIcon kind={picked.kind} size={12} />
+                </span>
                 <span className="truncate">{picked.nazwa}</span>
               </>
             ) : (

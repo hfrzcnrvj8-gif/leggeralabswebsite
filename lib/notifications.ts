@@ -57,26 +57,10 @@ export const NOTIFICATIONS_LIMIT = 50;
  * jest kroniką, nie skrzynką, więc „przeczytane" wygasza, a nie kasuje. */
 export const NOTIFICATIONS_RETENTION_DAYS = 30;
 
-/** Emoji per rodzaj — zgodnie z konwencją panelu (emoji zamiast biblioteki
- * ikon, patrz CLAUDE.md). Dobrane tak, żeby dało się czytać listę samym
- * kątem oka: pieniądze zielone/czerwone, poczta koperta, lead iskra. */
-const KIND_EMOJI: Record<NotificationKind, string> = {
-  lead_new: "✨",
-  mail_new: "✉️",
-  mail_nudge: "🔇",
-  invoice_paid: "💰",
-  invoice_reminder: "⏰",
-  invoice_dunning: "⚖️",
-  recurring_invoice: "🧾",
-  recurring_cost: "💳",
-  offer_accepted: "🤝",
-  contract_signed: "✍️",
-  review_collected: "⭐",
-};
-
-export function notificationEmoji(kind: NotificationKind): string {
-  return KIND_EMOJI[kind] ?? "•";
-}
+/* Ikona per rodzaj: `<NotificationIcon kind={…} />` w
+ * `app/[lang]/admin/icons.tsx` (Moduł 33). Świadomie NIE tutaj — ten plik
+ * importuje kliencki dzwonek i ma zostać tak chudy, jak się da (patrz
+ * ostrzeżenie w nagłówku o bundlowaniu). */
 
 /** Adres, pod który prowadzi kliknięcie w powiadomienie — albo `null`, gdy
  * wpis nie ma dokąd prowadzić.

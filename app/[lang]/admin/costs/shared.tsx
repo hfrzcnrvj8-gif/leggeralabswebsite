@@ -13,11 +13,11 @@ export {
   COST_STATUS_CLASS,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABEL,
-  PAYMENT_METHOD_ICON,
   PAYMENT_METHOD_CLASS,
   VAT_RATES,
   AMORTYZACJA_PROG_NETTO,
   VAT_ODLICZENIE_OPTIONS,
+  // Ikona metody płatności to teraz komponent — patrz re-eksport niżej.
   VAT_ODLICZENIE_LABEL,
   costBrutto,
   vatDoOdliczenia,
@@ -26,6 +26,9 @@ export {
 
 import { COST_STATUSES, COST_STATUS_CLASS, type CostStatus } from "@/lib/costs";
 import { StatusPill } from "../components";
+
+/* Ikona metody płatności (Moduł 33) — patrz `admin/icons.tsx`. */
+export { PaymentMethodIcon } from "../icons";
 
 export function StatusTag({
   status,

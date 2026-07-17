@@ -2,14 +2,14 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { IconArrowUpRight, IconX, IconInbox } from "@tabler/icons-react";
+import { IconArrowUpRight, IconX, IconInbox, IconBrandLinkedin } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
   daysSince,
   isOverdue,
   leadSourceLabel,
-  CONTACT_CHANNEL_ICON,
+  ContactChannelIcon,
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_CLASS,
   StatusTag,
@@ -165,11 +165,11 @@ export function TableView({
                         <span
                           aria-hidden
                           title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? lead.ostatni_kanal}`}
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] ${
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
                             CONTACT_CHANNEL_CLASS[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
                           }`}
                         >
-                          {CONTACT_CHANNEL_ICON[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
+                          <ContactChannelIcon kind={lead.ostatni_kanal} size={10} />
                         </span>
                       )}
                     </div>
@@ -186,7 +186,12 @@ export function TableView({
                     ) : (
                       kontakt.map((c) => <Truncate key={c} value={c} />)
                     )}
-                    {lead.linkedin_url && <Truncate value={`🔗 ${lead.linkedin_url}`} className="text-[11px] text-muted opacity-80" />}
+                    {lead.linkedin_url && (
+                      <span className="flex items-center gap-1 text-[11px] text-muted opacity-80">
+                        <IconBrandLinkedin size={11} className="shrink-0" />
+                        <Truncate value={lead.linkedin_url} />
+                      </span>
+                    )}
                   </td>
                   <td className="p-2">
                     <Truncate value={lead.miasto} />

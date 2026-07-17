@@ -22,7 +22,6 @@ import {
   ATTACHMENT_MIME_TYPES,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABEL,
-  PAYMENT_METHOD_ICON,
   PAYMENT_METHOD_CLASS,
   AMORTYZACJA_PROG_NETTO,
   VAT_ODLICZENIE_OPTIONS,
@@ -36,7 +35,7 @@ import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
-import { StatusTag } from "./shared";
+import { StatusTag, PaymentMethodIcon } from "./shared";
 
 type ProjectOption = { id: string; tytul: string };
 
@@ -283,19 +282,28 @@ export function CostEditor({
             value={(cost.metoda_platnosci as PaymentMethod) ?? ""}
             options={[
               { value: "" as PaymentMethod, label: "Brak" },
-              ...PAYMENT_METHODS.map((m) => ({ value: m, label: PAYMENT_METHOD_LABEL[m], icon: PAYMENT_METHOD_ICON[m] })),
+              ...PAYMENT_METHODS.map((m) => ({
+                value: m,
+                label: PAYMENT_METHOD_LABEL[m],
+                icon: <PaymentMethodIcon method={m} size={14} />,
+              })),
             ]}
             onChange={(v) => patch({ metoda_platnosci: v || null })}
             title="Zmień metodę płatności"
           >
             <span
-              className={`cursor-pointer rounded-full px-2.5 py-1 text-[11px] font-medium ${
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
                 cost.metoda_platnosci ? PAYMENT_METHOD_CLASS[cost.metoda_platnosci as PaymentMethod] ?? "bg-[var(--hairline)] text-muted" : "bg-[var(--hairline)] text-muted"
               }`}
             >
-              {cost.metoda_platnosci
-                ? `${PAYMENT_METHOD_ICON[cost.metoda_platnosci as PaymentMethod] ?? ""} ${PAYMENT_METHOD_LABEL[cost.metoda_platnosci as PaymentMethod] ?? cost.metoda_platnosci}`
-                : "Metoda płatności: —"}
+              {cost.metoda_platnosci ? (
+                <>
+                  <PaymentMethodIcon method={cost.metoda_platnosci as PaymentMethod} size={12} />
+                  {PAYMENT_METHOD_LABEL[cost.metoda_platnosci as PaymentMethod] ?? cost.metoda_platnosci}
+                </>
+              ) : (
+                "Metoda płatności: —"
+              )}
             </span>
           </PropertyMenu>
           {cost.ksef_numer && (

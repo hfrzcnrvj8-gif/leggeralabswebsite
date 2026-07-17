@@ -9,7 +9,7 @@ import {
   CLIENT_STATUS_DOT,
   clientDaysSince,
   isClientOverdue,
-  CONTACT_CHANNEL_ICON,
+  ContactChannelIcon,
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_CLASS,
   StatusTag,
@@ -161,11 +161,11 @@ export function KanbanBoard({
                         <span
                           aria-hidden
                           title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? client.ostatni_kanal}`}
-                          className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
+                          className={`flex h-4 w-4 items-center justify-center rounded-full ${
                             CONTACT_CHANNEL_CLASS[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
                           }`}
                         >
-                          {CONTACT_CHANNEL_ICON[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_ICON]}
+                          <ContactChannelIcon kind={client.ostatni_kanal} size={10} />
                         </span>
                       )}
                       {overdue ? (
@@ -181,7 +181,7 @@ export function KanbanBoard({
             </AnimatePresence>
             {col.items.length === 0 && (
               <div className="rounded-xl border border-dashed hairline p-3 text-center text-[11px] text-muted opacity-50">
-                🌤️ Pusto
+                Pusto
               </div>
             )}
           </div>

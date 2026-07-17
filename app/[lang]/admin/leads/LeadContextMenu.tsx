@@ -1,6 +1,7 @@
 "use client";
 
 import type { Locale } from "@/i18n/config";
+import { IconArrowUpRight, IconExternalLink, IconBuilding, IconMail, IconPhone, IconTrash } from "@tabler/icons-react";
 import { ContextMenuItem, MenuDivider, MenuLabel } from "../Menu";
 import { useCopy } from "../ui";
 import { type Lead, STATUSES } from "./shared";
@@ -39,12 +40,12 @@ export function LeadMenuItems({
   return (
     <>
       <ContextMenuItem
-        icon="↗"
+        icon={<IconArrowUpRight size={14} />}
         label="Otwórz"
         onClick={() => run(() => onOpen(lead.id))}
       />
       <ContextMenuItem
-        icon="⧉"
+        icon={<IconExternalLink size={14} />}
         label="Otwórz w nowej karcie"
         onClick={() =>
           run(() => window.open(`/${lang}/admin/leads/${lead.id}`, "_blank", "noopener"))
@@ -54,20 +55,20 @@ export function LeadMenuItems({
       <MenuDivider />
       <MenuLabel>Kopiuj</MenuLabel>
       <ContextMenuItem
-        icon="🏢"
+        icon={<IconBuilding size={14} />}
         label="Nazwa firmy"
         onClick={() => run(() => void copy(lead.firma, "Nazwa firmy"))}
       />
       {lead.email && (
         <ContextMenuItem
-          icon="✉️"
+          icon={<IconMail size={14} />}
           label="E-mail"
           onClick={() => run(() => void copy(lead.email, "E-mail"))}
         />
       )}
       {lead.telefon && (
         <ContextMenuItem
-          icon="📞"
+          icon={<IconPhone size={14} />}
           label="Telefon"
           onClick={() => run(() => void copy(lead.telefon, "Telefon"))}
         />
@@ -85,7 +86,7 @@ export function LeadMenuItems({
 
       <MenuDivider />
       <ContextMenuItem
-        icon="🗑"
+        icon={<IconTrash size={14} />}
         label="Usuń"
         danger
         onClick={() => run(() => onDelete(lead.id, lead.firma))}

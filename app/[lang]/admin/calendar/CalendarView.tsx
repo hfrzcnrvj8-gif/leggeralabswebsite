@@ -2,6 +2,16 @@
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  IconArrowsMaximize,
+  IconArrowsMinimize,
+  IconCalendar,
+  IconCalendarPlus,
+  IconFolder,
+  IconLink,
+  IconTarget,
+  IconUser,
+} from "@tabler/icons-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HubEvent } from "@/lib/events";
 import { expandEventDays, parseQuickAdd, layoutTimedEvents, timeToMinutes, minutesToTime } from "@/lib/events";
@@ -627,7 +637,7 @@ export function CalendarView({ lang }: { lang: string }) {
             className="rounded-lg border hairline px-2 py-1 text-[11.5px] text-muted hover:text-[var(--fg)]"
             title={isFullscreen ? "Wyjdź z pełnego ekranu" : "Pełny ekran"}
           >
-            {isFullscreen ? "⤡" : "⛶"}
+            {isFullscreen ? <IconArrowsMinimize size={14} /> : <IconArrowsMaximize size={14} />}
           </button>
           <span className="flex-1" />
           <button onClick={() => changePeriod(-1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">←</button>
@@ -1007,7 +1017,7 @@ function DayAgendaList({
   compact?: boolean;
 }) {
   if (events.length === 0 && dls.length === 0) {
-    return <p className={`text-sm text-muted opacity-60 ${compact ? "text-[12px]" : "mb-3"}`}>🗓️ Brak wydarzeń tego dnia.</p>;
+    return <p className={`text-sm text-muted opacity-60 ${compact ? "text-[12px]" : "mb-3"}`}><IconCalendar size={15} className="mr-1.5 inline align-[-2px] opacity-70" />Brak wydarzeń tego dnia.</p>;
   }
   return (
     <ul className={`space-y-1.5 ${compact ? "" : "mb-3"}`}>
@@ -1071,17 +1081,17 @@ function DayAgendaList({
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
                   {e.client_id && (
                     <Link href={`/${lang}/admin/clients/${e.client_id}`} className="text-brand-cyan hover:underline">
-                      👤 {clientName(e.client_id)}
+                      <IconUser size={12} className="mr-1 inline align-[-2px]" />{clientName(e.client_id)}
                     </Link>
                   )}
                   {e.lead_id && (
                     <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-orange-400 hover:underline">
-                      🎯 {leadName(e.lead_id)}
+                      <IconTarget size={12} className="mr-1 inline align-[-2px]" />{leadName(e.lead_id)}
                     </Link>
                   )}
                   {e.project_id && (
                     <Link href={`/${lang}/admin/projects/${e.project_id}`} className="text-brand-purple hover:underline">
-                      📁 {projectName(e.project_id)}
+                      <IconFolder size={12} className="mr-1 inline align-[-2px]" />{projectName(e.project_id)}
                     </Link>
                   )}
                 </div>
@@ -1719,7 +1729,7 @@ function AddEventForm({
               onClick={open}
               className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
             >
-              {picked ? `🔗 ${picked.nazwa}` : "Powiąż z klientem/leadem (opcjonalnie)"}
+              {picked ? (<span className="flex items-center gap-1"><IconLink size={12} />{picked.nazwa}</span>) : ("Powiąż z klientem/leadem (opcjonalnie)")}
             </button>
           )}
         />
@@ -1732,7 +1742,7 @@ function AddEventForm({
               onClick={open}
               className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
             >
-              {picked ? `📁 ${picked.nazwa}` : "Powiąż z projektem (opcjonalnie)"}
+              {picked ? (<span className="flex items-center gap-1"><IconFolder size={12} />{picked.nazwa}</span>) : ("Powiąż z projektem (opcjonalnie)")}
             </button>
           )}
         />
@@ -1761,7 +1771,7 @@ function IcsSubscribeButton({ token }: { token: string }) {
           className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
           title="Subskrybuj ten kalendarz w Apple/Google Calendar"
         >
-          📅 Subskrybuj
+          <IconCalendarPlus size={13} /> Subskrybuj
         </button>
       )}
     >

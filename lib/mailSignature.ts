@@ -155,10 +155,18 @@ export const SIGNATURE_IMAGES = [
 /** Jeden wiersz kontaktu: ikona-emoji + etykieta z linkiem.
  *
  * Świadomie emoji zamiast leżących obok plików `icon_{phone,mail,globe,
- * linkedin}.png`: to cztery załączniki mniej w każdym mailu, panel i tak używa
- * emoji zamiast biblioteki ikon (CLAUDE.md), a przy zablokowanych obrazkach
- * emoji nadal widać — PNG-a nie. Te same znaki co CONTACT_CHANNEL_ICON w
- * lib/contact.ts, żeby kanały wyglądały tak samo w podpisie i na osi kontaktu. */
+ * linkedin}.png`: to cztery załączniki mniej w każdym mailu, a przy
+ * zablokowanych obrazkach emoji nadal widać — PNG-a nie.
+ *
+ * NIE zamieniaj tego na ikony Tablera „dla spójności z panelem": od Modułu 33
+ * panel jest na ikonach, ale to jest HTML maila — komponentu Reacta tu nie
+ * wyrenderujesz, a ikona jako obrazek wraca do problemu blokowanych obrazków.
+ * Wyjątek „w panelu ikony, w mailach emoji" jest świadomy i trwały —
+ * patrz CLAUDE.md → „Emoji vs ikony".
+ *
+ * Znaki dobrane pod dawne CONTACT_CHANNEL_ICON z lib/contact.ts; ta mapa jest
+ * już komponentem (`ContactChannelIcon`), więc podpis i oś kontaktu świadomie
+ * przestały być identyczne — ten plik jest teraz jedynym źródłem swoich emoji. */
 function row(icon: string, href: string, label: string): string {
   return `<tr>
   <td style="padding:2px 8px 2px 0;font-size:13px;line-height:20px;vertical-align:middle;">${icon}</td>

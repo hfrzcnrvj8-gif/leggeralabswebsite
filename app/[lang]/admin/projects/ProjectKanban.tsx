@@ -11,6 +11,10 @@ import {
   IconCircleMinus,
   IconPointFilled,
   IconAlertTriangleFilled,
+  IconArrowUpRight,
+  IconExternalLink,
+  IconNote,
+  IconTrash,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
@@ -280,9 +284,9 @@ export function ProjectKanban({
           };
           return (
             <>
-              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => onOpen(p.id))} />
+              <ContextMenuItem icon={<IconArrowUpRight size={14} />} label="Otwórz" onClick={() => run(() => onOpen(p.id))} />
               <ContextMenuItem
-                icon="⧉"
+                icon={<IconExternalLink size={14} />}
                 label="Otwórz w nowej karcie"
                 onClick={() =>
                   run(() => window.open(`/${lang}/admin/projects/${p.id}`, "_blank", "noopener"))
@@ -291,7 +295,7 @@ export function ProjectKanban({
 
               <MenuDivider />
               <ContextMenuItem
-                icon="📝"
+                icon={<IconNote size={14} />}
                 label="Kopiuj tytuł"
                 onClick={() => run(() => void copy(p.tytul, "Tytuł"))}
               />
@@ -308,7 +312,7 @@ export function ProjectKanban({
 
               <MenuDivider />
               <ContextMenuItem
-                icon="🗑"
+                icon={<IconTrash size={14} />}
                 label="Usuń"
                 danger
                 onClick={() => run(() => onDelete(p.id, p.tytul))}

@@ -11,9 +11,10 @@ import {
   CONTACT_DIRECTION_LABEL,
   CALL_OUTCOMES,
   CALL_OUTCOME_LABEL,
-  CALL_OUTCOME_ICON,
   CALL_OUTCOME_CLASS,
 } from "@/lib/contact";
+import { IconClipboard, IconCheck } from "@tabler/icons-react";
+import { CallOutcomeIcon } from "../icons";
 import { PillPicker } from "../components";
 import { useUI } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
@@ -129,7 +130,7 @@ export function QuickLogView({ lang }: { lang: Locale }) {
               onClick={pasteFromClipboard}
               className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border hairline px-3 text-sm text-[var(--fg)] hover:bg-[var(--hairline)]"
             >
-              📋 Wklej ze schowka
+              <IconClipboard size={15} /> Wklej ze schowka
             </button>
             <button
               onClick={lookup}
@@ -149,7 +150,7 @@ export function QuickLogView({ lang }: { lang: Locale }) {
           </button>
           {matches.length === 0 ? (
             <p className="text-sm text-muted">
-              🤷 Nie znaleziono leada ani klienta z tym numerem. Dodaj kontakt ręcznie w{" "}
+              Nie znaleziono leada ani klienta z tym numerem. Dodaj kontakt ręcznie w{" "}
               <Link href={`/${lang}/admin/leads`} className="underline">
                 Leadach
               </Link>
@@ -231,7 +232,7 @@ export function QuickLogView({ lang }: { lang: Locale }) {
                       outcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
                     }`}
                   >
-                    <span aria-hidden>{CALL_OUTCOME_ICON[o]}</span>
+                    <CallOutcomeIcon kind={o} size={14} />
                     {CALL_OUTCOME_LABEL[o]}
                   </button>
                 ))}
@@ -274,7 +275,7 @@ export function QuickLogView({ lang }: { lang: Locale }) {
 
       {step === "done" && selected && (
         <div className="space-y-4 text-center">
-          <p className="text-sm text-muted">✅ Zapisano wpis dla {selected.nazwa}.</p>
+          <p className="flex items-center justify-center gap-1.5 text-sm text-muted"><IconCheck size={15} className="text-emerald-400" />Zapisano wpis dla {selected.nazwa}.</p>
           <button
             onClick={reset}
             className="min-h-[48px] w-full rounded-full border hairline text-base font-medium text-[var(--fg)] hover:bg-[var(--hairline)]"

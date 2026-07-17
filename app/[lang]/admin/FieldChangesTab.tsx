@@ -16,7 +16,7 @@ export function FieldChangesTab({ entity, changes }: { entity: AuditEntity; chan
     return (
       <div className="mt-6">
         <p className="text-sm text-muted opacity-60">
-          🗒️ Brak zmian do pokazania — log zapisuje każdą edycję pola od teraz.
+          Brak zmian do pokazania — log zapisuje każdą edycję pola od teraz.
         </p>
       </div>
     );

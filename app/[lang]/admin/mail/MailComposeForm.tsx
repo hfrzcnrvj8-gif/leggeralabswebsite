@@ -17,6 +17,7 @@
 // wysyłki SMTP+IMAP.
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { IconPaperclip, IconCheck } from "@tabler/icons-react";
 import {
   SIGNATURE_LANGS,
   SIGNATURE_LANG_LABEL,
@@ -195,7 +196,7 @@ export function MailComposeForm({
           <div className="mt-2 flex flex-wrap gap-1.5">
             {attachments.map((f, i) => (
               <span key={`${f.name}-${i}`} className="flex items-center gap-1.5 rounded-full bg-[var(--hairline)] px-2.5 py-1 text-[12px]">
-                📎 {f.name} <span className="text-muted">· {formatBytes(f.size)}</span>
+                <IconPaperclip size={12} />{f.name} <span className="text-muted">· {formatBytes(f.size)}</span>
                 <button
                   type="button"
                   onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
@@ -213,7 +214,7 @@ export function MailComposeForm({
       <div className="shrink-0 border-t hairline px-6 py-4 sm:px-8">
         <div className="mb-3 flex flex-wrap items-center gap-1 text-[12px]">
           <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-muted hover:text-[var(--fg)]">
-            📎 Załącz plik
+            <IconPaperclip size={12} />Załącz plik
             <input
               type="file"
               multiple
@@ -255,7 +256,7 @@ export function MailComposeForm({
               animate={{ opacity: 1, scale: 1 }}
               className="rounded-full bg-emerald-500/15 px-4 py-1.5 text-[13px] text-emerald-400"
             >
-              ✓ {mode === "forward" ? "Wiadomość przekazana." : "Wiadomość wysłana."}
+              <IconCheck size={13} className="mr-1 inline align-[-2px]" />{mode === "forward" ? "Wiadomość przekazana." : "Wiadomość wysłana."}
             </motion.span>
           ) : submitting ? (
             <span className="flex items-center gap-2 rounded-full bg-[var(--hairline)] px-4 py-1.5 text-[13px] text-muted">

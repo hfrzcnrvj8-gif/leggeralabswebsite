@@ -2,6 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  IconCornerUpLeft,
+  IconCornerUpRight,
+  IconMail,
+  IconStar,
+  IconStarFilled,
+  IconSparkles,
+  IconArchive,
+  IconTrash,
+  IconUser,
+  IconUserQuestion,
+  IconUsers,
+  IconTarget,
+  IconFileInvoice,
+  IconLink,
+  IconClipboard,
+} from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
 import { Popover, PropertyMenu, MenuRow } from "../Menu";
@@ -11,7 +28,7 @@ import {
   MailCategoryTag,
   MAIL_STATUSES,
   MAIL_STATUS_LABEL,
-  MAIL_FOLDER_ICON,
+  MailFolderIcon,
   replySubject,
   forwardSubject,
   SIGNATURE_LANGS,
@@ -538,7 +555,7 @@ export function MailDetailPanel({
             title={mail.flagged ? "Usuń flagę" : "Oflaguj jako ważne"}
             className={`text-[16px] leading-none ${mail.flagged ? "text-brand-gold" : "text-muted opacity-40 hover:opacity-80"}`}
           >
-            {mail.flagged ? "★" : "☆"}
+            {mail.flagged ? <IconStarFilled size={16} /> : <IconStar size={16} />}
           </button>
           {mail.kategoria && <MailCategoryTag kategoria={mail.kategoria} />}
           {/* Status klikalny wprost w tagu (04e runda 2, zgłoszone przez
@@ -577,11 +594,11 @@ export function MailDetailPanel({
               className="flex shrink-0 items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
               title={s.subject || "(bez tematu)"}
             >
-              <span aria-hidden>{s.kierunek === "out" ? "↩️" : "✉️"}</span>
+              {s.kierunek === "out" ? <IconCornerUpLeft size={13} /> : <IconMail size={13} />}
               <span className="max-w-[140px] truncate">{s.kierunek === "out" ? "Ty" : s.from_name || s.from_addr}</span>
               {s.folder !== "inbox" && (
-                <span aria-hidden title={s.folder}>
-                  {MAIL_FOLDER_ICON[s.folder as MailFolder]}
+                <span title={s.folder}>
+                  <MailFolderIcon folder={s.folder as MailFolder} size={13} />
                 </span>
               )}
               <span className="opacity-70">{formatThreadWhen(s.received_at)}</span>
@@ -662,7 +679,7 @@ export function MailDetailPanel({
                 title="Model AI zaproponuje treść odpowiedzi na podstawie tego maila — do poprawienia przed wysłaniem"
                 className="rounded-full border hairline px-2.5 py-0.5 text-muted hover:text-[var(--fg)] disabled:opacity-50"
               >
-                {draftLoading ? "Generuję…" : "✨ Zaproponuj szkic"}
+                {draftLoading ? "Generuję…" : (<><IconSparkles size={12} className="mr-1 inline align-[-2px]" />Zaproponuj szkic</>)}
               </button>
               <TemplatePickerButton templates={templates} onPick={applyTemplate} />
             </span>
@@ -719,7 +736,7 @@ export function MailDetailPanel({
             title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
             className="rounded-full border hairline px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
           >
-            ➜ Przekaż
+            <IconCornerUpRight size={13} className="mr-1 inline align-[-2px]" />Przekaż
           </button>
           {mail.kierunek === "in" && (
             <Popover
@@ -767,7 +784,7 @@ export function MailDetailPanel({
               title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
               className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
             >
-              🗄️ Archiwizuj
+              <IconArchive size={12} className="mr-1 inline align-[-2px]" />Archiwizuj
             </button>
           )}
           {mail.folder !== "trash" && (
@@ -777,7 +794,7 @@ export function MailDetailPanel({
               title={configured ? undefined : "Skrzynka nie jest skonfigurowana — dodaj dane az.pl w zmiennych środowiskowych Vercela."}
               className="rounded-full border border-red-500/40 px-3 py-1.5 text-[12px] text-red-400 hover:bg-red-500/10 disabled:opacity-50"
             >
-              🗑️ Usuń
+              <IconTrash size={12} className="mr-1 inline align-[-2px]" />Usuń
             </button>
           )}
 
@@ -835,7 +852,7 @@ export function MailDetailPanel({
             onClick={() => onNavigateToContact?.()}
             className="rounded-full bg-brand-purple/15 px-2.5 py-1 text-brand-purple hover:opacity-80"
           >
-            👤 {mail.client_nazwa}
+            <IconUser size={12} className="mr-1 inline align-[-2px]" />{mail.client_nazwa}
           </Link>
         )}
         {/* VIP (Moduł 4, Etap 3) — klient ze statusem "Aktywny", widoczna
@@ -851,12 +868,12 @@ export function MailDetailPanel({
             onClick={() => onNavigateToContact?.()}
             className="rounded-full bg-brand-cyan/15 px-2.5 py-1 text-brand-cyan hover:opacity-80"
           >
-            🎯 {mail.lead_nazwa}
+            <IconTarget size={12} className="mr-1 inline align-[-2px]" />{mail.lead_nazwa}
           </Link>
         )}
         {mail.invoice_id && mail.invoice_numer && (
           <Link href={`/${lang}/admin/invoices/${mail.invoice_id}`} className="rounded-full bg-brand-gold/15 px-2.5 py-1 text-brand-gold hover:opacity-80">
-            🧾 {mail.invoice_numer}
+            <IconFileInvoice size={12} className="mr-1 inline align-[-2px]" />{mail.invoice_numer}
           </Link>
         )}
         {/* Moduł 22 — RĘCZNE przypięcie do istniejącego klienta/leada.
@@ -875,7 +892,7 @@ export function MailDetailPanel({
               disabled={busy}
               className="rounded-full border hairline px-2.5 py-1 text-muted hover:text-[var(--fg)] disabled:opacity-50"
             >
-              {picked ? "🔗 Zmień powiązanie" : "🔗 Przypisz do klienta/leada"}
+              <><IconLink size={12} className="mr-1 inline align-[-2px]" />{picked ? "Zmień powiązanie" : "Przypisz do klienta/leada"}</>
             </button>
           )}
         />
@@ -886,14 +903,14 @@ export function MailDetailPanel({
               disabled={busy}
               className="rounded-full border border-brand-cyan/40 px-2.5 py-1 text-brand-cyan hover:bg-brand-cyan/10 disabled:opacity-50"
             >
-              🎯 Utwórz leada
+              <IconTarget size={12} className="mr-1 inline align-[-2px]" />Utwórz leada
             </button>
             <button
               onClick={() => void createContact("client")}
               disabled={busy}
               className="rounded-full border border-brand-purple/40 px-2.5 py-1 text-brand-purple hover:bg-brand-purple/10 disabled:opacity-50"
             >
-              👤 Utwórz klienta
+              <IconUser size={12} className="mr-1 inline align-[-2px]" />Utwórz klienta
             </button>
           </>
         )}
@@ -922,7 +939,7 @@ export function MailDetailPanel({
           przy następnym load() bez konieczności klikania tu. */}
       {mail.sender_status === "pending" && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
-          <span className="text-muted">👋 Nowy nadawca — jeszcze nie zatwierdzony.</span>
+          <span className="flex items-center gap-1.5 text-muted"><IconUserQuestion size={13} />Nowy nadawca — jeszcze nie zatwierdzony.</span>
           <span className="flex items-center gap-2">
             <button
               onClick={() => void decideSender("approved")}
@@ -949,7 +966,7 @@ export function MailDetailPanel({
           cudzego URL-a wypisu w tle. */}
       {mail.list_unsubscribe_url && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
-          <span className="text-muted">📭 Wiadomość z listy dystrybucyjnej.</span>
+          <span className="flex items-center gap-1.5 text-muted"><IconUsers size={13} />Wiadomość z listy dystrybucyjnej.</span>
           <a
             href={mail.list_unsubscribe_url}
             {...(mail.list_unsubscribe_url.startsWith("mailto:") ? {} : { target: "_blank", rel: "noopener noreferrer" })}
@@ -989,7 +1006,7 @@ export function MailDetailPanel({
                 disabled={busy}
                 className="rounded-full border hairline px-2.5 py-1 text-[12px] hover:bg-[var(--hairline)]/50 disabled:opacity-50"
               >
-                📋 {p.tytul}
+                <IconClipboard size={12} className="mr-1 inline align-[-2px]" />{p.tytul}
               </button>
             ))}
           </div>

@@ -30,17 +30,11 @@ export const MAIL_FOLDER_LABEL: Record<MailFolder, string> = {
   archive: "Archiwum",
 };
 
-// 📥/📤 (poprzednio Odebrane/Wysłane) to ten sam piktogram tacki różniący się
-// TYLKO kierunkiem strzałki — na małym rozmiarze w sidebarze nie do
-// odróżnienia na pierwszy rzut oka (zgłoszone przez właściciela, 04e runda
-// 6). Samolocik dla Wysłane to zupełnie inna sylwetka, nie tylko odbita
-// strzałka — jednoznaczne bez czytania etykiety.
-export const MAIL_FOLDER_ICON: Record<MailFolder, string> = {
-  inbox: "📥",
-  sent: "✈️",
-  trash: "🗑️",
-  archive: "🗄️",
-};
+/* Ikony folderów: `<MailFolderIcon folder={…} />` w
+ * `app/[lang]/admin/icons.tsx` (Moduł 33) — to chrome panelu, nie treść
+ * wychodząca, więc wyjątek „w mailach emoji" ich nie dotyczy. Decyzja o
+ * odróżnialnej sylwetce Wysłanych (dawniej samolocik ✈️ zamiast drugiej
+ * tacki 📤) jest tam utrzymana i opisana. */
 
 /** Status wiadomości przychodzącej. "nowy" = wymaga reakcji (ląduje na
  * Pulpicie), "obsłużony" = odpisane albo ręcznie odhaczone, "zignorowany" =
@@ -314,13 +308,8 @@ export const MAIL_CATEGORY_LABEL: Record<MailCategory, string> = {
   inne: "Rozmowa",
 };
 
-export const MAIL_CATEGORY_ICON: Record<MailCategory, string> = {
-  reklama: "📢",
-  rachunek: "🧾",
-  urzedowe: "🏛️",
-  oferta: "✨",
-  inne: "💬",
-};
+/* Ikony kategorii: `<MailCategoryIcon kind={…} />` w
+ * `app/[lang]/admin/icons.tsx` (Moduł 33) — chipy screenera to chrome panelu. */
 
 export const MAIL_CATEGORY_CLASS: Record<MailCategory, string> = {
   reklama: "bg-[var(--hairline)] text-muted",

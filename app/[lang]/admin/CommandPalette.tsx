@@ -87,7 +87,7 @@ export function CommandPalette({
             />
             <div className="max-h-[50vh] overflow-y-auto p-1.5">
               {actions.length === 0 ? (
-                <p className="p-3 text-sm text-muted opacity-60">{loading ? "Szukam…" : "🔍 Brak wyników."}</p>
+                <p className="p-3 text-sm text-muted opacity-60">{loading ? "Szukam…" : "Brak wyników."}</p>
               ) : (
                 actions.map((a, i) => (
                   <motion.button
