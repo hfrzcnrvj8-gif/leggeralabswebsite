@@ -153,6 +153,26 @@ export function ContractEditor({
             onPick={(next) => patch(next)}
           />
           <ClientLinkChip clientId={contract.client_id} lang={lang} />
+          {/* Moduł 31 — OSOBNY picker, świadomie NIE dopisany do `kinds` wyżej.
+              `linkValueFor()` jest wyłączne w obrębie `kinds` (lib/links.ts:93),
+              więc kinds={["client","lead","project"]} zerowałoby `client_id`
+              umowy przy wyborze projektu — a na `client_id` wisi karta klienta
+              i oś czasu. To dwie różne osie: klient/lead odpowiada "czyj to
+              rekord", projekt "czego dotyczy". Do Modułu 31 tego pola nie było
+              wcale: serwer przyjmował `project_id` (api/contracts/[id]:46), ale
+              żaden ekran go nie wysyłał, więc umowa dostawała projekt WYŁĄCZNIE
+              dziedzicząc go z oferty — i bramka startu projektu (api/projects/
+              [id]:141) była nie do przejścia dla projektu założonego ręcznie. */}
+          {isUmowa && (
+            <span className="flex items-center gap-1 text-muted">
+              <span className="text-[11px] uppercase tracking-wide opacity-70">Projekt</span>
+              <LinkPicker
+                kinds={["project"]}
+                value={{ project_id: contract.project_id }}
+                onPick={(next) => patch(next)}
+              />
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-3">
           <SaveIndicator state={saveState} />

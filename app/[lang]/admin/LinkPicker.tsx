@@ -18,6 +18,7 @@ import {
   LINK_KIND_EMOJI,
   LINK_KIND_LABEL,
   LINK_KIND_LABEL_PLURAL,
+  linkSearchPlaceholder,
   linkValueFor,
   pickedTarget,
   type LinkKind,
@@ -293,7 +294,7 @@ function LinkPickerList({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}
-          placeholder="Szukaj klienta lub leada…"
+          placeholder={linkSearchPlaceholder(kinds)}
           autoFocus
           className="w-full rounded-md border hairline bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
         />

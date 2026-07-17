@@ -48,6 +48,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await sql`UPDATE contracts SET status = 'Wysłana', updated_at = now() WHERE id = ${id};`;
       status = "Wysłana";
     }
+    // Moduł 31 — licznik dni ciszy na Pulpicie. Ustawiany przy KAŻDEJ wysyłce,
+    // nie tylko pierwszej: ponowne wysłanie to świeży szturchaniec, więc zegar
+    // rusza od nowa (inaczej umowa wysłana drugi raz krzyczałaby dalej "cisza
+    // od 20 dni", mimo że przypomniałeś wczoraj).
+    await sql`UPDATE contracts SET sent_at = now() WHERE id = ${id};`;
     const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
     await logClientEvent(sql, clientId, "contract_sent", `Wysłano ${label.toLowerCase()} mailem`, null, id);
 

@@ -30,6 +30,20 @@ type PendingMail = {
   lead_nazwa: string | null;
 };
 
+/** Moduł 31 — umowa/NDA wysłana i niepodpisana od CONTRACT_STALE_DAYS dni.
+ * `silenceDays` liczy serwer (api/hub/today), żeby Pulpit i dzienny mail
+ * mówiły tę samą liczbę. */
+type StaleContract = {
+  id: string;
+  typ: "umowa" | "nda";
+  status: string;
+  project_id: string | null;
+  client_id: string | null;
+  klient_nazwa: string;
+  client_nazwa: string | null;
+  silenceDays: number;
+};
+
 type TaxReserve = { vat: number; pit: number; zus: number };
 
 type Kpi = {
@@ -40,6 +54,10 @@ type Kpi = {
   pipelineRaw: number;
   taxReserve: TaxReserve;
   avgClientRating: number | null;
+  /** Moduł 31 — miara Etapu 3 mapy drogi klienta (cel 100%), liczona tylko po
+   * projektach z klientem. `null` = nie ma czego mierzyć (patrz
+   * signedContractRate w lib/contracts.ts). */
+  signedContracts: { rate: number; withContract: number; total: number } | null;
   reviewsCollected: number;
   closedProjectsCount: number;
 };
@@ -52,6 +70,7 @@ type TodayData = {
   overdueInvoices: InvoiceRow[];
   draftInvoices: InvoiceRow[];
   expiredOffers: OfferRow[];
+  staleContracts: StaleContract[];
   dueFollowups: DueFollowup[];
   pendingMails: PendingMail[];
   todayEvents: HubEvent[];
@@ -285,7 +304,8 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.overdueMilestones.length +
     data.overdueInvoices.length +
     data.draftInvoices.length +
-    data.expiredOffers.length;
+    data.expiredOffers.length +
+    data.staleContracts.length;
 
   const revenueThisMonthPln = sumPln(data.kpi.revenueThisMonth);
   const revenueLastMonthPln = sumPln(data.kpi.revenueLastMonth);
@@ -344,6 +364,24 @@ export function DashboardHome({ lang }: { lang: Locale }) {
               <span className="text-muted">ZUS</span>
               <span className="tabular-nums">{formatMoney(data.kpi.taxReserve.zus)}</span>
             </div>
+          </div>
+        </div>
+        {/* Moduł 31 — miara Etapu 3 mapy drogi klienta (cel: 100%). Liczona
+            tylko po projektach z klientem: projekt wewnętrzny nie ma z kim
+            podpisać umowy, więc wliczanie go zaniżałoby wskaźnik na stałe. */}
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Papier przed pracą</div>
+          <div
+            className={`mt-1 text-lg font-semibold ${
+              data.kpi.signedContracts && data.kpi.signedContracts.rate < 1 ? "text-amber-500" : ""
+            }`}
+          >
+            {data.kpi.signedContracts ? `${Math.round(data.kpi.signedContracts.rate * 100)}%` : "—"}
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted">
+            {data.kpi.signedContracts
+              ? `${data.kpi.signedContracts.withContract}/${data.kpi.signedContracts.total} projektów klienckich z podpisaną umową`
+              : "Brak projektów z klientem — nie ma czego mierzyć."}
           </div>
         </div>
         <div className="card-paper rounded-xl border hairline p-4">
@@ -650,6 +688,45 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                     className="shrink-0 rounded-full border border-amber-500/40 px-2 py-0.5 text-[11px] text-amber-500"
                   >
                     Wystaw
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Moduł 31 — do tej pory Umowy były jedynym modułem, o którym Pulpit
+            nigdy sam z siebie nie wspomniał: umowa wisząca tydzień
+            niepodpisana nie przypominała się nigdy, mimo że blokuje formalny
+            start projektu. */}
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Umowy czekające na podpis</h2>
+            <Link href={`/${lang}/admin/contracts`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {data.staleContracts.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — nic nie wisi bez podpisu.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.staleContracts.slice(0, 6).map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/contracts/${c.id}`} className="font-medium hover:underline">
+                      {c.client_nazwa || c.klient_nazwa || "(bez nazwy)"}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — {c.typ === "nda" ? "NDA" : "Umowa"}, cisza od {c.silenceDays}{" "}
+                      {c.silenceDays === 1 ? "dnia" : "dni"}
+                    </span>
+                  </span>
+                  <Link
+                    href={`/${lang}/admin/contracts/${c.id}`}
+                    className="shrink-0 rounded-full border border-brand-cyan/40 px-2 py-0.5 text-[11px] text-brand-cyan"
+                  >
+                    Przypomnij
                   </Link>
                 </li>
               ))}

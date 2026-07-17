@@ -124,6 +124,23 @@ async function ensureSeeded(): Promise<void> {
         }
       }
 
+      // — Umowa wisząca bez podpisu (Moduł 31) —
+      // Bez tego sekcji „Umowy czekające na podpis" na Pulpicie i w dziennym
+      // mailu NIE DA SIĘ zobaczyć lokalnie: seed nie miał ani jednej umowy, a
+      // `sent_at` ustawia wyłącznie wysyłka mailem (której w dev nie ma).
+      // Dwanaście dni ciszy = powyżej progu CONTRACT_STALE_DAYS (7).
+      // `client_id` dopina się niżej, przy kliencie — tu go jeszcze nie ma.
+      const contractStale = randomUUID();
+      {
+        const { ensureContractsSchema } = await import("./db");
+        await ensureContractsSchema();
+        await raw(
+          `INSERT INTO contracts (id, typ, status, klient_nazwa, klient_email, zakres_prac, cena, sent_at)
+           VALUES ($1,'umowa','Wysłana',$2,$3,$4,$5, now() - interval '12 days')`,
+          [contractStale, "Nordwind Studio", "anna@nordwind.pl", "Wdrożenie panelu zamówień — dev seed.", 18000]
+        );
+      }
+
       // — Notatki —
       await raw(
         `INSERT INTO notes (id, tytul, tresc, tagi) VALUES ($1,$2,$3,$4),($5,$6,$7,$8)`,
@@ -150,6 +167,10 @@ async function ensureSeeded(): Promise<void> {
          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
         [clientA, "Nordwind Studio", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3)]
       );
+      // Moduł 31 — dopięcie umowy do klienta, dopiero teraz, bo klient
+      // powstaje po niej. Dzięki temu sekcja „Umowy i NDA" na karcie klienta
+      // też ma co pokazać w dev.
+      await raw(`UPDATE contracts SET client_id = $1 WHERE id = $2`, [clientA, contractStale]);
 
       // — Poczta (Moduł 4) —
       // Dev nie ma dostępu do skrzynki az.pl (IMAP żyje tylko na Vercelu z

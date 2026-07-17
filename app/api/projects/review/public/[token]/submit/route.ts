@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
+import { notify } from "@/lib/notificationLog";
 import type { DocLang } from "@/lib/documents";
 
 export const runtime = "nodejs";
@@ -96,6 +97,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     null,
     project.id
   );
+
+  // Centrum powiadomień (Moduł 24 + 31) — tylko tutaj; bliźniak
+  // `projects/[id]/review` to opinia wpisywana ręcznie przez właściciela.
+  await notify({
+    kind: "review_collected",
+    title: `Wpłynęła opinia: ${tytul}`,
+    body: `Średnia ocena ${avg}/5${consentCaseStudy ? ", ze zgodą na referencję" : ""}.`,
+    entity: "project",
+    entityId: String(project.id),
+    dedupeKey: `review_collected:${project.id}`,
+  });
 
   return NextResponse.json({ ok: true });
 }

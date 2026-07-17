@@ -1003,6 +1003,18 @@ async function createContractsSchema(): Promise<void> {
   // "chrome" wydruku — treść klauzul zostaje świadomie tylko po polsku,
   // patrz komentarz na górze lib/contracts.ts.
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS jezyk TEXT NOT NULL DEFAULT 'pl';`;
+  // Moduł 31 — kiedy dokument poszedł do podpisu. Osobna kolumna, bo Pulpit
+  // liczy dni ciszy od wysyłki, a `updated_at` skacze przy KAŻDEJ edycji
+  // (poprawka literówki w uwagach zerowałaby licznik i umowa wisząca miesiąc
+  // nigdy by się nie przypomniała).
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;`;
+  // Backfill dla umów wysłanych przed tym modułem: `updated_at` to jedyny
+  // ślad, jaki mamy — przybliżenie, ale lepsze niż cisza (bez tego dokument
+  // wysłany wczoraj nie odezwałby się już nigdy). Nie-DDL → inMigration(),
+  // inaczej w dev zakleszcza seeder (patrz lib/migration-ctx.ts).
+  await inMigration(
+    () => sql`UPDATE contracts SET sent_at = updated_at WHERE status = 'Wysłana' AND sent_at IS NULL;`
+  );
 
   await markSchemaApplied("contracts");
 }

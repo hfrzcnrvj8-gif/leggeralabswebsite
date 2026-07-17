@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
 import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
 import { isOfferExpired, weightedOfferValue, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
+import { isContractStale, contractSilenceDays, signedContractRate, type Contract } from "@/lib/contracts";
 import { isClientOverdue, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
@@ -14,6 +15,11 @@ export const runtime = "nodejs";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
+/** Moduł 31 — tylko tyle kolumn umowy, ile Pulpit realnie pokazuje. Nazwa
+ * klienta z JOIN-a, bo migawka `klient_nazwa` bywa pusta na szkicu. */
+type ContractRow = Pick<Contract, "id" | "typ" | "status" | "project_id" | "client_id" | "sent_at" | "klient_nazwa"> & {
+  client_nazwa: string | null;
+};
 
 function addToCurrencyMap(map: Map<string, number>, currency: string, amount: number) {
   map.set(currency, (map.get(currency) ?? 0) + amount);
@@ -32,6 +38,7 @@ export async function GET() {
   await ensureClientsSchema();
   await ensureFollowupsSchema();
   await ensureMailSchema();
+  await ensureContractsSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -42,7 +49,7 @@ export async function GET() {
   const lastMonth =
     thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
-  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, dueFollowups, companySettingsRows, pendingMails] = await Promise.all([
+  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, contracts, dueFollowups, companySettingsRows, pendingMails] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects;` as unknown as Promise<Project[]>,
@@ -88,6 +95,16 @@ export async function GET() {
         SELECT offer_id, SUM(ilosc * cena) AS kwota FROM offer_items GROUP BY offer_id
       ) t ON t.offer_id = o.id;
     ` as unknown as Promise<OfferRow[]>,
+    // Moduł 31 — umowy/NDA do dwóch rzeczy naraz: ciszy po wysyłce (niżej
+    // isContractStale) i wskaźnika "% projektów z podpisaną umową". Do tego
+    // modułu Pulpit nie pytał bazy o umowy w ogóle, więc umowa wisząca
+    // tydzień niepodpisana nie przypominała się nigdy — mimo że blokuje start
+    // projektu (bramka w api/projects/[id]).
+    sql`
+      SELECT c.id, c.typ, c.status, c.project_id, c.client_id, c.sent_at, c.klient_nazwa, cl.nazwa AS client_nazwa
+      FROM contracts c
+      LEFT JOIN clients cl ON cl.id = c.client_id;
+    ` as unknown as Promise<ContractRow[]>,
     // Zaplanowane kontakty nurture (Moduł 2) wymagalne dziś lub wcześniej,
     // jeszcze nieobsłużone — osobno od isClientOverdue (ręczny next_followup),
     // scalane z nim dopiero w UI (DashboardHome.tsx), żeby zachować czytelny,
@@ -126,6 +143,12 @@ export async function GET() {
   const realInvoices = invoices.filter((i) => i.typ_dokumentu !== "proforma");
   const overdueInvoices = realInvoices.filter(isInvoiceOverdue);
   const expiredOffers = offers.filter(isOfferExpired);
+  // Moduł 31 — umowy/NDA wysłane i niepodpisane od tygodnia. Dni ciszy liczone
+  // raz tutaj, nie w UI: DashboardHome i dzienny mail pokazują tę samą liczbę.
+  const staleContracts = contracts
+    .filter((c) => isContractStale(c))
+    .map((c) => ({ ...c, silenceDays: contractSilenceDays(c) ?? 0 }))
+    .sort((a, b) => b.silenceDays - a.silenceDays);
 
   // Faktury-szkice czekające na wystawienie — robota zrobiona, ale dokument
   // nigdy nie dostał numeru (a więc: nie liczy się do przychodu i nikt za
@@ -194,6 +217,7 @@ export async function GET() {
     draftInvoices,
     overdueMilestones,
     expiredOffers,
+    staleContracts,
     dueFollowups,
     pendingMails,
     todayEvents,
@@ -206,6 +230,9 @@ export async function GET() {
       pipelineRaw,
       taxReserve,
       avgClientRating,
+      // Moduł 31 — miara Etapu 3 z mapy drogi klienta (cel: 100%). `null` gdy
+      // nie ma ani jednego projektu z klientem — patrz signedContractRate.
+      signedContracts: signedContractRate(projects, contracts),
       reviewsCollected: reviewedProjects.length,
       closedProjectsCount: closedProjects.length,
     },

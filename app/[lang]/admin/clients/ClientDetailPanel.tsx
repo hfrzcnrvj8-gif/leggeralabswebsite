@@ -28,6 +28,7 @@ import {
 } from "./shared";
 import { ProcessMap, PillPicker } from "../components";
 import { formatPlDate } from "@/lib/projects";
+import { CONTRACT_TYP_LABEL } from "@/lib/contracts";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -40,6 +41,16 @@ import type { FieldChange } from "@/lib/audit";
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
 type LinkedInvoice = { id: string; numer: string | null; status: string; typ_dokumentu: string; created_at: string };
 type LinkedProject = { id: string; tytul: string; status: string; termin: string | null; created_at: string };
+/** Moduł 31 — umowy/NDA klienta. `project_id` jest tu po to, żeby dało się z
+ * karty odróżnić umowę odblokowującą start projektu od wolnostojącej. */
+type LinkedContract = {
+  id: string;
+  typ: "umowa" | "nda";
+  status: string;
+  project_id: string | null;
+  accepted_at: string | null;
+  created_at: string;
+};
 /** Kartoteka korespondencji (04d pkt 2) — osobny rejestr obok scalonego
  * feedu, na wyraźną prośbę właściciela 2026-07-15. */
 type ClientMail = { id: string; subject: string; kierunek: "in" | "out"; status: string; received_at: string };
@@ -99,6 +110,7 @@ export function ClientDetailPanel({
   const [offers, setOffers] = useState<LinkedOffer[]>([]);
   const [invoices, setInvoices] = useState<LinkedInvoice[]>([]);
   const [projects, setProjects] = useState<LinkedProject[]>([]);
+  const [contracts, setContracts] = useState<LinkedContract[]>([]);
   const [mail, setMail] = useState<ClientMail[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -129,6 +141,7 @@ export function ClientDetailPanel({
       offers: LinkedOffer[];
       invoices: LinkedInvoice[];
       projects: LinkedProject[];
+      contracts: LinkedContract[];
       mail: ClientMail[];
     };
     setClient(data.client);
@@ -136,6 +149,7 @@ export function ClientDetailPanel({
     setOffers(data.offers);
     setInvoices(data.invoices);
     setProjects(data.projects);
+    setContracts(data.contracts ?? []);
     setMail(data.mail ?? []);
     setNoteFollowup(data.client.next_followup ?? "");
     setNoteAction(data.client.next_action ?? "");
@@ -260,7 +274,7 @@ export function ClientDetailPanel({
     );
   }
 
-  const linkedCount = offers.length + invoices.length + projects.length;
+  const linkedCount = offers.length + invoices.length + projects.length + contracts.length;
 
   const FEED_FILTERS: { value: typeof feedFilter; label: string }[] = [
     { value: "all", label: "Wszystko" },
@@ -406,6 +420,25 @@ export function ClientDetailPanel({
                             {p.tytul}
                           </Link>
                           <span className="text-muted"> — {p.status}{p.termin ? `, termin ${formatPlDate(p.termin)}` : ""}</span>
+                        </li>
+                      ))}
+                    </LinkedGroup>
+                  )}
+                  {/* Moduł 31 — do tej pory jedyny moduł, o którym karta klienta
+                      milczała, mimo że od niego zależy start jego projektów. */}
+                  {contracts.length > 0 && (
+                    <LinkedGroup title="Umowy i NDA">
+                      {contracts.map((c) => (
+                        <li key={c.id}>
+                          <Link href={`/${lang}/admin/contracts/${c.id}`} className="hover:underline">
+                            {CONTRACT_TYP_LABEL[c.typ]}
+                          </Link>
+                          <span className="text-muted">
+                            {" "}
+                            — {c.status}
+                            {c.accepted_at ? `, podpisana ${formatPlDate(c.accepted_at)}` : ""}
+                            {c.typ === "umowa" && !c.project_id ? ", bez projektu" : ""}
+                          </span>
                         </li>
                       ))}
                     </LinkedGroup>

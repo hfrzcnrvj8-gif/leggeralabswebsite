@@ -131,6 +131,11 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     projects: Project[];
     notes: Note[];
     events: HubEvent[];
+    // Moduł 31 — dokumenty w palecie. Kształt wąski, taki jak zwraca
+    // api/search (patrz SearchOffer/SearchInvoice/SearchContract tam).
+    offers: { id: string; tytul: string; status: string; klient_nazwa: string }[];
+    invoices: { id: string; numer: string | null; status: string; klient_nazwa: string }[];
+    contracts: { id: string; typ: "umowa" | "nda"; status: string; klient_nazwa: string }[];
   } | null>(null);
   const [searching, setSearching] = useState(false);
   const [activeTimer, setActiveTimer] = useState<(TimeEntry & { project_tytul?: string; task_text?: string | null }) | null>(null);
@@ -219,6 +224,33 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     );
     searchResults.events.forEach((e) =>
       out.push({ id: `event:${e.id}`, label: `${e.tytul} (${formatPlDate(e.data)})`, hint: "Wydarzenie", run: () => router.push(`${base}/calendar`) })
+    );
+    // Moduł 31 — dokumenty. Etykieta niesie nazwę klienta, bo po niej się
+    // realnie szuka ("gdzie jest ta umowa Kowalskiego"), a sam tytuł oferty
+    // bywa pusty na szkicu.
+    searchResults.offers?.forEach((o) =>
+      out.push({
+        id: `offer:${o.id}`,
+        label: `${o.tytul || "(bez tytułu)"}${o.klient_nazwa ? ` — ${o.klient_nazwa}` : ""}`,
+        hint: "Oferta",
+        run: () => router.push(`${base}/offers/${o.id}`),
+      })
+    );
+    searchResults.invoices?.forEach((i) =>
+      out.push({
+        id: `invoice:${i.id}`,
+        label: `${i.numer || "(szkic)"}${i.klient_nazwa ? ` — ${i.klient_nazwa}` : ""}`,
+        hint: "Faktura",
+        run: () => router.push(`${base}/invoices/${i.id}`),
+      })
+    );
+    searchResults.contracts?.forEach((c) =>
+      out.push({
+        id: `contract:${c.id}`,
+        label: `${c.klient_nazwa || "(bez nazwy)"} — ${c.status}`,
+        hint: c.typ === "nda" ? "NDA" : "Umowa",
+        run: () => router.push(`${base}/contracts/${c.id}`),
+      })
     );
     return out;
   }, [searchResults, router, base]);

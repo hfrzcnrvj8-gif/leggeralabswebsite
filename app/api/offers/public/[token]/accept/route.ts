@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { acceptOffer } from "@/lib/offerAccept";
+import { notify } from "@/lib/notificationLog";
 import type { Offer } from "@/lib/offers";
 
 export const runtime = "nodejs";
@@ -39,5 +40,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (!result.ok) {
     return NextResponse.json({ error: result.error, expired: result.expired }, { status: result.status });
   }
+
+  // Centrum powiadomień (Moduł 24 + 31) — TYLKO na publicznej trasie, nie w
+  // bliźniaczym `offers/[id]/accept` (tam akceptuje sam właściciel, więc wie).
+  // To najważniejsze zdarzenie w całym lejku: klient klika e-podpis o dowolnej
+  // porze, panel w tle zakłada projekt i szkic faktury — a do Modułu 31
+  // dzwonek o tym milczał.
+  await notify({
+    kind: "offer_accepted",
+    title: `Oferta zaakceptowana: ${offer.tytul || "(bez tytułu)"}`,
+    body: `${name} zaakceptował(a) ofertę e-podpisem. Panel założył projekt i szkic faktury — zostaje umowa do podpisu.`,
+    entity: "offer",
+    entityId: offer.id,
+    dedupeKey: `offer_accepted:${offer.id}`,
+  });
+
   return NextResponse.json({ ok: true, acceptedByName: name });
 }

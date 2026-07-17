@@ -10,6 +10,7 @@ import {
   ensureClientsSchema,
   ensureFollowupsSchema,
   ensureCostsSchema,
+  ensureContractsSchema,
   logClientEvent,
   getNudgeThreads,
 } from "@/lib/db";
@@ -31,6 +32,7 @@ import {
   type CompanySettings,
 } from "@/lib/invoices";
 import { costBrutto, type RecurringCost } from "@/lib/costs";
+import { isContractStale, contractSilenceDays, CONTRACT_TYP_LABEL, type Contract } from "@/lib/contracts";
 import { sendEmail } from "@/lib/email";
 import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
@@ -308,6 +310,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   await ensureHubSchema();
   await ensureClientsSchema();
   await ensureFollowupsSchema();
+  await ensureContractsSchema();
   const sql = getSql();
   const today = todayLocalISO();
 
@@ -317,10 +320,20 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   // pomijałby maile pobrane tego samego ranka.
   const mail = await syncMailAndPurge();
 
-  const [leads, projects, clients, dueFollowups, overdueMilestones, todayEvents, draftInvoices, pendingMails, nudgeThreads, invoiceReminders, recurring, recurringCosts] = await Promise.all([
+  const [leads, projects, clients, contracts, dueFollowups, overdueMilestones, todayEvents, draftInvoices, pendingMails, nudgeThreads, invoiceReminders, recurring, recurringCosts] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
+    // Moduł 31 — umowy/NDA do sekcji "czekające na podpis". Ta sama reguła co
+    // na Pulpicie (isContractStale), żeby mail i panel nie mówiły dwóch
+    // różnych rzeczy.
+    sql`
+      SELECT c.id, c.typ, c.status, c.sent_at, c.klient_nazwa, cl.nazwa AS client_nazwa
+      FROM contracts c
+      LEFT JOIN clients cl ON cl.id = c.client_id;
+    ` as unknown as Promise<
+      (Pick<Contract, "id" | "typ" | "status" | "sent_at" | "klient_nazwa"> & { client_nazwa: string | null })[]
+    >,
     // Zaplanowane kontakty nurture (Moduł 2) wymagalne dziś lub wcześniej —
     // ta sama reguła co na Pulpicie (patrz app/api/hub/today).
     sql`
@@ -432,6 +445,20 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     ? todayEvents.map((e) => `- ${e.godzina ? `${e.godzina} ` : ""}${e.tytul}`).join("\n")
     : "Brak wydarzeń w kalendarzu na dziś.";
 
+  // Moduł 31 — umowy wysłane i niepodpisane od tygodnia. Do tego modułu raport
+  // nie pytał bazy o umowy w ogóle.
+  const staleContracts = contracts.filter((c) => isContractStale(c));
+  const contractLines = staleContracts.length
+    ? staleContracts
+        .map(
+          (c) =>
+            `  • ${c.client_nazwa || c.klient_nazwa || "(bez nazwy)"} — ${CONTRACT_TYP_LABEL[c.typ]}, cisza od ${
+              contractSilenceDays(c) ?? 0
+            } dni`
+        )
+        .join("\n")
+    : "  (nic — nic nie wisi bez podpisu)";
+
   const summaryLines = STATUSES.map((s) => `  ${s}: ${counts[s] ?? 0}`).join("\n");
   const totalActionable =
     overdueLeads.length +
@@ -441,7 +468,8 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     nudgeThreads.length +
     dueProjects.length +
     overdueMilestones.length +
-    draftInvoices.length;
+    draftInvoices.length +
+    staleContracts.length;
 
   const mailLines = pendingMails.length
     ? pendingMails
@@ -480,6 +508,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Kamienie milowe po terminie (${overdueMilestones.length}):`,
     milestoneLines,
+    "",
+    `Umowy czekające na podpis (${staleContracts.length}):`,
+    contractLines,
     "",
     `Faktury-szkice czekające na wystawienie: ${draftInvoices.length}`,
     "",

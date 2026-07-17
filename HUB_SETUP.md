@@ -4786,3 +4786,131 @@ zerowej liczbie pozycji (`items.length === 0`) — to istniejące zabezpieczenie
 łatwo je pomylić z zepsutym przyciskiem. Współrzędne klików w podglądzie są w
 innej skali niż piksele zrzutu (okno 1280×720, zrzut 800×450) — używaj refów z
 `read_page`, nie współrzędnych ze zrzutu.
+
+---
+
+## Moduł 31 — Umowy: pułapka bramki i widoczność (2026-07-17)
+
+Trzeci i **ostatni** z briefów audytu Modułu 29 (kolejność 32 → 30 → 31).
+Audyt uznał Krok 3 (Umowa) za najpoważniejszą dziurę w drodze klienta — nie
+dlatego, że moduł jest źle zrobiony, tylko dlatego, że **Umowy istniały tylko
+dla samych siebie**: jedyne miejsce z twardą bramką w całym panelu było
+jednocześnie jedynym modułem, o którym panel nigdy sam z siebie nie wspominał.
+
+Brief był zweryfikowany gretem przed startem i wszystkie znaleziska A/B/C
+potwierdziły się co do linii. Sprostowanie A też się potwierdziło —
+**eksperymentalnie**, patrz niżej.
+
+### Sprostowanie A potwierdzone sondą, nie tylko czytaniem
+
+Brief rekomendował „naprawę jednej linii": dodać `"project"` do `kinds`
+`LinkPicker`-a w `ContractEditor.tsx`. To pułapka — `linkValueFor()`
+(`lib/links.ts:93`) czyści wszystkie kolumny z `kinds`, zanim ustawi jedną,
+więc wybór projektu **wyzerowałby `client_id` umowy** i cicho rozwalił Część B,
+która na tym `client_id` stoi. Sonda to potwierdza wprost:
+
+```
+PASS  PUŁAPKA potwierdzona: wspólne kinds zerują client_id
+PASS  osobny picker NIE rusza client_id
+```
+
+Rozwiązanie: **osobny picker** `kinds={["project"]}` z własnym
+`value={{ project_id }}`, obok istniejącego klient/lead. Dwie osie, dwa pola:
+klient/lead odpowiada „czyj to rekord", projekt — „czego dotyczy".
+
+### Znalezisko 1 (nowe): `project_id` na umowie było polem, którego nikt nie wysyłał
+
+Lekcja z Modułu 30 („sprawdzaj, czy coś WOŁA kod, nie czy kod istnieje")
+zastosowana do umów. `PATCH /api/contracts/[id]:46` przyjmuje `project_id` —
+ale grep po `app/[lang]/admin/contracts/` daje **zero** trafień. Umowa
+dostawała projekt wyłącznie dziedzicząc go z oferty (`api/contracts/route.ts`
+kopiuje `offer.project_id`, ustawiony przez `lib/offerAccept.ts:132`). Serwer
+potrafił, UI nie dawało — dokładnie ten sam kształt co martwa trasa
+„lead → oferta" z Modułu 30.
+
+### Znalezisko 2 (nowe, poza zakresem — NIE naprawione)
+
+**`expiredOffers` liczy się do „N spraw wymaga dziś działania" na Pulpicie, ale
+nie ma żadnej sekcji, która by je pokazała.** Pole jest pobierane
+(`api/hub/today:145`), zwracane, otypowane w `DashboardHome.tsx:54` i wliczane
+do `totalActionable:288` — i na tym koniec, żaden JSX go nie renderuje. Licznik
+mówi „9 spraw", a wygasłych ofert nie da się zobaczyć. Tabelka Części B briefu
+twierdzi, że Pulpit pokazuje „wygasłe oferty" — pokazuje je tylko w liczniku.
+Zostawione świadomie: to osobna decyzja produktowa (czy wygasłe oferty mają
+mieć sekcję, czy wypaść z licznika), nie zakres tego modułu.
+
+### Bramka — zawężona do projektów z klientem
+
+Decyzja właściciela z 2026-07-17 (pytanie 1 briefu, rozstrzygnięte przed
+startem): bramka **zostaje twarda**, ale obejmuje wyłącznie projekty mające
+`client_id`. Projekt bez klienta = robota wewnętrzna = wolny.
+
+`app/api/projects/[id]/route.ts:141` — warunek dostał `&& norm(current.client_id)`.
+Komunikat 409 prowadzi teraz do legalnego wyjścia (przypnij podpisaną umowę
+przez pole „Projekt"), zamiast tylko odmawiać. Znane, zaakceptowane wady tej
+decyzji są spisane w briefie — **nie „naprawiaj" ich z własnej inicjatywy**;
+gdyby twarda bramka zaczęła uwierać w praktyce, wróć do właściciela z pytaniem
+o wariant (c), nie decyduj sam.
+
+### Co jeszcze weszło (odpowiedzi właściciela na pytania 2–5)
+
+- **Pulpit + dzienny mail** — sekcja „Umowy czekające na podpis", próg
+  **7 dni** ciszy (`CONTRACT_STALE_DAYS`). Wymagało **nowej kolumny
+  `contracts.sent_at`**: `updated_at` skacze przy każdej edycji, więc poprawka
+  literówki w uwagach zerowałaby licznik i umowa wisząca miesiąc nie odezwałaby
+  się nigdy. Migracja robi backfill z `updated_at` dla istniejących „Wysłana"
+  (nie-DDL → owinięte w `inMigration()`).
+- **Statystyki** — KPI „Papier przed pracą" (`signedContractRate`), miara
+  Etapu 3 mapy (cel 100%). Liczona **tylko po projektach z klientem**, ta sama
+  granica co bramka; `null` → „—", nie mylące „0%".
+- **Dzwonek** — trzy nowe rodzaje: `offer_accepted`, `contract_signed`,
+  `review_collected`. Właściciel potwierdził, że pasują do kroniki zdarzeń
+  Modułu 24. Hooki **wyłącznie na trasach publicznych** — bliźniacze trasy
+  adminowe to ruch właściciela (wie, że kliknął), więc dzwonienie mu o tym
+  byłoby szumem. Ta sama zasada co przy `invoice_paid`.
+- **Wyszukiwarka Cmd+K** — umowy + oferty + faktury naraz (luka była wspólna).
+
+### Przy okazji: placeholder `LinkPicker`-a
+
+Wyszukiwarka w pickerze miała wpisane na sztywno „Szukaj klienta lub leada…" —
+nie zgrzytało, bo każdy ówczesny picker faktycznie pokazywał klientów i leady.
+Osobny picker projektu był pierwszym, który tego nie robił. Teraz placeholder
+wyprowadza się z `kinds` (`linkSearchPlaceholder`, `lib/links.ts`); istniejące
+wywołania dostają dokładnie ten sam tekst co wcześniej (sprawdzone sondą).
+
+### Dev-seed dostał umowę
+
+`ensureSeeded()` (`lib/dev-db.ts`) nie miał **ani jednej umowy**, więc sekcji
+„Umowy czekające na podpis" i „Umowy i NDA" na karcie klienta nie dało się
+zobaczyć lokalnie — a `sent_at` ustawia wyłącznie wysyłka mailem, której w dev
+nie ma. Doszła umowa „Nordwind Studio" ze `sent_at = now() - 12 days`
+(powyżej progu 7 dni), dopięta do seedowego klienta.
+
+### Weryfikacja
+
+`npx tsc --noEmit` czysty. Czysta logika sondą w tsx (**14/14 PASS**, wzorem
+`clientLinkStatus()` z Modułu 30): progi ciszy (6 dni nie, 7 dni tak), `null`
+dla szkicu/podpisanej/bez `sent_at`, wskaźnik (NDA się nie liczy, umowa
+niepodpisana się nie liczy, projekt wewnętrzny nie zaniża) i obie strony
+pułapki ze Sprostowania A. Placeholder: 3/3.
+
+Trzy przypadki na żywo, wszystkie przeszły:
+
+1. **Projekt wewnętrzny** (bez klienta) → „W trakcie" **200, przechodzi**.
+   To sedno decyzji — przed tym modułem nie przechodził nigdy.
+2. **Projekt dla klienta, ręczny** → „W trakcie" **409, blokuje**; po
+   przypięciu podpisanej umowy (bez przechodzenia ścieżki oferta→akceptacja)
+   → **200, przechodzi**. Pułapka naprawiona.
+3. **`client_id` umowy po przypięciu projektu — ZACHOWANY**, `project_id`
+   ustawiony. Wyłączność `linkValueFor` ominięta.
+
+Widoczność potwierdzona na żywo: Pulpit („Nordwind Studio — Umowa, cisza od
+12 dni"), karta klienta („UMOWY I NDA / Umowa — Wysłana, bez projektu"),
+paleta Cmd+K („Nordwind Studio — Wysłana / Umowa"), KPI („Papier przed pracą —
+100%, 1/1 projektów klienckich" na danych testowych; „—, brak projektów z
+klientem" na seedzie).
+
+**Uwaga dla następnego czatu:** w podglądzie `read_page` potrafi zwracać pustą
+stronę mimo poprawnie renderującego się panelu — wtedy czytaj treść przez
+`javascript_tool` (`innerText` sekcji), a klikaj z przeliczeniem skali (zrzut
+800×450 vs okno 1600×900, czyli ×2), nie po współrzędnych ze zrzutu.

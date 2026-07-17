@@ -138,14 +138,27 @@ export async function PATCH(
     // w tym panelu, świadomie zaakceptowany przez właściciela (patrz
     // docs/plany-modulow/11-umowy-i-nda.md, mapa drogi klienta Krok 3:
     // "to jest formalny start projektu, nie wcześniej").
-    if (nv === "W trakcie" && current && norm(current.status) !== "W trakcie") {
+    //
+    // Moduł 31 — bramka obejmuje TYLKO projekty mające klienta. Projekt bez
+    // `client_id` to robota wewnętrzna (przebudowa własnej strony, demo do
+    // portfolio) — panel żądał od niego podpisanej umowy, której nie ma z kim
+    // podpisać, więc taki projekt nie przechodził na "W trakcie" NIGDY
+    // (POST /api/projects nie ustawia `client_id` w ogóle, więc dotyczyło to
+    // każdego ręcznie założonego projektu). Warunek "ma klienta" włącza
+    // dyscyplinę dokładnie w momencie, w którym projekt staje się pracą dla
+    // kogoś. Decyzja właściciela 2026-07-17 — bramka zostaje TWARDA, patrz
+    // docs/plany-modulow/31-umowy-widoczne.md, pytanie 1.
+    if (nv === "W trakcie" && current && norm(current.status) !== "W trakcie" && norm(current.client_id)) {
       await ensureContractsSchema();
       const signed = await sql`
         SELECT 1 FROM contracts WHERE project_id = ${id} AND typ = 'umowa' AND status = 'Podpisana' LIMIT 1;
       `;
       if (signed.length === 0) {
         return NextResponse.json(
-          { error: "Brak podpisanej umowy — podpisz umowę przed rozpoczęciem realizacji (moduł Umowy)." },
+          {
+            error:
+              "Brak podpisanej umowy — projekt ma klienta, więc formalny start wymaga papieru. Wejdź w moduł Umowy, przypnij do tej umowy ten projekt (pole „Projekt” obok powiązania) i oznacz ją jako podpisaną.",
+          },
           { status: 409 }
         );
       }

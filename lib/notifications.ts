@@ -21,10 +21,19 @@ export type NotificationKind =
   | "invoice_reminder"
   | "invoice_dunning"
   | "recurring_invoice"
-  | "recurring_cost";
+  | "recurring_cost"
+  // Moduł 31 — trzy zdarzenia z lejka, o których panel dotąd milczał. Klient
+  // akceptował ofertę e-podpisem w nocy i dzwonek nie drgnął: dowiadywałeś się
+  // dopiero wchodząc na Oferty. Wszystkie trzy są KRONIKĄ w rozumieniu Modułu
+  // 24 (zdarzenie w punkcie w czasie, wywołane z zewnątrz, nie do odhaczenia),
+  // a nie drugą listą "do zrobienia" — potwierdzone przez właściciela
+  // 2026-07-17.
+  | "offer_accepted"
+  | "contract_signed"
+  | "review_collected";
 
 /** Encja, do której prowadzi kliknięcie. Tekst, nie enum — patrz `lib/db.ts`. */
-export type NotificationEntity = "lead" | "mail" | "invoice" | "cost" | "client";
+export type NotificationEntity = "lead" | "mail" | "invoice" | "cost" | "client" | "offer" | "contract" | "project";
 
 export type Notification = {
   id: string;
@@ -60,6 +69,9 @@ const KIND_EMOJI: Record<NotificationKind, string> = {
   invoice_dunning: "⚖️",
   recurring_invoice: "🧾",
   recurring_cost: "💳",
+  offer_accepted: "🤝",
+  contract_signed: "✍️",
+  review_collected: "⭐",
 };
 
 export function notificationEmoji(kind: NotificationKind): string {
@@ -82,6 +94,11 @@ export function notificationHref(n: Pick<Notification, "entity" | "entity_id">, 
     mail: "mail",
     invoice: "invoices",
     client: "clients",
+    // Moduł 31 — wszystkie trzy mają `[id]/page.tsx`, więc prowadzą na rekord
+    // (inaczej niż koszty wyżej).
+    offer: "offers",
+    contract: "contracts",
+    project: "projects",
   };
   return `${base}/${segment[n.entity]}/${n.entity_id}`;
 }

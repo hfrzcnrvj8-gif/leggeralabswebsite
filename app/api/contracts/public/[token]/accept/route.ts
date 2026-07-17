@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
+import { notify } from "@/lib/notificationLog";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
 
   const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
-  await logClientEvent(sql, clientId, "contract_signed", `${contract.typ === "nda" ? "NDA" : "Umowa"} podpisana przez ${name}`, null, contract.id);
+  const label = contract.typ === "nda" ? "NDA" : "Umowa";
+  await logClientEvent(sql, clientId, "contract_signed", `${label} podpisana przez ${name}`, null, contract.id);
+
+  // Centrum powiadomień (Moduł 24 + 31) — TYLKO tutaj, na publicznej trasie.
+  // Bliźniaczy `contracts/[id]/accept` to ręczne "Oznacz jako podpisaną",
+  // czyli ruch właściciela: wie, że kliknął, więc dzwonienie mu o tym byłoby
+  // szumem (ta sama zasada co przy invoice_paid — dzwoni to, co panel zrobił
+  // sam). Podpis drugiej strony może paść w nocy i bez tego wpisu właściciel
+  // dowiadywał się o nim dopiero wchodząc na Umowy.
+  const contractId = String(contract.id);
+  await notify({
+    kind: "contract_signed",
+    title: `${label} podpisana`,
+    body: `${name} złożył(a) podpis pod dokumentem${contract.klient_nazwa ? ` — ${contract.klient_nazwa}` : ""}.${
+      contract.typ === "umowa" && contract.project_id ? " Projekt można przestawić na „W trakcie”." : ""
+    }`,
+    entity: "contract",
+    entityId: contractId,
+    dedupeKey: `contract_signed:${contractId}`,
+  });
 
   return NextResponse.json({ ok: true, acceptedByName: name });
 }

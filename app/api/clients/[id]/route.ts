@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureClientsSchema, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { CLIENT_STATUSES } from "@/lib/clients";
@@ -34,7 +34,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     mail_message_id: string | null;
     created_at: string;
   };
-  const [clientActivity, leadActivity, events, offers, invoices, projects, mail] = await Promise.all([
+  // Moduł 31 — umowy dociągane tym samym `Promise.all` co reszta. Oś czasu
+  // klienta umowy widziała od Modułu 11 (client_events: contract_created/sent/
+  // signed), ale sekcja "Powiązane" ich nie znała, więc nie dało się z karty
+  // klienta sprawdzić, czy papier w ogóle jest podpisany — a to warunek startu
+  // jego projektów (bramka w api/projects/[id]).
+  await ensureContractsSchema();
+  const [clientActivity, leadActivity, events, offers, invoices, projects, contracts, mail] = await Promise.all([
     sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
     leadId
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
@@ -43,6 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, tytul, status, termin, created_at FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    sql`SELECT id, typ, status, project_id, accepted_at, created_at FROM contracts WHERE client_id = ${id} ORDER BY created_at DESC;`,
     // Kartoteka korespondencji (04d pkt 2) — osobny rejestr obok scalonego
     // feedu, na wyraźną prośbę właściciela (nadpisuje wcześniejszą decyzję z
     // 04-skrzynka-mailowa.md o braku osobnej sekcji).
@@ -103,7 +110,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return NextResponse.json({ client, feed, offers, invoices, projects, mail });
+  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail });
 }
 
 /** PATCH /api/clients/:id — aktualizacja pól karty klienta. */

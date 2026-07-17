@@ -62,6 +62,28 @@ export const LINK_KIND_LABEL_PLURAL: Record<LinkKind, string> = {
   project: "Projekty",
 };
 
+/** Dopełniacz („Szukaj kogo/czego?") — do placeholdera wyszukiwarki w pickerze.
+ * Znów osobna mapa, z tego samego powodu co liczba mnoga wyżej: polskiej
+ * deklinacji nie skleisz regułą. */
+const LINK_KIND_LABEL_GENITIVE: Record<LinkKind, string> = {
+  client: "klienta",
+  lead: "leada",
+  project: "projektu",
+};
+
+/** Placeholder wyszukiwarki dopasowany do tego, co picker realnie oferuje.
+ *
+ * Do Modułu 31 tekst był wpisany na sztywno („Szukaj klienta lub leada…") —
+ * nie zgrzytało, bo każdy ówczesny picker faktycznie pokazywał klientów i
+ * leady. Osobny picker projektu na umowie był pierwszym, który tego nie robił.
+ */
+export function linkSearchPlaceholder(kinds: LinkKind[]): string {
+  const parts = kinds.map((k) => LINK_KIND_LABEL_GENITIVE[k]);
+  if (parts.length === 0) return "Szukaj…";
+  const last = parts[parts.length - 1];
+  return parts.length === 1 ? `Szukaj ${last}…` : `Szukaj ${parts.slice(0, -1).join(", ")} lub ${last}…`;
+}
+
 /** Emoji rodzaju rekordu.
  *
  * Uzasadnienie „emoji zamiast ikon — świadoma decyzja projektu" było

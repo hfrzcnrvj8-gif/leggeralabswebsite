@@ -69,6 +69,11 @@ export type Contract = {
   termin_realizacji: string | null;
   uwagi: string;
   share_token: string | null;
+  /** Kiedy dokument ostatnio poszedł mailem do podpisu (Moduł 31). Osobno od
+   * `updated_at`, które skacze przy każdej edycji — na tym stoi licznik dni
+   * ciszy na Pulpicie (patrz contractSilenceDays). Null = nigdy nie wysłany
+   * mailem z panelu. */
+  sent_at: string | null;
   /** E-podpis (ten sam mechanizm co Oferty, lib/offerAccept.ts). Puste
    * accepted_by_name = podpisano ręcznie w panelu (właściciel/papierowo),
    * wypełnione = druga strona podpisała się sama przez publiczny link. */
@@ -233,4 +238,66 @@ export function contractReference(c: Pick<Contract, "id" | "typ" | "created_at">
 /** Czy dokument jeszcze "czeka" — pomocnicze do liczników na Pulpicie/liście. */
 export function isContractPending(c: Pick<Contract, "status">): boolean {
   return !CLOSED_CONTRACT_STATUSES.has(c.status);
+}
+
+/* --------------------------------------------- Moduł 31 — cisza po wysyłce -- */
+
+/** Po ilu dniach ciszy umowa/NDA odzywa się na Pulpicie i w dziennym mailu.
+ * Decyzja właściciela 2026-07-17: tydzień. Klient zdążył przeczytać i
+ * przemyśleć, a Ty nie dostajesz szturchańca następnego dnia po wysyłce —
+ * Pulpit, który krzyczy bez powodu, uczy się ignorować. */
+export const CONTRACT_STALE_DAYS = 7;
+
+/** Ile pełnych dni minęło od wysłania dokumentu do podpisu.
+ *
+ * `null`, gdy nie ma czego liczyć: dokument nie jest "Wysłana" (szkic nigdzie
+ * nie poszedł, podpisany/odrzucony jest zamknięty), albo nie ma `sent_at`.
+ * Puste `sent_at` przy statusie "Wysłana" jest możliwe tylko teoretycznie —
+ * migracja robi backfill z `updated_at` (lib/db.ts, createContractsSchema) —
+ * ale wolimy milczeć niż zgadywać.
+ *
+ * `sent_at` to TIMESTAMPTZ, więc porównujemy MOMENTY, nie dni kalendarzowe —
+ * `new Date()` jest tu na miejscu (ta sama zasada co notificationAge w
+ * lib/notifications.ts, nie dotyczy jej ostrzeżenie o todayLocalISO).
+ */
+export function contractSilenceDays(
+  c: Pick<Contract, "status" | "sent_at">,
+  now: number = Date.now()
+): number | null {
+  if (c.status !== "Wysłana") return null;
+  if (!c.sent_at) return null;
+  const sent = new Date(c.sent_at).getTime();
+  if (!Number.isFinite(sent)) return null;
+  const days = Math.floor((now - sent) / 86_400_000);
+  return days < 0 ? 0 : days;
+}
+
+/** Czy dokument wisi niepodpisany na tyle długo, żeby się o nim przypomnieć. */
+export function isContractStale(c: Pick<Contract, "status" | "sent_at">, now: number = Date.now()): boolean {
+  const days = contractSilenceDays(c, now);
+  return days != null && days >= CONTRACT_STALE_DAYS;
+}
+
+/** Czy projekt wystartował formalnie zgodnie z zasadą "papier przed pracą".
+ *
+ * Miara Etapu 3 z mapy drogi klienta (cel: 100%). Liczona TYLKO po projektach
+ * z klientem — projekt bez `client_id` to robota wewnętrzna, nie ma z kim
+ * podpisywać umowy, a wliczanie go zaniżałoby wskaźnik i uczyło go ignorować
+ * (ta sama granica co bramka w api/projects/[id], decyzja właściciela
+ * 2026-07-17). Zwraca `null`, gdy nie ma czego mierzyć — zero projektów z
+ * klientem daje "—", nie mylące "0%".
+ */
+export function signedContractRate(
+  projects: { id: string; client_id: string | null }[],
+  contracts: Pick<Contract, "typ" | "status" | "project_id">[]
+): { rate: number; withContract: number; total: number } | null {
+  const clientProjects = projects.filter((p) => p.client_id);
+  if (clientProjects.length === 0) return null;
+  const signedFor = new Set(
+    contracts
+      .filter((c) => c.typ === "umowa" && c.status === "Podpisana" && c.project_id)
+      .map((c) => c.project_id as string)
+  );
+  const withContract = clientProjects.filter((p) => signedFor.has(p.id)).length;
+  return { rate: withContract / clientProjects.length, withContract, total: clientProjects.length };
 }
