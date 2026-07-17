@@ -96,3 +96,17 @@ export function formatPlDateTime(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+/** "dziś" / "wczoraj" / "N dni temu" — ludzka forma liczby dni (Moduł 34).
+ *
+ * Osobno od `daysSince()`, które zwraca samą liczbę: kolumna "DNI" w tabeli
+ * chce liczby, a zdanie w dymku chce zdania. Bez tego dymek mówił "0 dni temu",
+ * co brzmi jak usterka, a nie jak "dziś". Nie myl z `formatPlDate()`
+ * (lib/projects.ts) — tamto formatuje datę, to formatuje dystans w czasie.
+ */
+export function daysAgoLabel(d: number | null | undefined): string | null {
+  if (d === null || d === undefined) return null;
+  if (d <= 0) return "dziś";
+  if (d === 1) return "wczoraj";
+  return `${d} dni temu`;
+}

@@ -84,11 +84,15 @@ async function ensureSeeded(): Promise<void> {
       const leadA = randomUUID();
       const leadB = randomUUID();
       await raw(
-        `INSERT INTO leads (id, firma, osoba_kontaktowa, branza, telefon, email, www, miasto, zrodlo_kategoria, zrodlo, status, ostatni_kontakt, notatki)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13),($14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+        // `ostatni_kanal` (Moduł 34): dwa RÓŻNE kanały świadomie — odznaka kanału
+        // na liście jest teraz klikalnym filtrem, a przy jednym kanale (albo przy
+        // NULL-ach, jak było do 2026-07-17) nie da się lokalnie zobaczyć ani
+        // odznaki, ani tego, że filtr faktycznie odsiewa.
+        `INSERT INTO leads (id, firma, osoba_kontaktowa, branza, telefon, email, www, miasto, zrodlo_kategoria, zrodlo, status, ostatni_kontakt, ostatni_kanal, notatki)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14),($15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
         [
-          leadA, "Kancelaria Kowalski", "Marek Kowalski", "Prawo", "600100200", "biuro@kowalski.pl", "kowalski.pl", "Warszawa", "Polecenie", "", "Rozmowa umówiona", iso(-2), "Zainteresowani automatyzacją umów.",
-          leadB, "Piekarnia Złoty Kłos", "", "Gastronomia", "500300400", "kontakt@zlotyklos.pl", "zlotyklos.pl", "Wilanów", "Formularz na stronie", "", "Nowe zgłoszenie ze strony", iso(-6), "",
+          leadA, "Kancelaria Kowalski", "Marek Kowalski", "Prawo", "600100200", "biuro@kowalski.pl", "kowalski.pl", "Warszawa", "Polecenie", "", "Rozmowa umówiona", iso(-2), "telefon", "Zainteresowani automatyzacją umów.",
+          leadB, "Piekarnia Złoty Kłos", "", "Gastronomia", "500300400", "kontakt@zlotyklos.pl", "zlotyklos.pl", "Wilanów", "Formularz na stronie", "", "Nowe zgłoszenie ze strony", iso(-6), "email", "",
         ]
       );
 
@@ -163,9 +167,13 @@ async function ensureSeeded(): Promise<void> {
       //   dopasowania maila po adresie ani wpisu na osi kontaktu) —
       const clientA = randomUUID();
       await raw(
-        `INSERT INTO clients (id, nazwa, osoba_kontaktowa, email, telefon, status, ostatni_kontakt)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [clientA, "Nordwind Studio", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3)]
+        // `ostatni_kanal` (Moduł 34) — jak w seedzie leadów wyżej: bez tego
+        // klikalna odznaka kanału na liście klientów jest lokalnie niewidoczna.
+        // Świadomie INNY kanał niż leady (whatsapp), żeby było widać, że ikona
+        // marki czyta się w monochromie, i żeby filtr miał co odsiewać.
+        `INSERT INTO clients (id, nazwa, osoba_kontaktowa, email, telefon, status, ostatni_kontakt, ostatni_kanal)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [clientA, "Nordwind Studio", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3), "whatsapp"]
       );
       // Moduł 31 — dopięcie umowy do klienta, dopiero teraz, bo klient
       // powstaje po niej. Dzięki temu sekcja „Umowy i NDA" na karcie klienta

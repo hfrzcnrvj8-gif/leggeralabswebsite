@@ -16,6 +16,8 @@ import {
   StatusTag,
 } from "./shared";
 import { ContextMenu, useContextMenu } from "../Menu";
+import { Tooltip } from "../Tooltip";
+import { daysAgoLabel } from "@/lib/dates";
 import { LeadMenuItems } from "./LeadContextMenu";
 
 export function KanbanBoard({
@@ -26,6 +28,8 @@ export function KanbanBoard({
   onUpdate,
   onDelete,
   onOpen,
+  activeChannel,
+  onFilterChannel,
 }: {
   leads: Lead[];
   lang: Locale;
@@ -34,6 +38,11 @@ export function KanbanBoard({
   onUpdate: (id: string, field: string, value: string) => void;
   onDelete: (id: string, firma: string) => void;
   onOpen: (id: string) => void;
+  /** Aktualnie filtrowany kanał — odznaka tego kanału jest podświetlona. */
+  activeChannel?: string;
+  /** Klik w odznakę kanału filtruje listę (Moduł 34). Bez tego odznaka była
+   * tylko ozdobą: nieklikalna i z natywnym `title`, którego nikt nie zauważał. */
+  onFilterChannel?: (kanal: string) => void;
 }) {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -86,6 +95,9 @@ export function KanbanBoard({
             {col.items.map((lead) => {
               const overdue = isOverdue(lead);
               const d = daysSince(lead.ostatni_kontakt);
+              // Zmienna, nie lead.ostatni_kanal wprost: w callbacku onClick TS gubi
+              // zawężenie z `&&` (closure może odpalić później), a `!` tylko by je uciszył.
+              const kanal = lead.ostatni_kanal;
               return (
                 <motion.div
                   key={lead.id}
@@ -159,16 +171,33 @@ export function KanbanBoard({
                       <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
                     </span>
                     <span className="flex shrink-0 items-center gap-1">
-                      {lead.ostatni_kanal && (
-                        <span
-                          aria-hidden
-                          title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? lead.ostatni_kanal}`}
-                          className={`flex h-4 w-4 items-center justify-center rounded-full ${
-                            CONTACT_CHANNEL_CLASS[lead.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
-                          }`}
+                      {kanal && (
+                        <Tooltip
+                          label={
+                            <>
+                              Ostatni kontakt:{" "}
+                              {CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}
+                              {daysAgoLabel(d) && ` · ${daysAgoLabel(d)}`}
+                              <span className="block text-muted">
+                                {activeChannel === kanal ? "Kliknij, by wyczyścić filtr" : "Kliknij, by odfiltrować ten kanał"}
+                              </span>
+                            </>
+                          }
                         >
-                          <ContactChannelIcon kind={lead.ostatni_kanal} size={10} />
-                        </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFilterChannel?.(kanal);
+                            }}
+                            aria-label={`Filtruj: ${CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}`}
+                            className={`flex h-4 w-4 items-center justify-center rounded-full transition-transform hover:scale-110 ${
+                              CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
+                            } ${activeChannel === kanal ? "ring-1 ring-[#4ea7fc]" : ""}`}
+                          >
+                            <ContactChannelIcon kind={kanal} size={10} />
+                          </button>
+                        </Tooltip>
                       )}
                       {d !== null && (
                         <span className={`text-[10px] font-medium ${overdue ? "text-orange-400" : "text-muted"}`}>

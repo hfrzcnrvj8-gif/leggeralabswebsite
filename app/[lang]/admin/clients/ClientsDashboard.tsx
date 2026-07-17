@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconPlus, IconFilter, IconX } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Client, CLIENT_STATUSES, isClientOverdue, clientOverdueReason } from "./shared";
+import {
+  type Client,
+  CLIENT_STATUSES,
+  isClientOverdue,
+  clientOverdueReason,
+  CONTACT_CHANNELS,
+  CONTACT_CHANNEL_LABEL,
+} from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { ClientDetailPanel } from "./ClientDetailPanel";
@@ -21,6 +28,9 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [clients, setClients] = useState<Client[] | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
+  // Moduł 34 — filtr po ostatnim kanale, ustawiany klikiem w odznakę na liście
+  // (ten sam wzorzec co w Leadach; to o tę odznakę pytał właściciel).
+  const [filterKanal, setFilterKanal] = useState("");
   const [filterBranza, setFilterBranza] = useState("");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
@@ -146,11 +156,12 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   }, [selectedIds, confirm, toast, clearSelection]);
 
   const branze = useMemo(() => [...new Set((clients ?? []).map((c) => c.branza).filter(Boolean))], [clients]);
-  const activeFilterCount = (filterStatus ? 1 : 0) + (filterBranza ? 1 : 0);
+  const activeFilterCount = (filterStatus ? 1 : 0) + (filterBranza ? 1 : 0) + (filterKanal ? 1 : 0);
 
   const filtered = useMemo(() => {
     let list = clients ?? [];
     if (filterStatus) list = list.filter((c) => c.status === filterStatus);
+    if (filterKanal) list = list.filter((c) => c.ostatni_kanal === filterKanal);
     if (filterBranza) list = list.filter((c) => c.branza === filterBranza);
     if (search) list = list.filter((c) => c.nazwa.toLowerCase().includes(search.toLowerCase()));
     return [...list].sort((a, b) => {
@@ -159,12 +170,12 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       if (ao !== bo) return ao - bo;
       return a.nazwa.localeCompare(b.nazwa);
     });
-  }, [clients, filterStatus, filterBranza, search]);
+  }, [clients, filterStatus, filterBranza, filterKanal, search]);
 
   useEffect(() => {
     setSelectedIndex(0);
     clearSelection();
-  }, [filterStatus, filterBranza, search, view, clearSelection]);
+  }, [filterStatus, filterBranza, filterKanal, search, view, clearSelection]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -281,6 +292,17 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
                   ))}
                 </>
               )}
+              <MenuDivider />
+              <MenuLabel>Ostatni kanał</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterKanal} onClick={() => setFilterKanal("")} />
+              {CONTACT_CHANNELS.map((k) => (
+                <MenuRow
+                  key={k}
+                  label={CONTACT_CHANNEL_LABEL[k]}
+                  selected={filterKanal === k}
+                  onClick={() => setFilterKanal(filterKanal === k ? "" : k)}
+                />
+              ))}
               {activeFilterCount > 0 && (
                 <>
                   <MenuDivider />
@@ -288,6 +310,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
                     onClick={() => {
                       setFilterStatus("");
                       setFilterBranza("");
+                      setFilterKanal("");
                     }}
                     className="w-full px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-[#232327]"
                   >
@@ -329,10 +352,11 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
         <div className="mb-3">
           <SavedViews
             storageKey="leggera_clients_saved_views"
-            currentFilters={{ status: filterStatus, branza: filterBranza }}
+            currentFilters={{ status: filterStatus, branza: filterBranza, kanal: filterKanal }}
             onApply={(f) => {
               setFilterStatus(f.status ?? "");
               setFilterBranza(f.branza ?? "");
+              setFilterKanal(f.kanal ?? "");
             }}
           />
         </div>
@@ -376,7 +400,17 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
 
         <ViewSwitch viewKey={view}>
           {view === "kanban" ? (
-            <KanbanBoard clients={filtered} lang={lang} selectedIds={selectedIds} onToggleSelect={toggleSelect} onUpdate={updateClient} onDelete={deleteClient} onOpen={setOpenClientId} />
+            <KanbanBoard
+              clients={filtered}
+              lang={lang}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onUpdate={updateClient}
+              onDelete={deleteClient}
+              onOpen={setOpenClientId}
+              activeChannel={filterKanal}
+              onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
+            />
           ) : (
             <TableView
               clients={filtered}
@@ -388,6 +422,8 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
               onUpdate={updateClient}
               onDelete={deleteClient}
               onOpen={setOpenClientId}
+              activeChannel={filterKanal}
+              onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
             />
           )}
         </ViewSwitch>

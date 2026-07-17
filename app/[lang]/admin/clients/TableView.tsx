@@ -16,6 +16,8 @@ import {
 import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
 import { ContextMenu, useContextMenu } from "../Menu";
+import { Tooltip } from "../Tooltip";
+import { daysAgoLabel } from "@/lib/dates";
 import { ClientMenuItems } from "./ClientContextMenu";
 
 /**
@@ -39,6 +41,8 @@ export function TableView({
   onUpdate,
   onDelete,
   onOpen,
+  activeChannel,
+  onFilterChannel,
 }: {
   clients: Client[];
   lang: Locale;
@@ -49,6 +53,9 @@ export function TableView({
   onUpdate: (id: string, field: string, value: string) => void;
   onDelete: (id: string, nazwa: string) => void;
   onOpen: (id: string) => void;
+  /** Patrz clients/KanbanBoard.tsx — ta sama odznaka, ten sam filtr. */
+  activeChannel?: string;
+  onFilterChannel?: (kanal: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -112,6 +119,9 @@ export function TableView({
             )}
             {clients.map((client) => {
               const d = clientDaysSince(client.ostatni_kontakt);
+              // Patrz leads/KanbanBoard.tsx — zmienna zamiast pola, bo w callbacku
+              // onClick TS gubi zawężenie z `&&`.
+              const kanal = client.ostatni_kanal;
               const overdueRow = isClientOverdue(client);
               const selected = selectedId === client.id;
               const checked = selectedIds.has(client.id);
@@ -141,16 +151,32 @@ export function TableView({
                       >
                         {client.nazwa}
                       </button>
-                      {client.ostatni_kanal && (
-                        <span
-                          aria-hidden
-                          title={`Ostatni kontakt: ${CONTACT_CHANNEL_LABEL[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? client.ostatni_kanal}`}
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
-                            CONTACT_CHANNEL_CLASS[client.ostatni_kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
-                          }`}
+                      {kanal && (
+                        <Tooltip
+                          label={
+                            <>
+                              Ostatni kontakt: {CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}
+                              {daysAgoLabel(d) && ` · ${daysAgoLabel(d)}`}
+                              <span className="block text-muted">
+                                {activeChannel === kanal ? "Kliknij, by wyczyścić filtr" : "Kliknij, by odfiltrować ten kanał"}
+                              </span>
+                            </>
+                          }
                         >
-                          <ContactChannelIcon kind={client.ostatni_kanal} size={10} />
-                        </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFilterChannel?.(kanal);
+                            }}
+                            aria-label={`Filtruj: ${CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}`}
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 ${
+                              CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
+                            } ${activeChannel === kanal ? "ring-1 ring-[#4ea7fc]" : ""}`}
+                          >
+                            <ContactChannelIcon kind={kanal} size={10} />
+                          </button>
+                        </Tooltip>
                       )}
                     </div>
                   </td>

@@ -3,7 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag, IconFileExport } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Lead, STATUSES, SEED, isOverdue, overdueReason, leadSourceLabel, guessSourceCategory, findSimilarLead } from "./shared";
+import {
+  type Lead,
+  STATUSES,
+  SEED,
+  isOverdue,
+  overdueReason,
+  leadSourceLabel,
+  guessSourceCategory,
+  findSimilarLead,
+  CONTACT_CHANNELS,
+  CONTACT_CHANNEL_LABEL,
+} from "./shared";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
@@ -12,6 +23,7 @@ import { SavedViews } from "../components";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
+import { Tooltip } from "../Tooltip";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
 
@@ -21,6 +33,10 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
+  // Moduł 34 — filtr po ostatnim kanale kontaktu. Ustawiany klikiem w odznakę
+  // kanału na liście: ikona przestała być ozdobą, a stała się wejściem w
+  // "pokaż wszystkich, z którymi gadałem tak samo".
+  const [filterKanal, setFilterKanal] = useState("");
   const [filterZrodlo, setFilterZrodlo] = useState("");
   const [filterMiasto, setFilterMiasto] = useState("");
   const [search, setSearch] = useState("");
@@ -220,13 +236,14 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     () => [...new Set((leads ?? []).map((l) => l.miasto).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [leads]
   );
-  const activeFilterCount = (filterStatus ? 1 : 0) + (filterZrodlo ? 1 : 0) + (filterMiasto ? 1 : 0);
+  const activeFilterCount = (filterStatus ? 1 : 0) + (filterZrodlo ? 1 : 0) + (filterMiasto ? 1 : 0) + (filterKanal ? 1 : 0);
 
   const filtered = useMemo(() => {
     let list = leads ?? [];
     if (filterStatus) list = list.filter((l) => l.status === filterStatus);
     if (filterZrodlo) list = list.filter((l) => leadSourceLabel(l) === filterZrodlo);
     if (filterMiasto) list = list.filter((l) => l.miasto === filterMiasto);
+    if (filterKanal) list = list.filter((l) => l.ostatni_kanal === filterKanal);
     if (search) {
       const q = search.toLowerCase();
       // Szuka nie tylko po nazwie firmy, ale wszędzie tam, gdzie realnie
@@ -242,12 +259,12 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       if (ao !== bo) return ao - bo;
       return a.firma.localeCompare(b.firma);
     });
-  }, [leads, filterStatus, filterZrodlo, filterMiasto, search]);
+  }, [leads, filterStatus, filterZrodlo, filterMiasto, filterKanal, search]);
 
   useEffect(() => {
     setSelectedIndex(0);
     clearSelection();
-  }, [filterStatus, filterZrodlo, filterMiasto, search, view, clearSelection]);
+  }, [filterStatus, filterZrodlo, filterMiasto, filterKanal, search, view, clearSelection]);
 
   // Skróty lokalne dla tego widoku: "/" fokus wyszukiwarki, "j"/"k"
   // nawigacja w tabeli, Esc zamyka peek panel. Cmd+K i "n" (dodaj) obsługuje
@@ -383,6 +400,17 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
                   ))}
                 </>
               )}
+              <MenuDivider />
+              <MenuLabel>Ostatni kanał</MenuLabel>
+              <MenuRow label="Wszystkie" selected={!filterKanal} onClick={() => setFilterKanal("")} />
+              {CONTACT_CHANNELS.map((k) => (
+                <MenuRow
+                  key={k}
+                  label={CONTACT_CHANNEL_LABEL[k]}
+                  selected={filterKanal === k}
+                  onClick={() => setFilterKanal(filterKanal === k ? "" : k)}
+                />
+              ))}
               {activeFilterCount > 0 && (
                 <>
                   <MenuDivider />
@@ -391,6 +419,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
                       setFilterStatus("");
                       setFilterZrodlo("");
                       setFilterMiasto("");
+                      setFilterKanal("");
                     }}
                     className="w-full px-2.5 py-1.5 text-left text-[12px] text-muted hover:bg-[#232327]"
                   >
@@ -401,50 +430,66 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
-        <button
-          onClick={() => setDiscoverOpen(true)}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Znajdź nowe leady"
-        >
-          <IconSparkles size={15} />
-        </button>
-        <button
-          onClick={sendReportNow}
-          disabled={sendingReport}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
-          title="Wyślij raport teraz"
-        >
-          <IconMailForward size={15} />
-        </button>
-        <button
-          onClick={seedInitial}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Wczytaj listę startową"
-        >
-          <IconDownload size={15} />
-        </button>
-        <button
-          onClick={tidySources}
-          disabled={tidyingSources}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
-          title="Uporządkuj źródła (auto-kategoryzacja starych leadów)"
-        >
-          <IconTag size={15} />
-        </button>
-        <a
-          href="/api/leads/export"
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Eksport CSV (cały rejestr)"
-        >
-          <IconFileExport size={15} />
-        </a>
-        <button
-          onClick={addLead}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Dodaj leada"
-        >
-          <IconPlus size={16} />
-        </button>
+        {/* Pasek ikon bez podpisów — każda musi mówić, co robi, po najechaniu
+            (Moduł 34). Natywne `title=` robiło to po sekundzie i systemowym
+            prostokątem; `Tooltip` ma opóźnienie 400 ms i wspólną kolejkę, więc
+            przejeżdżając po pasku widzisz opisy bez czekania przy każdej. */}
+        <Tooltip label="Znajdź nowe leady">
+          <button
+            onClick={() => setDiscoverOpen(true)}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+            aria-label="Znajdź nowe leady"
+          >
+            <IconSparkles size={15} />
+          </button>
+        </Tooltip>
+        <Tooltip label={sendingReport ? "Wysyłam…" : "Wyślij raport teraz"}>
+          <button
+            onClick={sendReportNow}
+            disabled={sendingReport}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
+            aria-label="Wyślij raport teraz"
+          >
+            <IconMailForward size={15} />
+          </button>
+        </Tooltip>
+        <Tooltip label="Wczytaj listę startową">
+          <button
+            onClick={seedInitial}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+            aria-label="Wczytaj listę startową"
+          >
+            <IconDownload size={15} />
+          </button>
+        </Tooltip>
+        <Tooltip label="Uporządkuj źródła (auto-kategoryzacja starych leadów)">
+          <button
+            onClick={tidySources}
+            disabled={tidyingSources}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
+            aria-label="Uporządkuj źródła"
+          >
+            <IconTag size={15} />
+          </button>
+        </Tooltip>
+        <Tooltip label="Eksport CSV (cały rejestr)">
+          <a
+            href="/api/leads/export"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+            aria-label="Eksport CSV"
+          >
+            <IconFileExport size={15} />
+          </a>
+        </Tooltip>
+        <Tooltip label="Dodaj leada">
+          <button
+            onClick={addLead}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+            aria-label="Dodaj leada"
+          >
+            <IconPlus size={16} />
+          </button>
+        </Tooltip>
       </div>
 
       <DiscoverPanel open={discoverOpen} onOpenChange={setDiscoverOpen} onDiscovered={load} />
@@ -478,11 +523,12 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       <div className="mb-3">
         <SavedViews
           storageKey="leggera_leads_saved_views"
-          currentFilters={{ status: filterStatus, zrodlo: filterZrodlo, miasto: filterMiasto }}
+          currentFilters={{ status: filterStatus, zrodlo: filterZrodlo, miasto: filterMiasto, kanal: filterKanal }}
           onApply={(f) => {
             setFilterStatus(f.status ?? "");
             setFilterZrodlo(f.zrodlo ?? "");
             setFilterMiasto(f.miasto ?? "");
+            setFilterKanal(f.kanal ?? "");
           }}
         />
       </div>
@@ -542,6 +588,8 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           onUpdate={updateLead}
           onDelete={deleteLead}
           onOpen={setOpenLeadId}
+          activeChannel={filterKanal}
+          onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
         />
       ) : (
         <TableView
@@ -554,6 +602,8 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           onUpdate={updateLead}
           onDelete={deleteLead}
           onOpen={setOpenLeadId}
+          activeChannel={filterKanal}
+          onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
         />
       )}
       </ViewSwitch>
