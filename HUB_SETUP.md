@@ -4233,3 +4233,79 @@ prześwitujące. Zmierzone ponownie w tym module. Zrzut ekranu **wymusza
 klatkę** — klikaj i rób `screenshot`, nie `wait`. Uwaga: `javascript_tool`
 potrafi zwrócić `window.innerWidth === 0`, gdy strona jest w tle — sprawdzanie
 „czy menu mieści się na ekranie" daje wtedy fałszywy alarm.
+
+## Moduł 28 — Kalendarz: pełna doba w widoku tygodnia i dnia (2026-07-17)
+
+Zgłoszenie właściciela: *„w kalendarzu w widoku tygodniowym i dziennym nie ma
+24 godzinnej podziałki, brakuje jakby godzin w nocy"*. Siatka zaczynała się o
+7:00 i kończyła o 21:00.
+
+### Dlaczego to było błędne koło
+
+`timelineRange()` liczyła zakres **z wydarzeń**: start 7–21, rozszerzany tylko
+wtedy, gdy coś wystawało poza ten zakres. Żeby noc się pojawiła, musiało już
+tam być wydarzenie — a nie było jak go dodać, bo nie było w co kliknąć.
+Efekt uboczny: w tygodniu zakres liczył się ze wszystkich 7 dni naraz, więc
+**jedno** wydarzenie o 23:00 rozciągało siatkę całego tygodnia.
+
+Teraz `DAY_RANGE = { startHour: 0, endHour: 24 }` — stała, `timelineRange()`
+usunięta. Linia „teraz" nie znika już przed 7:00 i po 21:00 (zależy tylko od
+tego, czy to dziś).
+
+### Decyzje właściciela (2026-07-17)
+
+- **`HOUR_PX = 48` zostaje.** 24 × 48 = 1152 px przewijania to wzorzec
+  Apple/Google Calendar; mniejsza godzina (32 px) zbiłaby siatkę tak, że
+  15 minut = 8 px.
+- **Auto-scroll na bieżącą godzinę** (z zapasem jednej godziny nad linią
+  „teraz"), a poza bieżącym dniem/tygodniem — na 7:00 (`FALLBACK_SCROLL_HOUR`).
+  Bez tego pełna doba otwierałaby się na 00:00, czyli **gorzej niż przed
+  zmianą**. Realizuje `useInitialHourScroll()`, zależny **wyłącznie** od
+  `periodKey` — reagowanie na cokolwiek innego wyrywałoby ręcznie przewiniętą
+  siatkę z powrotem na start.
+
+### Osiem scrolli → jeden (i dlaczego nikt tego wcześniej nie zauważył)
+
+`WeekTimeline` miał `overflow-y-auto` na etykietach godzin i **osobno na każdej
+z 7 kolumn dnia**. Brief przewidywał, że przy 1152 px kolumny rozjadą się z
+godzinami. Pomiar w przeglądarce pokazał coś innego i ważniejszego: **te
+kontenery nigdy nie przewijały** — `scrollHeight === clientHeight`, bo żaden
+przodek nie ogranicza wysokości (`min-h-[calc(100vh-140px)]` to dolna granica,
+nie górna). Przewijała się cała strona, więc martwy kod wyglądał na działający.
+
+Stąd `max-h-[70vh]` **na wspólnym kontenerze** (dzień: `max-h-[60vh]`) —
+dopiero to daje realne przewijanie siatki zamiast całej strony. Nagłówki dni i
+pasek „cały dzień" trzymają się góry przez `sticky` + `bg-[var(--bg-soft)]`
+(tło musi być nieprzezroczyste, inaczej siatka przechodzi pod spodem).
+Zweryfikowane pomiarem: jeden realnie przewijalny kontener, wszystkie 7 kolumn
+i etykiety mają identyczny `top` po przewinięciu.
+
+**Świadomie NIE zrobione:** przebudowa całego panelu na układ związany z
+viewportem (`min-h` → `h` w `AppShell`). Naprawiłaby to samo u źródła i
+uczyniła sensownym cały łańcuch `min-h-0/flex-1` w tym pliku, ale dotyka
+wszystkich modułów — osobna decyzja, nie doklejka do tego modułu.
+
+### Pułapka graniczna: 24:00 zawija się do „00:00"
+
+`timeFromClientY()` klampowała do `totalMin`, a `minutesToTime(1440)` liczy
+`h = 24 % 24 = 0`. Przy zakresie do 21:00 nieosiągalne (max 1260), przy pełnej
+dobie klik w **samą dolną krawędź** tworzyłby wydarzenie o **00:00, na
+początku dnia** zamiast wieczorem. Stąd `Math.min(totalMin - 15, ...)` →
+23:45. Zweryfikowane klikiem: dolna krawędź daje 23:45.
+
+Etykieta `00:00` rysuje się **pod** swoją kreską (bez `-translate-y-1/2`) —
+wyśrodkowana na krawędzi kontenera byłaby ucięta w połowie.
+
+### Weryfikacja (2026-07-17)
+
+`npx tsc --noEmit` + przeglądarka: `scrollTop = 384 = 8 × 48` przy godzinie
+9:16 (auto-scroll trafia), 24 etykiety z `00:00` i `23:00`, klik w slot o 2:00
+podnosi w formularzu `02:00` (przed zmianą tej godziny w siatce nie było).
+
+**Pułapka narzędzia, dodatkowo do tej z Modułu 25:** współrzędne `computer`
+i piksele zrzutu to **dwie różne skale** (`dpr = 2`) — punkt strony trafia się
+przez `page / 1.6`, a element widoczny w zrzucie leży na `screenshot × 0.8`.
+Klikanie „tam, gdzie widać" trafia w zupełnie inny element (u mnie: w logo,
+co przeniosło stronę na stronę główną i wyglądało jak błąd panelu). Kalibruj
+sondą (`position:fixed` + `getBoundingClientRect`), zanim uznasz cokolwiek za
+błąd.

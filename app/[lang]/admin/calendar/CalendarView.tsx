@@ -57,7 +57,15 @@ const MONTH_NAMES = [
 
 type ViewMode = "month" | "week" | "day";
 const HOUR_PX = 48;
-const DEFAULT_RANGE = { startHour: 7, endHour: 21 };
+/** Siatka rysuje zawsze pełną dobę. Wcześniej zakres liczył się z wydarzeń
+ * (7–21 rozszerzane tym, co wystawało), więc w godzinach nocnych nie było
+ * gdzie kliknąć ani czego przeciągnąć — żeby noc się pojawiła, musiało już
+ * tam być wydarzenie, którego nie dało się dodać. Pełna doba + przewijanie +
+ * auto-scroll to wzorzec Apple/Google Calendar. */
+const DAY_RANGE = { startHour: 0, endHour: 24 };
+/** Godzina, na której staje auto-scroll poza bieżącym dniem/tygodniem — nie ma
+ * wtedy linii „teraz", do której warto skoczyć. */
+const FALLBACK_SCROLL_HOUR = 7;
 const PEEK_WIDTH = 380;
 const WEEK_HEADER_H = 24;
 const WEEK_AGENDA_H = 96;
@@ -116,20 +124,25 @@ function eventSpanDays(e: HubEvent): number {
   return expandEventDays(e).length;
 }
 
-/** Zakres godzin do narysowania siatki — domyślnie 7–21, rozszerzony, gdy
- * jakieś wydarzenie wystaje poza ten zakres (np. wieczorny call o 22:00). */
-function timelineRange(events: HubEvent[]): { startHour: number; endHour: number } {
-  const timed = events.filter((e) => e.godzina);
-  if (timed.length === 0) return DEFAULT_RANGE;
-  let startHour = DEFAULT_RANGE.startHour;
-  let endHour = DEFAULT_RANGE.endHour;
-  timed.forEach((e) => {
-    const startMin = timeToMinutes(e.godzina as string);
-    const endMin = startMin + (e.czas_trwania_min ?? 60);
-    startHour = Math.min(startHour, Math.floor(startMin / 60));
-    endHour = Math.max(endHour, Math.ceil(endMin / 60));
-  });
-  return { startHour, endHour };
+/** Ustawia siatkę na sensownej godzinie zaraz po wejściu w widok — pełna doba
+ * bez tego otwierałaby się na 00:00, czyli gorzej niż zakres 7–21 wcześniej.
+ * Cel: bieżąca godzina z zapasem jednej godziny nad linią „teraz"; poza
+ * bieżącym okresem nie ma do czego skakać, więc `FALLBACK_SCROLL_HOUR`.
+ * Zależność wyłącznie od `periodKey` jest celowa — reagowanie na cokolwiek
+ * innego wyrywałoby użytkownikowi ręcznie przewiniętą siatkę z powrotem na
+ * start. */
+function useInitialHourScroll(
+  ref: React.RefObject<HTMLDivElement | null>,
+  includesToday: boolean,
+  periodKey: string
+) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const hour = includesToday ? new Date().getHours() - 1 : FALLBACK_SCROLL_HOUR;
+    el.scrollTop = Math.max(0, hour) * HOUR_PX;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodKey]);
 }
 
 type AddEventFn = (
@@ -1196,7 +1209,8 @@ function DayTimeline({
 }) {
   const untimed = events.filter((e) => !e.godzina);
   const timed = events.filter((e) => e.godzina);
-  const range = timelineRange(timed);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useInitialHourScroll(scrollRef, day === today, day);
 
   return (
     <div>
@@ -1209,17 +1223,20 @@ function DayTimeline({
         clientName={clientName}
         onDelete={onDelete}
       />
-      <div className="grid gap-2" style={{ gridTemplateColumns: "48px 1fr" }}>
-        <HourLabels range={range} />
-        <TimelineGridRow
-          day={day}
-          today={today}
-          events={timed}
-          range={range}
-          onDelete={onDelete}
-          onMoveToTime={onMoveToTime}
-          onSlotClick={onSlotClick}
-        />
+      {/* Etykiety godzin i siatka siedzą w JEDNYM kontenerze przewijania —
+          pełna doba to 1152 px, więc dwa osobne scrolle rozjechałyby się. */}
+      <div ref={scrollRef} className="max-h-[60vh] overflow-y-auto">
+        <div className="grid gap-2" style={{ gridTemplateColumns: "48px 1fr" }}>
+          <HourLabels />
+          <TimelineGridRow
+            day={day}
+            today={today}
+            events={timed}
+            onDelete={onDelete}
+            onMoveToTime={onMoveToTime}
+            onSlotClick={onSlotClick}
+          />
+        </div>
       </div>
     </div>
   );
@@ -1263,9 +1280,9 @@ function WeekTimeline({
   onMoveDay: (id: string, day: string) => void;
   onMoveToTime: (id: string, day: string, time: string) => void;
 }) {
-  const allTimed = days.flatMap((d) => (eventsByDay.get(d) ?? []).filter((e) => e.godzina));
-  const range = timelineRange(allTimed);
   const [prefillTime, setPrefillTime] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useInitialHourScroll(scrollRef, days.includes(today), days[0]);
 
   // Pasek "cały dzień" rezerwuje pełną wysokość tylko wtedy, gdy przynajmniej
   // jeden dzień tygodnia ma coś do pokazania — w typowym tygodniu bez
@@ -1279,13 +1296,21 @@ function WeekTimeline({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
-      <div className="flex min-h-0 flex-1 gap-2">
+      {/* JEDEN kontener przewijania na cały tydzień — etykiety godzin i
+          wszystkie siedem kolumn. Wcześniej każda kolumna miała własny
+          `overflow-y-auto` (osiem niezależnych scrolli) — nigdy nie zadziałały,
+          bo żaden przodek nie ogranicza wysokości (`min-h-[calc(100vh-140px)]`
+          to sam dół, nie góra), więc przewijała się cała strona. Przy pełnej
+          dobie (1152 px) to jest realny problem, stąd `max-h` TUTAJ: siatka
+          przewija się sama, nagłówki dni i pasek „cały dzień" zostają na
+          wierzchu przez `sticky`, a reszta panelu nie ucieka. */}
+      <div ref={scrollRef} className="flex max-h-[70vh] items-start gap-2 overflow-y-auto">
         <div className="flex w-12 shrink-0 flex-col">
-          <div style={{ height: WEEK_HEADER_H }} />
-          <div style={{ height: agendaH }} />
-          <div className="flex-1 overflow-y-auto">
-            <HourLabels range={range} />
-          </div>
+          <div
+            className="sticky top-0 z-20 bg-[var(--bg-soft)]"
+            style={{ height: WEEK_HEADER_H + agendaH }}
+          />
+          <HourLabels />
         </div>
         {days.map((day) => (
           <Popover
@@ -1294,7 +1319,7 @@ function WeekTimeline({
             triggerClassName="flex flex-1 min-w-0 flex-col"
             trigger={(open) => (
               <div className="flex flex-1 flex-col">
-                <div style={{ height: WEEK_HEADER_H }} className="flex items-center justify-between px-1">
+                <div style={{ height: WEEK_HEADER_H }} className="sticky top-0 z-10 flex items-center justify-between bg-[var(--bg-soft)] px-1">
                   <span className={`flex items-center gap-1 text-[12px] font-medium ${day === today ? "text-[var(--fg)]" : "text-muted"}`}>
                     {weekdayShort(day)}
                     <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${day === today ? "bg-red-500 text-white" : ""}`}>
@@ -1309,7 +1334,10 @@ function WeekTimeline({
                     +
                   </button>
                 </div>
-                <div style={{ height: agendaH }} className="overflow-y-auto">
+                <div
+                  style={{ height: agendaH, top: WEEK_HEADER_H }}
+                  className="sticky z-10 overflow-y-auto bg-[var(--bg-soft)]"
+                >
                   {hasAnyAllDay && (
                     <DayAgendaList
                       lang={lang}
@@ -1323,18 +1351,15 @@ function WeekTimeline({
                     />
                   )}
                 </div>
-                <div className="flex-1 overflow-y-auto">
-                  <TimelineGridRow
-                    day={day}
-                    today={today}
-                    events={(eventsByDay.get(day) ?? []).filter((e) => e.godzina)}
-                    range={range}
-                    onDelete={onDelete}
-                    onMoveToTime={onMoveToTime}
-                    onDropDay={onMoveDay}
-                    onSlotClick={(time, e) => { setPrefillTime(time); open(e); }}
-                  />
-                </div>
+                <TimelineGridRow
+                  day={day}
+                  today={today}
+                  events={(eventsByDay.get(day) ?? []).filter((e) => e.godzina)}
+                  onDelete={onDelete}
+                  onMoveToTime={onMoveToTime}
+                  onDropDay={onMoveDay}
+                  onSlotClick={(time, e) => { setPrefillTime(time); open(e); }}
+                />
               </div>
             )}
           >
@@ -1363,12 +1388,20 @@ function WeekTimeline({
   );
 }
 
-function HourLabels({ range }: { range: { startHour: number; endHour: number } }) {
-  const hours = Array.from({ length: range.endHour - range.startHour }, (_, i) => range.startHour + i);
+function HourLabels() {
+  const { startHour, endHour } = DAY_RANGE;
+  const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   return (
     <div className="relative" style={{ height: hours.length * HOUR_PX }}>
       {hours.map((h) => (
-        <div key={h} className="absolute right-1 -translate-y-1/2 text-[10px] text-muted" style={{ top: (h - range.startHour) * HOUR_PX }}>
+        <div
+          key={h}
+          // Etykiety siedzą na swojej kresce (stąd -translate-y-1/2), ale
+          // pierwsza leży na krawędzi kontenera — wyśrodkowana zostałaby
+          // ucięta w połowie, więc 00:00 rysuje się pod kreską.
+          className={`absolute right-1 text-[10px] text-muted ${h === startHour ? "" : "-translate-y-1/2"}`}
+          style={{ top: (h - startHour) * HOUR_PX }}
+        >
           {String(h).padStart(2, "0")}:00
         </div>
       ))}
@@ -1386,7 +1419,6 @@ function TimelineGridRow({
   day,
   today,
   events,
-  range,
   onDelete,
   onMoveToTime,
   onDropDay,
@@ -1395,24 +1427,28 @@ function TimelineGridRow({
   day: string;
   today: string;
   events: HubEvent[];
-  range: { startHour: number; endHour: number };
   onDelete: (id: string) => void;
   onMoveToTime: (id: string, day: string, time: string) => void;
   onDropDay?: (id: string, day: string) => void;
   onSlotClick?: (time: string, e: React.MouseEvent) => void;
 }) {
-  const totalMin = (range.endHour - range.startHour) * 60;
+  const totalMin = (DAY_RANGE.endHour - DAY_RANGE.startHour) * 60;
   const layout = layoutTimedEvents(events);
   const now = new Date();
   const isToday = day === today;
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const showNowLine = isToday && nowMin >= range.startHour * 60 && nowMin <= range.endHour * 60;
+  // Doba obejmuje każdą możliwą porę, więc linia „teraz" zależy już tylko od
+  // tego, czy to dziś (wcześniej znikała przed 7:00 i po 21:00).
+  const showNowLine = isToday;
 
   const timeFromClientY = (clientY: number, rect: DOMRect): string => {
     const relY = clientY - rect.top;
     const minutesFromStart = Math.max(0, Math.min(totalMin, (relY / rect.height) * totalMin));
-    const rounded = Math.round(minutesFromStart / 15) * 15;
-    return minutesToTime(range.startHour * 60 + rounded);
+    // Klik w samą dolną krawędź daje 1440 min, a `minutesToTime` zawija dobę
+    // (24:00 → "00:00") — bez tego ogranicznika wydarzenie lądowałoby na
+    // POCZĄTKU dnia zamiast wieczorem. Przy zakresie do 21:00 nieosiągalne.
+    const rounded = Math.min(totalMin - 15, Math.round(minutesFromStart / 15) * 15);
+    return minutesToTime(DAY_RANGE.startHour * 60 + rounded);
   };
 
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1421,7 +1457,7 @@ function TimelineGridRow({
     <div
       className={`relative rounded-lg transition-shadow ${isDragOver ? "ring-2 ring-inset ring-[var(--fg)]/40" : ""}`}
       style={{
-        height: (range.endHour - range.startHour) * HOUR_PX,
+        height: (DAY_RANGE.endHour - DAY_RANGE.startHour) * HOUR_PX,
         backgroundImage: `repeating-linear-gradient(to bottom, var(--hairline) 0, var(--hairline) 1px, transparent 1px, transparent ${HOUR_PX}px)`,
       }}
       onClick={(ev) => {
@@ -1443,7 +1479,7 @@ function TimelineGridRow({
       {showNowLine && (
         <div
           className="absolute left-0 right-0 h-px bg-red-500"
-          style={{ top: ((nowMin - range.startHour * 60) / totalMin) * 100 + "%" }}
+          style={{ top: ((nowMin - DAY_RANGE.startHour * 60) / totalMin) * 100 + "%" }}
         />
       )}
       <AnimatePresence initial={false}>
@@ -1451,7 +1487,7 @@ function TimelineGridRow({
         const l = layout.get(e.id);
         if (!l) return null;
         const style = eventStyle(e);
-        const top = ((l.startMin - range.startHour * 60) / totalMin) * 100;
+        const top = ((l.startMin - DAY_RANGE.startHour * 60) / totalMin) * 100;
         const height = Math.max(4, ((l.endMin - l.startMin) / totalMin) * 100);
         const width = 100 / l.cols;
         const left = l.col * width;
