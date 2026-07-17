@@ -67,6 +67,8 @@ Od najprostszego i najbardziej „domykającego proces" do największego:
 | 31 | ⏳ **Umowy: pułapka bramki + widoczność** — projekt założony ręcznie **nigdy nie przejdzie na „W trakcie"** (umowy nie da się przypiąć do projektu z UI, choć serwer to potrafi). Umowy nieobecne na Pulpicie, w dziennym mailu, wyszukiwarce, karcie klienta i statystykach. Cisza po e-podpisie oferty | średni, z audytu 29 | [31-umowy-widoczne.md](31-umowy-widoczne.md) |
 | 32 | ✅ **Teksty prowadzące sprzed Modułów 11–17** (2026-07-17) — mapa procesu **12 → 15 kroków** (doszły Umowa/Onboarding/Wsparcie; **NDA świadomie NIE osobnym krokiem** — jest opcjonalne, więc mieszka w podpowiedzi przy „Rozmowa umówiona", gdzie stoi przycisk wysyłki), przesunięte `LEAD_STATUS_STEP`/`CLIENT_STATUS_STEP`. Naprawione **przypomnienie, którego nie było widać**: `isOverdue()` odrzucał zamknięte leady w pierwszej linii — **tylko dla „Odrzucone"** (decyzja właściciela; „Zamknięte - sukces" zostaje wyłączone, bo dublowałoby retencję Modułu 17). Cztery obietnice mapy drogi rozstrzygnięte **na korzyść kodu** (szablon odmowy = kolizja ze świadomą decyzją Modułu 4b o pustych szablonach; status „kwalifikowany" nigdy nie istniał; przypomnienie przed terminem odrzucone w Module 13). `quick-log` → paleta poleceń (`PALETTE_ONLY`), **nie sidebar**. **Odnotowane, nie naprawione:** „automatycznie zakłada Klienta" → Moduł 30; szersza nieaktualność znaczników 🆕/🔧 w mapie drogi (patrz `HUB_SETUP.md` → „Moduł 32") | mały/średni, z audytu 29 | [32-teksty-prowadzace.md](32-teksty-prowadzace.md) |
 
+| 33 | ⏳ **Ikony zamiast emoji w panelu** (emoji zostają w mailach) — dokończenie migracji z 2026-07-11, nie nowy kierunek: emoji pełnią dziś rolę **ikon systemowych** (`icon="🏢"`, foldery Poczty), a renderują się inaczej na każdym systemie, nie dziedziczą koloru i nie trzymają siatki. ~128 linii, ale `Menu.tsx` już przyjmuje `ReactNode` → **bez zmian typów**. **Wyjątek na stałe: podpis mailowy / mail dzienny zostają na emoji** (w HTML-u maila nie ma komponentów React). **Po 30 i 31** (decyzja właściciela 2026-07-17) | mały/średni, wizualny | [33-ikony-zamiast-emoji.md](33-ikony-zamiast-emoji.md) |
+
 Moduły 1–3 są niezależne — można je robić w dowolnej kolejności. Moduł 4 (poczta)
 jest duży i najlepiej robić go bliżej końca. **Moduł 5 (mobilny) robimy NA SAMYM
 KOŃCU** — mobilny sens ma dopiero to, co realnie jest już w Leggera Hub, a duża
@@ -98,10 +100,12 @@ Zebrane z `CLAUDE.md` i pamięci projektu — każdy czat MUSI ich przestrzegać
   pytanie; nie zakładaj domyślnych wartości tam, gdzie liczy się preferencja.
 - **Design system**: `.card-paper`, `.glass` (tylko chrome), `.hairline`,
   `.btn-primary` (jedno CTA/widok), paleta marki (`brand.purple/pink/gold/cyan`),
-  **ikony `@tabler/icons-react` w chrome, emoji w treści** — panel ma jedno i
-  drugie, niespójność jest znana i świadomie otwarta; dopasuj się do otoczenia
-  edytowanego pliku i nie ujednolicaj hurtem (patrz `CLAUDE.md` → „Emoji vs
-  ikony"; do 2026-07-17 stała tu nieprawdziwa reguła „emoji zamiast ikon").
+  **ikony `@tabler/icons-react` w chrome, emoji w treści** — panel ma dziś jedno
+  i drugie. **Kierunek rozstrzygnięty 2026-07-17: w panelu ikony, w mailach
+  emoji** (wdrożenie = Moduł 33, po 30/31). Do tego czasu: dopasuj się do
+  otoczenia edytowanego pliku, **nie ujednolicaj hurtem przy okazji** (patrz
+  `CLAUDE.md` → „Emoji vs ikony"; do 2026-07-17 stała tu nieprawdziwa reguła
+  „emoji zamiast ikon").
   `useUI()` (`toast/confirm/prompt`), nigdy `window.*`.
 - **Baza**: migracje idempotentne w `lib/db.ts` (`CREATE TABLE IF NOT EXISTS` /
   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`), nigdy ręczne migracje. Klient

@@ -176,12 +176,20 @@ Realny stan (potwierdzony gretem 2026-07-17, opisany też w `HUB_SETUP.md` →
 - **Emoji**: Poczta (foldery 📥/📤/🗑️/🗄️), puste stany Kanbanów („🌤️ Pusto"),
   menu kontekstowe, podpis mailowy, kanały kontaktu (📞).
 
-**Zasada praktyczna, dopóki właściciel nie zdecyduje inaczej:** dopasuj się do
-otoczenia pliku, który edytujesz — nie wprowadzaj emoji do chrome opartego na
-ikonach i **nie wyrywaj emoji hurtem** tam, gdzie już są (zwłaszcza w Poczcie —
-to świadomie zostawione). Ujednolicenie całości to **osobna decyzja
-właściciela**, zgłoszona mu przy Module 21 i wciąż otwarta — nie rozstrzygaj
-jej przy okazji innego zadania.
+**DECYZJA WŁAŚCICIELA 2026-07-17: docelowo w panelu ikony, w mailach emoji.**
+Kierunek jest rozstrzygnięty, **wdrożenie zaplanowane jako Moduł 33, PO
+Modułach 30 i 31** (`docs/plany-modulow/33-ikony-zamiast-emoji.md`).
+
+Wyjątek, który zostaje na stałe (**nie „naprawiaj" go**): podpis mailowy, mail
+dzienny i szablony wychodzące **zostają na emoji** — w HTML-u maila nie
+wyrenderujesz komponentu React, a ikony-obrazki bywają blokowane przez klienty
+pocztowe. `HUB_SETUP.md` (Moduł 4c) opisuje podpis jako „już w normie".
+
+**Zasada na TERAZ, dopóki Moduł 33 nie ruszy:** dopasuj się do otoczenia pliku,
+który edytujesz — nie wprowadzaj emoji do chrome opartego na ikonach i **nie
+wyrywaj emoji hurtem** przy okazji innego zadania. Migracja ma swój moduł i
+swoją kolejkę; robienie jej kawałkami przy innych zmianach rozjedzie panel na
+pół drogi.
 
 ## Dokumentacja
 
