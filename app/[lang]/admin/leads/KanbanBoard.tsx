@@ -17,6 +17,7 @@ import {
 } from "./shared";
 import { ContextMenu, useContextMenu } from "../Menu";
 import { Tooltip } from "../Tooltip";
+import { ContactChannelMenuItems, hasChannelActions } from "../ContactChannelMenu";
 import { daysAgoLabel } from "@/lib/dates";
 import { LeadMenuItems } from "./LeadContextMenu";
 
@@ -48,6 +49,10 @@ export function KanbanBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   // Jedno menu na całą tablicę, nie na kartę — kliknięta karta siedzi w stanie.
   const ctl = useContextMenu<Lead>();
+  // Osobne menu dla odznaki kanału (Moduł 34) — karta/wiersz ma już swoje
+  // menu pod prawym przyciskiem, więc bez drugiego kontrolera prawy klik na
+  // odznace otwierałby menu rekordu, nie akcje kontaktowe.
+  const channelCtl = useContextMenu<Lead>();
 
   const columns = STATUSES.map((status) => ({
     status,
@@ -181,6 +186,7 @@ export function KanbanBoard({
                               <span className="block text-muted">
                                 {activeChannel === kanal ? "Kliknij, by wyczyścić filtr" : "Kliknij, by odfiltrować ten kanał"}
                               </span>
+                              <span className="block text-muted">Prawy przycisk: zadzwoń, napisz…</span>
                             </>
                           }
                         >
@@ -189,6 +195,14 @@ export function KanbanBoard({
                             onClick={(e) => {
                               e.stopPropagation();
                               onFilterChannel?.(kanal);
+                            }}
+                            onContextMenu={(e) => {
+                              // stopPropagation, inaczej wyżej otworzy się menu
+                              // rekordu. Puste menu nie ma sensu — gdy nie ma
+                              // czym się skontaktować, zostawiamy menu rekordu.
+                              if (!hasChannelActions(lead)) return;
+                              e.stopPropagation();
+                              channelCtl.openAt(e, lead);
                             }}
                             aria-label={`Filtruj: ${CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}`}
                             className={`flex h-4 w-4 items-center justify-center rounded-full transition-transform hover:scale-110 ${
@@ -230,6 +244,12 @@ export function KanbanBoard({
             onOpen={onOpen}
           />
         )}
+      </ContextMenu>
+
+      {/* Menu kanału (Moduł 34) — akcje kontaktowe bez wchodzenia w profil.
+          Osobne od menu rekordu wyżej; te same helpery co ContactQuickActions. */}
+      <ContextMenu ctl={channelCtl} width={200}>
+        {(rec, close) => <ContactChannelMenuItems contact={rec} close={close} />}
       </ContextMenu>
     </div>
   );

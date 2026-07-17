@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconBell } from "@tabler/icons-react";
-import { Popover } from "./Menu";
+import { IconBell, IconChecks, IconFilter } from "@tabler/icons-react";
+import { Popover, ContextMenu, ContextMenuItem, MenuLabel, useContextMenu } from "./Menu";
+import { Tooltip } from "./Tooltip";
 import {
   notificationAge,
   notificationHref,
@@ -37,6 +38,11 @@ export function NotificationBell({ base, collapsed }: { base: string; collapsed:
   const router = useRouter();
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  // Moduł 34 — menu pod prawym przyciskiem na dzwonku. "Oznacz wszystkie" było
+  // dotąd tylko w środku panelu (trzeba go najpierw otworzyć), a filtru
+  // "tylko nieprzeczytane" nie było wcale.
+  const bellCtl = useContextMenu<null>();
+  const [onlyUnread, setOnlyUnread] = useState(false);
 
   const apply = useCallback((data: { notifications: Notification[]; unread: number }) => {
     setItems(data.notifications);
@@ -74,6 +80,11 @@ export function NotificationBell({ base, collapsed }: { base: string; collapsed:
     if (res.ok) apply(await res.json());
   };
 
+  /** Lista po filtrze "tylko nieprzeczytane" (Moduł 34). Filtrujemy TU, a nie
+   * zapytaniem: dzwonek i tak trzyma komplet w pamięci (LIMIT 50), a przełącznik
+   * ma działać natychmiast, bez rundy do bazy. */
+  const visible = onlyUnread ? items.filter((n) => !n.read_at) : items;
+
   const open = async (n: Notification, close: () => void) => {
     const href = notificationHref(n, base);
     close();
@@ -92,17 +103,27 @@ export function NotificationBell({ base, collapsed }: { base: string; collapsed:
   };
 
   return (
+    <>
     <Popover
       align="left"
       width={340}
       triggerClassName="flex"
       trigger={(openMenu) => (
+        <Tooltip
+          placement="bottom"
+          label={
+            <>
+              {unread > 0 ? `Powiadomienia — ${unread} nieprzeczytane` : "Powiadomienia"}
+              <span className="block text-muted">Prawy przycisk: więcej opcji</span>
+            </>
+          }
+        >
         <button
           onClick={openMenu}
+          onContextMenu={(e) => bellCtl.openAt(e, null)}
           className={`mb-1.5 flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)] ${
             collapsed ? "justify-center" : ""
           }`}
-          title={unread > 0 ? `Powiadomienia — ${unread} nieprzeczytane` : "Powiadomienia"}
           aria-label="Powiadomienia"
         >
           <span className="relative flex shrink-0">
@@ -125,6 +146,7 @@ export function NotificationBell({ base, collapsed }: { base: string; collapsed:
             </>
           )}
         </button>
+        </Tooltip>
       )}
     >
       {(close) => (
@@ -140,15 +162,25 @@ export function NotificationBell({ base, collapsed }: { base: string; collapsed:
             )}
           </div>
 
-          {items.length === 0 ? (
+          {visible.length === 0 ? (
             <div className="px-2.5 py-6 text-center text-[12.5px] text-muted">
-              Nic się nie wydarzyło.
-              <br />
-              <span className="text-[11.5px]">Nowe zgłoszenia, poczta i płatności pojawią się tutaj.</span>
+              {onlyUnread ? (
+                <>
+                  Wszystko przeczytane.
+                  <br />
+                  <span className="text-[11.5px]">Filtr „tylko nieprzeczytane" jest włączony.</span>
+                </>
+              ) : (
+                <>
+                  Nic się nie wydarzyło.
+                  <br />
+                  <span className="text-[11.5px]">Nowe zgłoszenia, poczta i płatności pojawią się tutaj.</span>
+                </>
+              )}
             </div>
           ) : (
             <div className="max-h-[60vh] overflow-y-auto">
-              {items.map((n) => (
+              {visible.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => open(n, close)}
@@ -174,5 +206,35 @@ export function NotificationBell({ base, collapsed }: { base: string; collapsed:
         </>
       )}
     </Popover>
+
+    {/* Menu dzwonka (Moduł 34). „Oznacz wszystkie" jest też w środku panelu —
+        tu jest skrótem, żeby nie trzeba było go najpierw otwierać. Filtr
+        „tylko nieprzeczytane" istnieje WYŁĄCZNIE tutaj. */}
+    <ContextMenu ctl={bellCtl} width={240}>
+      {(_item, close) => (
+        <>
+          <MenuLabel>Powiadomienia</MenuLabel>
+          {unread > 0 && (
+            <ContextMenuItem
+              icon={<IconChecks size={14} />}
+              label={`Oznacz wszystkie jako przeczytane (${unread})`}
+              onClick={() => {
+                close();
+                void markAll();
+              }}
+            />
+          )}
+          <ContextMenuItem
+            icon={<IconFilter size={14} />}
+            label={onlyUnread ? "Pokaż wszystkie" : "Pokaż tylko nieprzeczytane"}
+            onClick={() => {
+              close();
+              setOnlyUnread((v) => !v);
+            }}
+          />
+        </>
+      )}
+    </ContextMenu>
+    </>
   );
 }

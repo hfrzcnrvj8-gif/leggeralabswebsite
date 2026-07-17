@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag, IconFileExport } from "@tabler/icons-react";
+import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag, IconFileExport, IconCheck } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
@@ -22,7 +22,7 @@ import { LeadDetailPanel } from "./LeadDetailPanel";
 import { SavedViews } from "../components";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
-import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
+import { Popover, MenuRow, MenuLabel, MenuDivider, ContextMenu, ContextMenuItem, useContextMenu } from "../Menu";
 import { Tooltip } from "../Tooltip";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
@@ -49,6 +49,10 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [tidyingSources, setTidyingSources] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  // Menu pod prawym przyciskiem przy ikonie eksportu (Moduł 34). Do tej pory
+  // klik zawsze brał CAŁY rejestr — nawet przy włączonych filtrach albo
+  // zaznaczonych wierszach — i nic tego nie mówiło.
+  const exportCtl = useContextMenu<null>();
 
   const load = useCallback(async () => {
     const res = await fetch("/api/leads");
@@ -472,9 +476,17 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             <IconTag size={15} />
           </button>
         </Tooltip>
-        <Tooltip label="Eksport CSV (cały rejestr)">
+        <Tooltip
+          label={
+            <>
+              Eksport CSV (cały rejestr)
+              <span className="block text-muted">Prawy przycisk: więcej opcji</span>
+            </>
+          }
+        >
           <a
             href="/api/leads/export"
+            onContextMenu={(e) => exportCtl.openAt(e, null)}
             className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
             aria-label="Eksport CSV"
           >
@@ -491,6 +503,43 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           </button>
         </Tooltip>
       </div>
+
+      {/* Menu eksportu. Lewy klik na ikonie zostaje "cały rejestr" (jak dotąd),
+          prawy daje zakres — dymek przy ikonie o tym mówi, bo samo menu pod
+          prawym przyciskiem na pasku narzędzi jest niewykrywalne. */}
+      <ContextMenu ctl={exportCtl} width={230}>
+        {(_item, close) => (
+          <>
+            <MenuLabel>Eksportuj do CSV</MenuLabel>
+            <ContextMenuItem
+              icon={<IconFileExport size={14} />}
+              label={`Cały rejestr (${leads?.length ?? 0})`}
+              onClick={() => {
+                close();
+                window.location.href = "/api/leads/export";
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconFilter size={14} />}
+              label={`Tylko widoczne (${filtered.length})`}
+              onClick={() => {
+                close();
+                window.location.href = `/api/leads/export?ids=${filtered.map((l) => l.id).join(",")}`;
+              }}
+            />
+            {selectedIds.size > 0 && (
+              <ContextMenuItem
+                icon={<IconCheck size={14} />}
+                label={`Tylko zaznaczone (${selectedIds.size})`}
+                onClick={() => {
+                  close();
+                  window.location.href = `/api/leads/export?ids=${[...selectedIds].join(",")}`;
+                }}
+              />
+            )}
+          </>
+        )}
+      </ContextMenu>
 
       <DiscoverPanel open={discoverOpen} onOpenChange={setDiscoverOpen} onDiscovered={load} />
 

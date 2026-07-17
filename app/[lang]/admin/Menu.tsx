@@ -152,11 +152,19 @@ export function Popover({
       else place();
     };
     document.addEventListener("mousedown", onDoc, true);
+    // Prawy przycisk POZA menu też je domyka (Moduł 34). Samo `mousedown` nie
+    // wystarcza, gdy menu otwiera INNY kontroler: od Modułu 34 w jednym widoku
+    // jest ich kilka (dzwonek, ikona eksportu, odznaka kanału — obok menu
+    // rekordu), więc prawy klik na drugiej ikonie zostawiał pierwsze menu
+    // otwarte i widać było DWA naraz. Dopóki menu kontekstowe było jedno na
+    // widok, ten przypadek nie mógł wystąpić.
+    document.addEventListener("contextmenu", onDoc, true);
     document.addEventListener("keydown", onKey, true);
     window.addEventListener("resize", onScroll);
     window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("mousedown", onDoc, true);
+      document.removeEventListener("contextmenu", onDoc, true);
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", onScroll);
       window.removeEventListener("scroll", onScroll, true);
@@ -448,11 +456,19 @@ export function PropertyMenu<T extends string>({
     };
     const onScroll = () => place();
     document.addEventListener("mousedown", onDoc, true);
+    // Prawy przycisk POZA menu też je domyka (Moduł 34). Samo `mousedown` nie
+    // wystarcza, gdy menu otwiera INNY kontroler: od Modułu 34 w jednym widoku
+    // jest ich kilka (dzwonek, ikona eksportu, odznaka kanału — obok menu
+    // rekordu), więc prawy klik na drugiej ikonie zostawiał pierwsze menu
+    // otwarte i widać było DWA naraz. Dopóki menu kontekstowe było jedno na
+    // widok, ten przypadek nie mógł wystąpić.
+    document.addEventListener("contextmenu", onDoc, true);
     document.addEventListener("keydown", onKey, true);
     window.addEventListener("resize", onScroll);
     window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("mousedown", onDoc, true);
+      document.removeEventListener("contextmenu", onDoc, true);
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", onScroll);
       window.removeEventListener("scroll", onScroll, true);
