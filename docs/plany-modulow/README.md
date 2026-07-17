@@ -80,6 +80,16 @@ tej trójki), Moduł 8 jest od niego zależny ale niezależny od poczty, więc m
 powstać wcześniej niż Moduł 4. Moduł 7 wymaga zarówno Modułu 4 (poczta musi
 istnieć), jak i Modułu 6.
 
+> **Uwaga dla czatów pracujących lokalnie (2026-07-17)**: brak `OLLAMA_API_URL`
+> w `.env.local` **nie znaczy, że AI nie działa** — ta zmienna, jak
+> `DATABASE_URL` i `ADMIN_PASSWORD`, żyje **wyłącznie w env Vercela**
+> (`CLAUDE.md` → „Lokalne środowisko dev"). Lokalnie AI jest wyłączone
+> świadomie: `lib/ollama.ts` zwraca wtedy `null`, a UI pokazuje kontrolowany
+> komunikat „Model AI niedostępny. Wpisz dane ręcznie." (`HUB_SETUP.md` →
+> Moduł 8). Na produkcji przeszło test end-to-end 2026-07-14. **Nie wyciągaj z
+> pustego `.env.local` wniosku, że moduły 6–8 są martwe** — ta pomyłka zdarzyła
+> się już raz.
+
 ## Zasady wspólne dla WSZYSTKICH modułów (nie łamać bez pytania)
 
 Zebrane z `CLAUDE.md` i pamięci projektu — każdy czat MUSI ich przestrzegać:
