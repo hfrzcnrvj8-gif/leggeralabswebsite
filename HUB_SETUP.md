@@ -5124,3 +5124,72 @@ zasłoniłoby dane w wierszu.
 
 **Do zrobienia:** pigułki na paskach pozostałych modułów (Klienci/Faktury/
 Koszty/Oferty/Umowy) — ten sam komponent, ta sama podmiana co w Leadach.
+
+## Moduł 35, część B — panel wypełnia wysokość okna (2026-07-17)
+
+Zgłoszenie: *„góra jest zagospodarowana, a dół jest wolny, bezużyteczny"* (oba
+widoki Projektów) + *„w Poczcie za mały podgląd i niewykorzystana przestrzeń"*.
+Decyzja właściciela: **robimy wszędzie, wygląd ma być spójny.**
+
+### Przyczyna — jedna dla wszystkich ekranów
+
+Panel **nigdzie nie przekazywał wysokości okna w dół**. Kolumna treści w
+`AppShell` była rozciągnięta, ale już `mx-auto px-4 py-5` miało wysokość
+**treści** — i od tego miejsca wszystko niżej (kolumny Kanbanu, karta Gantta,
+lista i podgląd Poczty) kończyło się na ostatniej karcie.
+
+Skutek uboczny, ważniejszy niż estetyka: **element z `overflow-auto` nie ma się
+wtedy do czego odnieść**, więc „wewnętrzne przewijanie" było fikcją — przewijała
+się cała strona, a pod treścią zostawało czarne pole.
+
+### Rozwiązanie
+
+`md:h-screen md:overflow-hidden` na korzeniu + łańcuch `flex flex-col` /
+`flex-1` / `min-h-0` aż do kontenera widoku. **`min-h-0` jest obowiązkowe** —
+bez niego element flex nie skurczy się poniżej treści i scroll ucieka na stronę.
+
+Scroll panelu mieszka teraz w kontenerze treści (`md:overflow-y-auto` w
+`AppShell`). To celowe: dzięki temu zmiana jest **bezpieczna dla modułów, których
+nikt nie przerabiał** — długie strony bez własnego scrolla po prostu przewijają
+ten kontener. `md:` bo na mobile sidebar jest poziomym paskiem i strona ma
+przewijać się normalnie.
+
+Objęte: Leady, Klienci, Projekty (Tablica + Oś czasu), Poczta, Faktury, Koszty,
+Oferty, Umowy, Notatnik, Statystyki, Kalendarz. Kanbany: kolumny sięgają dołu
+(upuszczanie działa na całej wysokości), karty przewijają się WEWNĄTRZ kolumny.
+
+**Notatnik/Statystyki/Pulpit świadomie się NIE rozciągają** — to siatki kart i
+wykresów; jedna notatka rozciągnięta na 700 px byłaby gorsza niż pustka pod nią.
+Wypełnianie ma sens tam, gdzie jest kontener przewijania (tablica, tabela, poczta).
+
+### Usunięte magiczne liczby
+
+Wszystkie były zgadywaniem „ile zajmuje reszta ekranu" i rozjeżdżały się przy
+każdej zmianie nagłówka:
+- Poczta: `lg:max-h-[calc(100vh-260px)]` → `flex-1` + `min-h-0`
+- Kalendarz: `min-h-[calc(100vh-140px)]` → `flex-1`
+- Kalendarz (widok tygodnia): `max-h-[70vh]` → `flex-1`. Komentarz obok
+  uzasadniał je słowami *„żaden przodek nie ogranicza wysokości"* — po tej
+  zmianie **ogranicza**, więc uzasadnienie umarło razem z kodem (poprawione).
+- Leady/Klienci (tabela): `max-h-[70vh]` → `flex-1`
+
+**Nie dokładaj nowych.** Jeśli kusi Cię `calc(100vh-…)`, to znaczy, że gdzieś
+wyżej urwał się łańcuch `flex-1`/`min-h-0` — napraw tam.
+
+### Pułapka: `align-items: stretch`
+
+Zamiana kontenera na kolumnę flex **rozciąga jego dzieci na całą szerokość**.
+Złapane na żywo: przycisk „Znajdź nowe leady" urósł do 1037 px i wyglądał, jakby
+przeskoczył na środek (bo tekst przycisku jest wyśrodkowany). Naprawa:
+`self-start` (`DiscoverPanel.tsx`). **Przerabiając kolejny kontener na flex,
+sprawdź jego bezpośrednie dzieci** — `<button>`/`<a>`/`<span>` bez `w-full`.
+
+### Weryfikacja
+
+- Kanban/tabele/Gantt/Poczta/Kalendarz sięgają dołu okna, paski przewijania przy
+  krawędzi zamiast w połowie ekranu.
+- **Kluczowy test (czy czegoś nie ucięto):** przy oknie **420 px** Pulpit ma
+  **1175 px** treści i przewija się w całości wewnątrz panelu (754/755), a strona
+  jako całość nie skacze. Powtórz ten test przy każdej zmianie tego łańcucha.
+- Kolumny Kanbanu przy niskim oknie mają własny scroll.
+- 12 tras panelu: wszystkie 200, brak rozciągniętych kontrolek.
