@@ -5253,3 +5253,70 @@ sprawdź jego bezpośrednie dzieci** — `<button>`/`<a>`/`<span>` bez `w-full`.
   jako całość nie skacze. Powtórz ten test przy każdej zmianie tego łańcucha.
 - Kolumny Kanbanu przy niskim oknie mają własny scroll.
 - 12 tras panelu: wszystkie 200, brak rozciągniętych kontrolek.
+
+## Moduł 35, część A — profil projektu na zakładkach (2026-07-17)
+
+Zgłoszenie właściciela: *„PROJEKTY potrzebują coś na wzór zakładek jak KLIENT,
+bo tak to jest ściana — wszystkie informacje na raz, a powinien być podgląd
+projektu (najważniejsze informacje) i dodatkowe zakładki, gdzie by można było
+edytować sekcja ONBOARDING, sekcja CZAS PRACY itd."*
+
+Do części A profil projektu (`ProjectDetailPanel.tsx`) był jedną ścianą sześciu
+grubych sekcji: karta w modalu rosła do **1566 px** i nie miała `max-h`, więc
+wystawała poza okno i przewijał się cały modal (klient ma **1017 px** +
+`max-h-[85vh]`). To były **dwa osobne braki** — rozbicie na zakładki i limit
+wysokości — oba zamknięte tutaj.
+
+### Podział na zakładki (decyzje właściciela)
+
+Pięć zakładek (ViewTabs/ViewSwitch, wzorzec Modułu 23):
+
+- **Podgląd** — dwukolumnowo: **kamienie milowe** (lewo) + metadane
+  (zdrowie/status/priorytet/daty/powiązanie), zależności, zasoby, „Usuń projekt"
+  (prawo). Kamienie milowe zostają tu (nie osobna zakładka) — to rdzeń projektu
+  i widać je też na Osi czasu (decyzja właściciela).
+- **Onboarding** — checklista + szkic wiadomości powitalnej.
+- **Czas pracy i rentowność** — obie sekcje razem (obie mówią o koszcie).
+- **Zamknięcie i opinia** — karta zamknięcia; **bez klienta** pokazuje
+  podpowiedź *„…dostępne po podpięciu klienta w zakładce Podgląd"* (wcześniej
+  cała sekcja po prostu znikała).
+- **Log aktywności** — feed + formularz notatki.
+
+**Tożsamość rekordu (ikona, tytuł, klient, opis, pasek postępu) zostaje NAD
+zakładkami** — zawsze widoczna, niezależnie od aktywnej zakładki (jak
+nazwa/status u klienta). Na podstronie `[id]` nie ma nagłówka modala, więc to
+jedyne miejsce z tytułem.
+
+### Kluczowe decyzje techniczne
+
+- **Stan `tab` siedzi w `ProjectDetailPanel.tsx`, nie w wrapperze** — dzięki
+  temu zakładki działają identycznie w modalu z listy (`ProjectsDashboard.tsx`)
+  i na podstronie `/[lang]/admin/projects/[id]` (`ProjectDetail.tsx`). To dwie
+  różne ścieżki renderowania tego samego komponentu — obie sprawdzone klikiem.
+- **`layoutId="project-detail-tab-underline"`** — inny niż u klienta
+  (`client-detail-tab-underline`), żeby podkreślenie nie „przeskakiwało" między
+  profilami otwartymi w tej samej sesji.
+- **`ViewSwitch` BEZ propa `fill`** — tak jak u klienta. `fill` (Moduł 35B) jest
+  dla widoków wypełniających okno (Kanban, tabela, Poczta), nie dla treści w
+  modalu o własnej wysokości.
+- **`max-h-[85vh] overflow-y-auto` dołożone do karty w WRAPPERZE**
+  (`ProjectsDashboard.tsx`, klasa `card` modala) — **nie** do panelu, bo u
+  Projektów (inaczej niż u Leadów/Klientów) karta `card-paper` żyje w wrapperze
+  modala, nie w `*DetailPanel.tsx`. Na podstronie `[id]` limitu świadomie nie ma
+  — pełna strona przewija się normalnie.
+
+### Świadomie POZA zakresem
+
+- **Zakładka „Logi zmian"** — projekty **nie mają audytu zmian**
+  (`field_changes`/`FieldChangesTab`/`/changes` istnieją tylko dla klienta i
+  leada). Dorobienie audytu projektu to osobny, większy zakres — nie robione tu.
+
+### Weryfikacja
+
+- `npx tsc --noEmit` czysto.
+- Przegląd na żywo (świeża karta) — wszystkie 5 zakładek przełączają się i
+  renderują poprawnie **w modalu z listy ORAZ na podstronie `[id]`**. Podgląd
+  pokazuje dwukolumnowy układ (kamienie milowe + metadane), zakładka Zamknięcia
+  bez klienta pokazuje podpowiedź. Pułapka podglądu (`hidden` → `rAF` = 0 kl./s →
+  `AnimatePresence mode="wait"` zawiesza swap zakładki) potwierdzona i obejściem
+  było wymuszenie klatek zrzutem ekranu — to artefakt narzędzia, nie bug.

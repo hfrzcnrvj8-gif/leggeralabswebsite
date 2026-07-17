@@ -509,7 +509,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           setOpenId(null);
           bumpTimelineRefresh();
         }}
-        card="card-paper my-auto w-full max-w-4xl rounded-2xl border hairline p-5 sm:p-6"
+        card="card-paper my-auto max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-2xl border hairline p-5 sm:p-6"
       >
         {openId && (
           <ProjectDetailPanel

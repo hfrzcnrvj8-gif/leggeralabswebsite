@@ -25,6 +25,7 @@ import {
   ProjectIconPicker,
 } from "./shared";
 import { EditableText, EditableTextarea, ClientLinkChip } from "../components";
+import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { PropertyMenu, Popover, MenuRow, type MenuOption } from "../Menu";
 import { DateField } from "../DatePicker";
@@ -55,6 +56,11 @@ export function ProjectDetailPanel({
   const pathname = usePathname();
   const langPrefix = pathname?.split("/")[1] ?? "pl";
   const [project, setProject] = useState<Project | null>(null);
+  // Moduł 35A — profil projektu rozbity na zakładki (prośba właściciela
+  // 2026-07-17: „ściana informacji" → Podgląd + osobne zakładki). Stan `tab`
+  // siedzi TU, w *DetailPanel, a nie w wrapperach — dzięki temu działa i w
+  // modalu z listy, i na podstronie [id], bez dublowania (wzorzec Modułu 23).
+  const [tab, setTab] = useState<"overview" | "onboarding" | "time" | "closing" | "log">("overview");
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [activity, setActivity] = useState<ProjectActivity[]>([]);
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
@@ -173,6 +179,7 @@ export function ProjectDetailPanel({
   useEffect(() => {
     setProject(null);
     setNotFound(false);
+    setTab("overview");
     welcomeMsgInitialized.current = false;
     setWelcomeMsg("");
     reviewDraftInitialized.current = false;
@@ -784,9 +791,11 @@ export function ProjectDetailPanel({
     <div>
       <PanelHeader onClose={onClose} tytul={project.tytul} saveState={saveState} />
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        {/* Kolumna główna: treść, kamienie milowe, log aktywności */}
-        <div className="min-w-0 space-y-4">
+      {/* Tożsamość rekordu — zostaje NAD zakładkami (jak nazwa/status u
+          klienta), żeby tytuł, klient, opis i postęp były pod ręką niezależnie
+          od aktywnej zakładki. Na podstronie [id] nie ma nagłówka, więc to
+          jedyne miejsce z tytułem projektu. */}
+      <div className="mt-4">
           <div>
             <div className="flex items-center gap-2.5">
               <ProjectIconPicker
@@ -827,7 +836,26 @@ export function ProjectDetailPanel({
               </div>
             )}
           </div>
+      </div>
 
+      <div className="mt-5 flex h-9 items-center gap-4 border-b hairline">
+        <ViewTabs
+          value={tab}
+          onChange={setTab}
+          layoutId="project-detail-tab-underline"
+          tabs={[
+            { id: "overview", label: "Podgląd" },
+            { id: "onboarding", label: "Onboarding" },
+            { id: "time", label: "Czas pracy i rentowność" },
+            { id: "closing", label: "Zamknięcie i opinia" },
+            { id: "log", label: "Log aktywności" },
+          ]}
+        />
+      </div>
+
+      <ViewSwitch viewKey={tab}>
+        {tab === "onboarding" && (
+          <div className="mt-4">
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[14px] font-medium">Onboarding</h2>
@@ -921,7 +949,17 @@ export function ProjectDetailPanel({
               />
             </div>
           </div>
+          </div>
+        )}
 
+        {tab === "closing" && (
+          <div className="mt-4">
+          {!project.client_id && (
+            <p className="flex items-center gap-2 text-sm text-muted opacity-60">
+              <IconInbox size={15} className="shrink-0" />
+              Zamknięcie i prośba o opinię będą dostępne po podpięciu klienta w zakładce Podgląd.
+            </p>
+          )}
           {project.client_id && (
             <div className="card-paper rounded-xl border hairline p-4">
               <h2 className="text-[14px] font-medium">Zamknięcie projektu i opinia</h2>
@@ -1038,7 +1076,11 @@ export function ProjectDetailPanel({
               )}
             </div>
           )}
+          </div>
+        )}
 
+        {tab === "time" && (
+          <div className="mt-4 space-y-4">
           {rentownosc && (rentownosc.przychod_netto > 0 || rentownosc.koszty_netto > 0) && (
             <div className="card-paper rounded-xl border hairline p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -1241,7 +1283,13 @@ export function ProjectDetailPanel({
               </button>
             </div>
           </div>
+          </div>
+        )}
 
+        {tab === "overview" && (
+          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            {/* Kolumna główna Podglądu: kamienie milowe (rdzeń projektu). */}
+            <div className="min-w-0 space-y-4">
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[14px] font-medium">Kamienie milowe</h2>
@@ -1354,59 +1402,11 @@ export function ProjectDetailPanel({
               </div>
             )}
           </div>
+            </div>
 
-          <div className="card-paper rounded-xl border hairline p-4">
-            <h2 className="mb-3 text-[14px] font-medium">Log aktywności</h2>
-            <form onSubmit={submitNote} className="mb-6 space-y-2">
-              <textarea
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    e.currentTarget.form?.requestSubmit();
-                  }
-                }}
-                placeholder="Co się wydarzyło? np. wysłałem ofertę, klient poprosił o zmianę zakresu… (Cmd+Enter, by zapisać)"
-                rows={3}
-                className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
-              />
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={saving || !noteText.trim()}
-                  className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? "Zapisuję…" : "Dodaj wpis"}
-                </button>
-              </div>
-            </form>
-            {activity.length === 0 ? (
-              <p className="flex items-center gap-2 text-sm text-muted opacity-60"><IconInbox size={15} className="shrink-0" /> Brak wpisów — dodaj pierwszy powyżej.</p>
-            ) : (
-              <ul className="space-y-2">
-                {activity.map((a) =>
-                  a.kind === "system" ? (
-                    <li key={a.id} className="flex items-center gap-2 px-1 py-0.5 text-[12.5px] text-muted">
-                      <IconArrowRight size={13} className="shrink-0 opacity-60" />
-                      <span className="min-w-0 flex-1 truncate">{a.text}</span>
-                      <span className="shrink-0 text-[11px] opacity-70">{formatDate(a.created_at)}</span>
-                    </li>
-                  ) : (
-                    <li key={a.id} className="rounded-xl border hairline p-3 text-sm">
-                      <span className="text-[11px] text-muted">{formatDate(a.created_at)}</span>
-                      <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
-                    </li>
-                  )
-                )}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        {/* Boczny pasek: metadane, styl Linear — płaskie wiersze z ikoną,
-            bez kart/etykiet nad polem, zamiast formularza. */}
-        <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+            {/* Prawa kolumna Podglądu: metadane (styl Linear — płaskie wiersze
+                z ikoną), zależności, zasoby, usuwanie. */}
+            <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           <div>
             <MetaRow icon={<IconHeartbeat size={15} />} title="Zdrowie">
               <PropertyMenu value={project.zdrowie} options={HEALTH_OPTS} onChange={(v) => updateProject("zdrowie", v)} title="Zdrowie" full>
@@ -1549,6 +1549,60 @@ export function ProjectDetailPanel({
           </button>
         </div>
       </div>
+        )}
+
+        {tab === "log" && (
+          <div className="mt-4">
+          <div className="card-paper rounded-xl border hairline p-4">
+            <h2 className="mb-3 text-[14px] font-medium">Log aktywności</h2>
+            <form onSubmit={submitNote} className="mb-6 space-y-2">
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder="Co się wydarzyło? np. wysłałem ofertę, klient poprosił o zmianę zakresu… (Cmd+Enter, by zapisać)"
+                rows={3}
+                className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={saving || !noteText.trim()}
+                  className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Zapisuję…" : "Dodaj wpis"}
+                </button>
+              </div>
+            </form>
+            {activity.length === 0 ? (
+              <p className="flex items-center gap-2 text-sm text-muted opacity-60"><IconInbox size={15} className="shrink-0" /> Brak wpisów — dodaj pierwszy powyżej.</p>
+            ) : (
+              <ul className="space-y-2">
+                {activity.map((a) =>
+                  a.kind === "system" ? (
+                    <li key={a.id} className="flex items-center gap-2 px-1 py-0.5 text-[12.5px] text-muted">
+                      <IconArrowRight size={13} className="shrink-0 opacity-60" />
+                      <span className="min-w-0 flex-1 truncate">{a.text}</span>
+                      <span className="shrink-0 text-[11px] opacity-70">{formatDate(a.created_at)}</span>
+                    </li>
+                  ) : (
+                    <li key={a.id} className="rounded-xl border hairline p-3 text-sm">
+                      <span className="text-[11px] text-muted">{formatDate(a.created_at)}</span>
+                      <p className="mt-1 whitespace-pre-wrap">{a.text}</p>
+                    </li>
+                  )
+                )}
+              </ul>
+            )}
+          </div>
+          </div>
+        )}
+      </ViewSwitch>
     </div>
   );
 }
