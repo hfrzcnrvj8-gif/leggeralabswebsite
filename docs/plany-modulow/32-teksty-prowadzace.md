@@ -2,6 +2,13 @@
 
 > Przeczytaj `docs/plany-modulow/README.md` (zasady wspólne), `CLAUDE.md` oraz
 > `00-mapa-drogi-klienta.md`. Brief powstał **z audytu Modułu 29** (2026-07-17).
+>
+> **Kolejność: to jest PIERWSZY z trzech briefów audytu (32 → 30 → 31)** —
+> zatwierdzona przez właściciela 2026-07-17. Ten jest najmniejszy, a panel-mentor
+> mylący się co do własnych możliwości jest najbardziej mylący na co dzień.
+> Nie wymaga 30 ani 31 — jest samodzielny. **Jedno zastrzeżenie:** znalezisko 5
+> („automatycznie zakłada Klienta") należy do **Modułu 30** — tutaj tylko
+> odnotuj, nie naprawiaj, żeby oba briefy się nie pobiły o ten sam kod.
 
 ## Skąd to się wzięło
 
