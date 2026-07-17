@@ -35,9 +35,11 @@ Uwagi, które oszczędzą Ci czasu:
   produktowe" i `HUB_SETUP.md`. Brak AI w logice, panel jednoosobowy, **miękkie
   podpowiedzi zamiast bramek** — to wybory, nie błędy. Powiązanie z klientem ma
   być podpowiadane, nie wymuszane.
-* Sprawy ikon NIE ruszaj przy okazji: panel ma i `@tabler/icons-react`, i emoji
-  (patrz `CLAUDE.md` → „Emoji vs ikony"). Niespójność jest znana i świadomie
-  otwarta — dopasuj się do otoczenia edytowanego pliku, nie ujednolicaj.
+* Sprawy ikon NIE ruszaj przy okazji: panel ma dziś i `@tabler/icons-react`, i
+  emoji. Kierunek jest **rozstrzygnięty** (w panelu ikony, w mailach emoji), ale
+  wdrożenie ma własny **Moduł 33, PO Tobie** — patrz `CLAUDE.md` → „Emoji vs
+  ikony". Dopasuj się do otoczenia edytowanego pliku i nie ujednolicaj hurtem;
+  migracja kawałkami przy innych zmianach rozjedzie panel na pół drogi.
 * Migracje: każda `create*Schema()` musi mieć `schemaUpToDate()` +
   `markSchemaApplied()`, a każde zapytanie nie-DDL w migracji (np. `INSERT`
   backfillu) MUSI iść przez `inMigration()` z `lib/migration-ctx.ts` — inaczej

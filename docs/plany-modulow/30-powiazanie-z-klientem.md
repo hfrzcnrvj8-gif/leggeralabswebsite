@@ -76,7 +76,14 @@ automatycznie.
 
 ## Dowody z kodu (potwierdzone, nie hipotezy)
 
+> ⚠️ **Sekcje 1, 3 i 6 poniżej są sformułowane myląco** — czytaj je RAZEM ze
+> Sprostowaniami A/B/C na górze pliku. Tekst zostawiony w oryginale (to zapis
+> audytu 29), znaczniki wstawione w miejscu.
+
 ### 1. Mapa obiecuje automatyczne zakładanie klienta — panel tego nie robi
+> ⚠️ **Patrz Sprostowanie B.** Zdanie „panel tego nie robi" jest zbyt mocne:
+> `POST /api/offers:60-76` **zakłada klienta z leada**. Prawdą jest, że nie robi
+> tego bez leada — i to jest cała dziura.
 `00-mapa-drogi-klienta.md` (Krok 2) mówi: *„Panel robi za Ciebie: …
 **automatycznie zakłada Klienta** jeśli jeszcze nie istnieje"*.
 
@@ -89,6 +96,11 @@ już jest na ofercie.
 - `InvoicesDashboard.tsx:64` — to samo
 
 ### 3. Faktura NIE ZAPISUJE `client_id` — nawet gdy go zna
+> ⚠️ **Patrz Sprostowanie B — dotyczy WYŁĄCZNIE `POST /api/invoices`** (ręczne
+> „+ Dodaj fakturę"). Faktura z zaakceptowanej oferty **dostaje** `client_id`
+> (`lib/offerAccept.ts:112`), a PATCH go zapisuje. Nagłówek tej sekcji brzmi
+> szerzej, niż jest.
+
 `app/api/invoices/route.ts:82` — polecenie `INSERT INTO invoices (...)` zawiera
 `lead_id` i `project_id`, ale **kolumny `client_id` w nim nie ma w ogóle**.
 Czyli nawet fakturę tworzoną z leada, który ma już swojego klienta, zapisuje się
@@ -123,7 +135,12 @@ Nagłówek `lib/links.ts` opisuje ten stary przycisk **w czasie przeszłym**:
 (oferty/faktury)…"* — a on nadal tam jest i działa.
 
 To bezpośrednio dotyka pozycji odłożonej w Module 22 (`lead_id`/`project_id`
-w UI Faktur/Ofert — „picker kopiuje dane nabywcy, nie linkuje").
+w UI Faktur/Ofert — ~~„picker kopiuje dane nabywcy, nie linkuje"~~).
+
+> ⚠️ **Patrz Sprostowanie A.** Ten cytat z Modułu 22 jest **nieprawdziwy** i to
+> on wprowadził w błąd cały ten brief: picker **linkuje** (`client_id`) obok
+> kopiowania migawki. Realnie brakuje mu tylko `lead_id`/`project_id`. Sam cytat
+> został już sprostowany w `README.md` (wiersz 22) 2026-07-17.
 
 ## Do rozstrzygnięcia z właścicielem (NIE zgadywać)
 
