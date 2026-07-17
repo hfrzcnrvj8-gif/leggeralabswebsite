@@ -5122,8 +5122,68 @@ stan**. `Tooltip` zostaje przy odznace kanału, gdzie opis jest dwuliniowy
 („Ostatni kontakt: WhatsApp · 3 dni temu" + co zrobi klik) i gdzie rozsuwanie
 zasłoniłoby dane w wierszu.
 
-**Do zrobienia:** pigułki na paskach pozostałych modułów (Klienci/Faktury/
-Koszty/Oferty/Umowy) — ten sam komponent, ta sama podmiana co w Leadach.
+## Moduł 34b — pigułki na wszystkich paskach (dokończenie 34, 2026-07-17)
+
+Runda **mechaniczno-wizualna**: Moduł 34 dał pigułkę tylko paskowi Leadów, więc
+ta sama ikona w Fakturach pokazywała jeszcze stary systemowy prostokąt. Cel:
+*„wygląd ma być spójny"*. **Nie zamieniono wszystkich natywnych `title=`** —
+rozdzielono je wg zasady **pigułka podpisuje ikonę, dymek tłumaczy stan/znaczenie**.
+
+**Dwie decyzje właściciela, szersze niż zakładał brief:**
+1. **Ikony akcji w wierszach tabel → pigułka** (nie dymek). Pełna spójność: każda
+   ikona zachowuje się tak samo.
+2. **Długie objaśnienia KPI → mała ikona „i"** obok liczby (nie dymek na całym
+   kaflu). Nowy `InfoDot` w `components.tsx`. Objaśnienie jest teraz jawnie
+   oznaczone i nie wyskakuje przy przypadkowym najechaniu na kafelek.
+
+**⚠️ KOREKTA UKŁADU PIGUŁKI (ta sama sesja, na prośbę właściciela) — zastępuje
+opis z „Moduł 34":** runda 34 trzymała pigułkę `absolute` w stałej ramce 24×24 i
+rozsuwała ją NAD sąsiadów (nieprzezroczyste tło + `z-20`), żeby pasek się nie
+ruszał. Właściciel: *„zrób tak, żeby one na siebie nie najeżdżały — jak się
+rozwija opis, niech ikonka, która byłaby zasłonięta, się rozsuwa, żeby została
+widoczna"*. `ExpandingIconButton` jest teraz **zwykłym `inline-flex`** (bez
+`absolute`, bez `z-20`): rośnie w układzie i **rozpycha sąsiadów**. Paski akcji są
+dosunięte do prawej (`flex-1`/`justify-end`), więc **ikona pod kursorem zostaje na
+miejscu** (prawa krawędź zakotwiczona), a sąsiedzi po lewej uchylają się w lewo —
+nic już nie jest zasłaniane. Dawna obawa „goniłbyś uciekający cel" nie występuje.
+Konsekwencja: usunięto stałą ramkę 24×24; owijka menu eksportu w Leadach zmieniona
+z `relative block h-6 w-6` na `inline-flex shrink-0` (inaczej kaziłaby przycisk).
+
+**Rozszerzony `ExpandingIconButton.tsx`** (trzy własności wymuszone wyjściem poza
+Leady): `tone="danger"` (czerwony akcent Usuń/Anuluj), `newTab` (Podgląd/wydruk
+= `<a target="_blank">`), `active` (ikona-wyzwalacz Popovera zostaje podświetlona,
+gdy menu otwarte, a mysz zjechała).
+
+**Trafienia we wspólne komponenty — jedna zmiana, wiele modułów:**
+- `PropertyMenu` (`Menu.tsx`) — `title="Zmień status"` renderuje teraz `Tooltip`,
+  nie natywny prostokąt. Trigger to kolorowa odznaka statusu (pokazuje wartość,
+  otwiera menu), więc **dymek, nie pigułka** — nie ma gołej ikony do rozsunięcia.
+  Naprawia Faktury, Oferty, Umowy, Koszty naraz. Dotyczy też `StatusPill`/
+  `PillPicker`, które owijają `PropertyMenu`.
+- `ExportCsvButton` (`components.tsx`) — wyzwalacz to teraz ikona-pigułka
+  (`IconDownload`, podpis „Rejestr sprzedaży"/„Rejestr zakupów"), klik otwiera
+  Popover z zakresem dat. Naprawia Faktury i Koszty.
+
+**Pułapka geometrii (udokumentowana w kodzie):** `Tooltip` ma `display:contents`.
+Owinięcie nim **samego przycisku-wyzwalacza Popovera** wstawia bezwymiarowy węzeł
+między pomiarowy `<span>` Popovera a przycisk → `getBoundingClientRect()` zwraca
+zera i menu skacze w lewy górny róg. Dlatego dymek na wyzwalaczu Popovera owija
+**cały `<Popover>`** (patrz Projekty → „Filtry"), nie przycisk w `trigger`.
+
+**Wyjątki (świadome, nie „do naprawienia"):**
+- **Projekty → „Filtry"** zostaje przyciskiem + dymek (nie pigułka): pokazuje
+  licznik aktywnych filtrów, którego sztywna ramka 24×24 pigułki nie zmieści.
+- **Notatnik — akcje karty** (pinezka, „⤢ otwórz profil") → dymek, nie pigułka:
+  karta to inna powierzchnia niż pasek/wiersz, pinezka siedzi przy lewej krawędzi
+  (pigułka rozsuwałaby się poza kartę), a „⤢" to znak typograficzny.
+- **`Truncate`** (`components.tsx`) — natywny `title` ZOSTAJE: niesie pełną,
+  uciętą treść komórki, a nie etykietę kontrolki.
+- **Odznaki informacyjne w wierszu** (Język wydruku, Typ dokumentu, KSeF, „Ma
+  załącznik", metoda płatności) → `Tooltip`: niosą znaczenie, nie są akcjami.
+
+**Objęte paski:** Klienci, Faktury, Oferty, Koszty, Umowy, Projekty, Notatnik +
+leftover „Filtry" w Leadach. **Poza zakresem** (osobna, przyrostowa runda):
+profile rekordów, edytory, Kalendarz, Poczta — tam natywne `title=` zostają.
 
 ## Moduł 35, część B — panel wypełnia wysokość okna (2026-07-17)
 

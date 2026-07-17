@@ -11,6 +11,8 @@ import { ProjectTimeline } from "./ProjectTimeline";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
+import { ExpandingIconButton } from "../ExpandingIconButton";
+import { Tooltip } from "../Tooltip";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
 
@@ -286,22 +288,26 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
         />
         {/* Filtry — jedno menu (Linear), realnie filtruje po statusie/priorytecie/zdrowiu */}
-        <Popover
-          align="right"
-          width={230}
-          trigger={(open, isOpen) => (
-            <button
-              onClick={open}
-              title="Filtry"
-              className={`flex h-6 items-center gap-1 rounded-md px-1.5 text-[12.5px] ${
-                activeFilterCount > 0 || isOpen ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-              }`}
-            >
-              <IconFilter size={15} />
-              {activeFilterCount > 0 && <span className="text-[11px]">{activeFilterCount}</span>}
-            </button>
-          )}
-        >
+        {/* „Filtry" zostaje przyciskiem (nie pigułką): pokazuje liczbę aktywnych
+            filtrów, a sztywna ramka 24×24 pigułki nie zmieściłaby tej odznaki.
+            Sam natywny `title` → dymek (Moduł 34b). Dymek owija CAŁY Popover,
+            nie przycisk — inaczej `display:contents` zerowałby pomiar triggera. */}
+        <Tooltip label="Filtry">
+          <Popover
+            align="right"
+            width={230}
+            trigger={(open, isOpen) => (
+              <button
+                onClick={open}
+                className={`flex h-6 items-center gap-1 rounded-md px-1.5 text-[12.5px] ${
+                  activeFilterCount > 0 || isOpen ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                }`}
+              >
+                <IconFilter size={15} />
+                {activeFilterCount > 0 && <span className="text-[11px]">{activeFilterCount}</span>}
+              </button>
+            )}
+          >
           {(close) => (
             <>
               <MenuLabel>Status</MenuLabel>
@@ -338,21 +344,14 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
               )}
             </>
           )}
-        </Popover>
+          </Popover>
+        </Tooltip>
         {/* Widok — sortowanie (realne) */}
         <Popover
           align="right"
           width={210}
           trigger={(open, isOpen) => (
-            <button
-              onClick={open}
-              title="Opcje widoku"
-              className={`flex h-6 w-6 items-center justify-center rounded-md ${
-                isOpen ? "bg-[var(--hairline)] text-[var(--fg)]" : "text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-              }`}
-            >
-              <IconAdjustmentsHorizontal size={15} />
-            </button>
+            <ExpandingIconButton label="Opcje widoku" icon={<IconAdjustmentsHorizontal size={15} />} onClick={open} active={isOpen} />
           )}
         >
           {() => (
@@ -367,14 +366,8 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
         <Popover
           align="right"
           width={248}
-          trigger={(open) => (
-            <button
-              onClick={open}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-              title="Dodaj projekt"
-            >
-              <IconPlus size={16} />
-            </button>
+          trigger={(open, isOpen) => (
+            <ExpandingIconButton label="Dodaj projekt" icon={<IconPlus size={16} />} onClick={open} active={isOpen} />
           )}
         >
           {(close) => (

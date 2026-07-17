@@ -5,6 +5,7 @@ import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from "@tabler/ico
 import type { Locale } from "@/i18n/config";
 import { formatPlDate } from "@/lib/projects";
 import { EditableText, EditableTextarea } from "../components";
+import { Tooltip } from "../Tooltip";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { Modal } from "../Modal";
@@ -124,13 +125,14 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
           align="right"
           placeholder="Wszyscy"
         />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj…"
-          title="Szuka w tytule, treści, tagach i logu"
-          className="w-40 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
-        />
+        <Tooltip label="Szuka w tytule, treści, tagach i logu">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Szukaj…"
+            className="w-40 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+          />
+        </Tooltip>
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
@@ -206,25 +208,32 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
             {filtered.map((n) => (
               <div key={n.id} className="card-paper rounded-2xl p-4">
                 <div className="flex items-start gap-1.5">
-                  <button
-                    onClick={() => togglePin(n)}
-                    title={n.pinned ? "Odepnij" : "Przypnij na górze listy"}
-                    className="shrink-0 text-[13px] transition-opacity"
-                    style={{ opacity: n.pinned ? 1 : 0.3 }}
-                  >
-                    {n.pinned ? <IconPinFilled size={14} /> : <IconPin size={14} />}
-                  </button>
+                  {/* Akcje karty notatki: dymek, nie pigułka. Karta to inna
+                      powierzchnia niż pasek/wiersz tabeli — pinezka siedzi przy
+                      lewej krawędzi (pigułka rozsuwałaby się w lewo poza kartę),
+                      a „⤢" to znak typograficzny, nie ikona Tablera. */}
+                  <Tooltip label={n.pinned ? "Odepnij" : "Przypnij na górze listy"}>
+                    <button
+                      onClick={() => togglePin(n)}
+                      aria-label={n.pinned ? "Odepnij" : "Przypnij na górze listy"}
+                      className="shrink-0 text-[13px] transition-opacity"
+                      style={{ opacity: n.pinned ? 1 : 0.3 }}
+                    >
+                      {n.pinned ? <IconPinFilled size={14} /> : <IconPin size={14} />}
+                    </button>
+                  </Tooltip>
                   <div className="min-w-0 flex-1">
                     <EditableText value={n.tytul} onSave={(v) => patch(n.id, { tytul: v })} />
                   </div>
-                  <button
-                    onClick={() => setOpenId(n.id)}
-                    title="Otwórz profil notatki"
-                    aria-label="Otwórz profil notatki"
-                    className="shrink-0 text-[11px] text-muted hover:text-[var(--fg)]"
-                  >
-                    ⤢
-                  </button>
+                  <Tooltip label="Otwórz profil notatki">
+                    <button
+                      onClick={() => setOpenId(n.id)}
+                      aria-label="Otwórz profil notatki"
+                      className="shrink-0 text-[11px] text-muted hover:text-[var(--fg)]"
+                    >
+                      ⤢
+                    </button>
+                  </Tooltip>
                 </div>
 
                 <div className="mt-1 text-sm">
@@ -262,14 +271,15 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
                   )}
                   <NoteScheduleForm note={n} onSchedule={(d, g) => schedule(n, d, g)} />
                   <span className="flex-1" />
-                  <button
-                    onClick={() => setArchived(n, !n.archived_at)}
-                    title={n.archived_at ? "Przywróć na biurko" : "Do archiwum"}
-                    aria-label={n.archived_at ? "Przywróć na biurko" : "Do archiwum"}
-                    className="shrink-0 text-muted hover:text-[var(--fg)]"
-                  >
-                    {n.archived_at ? <IconArchiveOff size={14} /> : <IconArchive size={14} />}
-                  </button>
+                  <Tooltip label={n.archived_at ? "Przywróć na biurko" : "Do archiwum"}>
+                    <button
+                      onClick={() => setArchived(n, !n.archived_at)}
+                      aria-label={n.archived_at ? "Przywróć na biurko" : "Do archiwum"}
+                      className="shrink-0 text-muted hover:text-[var(--fg)]"
+                    >
+                      {n.archived_at ? <IconArchiveOff size={14} /> : <IconArchive size={14} />}
+                    </button>
+                  </Tooltip>
                 </div>
 
                 <p className="mt-2 text-[10.5px] text-muted opacity-60">

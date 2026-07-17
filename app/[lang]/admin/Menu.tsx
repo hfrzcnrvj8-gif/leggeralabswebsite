@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { IconCheck } from "@tabler/icons-react";
+import { Tooltip } from "./Tooltip";
 
 /**
  * Własne menu/popover w stylu Linear — zastępuje natywne <select>, które
@@ -475,17 +476,22 @@ export function PropertyMenu<T extends string>({
     };
   }, [open, options, active, onChange, place]);
 
+  // `title` opisuje, co robi kontrolka (np. „Zmień status") — to objaśnienie
+  // stanu/znaczenia, więc dymek (nie natywny prostokąt), zgodnie z Modułem 34b.
+  const triggerBtn = (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={openMenu}
+      className={full ? "flex w-full items-center" : "inline-flex items-center"}
+    >
+      {children}
+    </button>
+  );
+
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={openMenu}
-        title={title}
-        className={full ? "flex w-full items-center" : "inline-flex items-center"}
-      >
-        {children}
-      </button>
+      {title ? <Tooltip label={title}>{triggerBtn}</Tooltip> : triggerBtn}
       {typeof document !== "undefined" &&
         pos &&
         // Patrz komentarz w Popover — AnimatePresence musi być wewnątrz

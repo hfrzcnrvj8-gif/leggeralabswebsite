@@ -9,6 +9,9 @@ import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { ExpandingIconButton } from "../ExpandingIconButton";
+import { Tooltip } from "../Tooltip";
+import { InfoDot } from "../components";
 import { OfferEditor } from "./OfferEditor";
 import { OfferTemplatesPanel } from "./OfferTemplatesPanel";
 import { Modal } from "../Modal";
@@ -218,20 +221,8 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
-        <button
-          onClick={() => setTemplatesOpen(true)}
-          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Szablony ofert"
-        >
-          <IconLayoutGrid size={14} /> Szablony
-        </button>
-        <button
-          onClick={createOffer}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Nowa oferta"
-        >
-          <IconPlus size={16} />
-        </button>
+        <ExpandingIconButton label="Szablony ofert" icon={<IconLayoutGrid size={15} />} onClick={() => setTemplatesOpen(true)} />
+        <ExpandingIconButton label="Nowa oferta" icon={<IconPlus size={16} />} onClick={createOffer} />
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
@@ -246,12 +237,18 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
             <div className="text-[11px] text-muted">Zaakceptowane</div>
             <div className="mt-0.5 text-lg font-semibold text-emerald-400">{formatMoney(kpi.zaakceptowane)}</div>
           </div>
-          <div className="card-paper rounded-xl border hairline p-3" title="Suma otwartych ofert ważona szacowanym prawdopodobieństwem zamknięcia wg statusu — ta sama liczba co „Pipeline ofert” na Pulpicie.">
-            <div className="text-[11px] text-muted">Ważony pipeline</div>
+          <div className="card-paper rounded-xl border hairline p-3">
+            <div className="flex items-center gap-1 text-[11px] text-muted">
+              Ważony pipeline
+              <InfoDot text="Suma otwartych ofert ważona szacowanym prawdopodobieństwem zamknięcia wg statusu — ta sama liczba co „Pipeline ofert” na Pulpicie." />
+            </div>
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.wazony)}</div>
           </div>
-          <div className="card-paper rounded-xl border hairline p-3" title="Udział zaakceptowanych wśród ofert rozstrzygniętych (zaakceptowane + odrzucone). Oferty wciąż otwarte nie są liczone.">
-            <div className="text-[11px] text-muted">Skuteczność</div>
+          <div className="card-paper rounded-xl border hairline p-3">
+            <div className="flex items-center gap-1 text-[11px] text-muted">
+              Skuteczność
+              <InfoDot text="Udział zaakceptowanych wśród ofert rozstrzygniętych (zaakceptowane + odrzucone). Oferty wciąż otwarte nie są liczone." />
+            </div>
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">
               {kpi.skutecznosc === null ? "—" : `${kpi.skutecznosc}%`}
             </div>
@@ -259,8 +256,11 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
               {kpi.rozstrzygniete === 0 ? "brak rozstrzygniętych" : `z ${kpi.rozstrzygniete} rozstrzygniętych`}
             </div>
           </div>
-          <div className="card-paper rounded-xl border hairline p-3" title="Otwarte oferty, których ważność kończy się w ciągu najbliższych 7 dni.">
-            <div className="text-[11px] text-muted">Wygasają w 7 dni</div>
+          <div className="card-paper rounded-xl border hairline p-3">
+            <div className="flex items-center gap-1 text-[11px] text-muted">
+              Wygasają w 7 dni
+              <InfoDot text="Otwarte oferty, których ważność kończy się w ciągu najbliższych 7 dni." />
+            </div>
             <div className={`mt-0.5 text-lg font-semibold ${kpi.wygasajace > 0 ? "text-brand-gold" : "text-[var(--fg)]"}`}>{kpi.wygasajace}</div>
           </div>
           <div className="card-paper rounded-xl border hairline p-3">
@@ -362,9 +362,11 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       <td className="p-2.5 font-medium text-[var(--fg)]">
                         <span className="flex items-center gap-1.5">
                           {o.tytul || <span className="text-muted">(bez tytułu)</span>}
-                          <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted" title="Język wydruku">
-                            {o.jezyk}
-                          </span>
+                          <Tooltip label="Język wydruku">
+                            <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted">
+                              {o.jezyk}
+                            </span>
+                          </Tooltip>
                         </span>
                       </td>
                       <td className="p-2.5">{o.klient_nazwa || <span className="text-muted opacity-60">— brak —</span>}</td>
@@ -381,22 +383,18 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       </td>
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <a
+                          <ExpandingIconButton
+                            label="Podgląd / wydruk"
+                            icon={<IconExternalLink size={15} />}
                             href={`/${lang}/admin/offers/${o.id}/print`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex text-muted hover:text-[var(--fg)]"
-                            title="Podgląd / wydruk"
-                          >
-                            <IconExternalLink size={15} />
-                          </a>
-                          <button
+                            newTab
+                          />
+                          <ExpandingIconButton
+                            label="Usuń"
+                            icon={<IconX size={15} />}
                             onClick={() => deleteOffer(o.id, o.tytul)}
-                            className="flex text-muted hover:text-red-400"
-                            title="Usuń"
-                          >
-                            <IconX size={15} />
-                          </button>
+                            tone="danger"
+                          />
                         </div>
                       </td>
                     </tr>

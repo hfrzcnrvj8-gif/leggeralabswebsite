@@ -12,6 +12,7 @@ import {
 import { formatMoney } from "@/lib/invoices";
 import { useUI, useRegisterActions } from "../ui";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { ExpandingIconButton } from "../ExpandingIconButton";
 import { ContractEditor } from "./ContractEditor";
 import { Modal } from "../Modal";
 
@@ -140,14 +141,8 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
         <Popover
           align="right"
           width={180}
-          trigger={(open) => (
-            <button
-              onClick={open}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-              title="Nowy dokument"
-            >
-              <IconPlus size={16} />
-            </button>
+          trigger={(open, isOpen) => (
+            <ExpandingIconButton label="Nowy dokument" icon={<IconPlus size={16} />} onClick={open} active={isOpen} />
           )}
         >
           {(close) => (
@@ -204,18 +199,18 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                     </td>
                     <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                        <a
+                        <ExpandingIconButton
+                          label="Podgląd / wydruk"
+                          icon={<IconExternalLink size={15} />}
                           href={`/${lang}/admin/contracts/${c.id}/print`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex text-muted hover:text-[var(--fg)]"
-                          title="Podgląd / wydruk"
-                        >
-                          <IconExternalLink size={15} />
-                        </a>
-                        <button onClick={() => deleteContract(c.id, c.klient_nazwa)} className="flex text-muted hover:text-red-400" title="Usuń">
-                          <IconX size={15} />
-                        </button>
+                          newTab
+                        />
+                        <ExpandingIconButton
+                          label="Usuń"
+                          icon={<IconX size={15} />}
+                          onClick={() => deleteContract(c.id, c.klient_nazwa)}
+                          tone="danger"
+                        />
                       </div>
                     </td>
                   </tr>

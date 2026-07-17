@@ -20,6 +20,8 @@ import {
   useContextMenu,
 } from "../Menu";
 import { ExportCsvButton } from "../components";
+import { ExpandingIconButton } from "../ExpandingIconButton";
+import { Tooltip } from "../Tooltip";
 import { DateField } from "../DatePicker";
 import { StatusTag } from "./shared";
 import { CostEditor } from "./CostEditor";
@@ -77,14 +79,13 @@ function ImportKsefButton({ onImported }: { onImported: () => void }) {
     <Popover
       align="right"
       width={260}
-      trigger={(open) => (
-        <button
+      trigger={(open, isOpen) => (
+        <ExpandingIconButton
+          label="Pobierz z KSeF"
+          icon={<IconCloudDownload size={15} />}
           onClick={open}
-          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Pobierz faktury zakupowe z KSeF"
-        >
-          <IconCloudDownload size={14} /> Pobierz z KSeF
-        </button>
+          active={isOpen}
+        />
       )}
     >
       {(close) => (
@@ -265,20 +266,8 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
         </Popover>
         <ImportKsefButton onImported={load} />
         <ExportCsvButton endpoint="/api/costs/export" title="Rejestr zakupów" />
-        <button
-          onClick={() => setRecurringOpen(true)}
-          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Koszty cykliczne"
-        >
-          <IconRepeat size={14} /> Cykliczne
-        </button>
-        <button
-          onClick={createCost}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Dodaj koszt"
-        >
-          <IconPlus size={16} />
-        </button>
+        <ExpandingIconButton label="Koszty cykliczne" icon={<IconRepeat size={15} />} onClick={() => setRecurringOpen(true)} />
+        <ExpandingIconButton label="Dodaj koszt" icon={<IconPlus size={16} />} onClick={createCost} />
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
@@ -337,14 +326,24 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                         <td className="p-2.5 font-medium text-[var(--fg)]">
                           <span className="flex items-center gap-1.5">
                             {c.dostawca_nazwa || <span className="text-muted">bez nazwy</span>}
-                            {c.zalacznik_nazwa && <IconPaperclip size={12} className="shrink-0 text-muted" title="Ma załącznik" />}
+                            {c.zalacznik_nazwa && (
+                              <Tooltip label="Ma załącznik">
+                                <IconPaperclip size={12} className="shrink-0 text-muted" />
+                              </Tooltip>
+                            )}
                           </span>
                         </td>
                         <td className="p-2.5 text-muted">{c.kategoria}</td>
                         <td className="p-2.5 text-muted">{c.project_tytul ?? "—"}</td>
                         <td className="p-2.5 text-right tabular-nums">{formatMoney(c.kwota_brutto)}</td>
-                        <td className="p-2.5 text-muted" title={c.metoda_platnosci ? PAYMENT_METHOD_LABEL[c.metoda_platnosci as PaymentMethod] ?? c.metoda_platnosci : ""}>
-                          {c.metoda_platnosci ? <PaymentMethodIcon method={c.metoda_platnosci as PaymentMethod} size={14} /> : "—"}
+                        <td className="p-2.5 text-muted">
+                          {c.metoda_platnosci ? (
+                            <Tooltip label={PAYMENT_METHOD_LABEL[c.metoda_platnosci as PaymentMethod] ?? c.metoda_platnosci}>
+                              <span className="inline-flex"><PaymentMethodIcon method={c.metoda_platnosci as PaymentMethod} size={14} /></span>
+                            </Tooltip>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                           <StatusTag status={c.status} onChange={(v) => updateStatus(c.id, v)} />
@@ -352,9 +351,12 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                         <td className="p-2.5 text-muted">{c.data_wydatku ? formatPlDate(c.data_wydatku) : "—"}</td>
                         <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end">
-                            <button onClick={() => deleteCost(c.id, c.dostawca_nazwa)} className="flex text-muted hover:text-red-400" title="Usuń">
-                              <IconX size={15} />
-                            </button>
+                            <ExpandingIconButton
+                              label="Usuń"
+                              icon={<IconX size={15} />}
+                              onClick={() => deleteCost(c.id, c.dostawca_nazwa)}
+                              tone="danger"
+                            />
                           </div>
                         </td>
                       </tr>

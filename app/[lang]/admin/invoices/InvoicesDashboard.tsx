@@ -26,7 +26,9 @@ import {
   MenuLabel,
   useContextMenu,
 } from "../Menu";
-import { ExportCsvButton } from "../components";
+import { ExportCsvButton, InfoDot } from "../components";
+import { ExpandingIconButton } from "../ExpandingIconButton";
+import { Tooltip } from "../Tooltip";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { CompanySettingsPanel } from "./CompanySettingsPanel";
 import { RecurringPanel } from "./RecurringPanel";
@@ -280,27 +282,9 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
           )}
         </Popover>
         <ExportCsvButton endpoint="/api/invoices/export" title="Rejestr sprzedaży" />
-        <button
-          onClick={() => setRecurringOpen(true)}
-          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Faktury cykliczne"
-        >
-          <IconRepeat size={14} /> Cykliczne
-        </button>
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Dane firmy"
-        >
-          <IconBuildingStore size={14} /> Dane firmy
-        </button>
-        <button
-          onClick={createInvoice}
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title="Nowa faktura"
-        >
-          <IconPlus size={16} />
-        </button>
+        <ExpandingIconButton label="Faktury cykliczne" icon={<IconRepeat size={15} />} onClick={() => setRecurringOpen(true)} />
+        <ExpandingIconButton label="Dane firmy" icon={<IconBuildingStore size={15} />} onClick={() => setSettingsOpen(true)} />
+        <ExpandingIconButton label="Nowa faktura" icon={<IconPlus size={16} />} onClick={createInvoice} />
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
@@ -319,8 +303,11 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               {formatKpi(kpi.poTerminie)}
             </div>
           </div>
-          <div className="card-paper rounded-xl border hairline p-3" title="Ile dni po terminie wisi najstarsza nieopłacona faktura. Progi eskalacji: 3 dni — uprzejme przypomnienie, 10 — stanowcze, 21 — formalne wezwanie do zapłaty.">
-            <div className="text-[11px] text-muted">Najstarsza zaległość</div>
+          <div className="card-paper rounded-xl border hairline p-3">
+            <div className="flex items-center gap-1 text-[11px] text-muted">
+              Najstarsza zaległość
+              <InfoDot text="Ile dni po terminie wisi najstarsza nieopłacona faktura. Progi eskalacji: 3 dni — uprzejme przypomnienie, 10 — stanowcze, 21 — formalne wezwanie do zapłaty." />
+            </div>
             <div className={`mt-0.5 text-lg font-semibold ${kpi.najstarszaZaleglosc >= 21 ? "text-red-400" : kpi.najstarszaZaleglosc >= 10 ? "text-brand-gold" : "text-[var(--fg)]"}`}>
               {kpi.najstarszaZaleglosc > 0 ? `${kpi.najstarszaZaleglosc} dni` : "—"}
             </div>
@@ -333,8 +320,11 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             <div className="text-[11px] text-muted">Szkice do wystawienia</div>
             <div className={`mt-0.5 text-lg font-semibold ${kpi.szkice > 0 ? "text-brand-gold" : "text-[var(--fg)]"}`}>{kpi.szkice}</div>
           </div>
-          <div className="card-paper rounded-xl border hairline p-3" title="Mikroprzedsiębiorcy mogą do końca 2026 wystawiać faktury poza KSeF, dopóki miesięczna sprzedaż nie przekroczy tego progu.">
-            <div className="text-[11px] text-muted">Sprzedaż (ten mies.) / próg KSeF</div>
+          <div className="card-paper rounded-xl border hairline p-3">
+            <div className="flex items-center gap-1 text-[11px] text-muted">
+              Sprzedaż (ten mies.) / próg KSeF
+              <InfoDot text="Mikroprzedsiębiorcy mogą do końca 2026 wystawiać faktury poza KSeF, dopóki miesięczna sprzedaż nie przekroczy tego progu." />
+            </div>
             <div
               className={`mt-0.5 text-lg font-semibold ${
                 kpi.ksefMonthSalesPln >= KSEF_MICRO_THRESHOLD_PLN
@@ -446,29 +436,33 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                       <td className="p-2.5 font-medium text-[var(--fg)]">
                         <span className="flex items-center gap-1.5">
                           {inv.numer ?? <span className="text-muted">szkic</span>}
-                          <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted" title="Język wydruku">
-                            {inv.jezyk}
-                          </span>
-                          {inv.typ_dokumentu !== "faktura" && (
-                            <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-gold" title="Typ dokumentu">
-                              {INVOICE_TYPE_LABEL[inv.typ_dokumentu]}
+                          {/* Odznaki niosą ZNACZENIE (co oznacza skrót), nie są
+                              ikonami-akcjami → dymek, nie pigułka (Moduł 34b). */}
+                          <Tooltip label="Język wydruku">
+                            <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted">
+                              {inv.jezyk}
                             </span>
+                          </Tooltip>
+                          {inv.typ_dokumentu !== "faktura" && (
+                            <Tooltip label="Typ dokumentu">
+                              <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-gold">
+                                {INVOICE_TYPE_LABEL[inv.typ_dokumentu]}
+                              </span>
+                            </Tooltip>
                           )}
                           {inv.typ_dokumentu === "faktura" && inv.rozlicza_zaliczke_id && (
-                            <span
-                              className="rounded-full bg-brand-purple/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-purple"
-                              title="Faktura rozliczeniowa — rozlicza wcześniejszą zaliczkę (kwota w tabeli to reszta do zapłaty)"
-                            >
-                              Rozliczenie zaliczki
-                            </span>
+                            <Tooltip label="Faktura rozliczeniowa — rozlicza wcześniejszą zaliczkę (kwota w tabeli to reszta do zapłaty)">
+                              <span className="rounded-full bg-brand-purple/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-purple">
+                                Rozliczenie zaliczki
+                              </span>
+                            </Tooltip>
                           )}
                           {inv.ksef_status && inv.ksef_status !== "nie_wyslano" && (
-                            <span
-                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${KSEF_STATUS_CLASS[inv.ksef_status]}`}
-                              title={`KSeF: ${KSEF_STATUS_LABEL[inv.ksef_status]}${inv.ksef_numer ? ` — ${inv.ksef_numer}` : ""}`}
-                            >
-                              KSeF{inv.ksef_status === "przyjeto" ? " ✓" : inv.ksef_status === "odrzucono" ? " ✕" : " …"}
-                            </span>
+                            <Tooltip label={`KSeF: ${KSEF_STATUS_LABEL[inv.ksef_status]}${inv.ksef_numer ? ` — ${inv.ksef_numer}` : ""}`}>
+                              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${KSEF_STATUS_CLASS[inv.ksef_status]}`}>
+                                KSeF{inv.ksef_status === "przyjeto" ? " ✓" : inv.ksef_status === "odrzucono" ? " ✕" : " …"}
+                              </span>
+                            </Tooltip>
                           )}
                         </span>
                       </td>
@@ -487,32 +481,27 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {inv.numer && (
-                            <a
+                            <ExpandingIconButton
+                              label="Podgląd / wydruk"
+                              icon={<IconExternalLink size={15} />}
                               href={`/${lang}/admin/invoices/${inv.id}/print`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex text-muted hover:text-[var(--fg)]"
-                              title="Podgląd / wydruk"
-                            >
-                              <IconExternalLink size={15} />
-                            </a>
+                              newTab
+                            />
                           )}
                           {!inv.numer ? (
-                            <button
+                            <ExpandingIconButton
+                              label="Usuń szkic"
+                              icon={<IconX size={15} />}
                               onClick={() => deleteInvoice(inv.id, inv.numer)}
-                              className="flex text-muted hover:text-red-400"
-                              title="Usuń szkic"
-                            >
-                              <IconX size={15} />
-                            </button>
+                              tone="danger"
+                            />
                           ) : inv.status !== "Anulowana" ? (
-                            <button
+                            <ExpandingIconButton
+                              label="Anuluj fakturę"
+                              icon={<IconBan size={15} />}
                               onClick={() => cancelInvoice(inv.id, inv.numer)}
-                              className="flex text-muted hover:text-red-400"
-                              title="Anuluj fakturę"
-                            >
-                              <IconBan size={15} />
-                            </button>
+                              tone="danger"
+                            />
                           ) : null}
                         </div>
                       </td>

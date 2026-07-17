@@ -18,6 +18,7 @@ import { OrphanLinksPanel } from "./OrphanLinksPanel";
 import { SavedViews } from "../components";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
+import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
@@ -271,7 +272,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
           align="right"
           width={240}
           trigger={(open) => (
-            <button onClick={open} className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" title="Filtry">
+            <button onClick={open} className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
               <IconFilter size={14} /> Filtry
               {activeFilterCount > 0 && <span className="ml-0.5 rounded-full bg-[#4ea7fc]/20 px-1.5 text-[10px] font-medium text-[#4ea7fc]">{activeFilterCount}</span>}
             </button>
@@ -323,9 +324,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
-        <button onClick={addClient} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]" title="Dodaj klienta">
-          <IconPlus size={16} />
-        </button>
+        <ExpandingIconButton label="Dodaj klienta" icon={<IconPlus size={16} />} onClick={addClient} />
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">

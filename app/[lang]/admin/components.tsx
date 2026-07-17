@@ -14,6 +14,8 @@ import { useUI } from "./ui";
 import { PropertyMenu, Popover } from "./Menu";
 import { LinkPicker, type LinkTarget } from "./LinkPicker";
 import { DateField } from "./DatePicker";
+import { ExpandingIconButton } from "./ExpandingIconButton";
+import { Tooltip } from "./Tooltip";
 import { waLink, linkedinLink } from "@/lib/contact";
 
 // Generyczne komponenty UI współdzielone przez wszystkie moduły panelu
@@ -297,6 +299,20 @@ export function PillPicker({
   );
 }
 
+/** Dyskretne „i" przy liczbie KPI — pełne objaśnienie (2-3 zdania) wychodzi
+ * dopiero po najechaniu na tę ikonę (Moduł 34b, wybór właściciela). Wcześniej
+ * całe karty KPI miały natywny `title` na całym kaflu; teraz objaśnienie jest
+ * jawnie oznaczone i nie wyskakuje przy przypadkowym najechaniu na kafelek. */
+export function InfoDot({ text }: { text: string }) {
+  return (
+    <Tooltip label={text}>
+      <span className="inline-flex cursor-help align-middle text-muted/60 transition-colors hover:text-muted">
+        <IconInfoCircle size={13} />
+      </span>
+    </Tooltip>
+  );
+}
+
 /** Jednolinijkowy tekst z wielokropkiem, gdy nie mieści się w kolumnie —
  * pełna treść zostaje dostępna przez natywny tooltip (title). Zastępuje
  * zwykłe <input>/<span>, które w wąskich kolumnach tabeli po prostu ucinały
@@ -510,17 +526,19 @@ export function ExportCsvButton({ endpoint, title = "Eksport CSV" }: { endpoint:
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
   return (
+    // Moduł 34b: wyzwalacz to ikona-pigułka (jak w Leadach), nie przycisk z
+    // tekstem — pasek ma być spójny. Podpis pigułki = `title` („Rejestr
+    // sprzedaży"/„Rejestr zakupów"); klik otwiera Popover z zakresem dat.
     <Popover
       align="right"
       width={240}
-      trigger={(open) => (
-        <button
+      trigger={(open, isOpen) => (
+        <ExpandingIconButton
+          label={title}
+          icon={<IconDownload size={15} />}
           onClick={open}
-          className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-          title={`${title} dla księgowej`}
-        >
-          <IconDownload size={14} /> Eksport CSV
-        </button>
+          active={isOpen}
+        />
       )}
     >
       {(close) => (

@@ -373,7 +373,6 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             <button
               onClick={open}
               className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-              title="Filtry"
             >
               <IconFilter size={14} /> Filtry
               {activeFilterCount > 0 && (
@@ -467,7 +466,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         />
         {/* Eksport ma dodatkowo menu pod prawym przyciskiem (zakres eksportu),
             więc zostaje przy zwykłym <a> — pigułka i tak podpisuje ikonę. */}
-        <span className="relative block h-6 w-6 shrink-0" onContextMenu={(e) => exportCtl.openAt(e, null)}>
+        <span className="inline-flex shrink-0" onContextMenu={(e) => exportCtl.openAt(e, null)}>
           <ExpandingIconButton
             label="Eksport CSV"
             icon={<IconFileExport size={15} />}
