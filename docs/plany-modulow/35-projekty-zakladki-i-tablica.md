@@ -1,105 +1,114 @@
-# Moduł 35 — Projekty: zakładki zamiast ściany + layout tablicy
+# Moduł 35 — Projekty: zakładki zamiast ściany
 
-> Przeczytaj `docs/plany-modulow/README.md` (zasady wspólne) i `CLAUDE.md`.
-> Brief powstał z uwag właściciela 2026-07-17, po Module 34.
+> Przeczytaj `docs/plany-modulow/README.md` (zasady wspólne) i `CLAUDE.md`
+> (sekcje „Architektura modułów panelu" i „Design system").
+> Brief powstał z uwag właściciela 2026-07-17.
+
+## Stan: część B ZROBIONA, część A (ten brief) czeka
+
+Ten moduł miał dwie części. **Część B — „góra zagospodarowana, dół wolny" —
+została zrobiona 2026-07-17** (panel wypełnia wysokość okna, wszystkie moduły;
+szczegóły: `HUB_SETUP.md` → „Moduł 35, część B"). **Zostaje część A: zakładki
+w profilu projektu.**
 
 ## Skąd to się wzięło (cytat właściciela)
 
 > „PROJEKTY potrzebują coś na wzór zakładek jak KLIENT, bo tak to jest ściana,
 > wszystkie informacje na raz, a powinien być podgląd projektu czyli
 > najważniejsze informacje i dodatkowe zakładki gdzie by można było edytować
-> właśnie sekcja ONBOARDING, sekcja CZAS PRACY itd. Swoją drogą sam layout tej
-> tablicy jest do poprawy w PROJEKTach, bo nie wygląda dobrze, że jest tak dużo
-> wolnej przestrzeni pod tym przesuwanym paskiem."
+> właśnie sekcja ONBOARDING, sekcja CZAS PRACY itd."
 
-## Zweryfikowane w kodzie (2026-07-17) — liczby, nie wrażenia
+## Zmierzone w kodzie i na żywo (2026-07-17) — liczby, nie wrażenia
 
-| Teza | Stan |
+| Co | Projekt | Klient (wzorzec) |
+|---|---|---|
+| plik | `ProjectDetailPanel.tsx` — **1779 linii** | `ClientDetailPanel.tsx` — **791** |
+| realna wysokość karty w modalu | **1566 px** | **1017 px** |
+| ogranicznik wysokości | **BRAK** → karta wystaje poza okno, przewija się cały modal | `max-h-[85vh]` (**1056 px**) → mieści się, przewija w środku |
+| zakładki | brak | ✅ Wizytówka / Historia kontaktu / Logi zmian |
+
+**To są DWA osobne braki, nie jeden.** Nawet gdyby ktoś nie robił zakładek,
+profil projektu i tak nie ma `max-h`, który ma klient. Nie pomyl ich.
+
+### Sekcje, które dziś leżą jedna pod drugą (`<h2>` w `ProjectDetailPanel.tsx`)
+
+| Linia | Sekcja |
 |---|---|
-| profil projektu to „ściana" | ✅ **`ProjectDetailPanel.tsx` ma 1779 linii** wobec **791** w `ClientDetailPanel.tsx` — ponad dwa razy tyle |
-| wzorzec zakładek już istnieje | ✅ Klient ma `ViewTabs` (Wizytówka / Historia kontaktu / Logi zmian), Moduł 23 |
-| zakładki działają i w modalu, i na podstronie | ✅ bo stan `tab` siedzi w `*DetailPanel.tsx`, nie w wrapperze — **powtórz ten wzorzec, nie wymyślaj** |
+| 833 | Onboarding |
+| 927 | Zamknięcie projektu i opinia |
+| 1045 | Rentowność |
+| 1074 | Czas pracy |
+| 1247 | Kamienie milowe |
+| 1359 | Log aktywności |
 
-## Część A — zakładki w profilu projektu
+Plus pola tożsamości u góry (tytuł, status, zdrowie, klient, daty, priorytet,
+opis) — to naturalny kandydat na „Podgląd".
 
-Wzorzec do skopiowania: `ClientDetailPanel.tsx` (Moduł 23). `ViewTabs` +
-`ViewSwitch` z `app/[lang]/admin/ViewTabs.tsx`, `layoutId` osobny niż u klienta
-(inaczej podkreślenie „przeskoczy" między dwoma otwartymi profilami).
+### ❗ Projekty NIE MAJĄ audytu zmian — nie planuj zakładki „Logi zmian"
 
-**Do rozstrzygnięcia z właścicielem — jaki podział zakładek.** Propozycja
-wyjściowa (do zakwestionowania, nie do wdrożenia w ciemno):
-- **Podgląd** — tożsamość (ikona/kolor/tytuł), status, zdrowie, klient, termin,
-  kamienie milowe, opis. To, co widać w 3 sekundy.
-- **Onboarding** — Moduł 14.
-- **Czas pracy** — Moduł 19.
-- **Logi zmian** — jak u klienta (`FieldChangesTab`), o ile projekty mają audyt
-  (**sprawdź**: Moduł 23 zostawił audyt faktur/ofert/projektów jako „jedna linia
-  w ich PATCH-cie" — może go nie być).
+Sprawdzone: `field_changes` / `FieldChangesTab` / `/changes` **nie istnieją dla
+projektów** (u klienta i leada owszem). Moduł 23 zostawił audyt faktur/ofert/
+projektów jako „jedna linia w ich PATCH-cie" — to znaczy, że zakładka „Logi
+zmian" w projekcie wymaga **najpierw zbudowania audytu**, czyli osobnego
+zakresu. Nie wpisuj jej do planu jako „skopiuj od klienta".
 
-Pytania, które trzeba zadać PRZED kodowaniem:
-1. Czy „Podgląd" ma być tylko do odczytu, czy edytowalny w miejscu (jak dziś)?
-2. Gdzie trafiają: powiązane faktury/oferty/umowy, notatki, koszty projektu —
-   osobna zakładka „Powiązania" czy zostają w Podglądzie?
-3. Czy kamienie milowe to Podgląd, czy własna zakładka (mają swój edytor)?
+## Wzorzec do skopiowania (Moduł 23) — nie wymyślaj własnego
 
-## Część B — martwa przestrzeń na dole (POTWIERDZONA, szersza niż Projekty)
+`ClientDetailPanel.tsx`:
+- `const [tab, setTab] = useState<"card" | "history" | "changes">("card");`
+- `<ViewTabs value={tab} onChange={setTab} layoutId="client-detail-tab-underline" …>`
+- **stan `tab` siedzi w `*DetailPanel.tsx`, NIE w wrapperze** — dzięki temu
+  zakładki działają i w modalu z listy, i na podstronie `[id]`. Zrób tak samo.
+- **`layoutId` musi być inny** niż `client-detail-tab-underline`, np.
+  `project-detail-tab-underline` — inaczej podkreślenie „przeskoczy" między
+  dwoma profilami otwartymi w tej samej sesji.
 
-**Właściciel potwierdził zrzutami (2026-07-17):** *„góra jest zagospodarowana,
-a dół jest wolny, bezużyteczny"* — i dotyczy to **OBU widoków Projektów**
-(Tablica i Oś czasu) **oraz podglądu wiadomości w Poczcie** (*„tam też jest za
-mały podgląd i jest niewykorzystana przestrzeń"*). To nie jest problem jednego
-ekranu — to jeden łańcuch wysokości.
+## Do rozstrzygnięcia z właścicielem — ZAPYTAJ, nie zgaduj
 
-### Diagnoza (zrobiona 2026-07-17, nie zaczynaj od zera)
+1. **Jaki podział zakładek?** Propozycja wyjściowa (do zakwestionowania):
+   **Podgląd** (tożsamość + status + zdrowie + klient + termin) · **Kamienie
+   milowe** · **Onboarding** · **Czas pracy i rentowność** (razem — obie mówią
+   o koszcie) · **Zamknięcie i opinia** · **Log aktywności**.
+   To sześć zakładek — dużo. Może część powinna zostać w Podglądzie?
+2. **Gdzie kamienie milowe?** To rdzeń projektu i są na Osi czasu — może
+   należą do Podglądu, a nie do osobnej zakładki?
+3. **Czy „Podgląd" ma być edytowalny w miejscu** (jak dziś), czy tylko do
+   odczytu, a edycja w zakładkach? U klienta Wizytówka jest edytowalna.
+4. **Czy dokładamy `max-h-[85vh]`** (jak u klienta), żeby profil mieścił się na
+   ekranie? Zakładki same z siebie skrócą kartę, ale bez limitu długa zakładka
+   znów wystanie poza okno.
 
-Panel **nigdzie nie przekazuje wysokości ekranu w dół**. Łańcuch:
-- `AppShell.tsx:322` — root ma `flex min-h-screen flex-col md:flex-row`, więc
-  na `md+` kolumna treści (`AppShell.tsx:450`, `min-w-0 flex-1`) **jest**
-  rozciągnięta (`align-items: stretch`). Do tego miejsca jest dobrze.
-- `AppShell.tsx:459` — `<div className="mx-auto px-4 py-5 …">` ma **wysokość
-  treści**. Tu łańcuch się urywa.
-- Dalej: root dashboardu (`ProjectsDashboard.tsx:265`, `-mx-4 sm:-mx-6`) i
-  kontener kolumn (`ProjectKanban.tsx:126`, `flex gap-4 overflow-x-auto pb-4`)
-  też mają wysokość treści → kolumny kończą się na najwyższej karcie, a poziomy
-  scrollbar ląduje w połowie ekranu (dokładnie to widać na zrzucie).
+## Czego NIE „naprawiać"
 
-**Kierunek naprawy:** przeciągnąć `flex flex-col` + `flex-1 min-h-0` od
-kontenera treści w `AppShell` aż do kontenera widoku. `min-h-0` jest kluczowe —
-bez niego element flex nie skurczy się poniżej treści i scroll wyjdzie na
-`<body>` zamiast zostać w kolumnie.
+- **Modal projektu ma kartę w WRAPPERZE** (`ProjectsDashboard.tsx:519` —
+  `card="card-paper my-auto w-full max-w-4xl …"`), a nie w `*DetailPanel.tsx`
+  jak Leady/Klienci. To **świadome, opisane w `CLAUDE.md`** („Faktury/Oferty/
+  Projekty: własne, węższe limity — nie ujednolicaj bez potrzeby"). Jeśli
+  dokładasz `max-h`, dołóż je tam, gdzie realnie jest karta.
+- **`ViewSwitch` ma od Modułu 35B prop `fill`** — opt-in, bo ten sam komponent
+  przełącza zakładki w profilach (modal o własnej wysokości). W profilu projektu
+  **prawdopodobnie NIE chcesz `fill`** — tak jak nie ma go u klienta.
 
-**Uwaga na `AnimatePresence mode="wait"`** w `AppShell` (przejścia stron) —
-opakowuje treść, więc dodanie tam `flex` trzeba sprawdzić wzrokowo, a nie
-zakładać.
+## ⚠️ Pułapki podglądu
 
-**Zakres do potwierdzenia z właścicielem:** ruszamy tylko Projekty + Pocztę
-(zgłoszone), czy od razu wszystkie moduły (Leady/Klienci/Faktury… mają ten sam
-łańcuch)? Zrobienie tego wyrywkowo zostawi panel w połowie drogi — ale zrobienie
-wszystkiego naraz to duża paczka do obejrzenia. **To jest główna decyzja tego
-modułu.**
-
-### Poczta — osobny kształt, ta sama przyczyna
-
-`AppShell.tsx:459` daje Poczcie `max-w-none` (świadomie, Moduł 4e), ale
-wysokości i tak nie przekazuje. Podgląd wiadomości ma własną kartę o wysokości
-treści — stąd „za mały podgląd" przy pustym dole. Jeśli ruszasz Pocztę, cel:
-lista i podgląd wypełniają wysokość okna, a scroll żyje **wewnątrz** nich.
-
-## ⚠️ Pułapka podglądu — przeczytaj, zanim zdiagnozujesz „błąd"
-
-Karta podglądu bywa `hidden` → **`requestAnimationFrame` = 0 klatek/s** →
-animacje `framer-motion` nie startują. Objawy: treść stoi na `opacity: 0`, a
-**przełącznik Tablica/Oś czasu wygląda na kompletnie zepsuty** (klik zmienia
-`localStorage`, widok nie). To ARTEFAKT NARZĘDZIA, nie bug — 2026-07-17
-kosztowało to pół godziny fałszywej diagnozy.
-
-Test rozstrzygający i obejście: patrz pamięć `podglad-rAF-zamrozony` oraz
-`HUB_SETUP.md` → „Moduł 34". W skrócie: **`tabs_create` daje świeżą, widoczną
-kartę** (`visibilityState: "visible"`, ~50 kl./s) — na niej wszystko działa.
-Widok przełączaj przez `localStorage.setItem('leggera_projects_view', 'kanban')`
-+ reload, nie klikiem.
+- **Karta podglądu bywa `hidden` → `requestAnimationFrame` = 0 kl./s → animacje
+  `framer-motion` nie startują**: treść stoi na `opacity: 0`, a przełączniki
+  widoku wyglądają na kompletnie zepsute. To ARTEFAKT, nie bug (kosztowało pół
+  godziny fałszywej diagnozy 2026-07-17). **Zawsze zaczynaj od `tabs_create`** —
+  świeża karta jest `visible` i ma ~50 kl./s. Test i szczegóły: pamięć
+  `podglad-rAF-zamrozony`, `HUB_SETUP.md` → „Moduł 34".
+- Zrzut 800×450 vs okno 1600×900 — klikaj przez `ref` z `read_page`, nie po
+  współrzędnych.
+- Panel `/admin` jest **jednomotywowy (ciemny)** — `.admin-linear`
+  (`globals.css:303`) nigdy nie dostaje `.dark`. Nie szukaj jasnego wariantu.
+- **Flex-column rozciąga dzieci** (`align-items: stretch`) — jeśli owijasz coś
+  w `flex flex-col`, sprawdź bezpośrednie `<button>`/`<a>` bez `w-full`
+  (Moduł 35B: przycisk urósł do 1037 px i wyglądał, jakby przeskoczył na środek).
 
 ## Weryfikacja
 
-`npx tsc --noEmit -p tsconfig.json` + podgląd na ŚWIEŻEJ karcie. Panel `/admin`
-jest jednomotywowy (ciemny) — nie szukaj jasnego wariantu.
+`npx tsc --noEmit -p tsconfig.json` po każdej paczce + podgląd na **świeżej
+karcie**. `tsc` nie sprawdzi, czy zakładki się przełączają — sprawdź to klikiem
+i **w modalu z listy, ORAZ na podstronie `/pl/admin/projects/[id]`** (to dwie
+różne ścieżki renderowania tego samego komponentu — właśnie dlatego stan `tab`
+ma siedzieć w `*DetailPanel.tsx`).
