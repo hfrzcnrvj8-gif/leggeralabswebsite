@@ -14,14 +14,35 @@ jako markę aplikacji, którą właściciel instaluje na telefonie.
 
 ## DECYZJA: PWA (Progressive Web App), nie natywna apka ze sklepu
 
+**POTWIERDZONE przez właściciela 2026-07-17** (przy okazji Modułu 36): chce
+„pełnoprawną aplikację działającą na iPhonie i iPadzie" i po przedstawieniu obu
+dróg **wybrał PWA**, świadomie odrzucając natywną apkę z App Store. Nie pytaj o
+to drugi raz — ta decyzja jest zamknięta.
+
 Panel to Next.js — najtańsza i wystarczająca droga na telefon to **PWA**:
 instalowalna na ekranie głównym, uruchamia się jak zwykła aplikacja (pełny ekran,
 własna ikona), działa na iOS i Androidzie, **bez App Store / Google Play, bez
-osobnego kodu**. Dla jednoosobowego narzędzia to idealny wybór.
+osobnego kodu**. Dla jednoosobowego narzędzia to idealny wybór. „Pełnoprawna" w
+rozumieniu właściciela = **wygodna na każdym jego urządzeniu Apple**, nie =
+obecność w sklepie.
 
 Natywne opakowanie (Capacitor/React Native) rozważać TYLKO, jeśli kiedyś potrzebna
 będzie obecność w sklepie albo głęboka integracja sprzętowa — teraz nie jest, nie
 budować. PWA daje 95% korzyści za ułamek kosztu.
+
+### iPhone I iPad — dwa różne ekrany, nie jeden „mobilny"
+
+Właściciel wprost wymienił **iPada**. To osobny cel, nie „telefon tylko większy":
+
+- **iPhone (~375–430 px):** wąski, jedna kolumna, nawigacja kciukiem. Tu leży 80%
+  roboty (Kanban/tabele/edytory nie mieszczą się).
+- **iPad (~768–1024 px, pion I poziom):** szerszy — bliżej desktopu. Część widoków
+  desktopowych zadziała wprost, ale trzeba je **sprawdzić osobno** (dwie kolumny
+  zamiast jednej albo trzech; oś czasu projektów bywa używalna na iPadzie w
+  poziomie, na iPhonie nie). iPadOS Safari też wspiera „Dodaj do ekranu głównego"
+  → PWA instaluje się identycznie. Weryfikacja MUSI objąć **oba** breakpointy
+  (`resize_window preset:"tablet"` 768×1024 obok `preset:"mobile"` 375×812), a na
+  iPadzie także **orientację poziomą** (landscape), bo tam apka spędzi sporo czasu.
 
 ## Uczciwie: PWA to dwie osobne prace (nie mylić ich)
 
@@ -91,16 +112,33 @@ Przejść i naprawić na wąsko, priorytetem to, czego używa się mobilnie najc
 ### Krok 5 — weryfikacja
 - Uwaga: pełny `next build` failuje w sandboxie (EPERM) — service worker/PWA
   realnie zweryfikuje się dopiero na Vercelu. W dev: `npx tsc --noEmit`, oraz
-  przejście KAŻDEGO widoku w `resize_window preset:"mobile"` + screenshoty dla
-  właściciela (to jest właściwy dowód responsywności). Test „zainstaluj na ekranie
-  głównym” na realnym telefonie właściciela po deployu.
+  przejście KAŻDEGO widoku w **DWÓCH** rozmiarach: `resize_window preset:"mobile"`
+  (375×812, iPhone) **i** `preset:"tablet"` (768×1024, iPad) + screenshoty dla
+  właściciela (to jest właściwy dowód responsywności). Na iPadzie sprawdź też
+  **poziom** (landscape, np. 1024×768). Test „zainstaluj na ekranie głównym” na
+  realnym iPhonie **i iPadzie** właściciela po deployu.
+- **Pułapka podglądu** (patrz pamięć `podglad-rAF-zamrozony`): karta bywa `hidden`
+  → `requestAnimationFrame` = 0 kl./s → animacje framer-motion nie ruszają, widok
+  wygląda na zepsuty. Artefakt narzędzia, nie bug — zaczynaj od `tabs_create`,
+  a gdy zamarznie, pompuj klatki zrzutami ekranu.
 
 ## Otwarte decyzje (zapytaj właściciela)
-1. **Zakres pierwszej wersji mobilnej** — wszystkie moduły responsywne od razu,
-   czy najpierw „mobilny rdzeń” (Pulpit + Leady/Klienci + Poczta + szybkie
-   kontakty), a reszta potem?
+
+Właściciel chce **pełnoprawnej** apki (2026-07-17) — więc celem docelowym są
+**WSZYSTKIE moduły responsywne**, nie tylko rdzeń. Pytania niżej dotyczą
+**kolejności dostarczania i szczegółów**, nie „czy" — nie pytaj, czy chce pełnej
+responsywności, bo chce.
+
+1. **Kolejność dostarczania** (nie zakres — ten jest pełny) — czy dowozić
+   iteracyjnie zaczynając od „mobilnego rdzenia” (Pulpit + Leady/Klienci + Poczta
+   + szybkie kontakty `tel:`/`wa.me`), a resztę modułów w kolejnych paczkach —
+   czy robić wszystko naraz w jednym dużym przejściu? **Rekomendacja: rdzeń
+   najpierw**, bo daje najszybciej używalną apkę i pozwala Ci ją przetestować na
+   telefonie, zanim dopieścimy rzadziej używane widoki. To duży moduł — dowożenie
+   w paczkach jest bezpieczniejsze niż jeden wielki skok.
 2. **Powiadomienia** — na start wystarczy mail + Pulpit (rekomendacja), czy chcesz
-   od razu web-push (droższe, ograniczone na iOS)?
+   od razu web-push (droższe, ograniczone na iOS — działa tylko po „dodaniu do
+   ekranu głównego”, osobna zgoda)?
 3. **Ikona/nazwa na ekranie głównym** — „Leggera Hub” + logo dwóch „L” z
    `app/icon.svg` (rekomendacja) czy coś innego?
 
