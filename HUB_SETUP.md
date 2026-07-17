@@ -4994,3 +4994,105 @@ błędów konsoli.
 - **Nagłówek Poczty i trzecia implementacja menu** — decyzja 4 wyżej.
 - **Wydruki (`*/print/*.tsx`) nietknięte** — `⚠`/`✓` w umowie/ofercie/wezwaniu
   to treść dokumentu dla klienta, nie chrome panelu.
+
+## Moduł 34 — Dymki podpowiedzi + menu na ikonach (2026-07-17)
+
+Z uwagi właściciela po Module 33: *„koperta przy kliencie nie jest klikalna ani
+nie podaje żadnych informacji"*, *„jest ikonka i nie jest podpisana"*.
+
+**Trzy uwagi, jedna przyczyna:** panel nie miał komponentu dymka — miał **222
+natywne `title=` w 41 plikach**. Natywny dymek wchodzi po ~1 s, wygląda jak
+prostokąt systemowy (inny na macOS i Windowsie — dokładnie ten sam problem, co
+emoji w Module 33) i nie da się go stylować. Przy ikonie bez podpisu to znaczy
+„nie wiadomo, co ten przycisk robi".
+
+### `app/[lang]/admin/Tooltip.tsx`
+
+- **opóźnienie 400 ms** + **wspólna kolejka**: kolejny dymek w ciągu 300 ms
+  pojawia się natychmiast (przejeżdżasz po pasku ikon, opisy lecą za kursorem);
+- **portal do `<body>`** — inaczej obcięłaby go tabela z `overflow-auto`, a to
+  najczęstsze miejsce użycia;
+- `AnimatePresence` **wewnątrz** portalu — udokumentowana pułapka z `Menu.tsx`;
+- klasa `admin-linear` na portalu — poza scope'em `AppShell` `var(--fg)` spada
+  do jasnych tokenów strony publicznej;
+- `.glass` — dymek to chrome, więc **jedyne** miejsce zgodne z zasadą „glass
+  tylko na chrome" (właściciel potwierdził 2026-07-17: „liquid glass" = ogólna
+  lekkość, NIE szkło na kartach);
+- wrapper ma `display: contents` → **nie rusza layoutu**; pozycja mierzona z
+  `firstElementChild`, bo wrapper nie ma geometrii;
+- odbija się pod element, gdy nad nim brak miejsca (pasek przy górnej krawędzi);
+- `aria-label` zamiast `title` — nazwa przycisku zostaje w drzewie dostępności.
+
+### Odznaka kanału przestała być ozdobą
+
+Dymek mówi „Ostatni kontakt: WhatsApp · 3 dni temu" + co zrobi kliknięcie. Klik
+**filtruje listę po kanale** (toggle, obwódka na aktywnym). Nowy filtr wpięty w
+menu Filtry, licznik, „Wyczyść filtry" i zapisane widoki — żeby dało się go
+**zobaczyć i wyłączyć**, nie tylko włączyć. Cztery miejsca: Leady + Klienci ×
+Tablica + Tabela.
+
+`daysAgoLabel()` w `lib/dates.ts` — dymek mówił „0 dni temu" zamiast „dziś".
+Osobno od `daysSince()`: kolumna DNI chce liczby, zdanie chce zdania.
+
+### Menu pod prawym przyciskiem — tylko tam, gdzie akcje ISTNIEJĄ
+
+**Ustalenie przed wdrożeniem:** prawie każda ikona paska ma dokładnie jedną
+funkcję („Wyślij raport", „Dodaj leada") — menu dla nich byłoby wymyślaniem
+akcji na zapas. Zrobione trzy miejsca (wybór właściciela):
+1. **Eksport CSV** — klik zawsze brał CAŁY rejestr, nawet przy filtrach i
+   zaznaczeniu. Teraz: cały / tylko widoczne / tylko zaznaczone.
+   `/api/leads/export?ids=` — świadomie ID-ki, nie powtórzenie filtrów w SQL-u
+   (lista jest filtrowana i przeszukiwana po stronie klienta, więc drugie
+   źródło prawdy by się rozjechało).
+2. **Odznaka kanału** — zadzwoń / napisz / WhatsApp / LinkedIn. Wspólny
+   `ContactChannelMenu.tsx` dla czterech miejsc, te same helpery co
+   `ContactQuickActions`. Pozycje tylko gdy jest czym je wykonać.
+3. **Dzwonek** — „oznacz wszystkie" (było tylko w środku panelu) + NOWY filtr
+   „tylko nieprzeczytane".
+
+Dymki zdradzają te menu („Prawy przycisk: więcej opcji") — menu kontekstowe na
+pasku narzędzi jest samo w sobie niewykrywalne.
+
+### Dwa błędy złapane weryfikacją na żywo, których `tsc` NIE widzi
+
+- **`WHERE id = ANY(${ids}::uuid[])` nie działa na PGlite** — eksport podzbioru
+  cicho zwracał CSV z samym nagłówkiem. Zamienione na `string_to_array` (param
+  to zwykły string, oba sterowniki traktują go tak samo). Zepsuty parametr =
+  pusty CSV, świadomie nie „cały rejestr".
+- **Regres własny:** prawy klik na drugiej ikonie zostawiał pierwsze menu
+  otwarte (DWA naraz). `Popover` zamykał się na `mousedown` obok, ale nie na
+  `contextmenu`. Dopóki menu kontekstowe było jedno na widok, ten przypadek nie
+  istniał. Naprawione w `Menu.tsx` (Popover + PropertyMenu).
+
+### ⚠️ Pułapka podglądu — rAF zamrożony (kosztowała pół godziny)
+
+Karta podglądu bywa `document.visibilityState === "hidden"` → przeglądarka dławi
+**`requestAnimationFrame` do 0 klatek/s** → `framer-motion` nie animuje:
+- treść stoi na `opacity: 0` (wygląda na „panel się nie renderuje");
+- `AnimatePresence mode="wait"` nigdy nie kończy wyjścia → **przełącznik
+  Tablica/Tabela/Oś czasu wygląda na całkowicie zepsuty** (klik zmienia
+  `localStorage`, widok nie).
+
+2026-07-17 wyglądało to na poważny błąd produkcyjny („Kanban Projektów nigdy się
+nie renderuje"). **Wszystko fałszywe.** Test rozstrzygający:
+```js
+let n=0; const t0=performance.now();
+requestAnimationFrame(function tick(){ n++; if(performance.now()-t0<1000) requestAnimationFrame(tick); });
+// po ~1.5 s: {visibility: document.visibilityState, hasFocus: document.hasFocus(), klatki: n}
+```
+`klatki: 0` + `visibility: "hidden"` → artefakt narzędzia, nie bug.
+**Obejście: `tabs_create` daje świeżą kartę — `visible`, ~50 kl./s.**
+Widok przełączaj przez `localStorage` + reload, nie klikiem.
+
+### Dev-seed
+
+Leady dostały `ostatni_kanal` (telefon/email), klient `whatsapp` — **były NULL
+od zawsze**, więc odznaki kanału i filtru NIE DAŁO SIĘ zobaczyć lokalnie.
+
+### Odnotowane, NIE zrobione
+
+- **219 natywnych `title=`** wciąż w panelu — ten moduł podmienił pasek Leadów,
+  odznaki kanału i dzwonek. Reszta (m.in. `Truncate`, gdzie `title` niesie pełną
+  uciętą treść — tam natywny dymek jest OK) czeka na osobną decyzję.
+- Menu kontekstowe dla pasków Klientów/Faktur/Kosztów — ten sam wzorzec, gdy
+  pojawi się druga akcja.
