@@ -7,6 +7,7 @@ import { type Client, CLIENT_STATUSES, isClientOverdue, clientOverdueReason } fr
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { ClientDetailPanel } from "./ClientDetailPanel";
+import { OrphanLinksPanel } from "./OrphanLinksPanel";
 import { SavedViews } from "../components";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
@@ -24,6 +25,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
   const [openClientId, setOpenClientId] = useState<string | null>(null);
+  const [orphansOpen, setOrphansOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -208,6 +210,10 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       { id: "add", label: "+ Dodaj klienta", hint: "N", run: addClient },
       { id: "kanban", label: "Widok: Tablica", run: () => switchView("kanban") },
       { id: "table", label: "Widok: Tabela", run: () => switchView("table") },
+      // Moduł 30 — porządek po rekordach sprzed naprawy przecieków client_id.
+      // Tylko w palecie, bez kafelka w interfejsie: to akcja jednorazowa, nie
+      // krok codziennej pracy, a Klienci to jej naturalny dom.
+      { id: "orphans", label: "Powiąż wstecz oferty i faktury bez klienta", run: () => setOrphansOpen(true) },
     ],
     [addClient, switchView]
   );
@@ -403,6 +409,14 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
             }}
           />
         )}
+      </Modal>
+
+      <Modal
+        open={orphansOpen}
+        onClose={() => setOrphansOpen(false)}
+        card="card-paper my-auto w-full max-w-3xl rounded-2xl border hairline p-5"
+      >
+        <OrphanLinksPanel onClose={() => setOrphansOpen(false)} />
       </Modal>
     </div>
   );

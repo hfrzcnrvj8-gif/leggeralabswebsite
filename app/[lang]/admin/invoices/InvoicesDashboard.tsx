@@ -31,6 +31,7 @@ import { InvoiceEditor } from "./InvoiceEditor";
 import { CompanySettingsPanel } from "./CompanySettingsPanel";
 import { RecurringPanel } from "./RecurringPanel";
 import { Modal } from "../Modal";
+import { NewDocumentDialog, type NewDocumentLink } from "../NewDocumentDialog";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number };
 
@@ -42,6 +43,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const copy = useCopy();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -60,16 +62,30 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
     load();
   }, [load]);
 
-  const createInvoice = useCallback(async () => {
-    const res = await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    if (!res.ok) {
-      toast("Nie udało się utworzyć faktury.", "error");
-      return;
-    }
-    const { id } = (await res.json()) as { id: string };
-    await load();
-    setOpenId(id);
-  }, [toast, load]);
+  // Moduł 30 — patrz OffersDashboard: pytamy „dla kogo?" zamiast tworzyć
+  // szkic bez powiązania. Wybór leada podnosi jego client_id, jeśli lead ma
+  // już klienta (POST /api/invoices świadomie NIE zakłada nowego klienta —
+  // to rola pierwszej oferty, patrz lib/clients.ts).
+  const createInvoice = useCallback(() => setNewOpen(true), []);
+
+  const createInvoiceFor = useCallback(
+    async (link: NewDocumentLink) => {
+      setNewOpen(false);
+      const res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(link),
+      });
+      if (!res.ok) {
+        toast("Nie udało się utworzyć faktury.", "error");
+        return;
+      }
+      const { id } = (await res.json()) as { id: string };
+      await load();
+      setOpenId(id);
+    },
+    [toast, load]
+  );
 
   const deleteInvoice = useCallback(
     async (id: string, numer: string | null) => {
@@ -546,6 +562,14 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       >
         <RecurringPanel onClose={() => setRecurringOpen(false)} />
       </Modal>
+
+      <NewDocumentDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onPick={createInvoiceFor}
+        tytul="Nowa faktura — dla kogo?"
+        opis="Powiązanie decyduje o tym, czy faktura trafi na kartę klienta i na jego oś czasu. Dane nabywcy na samym dokumencie i tak wpiszesz osobno — możesz też powiązać ją później."
+      />
 
       {/* Skrót do akcji, które w wierszu są ikonami 15 px obok siebie —
           ikony ZOSTAJĄ (odkrywalność), menu tylko je dubluje i dokłada

@@ -56,7 +56,9 @@ import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
-import { ClientLinkChip, ClientPickerButton } from "../components";
+import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
+import { invalidateLinkTargets } from "../LinkPicker";
+import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 
 export function InvoiceEditor({
   id,
@@ -245,10 +247,17 @@ export function InvoiceEditor({
   }, []);
 
   const pickClient = useCallback(
-    (c: Client) => {
+    (c: Client | null) => {
       // Kopiujemy dane klienta na pola nabywcy faktury (to niezależna migawka —
       // późniejsza zmiana karty klienta nie rusza już wystawionej faktury) i
       // podpinamy client_id, żeby działał link „→ Karta klienta".
+      // „— brak powiązania —" zdejmuje TYLKO client_id: raz wpisanych danych
+      // nabywcy nie kasujemy, bo to treść dokumentu, nie powiązanie.
+      if (!c) {
+        setInvoice((prev) => (prev ? { ...prev, client_id: null } : prev));
+        patchInvoice({ client_id: null });
+        return;
+      }
       const patch: Partial<Invoice> = {
         client_id: c.id,
         klient_nazwa: c.nazwa ?? "",
@@ -264,6 +273,45 @@ export function InvoiceEditor({
     },
     [patchInvoice]
   );
+
+  /** „Załóż klienta z danych nabywcy" — droga wyjścia, gdy nabywcy nie ma
+   * jeszcze w bazie (na świeżym panelu: nie ma nikogo). Zakłada klienta z
+   * tego, co już wpisane w dokumencie, i od razu go podpina. */
+  const createClientFromBuyer = useCallback(async () => {
+    const src = invoice;
+    if (!src) return;
+    const nazwa = (src.klient_nazwa ?? "").trim();
+    if (!nazwa) {
+      toast("Najpierw wpisz nazwę nabywcy — z pustych danych nie ma czego zakładać.", "error");
+      return;
+    }
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nazwa,
+        nip: src.klient_nip ?? "",
+        ulica: src.klient_ulica ?? "",
+        kod: src.klient_kod ?? "",
+        miasto: src.klient_miasto ?? "",
+        kraj: src.klient_kraj ?? "",
+        email: src.klient_email ?? "",
+      }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się założyć klienta.", "error");
+      return;
+    }
+    const { id: newClientId } = (await res.json()) as { id: string };
+    const created = (await fetch("/api/clients").then((r) => (r.ok ? r.json() : { clients: [] }))) as {
+      clients: Client[];
+    };
+    setClients(created.clients ?? []);
+    invalidateLinkTargets("client"); // wspólny cache LinkPickera na innych ekranach
+    setInvoice((prev) => (prev ? { ...prev, client_id: newClientId } : prev));
+    patchInvoice({ client_id: newClientId });
+    toast(`Założono klienta „${nazwa}" i podpięto do faktury.`);
+  }, [invoice, patchInvoice, toast]);
 
   const patchItem = useCallback(
     async (itemId: string, patch: Partial<InvoiceItem>) => {
@@ -529,6 +577,20 @@ export function InvoiceEditor({
   const paid = totalPaid(payments);
   const overdue = isInvoiceOverdue(invoice);
 
+  // Moduł 30 — miękka podpowiedź o powiązaniu. Liczona z tego samego stanu, co
+  // widok, więc znika sama, gdy tylko wybierzesz klienta z pickera.
+  const linkedClient = clients.find((c) => c.id === invoice.client_id) ?? null;
+  const linkStatus = clientLinkStatus(
+    { client_id: invoice.client_id, klient_nazwa: invoice.klient_nazwa, klient_nip: invoice.klient_nip },
+    linkedClient ? { nazwa: linkedClient.nazwa ?? "", nip: linkedClient.nip ?? "" } : null
+  );
+  const linkHint =
+    linkStatus === "unlinked"
+      ? UNLINKED_CLIENT_HINT
+      : linkStatus === "mismatch"
+        ? clientMismatchHint(linkedClient?.nazwa ?? "")
+        : null;
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -570,8 +632,16 @@ export function InvoiceEditor({
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-[13px] font-medium">Nabywca</h2>
-              {!locked && <ClientPickerButton clients={clients} onPick={pickClient} />}
+              {!locked && (
+                <ClientLinkPicker
+                  clients={clients}
+                  clientId={invoice.client_id}
+                  onPick={pickClient}
+                  onCreate={createClientFromBuyer}
+                />
+              )}
             </div>
+            {!locked && linkHint && <LinkHint text={linkHint} />}
             <div className={lockCls}>
             <input
               value={invoice.klient_nazwa}

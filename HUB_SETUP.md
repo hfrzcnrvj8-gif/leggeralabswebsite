@@ -4648,3 +4648,141 @@ rzeczy, które ma**. Świadomie NIE naprawione w tej sesji: to mechaniczny, ale
 szeroki przegląd całego dokumentu, wykraczający poza zakres briefu 32 (który
 wymieniał cztery konkretne obietnice). Do zrobienia przy okazji 30/31 albo
 osobno — decyzja właściciela.
+
+---
+
+## Moduł 30 — Powiązanie z klientem (2026-07-17)
+
+Drugi z trzech briefów z audytu Modułu 29 (kolejność 32 → 30 → 31). Korzeń
+łączący trzy kroki mapy drogi klienta (2 Oferta, 6 Fakturowanie, 10 Retencja):
+**powiązanie z Klientem było opcjonalne tam, gdzie cała reszta drogi na nim
+wisi — a panel nigdy o tym nie mówił.** Skutki ujawniały się miesiącami
+później i nie dało się ich odzyskać automatycznie.
+
+Brief zweryfikowany gretem przed startem (lekcja z audytu 29). Jego trzy
+sprostowania (A/B/C) się potwierdziły, ale **dwa znaleziska były nowe, a jedno
+sformułowane za łagodnie** — patrz niżej.
+
+### Znalezisko 1 (nowe, najpoważniejsze): trasa „lead → oferta" była martwa
+
+Sprostowanie B briefu mówiło, że „cała trasa lead → oferta → akceptacja →
+projekt + faktura jest powiązana poprawnie", a dziura otwiera się tylko przy
+starcie bez leada. **Na poziomie API to prawda. Tyle że w całym panelu nie było
+ani jednego miejsca, które tę trasę wołało.** Sprawdzone gretem: żaden `.tsx`
+nie POST-ował do `/api/offers` ani `/api/invoices` z `lead_id`; oba dashboardy
+wysyłały `body: "{}"`. Jedyny klikalny most lead→klient to „Utwórz klienta"
+(`LeadDetailPanel` → `api/leads/[id]/promote`), a on nie tworzy oferty.
+
+Czyli gałąź „zakłada klienta z leada" w `POST /api/offers:60-76` była z poziomu
+panelu **martwym kodem**, a **każda** oferta i faktura rodziła się z
+`client_id = NULL` — nie tylko te „od zera". Dziura była domyślną i jedyną
+drogą, nie wyjątkiem.
+
+### Znalezisko 2 (nowe): duplikat i korekta gubiły powiązanie
+
+Brief wskazywał tylko `POST /api/invoices`. W rzeczywistości `client_id` nie
+było w `INSERT` w **czterech** trasach:
+
+| Trasa | Skutek |
+|---|---|
+| `POST /api/invoices` | ręczna faktura bez klienta (nawet z leada, który klienta MA) |
+| `api/invoices/[id]/duplicate` | duplikat gubi klienta — **w tym „Przekształć w fakturę VAT"** na opłaconej proformie, czyli w środku ścieżki pieniędzy |
+| `api/invoices/[id]/correct` | korekta gubi klienta, mimo że skrupulatnie przepisuje `koryguje_id`, `rozlicza_zaliczke_id` i `zamowienie_*` |
+| `api/offers/[id]/duplicate` | duplikat oferty gubi klienta |
+
+Jeden konsekwentny błąd przeoczenia: `client_id` doszedł później (`ALTER TABLE`
+w `db.ts:1085`) i żadna z tras tworzących dokumenty nigdy go nie dopisała.
+Wszystkie cztery naprawione; każda woła teraz `ensureClientsSchema()`, bo
+kolumna żyje w tej migracji.
+
+### Decyzje właściciela (2026-07-17)
+
+1. **`client_id` znaczy OBA naraz — potwierdzone.** Pola `klient_*` to
+   **migawka** danych nabywcy na moment wystawienia (zmiana karty klienta NIE
+   rusza wystawionej faktury — wymóg księgowy), `client_id` to **powiązanie**
+   (karta klienta, oś czasu, retencja). Kod już tak działał; Moduł 30 tylko
+   dopisał brakujące `client_id`. **Migawki nie ruszać.** Opis w `lib/links.ts`.
+2. **Podpowiedź, nigdy bramka.** `UNLINKED_CLIENT_HINT` mówi wprost, co odpada
+   („nie pojawi się na karcie ani na osi czasu, a po zamknięciu projektu nie
+   zaplanuje się kontakt kontrolny"). „Wystaw fakturę" pozostaje aktywne.
+3. **„+ Nowa oferta/faktura" pyta „dla kogo?"** — `NewDocumentDialog`: klient /
+   lead / załóż nowego / **„Na razie bez powiązania"** jako pełnoprawny wybór.
+   To ożywia martwą trasę ze znaleziska 1.
+4. **Powiązanie wstecz** jako ekran do ręcznego zatwierdzania (nie skrypt SQL —
+   Claude nie ma dostępu do produkcyjnej bazy).
+5. **Podpowiedź o rozjeździe** (`clientMismatchHint`), gdy dane nabywcy nie
+   zgadzają się z powiązanym klientem — typowo po zduplikowaniu faktury i
+   ręcznej podmianie nazwy z pominięciem pickera.
+
+### `ClientPickerButton` → `LinkPicker` (dokończenie Modułu 22)
+
+Stary picker znikał całkowicie przy pustej bazie (`if (clients.length === 0)
+return null`), więc **na świeżym panelu nie dało się powiązać niczego**.
+Zastąpiony `ClientLinkPicker`-em (`components.tsx`) opartym na wspólnym
+`LinkPicker`. `ClientPickerButton` już nie istnieje — nagłówek `lib/links.ts`,
+który od Modułu 22 opisywał go w czasie przeszłym, wreszcie mówi prawdę.
+
+**`kinds={["client"]}`, nie `["client", "lead"]`** — świadomie: `linkValueFor`
+jest WYŁĄCZNE w obrębie `kinds`, więc dorzucenie `"lead"` kasowałoby `lead_id`
+przy wyborze klienta, a na ofercie to ślad pochodzenia, z którego korzysta
+`lib/offerAccept.ts`. Leada wybiera się przy TWORZENIU (`NewDocumentDialog`).
+To zamyka odłożoną pozycję Modułu 22 od strony klienta; `project_id` w UI
+Faktur/Ofert nadal nie ma i nadal nikt o niego nie prosił.
+
+`LinkPicker` dostał opcjonalną stopkę (`footer`) — bez niej pusta baza to
+ślepy zaułek. W edytorach jest tam **„Załóż klienta z danych nabywcy"**:
+zakłada klienta z tego, co już wpisane w dokumencie, i od razu go podpina.
+
+### Świadome pominięcia
+
+- **`POST /api/invoices` NIE awansuje leada na klienta** — to rola pierwszej
+  oferty (`lib/clients.ts`). Faktura tylko *dziedziczy* `client_id` po leadzie
+  albo projekcie, jeśli już istnieje. Dlatego dopisek „założy klienta" przy
+  leadach w `NewDocumentDialog` podaje tylko Oferta (prop `leadNote`) — panel
+  nie może obiecywać czegoś, czego nie robi.
+- **Brak `logClientEvent` przy tworzeniu faktury** — oś czasu dostaje fakturę
+  dopiero przy wystawieniu (`invoice_issued`, patrz `CLIENT_EVENT_KINDS`).
+  Szkic to jeszcze nie zdarzenie w relacji z klientem.
+- **Brak „powiąż wszystkie"** na ekranie wstecz — hurtowy guzik zamieniłby
+  ludzką decyzję w klepnięcie, czyli w to, przed czym moduł ma chronić.
+- **Dopasowanie wstecz jest deterministyczne, nie rozmyte** (`matchClientForOrphan`):
+  NIP → nazwa, i `null`, gdy dopasowań jest kilka. Zgodnie z zasadą „brak AI w
+  logice". Wolimy nie zaproponować nic, niż zaproponować prawdopodobne-ale-złe.
+- **Ikon nie ruszano** — `LINK_KIND_EMOJI` zostaje na emoji do Modułu 33
+  (poprawiono tylko *komentarz*, który powtarzał nieaktualną regułę „emoji
+  zamiast ikon"). `LinkHint` używa `@tabler`, bo taki jest `components.tsx`.
+
+### Co powstało
+
+- `lib/links.ts` — `UNLINKED_CLIENT_HINT`, `clientLinkStatus()`,
+  `clientMismatchHint()`, `matchClientForOrphan()` (czysta logika, bez UI)
+- `app/[lang]/admin/NewDocumentDialog.tsx` — „dla kogo ten dokument?"
+- `app/[lang]/admin/clients/OrphanLinksPanel.tsx` + `app/api/links/orphans/` —
+  powiązanie wstecz (paleta poleceń na Klientach → „Powiąż wstecz…")
+- `ClientLinkPicker` + `LinkHint` w `components.tsx`; `footer` w `LinkPicker`
+
+### Weryfikacja
+
+`npx tsc --noEmit` czysty po każdej paczce. Czysta logika sprawdzona **sondą w
+tsx**, nie klikaniem (wzorem `isOverdue()` z Modułu 32): `clientLinkStatus()`
+11/11 przypadków, `matchClientForOrphan()` 8/8 — w tym przypadki „nie krzycz
+bez powodu" (klient niewczytany, świeży szkic) i „nie zgaduj" (dwie takie same
+nazwy → brak propozycji).
+
+Ścieżka na żywo (PGlite, dev-login), dokładnie ta z briefu:
+1. Oferta z **ekranu Ofert, nie z leada** → picker → klient → `client_id` jest,
+   chip „→ Karta klienta" działa, podpowiedź słusznie milczy.
+2. Akceptacja → projekt i faktura **na karcie klienta** (przed Modułem 30 ta
+   sekcja byłaby pusta).
+3. Projekt → „Wdrożone" → na osi czasu **`nurture_scheduled: Zaplanowano
+   kontakt kontrolny (14 i 90 dni)`**. Retencja działa.
+4. Faktura „Na razie bez powiązania" → podpowiedź się pokazuje, **„Wystaw
+   fakturę" pozostaje aktywne** (podpowiedź, nie bramka).
+5. „Powiąż wstecz" → wykrywa tę fakturę, po wpisaniu nazwy nabywcy proponuje
+   „Nordwind Studio (wg nazwy)" → po kliknięciu lista pusta.
+
+**Uwaga dla następnego czatu:** przycisk „Akceptuj ofertę" jest wyłączony przy
+zerowej liczbie pozycji (`items.length === 0`) — to istniejące zabezpieczenie,
+łatwo je pomylić z zepsutym przyciskiem. Współrzędne klików w podglądzie są w
+innej skali niż piksele zrzutu (okno 1280×720, zrzut 800×450) — używaj refów z
+`read_page`, nie współrzędnych ze zrzutu.

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { IconUsers, IconDownload } from "@tabler/icons-react";
+import { IconUsers, IconDownload, IconInfoCircle } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Client } from "@/lib/clients";
 import { PROCESS_STEPS } from "@/lib/process";
@@ -11,6 +11,7 @@ import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
 import { currentMonthRange } from "@/lib/export";
 import { useUI } from "./ui";
 import { PropertyMenu, Popover } from "./Menu";
+import { LinkPicker, type LinkTarget } from "./LinkPicker";
 import { DateField } from "./DatePicker";
 import { waLink, linkedinLink } from "@/lib/contact";
 
@@ -410,71 +411,88 @@ export function ClientLinkChip({
   );
 }
 
-/** Przycisk „Z bazy klientów" + rozwijana lista z wyszukiwarką — wypełnia dane
- * nabywcy zapisanym klientem. Współdzielony przez edytory Faktur i Ofert (te
- * same pola: nazwa/NIP/adres/e-mail). Zwraca null przy pustej bazie klientów. */
-export function ClientPickerButton({ clients, onPick }: { clients: Client[]; onPick: (c: Client) => void }) {
-  if (clients.length === 0) return null;
+/** Miękka podpowiedź o powiązaniu dokumentu z klientem (Moduł 30) — treść
+ * pochodzi z `UNLINKED_CLIENT_HINT`/`clientMismatchHint` (lib/links.ts).
+ * Świadomie tylko informuje: nic nie blokuje i niczego nie poprawia sama,
+ * zgodnie z zasadą panelu „miękkie podpowiedzi zamiast twardych bramek"
+ * (wzorem LEAD_STATUS_HINT). */
+export function LinkHint({ text }: { text: string }) {
   return (
-    <Popover
-      width={320}
-      trigger={(open) => (
-        <button
-          onClick={open}
-          className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
-          title="Wypełnij danymi zapisanego klienta z bazy"
-        >
-          <IconUsers size={12} /> Z bazy klientów
-        </button>
-      )}
-    >
-      {(close) => (
-        <ClientPickerList
-          clients={clients}
-          onPick={(c) => {
-            onPick(c);
-            close();
-          }}
-        />
-      )}
-    </Popover>
+    <div className="mb-3 flex items-start gap-2 rounded-lg border hairline bg-[var(--hairline)]/40 px-3 py-2 text-[12px] text-muted">
+      <IconInfoCircle size={14} className="mt-[1px] shrink-0" />
+      <span>{text}</span>
+    </div>
   );
 }
 
-function ClientPickerList({ clients, onPick }: { clients: Client[]; onPick: (c: Client) => void }) {
-  const [q, setQ] = useState("");
-  const needle = q.trim().toLowerCase();
-  const filtered = needle
-    ? clients.filter((c) => `${c.nazwa} ${c.nip} ${c.miasto}`.toLowerCase().includes(needle))
-    : clients;
+/** Pole „Nabywca → powiązanie z klientem" na Fakturach i Ofertach (Moduł 30).
+ *
+ * Zastępuje dawny `ClientPickerButton`, który miał dwie wady: znikał całkowicie
+ * przy pustej bazie (`clients.length === 0` → `return null`, więc na świeżym
+ * panelu NIE DAŁO SIĘ powiązać niczego), i był czwartym wyglądem pickera obok
+ * wspólnego `LinkPicker` z Modułu 22.
+ *
+ * `kinds={["client"]}` świadomie, mimo że faktura/oferta ma też `lead_id`:
+ * `linkValueFor` jest WYŁĄCZNE w obrębie `kinds`, więc dorzucenie tu `"lead"`
+ * kasowałoby `lead_id` przy wyborze klienta — a na ofercie to ślad
+ * pochodzenia, z którego korzysta `lib/offerAccept.ts`. Leada wybiera się przy
+ * TWORZENIU dokumentu (patrz NewDocumentButton), nie tutaj.
+ *
+ * `onPick(c)` dostaje pełnego klienta, bo wołający kopiuje z niego migawkę
+ * danych nabywcy — patrz UNLINKED_CLIENT_HINT w lib/links.ts. */
+export function ClientLinkPicker({
+  clients,
+  clientId,
+  onPick,
+  onCreate,
+}: {
+  clients: Client[];
+  clientId: string | null;
+  onPick: (c: Client | null) => void;
+  /** „Załóż klienta z tych danych" — jedyne sensowne wyjście, gdy baza jest
+   * pusta albo nabywcy jeszcze w niej nie ma. */
+  onCreate?: () => void;
+}) {
+  const targets: LinkTarget[] = clients.map((c) => ({
+    kind: "client" as const,
+    id: c.id,
+    nazwa: c.nazwa || "(bez nazwy)",
+    hint: [c.nip && `NIP ${c.nip}`, [c.kod, c.miasto].filter(Boolean).join(" ")].filter(Boolean).join(" · ") || undefined,
+    szukaj: `${c.nazwa ?? ""} ${c.nip ?? ""} ${c.miasto ?? ""} ${c.email ?? ""}`.toLowerCase(),
+  }));
+
   return (
-    <div className="max-h-72 overflow-y-auto">
-      <div className="p-1.5">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Szukaj klienta (nazwa / NIP / miasto)…"
-          autoFocus
-          className="w-full rounded-md border hairline bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
-        />
-      </div>
-      {filtered.length === 0 ? (
-        <p className="px-3 py-3 text-center text-[12px] text-muted">Brak dopasowań.</p>
-      ) : (
-        filtered.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onPick(c)}
-            className="flex w-full flex-col px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]"
-          >
-            <span className="truncate text-[13px] text-[var(--fg)]">{c.nazwa || "(bez nazwy)"}</span>
-            <span className="truncate text-[11px] text-muted">
-              {[c.nip && `NIP ${c.nip}`, [c.kod, c.miasto].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
-            </span>
-          </button>
-        ))
+    <LinkPicker
+      kinds={["client"]}
+      targets={targets}
+      value={{ client_id: clientId }}
+      align="right"
+      onPick={(_next, picked) => onPick(picked ? clients.find((c) => c.id === picked.id) ?? null : null)}
+      trigger={(picked, open) => (
+        <button
+          onClick={open}
+          className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+          title={picked ? `Powiązany klient: ${picked.nazwa}` : "Powiąż z klientem z bazy i wypełnij jego danymi"}
+        >
+          <IconUsers size={12} /> {picked ? picked.nazwa : "Z bazy klientów"}
+        </button>
       )}
-    </div>
+      footer={
+        onCreate
+          ? (close) => (
+              <button
+                onClick={() => {
+                  close();
+                  onCreate();
+                }}
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+              >
+                + Załóż klienta z danych nabywcy
+              </button>
+            )
+          : undefined
+      }
+    />
   );
 }
 

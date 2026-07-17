@@ -12,6 +12,8 @@ import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { OfferEditor } from "./OfferEditor";
 import { OfferTemplatesPanel } from "./OfferTemplatesPanel";
 import { Modal } from "../Modal";
+import { NewDocumentDialog, type NewDocumentLink } from "../NewDocumentDialog";
+import { invalidateLinkTargets } from "../LinkPicker";
 
 type OfferRow = Offer & { kwota: number };
 
@@ -23,6 +25,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/offers");
@@ -38,16 +41,32 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     load();
   }, [load]);
 
-  const createOffer = useCallback(async () => {
-    const res = await fetch("/api/offers", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    if (!res.ok) {
-      toast("Nie udało się utworzyć oferty.", "error");
-      return;
-    }
-    const { id } = (await res.json()) as { id: string };
-    await load();
-    setOpenId(id);
-  }, [toast, load]);
+  // Moduł 30: zamiast tworzyć od razu pusty szkic (`body: "{}"`), najpierw
+  // pytamy „dla kogo?". Wybór leada uruchamia w POST /api/offers awans leada
+  // na klienta — trasa, której do tego modułu nic w panelu nie wołało.
+  const createOffer = useCallback(() => setNewOpen(true), []);
+
+  const createOfferFor = useCallback(
+    async (link: NewDocumentLink) => {
+      setNewOpen(false);
+      const res = await fetch("/api/offers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(link),
+      });
+      if (!res.ok) {
+        toast("Nie udało się utworzyć oferty.", "error");
+        return;
+      }
+      const { id } = (await res.json()) as { id: string };
+      // Wybór leada mógł właśnie założyć klienta — odśwież wspólny cache
+      // LinkPickera, żeby inne ekrany go zobaczyły bez przeładowania.
+      if (link.lead_id) invalidateLinkTargets();
+      await load();
+      setOpenId(id);
+    },
+    [toast, load]
+  );
 
   const deleteOffer = useCallback(
     async (id: string, tytul: string) => {
@@ -413,6 +432,15 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       >
         <OfferTemplatesPanel onClose={() => setTemplatesOpen(false)} />
       </Modal>
+
+      <NewDocumentDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onPick={createOfferFor}
+        tytul="Nowa oferta — dla kogo?"
+        opis="Powiązanie decyduje o tym, czy oferta trafi na kartę klienta i czy po zamknięciu projektu panel przypomni o kontakcie. Możesz je dodać także później."
+        leadNote="założy klienta"
+      />
     </div>
   );
 }

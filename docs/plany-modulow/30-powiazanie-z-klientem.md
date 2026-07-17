@@ -1,5 +1,22 @@
 # Moduł 30 — Powiązanie z Klientem: obowiązkowe tam, gdzie cała droga na nim wisi
 
+> # ✅ ZBUDOWANE 2026-07-17 — ten plik to zapis planu, nie lista do zrobienia.
+> Stan faktyczny i decyzje: **`HUB_SETUP.md` → „Moduł 30"**. Dwie rzeczy, w
+> których ten brief (łącznie z jego własnymi sprostowaniami) **mylił się**:
+> 1. **Sprostowanie B było za łagodne.** Trasa „lead → oferta" istniała w API,
+>    ale **nic w panelu jej nie wołało** — oba dashboardy wysyłały `body: "{}"`,
+>    a żaden `.tsx` nie POST-ował `lead_id`. Gałąź „załóż klienta z leada" była
+>    martwym kodem, więc **każda** oferta rodziła się bez klienta, nie tylko ta
+>    „od zera".
+> 2. **Dziura obejmowała cztery trasy, nie jedną.** Poza `POST /api/invoices`
+>    `client_id` gubiły też oba `duplicate` i `correct` — w tym „Przekształć w
+>    fakturę VAT" na opłaconej proformie.
+>
+> Sprostowania A i C potwierdziły się co do linii. Zakres „Zastąpienie
+> `ClientPickerButton` LinkPickerem", opisany tu jako opcjonalny, **został
+> zrobiony** — stary picker znikał przy pustej bazie, więc bez tego reszta
+> modułu nie działałaby na świeżym panelu.
+
 > Przeczytaj `docs/plany-modulow/README.md` (zasady wspólne), `CLAUDE.md` oraz
 > `00-mapa-drogi-klienta.md`. Ten brief powstał **z audytu Modułu 29**
 > (2026-07-17) — nie jest nowym pomysłem, tylko domknięciem luki potwierdzonej

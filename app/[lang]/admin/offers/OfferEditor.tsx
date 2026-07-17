@@ -10,7 +10,9 @@ import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
-import { ClientLinkChip, ClientPickerButton } from "../components";
+import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
+import { invalidateLinkTargets } from "../LinkPicker";
+import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 import type { Client } from "@/lib/clients";
 import { lookupClientByNip } from "@/lib/vies";
 
@@ -91,7 +93,15 @@ export function OfferEditor({
   );
 
   const pickClient = useCallback(
-    (c: Client) => {
+    (c: Client | null) => {
+      // Jak w InvoiceEditor: dane klienta lądują na ofercie jako migawka, a
+      // client_id jako powiązanie (patrz lib/links.ts). „— brak powiązania —"
+      // zdejmuje tylko client_id, treści oferty nie rusza.
+      if (!c) {
+        setOffer((prev) => (prev ? { ...prev, client_id: null } : prev));
+        patchOffer({ client_id: null });
+        return;
+      }
       const patch: Partial<Offer> = {
         client_id: c.id,
         klient_nazwa: c.nazwa ?? "",
@@ -107,6 +117,44 @@ export function OfferEditor({
     },
     [patchOffer]
   );
+
+  /** „Załóż klienta z danych nabywcy" — patrz InvoiceEditor. Bez tego picker
+   * na pustej bazie klientów nie ma dokąd prowadzić. */
+  const createClientFromBuyer = useCallback(async () => {
+    const src = offer;
+    if (!src) return;
+    const nazwa = (src.klient_nazwa ?? "").trim();
+    if (!nazwa) {
+      toast("Najpierw wpisz nazwę klienta — z pustych danych nie ma czego zakładać.", "error");
+      return;
+    }
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nazwa,
+        nip: src.klient_nip ?? "",
+        ulica: src.klient_ulica ?? "",
+        kod: src.klient_kod ?? "",
+        miasto: src.klient_miasto ?? "",
+        kraj: src.klient_kraj ?? "",
+        email: src.klient_email ?? "",
+      }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się założyć klienta.", "error");
+      return;
+    }
+    const { id: newClientId } = (await res.json()) as { id: string };
+    const created = (await fetch("/api/clients").then((r) => (r.ok ? r.json() : { clients: [] }))) as {
+      clients: Client[];
+    };
+    setClients(created.clients ?? []);
+    invalidateLinkTargets("client");
+    setOffer((prev) => (prev ? { ...prev, client_id: newClientId } : prev));
+    patchOffer({ client_id: newClientId });
+    toast(`Założono klienta „${nazwa}" i podpięto do oferty.`);
+  }, [offer, patchOffer, toast]);
 
   const lookupNip = useCallback(async () => {
     setNipLoading(true);
@@ -279,6 +327,22 @@ export function OfferEditor({
   const total = offerTotal(items);
   const accepted = offer.status === "Zaakceptowana";
 
+  // Moduł 30 — miękka podpowiedź o powiązaniu (patrz lib/links.ts). Na ofercie
+  // waży to więcej niż na fakturze: to z niej lib/offerAccept.ts przepisuje
+  // client_id na projekt i fakturę, więc oferta bez klienta rozsiewa brak
+  // powiązania na całą dalszą drogę.
+  const linkedClient = clients.find((c) => c.id === offer.client_id) ?? null;
+  const linkStatus = clientLinkStatus(
+    { client_id: offer.client_id, klient_nazwa: offer.klient_nazwa, klient_nip: offer.klient_nip },
+    linkedClient ? { nazwa: linkedClient.nazwa ?? "", nip: linkedClient.nip ?? "" } : null
+  );
+  const linkHint =
+    linkStatus === "unlinked"
+      ? UNLINKED_CLIENT_HINT
+      : linkStatus === "mismatch"
+        ? clientMismatchHint(linkedClient?.nazwa ?? "")
+        : null;
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -307,8 +371,14 @@ export function OfferEditor({
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-[13px] font-medium">Oferta</h2>
-              <ClientPickerButton clients={clients} onPick={pickClient} />
+              <ClientLinkPicker
+                clients={clients}
+                clientId={offer.client_id}
+                onPick={pickClient}
+                onCreate={createClientFromBuyer}
+              />
             </div>
+            {linkHint && <LinkHint text={linkHint} />}
             <input
               value={offer.tytul}
               onChange={(e) => setOffer((p) => (p ? { ...p, tytul: e.target.value } : p))}

@@ -92,6 +92,16 @@ wraca do nurture na "spróbuj później").
 > nie mówi. To korzeń kilku pustych ekranów (karta klienta, oś czasu,
 > retencja) i **jest tematem [Modułu 30](30-powiazanie-z-klientem.md)** — tu
 > tylko odnotowane, żeby mapa nie kłamała.
+>
+> **✅ ZAMKNIĘTE (Moduł 30, 2026-07-17).** Okazało się gorzej, niż opisywało
+> sprostowanie wyżej: w panelu **nie było ANI JEDNEGO miejsca**, z którego
+> dałoby się utworzyć ofertę z leada (oba dashboardy wysyłały `body: "{}"`),
+> więc gałąź „zakłada klienta z leada" w `POST /api/offers` była **martwym
+> kodem** — każda oferta rodziła się bez klienta, nie tylko ta „od zera".
+> Dziś „+ Nowa oferta" pyta **„dla kogo?"** (klient / lead / nowy klient /
+> świadomie bez powiązania), a niepowiązany dokument mówi wprost, co przez to
+> odpada. Powiązanie jest **podpowiadane, nigdy wymuszane** — decyzja
+> właściciela z 2026-07-17. Szczegóły: `HUB_SETUP.md` → „Moduł 30".
 
 ### Krok 3 — Umowa
 **Robisz**: sprawdzasz wygenerowany z oferty projekt umowy (zakres,
@@ -566,6 +576,15 @@ automatycznie, idempotentnie po `project_id`), % leadów ze źródła „Polecen
 na Statystykach. **Uwaga — to działa tylko dla projektów POWIĄZANYCH z
 klientem** (`api/projects/[id]/route.ts` → `if (clientId && …)`); projekt bez
 klienta nie dostanie żadnego kontaktu kontrolnego. To temat **Modułu 30**.
+
+> **✅ Domknięte (Moduł 30, 2026-07-17)**: warunek `if (clientId && …)` ZOSTAJE
+> — jest poprawny, bo bez klienta nie ma komu zaplanować kontaktu. Naprawiono
+> to, co go głodziło: projekty przestały się rodzić bez klienta, bo `client_id`
+> nie gubi się już przy tworzeniu faktury, duplikowaniu oferty/faktury ani przy
+> korekcie (żadna z tych czterech tras nie miała tej kolumny w `INSERT`).
+> Przejście sprawdzone na żywo: oferta z ekranu Ofert → akceptacja → projekt na
+> karcie klienta → „Wdrożone" → `nurture_scheduled` na osi czasu. Dla rekordów
+> sprzed naprawy jest ekran **„Powiąż wstecz"** (paleta poleceń na Klientach).
 
 **Do zaplanowania**:
 - Analogicznie do nurture leadów: opcjonalne, ręcznie ustawiane

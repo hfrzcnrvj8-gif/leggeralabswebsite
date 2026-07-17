@@ -3,6 +3,66 @@
 > Przeczytaj `docs/plany-modulow/README.md` (zasady wspólne), `CLAUDE.md`,
 > `00-mapa-drogi-klienta.md` (Krok 3) oraz `11-umowy-i-nda.md` (moduł źródłowy).
 > Brief powstał **z audytu Modułu 29** (2026-07-17).
+>
+> **Kolejność: to TRZECI i OSTATNI z trzech briefów audytu 29 (32 → 30 → 31).**
+> Moduł 32 zamknięty 2026-07-17, Moduł 30 zamknięty 2026-07-17.
+
+## PRZECZYTAJ NAJPIERW — weryfikacja briefu w kodzie (2026-07-17, po Module 30)
+
+Brief sprawdzony gretem przed startem czatu. **Wszystkie znaleziska A/B/C
+potwierdziły się co do linii** — nie trać czasu na ponowne sprawdzanie:
+
+| Teza briefu | Stan |
+|---|---|
+| bramka `projects/[id]/route.ts:144` (`WHERE project_id = … AND status = 'Podpisana'`), twarda, 409 | ✅ potwierdzona; odpala **tylko** przy wejściu w „W trakcie" |
+| `ContractEditor.tsx:151` — `kinds={["client", "lead"]}`, bez projektu | ✅ potwierdzone |
+| `contracts/[id]/route.ts:46` przyjmuje `project_id` | ✅ potwierdzone — serwer potrafi, UI nie daje |
+| `hub/today` i `leads/notify` nie pytają bazy o umowy | ✅ potwierdzone (zero wystąpień „contracts") |
+| `clients/[id]/route.ts:37-45` pobiera oferty/faktury/projekty, **nie umowy** | ✅ potwierdzone |
+| `search/route.ts:33-37` — leady/klienci/projekty/notatki/wydarzenia, bez umów/ofert/faktur | ✅ potwierdzone |
+| `lib/notifications.ts` — brak `offer_accepted`/`contract_signed`/`review_collected` | ✅ potwierdzone |
+
+### ❗ Sprostowanie A — „naprawa jednej linii" z Części A jest PUŁAPKĄ
+
+Brief rekomenduje: *„dodać `"project"` do `kinds` `LinkPicker`-a w
+`ContractEditor.tsx` … to może być zmiana jednej linii"*. **Nie rób tego.**
+
+`linkValueFor()` (`lib/links.ts`) jest **WYŁĄCZNE w obrębie `kinds`** — czyści
+wszystkie kolumny z listy, po czym ustawia jedną:
+
+```ts
+for (const kind of kinds) value[COLUMN[kind]] = null;
+if (picked && kinds.includes(picked.kind)) value[COLUMN[picked.kind]] = picked.id;
+```
+
+Czyli `kinds={["client","lead","project"]}` znaczy: **wybranie projektu wyzeruje
+`client_id` umowy**. A `client_id` na umowie jest właśnie tym, czego potrzebuje
+Część B (umowy na karcie klienta filtrowanej po `client_id`). Jedna linia
+naprawiłaby Część A i **jednocześnie rozwaliła Część B** — cicho, bez błędu.
+
+To dokładnie ta sama pułapka, na którą natknął się Moduł 30: tam edytory Faktur/
+Ofert dostały `kinds={["client"]}`, żeby wybór klienta nie skasował `lead_id`, na
+którym stoi `lib/offerAccept.ts`. Komentarz w `lib/links.ts:76-80` mówi o tym
+wprost: to reguła dla RĘCZNEGO wyboru „czyj to rekord", a nie dla pól, które są
+śladem pochodzenia.
+
+**Projekt na umowie to inna oś niż klient/lead** („czyj to rekord" vs „czego
+dotyczy"), więc potrzebuje **osobnego pola/pickera** (`kinds={["project"]}`,
+własne `value={{ project_id }}`), nie dopisania do istniejącego. To nadal mała
+zmiana — ale nie jednolinijkowa.
+
+### Kontekst po Module 30 (przydatne, nie blokujące)
+
+- `LinkPicker` ma od Modułu 30 opcjonalną stopkę (`footer`) — przydatna, jeśli
+  przy pustej liście projektów trzeba dać wyjście.
+- `components.tsx` ma `LinkHint` (miękka podpowiedź) i `ClientLinkPicker` —
+  gotowe wzorce, jeśli Część A pójdzie w stronę podpowiedzi zamiast bramki.
+- Karta klienta ciągnie dziś oferty/faktury/projekty w jednym `Promise.all`
+  (`clients/[id]/route.ts:37`) — dołożenie umów to dopisanie zapytania tam.
+- `CLIENT_EVENT_KINDS` (`lib/clients.ts`) **już zna** `contract_created`,
+  `contract_sent`, `contract_signed` i `review_collected` — oś czasu klienta
+  umowy widzi. Niewidoczne są w Pulpicie/mailu/wyszukiwarce/dzwonku, nie
+  wszędzie. To zawęża Część B.
 
 ## Skąd to się wzięło
 

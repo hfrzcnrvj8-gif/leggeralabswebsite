@@ -172,6 +172,7 @@ export function LinkPicker({
   disabled = false,
   placeholder = "— brak —",
   trigger,
+  footer,
 }: {
   kinds: LinkKind[];
   value: LinkValue;
@@ -184,6 +185,10 @@ export function LinkPicker({
   placeholder?: string;
   /** Własny wyzwalacz. Domyślnie pigułka z nazwą powiązanego rekordu. */
   trigger?: (picked: LinkTarget | null, open: () => void) => React.ReactNode;
+  /** Akcja pod listą — np. „załóż klienta z tych danych" (Moduł 30). Bez niej
+   * picker na PUSTEJ bazie jest ślepym zaułkiem: pokazuje „Brak dopasowań" i
+   * nie da się z niego wyjść w żadną stronę. */
+  footer?: (close: () => void) => React.ReactNode;
 }) {
   const fetched = useLinkTargets(providedTargets ? [] : kinds);
   const targets = providedTargets ?? fetched;
@@ -229,6 +234,7 @@ export function LinkPicker({
             onPick(linkValueFor(kinds, t), t);
             close();
           }}
+          footer={footer ? () => footer(close) : undefined}
         />
       )}
     </Popover>
@@ -240,11 +246,13 @@ function LinkPickerList({
   targets,
   picked,
   onPick,
+  footer,
 }: {
   kinds: LinkKind[];
   targets: LinkTarget[];
   picked: LinkTarget | null;
   onPick: (t: LinkTarget | null) => void;
+  footer?: () => React.ReactNode;
 }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
@@ -320,9 +328,18 @@ function LinkPickerList({
         })}
 
         {matches.length === 0 && (
-          <p className="px-3 py-3 text-center text-[12px] text-muted">Brak dopasowań.</p>
+          <p className="px-3 py-3 text-center text-[12px] text-muted">
+            {targets.length === 0 ? "Baza jest jeszcze pusta." : "Brak dopasowań."}
+          </p>
         )}
       </div>
+
+      {footer && (
+        <>
+          <MenuDivider />
+          <div className="p-1">{footer()}</div>
+        </>
+      )}
     </div>
   );
 }

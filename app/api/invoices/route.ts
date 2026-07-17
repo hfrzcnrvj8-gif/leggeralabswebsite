@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureInvoicesSchema } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -52,6 +52,10 @@ export async function POST(req: NextRequest) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   await ensureInvoicesSchema();
+  // INSERT poniżej zapisuje client_id, a ta kolumna żyje w migracji
+  // ensureClientsSchema — musi się wykonać bezwarunkowo (wzorem
+  // app/api/offers/route.ts POST).
+  await ensureClientsSchema();
   const sql = getSql();
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
@@ -61,11 +65,27 @@ export async function POST(req: NextRequest) {
   const projectId = typeof body?.project_id === "string" && body.project_id.trim() ? body.project_id : null;
   const typ = typeof body?.typ_dokumentu === "string" && ["faktura", "proforma", "zaliczkowa"].includes(body.typ_dokumentu) ? body.typ_dokumentu : "faktura";
 
+  // Powiązanie z klientem (Moduł 30). client_id jest NIEZALEŻNE od pól
+  // klient_* poniżej: te są migawką danych nabywcy na moment wystawienia,
+  // a client_id to wskaźnik, na którym wisi karta klienta, oś czasu i
+  // kontakt retencyjny (api/projects/[id] → `if (clientId && …)`). Do
+  // Modułu 30 tej kolumny w INSERT nie było w ogóle — faktura z leada, który
+  // MIAŁ już klienta, i tak rodziła się niepowiązana.
+  let clientId = typeof body?.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+
   // Jeśli podpięto leada — skopiuj jego firmę jako dane klienta na start.
   let klientNazwa = str(body?.klient_nazwa, 300);
-  if (!klientNazwa && leadId) {
-    const lead = await sql`SELECT firma FROM leads WHERE id = ${leadId};`;
-    klientNazwa = typeof lead[0]?.firma === "string" ? lead[0].firma : "";
+  if (leadId) {
+    const lead = (await sql`SELECT firma, client_id FROM leads WHERE id = ${leadId};`)[0];
+    if (!klientNazwa) klientNazwa = typeof lead?.firma === "string" ? lead.firma : "";
+    if (!clientId && typeof lead?.client_id === "string") clientId = lead.client_id;
+  }
+  // Faktura z projektu dziedziczy klienta po projekcie — świadomie NIE
+  // zakładamy tu nowego klienta z leada (to robi POST /api/offers przy
+  // pierwszej ofercie); tu tylko podnosimy powiązanie, które już istnieje.
+  if (!clientId && projectId) {
+    const proj = (await sql`SELECT client_id FROM projects WHERE id = ${projectId};`)[0];
+    if (typeof proj?.client_id === "string") clientId = proj.client_id;
   }
 
   // Domyślne uwagi z Danych firmy — wygodne, żeby nie przepisywać tej samej
@@ -79,8 +99,11 @@ export async function POST(req: NextRequest) {
   const cenyBrutto = typ === "zaliczkowa";
 
   await sql`
-    INSERT INTO invoices (id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres, share_token, typ_dokumentu, uwagi, ceny_brutto)
-    VALUES (${id}, ${leadId}, ${projectId}, ${klientNazwa}, ${str(body?.klient_nip, 30)}, ${str(body?.klient_adres, 500)}, ${shareToken}, ${typ}, ${domyslneUwagi}, ${cenyBrutto});
+    INSERT INTO invoices (id, lead_id, project_id, client_id, klient_nazwa, klient_nip, klient_adres, share_token, typ_dokumentu, uwagi, ceny_brutto)
+    VALUES (${id}, ${leadId}, ${projectId}, ${clientId}, ${klientNazwa}, ${str(body?.klient_nip, 30)}, ${str(body?.klient_adres, 500)}, ${shareToken}, ${typ}, ${domyslneUwagi}, ${cenyBrutto});
   `;
+  // Świadomie BEZ logClientEvent — oś czasu klienta dostaje fakturę dopiero
+  // przy wystawieniu (invoice_issued, patrz CLIENT_EVENT_KINDS). Szkic to
+  // jeszcze nie zdarzenie w relacji z klientem.
   return NextResponse.json({ ok: true, id });
 }

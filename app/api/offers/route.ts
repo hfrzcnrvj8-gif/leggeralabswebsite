@@ -40,7 +40,17 @@ export async function POST(req: NextRequest) {
 
   let tytul = str(body?.tytul, 300);
   let klientNazwa = str(body?.klient_nazwa, 300);
-  let clientId: string | null = null;
+  // Moduł 30: oferta może wejść z gotowym klientem (picker przy „+ Dodaj
+  // ofertę"), nie tylko wywieść go z leada. Wybór wprost wygrywa z leadem.
+  let clientId = typeof body?.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+
+  if (clientId && !klientNazwa) {
+    const c = (await sql`SELECT nazwa FROM clients WHERE id = ${clientId};`)[0];
+    if (typeof c?.nazwa === "string") {
+      klientNazwa = c.nazwa;
+      if (!tytul) tytul = klientNazwa ? `Oferta — ${klientNazwa}` : "";
+    }
+  }
 
   if (leadId) {
     const lead = (await sql`
@@ -57,7 +67,14 @@ export async function POST(req: NextRequest) {
     // lib/clients.ts). Jeśli lead ma już podpiętego klienta (np. przez ręczne
     // "Utwórz klienta" albo poprzednią ofertę), używamy tego samego rekordu
     // zamiast tworzyć duplikat.
-    if (lead?.client_id) {
+    if (clientId) {
+      // Klient przyszedł wprost z pickera (Moduł 30) — nie zakładaj drugiego.
+      // Jeśli lead nie miał jeszcze klienta, spinamy go z tym wybranym, żeby
+      // kolejna oferta z tego leada trafiła w ten sam rekord.
+      if (!lead?.client_id) {
+        await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${leadId};`;
+      }
+    } else if (lead?.client_id) {
       clientId = String(lead.client_id);
     } else if (lead) {
       clientId = randomUUID();

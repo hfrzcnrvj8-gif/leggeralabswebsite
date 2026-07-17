@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureInvoicesSchema } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -16,6 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   try {
     await ensureInvoicesSchema();
+    await ensureClientsSchema(); // client_id w INSERT niżej — kolumna z tej migracji
     const sql = getSql();
 
     const rows = await sql`SELECT * FROM invoices WHERE id = ${id};`;
@@ -30,16 +31,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // to nowy, niezależny dokument (ta konkretna zaliczka/oryginał są już
     // powiązane gdzie indziej). zamowienie_* kopiujemy — sensowny punkt
     // startowy przy duplikowaniu faktury zaliczkowej na kolejną ratę.
+    // client_id kopiujemy razem z danymi nabywcy (Moduł 30): duplikat dotyczy
+    // z definicji tego samego klienta, a bez tej kolumny kopia rodziła się
+    // niepowiązana — dotyczyło to też "Przekształć w fakturę VAT" na
+    // proformie, czyli środka ścieżki pieniędzy.
     await sql`
       INSERT INTO invoices (
-        id, lead_id, project_id, klient_nazwa, klient_nip, klient_adres,
+        id, lead_id, project_id, client_id, klient_nazwa, klient_nip, klient_adres,
         klient_ulica, klient_kod, klient_miasto, klient_kraj,
         odbiorca_nazwa, odbiorca_ulica, odbiorca_kod, odbiorca_miasto, odbiorca_kraj,
         klient_email, share_token, typ_dokumentu, zamowienie_wartosc, zamowienie_opis,
         waluta, jezyk, uwagi, ceny_brutto
       )
       VALUES (
-        ${newId}, ${src.lead_id}, ${src.project_id}, ${src.klient_nazwa}, ${src.klient_nip}, ${src.klient_adres},
+        ${newId}, ${src.lead_id}, ${src.project_id}, ${src.client_id}, ${src.klient_nazwa}, ${src.klient_nip}, ${src.klient_adres},
         ${src.klient_ulica}, ${src.klient_kod}, ${src.klient_miasto}, ${src.klient_kraj},
         ${src.odbiorca_nazwa}, ${src.odbiorca_ulica}, ${src.odbiorca_kod}, ${src.odbiorca_miasto}, ${src.odbiorca_kraj},
         ${src.klient_email}, ${shareToken}, ${typOverride}, ${src.zamowienie_wartosc}, ${src.zamowienie_opis},
