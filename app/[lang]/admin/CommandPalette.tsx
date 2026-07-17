@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 import type { Action } from "./ui";
 
 /** Globalna paleta poleceń (Cmd+K), działa na każdej stronie panelu.
@@ -54,7 +55,7 @@ export function CommandPalette({
             initial={{ opacity: 0, scale: 0.97, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            transition={SPRING}
             onClick={(e) => e.stopPropagation()}
             className="card-paper w-full max-w-lg overflow-hidden rounded-2xl"
             role="dialog"

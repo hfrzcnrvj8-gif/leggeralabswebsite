@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 import type { Locale } from "@/i18n/config";
 import { ProjectIcon, formatPlDate, PROJECT_STATUS_HEX, DEFAULT_STATUS_HEX } from "./shared";
 import { statusIconEl } from "./ProjectKanban";
@@ -636,7 +637,7 @@ function SegmentedSwitch<T extends string>({
           {value === s.id && (
             <motion.span
               layoutId={layoutId}
-              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              transition={SPRING}
               className="pill-active absolute inset-0 rounded-md"
             />
           )}

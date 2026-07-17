@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 import {
   IconCircleDashed,
   IconCircle,
@@ -175,7 +176,7 @@ export function ProjectKanban({
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.97 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                      transition={SPRING}
                       draggable
                       onDragStart={(e) => {
                         (e as unknown as React.DragEvent).dataTransfer.setData("text/project-id", p.id);

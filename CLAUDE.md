@@ -89,6 +89,14 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
 - `.hairline` — kolor obramowań, zgodny z motywem jasny/ciemny
 - `.btn-primary` — tylko jedno główne CTA na widok, nie każdy przycisk
 - `.text-liquid` — gradientowy tekst na nagłówki/akcenty
+- **Animacje: JEDNO źródło płynności — `lib/motion.ts`** (Moduł 36,
+  2026-07-17). Framer-motion: `transition={SPRING}` (420/32) lub
+  `ease: EASE_LIQUID` (`[0.16,1,0.3,1]`) — **NIGDY nie wpisuj tych liczb z
+  palca i NIGDY nie zostawiaj `transition` bez `ease`** (domyślny `easeOut`
+  framera to dokładnie ten dług, który Moduł 36 sprzątał). CSS/Tailwind:
+  `var(--ease-liquid)` (`globals.css`, bliźniak — trzymaj zsynchronizowane).
+  Wyjątki od `SPRING` tylko z komentarzem UZASADNIAJĄCYM: `SPRING_SOFT`
+  (licznik „doliczający się") i `animate-spin` (spinner = liniowy).
 - Paleta marki (`tailwind.config.ts`): `brand.purple #7C3AED`,
   `brand.pink #E85D9E`, `brand.gold #E0A93B`, `brand.cyan #22D3EE` — używaj
   tych zamiast generycznych kolorów Tailwind, gdy dodajesz nowe akcenty

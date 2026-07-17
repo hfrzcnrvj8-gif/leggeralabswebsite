@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { EASE_LIQUID } from "@/lib/motion";
 import { IconCheck } from "@tabler/icons-react";
 import { Tooltip } from "./Tooltip";
 
@@ -194,7 +195,7 @@ export function Popover({
                 initial={{ opacity: 0, scale: 0.96, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97, y: -2 }}
-                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ duration: 0.16, ease: EASE_LIQUID }}
                 role="menu"
                 // Prawy przycisk WEWNĄTRZ naszego menu nie ma wywoływać
                 // natywnego menu przeglądarki nad nim.
@@ -504,7 +505,7 @@ export function PropertyMenu<T extends string>({
                 initial={{ opacity: 0, scale: 0.96, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97, y: -2 }}
-                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ duration: 0.16, ease: EASE_LIQUID }}
                 onClick={(e) => e.stopPropagation()}
                 role="menu"
                 className="admin-linear glass fixed z-[200] w-max min-w-[190px] max-w-[340px] overflow-hidden rounded-lg py-1 text-[var(--fg)]"

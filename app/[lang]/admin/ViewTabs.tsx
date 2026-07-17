@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { EASE_LIQUID, SPRING } from "@/lib/motion";
 import type { ReactNode } from "react";
 
 // Zakładki przełączania widoku (Tablica / Tabela / Oś czasu) — wspólne dla
@@ -45,7 +46,7 @@ export function ViewTabs<T extends string>({
           {value === t.id && (
             <motion.span
               layoutId={layoutId}
-              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              transition={SPRING}
               className="bg-brand-accent absolute inset-x-0 bottom-0 h-[2px] rounded-full"
             />
           )}
@@ -82,7 +83,7 @@ export function ViewSwitch({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.15, ease: "easeOut" }}
+        transition={{ duration: 0.15, ease: EASE_LIQUID }}
         className={fill ? "flex flex-1 flex-col md:min-h-0" : undefined}
       >
         {children}

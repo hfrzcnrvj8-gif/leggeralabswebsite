@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
@@ -108,7 +109,7 @@ export function KanbanBoard({
                   exit={{ opacity: 0, scale: 0.94 }}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                  transition={SPRING}
                   draggable
                   onDragStart={(e) => {
                     (e as unknown as React.DragEvent).dataTransfer.setData("text/client-id", client.id);

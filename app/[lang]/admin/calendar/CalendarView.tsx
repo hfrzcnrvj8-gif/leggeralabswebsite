@@ -13,6 +13,7 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { EASE_LIQUID } from "@/lib/motion";
 import type { HubEvent } from "@/lib/events";
 import { expandEventDays, parseQuickAdd, layoutTimedEvents, timeToMinutes, minutesToTime } from "@/lib/events";
 import type { Lead } from "@/lib/leads";
@@ -660,7 +661,7 @@ export function CalendarView({ lang }: { lang: string }) {
           initial="enter"
           animate="center"
           exit="exit"
-          transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+          transition={{ duration: 0.2, ease: EASE_LIQUID }}
           className="flex min-h-0 flex-1 flex-col"
         >
           {viewMode === "month" && (
@@ -1037,7 +1038,7 @@ function DayAgendaList({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
+              transition={{ duration: 0.15, ease: EASE_LIQUID }}
               className={`overflow-hidden rounded-lg border-l-[3px] ${style.border} ${style.bg} px-2.5 py-1.5 text-sm`}
             >
               <Link href={`/${lang}${d.href}`} className="block truncate hover:underline" title={d.tytul}>
@@ -1056,7 +1057,7 @@ function DayAgendaList({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
+              transition={{ duration: 0.15, ease: EASE_LIQUID }}
               draggable
               // Framer-motion typuje onDragStart/onDragEnd pod SWÓJ gesture
               // drag (PanInfo), nie natywne DragEvent — rzutowanie bezpieczne,
@@ -1518,7 +1519,7 @@ function TimelineGridRow({
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.16, ease: "easeOut" }}
+            transition={{ duration: 0.16, ease: EASE_LIQUID }}
             whileHover={{ scale: 1.015 }}
             draggable
             onClick={(ev) => ev.stopPropagation()}

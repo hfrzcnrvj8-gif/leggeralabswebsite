@@ -5320,3 +5320,85 @@ jedyne miejsce z tytułem.
   bez klienta pokazuje podpowiedź. Pułapka podglądu (`hidden` → `rAF` = 0 kl./s →
   `AnimatePresence mode="wait"` zawiesza swap zakładki) potwierdzona i obejściem
   było wymuszenie klatek zrzutem ekranu — to artefakt narzędzia, nie bug.
+
+## Moduł 36 — Animacje i lekkość: jedno źródło płynności (2026-07-17)
+
+Druga rata rundy „lekkości" z 2026-07-16. Tamta naprawiła to, co propaguje się
+globalnie przez wspólne klasy (`.btn-primary`, jedna krzywa) i **świadomie**
+zostawiła przegląd reszty modułów na później, z zapisem: „gdy właściciel wróci
+z podobną uwagą, kontynuuj tę rundę". Wrócił — to jest ta kontynuacja.
+
+### Sedno: „ta sama krzywa" była regułą do zapamiętania, więc przegrała
+
+Runda 1 ustaliła jedną krzywą `[0.16, 1, 0.3, 1]` i jeden spring `420/32`, ale
+jako **regułę** („używaj tej samej wartości przy każdym nowym animowanym
+elemencie"). Reguła przegrała z domyślną wartością framer-motion: `easeOut` to
+to, co dostajesz, gdy w `transition` nie napiszesz `ease`. Kolejne moduły
+„dziedziczyły" ją przez przeoczenie. Zmierzony stan przed modułem: krzywa
+docelowa **3 wystąpienia**, obok **7× `easeOut`** i osobna krzywa slajdu
+Kalendarza `[0.32, 0.72, 0, 1]`; spring `420/32` w ~12 miejscach, ale
+odstępstwa **500/40**, **400/26**, **420/34**, **120/20**.
+
+### Rozwiązanie — regułę zamieniono na import
+
+- **`lib/motion.ts`** (nowy plik, jedno źródło prawdy): `EASE_LIQUID`
+  (`[0.16,1,0.3,1]`), `TWEEN` (0.18 + ta krzywa), `SPRING` (420/32),
+  `SPRING_SOFT` (120/20 — patrz wyjątki). Teraz `transition={SPRING}` /
+  `ease: EASE_LIQUID` zamiast liczby wpisywanej z palca.
+- **`--ease-liquid`** w `globals.css` (`:root`) — bliźniak dla animacji
+  czysto-CSS-owych, których framer-motion nie obejmuje (`.card-paper` hover,
+  `.glow-border`, `.btn-primary`, pasek listy Poczty przez
+  `ease-[var(--ease-liquid)]`). **Trzymaj obie strony zsynchronizowane** — to
+  ta sama liczba w dwóch światach (React i CSS).
+- Decyzja architektoniczna właściciela (jedyne pytanie modułu): stałe w
+  `lib/motion.ts`, nie tylko klasach CSS — bo **większość ruchu panelu to
+  framer-motion w React**, którego CSS by nie objął.
+
+### Co zamienione
+
+- `easeOut` → `EASE_LIQUID`: `ViewTabs`, `AppShell`, `Modal` (overlay),
+  `CalendarView` (×3: agenda dnia, lista wydarzeń, dzienny widok).
+- Osobna krzywa slajdu miesiąc/dzień Kalendarza `[0.32,0.72,0,1]` →
+  `EASE_LIQUID` (prosty slajd poziomy z fade, krzywa „liquid" pasuje).
+- Springy-odstępstwa → `SPRING` (420/32): `CommandPalette` (było 420/34),
+  `components.tsx` `SummaryCard` hover (400/26), `ProjectKanban` karta (500/40).
+- ~11 springów `420/32` wpisywanych ręcznie → `import { SPRING }`
+  (`ViewTabs`, `Modal`, `FilterPills`, `ui.tsx` ×3, `clients`/`leads` Kanban,
+  `MailComposeForm`, `MailDashboard`, `ProjectTimeline`).
+- Literalne `[0.16,1,0.3,1]` → `EASE_LIQUID`/`--ease-liquid`: `Tooltip`,
+  `Menu` (×2), `ExpandingIconButton`, `.btn-primary` w CSS.
+
+### Świadome wyjątki — ZOSTAJĄ, z komentarzem „dlaczego"
+
+- **Licznik `AnimatedNumber`** (`components.tsx`) → `SPRING_SOFT` (120/20).
+  Standardowy `SPRING` skończyłby „doliczanie" zanim oko je zauważy — miękka
+  sprężystość jest tu poprawna, nie przeoczeniem. Osobna stała, nazwana.
+- **Spinnery** (`animate-spin`, `IconLoader2`) — obrót w kółko MUSI być
+  liniowy, inaczej „szarpie". Nietknięte.
+
+### Odkrycie — briefowe „11× linear" to nie był dług
+
+W panelu `linear` to prawie w całości `linear-gradient` (tła pasków, maski),
+nazwa klasy `admin-linear` i spinnery `animate-spin`. **Żadnego błędnego
+liniowego czasowania w JS panelu nie było** — mniej do zmiany, niż sugerował
+brief. Reguła „nie każdy linear to błąd, sprawdź każde wystąpienie" się
+sprawdziła.
+
+### Poza zakresem (świadomie, nie dług do naprawy tu)
+
+Znaki typograficzne `✕`/`✓`/`★` (osobna, węższa runda z Modułu 33), nagłówek
+`<h1>` Poczty i trzecia implementacja menu w `MailDashboard`, struktura pasków
+narzędzi (Moduły 21/25/33). `prefers-reduced-motion` (`globals.css:359`) —
+czyste, nietknięte.
+
+### Weryfikacja
+
+- `npx tsc --noEmit` czysto (0 błędów) po każdej paczce — mimo że to runda
+  wizualna, `tsc` chroni przed regresją typów (np. `SPRING_SOFT` do `useSpring`).
+- Przegląd na żywo (świeża karta, `tabs_create` — panel bywa `hidden` →
+  `rAF` = 0 kl./s): Pulpit (liczniki „doliczone"), Leady Kanban + **przełącznik
+  Tablica↔Tabela grający end-to-end** z ujednoliconą krzywą (uchwycony fade
+  wyjścia i wejścia), Kalendarz (miesiąc + wydarzenia), Projekty (Oś czasu).
+  Zero błędów konsoli. **Pułapka rAF potwierdzona** (`visibilityState:"hidden"`,
+  swap widoku „zamarzł" na jednej klatce) → obejście: pompowanie klatek
+  zrzutami ekranu, jak w Module 35A. To artefakt narzędzia, nie bug.

@@ -29,7 +29,8 @@
  * Teraz, gdy element jest w układzie, rosnący `max-width` etykiety naturalnie
  * poszerza przycisk, a flex-owy pasek płynnie przelicza pozycje sąsiadów — jeden
  * `transition` na `max-width` napędza i pigułkę, i przesunięcie sąsiadów.
- * Krzywa `[0.16,1,0.3,1]` — ta sama co Popover/modal (jedna krzywa w panelu).
+ * Krzywa `--ease-liquid` (= `[0.16,1,0.3,1]`, lib/motion.ts) — jedna krzywa
+ * w panelu, ta sama co Popover/modal.
  *
  * Podpis zostaje też w `aria-label` — czytnik ekranu nie „najeżdża myszą".
  *
@@ -73,7 +74,7 @@ export function ExpandingIconButton({
 }) {
   const inner = (
     <>
-      <span className="max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:max-w-[240px] group-hover:opacity-100 group-focus-visible:max-w-[240px] group-focus-visible:opacity-100">
+      <span className="max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-200 ease-[var(--ease-liquid)] group-hover:max-w-[240px] group-hover:opacity-100 group-focus-visible:max-w-[240px] group-focus-visible:opacity-100">
         <span className="block whitespace-nowrap pl-1 pr-1.5 text-[12px]">{label}</span>
       </span>
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>

@@ -15,6 +15,7 @@ import {
   IconStarFilled,
 } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget, useCopy } from "../ui";
@@ -799,7 +800,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            transition={SPRING}
             className="overflow-hidden"
           >
             <div className="card-paper sticky top-2 z-30 mb-3 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-[12px]">
@@ -930,7 +931,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") setOpenId(t.id);
                       }}
-                      className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-out hover:bg-[var(--hairline)]/40 ${
+                      className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-[var(--ease-liquid)] hover:bg-[var(--hairline)]/40 ${
                         openId === t.id ? "bg-brand-purple/[0.07]" : ""
                       }`}
                     >
@@ -1042,7 +1043,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     // Cieńszy ring (1px, 25%) + delikatny fioletowy odcień
                     // zamiast szarego tła dla otwartej wiadomości, płynne
                     // przejście zamiast skoku.
-                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-out hover:bg-[var(--hairline)]/40 ${
+                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-[var(--ease-liquid)] hover:bg-[var(--hairline)]/40 ${
                       openId === m.id ? "bg-brand-purple/[0.07]" : ""
                     } ${focusedIndex === i ? "ring-1 ring-inset ring-brand-purple/25" : ""}`}
                   >

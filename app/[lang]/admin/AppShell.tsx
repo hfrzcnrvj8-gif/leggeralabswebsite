@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { EASE_LIQUID } from "@/lib/motion";
 import {
   IconHome,
   IconFolder,
@@ -479,7 +480,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
+              transition={{ duration: 0.18, ease: EASE_LIQUID }}
               // `flex flex-1 flex-col` — bez tego dziecko (dashboard) nie ma po
               // czym dziedziczyć wysokości i `flex-1` w nim nic nie robi.
               className="flex flex-1 flex-col md:min-h-0"

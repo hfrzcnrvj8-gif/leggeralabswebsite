@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { EASE_LIQUID, SPRING } from "@/lib/motion";
 import type { ReactNode } from "react";
 
 // Wspólny modal całego panelu (audyt wizualny 2026-07-16, Moduł 21).
@@ -13,10 +14,9 @@ import type { ReactNode } from "react";
 // UI, trzy różne zachowania. Ten komponent jest jedynym miejscem, w którym
 // ten wzorzec żyje.
 //
-// Spring 420/32 to ta sama krzywa co `confirm`/`prompt` w `ui.tsx` —
-// świadomie NIE wymyślamy tu czwartej wartości, tylko reużywamy tę, która
-// była już dopracowana.
-const SPRING = { type: "spring", stiffness: 420, damping: 32 } as const;
+// Spring 420/32 (`SPRING`) i krzywa `EASE_LIQUID` pochodzą z `lib/motion.ts`
+// — jedno źródło płynności panelu (Moduł 36). Świadomie NIE wymyślamy tu
+// własnych wartości.
 
 export function Modal({
   open,
@@ -44,7 +44,7 @@ export function Modal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.18, ease: "easeOut" }}
+          transition={{ duration: 0.18, ease: EASE_LIQUID }}
           // Klasy warstwy MUSZĄ być pełnymi literałami — Tailwind skanuje
           // kod statycznie, więc `z-[${z}]` nie wygenerowałoby się w CSS.
           className={`fixed inset-0 ${

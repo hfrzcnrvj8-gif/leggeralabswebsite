@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { EASE_LIQUID } from "@/lib/motion";
 
 /** Ile trzymać kursor, zanim dymek wejdzie. 400 ms = próg Apple: dłużej niż
  * przypadkowe przejechanie, krócej niż świadome „co to jest?". */
@@ -181,7 +182,7 @@ export function Tooltip({
                 initial={{ opacity: 0, y: pos.place === "top" ? 4 : -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: pos.place === "top" ? 2 : -2 }}
-                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ duration: 0.16, ease: EASE_LIQUID }}
                 className="pointer-events-none fixed z-[300]"
                 style={{ top: pos.top, left: pos.left }}
               >

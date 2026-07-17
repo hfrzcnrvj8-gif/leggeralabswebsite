@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { SPRING, SPRING_SOFT } from "@/lib/motion";
 import { IconUsers, IconDownload, IconInfoCircle } from "@tabler/icons-react";
 import { ContactChannelIcon } from "./icons";
 import type { Locale } from "@/i18n/config";
@@ -26,7 +27,10 @@ import { waLink, linkedinLink } from "@/lib/contact";
  * drobny, ale bardzo charakterystyczny dla Linear szczegół. */
 function AnimatedNumber({ value }: { value: number }) {
   const motionVal = useMotionValue(0);
-  const spring = useSpring(motionVal, { stiffness: 120, damping: 20 });
+  // ŚWIADOMY wyjątek od standardowego SPRING (420/32): licznik ma się „doliczać"
+  // powoli i widocznie — standardowa sztywność skończyłaby zliczanie, zanim oko
+  // je zauważy. `SPRING_SOFT` (120/20) z lib/motion.ts.
+  const spring = useSpring(motionVal, SPRING_SOFT);
   const rounded = useTransform(spring, (v) => Math.round(v).toString());
   const [display, setDisplay] = useState("0");
 
@@ -44,7 +48,7 @@ export function SummaryCard({ label, value, alert }: { label: string; value: num
     <motion.div
       layout
       whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 400, damping: 26 }}
+      transition={SPRING}
       className={`card-paper min-w-[110px] rounded-2xl px-4 py-3 ${
         alert ? "border-red-500/30 bg-red-500/[0.04]" : ""
       }`}

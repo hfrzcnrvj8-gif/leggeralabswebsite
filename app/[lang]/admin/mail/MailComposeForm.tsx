@@ -17,6 +17,7 @@
 // wysyłki SMTP+IMAP.
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 import { IconPaperclip, IconCheck } from "@tabler/icons-react";
 import {
   SIGNATURE_LANGS,
@@ -144,7 +145,7 @@ export function MailComposeForm({
       initial={{ opacity: 0, scale: 0.94, y: 12 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.92, y: 8, transition: { duration: 0.15 } }}
-      transition={{ type: "spring", stiffness: 420, damping: 32 }}
+      transition={SPRING}
       className="card-paper flex h-[80vh] max-h-[80vh] w-full flex-col overflow-hidden rounded-2xl border hairline"
     >
       <div className="flex shrink-0 items-center justify-between border-b hairline px-6 py-4 sm:px-8">

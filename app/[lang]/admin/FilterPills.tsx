@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 
 // Pigułki filtrowania listy (zakładki „Do odpowiedzi”/„VIP” w Poczcie, tagi w
 // Notatniku). Audyt wizualny 2026-07-16 (Moduł 21): każdy moduł malował stan
@@ -59,7 +60,7 @@ export function FilterPills<T extends string>({
           {value === p.id && (
             <motion.span
               layoutId={layoutId}
-              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              transition={SPRING}
               className="pill-active absolute inset-0 rounded-full"
             />
           )}
