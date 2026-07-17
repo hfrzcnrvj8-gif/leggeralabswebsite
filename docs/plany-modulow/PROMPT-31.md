@@ -84,9 +84,17 @@ Uwagi, które oszczędzą Ci czasu:
   w Module 30 i `isOverdue()` w Module 32 (`HUB_SETUP.md` → Weryfikacja).
 
 Weryfikacja: `npx tsc --noEmit -p tsconfig.json` po każdej paczce zmian (pełny
-`next build` failuje w sandboxie). Ścieżka na żywo: „+ Dodaj projekt" (ręcznie,
-NIE z oferty) → spróbuj przestawić na „W trakcie" → powinno dać się przypiąć
-podpisaną umowę bez przechodzenia całej ścieżki oferta→akceptacja od nowa. Po
-przypięciu projektu do umowy **sprawdź, czy umowa nadal jest na karcie klienta**
-(to jest ta pułapka ze Sprostowania A). Na koniec zapisz wynik w `HUB_SETUP.md`
-i odhacz w `README.md`.
+`next build` failuje w sandboxie). Ścieżka na żywo — **trzy przypadki, wszystkie
+trzeba przejść**, bo decyzja z pytania 1 dzieli projekty na dwie kategorie:
+
+1. **Projekt wewnętrzny** — „+ Dodaj projekt", bez klienta → „W trakcie"
+   **przechodzi bez pytania o umowę**. To jest sedno decyzji; dziś nie przechodzi.
+2. **Projekt dla klienta, ręczny** — „+ Dodaj projekt" → przypnij klienta
+   (`LinkPicker` w `ProjectDetailPanel`) → „W trakcie" **blokuje się** → da się
+   przypiąć podpisaną umowę **bez** przechodzenia całej ścieżki oferta→akceptacja
+   od nowa → po przypięciu przechodzi. To naprawa pułapki.
+3. **Po przypięciu projektu do umowy sprawdź, czy ta umowa nadal jest powiązana
+   z klientem** (karta klienta / `client_id`). To pułapka ze Sprostowania A —
+   jeśli zniknęła, wpadłeś w wyłączność `linkValueFor`.
+
+Na koniec zapisz wynik w `HUB_SETUP.md` i odhacz w `README.md`.
