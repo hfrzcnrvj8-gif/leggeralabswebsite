@@ -3914,3 +3914,120 @@ to jak zepsuty przełącznik, także ten zastany (Tablica/Tabela) w dashboardach
 To artefakt narzędzia, NIE błąd aplikacji: w prawdziwej przeglądarce działa.
 Zrzut ekranu wymusza klatkę, więc żeby zobaczyć przełączenie, trzeba klikać i
 robić `screenshot` — nie `wait`. **Nie „naprawiaj" tu `ViewSwitch`.**
+
+## Moduł 24 — Centrum powiadomień: dzwonek jako kronika zdarzeń (2026-07-17)
+
+Skąd: właściciel 2026-07-16 — *„brakuje nam też w ogóle takich powiadomień w
+aplikacji gdyby się coś wydarzyło ważnego, tutaj ale później też na mobile"*.
+
+### Kluczowa decyzja: dzwonek ≠ Pulpit
+
+Pulpit **już** liczy na żywo „9 spraw wymaga dziś działania" (zaległe leady,
+faktury, poczta — `app/api/hub/today`, bez żadnej tabeli). Gdyby dzwonek
+pokazywał to samo, byłyby to dwa miejsca mówiące jedno, a licznik dublowałby
+liczbę z nagłówka Pulpitu. Decyzja właściciela 2026-07-17 — **dwie różne osie**:
+
+| | odpowiada na pytanie | źródło | znika, gdy |
+|---|---|---|---|
+| **Pulpit** | „co mam teraz robić" | reguły, liczone na żywo | sprawa załatwiona |
+| **Dzwonek** | „czego przegapiłem" | tabela `notifications`, zapis w chwili zdarzenia | nigdy (wygasa po 30 dniach) |
+
+Stąd wpisy w dzwonku mają **wiek** („2 godz. temu"), nie termin, i nie znikają
+po obsłużeniu sprawy — to kronika, nie skrzynka zadań.
+
+### Luka w briefie: sam cron nie wystarczał
+
+Brief zakładał, że wystarczy dopiąć hooki do dziennego crona. Cron leci
+**raz dziennie o 06:00 i tylko na Vercelu** — dzwonek zapełniałby się partią o
+poranku, a rzeczy, przy których właściciela naprawdę nie ma (zgłoszenie z
+formularza, mail), dzieją się w ciągu dnia. Dlatego hooki wiszą **w miejscu,
+gdzie zdarzenie zachodzi**, nie tylko w cronie:
+
+| Zdarzenie | `kind` | Gdzie wpięte | Kiedy |
+|---|---|---|---|
+| Zgłoszenie z formularza | `lead_new` | `app/api/leads/route.ts` (POST) | natychmiast |
+| Nowa wiadomość (po screenerze) | `mail_new` | `lib/mailSync.ts` → `saveIncoming()` | przy syncu |
+| Cisza w wątku | `mail_nudge` | `app/api/leads/notify` | cron |
+| Faktura w pełni opłacona | `invoice_paid` | `app/api/invoices/[id]/payments` | natychmiast |
+| Przypomnienie +3/+10 | `invoice_reminder` | `app/api/leads/notify` | cron |
+| Wezwanie do zapłaty +21 | `invoice_dunning` | `app/api/leads/notify` | cron |
+| Szkic faktury cyklicznej | `recurring_invoice` | `app/api/leads/notify` | cron |
+| Koszt cykliczny | `recurring_cost` | `app/api/leads/notify` | cron |
+
+Cron **dalej wysyła maila** — właściciel nie siedzi w panelu cały dzień.
+
+Co świadomie NIE dzwoni:
+- **Lead dodany ręcznie z panelu** — ten sam endpoint co formularz publiczny,
+  rozróżniamy po `zrodlo_kategoria === "Formularz na stronie"` (nie po
+  `isAuthed()`, bo właściciel bywa zalogowany, testując własny formularz).
+- **Wpłata częściowa** — zdarzeniem jest dopiero automatyczne przewrócenie
+  statusu na „Opłacona", czyli to, co panel zrobił SAM. Zarejestrowanie wpłaty
+  to ruch właściciela; wie, że kliknął.
+- **Newslettery** (`status = 'zignorowany'`) — panel sam je odłożył, nie ma o
+  czym informować.
+- **Toasty** (28 wywołań w panelu) — decyzja właściciela: „Zapisano" po własnym
+  kliknięciu to nie powiadomienie. Wpuszczenie ich zaśmieciłoby dzwonek
+  dziesiątkami wpisów dziennie i licznik przestałby cokolwiek znaczyć.
+  `toast()` w `ui.tsx` zostaje jak był (3400 ms, bez historii).
+
+### `dedupe_key` — serce tabeli, nie ozdoba
+
+Cron widzi ten sam stan **co rano**. Bez klucza „faktura X po terminie"
+wpadałaby do dzwonka codziennie i po tygodniu licznik pokazywałby 40 kopii
+jednego zdarzenia. Kolumna jest `NOT NULL UNIQUE`, każdy zapis idzie przez
+`ON CONFLICT (dedupe_key) DO NOTHING`, a klucz opisuje **zdarzenie, nie moment**:
+
+- `invoice_paid:<id>` — faktura opłaca się raz,
+- `invoice_reminder:<id>:<poziom>` — +3 i +10 to DWA zdarzenia tej samej faktury,
+- `mail_nudge:<threadId>` — o ciszy w wątku mówimy **raz**, choć cron widzi ją
+  co rano aż do odpowiedzi (od pilnowania stanu jest Pulpit i zakładka „Bez
+  odpowiedzi").
+
+Zweryfikowane w dev: cron puszczony **dwa razy** → wpis o ciszy powstał **raz**.
+
+### Podział plików (ta sama pułapka co w Module 23)
+
+`lib/notifications.ts` (czysty: typy, emoji, `notificationHref()`,
+`notificationAge()`) ↔ `lib/notificationLog.ts` (baza, serwer). Dzwonek jest
+komponentem klienckim, a `lib/db` ciągnie `node:async_hooks` → build wywala się
+na „chunking context does not support external modules", czego `tsc` **nie
+łapie**. Ten sam podział co `lib/audit.ts` ↔ `lib/auditLog.ts`.
+
+`notify()` **nigdy nie wywala wywołującego** — błąd ląduje w konsoli. Hooki
+wiszą przy zapisie leada z formularza: utrata powiadomienia jest przykra, utrata
+zgłoszenia klienta, bo nie zapisało się powiadomienie o nim, byłaby absurdem.
+
+### Dzwonek w sidebarze (bo panel nie ma górnego paska)
+
+`NotificationBell.tsx` na wspólnym `Popover` z `Menu.tsx`, wpięty w
+`AppShell.tsx` pod „Szukaj" — jedyne trwałe chrome widoczne z każdej strony.
+Licznik w różu marki; **zwinięty sidebar** pokazuje samą kropkę (nie ma miejsca
+na liczbę, a „czy coś jest" to i tak jedyna informacja szukana rzutem oka).
+Odpytywanie co 60 s zwykłym `setInterval` (na Vercelu SSE/WebSocket = działająca
+funkcja), wstrzymane przy `document.hidden` — bez tego karta zostawiona na noc
+wysyła 480 żądań do rana — i natychmiastowe przy powrocie do karty.
+
+Klik: najpierw nawigacja, potem cichy zapis „przeczytane" (odwrotnie klik
+wisiałby na rundzie do bazy). `read_at` nie jest nadpisywane przy powtórnym
+kliknięciu ani przez „oznacz wszystkie" (`AND read_at IS NULL`) — moment
+pierwszego przeczytania ma kiedyś decydować, czy budzić telefon.
+
+### Retencja i mobile
+
+30 dni (decyzja właściciela): dość, żeby wrócić po urlopie, a tabela nie rośnie
+w nieskończoność. Przeczytane **zostają widoczne** (wyszarzone) do końca okna —
+„oznacz wszystkie" gasi licznik, nie kasuje historii. Sprząta dzienny cron
+(`purgeOldNotifications()`), po dacie a nie po statusie przeczytania — wpis
+sprzed 30 dni jest nieaktualny niezależnie od tego, czy ktoś go zauważył.
+
+`read_at` zamiast boola `read` jest pod **push w PWA (Moduł 5)** — push musi
+wiedzieć, KIEDY właściciel przeczytał, żeby nie budzić telefonu tym, co już
+widział. Sam push świadomie poza zakresem.
+
+### Seed w dev
+
+`ensureSeeded()` w `lib/dev-db.ts` wstawia 4 powiadomienia (mieszanka
+przeczytanych i nie, wiek od 35 min do 4 dni). W prawdziwym panelu wpisy
+powstają z hooków, a tych w dev nikt nie odpala: formularz wymaga wysyłki,
+poczta — serwera IMAP, cron — Vercela. Bez seeda każda sesja nad wyglądem
+dzwonka zaczynałaby się od pustej listy.

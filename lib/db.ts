@@ -1894,3 +1894,70 @@ export async function ensureAuditSchema(): Promise<void> {
   if (!auditSchemaReady) auditSchemaReady = createAuditSchema();
   await auditSchemaReady;
 }
+
+let notificationsSchemaReady: Promise<void> | null = null;
+
+/**
+ * Centrum powiadomień (Moduł 24) — kronika zdarzeń „co się wydarzyło, gdy Cię
+ * nie było". Świadomie NIE jest to lista „co jest do zrobienia": tamtą liczy
+ * na żywo Pulpit (`app/api/hub/today`) z reguł, bez żadnej tabeli. Dwie różne
+ * osie — dzwonek odpowiada na „czego przegapiłem", Pulpit na „co robić"
+ * (decyzja właściciela 2026-07-17).
+ *
+ * `dedupe_key` to serce tej tabeli, nie ozdoba. Cron leci CODZIENNIE o 06:00,
+ * więc bez klucza „faktura X po terminie" wpadałaby do dzwonka co rano od
+ * nowa i po tygodniu licznik pokazywałby 40 kopii tego samego zdarzenia.
+ * Każdy zapis idzie przez `ON CONFLICT (dedupe_key) DO NOTHING`, a klucz
+ * opisuje ZDARZENIE, nie moment (np. `invoice_reminder:<id>:2` — drugi
+ * poziom eskalacji tej faktury zdarzył się raz i tyle razy ma być widoczny).
+ * Dlatego kolumna jest NOT NULL: powiadomienie bez klucza to powiadomienie,
+ * które prędzej czy później się zduplikuje.
+ *
+ * Świadomie BEZ `REFERENCES` — ta sama decyzja co w `field_changes`: kronika
+ * ma przeżyć skasowanie rekordu, którego dotyczy. Kliknięcie w martwy wpis
+ * prowadzi do 404, co jest uczciwsze niż ciche zniknięcie historii.
+ *
+ * Kolumny są celowo płaskie (`entity` + `entity_id` jako TEKST, bez enuma) —
+ * ten sam kształt, który w Module 23 pozwolił dopiąć audyt kolejnej encji
+ * jedną linią, bez migracji. Kiedyś ma z tej tabeli karmić się push w PWA
+ * (Moduł 5) — stąd `read_at` zamiast zwykłego boola `read`: push musi wiedzieć
+ * KIEDY właściciel przeczytał, żeby nie budzić telefonu tym, co już widział.
+ */
+async function createNotificationsSchema(): Promise<void> {
+  if (await schemaUpToDate("notifications")) return;
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      entity TEXT,
+      entity_id TEXT,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      read_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  // Jedyne dwa zapytania, jakie robi UI: „ostatnie N wpisów, od najnowszego"
+  // i „ile nieprzeczytanych".
+  await sql`
+    CREATE INDEX IF NOT EXISTS notifications_created_idx
+      ON notifications (created_at DESC);
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS notifications_unread_idx
+      ON notifications (read_at) WHERE read_at IS NULL;
+  `;
+
+  await markSchemaApplied("notifications");
+}
+
+/** Lazily tworzy tabelę centrum powiadomień (Moduł 24). */
+export async function ensureNotificationsSchema(): Promise<void> {
+  if (!notificationsSchemaReady) notificationsSchemaReady = createNotificationsSchema();
+  await notificationsSchemaReady;
+}

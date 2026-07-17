@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { rematchUnassigned } from "@/lib/mailSync";
+import { notify } from "@/lib/notificationLog";
 
 export const runtime = "nodejs";
 
@@ -66,6 +67,26 @@ export async function POST(req: NextRequest) {
   // zanim istniał (04d pkt 1), zamiast czekać na kolejny sync poczty.
   if (email.trim()) {
     await rematchUnassigned().catch((e) => console.error("[leads] rematch poczty nie powiódł się", e));
+  }
+
+  // Centrum powiadomień (Moduł 24) — dzwoni TYLKO zgłoszenie z formularza na
+  // stronie. Ten sam endpoint obsługuje też „+ Dodaj lead" z panelu
+  // (`zrodlo_kategoria: "Ręcznie dodane"`, patrz LeadsDashboard.tsx), a
+  // powiadamianie właściciela o rekordzie, który przed chwilą sam wpisał, to
+  // dokładnie ten szum, który wyklucza decyzja „dzwonek tylko dla zdarzeń z
+  // zewnątrz". Rozróżniamy po źródle, nie po `isAuthed()` — formularz jest
+  // publiczny, więc brak sesji byłby prawdziwy, ale rozstrzygałby o tym
+  // przypadek (właściciel zalogowany w tej samej przeglądarce wysyłający
+  // własny formularz testowy nie dostałby powiadomienia).
+  if (zrodloKategoria === "Formularz na stronie") {
+    await notify({
+      kind: "lead_new",
+      title: `Nowe zgłoszenie ze strony — ${firma.slice(0, 120)}`,
+      body: [osobaKontaktowa, email].filter(Boolean).join(" · "),
+      entity: "lead",
+      entityId: id,
+      dedupeKey: `lead_new:${id}`,
+    });
   }
 
   return NextResponse.json({ ok: true, id });

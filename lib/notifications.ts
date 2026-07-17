@@ -1,0 +1,113 @@
+/**
+ * Centrum powiadomień (Moduł 24) — typy, etykiety i mapowanie na adresy.
+ * Czysta logika, BEZ importu `lib/db`.
+ *
+ * Świadomie osobno od `lib/notificationLog.ts` (zapis/odczyt z bazy): ten plik
+ * importuje kliencki dzwonek w sidebarze, a `lib/db` ciągnie `node:async_hooks`,
+ * którego Turbopack nie umie wpakować do bundla przeglądarki — build wywala
+ * się wtedy na „chunking context does not support external modules", a `tsc`
+ * tego NIE łapie. Ten sam podział co `lib/audit.ts` ↔ `lib/auditLog.ts`
+ * (Moduł 23) i `lib/mail.ts` ↔ `lib/mailSync.ts`.
+ */
+
+/** Rodzaj zdarzenia. Kolejność = kolejność w tym pliku niżej (etykiety/emoji),
+ * nie ma znaczenia dla bazy — `kind` jest tam zwykłym tekstem, dokładnie po to,
+ * żeby dołożenie kolejnego rodzaju nie wymagało migracji. */
+export type NotificationKind =
+  | "lead_new"
+  | "mail_new"
+  | "mail_nudge"
+  | "invoice_paid"
+  | "invoice_reminder"
+  | "invoice_dunning"
+  | "recurring_invoice"
+  | "recurring_cost";
+
+/** Encja, do której prowadzi kliknięcie. Tekst, nie enum — patrz `lib/db.ts`. */
+export type NotificationEntity = "lead" | "mail" | "invoice" | "cost" | "client";
+
+export type Notification = {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  entity: NotificationEntity | null;
+  entity_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+/** Ile wpisów w ogóle pokazuje popover. Historia sięga 30 dni (cron kasuje
+ * starsze, patrz `purgeOldNotifications`), ale nawet w rekordowym tygodniu nikt
+ * nie przewinie stu wpisów — a zapytanie ma zostać tanie. */
+export const NOTIFICATIONS_LIMIT = 50;
+
+/** Po ilu dniach kronika zapomina. Decyzja właściciela 2026-07-17: 30 dni to
+ * dość, żeby wrócić po urlopie i zobaczyć, co się działo, a tabela nie rośnie
+ * w nieskończoność. Przeczytane zostają widoczne do końca tego okna — dzwonek
+ * jest kroniką, nie skrzynką, więc „przeczytane" wygasza, a nie kasuje. */
+export const NOTIFICATIONS_RETENTION_DAYS = 30;
+
+/** Emoji per rodzaj — zgodnie z konwencją panelu (emoji zamiast biblioteki
+ * ikon, patrz CLAUDE.md). Dobrane tak, żeby dało się czytać listę samym
+ * kątem oka: pieniądze zielone/czerwone, poczta koperta, lead iskra. */
+const KIND_EMOJI: Record<NotificationKind, string> = {
+  lead_new: "✨",
+  mail_new: "✉️",
+  mail_nudge: "🔇",
+  invoice_paid: "💰",
+  invoice_reminder: "⏰",
+  invoice_dunning: "⚖️",
+  recurring_invoice: "🧾",
+  recurring_cost: "💳",
+};
+
+export function notificationEmoji(kind: NotificationKind): string {
+  return KIND_EMOJI[kind] ?? "•";
+}
+
+/** Adres, pod który prowadzi kliknięcie w powiadomienie — albo `null`, gdy
+ * wpis nie ma dokąd prowadzić.
+ *
+ * Koszty świadomie lądują na liście, nie na podstronie rekordu: `/admin/costs`
+ * jako jedyny moduł w panelu nie ma `[id]/page.tsx` (patrz drzewo tras), więc
+ * `/costs/<id>` byłoby po prostu 404. Gdy Koszty kiedyś dostaną podstronę, to
+ * jest jedyne miejsce do zmiany. */
+export function notificationHref(n: Pick<Notification, "entity" | "entity_id">, base: string): string | null {
+  if (!n.entity) return null;
+  if (n.entity === "cost") return `${base}/costs`;
+  if (!n.entity_id) return null;
+  const segment: Record<Exclude<NotificationEntity, "cost">, string> = {
+    lead: "leads",
+    mail: "mail",
+    invoice: "invoices",
+    client: "clients",
+  };
+  return `${base}/${segment[n.entity]}/${n.entity_id}`;
+}
+
+/**
+ * „2 godz. temu" — wiek wpisu w skrócie, po polsku.
+ *
+ * Świadomie własne, a nie `formatPlDate()` z `lib/projects.ts`: tamto formatuje
+ * DZIEŃ („17.07.2026"), a w kronice zdarzeń liczy się „ile czasu minęło" —
+ * data dzienna przy trzech mailach z tego samego popołudnia nie odróżnia ich od
+ * siebie. Dla wpisów starszych niż tydzień schodzimy jednak do daty dziennej,
+ * bo „13 dni temu" nikomu nic nie mówi.
+ *
+ * Wejściem jest `created_at` z bazy, czyli TIMESTAMPTZ — tu wyjątkowo `new
+ * Date()` jest na miejscu (porównujemy MOMENTY, nie dni kalendarzowe, więc
+ * ostrzeżenie z CLAUDE.md o `todayLocalISO()` nie dotyczy tego przypadku).
+ */
+export function notificationAge(createdAt: string, now: number = Date.now()): string {
+  const minutes = Math.floor((now - new Date(createdAt).getTime()) / 60000);
+  if (minutes < 1) return "przed chwilą";
+  if (minutes < 60) return `${minutes} min temu`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} godz. temu`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "wczoraj";
+  if (days < 7) return `${days} dni temu`;
+  const d = new Date(createdAt);
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+}

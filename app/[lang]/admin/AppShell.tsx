@@ -27,6 +27,7 @@ import {
 import type { Locale } from "@/i18n/config";
 import { AdminUIProvider, useUI, isTypingTarget, type Action } from "./ui";
 import { CommandPalette } from "./CommandPalette";
+import { NotificationBell } from "./NotificationBell";
 import { LogoMark } from "@/components/Logo";
 import type { Lead } from "@/lib/leads";
 import type { Client } from "@/lib/clients";
@@ -323,6 +324,8 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               </>
             )}
           </button>
+
+          <NotificationBell base={base} collapsed={collapsed} />
 
           <nav className="flex flex-1 flex-row gap-0.5 overflow-x-auto md:flex-col md:overflow-visible">
             {NAV.map((item) => {

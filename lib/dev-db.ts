@@ -411,6 +411,29 @@ async function ensureSeeded(): Promise<void> {
       );
 
       await raw(`UPDATE mail_state SET last_seen_uid = 112 WHERE id = 'default'`, []);
+
+      // Centrum powiadomień (Moduł 24) — kilka zdarzeń w kronice, żeby dzwonek
+      // w sidebarze dało się w ogóle obejrzeć lokalnie. W prawdziwym panelu
+      // wpisy powstają z hooków (formularz, sync poczty, cron), a tych w dev
+      // nikt nie odpala: formularz publiczny wymaga wysyłki, poczta — serwera
+      // IMAP, cron — Vercela. Bez seeda każda sesja nad wyglądem dzwonka
+      // zaczynałaby się od pustej listy i „przed chwilą" przy każdym wpisie.
+      // Mieszanka przeczytanych i nie, z różnym wiekiem — bo to właśnie te
+      // stany mają różny wygląd (wyszarzenie, kropka, „2 godz. temu").
+      const { ensureNotificationsSchema } = await import("./db");
+      await ensureNotificationsSchema();
+      await raw(
+        `INSERT INTO notifications (id, kind, title, body, entity, entity_id, dedupe_key, read_at, created_at) VALUES
+           ($1,'lead_new','Nowe zgłoszenie ze strony — Piekarnia Złoty Kłos','Jan Kowalski · jan@zlotyklos.pl','lead',$2,'dev:lead_new',NULL, now() - interval '35 minutes'),
+           ($3,'invoice_paid','Faktura 3/2026 w pełni opłacona','Wpłata 4 920,00 PLN domknęła należność.','invoice',NULL,'dev:invoice_paid',NULL, now() - interval '5 hours'),
+           ($4,'mail_nudge','Brak odpowiedzi od Nordwind Studio','Oferta na wdrożenie automatyzacji — 8 dni ciszy od Twojej wiadomości.','mail',NULL,'dev:mail_nudge', now() - interval '1 day', now() - interval '2 days'),
+           ($5,'recurring_cost','Wygenerowano koszt cykliczny — Hosting az.pl','az.pl · 49,20 zł brutto · sprawdź kwotę przed opłaceniem.','cost',NULL,'dev:recurring_cost', now() - interval '3 days', now() - interval '4 days')`,
+        // `leadB` = Piekarnia Złoty Kłos, jedyny seedowy lead ze źródłem
+        // „Formularz na stronie" — czyli dokładnie ten, o którym hook w
+        // POST /api/leads faktycznie by zadzwonił. Kliknięcie w to
+        // powiadomienie prowadzi więc w dev do prawdziwego rekordu.
+        [randomUUID(), leadB, randomUUID(), randomUUID(), randomUUID()]
+      );
     })();
   }
   await seedPromise;

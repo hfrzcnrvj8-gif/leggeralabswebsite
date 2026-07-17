@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { getSql, ensureMailSchema, ensureMailFoldersSchema } from "./db";
 import { findContactsByEmail } from "./contactLookup";
+import { notify } from "./notificationLog";
 import {
   fetchMessagesInFolder,
   fetchHintsByUids,
@@ -855,6 +856,23 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage,
       VALUES (${randomUUID()}, ${msg.fromAddr}, 'pending')
       ON CONFLICT (email) DO NOTHING;
     `;
+  }
+
+  // Centrum powiadomień (Moduł 24). Dzwoni tylko to, co przeszło screener
+  // (`status === "nowy"`, czyli kategoria ≠ reklama) — newsletter, który panel
+  // sam odłożył na bok, nie jest zdarzeniem, o którym trzeba kogokolwiek
+  // informować. Wpis powstaje PRZED `return "unassigned"` niżej, bo mail od
+  // kogoś, kogo jeszcze nie ma w CRM, to często najważniejsza wiadomość dnia
+  // (nowe zapytanie) — właśnie jej nie wolno przegapić.
+  if (status === "nowy") {
+    await notify({
+      kind: "mail_new",
+      title: `Nowa wiadomość — ${msg.fromName || msg.fromAddr}`,
+      body: msg.subject || "(bez tematu)",
+      entity: "mail",
+      entityId: id,
+      dedupeKey: `mail_new:${id}`,
+    });
   }
 
   if (kategoria === "reklama") return "ignored";

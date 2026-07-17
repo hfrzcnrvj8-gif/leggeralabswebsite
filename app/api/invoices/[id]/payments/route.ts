@@ -5,6 +5,7 @@ import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { totalPaid } from "@/lib/invoices";
+import { notify } from "@/lib/notificationLog";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await sql`UPDATE invoices SET status = 'Opłacona', updated_at = now() WHERE id = ${id};`;
         status = "Opłacona";
         await logClientEvent(sql, clientId, "invoice_paid", `Faktura ${inv[0].numer ?? "(szkic)"} w pełni opłacona`, null, id);
+        // Centrum powiadomień (Moduł 24) — świadomie TYLKO tu, przy
+        // automatycznym domknięciu faktury, a nie przy każdej wpłacie.
+        // Zarejestrowanie wpłaty to ruch właściciela (wie, że kliknął);
+        // zdarzeniem jest dopiero to, co panel zrobił SAM w konsekwencji —
+        // przewrócił status na „Opłacona". Wpłata częściowa nie zmienia
+        // statusu, więc i nie dzwoni.
+        await notify({
+          kind: "invoice_paid",
+          title: `Faktura ${inv[0].numer ?? "(szkic)"} w pełni opłacona`,
+          body: `Wpłata ${kwota.toFixed(2)} ${inv[0].waluta ?? "PLN"} domknęła należność.`,
+          entity: "invoice",
+          entityId: id,
+          dedupeKey: `invoice_paid:${id}`,
+        });
       }
     }
 

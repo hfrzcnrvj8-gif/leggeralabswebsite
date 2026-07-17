@@ -37,6 +37,7 @@ import { isMailboxConfigured } from "@/lib/mailbox";
 import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO, daysSinceISO } from "@/lib/dates";
+import { notify, purgeOldNotifications } from "@/lib/notificationLog";
 
 export const runtime = "nodejs";
 // Podniesione z 30 s przy Module 4: do raportu doszło pobranie poczty przez
@@ -102,6 +103,17 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
         await sendEmail({ to: inv.klient_email, subject, text });
         await sql`UPDATE invoices SET wezwanie_wystawiono_at = now() WHERE id = ${inv.id};`;
         await logClientEvent(sql, inv.client_id, "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${inv.numer} (${reference})`, null, inv.id);
+        // Formalne wezwanie to najpoważniejszy krok, jaki panel wykonuje bez
+        // pytania — musi zostawić ślad tam, gdzie właściciel patrzy, nie tylko
+        // w mailu o 6:00.
+        await notify({
+          kind: "invoice_dunning",
+          title: `Wysłano wezwanie do zapłaty — faktura ${inv.numer ?? ""}`.trim(),
+          body: `${dni ?? 0} dni po terminie. Sygnatura ${reference}.`,
+          entity: "invoice",
+          entityId: inv.id,
+          dedupeKey: `invoice_dunning:${inv.id}`,
+        });
       } else {
         const token = await ensureInvoiceShareToken(sql, inv.id, inv.share_token);
         const url = `${SITE_ORIGIN}/pl/faktura/${token}`;
@@ -114,6 +126,18 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
         });
         await sendEmail({ to: inv.klient_email, subject, text });
         await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności (poziom ${targetLevel}) — faktura ${inv.numer}`, null, inv.id);
+        // Poziom w kluczu, nie sam id faktury: +3 dni i +10 dni to DWA różne
+        // zdarzenia w życiu tej samej faktury i oba mają być widoczne. Sama
+        // eskalacja i tak nie powtórzy się per poziom (`reminder_level` wyżej),
+        // ale klucz musi to odzwierciedlać, a nie zakładać.
+        await notify({
+          kind: "invoice_reminder",
+          title: `Wysłano przypomnienie o płatności — faktura ${inv.numer ?? ""}`.trim(),
+          body: `Poziom ${targetLevel}, ${dni ?? 0} dni po terminie. Klient: ${inv.klient_nazwa}.`,
+          entity: "invoice",
+          entityId: inv.id,
+          dedupeKey: `invoice_reminder:${inv.id}:${targetLevel}`,
+        });
       }
       await sql`UPDATE invoices SET last_reminder_at = now(), reminder_level = ${targetLevel} WHERE id = ${inv.id};`;
       await sql`
@@ -172,6 +196,16 @@ async function generateDueRecurringInvoices(): Promise<{ generated: number; fail
       }
       const next = nextRunAfter(r.next_run <= today ? today : r.next_run, r.cykl);
       await sql`UPDATE recurring_invoices SET next_run = ${next}, updated_at = now() WHERE id = ${r.id};`;
+      // Klucz per WYGENEROWANY szkic, nie per szablon — ten sam szablon
+      // wygeneruje kolejny szkic za miesiąc i to będzie osobne zdarzenie.
+      await notify({
+        kind: "recurring_invoice",
+        title: `Wygenerowano szkic faktury cyklicznej — ${r.nazwa}`,
+        body: `${r.klient_nazwa} · czeka na sprawdzenie i wystawienie.`,
+        entity: "invoice",
+        entityId: newId,
+        dedupeKey: `recurring_invoice:${newId}`,
+      });
       generated += 1;
     } catch (e) {
       console.error("[generateDueRecurringInvoices] failed for", r.id, e);
@@ -213,6 +247,16 @@ async function generateDueRecurringCosts(): Promise<{ generated: number; failed:
       `;
       const next = nextRunAfter(r.next_run <= today ? today : r.next_run, r.cykl);
       await sql`UPDATE recurring_costs SET next_run = ${next}, updated_at = now() WHERE id = ${r.id};`;
+      // Koszt nie ma podstrony rekordu (`/admin/costs` bez `[id]`), więc
+      // kliknięcie prowadzi do listy — patrz `notificationHref()`.
+      await notify({
+        kind: "recurring_cost",
+        title: `Wygenerowano koszt cykliczny — ${r.nazwa}`,
+        body: `${r.dostawca_nazwa} · ${kwotaBrutto.toFixed(2)} zł brutto · sprawdź kwotę przed opłaceniem.`,
+        entity: "cost",
+        entityId: newId,
+        dedupeKey: `recurring_cost:${newId}`,
+      });
       generated += 1;
     } catch (e) {
       console.error("[generateDueRecurringCosts] failed for", r.id, e);
@@ -330,6 +374,31 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     generateDueRecurringInvoices(),
     generateDueRecurringCosts(),
   ]);
+
+  // Centrum powiadomień (Moduł 24) — cisza w wątku. Klucz to sam wątek, więc
+  // o milczącym wątku dzwonek mówi RAZ, mimo że cron widzi tę ciszę codziennie
+  // aż do odpowiedzi. Bez tego jeden nieodpisany mail generowałby wpis co rano
+  // w nieskończoność. Zdarzeniem jest „ten wątek ucichł", nie „nadal milczy" —
+  // od pilnowania stanu jest Pulpit i zakładka „Bez odpowiedzi" w Poczcie.
+  for (const t of nudgeThreads) {
+    await notify({
+      kind: "mail_nudge",
+      title: `Brak odpowiedzi od ${t.client_nazwa || t.lead_nazwa || t.to_addr}`,
+      body: `${t.subject || "(bez tematu)"} — ${daysSinceISO(t.received_at)} dni ciszy od Twojej wiadomości.`,
+      entity: "mail",
+      entityId: t.id,
+      dedupeKey: `mail_nudge:${t.thread_id ?? t.id}`,
+    });
+  }
+
+  // Retencja kroniki (30 dni) — jedziemy tym samym cronem co retencja poczty.
+  const purgedNotifications = await purgeOldNotifications().catch((e) => {
+    console.error("[cron] czyszczenie starych powiadomień nie powiodło się", e);
+    return { purged: 0 };
+  });
+  if (purgedNotifications.purged > 0) {
+    console.log(`[cron] usunięto ${purgedNotifications.purged} powiadomień starszych niż 30 dni`);
+  }
 
   const overdueLeads = leads.filter(isOverdue);
   const dueProjects = projects.filter(isProjectOverdue);
