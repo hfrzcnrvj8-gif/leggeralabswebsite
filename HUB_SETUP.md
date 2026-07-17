@@ -4506,3 +4506,100 @@ udostępnił klientom serwer MCP, przez który Claude **wykonuje operacje** —
 wystawia faktury. Zasada „model nigdy nie zapisuje bez zatwierdzenia" jest teraz
 **wyborem przeciw trendowi, nie zaległością wobec niego**. To w porządku — byle
 świadomie.
+
+---
+
+## Moduł 32 — Teksty prowadzące sprzed Modułów 11–17 (2026-07-17)
+
+Pierwszy z trzech briefów z audytu Modułu 29 (kolejność 32 → 30 → 31). Panel ma
+być **mentorem**, a warstwa podpowiedzi opisywała panel sprzed ośmiu modułów:
+prosiła ręcznie o rzeczy, które panel już robi sam, milczała o tych, które
+doszły, a w jednym miejscu **radziła coś, czego sama nigdy nie pokazywała**.
+Wszystkie znaleziska briefu zweryfikowane w kodzie przed naprawą (lekcja z
+audytu 29: dokumentacja tego projektu bywa nieaktualna) — potwierdziły się
+co do linii.
+
+### Znalezisko 1 (najpoważniejsze): przypomnienie, którego nie było widać
+
+`isOverdue()` (`lib/leads.ts`) odrzucał zamknięte leady **w pierwszej linii**,
+zanim spojrzał na `next_followup` — a podpowiedź przy „Odrzucone" wprost radzi
+ustawić przypomnienie za parę miesięcy. Robiłeś dokładnie to, co panel radził, i
+panel nigdy o tym nie przypominał. Cicho, bez śladu. `isOverdue()` to **jedyne**
+źródło Pulpitu (`hub/today`) i dziennego maila (`leads/notify`).
+
+**Decyzja właściciela 2026-07-17: włączyć tylko dla „Odrzucone".**
+„Zamknięte - sukces" świadomie zostaje wyłączone — tam kontakt po projekcie
+prowadzi już retencja z Modułu 17 (`lib/clients.ts`, `NURTURE_OFFSETS`), więc
+włączenie **dublowałoby przypomnienia**. Stała `FOLLOWUP_DESPITE_CLOSED`
+pilnuje, żeby ten wyjątek był jawny, nie przypadkowy.
+
+### Mapa procesu: 12 → 15 kroków
+
+`lib/process.ts` znał kroki *…6. Akceptacja → 7. Kickoff/kamienie…* — bez Umowy
+(Moduł 11), Onboardingu (14) i Wsparcia (16), mimo że „Umowy" są w menu, a
+komentarz w `AppShell.tsx` twierdził, że menu odpowiada tym 12 krokom.
+
+Doszły trzy kroki: **Umowa** (7, po Akceptacji), **Onboarding** (8, przed
+Kickoffem), **Wsparcie** (14, przed Nurture). **NDA świadomie NIE jest osobnym
+krokiem** (decyzja właściciela) — jest opcjonalne i dotyczy tylko części rozmów,
+więc mieszka w treści podpowiedzi przy „Rozmowa umówiona", gdzie i tak stoi
+przycisk wysyłki. Przesunęły się numery w obu mapowaniach: `LEAD_STATUS_STEP`
+(Nurture 12→15) i `CLIENT_STATUS_STEP` (Realizacja 8→10, Nurture 12→15).
+
+### Podpowiedzi: dwie poprawki treści
+
+- **„Rozmowa umówiona"** — doszło zdanie o NDA (mapa mówi wprost „NDA PRZED
+  rozmową, nie po", a przycisk `+ Wyślij NDA` jest na tym samym ekranie;
+  podpowiedź o tym milczała).
+- **„Zamknięte - sukces"** — zniknęło „poproś o referencję po wdrożeniu": Moduły
+  15 i 17 robią to automatycznie (podpowiedź przy „Wdrożone" + szablon +
+  kontakt +14 dni). Panel prosił ręcznie o swoją własną robotę.
+
+### Mapa drogi klienta (`00-mapa-drogi-klienta.md`) — cztery sprostowania
+
+Dokument nadrzędny, czytany jako instrukcja „jak mam pracować", obiecywał
+cztery rzeczy, których nie ma. Wszystkie cztery **rozstrzygnięte na korzyść
+kodu** (decyzje właściciela 2026-07-17) — mapa mówi teraz prawdę:
+
+| Obietnica | Rozstrzygnięcie |
+|---|---|
+| „panel podpowiada gotowy szablon odmowy" | **Mapa poprawiona.** Szablony poczty celowo startują puste (`lib/db.ts`, Moduł 4b: „właściciel tworzy własne od zera, nie ma tu gotowego kanonu jak przy ofertach") — to była **kolizja dwóch świadomych decyzji**, nie luka. Wygrał Moduł 4b |
+| „status leada = kwalifikowany" | **Mapa poprawiona** — taki status nigdy nie istniał. Zastąpiony realnymi („Rozmowa umówiona"/„Pilotaż w trakcie") |
+| „przypomnienie **przed** terminem płatności" | **Mapa poprawiona** — Moduł 13 świadomie odrzucił (`REMINDER_LEVELS`: +3/+10/+21 **po** terminie). Decyzja potwierdzona, zostaje. Przy okazji: sekcja „Stan dziś" Etapu 7 wciąż opisywała świat sprzed Modułu 13 („jeden szablon, bez eskalacji, bez licznika") — odhaczone jako nieaktualne |
+| „automatycznie zakłada Klienta" | **Tylko odnotowane** — działa wyłącznie dla oferty z leada; oferta „od zera" nie ma klienta. To **Moduł 30**, świadomie nietknięte, żeby briefy nie pobiły się o ten sam kod |
+
+### quick-log w palecie poleceń
+
+`/admin/quick-log` (szybkie zalogowanie rozmowy z telefonu) działał, ale **nie
+był podlinkowany znikąd** — trzeba było znać adres na pamięć. Decyzja
+właściciela: **do palety (Cmd/Ctrl+K), nie do sidebara** — menu odwzorowuje
+lejek sprzedaży, a to narzędzie, nie etap drogi klienta. Nowa stała
+`PALETTE_ONLY` w `AppShell.tsx` (obok `NAV`) — kolejny taki ekran dopisz tam.
+
+### Weryfikacja (2026-07-17)
+
+`npx tsc --noEmit` czysty. `isOverdue()` sprawdzony **sondą na 12 przypadkach**
+(nie klikaniem — to czysta logika, a zależy od niej Pulpit i mail): „Odrzucone"
+z przypomnieniem na dziś/w przeszłości → pokazuje się, w przyszłości → nie;
+„Zamknięte - sukces" z przypomnieniem na dziś → **nie** (retencja Modułu 17);
+plus regresja ścieżek sprzed zmiany (nowe zgłoszenie zawsze, „Napisano" po 4
+dniach ciszy). Wszystkie przeszły. W podglądzie: mapa renderuje 15 kroków z
+poprawnym „jesteś tu" na kroku 3 dla „Rozmowa umówiona", podpowiedź o NDA stoi
+nad przyciskiem `+ Wyślij NDA`, paleta pokazuje „Idź do: Szybka notatka" i
+faktycznie przenosi na `/pl/admin/quick-log`.
+
+### Znalezisko poza zakresem briefu (do decyzji)
+
+Mapa drogi klienta ma **szerszy problem tej samej rodziny**, którego brief nie
+wymienił: nagłówki etapów wciąż niosą znaczniki sprzed Modułów 11–20. Etap 3
+(Umowa) i Etap 4 (Onboarding) są oznaczone **🆕 (NOWY MODUŁ)** i mówią „nic z
+tego nie istnieje", choć Moduły 11 i 14 są zbudowane; podobnie Etap 8
+(Zamknięcie, Moduł 15 ✅), Etap 10 (Retencja, Moduł 17 ✅), „Fundament
+linkowania" 🔧 (Moduł 12 ✅), „Pulpit wskaźniki" 🔧 (Moduł 18 ✅), śledzenie
+czasu 🆕 (19 ✅), szablony ofert 🆕 (20 ✅), rezerwa podatkowa 🆕 (13 ✅).
+Poprawnie oznaczony został tylko Etap 9 (Wsparcie — Moduł 16 faktycznie
+niezbudowany). To dokument-podręcznik, więc **mówi właścicielowi, że nie ma
+rzeczy, które ma**. Świadomie NIE naprawione w tej sesji: to mechaniczny, ale
+szeroki przegląd całego dokumentu, wykraczający poza zakres briefu 32 (który
+wymieniał cztery konkretne obietnice). Do zrobienia przy okazji 30/31 albo
+osobno — decyzja właściciela.

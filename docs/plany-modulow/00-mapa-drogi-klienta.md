@@ -47,23 +47,44 @@ kwalifikacyjne wg statusu, pilnuje terminu Twojej odpowiedzi (nurture).
 
 ### Krok 1 — Kwalifikacja leada
 **Robisz**: decydujesz: pasuje / nie pasuje. Jeśli nie — zamykasz lead
-kulturalnie i szybko (panel podpowiada gotowy szablon odmowy). Jeśli tak —
+kulturalnie i szybko (status "Odrzucone / brak zainteresowania"). Jeśli tak —
 przechodzisz do wyceny.
 **Panel robi za Ciebie**: pilnuje, żeby żaden lead nie "zawisł" bez
-decyzji (przypomnienia), pokazuje na Pulpicie, ile leadów czeka.
-**Gotowe do przejścia dalej, gdy**: status leada = "kwalifikowany"/gotowy
-do oferty.
+decyzji (przypomnienia), pokazuje na Pulpicie, ile leadów czeka. Przy
+"Odrzucone" podpowiada, żeby ustawić przypomnienie za parę miesięcy — i od
+Modułu 32 to przypomnienie **faktycznie się pokaże** na Pulpicie i w
+dziennym mailu.
+**Gotowe do przejścia dalej, gdy**: lead ma status "Rozmowa umówiona" albo
+"Pilotaż w trakcie" — czyli wiesz, że pasuje, i możesz wyceniać.
+
+> **Sprostowanie (Moduł 32, 2026-07-17)**: ta sekcja obiecywała wcześniej
+> dwie rzeczy, których nie ma. (1) "Panel podpowiada gotowy szablon odmowy" —
+> nie istnieje i **świadomie nie powstanie automatycznie**: szablony poczty
+> celowo startują puste (`lib/db.ts`, Moduł 4b — "właściciel tworzy własne od
+> zera, nie ma tu gotowego kanonu jak przy ofertach"). Jeśli chcesz taki
+> szablon, dodaj go sobie raz w Poczcie → Szablony. (2) Status
+> "kwalifikowany" **nigdy nie istniał** — lista statusów to: Nowe zgłoszenie
+> ze strony / Do kontaktu / Napisano - czeka na odpowiedź / Przypomnienie
+> wysłane / Rozmowa umówiona / Pilotaż w trakcie / Zamknięte - sukces /
+> Odrzucone / brak zainteresowania.
 
 ### Krok 2 — Oferta
 **Robisz**: zaczynasz od pasującego szablonu (jeśli masz), dopasowujesz
 zakres i cenę, wysyłasz.
 **Panel robi za Ciebie**: generuje link do publicznej oferty z terminem
 ważności, pilnuje braku odpowiedzi, zapisuje e-podpis klienta przy
-akceptacji (IP + user-agent + imię), **automatycznie zakłada Klienta**
-jeśli jeszcze nie istnieje.
+akceptacji (IP + user-agent + imię), **zakłada Klienta z leada**, jeśli
+oferta powstała z leada i klient jeszcze nie istnieje.
 **Gotowe do przejścia dalej, gdy**: oferta zaakceptowana (masz e-podpis)
 albo świadomie odrzucona/wygasła (wtedy droga się kończy tutaj, lead
 wraca do nurture na "spróbuj później").
+
+> **Sprostowanie (Moduł 32, 2026-07-17)**: mapa pisała "automatycznie zakłada
+> Klienta" bez zastrzeżeń. W rzeczywistości działa to **tylko dla oferty
+> zrobionej z leada** — oferta założona "od zera" nie ma klienta i panel o tym
+> nie mówi. To korzeń kilku pustych ekranów (karta klienta, oś czasu,
+> retencja) i **jest tematem [Modułu 30](30-powiazanie-z-klientem.md)** — tu
+> tylko odnotowane, żeby mapa nie kłamała.
 
 ### Krok 3 — Umowa
 **Robisz**: sprawdzasz wygenerowany z oferty projekt umowy (zakres,
@@ -108,10 +129,16 @@ na bok, zanim zaczniesz nią dysponować).
 **Robisz**: nic, dopóki wszystko idzie zgodnie z terminem — panel
 przypomina klientowi sam. Jeśli mimo eskalacji nie płaci — decydujesz o
 kolejnym kroku (wstrzymanie prac / dalsza windykacja poza panelem).
-**Panel robi za Ciebie**: przypomnienie przed terminem, potem rosnąca
-eskalacja tonu (uprzejme → stanowcze → formalne wezwanie do zapłaty z
-opcjonalnymi odsetkami), licznik i historia przypomnień widoczne na
-fakturze, auto-status "Opłacona" po pełnej wpłacie.
+**Panel robi za Ciebie**: rosnącą eskalację tonu po terminie (uprzejme +3 dni
+→ stanowcze +10 → formalne wezwanie do zapłaty z opcjonalnymi odsetkami +21),
+licznik i historię przypomnień widoczne na fakturze, auto-status "Opłacona"
+po pełnej wpłacie.
+
+> **Sprostowanie (Moduł 32, 2026-07-17)**: mapa obiecywała też przypomnienie
+> **przed** terminem płatności. Moduł 13 świadomie z niego zrezygnował
+> (`lib/invoices.ts`, `REMINDER_LEVELS` — "reaguje tylko na już zaległą
+> płatność"), a mapa tej decyzji nie odnotowała. Właściciel potwierdził ją
+> 2026-07-17: zostaje jak jest.
 **Gotowe do przejścia dalej, gdy**: faktura ma status "Opłacona".
 
 ### Krok 8 — Zamknięcie i opinia
@@ -383,7 +410,8 @@ w terminie — masz zdefiniowaną, konsekwentną ścieżkę reakcji.
 
 **Dobre praktyki premium**:
 - Przypomnienie **przed** terminem płatności (uprzejme, "przypominamy o
-  zbliżającym się terminie"), nie tylko po fakcie.
+  zbliżającym się terminie"), nie tylko po fakcie. **Świadomie odrzucone w
+  Module 13** (potwierdzone 2026-07-17) — panel reaguje dopiero na zaległość.
 - Eskalacja tonu wraz z czasem opóźnienia: łagodne przypomnienie → bardziej
   formalne → oficjalne wezwanie do zapłaty (to osobny, prawnie
   rozpoznawalny rodzaj pisma, nie kolejny e-mail o tej samej treści).
@@ -394,10 +422,13 @@ w terminie — masz zdefiniowaną, konsekwentną ścieżkę reakcji.
   konsekwencje (wstrzymanie kolejnych prac, przekazanie do windykacji) —
   to buduje szacunek do Twoich warunków, nie tylko do Twojej pracy.
 
-**Stan dziś**: audyt 2026-07-14 potwierdził — istnieje TYLKO jeden, stały
+**Stan dziś**: ~~audyt 2026-07-14 potwierdził — istnieje TYLKO jeden, stały
 szablon przypomnienia, wysyłany co 7 dni **w nieskończoność, bez
 eskalacji**, bez licznika ile już poszło, bez odsetek, bez koncepcji
-formalnego wezwania.
+formalnego wezwania.~~ **Nieaktualne — Moduł 13 to zbudował** (eskalacja
++3/+10/+21 dni, licznik i historia przypomnień na fakturze, odsetki, wezwanie
+do zapłaty jako osobny PDF). Zostaje tylko świadomie odrzucone przypomnienie
+przed terminem, patrz wyżej.
 
 **Do rozbudowania w istniejącym module Faktury**:
 - Licznik i historia wysłanych przypomnień widoczne na samej fakturze
@@ -409,7 +440,8 @@ formalnego wezwania.
   ustawienia przez właściciela** (zmienia się okresowo, ogłaszana przez
   NBP/Ministerstwo Finansów), NIE wyliczana automatycznie bez jego
   potwierdzenia — to obszar, gdzie błąd kosztuje wiarygodność.
-- Przypomnienie **przed** terminem (np. 3 dni wcześniej), nie tylko po.
+- ~~Przypomnienie **przed** terminem (np. 3 dni wcześniej), nie tylko po.~~
+  **Świadomie odrzucone przy budowie Modułu 13**, potwierdzone 2026-07-17.
 - Treść wezwania do zapłaty, tak jak treść umowy, **do konsultacji z
   prawnikiem/księgową** przed pierwszym prawdziwym użyciem.
 

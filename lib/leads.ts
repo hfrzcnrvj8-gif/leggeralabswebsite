@@ -188,13 +188,13 @@ export const LEAD_STATUS_HINT: Record<string, string> = {
   "Do kontaktu": "Zrób pierwszy ruch: telefon lub krótki, spersonalizowany mail. Wspomnij, co konkretnie możesz zautomatyzować w ich branży.",
   "Napisano - czeka na odpowiedź": "Piłka po ich stronie. Jeśli cisza ~4 dni, panel przypomni o follow-upie.",
   "Przypomnienie wysłane": "Drugi kontakt poszedł. Brak odpowiedzi po kolejnym tygodniu? Rozważ zamknięcie albo zmianę kanału (telefon zamiast maila).",
-  "Rozmowa umówiona": "Przygotuj kwalifikację: jaki problem, jaka skala, jaki budżet. Cel rozmowy = zgoda na PoC, nie od razu duży kontrakt.",
+  "Rozmowa umówiona": "Przygotuj kwalifikację: jaki problem, jaka skala, jaki budżet. Cel rozmowy = zgoda na PoC, nie od razu duży kontrakt. Będziesz omawiał ich wewnętrzne systemy albo dane? Wyślij NDA PRZED rozmową (przycisk niżej), nie po.",
   "Pilotaż w trakcie": "PoC leci. Umów termin pokazania wyniku — to on domyka sprzedaż. Gdy klient powie „tak”, zrób z leada ofertę.",
-  "Zamknięte - sukces": "Wygrane. Klient i projekt już są — pilnuj realizacji i poproś o referencję po wdrożeniu.",
+  "Zamknięte - sukces": "Wygrane. Klient i projekt już są — pilnuj realizacji. O opinię i referencję panel przypomni sam, gdy przestawisz projekt na „Wdrożone”.",
   "Odrzucone / brak zainteresowania": "Zamknięte. Warto ustawić przypomnienie za parę miesięcy — sytuacja klienta się zmienia.",
 };
 
-/** Mapowanie statusu leada na krok uzgodnionego 12-krokowego procesu
+/** Mapowanie statusu leada na krok uzgodnionego 15-krokowego procesu
  * (lib/process.ts) — do podświetlenia "jesteś tu" w ProcessMap. Przybliżone
  * z natury (kilka statusów kontaktowych mieści się w jednym kroku "Pierwszy
  * kontakt"), to miękka ściągawka, nie precyzyjny stan maszyny. */
@@ -206,7 +206,8 @@ export const LEAD_STATUS_STEP: Record<string, number> = {
   "Rozmowa umówiona": 3,
   "Pilotaż w trakcie": 4,
   "Zamknięte - sukces": 6,
-  "Odrzucone / brak zainteresowania": 12,
+  // Nurture — po Module 32 krok 15, nie 12 (doszły Umowa/Onboarding/Wsparcie).
+  "Odrzucone / brak zainteresowania": 15,
 };
 
 // Startowa pula leadów zebrana ręcznie (Wilanów + Przysucha/Radom), z
@@ -251,16 +252,30 @@ export function daysSince(dateStr: string | null): number | null {
 
 const CLOSED_STATUSES = new Set(["Zamknięte - sukces", "Odrzucone / brak zainteresowania"]);
 
+/** Zamknięte statusy nie generują przypomnień z automatu — z jednym
+ * wyjątkiem: przy "Odrzucone" podpowiedź (LEAD_STATUS_HINT) wprost radzi
+ * ustawić przypomnienie za parę miesięcy, więc ręcznie ustawiona data MUSI
+ * zadziałać. Do Modułu 32 sprawdzenie CLOSED_STATUSES stało nad sprawdzeniem
+ * next_followup i zjadało tę ścieżkę po cichu — panel radził coś, czego sam
+ * nigdy nie pokazywał (isOverdue to jedyne źródło Pulpitu i dziennego maila).
+ *
+ * "Zamknięte - sukces" świadomie zostaje poza wyjątkiem (decyzja właściciela
+ * 2026-07-17): kontakt po zakończonym projekcie prowadzi już retencja
+ * (lib/clients.ts, NURTURE_OFFSETS), więc dublowałoby to przypomnienia. */
+const FOLLOWUP_DESPITE_CLOSED = "Odrzucone / brak zainteresowania";
+
 export function isOverdue(lead: Lead): boolean {
-  if (CLOSED_STATUSES.has(lead.status)) return false;
   if (lead.status === "Nowe zgłoszenie ze strony") return true;
 
   // Jawnie ustawiona data przypomnienia bierze pierwszeństwo nad sztywną
   // regułą — jeśli ją ustawiłeś, to Ty decydujesz kiedy się odezwać.
-  if (lead.next_followup) {
+  const honorsFollowup =
+    !CLOSED_STATUSES.has(lead.status) || lead.status === FOLLOWUP_DESPITE_CLOSED;
+  if (lead.next_followup && honorsFollowup) {
     return lead.next_followup <= todayLocalISO();
   }
 
+  if (CLOSED_STATUSES.has(lead.status)) return false;
   if (lead.status !== "Napisano - czeka na odpowiedź") return false;
   const d = daysSince(lead.ostatni_kontakt);
   return d !== null && d >= 4;

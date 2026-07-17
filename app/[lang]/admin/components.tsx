@@ -233,7 +233,7 @@ export function QuickDateChips({ onPick }: { onPick: (iso: string) => void }) {
   );
 }
 
-/** Miękka ściągawka 12-krokowego procesu (lib/process.ts) — wyłącznie
+/** Miękka ściągawka 15-krokowego procesu (lib/process.ts) — wyłącznie
  * informacyjna, nigdy nie blokuje przejścia dalej. Renderowana na dole
  * panelu leada/klienta, podświetla krok wg statusu (LEAD_STATUS_STEP /
  * CLIENT_STATUS_STEP). Kroki przed aktualnym są "odhaczone", po — wyszarzone. */

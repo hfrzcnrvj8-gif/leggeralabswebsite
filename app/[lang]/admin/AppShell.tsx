@@ -56,12 +56,12 @@ const HUB_WORDMARK_STYLE = {
   WebkitTextStroke: "0.4px rgba(20, 18, 15, 0.35)",
 };
 
-// Kolejność wg realnej ścieżki pracy (lib/process.ts, 12 kroków), nie
+// Kolejność wg realnej ścieżki pracy (lib/process.ts, 15 kroków), nie
 // alfabetu/daty dodania: Pulpit (start dnia) → Leady → Klienci → Oferty →
-// Projekty → Faktury → Koszty (cały lejek sprzedaż→realizacja→rozliczenie)
-// → Poczta/Kalendarz/Notatnik (narzędzia pomocnicze, nie przypięte do etapu
-// — poczta przecina wszystkie etapy naraz, więc nie ma swojego miejsca w
-// lejku).
+// Umowy → Projekty → Faktury → Koszty (cały lejek
+// sprzedaż→realizacja→rozliczenie) → Poczta/Kalendarz/Notatnik (narzędzia
+// pomocnicze, nie przypięte do etapu — poczta przecina wszystkie etapy
+// naraz, więc nie ma swojego miejsca w lejku).
 const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "", label: "Pulpit", icon: IconHome },
   { href: "/leads", label: "Leady", icon: IconTarget },
@@ -78,6 +78,14 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   // lejku pracy, tylko okresowy (raz w miesiącu/kwartale) przegląd, czy
   // cały wzorzec się trzyma (patrz docs/plany-modulow/18-pulpit-wskazniki.md).
   { href: "/stats", label: "Statystyki", icon: IconChartBar },
+];
+
+// Ekrany osiągalne WYŁĄCZNIE z palety poleceń (Cmd/Ctrl+K), świadomie poza
+// sidebarem — menu odwzorowuje lejek sprzedaży, a to są narzędzia, nie etapy
+// drogi klienta. Decyzja właściciela 2026-07-17 (Moduł 32): quick-log działał,
+// ale nie był podlinkowany znikąd — trzeba było znać adres na pamięć.
+const PALETTE_ONLY: { href: string; label: string }[] = [
+  { href: "/quick-log", label: "Szybka notatka (zaloguj rozmowę)" },
 ];
 
 // Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
@@ -185,7 +193,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
 
   const navActions: Action[] = useMemo(
     () =>
-      NAV.map((item) => ({
+      [...NAV, ...PALETTE_ONLY].map((item) => ({
         id: `nav:${item.href}`,
         label: `Idź do: ${item.label}`,
         hint: "→",

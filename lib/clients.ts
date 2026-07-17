@@ -183,16 +183,18 @@ export const CLIENT_STATUS_HINT: Record<ClientStatus, string> = {
   Stracony: "Odrzucił lub nieaktualne — warto zanotować dlaczego, przyda się przy następnej okazji.",
 };
 
-/** Mapowanie statusu klienta na krok uzgodnionego 12-krokowego procesu
+/** Mapowanie statusu klienta na krok uzgodnionego 15-krokowego procesu
  * (lib/process.ts) — status klienta to relacyjna oś (Prospekt/Aktywny/...),
  * nie proces krok po kroku, więc to przybliżenie: "Uśpiony"/"Stracony" oba
  * ląduje na kroku Nurture, bo w obu przypadkach właściwa akcja to ustawić
- * przypomnienie na później, zgodnie z CLIENT_STATUS_HINT powyżej. */
+ * przypomnienie na później, zgodnie z CLIENT_STATUS_HINT powyżej.
+ * Numery przesunięte w Module 32 (doszły Umowa/Onboarding/Wsparcie):
+ * Realizacja 8→10, Nurture 12→15. */
 export const CLIENT_STATUS_STEP: Record<ClientStatus, number> = {
   Prospekt: 3,
-  Aktywny: 8,
-  Uśpiony: 12,
-  Stracony: 12,
+  Aktywny: 10,
+  Uśpiony: 15,
+  Stracony: 15,
 };
 
 /** Jeden zaplanowany kontakt nurture (harmonogram, `client_followups`) —
