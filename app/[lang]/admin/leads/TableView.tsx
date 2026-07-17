@@ -74,7 +74,8 @@ export function TableView({
   };
 
   return (
-    <div className="card-paper relative rounded-2xl">
+    // `flex flex-1 flex-col min-h-0` (Moduł 35) — karta tabeli sięga dołu okna.
+    <div className="card-paper relative flex flex-1 flex-col rounded-2xl md:min-h-0">
       {/* Cienie sygnalizujące, że w poziomie jest jeszcze coś do przewinięcia
           (styl Linear) — na wąskich ekranach tabela wciąż może scrollować. */}
       <div
@@ -92,7 +93,10 @@ export function TableView({
       <div
         ref={scrollRef}
         onScroll={updateScrollShadows}
-        className="max-h-[70vh] min-w-full overflow-auto rounded-2xl"
+        // Dawniej `max-h-[70vh]`: sztywne 70% ekranu NIEZALEŻNIE od tego, ile
+        // miejsca realnie zostało — stąd pasek przewijania w połowie strony i
+        // martwe pole pod spodem. Teraz tabela bierze dokładnie tyle, ile jest.
+        className="min-w-full flex-1 overflow-auto rounded-2xl md:min-h-0"
       >
         <table className="w-full min-w-[900px] table-fixed text-xs">
           {/* Wszystkie kolumny w procentach (sumujące się do 100%), żaden

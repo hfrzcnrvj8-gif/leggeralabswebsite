@@ -60,7 +60,9 @@ export function KanbanBoard({
   }));
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4">
+    // `flex-1 min-h-0` + `items-stretch` (Moduł 35) — kolumny do dołu okna,
+    // pasek przewijania przy krawędzi, upuszczanie działa na całej wysokości.
+    <div className="flex flex-1 items-stretch gap-3 overflow-x-auto pb-2 md:min-h-0">
       {columns.map((col) => (
         <div
           key={col.status}
@@ -83,7 +85,7 @@ export function KanbanBoard({
           // Cenę za brak ramki płacimy przy przeciąganiu (nie widać pudełka
           // celu), więc stan `dragOver` jest tu MOCNIEJSZY niż był: obrys
           // `ring` + wyraźniejsze tło zamiast samej zmiany koloru ramki.
-          className={`w-72 shrink-0 rounded-lg p-2 transition-colors ${
+          className={`flex w-72 shrink-0 flex-col rounded-lg p-2 transition-colors ${
             dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.08] ring-1 ring-[#4ea7fc]/40" : ""
           }`}
         >
@@ -95,7 +97,9 @@ export function KanbanBoard({
             </span>
           </div>
 
-          <div className="flex min-h-[40px] flex-col gap-2">
+          {/* Karty przewijają się WEWNĄTRZ kolumny — przy długiej liście
+              kolumna nie rozpycha strony (Moduł 35). */}
+          <div className="flex min-h-[40px] flex-1 flex-col gap-2 overflow-y-auto md:min-h-0">
             <AnimatePresence initial={false}>
             {col.items.map((lead) => {
               const overdue = isOverdue(lead);

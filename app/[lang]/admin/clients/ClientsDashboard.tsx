@@ -247,8 +247,10 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const selectedId = view === "table" ? filtered[selectedIndex]?.id ?? null : null;
 
   return (
-    <div className="-mx-4 sm:-mx-6">
-      <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+    // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazanie wysokości okna
+    // do Tablicy/Tabeli, żeby kończyły się na krawędzi ekranu, nie na treści.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
+      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <ViewTabs
           value={view}
           onChange={switchView}
@@ -326,7 +328,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
         </button>
       </div>
 
-      <div className="px-4 py-4 sm:px-6">
+      <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
         {overdue.length > 0 && (
           <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
             <h2 className="mb-1.5 text-[12.5px] font-medium text-orange-400">Wymaga działania dziś</h2>
@@ -398,7 +400,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
           </div>
         )}
 
-        <ViewSwitch viewKey={view}>
+        <ViewSwitch viewKey={view} fill>
           {view === "kanban" ? (
             <KanbanBoard
               clients={filtered}

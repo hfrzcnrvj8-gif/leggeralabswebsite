@@ -255,9 +255,10 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const statusOpts = INVOICE_STATUSES.map((s) => ({ value: s, label: s }));
 
   return (
-    <div className="-mx-4 sm:-mx-6">
+    // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazuje wysokość okna w dół.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       {/* Kompaktowy pasek narzędzi */}
-      <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Faktury</span>
         <span className="flex-1" />
         <Popover
@@ -302,7 +303,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
         </button>
       </div>
 
-      <div className="px-4 py-4 sm:px-6">
+      <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
         {/* KPI: należności / eskalacja / wpływy / szkice / próg KSeF dla mikrofirm.
             Moduł 27: było `sm:max-w-2xl sm:grid-cols-3` — trzy karty stały
             stłoczone w lewych 40% ekranu, a obok zostawało ~900 px pustki.
@@ -398,7 +399,9 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             <p className="mt-2">{filterStatus ? "Brak faktur o tym statusie." : "Brak faktur — utwórz pierwszą przyciskiem +."}</p>
           </div>
         ) : (
-          <div className="card-paper overflow-x-auto rounded-2xl">
+          // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
+          // się w środku, zamiast kończyć się na ostatnim wierszu.
+          <div className="card-paper flex-1 overflow-auto rounded-2xl md:min-h-0">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b hairline text-left text-[11px] uppercase tracking-wide text-muted">

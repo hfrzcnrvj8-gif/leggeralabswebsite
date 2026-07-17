@@ -75,7 +75,8 @@ export function TableView({
   };
 
   return (
-    <div className="card-paper relative rounded-2xl">
+    // `flex flex-1 flex-col min-h-0` (Moduł 35) — karta tabeli sięga dołu okna.
+    <div className="card-paper relative flex flex-1 flex-col rounded-2xl md:min-h-0">
       <div
         className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-8 rounded-l-2xl bg-gradient-to-r from-[var(--bg-soft)] to-transparent transition-opacity ${
           canScrollLeft ? "opacity-100" : "opacity-0"
@@ -88,7 +89,12 @@ export function TableView({
         }`}
         aria-hidden
       />
-      <div ref={scrollRef} onScroll={updateScrollShadows} className="max-h-[70vh] overflow-auto rounded-2xl">
+      <div
+        ref={scrollRef}
+        onScroll={updateScrollShadows}
+        // Patrz leads/TableView.tsx — `max-h-[70vh]` zamienione na `flex-1`.
+        className="flex-1 overflow-auto rounded-2xl md:min-h-0"
+      >
         <table className="w-full text-xs">
           <thead>
             <tr className="sticky top-0 z-10 border-b hairline bg-[var(--bg-soft)] text-left uppercase tracking-wide text-muted">

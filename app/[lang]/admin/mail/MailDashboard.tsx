@@ -701,8 +701,10 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   const isNudgeView = activeFolder === "sent" && filter === "nudge";
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — Poczta wypełnia wysokość
+    // okna; lista i podgląd przewijają się w środku, nie cała strona.
+    <div className="flex flex-1 flex-col p-4 sm:p-6 md:min-h-0">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           {/* Jasny wariant gradientu marki (04e runda 6) — .text-liquid-outline
               to .text-liquid z jaśniejszymi stopniami, po tym jak wersja z
@@ -850,7 +852,10 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           `lg` obie sekcje sidebara stają się poziomymi paskami pigułek (ten
           sam wzorzec co FILTERS wyżej), oddzielonymi linią, lista nad
           podglądem. */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      {/* `lg:items-stretch` zamiast `lg:items-start` (Moduł 35): kolumny mają
+          sięgać dołu okna. Przy `items-start` każda kończyła się na swojej
+          treści — stąd „za mały podgląd" i puste pole pod spodem. */}
+      <div className="flex flex-1 flex-col gap-4 lg:min-h-0 lg:flex-row lg:items-stretch">
         <div className="flex flex-col gap-1 lg:w-44 lg:shrink-0">
           <div className="flex flex-row flex-wrap gap-1 lg:flex-col lg:gap-0.5">
             {MAIL_FOLDERS.map((f) => (
@@ -899,7 +904,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             stroną (dzięki pełnej szerokości Poczty w AppShell.tsx), zamiast
             zostawać przyklejoną do stałej wartości i wymuszać brutalne
             obcinanie nadawcy/tematu/podglądu w wierszu niżej. */}
-        <div className="card-paper min-w-0 rounded-xl border hairline lg:max-h-[calc(100vh-260px)] lg:w-[38%] lg:min-w-[380px] lg:max-w-[620px] lg:shrink-0 lg:overflow-y-auto">
+        {/* `lg:max-h-[calc(100vh-260px)]` zamienione na `lg:flex-1` + `min-h-0`
+            (Moduł 35): magiczne „260px" było zgadywaniem, ile zajmuje reszta
+            ekranu — rozjeżdżało się przy każdej zmianie nagłówka i zostawiało
+            martwe pole. Teraz lista bierze dokładnie tyle, ile realnie zostało. */}
+        <div className="card-paper flex min-w-0 flex-col rounded-xl border hairline lg:w-[38%] lg:min-w-[380px] lg:max-w-[620px] lg:shrink-0 lg:overflow-y-auto lg:min-h-0">
           {/* Przenikanie przy zmianie folderu/filtra/kategorii — do audytu
               2026-07-16 lista podmieniała się w jednej klatce. Ramka karty
               zostaje na zewnątrz, żeby przenikała tylko TREŚĆ, a nie całe
@@ -1183,7 +1192,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           </ViewSwitch>
         </div>
 
-        <div className="min-w-0 flex-1">
+        {/* Podgląd: własny scroll, pełna wysokość — to jest ta „niewykorzystana
+            przestrzeń", o którą pytał właściciel. */}
+        <div className="flex min-w-0 flex-1 flex-col lg:min-h-0 lg:overflow-y-auto">
           {openId ? (
             <MailDetailPanel
               lang={lang}
@@ -1198,7 +1209,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               onOpenThreadMessage={setOpenId}
             />
           ) : (
-            <div className="card-paper flex min-h-[300px] items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">
+            <div className="card-paper flex min-h-[300px] flex-1 items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">
               Wybierz wiadomość z listy.
             </div>
           )}

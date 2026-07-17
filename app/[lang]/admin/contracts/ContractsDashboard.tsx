@@ -114,8 +114,9 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   const statusOpts = CONTRACT_STATUSES.map((s) => ({ value: s, label: s }));
 
   return (
-    <div className="-mx-4 sm:-mx-6">
-      <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+    // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazuje wysokość okna w dół.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
+      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Umowy</span>
         <span className="flex-1" />
         <Popover
@@ -158,7 +159,7 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
         </Popover>
       </div>
 
-      <div className="px-4 py-4 sm:px-6">
+      <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
         <p className="mb-4 max-w-2xl text-[12.5px] text-muted">
           Umowy zwykle powstają automatycznie z zaakceptowanej oferty (przycisk „Wygeneruj umowę” w edytorze oferty),
           NDA zwykle przyciskiem „Wyślij NDA” w profilu leada — ale przyciskiem + powyżej możesz utworzyć wolnostojący
@@ -171,7 +172,9 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
             <p className="mt-2">{filterStatus ? "Brak dokumentów o tym statusie." : "Brak dokumentów."}</p>
           </div>
         ) : (
-          <div className="card-paper overflow-x-auto rounded-2xl">
+          // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
+          // się w środku, zamiast kończyć się na ostatnim wierszu.
+          <div className="card-paper flex-1 overflow-auto rounded-2xl md:min-h-0">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b hairline text-left text-[11px] uppercase tracking-wide text-muted">

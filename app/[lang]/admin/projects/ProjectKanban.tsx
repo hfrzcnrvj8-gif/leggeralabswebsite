@@ -123,7 +123,10 @@ export function ProjectKanban({
   }));
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    // `flex-1 min-h-0` + `items-stretch` (Moduł 35) — kolumny sięgają dołu okna,
+    // więc poziomy pasek przewijania siedzi przy krawędzi, a nie w połowie
+    // ekranu, i upuszczenie karty działa na całej wysokości kolumny.
+    <div className="flex flex-1 items-stretch gap-4 overflow-x-auto pb-2 md:min-h-0">
       {columns.map((col) => {
         const st = STATUS_ICON[col.status];
         const StatusIco = st?.icon ?? IconCircle;
@@ -145,7 +148,7 @@ export function ProjectKanban({
             // Ten sam stan `dragOver` co w Leadach/Klientach (audyt
             // 2026-07-16) — wcześniej samo bledziutkie tło 0.04 bez obrysu,
             // ledwo widoczne przy przeciąganiu.
-            className={`w-[300px] shrink-0 rounded-lg transition-colors ${
+            className={`flex w-[300px] shrink-0 flex-col rounded-lg transition-colors ${
               dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.08] ring-1 ring-[#4ea7fc]/40" : ""
             }`}
           >
@@ -156,7 +159,9 @@ export function ProjectKanban({
               <span className="text-[12px] text-muted">{col.items.length}</span>
             </div>
 
-            <div className="flex min-h-[8px] flex-col gap-1.5">
+            {/* Lista kart przewija się WEWNĄTRZ kolumny (Moduł 35) — przy wielu
+                projektach kolumna nie rozpycha strony. */}
+            <div className="flex min-h-[8px] flex-1 flex-col gap-1.5 overflow-y-auto md:min-h-0">
               <AnimatePresence initial={false}>
                 {col.items.map((p) => {
                   const overdue = isProjectOverdue(p);

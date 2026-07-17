@@ -195,8 +195,9 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const statusOpts = OFFER_STATUSES.map((s) => ({ value: s, label: s }));
 
   return (
-    <div className="-mx-4 sm:-mx-6">
-      <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+    // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazuje wysokość okna w dół.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
+      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Oferty</span>
         <span className="flex-1" />
         <Popover
@@ -233,7 +234,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         </button>
       </div>
 
-      <div className="px-4 py-4 sm:px-6">
+      <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
         {/* Moduł 27: było `sm:max-w-2xl sm:grid-cols-3` (~900 px pustki obok).
             Sześć kolumn na szerokim ekranie, symetrycznie z Fakturami. */}
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
@@ -315,7 +316,9 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
             <p className="mt-2">{filterStatus ? "Brak ofert o tym statusie." : "Brak ofert — utwórz pierwszą przyciskiem +."}</p>
           </div>
         ) : (
-          <div className="card-paper overflow-x-auto rounded-2xl">
+          // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
+          // się w środku, zamiast kończyć się na ostatnim wierszu.
+          <div className="card-paper flex-1 overflow-auto rounded-2xl md:min-h-0">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b hairline text-left text-[11px] uppercase tracking-wide text-muted">

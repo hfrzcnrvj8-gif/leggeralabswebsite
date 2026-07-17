@@ -372,9 +372,11 @@ export function ProjectTimeline({
     .filter((c): c is { idx: number; x2: number; y2: number; d: string } => c !== null);
 
   return (
-    <div>
+    // `flex flex-1 flex-col min-h-0` (Moduł 35) — Oś czasu wypełnia wysokość
+    // okna zamiast kończyć się na ostatnim projekcie.
+    <div className="flex flex-1 flex-col md:min-h-0">
       {/* Pasek narzędzi: grupowanie + zoom */}
-      <div className="mb-2 flex items-center justify-end gap-2">
+      <div className="mb-2 flex shrink-0 items-center justify-end gap-2">
         <SegmentedSwitch
           value={groupBy}
           onChange={setGroupBy}
@@ -393,7 +395,12 @@ export function ProjectTimeline({
         />
       </div>
 
-      <div className={`card-paper overflow-x-auto rounded-2xl ${drag ? "select-none" : ""}`} ref={scrollRef}>
+      {/* Karta wykresu przewija się w OBU osiach wewnątrz siebie: w poziomie
+          (oś czasu bywa szersza niż ekran), w pionie przy wielu projektach. */}
+      <div
+        className={`card-paper flex-1 overflow-auto rounded-2xl md:min-h-0 ${drag ? "select-none" : ""}`}
+        ref={scrollRef}
+      >
         <div className="relative" style={{ minWidth: `${chartPxWidth}px` }}>
           {/* Nagłówek osi — jak w Linear: wielkie skróty miesięcy (bez roku),
               pod spodem numerki początków tygodni; wszystko wyszarzone i lekkie. */}

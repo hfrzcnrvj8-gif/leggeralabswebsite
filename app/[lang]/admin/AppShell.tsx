@@ -319,7 +319,14 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
   }, [paletteOpen, contextActions, router, base]);
 
   return (
-    <div className="admin-linear relative flex min-h-screen flex-col bg-[var(--bg)] font-sans text-[var(--fg)] md:flex-row">
+    // `md:h-screen md:overflow-hidden` (Moduł 35) — okno panelu ma STAŁĄ
+    // wysokość, a przewija się to, co w środku (Kanban, tabela, podgląd maila),
+    // nie cała strona. Bez definitywnej wysokości `overflow-auto` w środku nie
+    // ma się do czego odnieść i `flex-1` nie ma czego wypełnić — stąd dotąd
+    // kolumny kończyły się na treści, a pod nimi zostawało martwe pole.
+    // Tylko od `md` w górę: na mobile sidebar jest poziomym paskiem u góry,
+    // więc strona ma normalnie się przewijać.
+    <div className="admin-linear relative flex min-h-screen flex-col bg-[var(--bg)] font-sans text-[var(--fg)] md:h-screen md:flex-row md:overflow-hidden">
       {/* Sidebar — pozioma lista na mobile, pionowy panel od md w górę. */}
       <aside
         className={`shrink-0 border-b hairline bg-[var(--bg-soft)] md:sticky md:top-0 md:h-screen md:border-b-0 md:border-r ${
@@ -447,14 +454,25 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col md:min-h-0">
         {/* Poczta ma świadomie odrębny kształt treści od reszty panelu —
             gęsty trójkolumnowy dashboard (foldery + lista + podgląd), gdzie
             globalny limit `max-w-[1800px]` marnował widoczną przestrzeń na
             szerokich monitorach (zgłoszone przez właściciela, Moduł 4e runda
             2). Inne moduły (Faktury/Projekty, formularze) zostają przy
-            dotychczasowym limicie — nie ujednolicaj bez potrzeby. */}
-        <div className={`mx-auto px-4 py-5 sm:px-6 ${pathname.startsWith(`${base}/mail`) ? "max-w-none" : "max-w-[1800px]"}`}>
+            dotychczasowym limicie — nie ujednolicaj bez potrzeby.
+
+            `md:overflow-y-auto` (Moduł 35): to JEST pasek przewijania panelu.
+            Ekrany, które umieją wypełnić wysokość (Kanban, Poczta), robią to
+            przez `flex-1` i przewijają się w środku; długie strony bez własnego
+            scrolla (Pulpit, Statystyki, formularze) po prostu przewijają ten
+            kontener — dzięki temu zmiana jest bezpieczna dla WSZYSTKICH modułów,
+            a nie tylko dla tych przerobionych. */}
+        <div
+          className={`mx-auto flex w-full flex-1 flex-col px-4 py-5 sm:px-6 md:min-h-0 md:overflow-y-auto ${
+            pathname.startsWith(`${base}/mail`) ? "max-w-none" : "max-w-[1800px]"
+          }`}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={pathname}
@@ -462,6 +480,9 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
+              // `flex flex-1 flex-col` — bez tego dziecko (dashboard) nie ma po
+              // czym dziedziczyć wysokości i `flex-1` w nim nic nie robi.
+              className="flex flex-1 flex-col md:min-h-0"
             >
               {children}
             </motion.div>

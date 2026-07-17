@@ -110,8 +110,9 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
   const activeCount = notes.filter((n) => !n.archived_at).length;
 
   return (
-    <div className="-mx-4 sm:-mx-6">
-      <div className="flex items-center gap-2 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+    // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazuje wysokość okna w dół.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
+      <div className="flex shrink-0 items-center gap-2 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] text-muted">Notatnik · {activeCount}</span>
         <span className="flex-1" />
         {/* Filtr po kliencie/leadzie — wzorem Kalendarza, ale przez wspólny
@@ -132,7 +133,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
         />
       </div>
 
-      <div className="px-4 py-4 sm:px-6">
+      <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
         <div className="card-paper mb-6 rounded-xl border hairline p-4">
           <textarea
             ref={newTextRef}

@@ -262,11 +262,14 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const overdue = projects.filter(isProjectOverdue);
 
   return (
-    <div className="-mx-4 sm:-mx-6">
+    // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazuje wysokość okna
+    // dalej, do Kanbanu/Osi czasu. `min-h-0` jest konieczne: bez niego element
+    // flex nie skurczy się poniżej swojej treści i scroll ucieknie na stronę.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       {/* Kompaktowy, jednowierszowy pasek — zakładki widoku po lewej,
           filtry/dodawanie jako małe ikony po prawej. Bez dużego nagłówka
           strony (Linear go nie ma — patrz docs: "reduce visual noise"). */}
-      <div className="flex items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <ViewTabs
           value={view}
           onChange={switchView}
@@ -401,7 +404,9 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
         </Popover>
       </div>
 
-      <div className="px-4 py-4 sm:px-6">
+      {/* `flex-1 min-h-0` (Moduł 35) — wrapper treści przekazuje wysokość do
+          ViewSwitcha; bez tego Kanban/Oś czasu kończyły się na treści. */}
+      <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
         {overdue.length > 0 && (
           <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
             <h2 className="mb-1.5 text-[12.5px] font-medium text-orange-400">Mija/minął termin</h2>
@@ -482,7 +487,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
-      <ViewSwitch viewKey={view}>
+      <ViewSwitch viewKey={view} fill>
       {view === "kanban" ? (
         <ProjectKanban
           projects={filtered}

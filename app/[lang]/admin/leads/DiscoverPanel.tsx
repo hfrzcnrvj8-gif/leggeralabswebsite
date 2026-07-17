@@ -66,7 +66,10 @@ export function DiscoverPanel({
     return (
       <button
         onClick={() => onOpenChange(true)}
-        className="rounded-full border hairline px-3 py-1.5 text-xs font-medium text-[#4ea7fc]"
+        // `self-start` (Moduł 35): rodzic jest teraz kolumną flex, a domyślne
+        // `align-items: stretch` rozciągnęło ten przycisk na całą szerokość —
+        // tekst wyśrodkował się i wyglądało to, jakby przeskoczył na środek.
+        className="self-start rounded-full border hairline px-3 py-1.5 text-xs font-medium text-[#4ea7fc]"
       >
         <IconSparkles size={14} className="mr-1 inline align-[-2px]" />Znajdź nowe leady
       </button>

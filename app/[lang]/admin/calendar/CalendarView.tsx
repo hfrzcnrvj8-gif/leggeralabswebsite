@@ -575,7 +575,13 @@ export function CalendarView({ lang }: { lang: string }) {
   return (
     <div
       ref={rootRef}
-      className={`flex ${isFullscreen ? "h-screen overflow-hidden bg-[var(--bg)] p-4" : "-mx-4 min-h-[calc(100vh-140px)] sm:-mx-6"}`}
+      // `flex-1 md:min-h-0` zamiast `min-h-[calc(100vh-140px)]` (Moduł 35):
+      // „140px" było zgadywaniem, ile zajmuje reszta ekranu — przy każdej
+      // zmianie nagłówka rozjeżdżało się o kilkadziesiąt pikseli i zostawiał
+      // się pasek pustki pod siatką. Wnętrze Kalendarza ma już poprawny łańcuch
+      // (`flex-1` + `min-h-0` aż do siatki dni), brakowało mu tylko wysokości
+      // od rodzica.
+      className={`flex ${isFullscreen ? "h-screen overflow-hidden bg-[var(--bg)] p-4" : "-mx-4 flex-1 sm:-mx-6 md:min-h-0"}`}
     >
       <Sidebar
         year={year}
@@ -1308,13 +1314,17 @@ function WeekTimeline({
     <div className="flex min-h-0 flex-1 flex-col card-paper rounded-2xl p-3">
       {/* JEDEN kontener przewijania na cały tydzień — etykiety godzin i
           wszystkie siedem kolumn. Wcześniej każda kolumna miała własny
-          `overflow-y-auto` (osiem niezależnych scrolli) — nigdy nie zadziałały,
-          bo żaden przodek nie ogranicza wysokości (`min-h-[calc(100vh-140px)]`
-          to sam dół, nie góra), więc przewijała się cała strona. Przy pełnej
-          dobie (1152 px) to jest realny problem, stąd `max-h` TUTAJ: siatka
-          przewija się sama, nagłówki dni i pasek „cały dzień" zostają na
-          wierzchu przez `sticky`, a reszta panelu nie ucieka. */}
-      <div ref={scrollRef} className="flex max-h-[70vh] items-start gap-2 overflow-y-auto">
+          `overflow-y-auto` (osiem niezależnych scrolli) i żaden nie działał.
+          Przy pełnej dobie (1152 px) siatka musi przewijać się sama, a nagłówki
+          dni i pasek „cały dzień" zostają na wierzchu przez `sticky`.
+
+          Do Modułu 35 stało tu `max-h-[70vh]` z uzasadnieniem „żaden przodek nie
+          ogranicza wysokości". To już NIEAKTUALNE: od Modułu 35 przodkowie ją
+          ograniczają (łańcuch `flex-1` + `min-h-0` od AppShell w dół), więc
+          sztywne 70 % ekranu tylko zostawiałoby pasek pustki pod siatką —
+          dokładnie to, co zgłosił właściciel. `flex-1` bierze tyle, ile realnie
+          zostało. */}
+      <div ref={scrollRef} className="flex min-h-0 flex-1 items-start gap-2 overflow-y-auto">
         <div className="flex w-12 shrink-0 flex-col">
           <div
             className="sticky top-0 z-20 bg-[var(--bg-soft)]"

@@ -79,7 +79,8 @@ export function StatsDashboard() {
 
   if (!data) {
     return (
-      <div className="-mx-4 sm:-mx-6">
+      // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazuje wysokość okna w dół.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
         <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-20 animate-pulse rounded-xl bg-[var(--hairline)]" />
@@ -93,7 +94,7 @@ export function StatsDashboard() {
 
   return (
     <div className="-mx-4 sm:-mx-6">
-      <div className="flex items-center border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+      <div className="flex shrink-0 items-center border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] text-muted">
           Statystyki — wskaźniki zdrowia biznesu, liczone od początku działalności.
         </span>

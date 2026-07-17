@@ -62,7 +62,19 @@ export function ViewTabs<T extends string>({
  *  Świadomie animujemy WYŁĄCZNIE `opacity`, bez przesunięcia: `transform`
  *  na rodzicu tworzy nowy blok zawierający dla `position: fixed` potomków,
  *  a Kanban/Tabela mają w środku przypięte paski akcji. */
-export function ViewSwitch({ viewKey, children }: { viewKey: string; children: ReactNode }) {
+export function ViewSwitch({
+  viewKey,
+  children,
+  fill = false,
+}: {
+  viewKey: string;
+  children: ReactNode;
+  /** Widok ma wypełnić dostępną wysokość i przewijać się w środku (Moduł 35) —
+   * Kanban, tabela, Gantt, Poczta. **Opt-in, nie domyślnie**: ten sam komponent
+   * przełącza też zakładki w profilu klienta/leada, gdzie treść siedzi w modalu
+   * o własnej wysokości (`max-h-[85vh]`) i rozciąganie jej zepsułoby układ. */
+  fill?: boolean;
+}) {
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -71,6 +83,7 @@ export function ViewSwitch({ viewKey, children }: { viewKey: string; children: R
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
+        className={fill ? "flex flex-1 flex-col md:min-h-0" : undefined}
       >
         {children}
       </motion.div>
