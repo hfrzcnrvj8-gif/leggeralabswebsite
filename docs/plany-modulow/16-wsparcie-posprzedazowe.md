@@ -44,6 +44,38 @@ panelu poza zwykłym kontaktem mailowym/telefonicznym.
    odpowiedzi na zgłoszenie (jak nurture leadów), czy to zbyt
    rozbudowane na start?
 
+## ⚠️ Dopisane przez audyt Modułu 29 (2026-07-17) — ta dziura NIE jest neutralna
+
+Brief zakładał, że skoro Wsparcia nie ma, to po prostu „nic się nie dzieje" —
+świadoma decyzja „nie budować na zapas". **Audyt drogi klienta ustalił, że tak
+nie jest: zgłoszenie posprzedażowe wpada w tę dziurę i znika.**
+
+Zgłoszenie od klienta po wdrożeniu przychodzi mailem. Poczta oferuje trzy
+wyjścia (`app/api/mail/[id]/`): `create-lead`, `create-client`, `to-task`.
+
+**Ścieżka 1 — „→ zadanie w projekcie" (naturalny wybór) → zadanie znika:**
+- `api/mail/[id]/to-task/route.ts:28` proponuje **wszystkie projekty klienta,
+  bez filtrowania po statusie** — więc także te „Wdrożone"
+- `api/hub/today/route.ts:58` — Pulpit pyta o spóźnione kamienie z warunkiem
+  `WHERE p.status != 'Wdrożone'`
+- `lib/projects.ts:410` — reguła „projekt wymaga działania" zwraca „nie" dla
+  zamkniętego projektu
+
+**Skutek: zadanie wrzucone z maila do zamkniętego projektu jest niewidzialne na
+Pulpicie i w dziennym mailu — na zawsze.** Prośba klienta trafia do panelu i
+cicho zapada się w projekt, do którego właściciel nie ma już powodu zaglądać.
+
+**Ścieżka 2 — „→ nowy lead" — niewiele lepsza:** wrzuca zgłoszenie gwarancyjne
+z powrotem na tablicę sprzedaży, gdzie **zaniża konwersję lead→klient** i
+uruchamia nurture, jakby to był ktoś nowy.
+
+**Pytanie do właściciela (dodatkowe, przed pytaniem 1 wyżej):** czy ten przeciek
+naprawić **niezależnie** od budowy całego modułu Wsparcia? Zgłoszenie znikające
+bez śladu to realna strata dla klienta, a naprawa jest znacznie mniejsza niż
+moduł — np. ostrzeżenie przy wyborze zamkniętego projektu w „→ zadanie", albo
+pokazywanie zadań z zamkniętych projektów na Pulpicie. **To może być argument,
+żeby zrobić mały fragment tego modułu wcześniej, niż mówi ostrzeżenie na górze.**
+
 ## Zasady, które nadal obowiązują (z README.md, nie łamać bez pytania)
 
 - Miękkie podpowiedzi, nigdy twarde bramki.

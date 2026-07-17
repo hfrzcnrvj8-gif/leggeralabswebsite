@@ -3,7 +3,14 @@ import { i18n } from "@/i18n/config";
 import { siteUrl } from "@/lib/site";
 import { getAllSlugs } from "@/lib/blog";
 
-const routes = ["", "/privacy", "/impressum", "/blog"];
+// `/impressum` świadomie POZA sitemapą do czasu rejestracji działalności.
+// Strona istnieje i renderuje się poprawnie, ale dane rejestrowe to wciąż
+// placeholdery („[Pełna nazwa firmy]", „[NIP / ...]") — patrz COMPANY w
+// app/[lang]/impressum/page.tsx. Linki w Header/Footer są z tego samego
+// powodu zdjęte, ale sam wpis w sitemapie zapraszał Google do zaindeksowania
+// strony z placeholderami (znalezione w audycie Modułu 29, 2026-07-17).
+// Po rejestracji: dopisać z powrotem — patrz PO_REJESTRACJI.md pkt 1.
+const routes = ["", "/privacy", "/blog"];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

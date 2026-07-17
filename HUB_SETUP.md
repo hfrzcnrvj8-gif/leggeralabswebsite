@@ -201,11 +201,17 @@ wystawienia) vs `KSEF_MICRO_THRESHOLD_PLN` = 10 000 zł (`lib/invoices.ts`).
 Obowiązek KSeF wszedł w życie 1 lutego 2026 (duże firmy) i 1 kwietnia 2026
 (wszyscy pozostali) — mikroprzedsiębiorcy mają zwolnienie do końca 2026, ale
 tylko poniżej tego progu miesięcznie. Świadomie tylko miękkie ostrzeżenie
-(żółty przy 70%, czerwony po przekroczeniu) — bez blokowania czegokolwiek i
-bez integracji z samym KSeF (to osobna, większa faza z roadmapy).
+(żółty przy 70%, czerwony po przekroczeniu) — bez blokowania czegokolwiek.
 
-**Księgowość — dopięte do końca (wzorce z Fakturowni/inFakt/SAP, bez KSeF na
-razie — celowo, to osobny, większy zakres):**
+> **Aktualizacja (audyt Modułu 29, 2026-07-17):** ten akapit i sekcja niżej
+> mówiły „bez integracji z samym KSeF — to osobna, większa faza z roadmapy".
+> **To już nieaktualne.** KSeF wychodzący jest zbudowany i potwierdzony na
+> żywo („Przyjęto" na środowisku testowym MF, 2026-07-13), import kosztów
+> z KSeF też działa (`app/api/costs/import-ksef/route.ts`). Odłożone jest
+> wyłącznie **przełączenie test→produkcja** (czeka na rejestrację firmy,
+> `PO_REJESTRACJI.md` pkt 3) i **automatyczny dzienny import** (pkt 5).
+
+**Księgowość — dopięte do końca (wzorce z Fakturowni/inFakt/SAP):**
 
 - **Typ dokumentu** (`typ_dokumentu`: faktura / proforma / zaliczkowa) —
   proforma ma własną numerację (prefiks `PF`), nie liczy się do KPI
@@ -3777,15 +3783,24 @@ komponent na Leadach, nie bezpośrednio.
   pojedynczy wpis.
 - Brak wielu użytkowników/ról — panel jest jednoosobowy z jednym hasłem
   administratora, zgodnie z założeniem "narzędzie dla solo-przedsiębiorcy".
-- Poczta (Moduł 4) nie ma powiadomień push ani załączników: serverless nie
-  utrzymuje stałego połączenia IMAP (model = polling przy otwarciu zakładki +
-  cron 06:00), a zapisywanie załączników to osobna decyzja RODO (retencja
-  plików), świadomie odłożona. Pobieramy tylko INBOX i tylko treść. Panel nie
-  kasuje niczego na serwerze az.pl.
-- Brak integracji KSeF (Krajowy System e-Faktur) — świadomie odłożone,
-  osobny i większy zakres (wymaga certyfikatów/uwierzytelniania API
-  Ministerstwa Finansów). Podobnie brak linków do płatności online
-  (Stripe/Przelewy24) — nie było w zatwierdzonym zakresie.
+- Poczta (Moduł 4) nie ma powiadomień push: serverless nie utrzymuje stałego
+  połączenia IMAP (model = polling przy otwarciu zakładki + cron 06:00).
+  Panel nie kasuje niczego na serwerze az.pl.
+  **Załączniki — stan uściślony w audycie Modułu 29 (2026-07-17)**, bo ten
+  punkt mówił po prostu „nie ma załączników" i to już nieprawda:
+  **wysyłanie** załączników działa (`sendMail()` z `attachments`); nadal
+  odłożone jest **przekazywanie** załączników z oryginalnej wiadomości przy
+  „Przekaż" oraz **odbieranie/przechowywanie** przychodzących (osobna decyzja
+  RODO o retencji plików + nowa tabela). Pobieramy tylko INBOX i tylko treść.
+- ~~Brak integracji KSeF (Krajowy System e-Faktur)~~ — **NIEAKTUALNE od
+  2026-07-13**, skorygowane w audycie Modułu 29. KSeF wychodzący działa i był
+  wielokrotnie potwierdzony „Przyjęto" na środowisku testowym MF (faktura,
+  korekta, waluta obca + VAT-UE, zaliczkowa ZAL→ROZ); import faktur
+  zakupowych z KSeF też jest. Odłożone: przełączenie test→produkcja
+  (`PO_REJESTRACJI.md` pkt 3) i automatyczny import (pkt 5).
+- Brak linków do płatności online (Stripe/Przelewy24) — to **świadoma decyzja
+  produktowa**, nie zaległość: operacja finansowa wymaga osobnej decyzji
+  biznesowej, nie dobudowania funkcji.
 
 ## Moduł 22 — Powiązania wszędzie: jeden `LinkPicker` (2026-07-16)
 
@@ -4309,3 +4324,185 @@ Klikanie „tam, gdzie widać" trafia w zupełnie inny element (u mnie: w logo,
 co przeniosło stronę na stronę główną i wyglądało jak błąd panelu). Kalibruj
 sondą (`position:fixed` + `getBoundingClientRect`), zanim uznasz cokolwiek za
 błąd.
+
+## Moduł 29 — Ostateczny audyt drogi klienta (2026-07-17)
+
+Trzeci audyt, świadomie inny od dwóch poprzednich (2026-07-12 czterowymiarowy,
+2026-07-13 przepływy). Nie pytał „czy moduł działa" — wiemy, że działa. Pytał
+**czy 28 modułów składa się w jedną spójną drogę** i co się przez ten czas
+rozjechało. Decyzje właściciela przy starcie: zakres = tylko droga klienta (bez
+powtórki audytu kodu), naprawy = raport + drobiazgi od ręki, konkurencja =
+pełne porównanie.
+
+### Produkty audytu
+
+1. **[`docs/DO-PRAWNIKA-I-TLUMACZA.md`](docs/DO-PRAWNIKA-I-TLUMACZA.md)** —
+   zbiorcza lista obiecana właścicielowi 2026-07-15 („nie moduł po module").
+2. **Spójność drogi klienta** — tabela werdyktów niżej.
+3. **Rejestr rzeczy świadomie odłożonych** — niżej.
+4. **`PO_REJESTRACJI.md`** — sprawdzony, **nie był kompletny**: dopisano pozycje
+   6–12 (Moduły 11–28 dołożyły swoje).
+
+### Werdykt drogi klienta — krok po kroku
+
+| Krok | Werdykt |
+|---|---|
+| 0 Pierwszy kontakt / NDA | SZEW |
+| 1 Kwalifikacja | SZEW |
+| 2 Oferta | **DZIURA** |
+| 3 Umowa | **DZIURA** |
+| 4 Onboarding | SZEW |
+| 5 Realizacja | **PEŁNY** |
+| 6 Fakturowanie | SZEW |
+| 7 Płatność / windykacja | SZEW |
+| 8 Zamknięcie i opinia | SZEW |
+| 9 Wsparcie | **DZIURA** (Moduł 16 niezbudowany) |
+| 10 Retencja | **PEŁNY** |
+
+**Trzy wzorce przewijają się przez cały audyt** — każdy dostał brief:
+
+1. **Powiązanie z Klientem jest opcjonalne tam, gdzie cała reszta drogi na nim
+   wisi** (Kroki 2, 6, 10). Oferta/faktura założona „od zera" nie ma klienta,
+   nic o tym nie mówi, a skutki (brak retencji, pusta karta klienta, pusta oś
+   czasu) ujawniają się miesiące później. `INSERT` faktury **nie ma kolumny
+   `client_id` w ogóle**. → [`30-powiazanie-z-klientem.md`](docs/plany-modulow/30-powiazanie-z-klientem.md)
+2. **Umowy istnieją tylko dla samych siebie** (Krok 3). Jedyny moduł z twardą
+   bramką jest nieobecny na Pulpicie, w dziennym mailu, w wyszukiwarce, na
+   karcie klienta i w statystykach. Do tego **pułapka bez wyjścia**: projekt
+   założony ręcznie nigdy nie przejdzie na „W trakcie", bo umowy nie da się
+   przypiąć do projektu z UI (`LinkPicker` ma `kinds={["client","lead"]}`,
+   serwer `project_id` przyjmuje). → [`31-umowy-widoczne.md`](docs/plany-modulow/31-umowy-widoczne.md)
+3. **Teksty prowadzące zostały w świecie sprzed Modułów 11–17.** Mapa procesu
+   (12 kroków bez Umowy/NDA/Onboardingu/Wsparcia) pokazywana na każdej karcie
+   leada i klienta; podpowiedź „poproś o referencję" przy funkcji, która robi to
+   sama; **podpowiedź każąca ustawić przypomnienie, którego panel nigdy nie
+   pokaże** (`isOverdue()` odrzuca zamknięte leady w linii 255, zanim spojrzy na
+   `next_followup` w 259 — a to jedyna ścieżka zasilająca Pulpit i dzienny
+   mail). → [`32-teksty-prowadzace.md`](docs/plany-modulow/32-teksty-prowadzace.md)
+
+**Czwarte znalezisko** dopisane do istniejącego briefu Modułu 16: dziura po
+Wsparciu **nie jest neutralna** — zadanie wrzucone z maila do zamkniętego
+projektu jest niewidzialne na Pulpicie **na zawsze** (`to-task` proponuje także
+projekty „Wdrożone", a Pulpit filtruje `WHERE p.status != 'Wdrożone'`).
+
+### Naprawione od ręki w tym audycie (drobiazgi)
+
+- **`/impressum` w sitemapie** — strona była świadomie odlinkowana z menu i
+  stopki, ale **nadal siedziała w `app/sitemap.ts`**, więc Google dostawał
+  zaproszenie do zaindeksowania strony z widocznymi placeholderami „[Pełna nazwa
+  firmy]", „[NIP / ...]". Usunięte; przywrócenie dopisane do `PO_REJESTRACJI.md`
+  pkt 6.
+- **Nieaktualne „Brak integracji KSeF"** — ten dokument twierdził to w **dwóch**
+  miejscach (sekcja księgowości + „Świadomie NIE zrobione"), mimo że KSeF
+  wychodzący działa i był potwierdzony „Przyjęto" na żywo 2026-07-13. To dokładnie
+  to nieaktualne ustalenie z audytu 2026-07-12, tyle że wciąż zapisane w
+  dokumentacji. Skorygowane.
+- **Nieaktualne „Poczta nie ma załączników"** — wysyłanie działa; odłożone jest
+  tylko przekazywanie i odbieranie. Uściślone.
+- **`PO_REJESTRACJI.md`** — dopisane pozycje 6–12.
+
+### Rejestr rzeczy świadomie odłożonych → do decyzji właściciela
+
+Tabela z briefu Modułu 29 była **punktem startu, nie wynikiem** — dokończona
+gretem po `HUB_SETUP.md` / `README.md` / briefach. **Kluczowe rozróżnienie:
+„Świadomie NIE" (decyzja produktowa) ≠ „Świadomie odłożone" (praca do zrobienia).**
+
+**Korekty do samego briefu 29** (jego tabela była miejscami nieaktualna):
+- „Rabaty, cena brutto↔netto, domyślne uwagi" — **JUŻ ZBUDOWANE**
+  (`InvoiceEditor.tsx:848`, `ceny_brutto`, `domyslne_uwagi`). Ostatnia zaległość
+  batcha edytora faktur jest zamknięta.
+- „Załączniki w przekazywaniu maili" — uściślone: wysyłka działa, odłożone jest
+  przekazywanie i odbieranie.
+
+**BLOKERY (wymagają działania właściciela, nie kodu):**
+
+| Rzecz | Skąd | Uwaga |
+|---|---|---|
+| **Dane az.pl w env Vercela** | Moduł 4 | **Poczta nie działa na produkcji bez tego.** Blokuje też weryfikację SPECIAL-USE/MOVE/keywordów wobec az.pl |
+
+**Świadomie ODŁOŻONE — praca do zrobienia (kandydaci na moduły):**
+
+| Rzecz | Skąd |
+|---|---|
+| Układ panelu związany z wysokością ekranu (`min-h` → `h` w `AppShell`) | Moduł 28 — fundament pod Moduł 5, dotyka wszystkich modułów |
+| Poziomy scroll 530 px przy 375 px | Moduł 27 → należy do Modułu 5 (PWA) |
+| Long-press = menu kontekstowe, push w PWA | Moduły 25/24 → Moduł 5 |
+| `lead_id`/`project_id` w UI Faktur/Ofert | Moduł 22 → **objęte briefem 30** |
+| Audyt zmian dla faktur/ofert/projektów | Moduł 23 — „jedna linia w ich PATCH-u" |
+| „Powiel jako szkic" | Moduł 25 — dotyka logiki zapisu |
+| Poczta: Robocze (Drafts) z autosave | Moduł 4b Etap 2 |
+| Poczta: architektura outbox + cron (dziś IMAP w ścieżce żądania) | Moduł 4b — **dług architektoniczny**, świadomy |
+| Poczta: dwukierunkowe flagi z Outlookiem, CONDSTORE/QRESYNC | Moduł 4b |
+| Poczta: odbieranie/przechowywanie załączników | Moduł 4 — wymaga decyzji RODO o retencji plików |
+| Poczta: przycisk „usuń wiadomość" | RODO — zależne od odpowiedzi prawnika |
+| Poczta: pełny składany widok konwersacji | Moduł 4b |
+| Trzecia, ręczna implementacja menu w `MailDashboard.tsx` | Moduł 21/25 — odłożone dwa razy, nadal otwarte |
+| Struktura pasków narzędzi (trzy różne języki na 5 ekranach) | Moduł 21 |
+| Animacje / „liquid glass" w pozostałych dashboardach | Moduł 27 — świadomie przyrostowo |
+| Hardkodowane hex-y w `MenuRow`/`PropertyMenu` | Moduł 21 |
+| Kalendarz: agregacja WSZYSTKICH działań (maile/WhatsApp/notatki) | Moduł 10 — zakres celowo otwarty |
+| Obsługa obrazów w `lib/ollama.ts`, widget statusu AI | Moduły 6–8 |
+| Telefonia: widżet WebRTC, natywna apka CallKit | Moduł 3 |
+| KSeF: test→produkcja + automatyczny import | `PO_REJESTRACJI.md` pkt 3 i 5 |
+| Tłumaczenie klauzul na EN/DE | **świadoma KOLEJNOŚĆ** — najpierw prawnik PL, patrz `docs/DO-PRAWNIKA-I-TLUMACZA.md` |
+
+**Świadomie NIE — decyzje produktowe (NIE cofać bez wyraźnej prośby):**
+
+Wielu użytkowników/role · AI w logice podpowiedzi/przypominaczy · bramka
+płatności (Stripe/P24) · pełna księgowość (od tego jest księgowa) · magazyn ·
+zależności między projektami · wielowalutowość w Kosztach · śledzenie otwarć
+maili · IMAP IDLE (serverless) · automatyczna wysyłka czegokolwiek do klienta ·
+więcej niż dwa dotknięcia nurture · przypomnienie **przed** terminem płatności ·
+osobny status „częściowo opłacona" · wezwanie w numeracji fiskalnej · zapisane
+widoki w bazie · migracja starych `zrodlo` · dzwonek jako druga lista „do
+zrobienia" · mały wykres w Kosztach · tagi Notatnika bez szkła · emoji zamiast
+ikon · podpis mailowy jako ustawienie · wiele stref czasowych w Kalendarzu ·
+wydarzenia cykliczne.
+
+### Porównanie z konkurencją (Fakturownia / inFakt / wFirma / Pipedrive / HubSpot)
+
+**Wniosek: rozwijać panel — ale powód jest strukturalny, nie finansowy.**
+Odtworzenie panelu z gotowców kosztuje **~1 400–4 700 zł/rok** i **nadal nie daje**
+poczty powiązanej z klientem, rezerwy podatkowej, OCR bez limitu, retencji,
+onboardingu ani umów generowanych z oferty. Ale 2 870 zł/rok to nie jest kwota,
+dla której warto pisać własne oprogramowanie.
+
+Prawdziwy powód: **rynek dzieli się na dwa obozy, które się nie stykają.** Obóz
+księgowy (Fakturownia/inFakt/wFirma) traktuje CRM jako doklejkę — Fakturownia
+wypożycza go z osobnego produktu (Intum), **inFakt nie ma go wcale**, wFirma
+nazywa CRM-em katalog kontrahentów. Obóz sprzedażowy (Pipedrive/HubSpot) nie
+wystawia polskich faktur — Pipedrive w ogóle, a faktury HubSpota są dla polskiej
+JDG bezużyteczne (brak KSeF, brak JPK, Payments nie działa w Polsce). **Leggera
+Hub jest jedynym miejscem, gdzie lead staje się fakturą bez opuszczania
+aplikacji.** Ta luka nie zamknie się sama — „solo-konsultant chcący jednego
+miejsca od leada do retencji" to za mały rynek, żeby ktoś dla niego zbudował
+produkt.
+
+**Czego mamy więcej:** e-podpis umów/NDA bez limitu (Fakturownia i inFakt **nie
+mają umów w ogóle**; HubSpot: 25 podpisów/mies. za $85/seat) · OCR bez limitu
+(Fakturownia: **3–10 skanów/mies.**, potem 100–850 zł za pakiet) · poczta w
+panelu (inFakt: brak, wFirma: **tylko wysyłka**) · **rezerwa podatkowa — nie ma
+jej NIKT** · etapy 8–10 drogi klienta (zamknięcie, wsparcie, retencja) — **nie ma
+ich żadne z pięciu narzędzi**.
+
+**Czego brakuje — jedyna prawdziwa luka: aplikacja mobilna (Moduł 5).** Mają ją
+wszyscy, łącznie z wFirmą (webowe MOJO). Mapa drogi klienta zakłada pracę poza
+biurkiem (lead z rozmowy na mieście, zdjęcie paragonu, log czasu, „co dziś" w
+drodze) — panel działający tylko przy Macu cicho wypycha te czynności z powrotem
+na kartki. Przy 530 px poziomego scrolla (Moduł 27) dziś jest **nieużywalny na
+telefonie**, nie „niedopracowany".
+
+**Jedna rzecz, gdzie konkurent ma więcej w obszarze, który już mamy:** wFirma ma
+**rekompensatę 40/70/100 EUR** za koszty odzyskiwania należności (ustawowe prawo
+w B2B, bez udowadniania kosztów). Dopisane do listy dla prawnika — to obszar
+prawny, nie do samodzielnego wdrożenia.
+
+**Świadome decyzje potwierdzone przez rynek:** brak zespołu/ról (Fakturownia i
+HubSpot płacą za tę złożoność cenę per seat, którą omijamy), brak pełnej
+księgowości (**najlepsza decyzja produktowa w projekcie** — inFakt bierze 189
+zł/mies. za księgowego **z odpowiedzialnością prawną**, czego kod nie da nigdy).
+**Jedna decyzja przestała być „ostrożną wersją tego, co robią wszyscy":** inFakt
+udostępnił klientom serwer MCP, przez który Claude **wykonuje operacje** —
+wystawia faktury. Zasada „model nigdy nie zapisuje bez zatwierdzenia" jest teraz
+**wyborem przeciw trendowi, nie zaległością wobec niego**. To w porządku — byle
+świadomie.

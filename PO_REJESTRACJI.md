@@ -6,6 +6,15 @@ do momentu, aż właściciel zarejestruje działalność gospodarczą (na dzień
 prawdziwych danych rejestrowych (nazwa, NIP, adres, REGON), więc te miejsca
 zostały przygotowane, ale nie wypełnione. **Po rejestracji przejść całą listę.**
 
+> **Audyt Modułu 29 (2026-07-17) — sprawdzenie kompletności.** Zadaniem audytu
+> było ustalić, czy ta lista jest nadal kompletna po Modułach 11–28 (powstałych
+> już po jej napisaniu). **Nie była.** Pięć pierwotnych pozycji (1–5) jest nadal
+> aktualnych i żadnej nie „załatwiły" nowe moduły, ale doszły **pozycje 6–12**
+> poniżej. Treści prawne do weryfikacji przez prawnika zebrano osobno w
+> [`docs/DO-PRAWNIKA-I-TLUMACZA.md`](docs/DO-PRAWNIKA-I-TLUMACZA.md) — tamten
+> dokument i ten uzupełniają się: tu jest to, co wymaga **rejestracji firmy**,
+> tam to, co wymaga **prawnika** (część pozycji wymaga obu).
+
 ## 1. Nota prawna (`/impressum`) — WŁĄCZYĆ z prawdziwymi danymi
 - Plik: `app/[lang]/impressum/page.tsx` — wypełnić blok `COMPANY`:
   nazwa + forma prawna, adres, osoba reprezentująca, telefon, **NIP**
@@ -69,4 +78,70 @@ zostały przygotowane, ale nie wypełnione. **Po rejestracji przejść całą li
   Wtedy panel sam dociąga nowe faktury zakupowe; dziś to funkcja „na zapas".
 
 ---
-_Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`._
+
+# Pozycje dopisane w audycie Modułu 29 (2026-07-17)
+
+> Wszystkie wynikają z Modułów 11–28, zbudowanych po napisaniu listy powyżej.
+
+## 6. Nota prawna — przywrócić wpis w sitemapie
+- Audyt wykrył, że `/impressum` był **odlinkowany z menu i stopki (świadomie),
+  ale nadal siedział w `app/sitemap.ts`** — czyli Google dostawał zaproszenie do
+  zaindeksowania strony z widocznymi placeholderami „[Pełna nazwa firmy]",
+  „[NIP / ...]". Wpis **usunięto z sitemapy** w ramach audytu.
+- **Po rejestracji:** dopisać `/impressum` z powrotem do tablicy `routes` w
+  `app/sitemap.ts` — razem z odkomentowaniem linków w Header/Footer (pkt 1).
+
+## 7. Dane firmy na Umowie, NDA i Wezwaniu do zapłaty (Moduły 11, 13)
+- Wydruk umowy (`ContractPrint.tsx`) i wezwania (`DunningPrint.tsx`) drukują
+  nazwę, adres, NIP i e-mail sprzedawcy — **zaciągane z Ustawień firmy, dziś
+  pustych**. Umowa bez oznaczenia jednej ze stron jest bezużyteczna, a wezwanie
+  bez danych wierzyciela nie ma waloru formalnego.
+- Pkt 4 wyżej mówi tylko o „fakturach/ofertach" — powstał przed Modułami 11/13.
+  **To ta sama czynność**, tylko konsekwencje sięgają dalej, niż pkt 4 zakładał.
+
+## 8. Firmowy rachunek bankowy + zgłoszenie do Białej Listy VAT
+- Numer konta z Ustawień firmy trafia na faktury **oraz na wezwanie do zapłaty**
+  (`DunningPrint.tsx` — „Płatność na rachunek: …").
+- Potrzebny **firmowy rachunek rozliczeniowy** (nie prywatny ROR) — powstaje
+  dopiero po rejestracji i nadaniu NIP-u.
+- **Zgłosić go do Białej Listy VAT** (przez CEIDG/urząd): panel już ostrzega, że
+  przelew powyżej 15 000 zł na konto spoza Białej Listy grozi utratą kosztu
+  (`lib/mf.ts`) — **ta sama zasada działa w drugą stronę**, klienci będą
+  sprawdzać nasz numer.
+
+## 9. Stawka odsetek ustawowych za opóźnienie (Moduł 13)
+- `stawka_odsetek_ustawowych` w Ustawieniach firmy jest **domyślnie pusta** i
+  panel z założenia nigdy jej sam nie ustawia ani nie aktualizuje (świadoma
+  decyzja Modułu 13 — błąd w tym miejscu kosztuje wiarygodność pisma).
+- Dopóki jest pusta, **wezwanie nie pokazuje żadnych odsetek**.
+- Wpisać po rejestracji i **pamiętać o okresowej aktualizacji** (stawkę ogłasza
+  MF/NBP, zmienia się w czasie).
+
+## 10. Rezerwa podatkowa — trzy stawki ustawione na zero
+- `rezerwa_vat_procent`, `rezerwa_pit_procent`, `rezerwa_zus_procent` są
+  **domyślnie 0**, więc funkcja „ile z tej wpłaty odłożyć" (Pulpit) nic nie liczy.
+- Wypełnić dopiero po rejestracji — wtedy wiadomo: VAT czy zwolnienie, forma
+  opodatkowania (skala/liniowy/ryczałt) i realny ZUS.
+- **Uwaga:** ZUS będzie się zmieniać w czasie (ulga na start → mały ZUS), więc
+  tę stawkę trzeba będzie zaktualizować kilka razy w pierwszych latach.
+
+## 11. Polityka prywatności — trzy nowe kategorie danych (Moduły 11, 15)
+- Pkt 2 wyżej dopisuje korespondencję e-mail (Moduł 4). Audyt wykrył, że
+  brakuje jeszcze trzech przepływów, które panel **już realizuje**:
+  - **e-podpis Umowy i NDA** — imię, IP, przeglądarka (jak przy ofercie),
+  - **formularz opinii o projekcie** (`/opinia/[token]`) — ocena + IP + przeglądarka,
+  - **zgoda na case study/referencję** — pełna treść zgody utrwalana razem z
+    danymi osoby, która ją zaznaczyła.
+- Dopisać **jednym ruchem z prawnikiem** przy uzupełnianiu administratora.
+
+## 12. Publiczna strona Referencji (Moduł 15)
+- `app/[lang]/references/page.tsx` to gotowa, publiczna strona z opiniami
+  klientów (dziś pusta). Treść zgody wymienia „Leggera Labs" jako podmiot
+  publikujący.
+- Publikowanie nazwy i opinii klienta pod szyldem firmy zakłada, że firma
+  istnieje i jest wskazana jako administrator w polityce prywatności (pkt 2).
+- Treść zgody → `docs/DO-PRAWNIKA-I-TLUMACZA.md` pkt 1.4.
+
+---
+_Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`.
+Uzupełnienie pozycji 6–12: audyt Modułu 29, `docs/plany-modulow/29-audyt-koncowy.md`._
