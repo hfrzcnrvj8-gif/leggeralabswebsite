@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { useUI, useRegisterActions, isTypingTarget } from "../ui";
+import { useUI, useRegisterActions, isTypingTarget, useCopy } from "../ui";
 import {
   MailStatusTag,
   MailCategoryTag,
@@ -12,6 +12,8 @@ import {
   MAIL_FOLDERS,
   MAIL_FOLDER_LABEL,
   MAIL_FOLDER_ICON,
+  MAIL_STATUSES,
+  MAIL_STATUS_LABEL,
   formatPlDateTime,
   daysSinceISO,
   type MailMessageWithLinks,
@@ -23,6 +25,7 @@ import {
 import { MailDetailPanel } from "./MailDetailPanel";
 import { MailComposeForm } from "./MailComposeForm";
 import { Modal } from "../Modal";
+import { ContextMenu, ContextMenuItem, MenuDivider, MenuLabel, PropertyMenu, useContextMenu } from "../Menu";
 import { FilterPills } from "../FilterPills";
 import { ViewSwitch } from "../ViewTabs";
 
@@ -131,8 +134,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(() => readMailReturnState()?.openId ?? null);
   const [syncing, setSyncing] = useState(false);
-  const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const ctl = useContextMenu<MailMessageWithLinks>();
+  const copy = useCopy();
   // Nawigacja klawiaturą (Etap 2 Modułu 4b) — pozycja "kursora" na liście,
   // niezależna od `openId` (fokus klawiaturowy vs otwarty podgląd mogą być
   // różnymi wierszami, tak jak w Gmailu/Superhuman).
@@ -252,7 +256,6 @@ export function MailDashboard({ lang }: { lang: Locale }) {
    * tylko dociąga policzone na nowo liczniki filtrów. */
   const setMailStatus = useCallback(
     async (id: string, status: MailStatus) => {
-      setStatusMenuFor(null);
       const prev = messages;
       setMessages((cur) => (cur ? cur.map((m) => (m.id === id ? { ...m, status } : m)) : cur));
       const res = await fetch(`/api/mail/${id}`, {
@@ -982,6 +985,10 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                       setOpenId(m.id);
                       setFocusedIndex(i);
                     }}
+                    onContextMenu={(e) => {
+                      setFocusedIndex(i);
+                      ctl.openAt(e, m);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setOpenId(m.id);
                     }}
@@ -1116,51 +1123,23 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                           {(m.body_text || "").slice(0, 160)}
                         </span>
                         {m.kategoria && <MailCategoryTag kategoria={m.kategoria} />}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setStatusMenuFor((cur) => (cur === m.id ? null : m.id));
-                          }}
+                        {/* Do 2026-07-17 był tu ręcznie sklecony dropdown
+                            (`absolute`, własny z-20, osobna nakładka
+                            click-outside, bez Esc i klawiatury) — jedyne
+                            miejsce w panelu omijające Menu.tsx. Wspólny
+                            PropertyMenu daje portal, Esc i strzałki za darmo. */}
+                        <PropertyMenu
+                          value={m.status as MailStatus}
+                          options={MAIL_STATUSES.map((s) => ({ value: s, label: MAIL_STATUS_LABEL[s] }))}
+                          onChange={(v) => void setMailStatus(m.id, v)}
+                          align="right"
                           title="Zmień status"
-                          className="shrink-0"
                         >
                           <MailStatusTag status={m.status as MailStatus} />
-                        </button>
+                        </PropertyMenu>
                       </span>
                     </span>
                   </div>
-
-                  {statusMenuFor === m.id && (
-                    <div
-                      className="glass absolute right-4 top-11 z-20 w-40 rounded-xl p-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {m.status !== "obsłużony" && (
-                        <button
-                          onClick={() => void setMailStatus(m.id, "obsłużony")}
-                          className="block w-full rounded-lg px-3 py-1.5 text-left text-[12px] hover:bg-[var(--hairline)]/60"
-                        >
-                          Obsłużone
-                        </button>
-                      )}
-                      {m.status !== "zignorowany" && (
-                        <button
-                          onClick={() => void setMailStatus(m.id, "zignorowany")}
-                          className="block w-full rounded-lg px-3 py-1.5 text-left text-[12px] hover:bg-[var(--hairline)]/60"
-                        >
-                          Wycisz
-                        </button>
-                      )}
-                      {m.status !== "nowy" && (
-                        <button
-                          onClick={() => void setMailStatus(m.id, "nowy")}
-                          className="block w-full rounded-lg px-3 py-1.5 text-left text-[12px] hover:bg-[var(--hairline)]/60"
-                        >
-                          Przywróć
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </li>
                 );
               })}
@@ -1193,7 +1172,48 @@ export function MailDashboard({ lang }: { lang: Locale }) {
         </div>
       </div>
 
-      {statusMenuFor && <div className="fixed inset-0 z-10" onClick={() => setStatusMenuFor(null)} />}
+      <ContextMenu ctl={ctl}>
+        {(m, close) => {
+          const run = (fn: () => void) => {
+            close();
+            fn();
+          };
+          const addr = m.kierunek === "out" ? m.to_addr : m.from_addr;
+          return (
+            <>
+              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => setOpenId(m.id))} />
+              <ContextMenuItem
+                icon={m.flagged ? "☆" : "⭐"}
+                label={m.flagged ? "Usuń flagę" : "Oflaguj"}
+                onClick={() => run(() => void toggleFlag(m.id, !m.flagged))}
+              />
+
+              <MenuDivider />
+              <MenuLabel>Kopiuj</MenuLabel>
+              <ContextMenuItem
+                icon="✉️"
+                label="Adres e-mail"
+                onClick={() => run(() => void copy(addr, "Adres e-mail"))}
+              />
+              <ContextMenuItem
+                icon="📝"
+                label="Temat"
+                onClick={() => run(() => void copy(m.subject, "Temat"))}
+              />
+
+              <MenuDivider />
+              <MenuLabel>Status</MenuLabel>
+              {MAIL_STATUSES.filter((s) => s !== m.status).map((s) => (
+                <ContextMenuItem
+                  key={s}
+                  label={MAIL_STATUS_LABEL[s]}
+                  onClick={() => run(() => void setMailStatus(m.id, s))}
+                />
+              ))}
+            </>
+          );
+        }}
+      </ContextMenu>
     </div>
   );
 }

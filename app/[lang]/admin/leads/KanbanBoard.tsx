@@ -15,6 +15,8 @@ import {
   CONTACT_CHANNEL_CLASS,
   StatusTag,
 } from "./shared";
+import { ContextMenu, useContextMenu } from "../Menu";
+import { LeadMenuItems } from "./LeadContextMenu";
 
 export function KanbanBoard({
   leads,
@@ -35,6 +37,8 @@ export function KanbanBoard({
 }) {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // Jedno menu na całą tablicę, nie na kartę — kliknięta karta siedzi w stanie.
+  const ctl = useContextMenu<Lead>();
 
   const columns = STATUSES.map((status) => ({
     status,
@@ -99,6 +103,7 @@ export function KanbanBoard({
                   }}
                   onDragEnd={() => setDraggingId(null)}
                   onClick={() => onOpen(lead.id)}
+                  onContextMenu={(e) => ctl.openAt(e, lead)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -185,6 +190,18 @@ export function KanbanBoard({
           </div>
         </div>
       ))}
+      <ContextMenu ctl={ctl}>
+        {(lead, close) => (
+          <LeadMenuItems
+            lead={lead}
+            lang={lang}
+            close={close}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onOpen={onOpen}
+          />
+        )}
+      </ContextMenu>
     </div>
   );
 }

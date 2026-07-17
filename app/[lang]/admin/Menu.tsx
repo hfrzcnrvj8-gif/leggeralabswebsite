@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -31,6 +32,10 @@ export type MenuOption<T extends string> = {
 const MENU_MIN_W = 190;
 const ITEM_H = 30;
 
+/** useLayoutEffect na kliencie, useEffect na serwerze — panel jest SSR-owany,
+ * a useLayoutEffect w renderze serwerowym sypie ostrzeżeniem Reacta. */
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 /** Generyczny popover — dowolna treść w portalu do <body>, z pozycjonowaniem
  * od triggera, zamknięciem po kliknięciu poza / Esc. Baza pod menu Filtry,
  * Widok, kontekstowe itd. Treść dostaje `close` do zamknięcia po akcji. */
@@ -40,8 +45,13 @@ export function Popover({
   align = "left",
   width = 240,
   triggerClassName = "inline-flex",
+  anchor,
+  open: openProp,
+  onClose,
 }: {
-  trigger: (open: (e?: ReactMouseEvent) => void, isOpen: boolean) => ReactNode;
+  /** Opcjonalny, gdy popover jest sterowany z zewnątrz (`open` + `anchor`) —
+   * np. menu kontekstowe, które nie ma własnego przycisku. */
+  trigger?: (open: (e?: ReactMouseEvent) => void, isOpen: boolean) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
   width?: number;
@@ -49,30 +59,84 @@ export function Popover({
    * `flex h-full w-full`, gdy trigger musi wypełnić komórkę siatki (np.
    * dzień w kalendarzu). */
   triggerClassName?: string;
+  /** Gdy podany — pozycja liczona z punktu (kursora), nie z triggera.
+   * Scroll zamyka menu zamiast je przestawiać: punkt na ekranie przestaje
+   * odpowiadać treści, od której menu zostało otwarte. */
+  anchor?: { x: number; y: number } | null;
+  /** Stan kontrolowany. Gdy `undefined` — popover trzyma stan sam (domyślne,
+   * niezmienione zachowanie dla dotychczasowych konsumentów). */
+  open?: boolean;
+  onClose?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerWrapRef = useRef<HTMLSpanElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const measuredRef = useRef(false);
+
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openState;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const setOpen = useCallback(
+    (v: boolean) => {
+      if (!controlled) setOpenState(v);
+      if (!v) closeRef.current?.();
+    },
+    [controlled]
+  );
 
   const place = useCallback(() => {
+    // Wysokość znana dopiero, gdy menu jest w DOM — przy pierwszym otwarciu
+    // szacujemy (tak samo jak przed trybem `anchor`).
+    const estH = (menuRef.current?.offsetHeight ?? 250) + 8;
+    if (anchor) {
+      const left = Math.max(8, Math.min(anchor.x, window.innerWidth - width - 8));
+      const top =
+        anchor.y + estH > window.innerHeight - 8 ? Math.max(8, anchor.y - estH) : anchor.y + 2;
+      setPos({ top, left });
+      return;
+    }
     const el = triggerWrapRef.current?.firstElementChild ?? triggerWrapRef.current;
     if (!el) return;
     const r = (el as HTMLElement).getBoundingClientRect();
     let left = align === "right" ? r.right - width : r.left;
     left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
     // Domyślnie poniżej triggera; jeśli za blisko dołu ekranu — nad nim.
-    const estH = (menuRef.current?.offsetHeight ?? 250) + 8;
     const below = r.bottom + 6;
     const top = below + estH > window.innerHeight - 8 ? Math.max(8, r.top - estH) : below;
     setPos({ top, left });
-  }, [align, width]);
+  }, [align, width, anchor]);
 
   const openMenu = useCallback((e?: ReactMouseEvent) => {
     e?.stopPropagation();
     place();
     setOpen(true);
-  }, [place]);
+  }, [place, setOpen]);
+
+  // Tryb `anchor`: nikt nie woła openMenu, więc pozycję liczymy na zmianę
+  // punktu (także gdy menu przeskakuje z wiersza na wiersz przy otwartym menu).
+  useEffect(() => {
+    if (anchor && open) {
+      measuredRef.current = false;
+      place();
+    }
+  }, [anchor, open, place]);
+
+  // Pierwsze `place()` liczy się PRZED zamontowaniem menu, więc wysokość jest
+  // tylko szacowana (250 px). Realne menu bywa dwa razy wyższe (menu
+  // kontekstowe leada z listą statusów mierzy ~490 px) i uciekało poza dolną
+  // krawędź ekranu. Po zamontowaniu mierzymy naprawdę i przestawiamy raz —
+  // `measuredRef` pilnuje, żeby setPos nie zapętlił efektu.
+  useIsoLayoutEffect(() => {
+    if (!open) {
+      measuredRef.current = false;
+      return;
+    }
+    if (!pos || measuredRef.current) return;
+    measuredRef.current = true;
+    place();
+  }, [open, pos, place]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +147,10 @@ export function Popover({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    const onScroll = () => place();
+    const onScroll = () => {
+      if (anchor) setOpen(false);
+      else place();
+    };
     document.addEventListener("mousedown", onDoc, true);
     document.addEventListener("keydown", onKey, true);
     window.addEventListener("resize", onScroll);
@@ -94,13 +161,15 @@ export function Popover({
       window.removeEventListener("resize", onScroll);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [open, place]);
+  }, [open, place, anchor, setOpen]);
 
   return (
     <>
-      <span ref={triggerWrapRef} className={triggerClassName}>
-        {trigger(openMenu, open)}
-      </span>
+      {trigger && (
+        <span ref={triggerWrapRef} className={triggerClassName}>
+          {trigger(openMenu, open)}
+        </span>
+      )}
       {typeof document !== "undefined" &&
         pos &&
         // AnimatePresence musi być WEWNĄTRZ portalu (opakowywać motion.div),
@@ -118,6 +187,9 @@ export function Popover({
                 exit={{ opacity: 0, scale: 0.97, y: -2 }}
                 transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                 role="menu"
+                // Prawy przycisk WEWNĄTRZ naszego menu nie ma wywoływać
+                // natywnego menu przeglądarki nad nim.
+                onContextMenu={(e) => e.preventDefault()}
                 // `admin-linear` — portal renderuje się w <body>, poza scope'em
                 // AppShell, więc bez tej klasy var(--fg)/var(--fg-muted)/
                 // var(--hairline) spadają do jasnych tokenów strony publicznej
@@ -132,6 +204,137 @@ export function Popover({
           document.body
         )}
     </>
+  );
+}
+
+/* ── Menu kontekstowe (prawy przycisk) ─────────────────────────────────────
+ * Cienka warstwa nad `Popover` w trybie `anchor` — całe trudne pozycjonowanie
+ * (clamp do krawędzi, ucieczka w górę przy dole ekranu, portal, animacja,
+ * click-outside, Esc) jest już w Popoverze i NIE jest tu powtarzane.
+ *
+ * Wzorzec użycia w liście: JEDEN `useContextMenu<T>()` + JEDEN `<ContextMenu>`
+ * na listę (nie na wiersz), a każdy wiersz dostaje `onContextMenu={ctl.openAt(e, item)}`.
+ * Menu kontekstowe jest zawsze SKRÓTEM — widoczne przyciski zostają.
+ */
+
+export type ContextMenuCtl<T> = {
+  state: { anchor: { x: number; y: number }; item: T } | null;
+  /** Podepnij pod `onContextMenu` wiersza/karty. Robi preventDefault (inaczej
+   * wyskoczy natywne menu przeglądarki) i stopPropagation (żeby menu wiersza
+   * nie przegrało z menu kontenera pod spodem). */
+  openAt: (e: ReactMouseEvent, item: T) => void;
+  close: () => void;
+};
+
+export function useContextMenu<T>(): ContextMenuCtl<T> {
+  const [state, setState] = useState<{ anchor: { x: number; y: number }; item: T } | null>(null);
+  const openAt = useCallback((e: ReactMouseEvent, item: T) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setState({ anchor: { x: e.clientX, y: e.clientY }, item });
+  }, []);
+  const close = useCallback(() => setState(null), []);
+  return { state, openAt, close };
+}
+
+/** Nawigacja klawiaturą po pozycjach menu. Pozycje znajdujemy z DOM
+ * (`[role="menuitem"]`), bo treść menu jest dowolna (render-prop) — nie ma
+ * tablicy opcji jak w `PropertyMenu`. Enter/Spacja działają natywnie na
+ * <button>, więc obsługujemy tylko strzałki + Home/End. */
+function ContextMenuItems({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const items = () =>
+      Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])') ?? []);
+    items()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      const list = items();
+      if (!list.length) return;
+      const i = list.indexOf(document.activeElement as HTMLButtonElement);
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        list[(i + 1) % list.length]?.focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        list[(i - 1 + list.length) % list.length]?.focus();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        list[0]?.focus();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        list[list.length - 1]?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, []);
+  // `max-h` + scroll: menu kontekstowe bywa długie (akcje + kopiowanie +
+  // pełna lista statusów). Ograniczenie wysokości sprawia, że odbicie w górę
+  // przy dolnej krawędzi zawsze wystarcza — bez tego bardzo długie menu nie
+  // mieści się na ekranie w żadnym wariancie.
+  return (
+    <div ref={ref} className="max-h-[70vh] overflow-y-auto">
+      {children}
+    </div>
+  );
+}
+
+export function ContextMenu<T>({
+  ctl,
+  width = 210,
+  children,
+}: {
+  ctl: ContextMenuCtl<T>;
+  width?: number;
+  /** Treść menu dla klikniętego elementu. `close` domyka po akcji. */
+  children: (item: T, close: () => void) => ReactNode;
+}) {
+  return (
+    <Popover
+      anchor={ctl.state?.anchor ?? null}
+      open={ctl.state !== null}
+      onClose={ctl.close}
+      width={width}
+    >
+      {(close) =>
+        ctl.state ? <ContextMenuItems>{children(ctl.state.item, close)}</ContextMenuItems> : null
+      }
+    </Popover>
+  );
+}
+
+/** Pozycja menu kontekstowego. `danger` = akcja niszcząca (czerwony tekst). */
+export function ContextMenuItem({
+  icon,
+  label,
+  onClick,
+  danger,
+  disabled,
+}: {
+  icon?: ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      role="menuitem"
+      type="button"
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] outline-none disabled:opacity-40 ${
+        danger
+          ? "text-red-400 hover:bg-[#232327] focus-visible:bg-[#232327]"
+          : "text-[#e9e9ea] hover:bg-[#232327] focus-visible:bg-[#232327]"
+      }`}
+    >
+      {icon !== undefined && <span className="flex w-4 shrink-0 justify-center">{icon}</span>}
+      <span className="flex-1 truncate">{label}</span>
+    </button>
   );
 }
 

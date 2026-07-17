@@ -4031,3 +4031,95 @@ przeczytanych i nie, wiek od 35 min do 4 dni). W prawdziwym panelu wpisy
 powstają z hooków, a tych w dev nikt nie odpala: formularz wymaga wysyłki,
 poczta — serwera IMAP, cron — Vercela. Bez seeda każda sesja nad wyglądem
 dzwonka zaczynałaby się od pustej listy.
+
+## Moduł 25 — Menu kontekstowe (prawy przycisk) w całym panelu (2026-07-17)
+
+Skąd: właściciel 2026-07-16 — *„mamy też bardzo mało rozsuwanych menu albo
+możliwości kliknięcia prawą myszą żeby coś wywołać"*. Przed tym modułem
+`onContextMenu` nie występowało w kodzie **ani razu** — prawy przycisk dawał
+natywne menu przeglądarki.
+
+### Decyzje właściciela (2026-07-17)
+
+1. **Menu dubluje istniejące przyciski I dokłada akcje, których nie ma** —
+   samo powtórzenie tego, co widać, miałoby niską wartość. Dźwignia to
+   kopiowanie (e-mail, NIP, numer faktury, kwota) i „otwórz w nowej karcie".
+   *Świadomie NIE weszło:* „powiel jako szkic" — to dotyka logiki zapisu, nie
+   UI; osobny zakres, gdyby kiedyś było potrzebne.
+2. **Wdrożone od razu na sześciu modułach** (Faktury, Poczta, Leady, Klienci,
+   Koszty, Projekty), nie przyrostowo.
+3. **Ręczne menu w Poczcie usunięte** na rzecz wspólnego `Menu.tsx`.
+
+### Zasada: skrót, nigdy jedyna droga
+
+Wszystkie widoczne przyciski **zostały** — krzyżyk na karcie leada, ikony
+przy fakturze, tagi statusu. Menu kontekstowe to dodatek dla wprawnego
+użytkownika; gdyby zastąpiło afordancję, funkcja stałaby się niewidoczna.
+Na mobile prawego przycisku nie ma (long-press = Moduł 5).
+
+### `Popover` rozszerzony wstecznie zgodnie
+
+`Popover` miał w chwili zmiany **~20 konsumentów** (dzwonek z Modułu 24,
+`DatePicker`, `LinkPicker`, `CalendarView`, `RecipientPicker`, większość
+dashboardów). Dostał trzy **opcjonalne** propsy — bez nich zachowanie jest
+identyczne jak przed zmianą:
+
+| prop | rola |
+|---|---|
+| `anchor?: {x, y}` | pozycja z kursora zamiast z prostokąta triggera |
+| `open?` / `onClose?` | stan kontrolowany (menu bez własnego przycisku) |
+| `trigger?` | teraz opcjonalny — menu kontekstowe nie ma triggera |
+
+W trybie `anchor` **scroll zamyka menu** zamiast je przestawiać: punkt na
+ekranie przestaje odpowiadać treści, od której menu otwarto (w trybie
+triggera przestawianie nadal jest poprawne — trigger jedzie razem z treścią).
+
+### Naprawiony przy okazji błąd pozycjonowania (dotyczył też starych menu)
+
+`place()` liczyło pozycję **przed** zamontowaniem menu, więc wysokość była
+szacowana na 250 px. Menu kontekstowe leada mierzy realnie ~490 px i uciekało
+poza dolną krawędź ekranu. Teraz `Popover` po zamontowaniu mierzy naprawdę i
+przestawia się raz (`measuredRef` pilnuje, żeby `setPos` nie zapętlił efektu).
+To był błąd **istniejący wcześniej** — maskowany tym, że dotychczasowe
+popovery są niskie. Dodatkowo treść menu kontekstowego ma `max-h-[70vh]` +
+scroll, żeby odbicie w górę zawsze wystarczało.
+
+### Nowe API (w `Menu.tsx`)
+
+Wzorzec: **jeden** `useContextMenu<T>()` + **jeden** `<ContextMenu>` na listę
+(nie na wiersz), każdy wiersz dostaje `onContextMenu={(e) => ctl.openAt(e, item)}`.
+`openAt` robi `preventDefault()` (inaczej wyskoczy natywne menu przeglądarki)
+i `stopPropagation()`.
+
+- `useContextMenu<T>()` → `{ state, openAt, close }`
+- `<ContextMenu ctl={...}>{(item, close) => …}</ContextMenu>`
+- `<ContextMenuItem icon label onClick danger disabled />`
+- `useCopy()` (`ui.tsx`) — kopiowanie do schowka z toastem; pusta wartość nie
+  kopiuje (czyściłaby schowek, wyglądając na sukces)
+
+Klawiatura: fokus na pierwszej pozycji, strzałki/Home/End, Enter natywnie na
+`<button>`, Esc z `Popovera`. Pozycje wyszukiwane z DOM (`[role="menuitem"]`),
+bo treść menu jest dowolna (render-prop) — nie ma tablicy opcji jak w
+`PropertyMenu`.
+
+Treść menu dla Leadów i Klientów mieszka w osobnych plikach
+(`leads/LeadContextMenu.tsx`, `clients/ClientContextMenu.tsx`) — wspólna dla
+Tablicy i Tabeli, żeby oba widoki nie rozjechały się przy kolejnej zmianie.
+
+### Poczta: dwunasty wzorzec menu usunięty
+
+`MailDashboard.tsx` trzymał **jedyne** w panelu menu omijające `Menu.tsx`:
+`absolute` zamiast portalu (mógł je przyciąć kontener z `overflow`), własny
+`z-20` zamiast `z-[200]`, osobna nakładka `<div className="fixed inset-0">` jako
+ręczny click-outside, bez Esc, klawiatury i animacji. Zastąpiony wspólnym
+`PropertyMenu` — ten sam kształt problemu, co „10 kopii modala → 1" w Module 21.
+
+### Pułapka narzędzia przy weryfikacji (nie „naprawiaj" tego)
+
+Podgląd przeglądarki ma `visibilityState === "hidden"` i nie odpala
+`requestAnimationFrame`, więc animacje framer-motion stoją: otwarte menu
+mierzy `opacity` ~0.8 i `scale` ~0.99 zamiast dojść do 1 i wygląda na
+prześwitujące. Zmierzone ponownie w tym module. Zrzut ekranu **wymusza
+klatkę** — klikaj i rób `screenshot`, nie `wait`. Uwaga: `javascript_tool`
+potrafi zwrócić `window.innerWidth === 0`, gdy strona jest w tle — sprawdzanie
+„czy menu mieści się na ekranie" daje wtedy fałszywy alarm.

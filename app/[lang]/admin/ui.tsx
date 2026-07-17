@@ -38,6 +38,31 @@ export function useUI(): UIContextType {
 }
 
 /**
+ * Kopiowanie do schowka z potwierdzeniem toastem. Pusta/brakująca wartość nie
+ * kopiuje niczego (kopiowanie "" wyglądałoby jak sukces, a czyściłoby schowek).
+ * Używane głównie przez menu kontekstowe („kopiuj e-mail", „kopiuj NIP").
+ */
+export function useCopy(): (value: string | null | undefined, label: string) => Promise<void> {
+  const { toast } = useUI();
+  return useCallback(
+    async (value: string | null | undefined, label: string) => {
+      const text = (value ?? "").trim();
+      if (!text) {
+        toast(`Brak: ${label.toLowerCase()}`, "error");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        toast(`Skopiowano: ${label.toLowerCase()}`);
+      } catch {
+        toast("Nie udało się skopiować", "error");
+      }
+    },
+    [toast]
+  );
+}
+
+/**
  * Pozwala danej stronie "zgłosić" swoje szybkie akcje (np. "Dodaj leada") do
  * globalnej palety poleceń (Cmd+K) w AppShell — bez tego paleta znałaby
  * tylko nawigację, nie akcje właściwe dla aktualnie otwartego modułu.

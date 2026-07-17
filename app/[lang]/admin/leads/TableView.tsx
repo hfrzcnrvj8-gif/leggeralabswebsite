@@ -16,6 +16,8 @@ import {
 } from "./shared";
 import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
+import { ContextMenu, useContextMenu } from "../Menu";
+import { LeadMenuItems } from "./LeadContextMenu";
 
 /**
  * Lista = tylko podgląd. Dane stałe leada (nazwa, kontakt, adres, źródło)
@@ -50,6 +52,7 @@ export function TableView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const ctl = useContextMenu<Lead>();
 
   const updateScrollShadows = () => {
     const el = scrollRef.current;
@@ -135,6 +138,7 @@ export function TableView({
               return (
                 <tr
                   key={lead.id}
+                  onContextMenu={(e) => ctl.openAt(e, lead)}
                   className={`border-b hairline align-top transition-colors ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
                   } ${selected ? "bg-[#4ea7fc]/[0.08]" : ""} ${checked ? "bg-[#4ea7fc]/[0.08]" : ""}`}
@@ -233,6 +237,18 @@ export function TableView({
           </tbody>
         </table>
       </div>
+      <ContextMenu ctl={ctl}>
+        {(lead, close) => (
+          <LeadMenuItems
+            lead={lead}
+            lang={lang}
+            close={close}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onOpen={onOpen}
+          />
+        )}
+      </ContextMenu>
     </div>
   );
 }

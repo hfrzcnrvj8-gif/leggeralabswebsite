@@ -15,8 +15,17 @@ import {
 import { KSEF_STATUS_CLASS, KSEF_STATUS_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
-import { useUI, useRegisterActions } from "../ui";
-import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { useUI, useRegisterActions, useCopy } from "../ui";
+import {
+  Popover,
+  MenuRow,
+  PropertyMenu,
+  ContextMenu,
+  ContextMenuItem,
+  MenuDivider,
+  MenuLabel,
+  useContextMenu,
+} from "../Menu";
 import { ExportCsvButton } from "../components";
 import { InvoiceEditor } from "./InvoiceEditor";
 import { CompanySettingsPanel } from "./CompanySettingsPanel";
@@ -29,6 +38,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const ctl = useContextMenu<InvoiceRow>();
+  const copy = useCopy();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
@@ -366,6 +377,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                     <tr
                       key={inv.id}
                       onClick={() => setOpenId(inv.id)}
+                      onContextMenu={(e) => ctl.openAt(e, inv)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                         overdue ? "bg-red-500/[0.04]" : ""
                       } ${selectedIds.has(inv.id) ? "bg-[#4ea7fc]/[0.08]" : ""}`}
@@ -501,6 +513,78 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       >
         <RecurringPanel onClose={() => setRecurringOpen(false)} />
       </Modal>
+
+      {/* Skrót do akcji, które w wierszu są ikonami 15 px obok siebie —
+          ikony ZOSTAJĄ (odkrywalność), menu tylko je dubluje i dokłada
+          kopiowanie danych, na które dziś nie ma żadnego przycisku. */}
+      <ContextMenu ctl={ctl}>
+        {(inv, close) => {
+          const run = (fn: () => void) => {
+            close();
+            fn();
+          };
+          return (
+            <>
+              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => setOpenId(inv.id))} />
+              {inv.numer && (
+                <ContextMenuItem
+                  icon="🖨"
+                  label="Podgląd / wydruk"
+                  onClick={() =>
+                    run(() =>
+                      window.open(`/${lang}/admin/invoices/${inv.id}/print`, "_blank", "noopener")
+                    )
+                  }
+                />
+              )}
+
+              <MenuDivider />
+              <MenuLabel>Kopiuj</MenuLabel>
+              {inv.numer && (
+                <ContextMenuItem
+                  icon="🧾"
+                  label="Numer faktury"
+                  onClick={() => run(() => void copy(inv.numer, "Numer faktury"))}
+                />
+              )}
+              <ContextMenuItem
+                icon="🏢"
+                label="Nazwa klienta"
+                onClick={() => run(() => void copy(inv.klient_nazwa, "Nazwa klienta"))}
+              />
+              <ContextMenuItem
+                icon="#️⃣"
+                label="NIP klienta"
+                onClick={() => run(() => void copy(inv.klient_nip, "NIP klienta"))}
+              />
+              <ContextMenuItem
+                icon="💰"
+                label="Kwota brutto"
+                onClick={() =>
+                  run(() => void copy(formatMoney(inv.brutto, inv.waluta || "PLN"), "Kwota brutto"))
+                }
+              />
+
+              <MenuDivider />
+              {!inv.numer ? (
+                <ContextMenuItem
+                  icon="🗑"
+                  label="Usuń szkic"
+                  danger
+                  onClick={() => run(() => deleteInvoice(inv.id, inv.numer))}
+                />
+              ) : inv.status !== "Anulowana" ? (
+                <ContextMenuItem
+                  icon="🚫"
+                  label="Anuluj fakturę"
+                  danger
+                  onClick={() => run(() => cancelInvoice(inv.id, inv.numer))}
+                />
+              ) : null}
+            </>
+          );
+        }}
+      </ContextMenu>
     </div>
   );
 }

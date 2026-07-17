@@ -14,6 +14,8 @@ import {
   CONTACT_CHANNEL_CLASS,
   StatusTag,
 } from "./shared";
+import { ContextMenu, useContextMenu } from "../Menu";
+import { ClientMenuItems } from "./ClientContextMenu";
 
 export function KanbanBoard({
   clients,
@@ -33,6 +35,7 @@ export function KanbanBoard({
   onOpen: (id: string) => void;
 }) {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
+  const ctl = useContextMenu<Client>();
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const columns = CLIENT_STATUSES.map((status) => ({
@@ -93,6 +96,7 @@ export function KanbanBoard({
                   }}
                   onDragEnd={() => setDraggingId(null)}
                   onClick={() => onOpen(client.id)}
+                  onContextMenu={(e) => ctl.openAt(e, client)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -183,6 +187,18 @@ export function KanbanBoard({
           </div>
         </div>
       ))}
+      <ContextMenu ctl={ctl}>
+        {(client, close) => (
+          <ClientMenuItems
+            client={client}
+            lang={lang}
+            close={close}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onOpen={onOpen}
+          />
+        )}
+      </ContextMenu>
     </div>
   );
 }

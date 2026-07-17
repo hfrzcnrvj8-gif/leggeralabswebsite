@@ -7,8 +7,17 @@ import type { Locale } from "@/i18n/config";
 import { type Cost, type PaymentMethod, COST_STATUSES, COST_CATEGORIES, PAYMENT_METHOD_ICON, PAYMENT_METHOD_LABEL, formatMoney } from "@/lib/costs";
 import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
-import { useUI, useRegisterActions } from "../ui";
-import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { useUI, useRegisterActions, useCopy } from "../ui";
+import {
+  Popover,
+  MenuRow,
+  PropertyMenu,
+  ContextMenu,
+  ContextMenuItem,
+  MenuDivider,
+  MenuLabel,
+  useContextMenu,
+} from "../Menu";
 import { ExportCsvButton } from "../components";
 import { DateField } from "../DatePicker";
 import { StatusTag } from "./shared";
@@ -106,6 +115,8 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
   const searchParams = useSearchParams();
   const [costs, setCosts] = useState<Cost[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const ctl = useContextMenu<Cost>();
+  const copy = useCopy();
   const [editorBusy, setEditorBusy] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterKategoria, setFilterKategoria] = useState("");
@@ -316,6 +327,7 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                       <tr
                         key={c.id}
                         onClick={() => setOpenId(c.id)}
+                        onContextMenu={(e) => ctl.openAt(e, c)}
                         className="cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40"
                       >
                         <td className="p-2.5 font-medium text-[var(--fg)]">
@@ -377,6 +389,58 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
       >
         <RecurringCostsPanel onClose={() => setRecurringOpen(false)} />
       </Modal>
+
+      <ContextMenu ctl={ctl}>
+        {(c, close) => {
+          const run = (fn: () => void) => {
+            close();
+            fn();
+          };
+          return (
+            <>
+              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => setOpenId(c.id))} />
+
+              <MenuDivider />
+              <MenuLabel>Kopiuj</MenuLabel>
+              <ContextMenuItem
+                icon="🏢"
+                label="Dostawca"
+                onClick={() => run(() => void copy(c.dostawca_nazwa, "Dostawca"))}
+              />
+              {c.dostawca_nip && (
+                <ContextMenuItem
+                  icon="#️⃣"
+                  label="NIP dostawcy"
+                  onClick={() => run(() => void copy(c.dostawca_nip, "NIP dostawcy"))}
+                />
+              )}
+              <ContextMenuItem
+                icon="💰"
+                label="Kwota brutto"
+                onClick={() => run(() => void copy(formatMoney(c.kwota_brutto), "Kwota brutto"))}
+              />
+
+              <MenuDivider />
+              <MenuLabel>Status</MenuLabel>
+              {COST_STATUSES.filter((s) => s !== c.status).map((s) => (
+                <ContextMenuItem
+                  key={s}
+                  label={s}
+                  onClick={() => run(() => void updateStatus(c.id, s))}
+                />
+              ))}
+
+              <MenuDivider />
+              <ContextMenuItem
+                icon="🗑"
+                label="Usuń"
+                danger
+                onClick={() => run(() => void deleteCost(c.id, c.dostawca_nazwa))}
+              />
+            </>
+          );
+        }}
+      </ContextMenu>
     </div>
   );
 }

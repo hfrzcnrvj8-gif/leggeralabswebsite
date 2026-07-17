@@ -15,7 +15,16 @@ import {
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate, ProjectIcon } from "./shared";
-import { PropertyMenu, type MenuOption } from "../Menu";
+import {
+  PropertyMenu,
+  type MenuOption,
+  ContextMenu,
+  ContextMenuItem,
+  MenuDivider,
+  MenuLabel,
+  useContextMenu,
+} from "../Menu";
+import { useCopy } from "../ui";
 
 // Status jako ikona (styl Linear) — kształt koła oddaje etap, nie słowo.
 const STATUS_ICON: Record<string, { icon: TablerIcon; className: string }> = {
@@ -83,6 +92,7 @@ export const HEALTH_OPTS: MenuOption<string>[] = PROJECT_HEALTHS.map((h) => ({
 
 export function ProjectKanban({
   projects,
+  lang,
   selectedIds,
   onToggleSelect,
   onUpdate,
@@ -98,6 +108,8 @@ export function ProjectKanban({
   onOpen: (id: string) => void;
 }) {
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
+  const ctl = useContextMenu<Project>();
+  const copy = useCopy();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const anySelected = selectedIds.size > 0;
 
@@ -162,6 +174,7 @@ export function ProjectKanban({
                       }}
                       onDragEnd={() => setDraggingId(null)}
                       onClick={() => onOpen(p.id)}
+                      onContextMenu={(e) => ctl.openAt(e, p)}
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
@@ -259,6 +272,51 @@ export function ProjectKanban({
           </div>
         );
       })}
+      <ContextMenu ctl={ctl}>
+        {(p, close) => {
+          const run = (fn: () => void) => {
+            close();
+            fn();
+          };
+          return (
+            <>
+              <ContextMenuItem icon="↗" label="Otwórz" onClick={() => run(() => onOpen(p.id))} />
+              <ContextMenuItem
+                icon="⧉"
+                label="Otwórz w nowej karcie"
+                onClick={() =>
+                  run(() => window.open(`/${lang}/admin/projects/${p.id}`, "_blank", "noopener"))
+                }
+              />
+
+              <MenuDivider />
+              <ContextMenuItem
+                icon="📝"
+                label="Kopiuj tytuł"
+                onClick={() => run(() => void copy(p.tytul, "Tytuł"))}
+              />
+
+              <MenuDivider />
+              <MenuLabel>Status</MenuLabel>
+              {PROJECT_STATUSES.filter((s) => s !== p.status).map((s) => (
+                <ContextMenuItem
+                  key={s}
+                  label={s}
+                  onClick={() => run(() => onUpdate(p.id, "status", s))}
+                />
+              ))}
+
+              <MenuDivider />
+              <ContextMenuItem
+                icon="🗑"
+                label="Usuń"
+                danger
+                onClick={() => run(() => onDelete(p.id, p.tytul))}
+              />
+            </>
+          );
+        }}
+      </ContextMenu>
     </div>
   );
 }

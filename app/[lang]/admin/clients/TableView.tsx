@@ -15,6 +15,8 @@ import {
 } from "./shared";
 import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
+import { ContextMenu, useContextMenu } from "../Menu";
+import { ClientMenuItems } from "./ClientContextMenu";
 
 /**
  * Lista = tylko podgląd (Moduł 23, decyzja właściciela 2026-07-16: „lista jest
@@ -51,6 +53,7 @@ export function TableView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const ctl = useContextMenu<Client>();
 
   const updateScrollShadows = () => {
     const el = scrollRef.current;
@@ -115,6 +118,7 @@ export function TableView({
               return (
                 <tr
                   key={client.id}
+                  onContextMenu={(e) => ctl.openAt(e, client)}
                   className={`border-b hairline align-top transition-colors ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
                   } ${selected ? "bg-[#4ea7fc]/[0.08]" : ""} ${checked ? "bg-[#4ea7fc]/[0.08]" : ""}`}
@@ -213,6 +217,18 @@ export function TableView({
           </tbody>
         </table>
       </div>
+      <ContextMenu ctl={ctl}>
+        {(client, close) => (
+          <ClientMenuItems
+            client={client}
+            lang={lang}
+            close={close}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onOpen={onOpen}
+          />
+        )}
+      </ContextMenu>
     </div>
   );
 }
