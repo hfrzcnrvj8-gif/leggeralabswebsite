@@ -4588,7 +4588,52 @@ poprawnym „jesteś tu" na kroku 3 dla „Rozmowa umówiona", podpowiedź o NDA
 nad przyciskiem `+ Wyślij NDA`, paleta pokazuje „Idź do: Szybka notatka" i
 faktycznie przenosi na `/pl/admin/quick-log`.
 
-### Znalezisko poza zakresem briefu (do decyzji)
+### Domknięcie 2026-07-17 (po Module 32, na prośbę właściciela „popraw to, co konieczne")
+
+Sekcja niżej opisywała to jako otwarte — **zostało zrobione tego samego dnia**,
+razem z dwiema poważniejszymi rzeczami znalezionymi przy okazji:
+
+- **`CLAUDE.md` kłamał o ikonach — najgroźniejsze z całej trójki.** Twierdził
+  „nie ma żadnej biblioteki ikon (świadoma decyzja: zamiast ikon używamy emoji,
+  zostaw jak jest)" — nieprawda **od 2026-07-11** (commit `c5552c0`,
+  `@tabler/icons-react` w 25 plikach; `HUB_SETUP.md:16` mówi wprost o „świadomym
+  odejściu od wcześniejszej decyzji"). To nie był zwykły nieaktualny akapit:
+  `CLAUDE.md` jest wczytywany do **każdego** czatu i nadpisuje domyślne
+  zachowanie, więc przez sześć dni i osiemnaście modułów instruował kolejne
+  czaty, żeby **nie zamieniały emoji na ikony** — dokładnie odwrotnie niż
+  decyzja właściciela. Zastąpione sekcją „Emoji vs ikony" opisującą **stan
+  faktyczny**: mieszany (ikony w chrome, emoji w Poczcie/treści), niespójność
+  znana i świadomie otwarta od Modułu 21, zasada „dopasuj się do otoczenia
+  pliku, nie ujednolicaj hurtem". Ta sama nieprawda usunięta z „zasad wspólnych"
+  w `docs/plany-modulow/README.md`.
+- **Cytat, który wprowadził w błąd brief 30.** Wiersz Modułu 22 w README
+  twierdził, że picker Faktur/Ofert „kopiuje dane nabywcy, **nie linkuje**".
+  Nieprawda: `pickClient` ustawia `client_id` obok migawki, PATCH-e zapisują.
+  Brief 30 zbudował na tym cytacie całe pytanie „migawka czy powiązanie?".
+  Sprostowane w obu miejscach.
+- **Mapa drogi klienta — znaczniki zweryfikowane w kodzie**, nie przepisane z
+  planu. Etapy 3/4/7/8/10 i trzy sekcje poprzeczne z 🆕/🔧 → ✅ (Moduły
+  11/14/13/15/17/12/18), trzy „Stan dziś: nie istnieje" odhaczone jako
+  nieaktualne, NDA/szablony ofert/śledzenie czasu/rezerwa podatkowa oznaczone
+  jako zbudowane. **Etap 9 (Wsparcie) zostaje 🆕 — Moduł 16 faktycznie nie
+  istnieje**, sprawdzone. Wstęp „to plan, panel Cię tego jeszcze nie pilnuje"
+  zastąpiony prawdą: **to opis działającego panelu**.
+- **Znalezisko przy weryfikacji: Moduł 18 zbudował połowę obietnicy.** Mapa
+  prosiła o „które źródło faktycznie **konwertuje** na klientów, nie tylko
+  generuje leady"; `stats/route.ts:183` liczy tylko **% leadów ze źródła
+  Polecenie** — czyli ile *wpada*, nie ile *się zamienia*. Zostawione jako
+  jawnie otwarte (dane są, `leads.client_id` jest już w tym zapytaniu). Za to
+  „czas do pierwszej odpowiedzi", opisany w mapie jako niemierzony, **jest**
+  mierzony od Modułu 18 — odhaczone.
+
+**Metalekcja (trzecia z rzędu tej samej rodziny):** `tsc` pilnuje kodu, nic nie
+pilnuje zdań. Moduł 32 naprawił teksty w UI, to domknięcie — teksty w
+dokumentach sterujących pracą. **Najgorszy przypadek to nie nieaktualny brief,
+tylko nieaktualny `CLAUDE.md`**, bo on nie informuje, tylko rozkazuje. Zaczynając
+moduł, który zmienia jakąś zasadę projektu — zaktualizuj `CLAUDE.md` w tej samej
+paczce, inaczej następne czaty będą wykonywać cofniętą decyzję.
+
+### Znalezisko poza zakresem briefu (opisane rano 2026-07-17, ZROBIONE — patrz wyżej)
 
 Mapa drogi klienta ma **szerszy problem tej samej rodziny**, którego brief nie
 wymienił: nagłówki etapów wciąż niosą znaczniki sprzed Modułów 11–20. Etap 3

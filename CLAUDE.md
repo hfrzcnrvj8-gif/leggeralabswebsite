@@ -17,9 +17,13 @@ poprawiał kodu — jeśli coś wymaga decyzji nietechnicznej, zapytaj wprost.
   jako zwykłe tablice obiektów, NIE `{rows}` jak w node-postgres
 - Deploy: Vercel, auto-deploy z GitHuba (branch `main`)
 - Routing z prefiksem języka: `app/[lang]/...` (`i18n/config.ts`)
-- framer-motion już jest w zależnościach — nie ma żadnej biblioteki ikon
-  (świadoma decyzja: zamiast ikon używamy emoji, zostaw jak jest, chyba że
-  właściciel wprost poprosi o zmianę)
+- framer-motion i `@tabler/icons-react` są w zależnościach. **Uwaga: ten plik
+  do 2026-07-17 twierdził, że „nie ma żadnej biblioteki ikon" i że „zamiast
+  ikon używamy emoji" — to była nieprawda od 2026-07-11** (commit `c5552c0`,
+  `HUB_SETUP.md` linia 16: *„Ikony: `@tabler/icons-react` — świadome odejście
+  od wcześniejszej decyzji z uwagi na wymóg wizualnej wierności Linear"*).
+  Stan faktyczny opisuje sekcja „Emoji vs ikony" niżej — przeczytaj ją, zanim
+  cokolwiek dodasz lub usuniesz.
 
 ## Autoryzacja i baza
 
@@ -157,8 +161,27 @@ czekaj na Vercel → zgaduj"):
   pełne cykle z przypisywaniem, to nowy, większy zakres — dopytaj.
 - Panel dąży do wyglądu/UX Linear, ale NIE 1:1 (brak zespołów, integracji
   z Gitem, itd.) — to świadomie mniejszy produkt dla jednej osoby.
-- Emoji w UI są celowe — nie zamieniaj na bibliotekę ikon bez wyraźnej
-  prośby.
+### Emoji vs ikony — stan faktyczny (sprostowane 2026-07-17)
+
+**Panel MA bibliotekę ikon** (`@tabler/icons-react`, ~25 plików). Decyzja
+„emoji zamiast ikon" została **świadomie odwrócona 2026-07-11** przy
+upodabnianiu panelu do Linear — ale ten plik nosił starą regułę jeszcze przez
+sześć dni i osiemnaście modułów, każąc kolejnym czatom „nie zamieniać emoji na
+ikony". Jeśli widzisz gdzieś powtórzoną starą regułę — jest nieaktualna.
+
+Realny stan (potwierdzony gretem 2026-07-17, opisany też w `HUB_SETUP.md` →
+„Moduł 21"): **niespójność mieszana, znana i świadomie nierozstrzygnięta**:
+- **Ikony `@tabler`**: sidebar, paski narzędzi, menu, `LinkPicker`,
+  powiadomienia, dashboardy Leadów/Klientów/Projektów/Faktur/Kosztów/Ofert/Umów.
+- **Emoji**: Poczta (foldery 📥/📤/🗑️/🗄️), puste stany Kanbanów („🌤️ Pusto"),
+  menu kontekstowe, podpis mailowy, kanały kontaktu (📞).
+
+**Zasada praktyczna, dopóki właściciel nie zdecyduje inaczej:** dopasuj się do
+otoczenia pliku, który edytujesz — nie wprowadzaj emoji do chrome opartego na
+ikonach i **nie wyrywaj emoji hurtem** tam, gdzie już są (zwłaszcza w Poczcie —
+to świadomie zostawione). Ujednolicenie całości to **osobna decyzja
+właściciela**, zgłoszona mu przy Module 21 i wciąż otwarta — nie rozstrzygaj
+jej przy okazji innego zadania.
 
 ## Dokumentacja
 

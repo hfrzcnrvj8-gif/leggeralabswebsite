@@ -32,9 +32,12 @@ Uwagi, które oszczędzą Ci czasu:
   projekt + faktura" linkuje poprawnie. Problem otwiera się tylko przy starcie
   **bez leada** („+ Dodaj ofertę"/„+ Dodaj fakturę").
 * Zanim zgłosisz coś jako lukę, sprawdź `CLAUDE.md` → „Świadome decyzje
-  produktowe" i `HUB_SETUP.md`. Brak AI w logice, emoji zamiast ikon, panel
-  jednoosobowy, **miękkie podpowiedzi zamiast bramek** — to wybory, nie błędy.
-  Powiązanie z klientem ma być podpowiadane, nie wymuszane.
+  produktowe" i `HUB_SETUP.md`. Brak AI w logice, panel jednoosobowy, **miękkie
+  podpowiedzi zamiast bramek** — to wybory, nie błędy. Powiązanie z klientem ma
+  być podpowiadane, nie wymuszane.
+* Sprawy ikon NIE ruszaj przy okazji: panel ma i `@tabler/icons-react`, i emoji
+  (patrz `CLAUDE.md` → „Emoji vs ikony"). Niespójność jest znana i świadomie
+  otwarta — dopasuj się do otoczenia edytowanego pliku, nie ujednolicaj.
 * Migracje: każda `create*Schema()` musi mieć `schemaUpToDate()` +
   `markSchemaApplied()`, a każde zapytanie nie-DDL w migracji (np. `INSERT`
   backfillu) MUSI iść przez `inMigration()` z `lib/migration-ctx.ts` — inaczej

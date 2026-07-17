@@ -28,11 +28,18 @@ Ten plik ma dwie warstwy:
 
 ## Docelowy przepływ pracy — krok po kroku (stan PO wdrożeniu wszystkiego)
 
-> Zakłada pełne wdrożenie mapy: Umowy, fundament linkowania, rozbudowaną
-> windykację, Onboarding, Zamknięcie+opinie, Wsparcie, Retencję, NDA,
-> widoczność źródeł i rezerwę podatkową. Dopóki dany element nie jest
-> zbudowany (patrz 🆕/🔧 w etapach niżej), ten krok robisz dziś ręcznie,
-> poza aplikacją — panel Cię tego jeszcze nie pilnuje.
+> **AKTUALIZACJA 2026-07-17: to już nie jest plan na przyszłość — to opis
+> działającego panelu.** Cała mapa jest zbudowana (Moduły 11–20: Umowy+NDA,
+> fundament linkowania, eskalacja windykacji + rezerwa podatkowa, Onboarding,
+> Zamknięcie+opinie, Retencja, Statystyki, śledzenie czasu, szablony ofert).
+> **Jedyny niezbudowany etap: Krok 9 — Wsparcie** (Moduł 16, świadomie odłożony
+> do czasu pierwszych realnych klientów z taką potrzebą).
+>
+> Do 2026-07-17 stało tu zdanie „dopóki dany element nie jest zbudowany… robisz
+> to ręcznie, panel Cię tego jeszcze nie pilnuje", a etapy niżej były oznaczone
+> 🆕/🔧 mimo że dawno powstały — dokument mówił Ci, że **nie masz rzeczy, które
+> masz**. Znaczniki przy każdym etapie są teraz zweryfikowane w kodzie
+> (2026-07-17), nie przepisane z planu.
 
 ### Krok 0 — Pierwszy kontakt / rozmowa odkrywcza
 **Robisz**: odbierasz zgłoszenie (formularz/telefon/polecenie), zakładasz
@@ -208,7 +215,11 @@ LinkedIn.
 klienta część pól się gubi (osoba kontaktowa, LinkedIn, źródło, notatki) —
 patrz "Szybkie porządki" niżej.
 
-**🆕 NDA przed rozmową odkrywczą** (dopisane 2026-07-14, inspiracja: dział
+**✅ NDA przed rozmową odkrywczą — ZBUDOWANE (Moduł 11, 2026-07-15)**:
+`/nda/[token]`, e-podpis jak przy ofercie, przycisk „+ Wyślij NDA" na karcie
+leada, a od Modułu 32 podpowiedź przy „Rozmowa umówiona" wprost o tym
+przypomina. Treść prawna wciąż do konsultacji. Akapit poniżej to pierwotne
+uzasadnienie z 2026-07-14 (dopisane, inspiracja: dział
 "Legal") — przy automatyzacjach AI rozmowa kwalifikacyjna często dotyka
 wewnętrznych systemów/danych klienta, zanim cokolwiek zostanie podpisane.
 Dziś nie ma nic, co by to zabezpieczało. Osobne od Umowy (Umowa jest PO
@@ -216,11 +227,18 @@ sprzedaży, NDA PRZED) — prosty szablon + e-podpis (ten sam mechanizm co
 przy Ofercie), wysyłany opcjonalnie, gdy rozmowa tego wymaga. Treść NDA
 też do konsultacji prawnej przed pierwszym użyciem.
 
-**Monitorować**: czas do pierwszej odpowiedzi na leada (dziś niemierzony —
-warto dodać), liczba leadów wg statusu (już jest na Pulpicie). **🆕 Które
-źródło (`zrodlo_kategoria`) faktycznie konwertuje na klientów, nie tylko
-generuje leady** — dane już istnieją, brakuje tylko zestawienia na
-Pulpicie.
+**Monitorować**: ~~czas do pierwszej odpowiedzi na leada (dziś niemierzony —
+warto dodać)~~ **✅ mierzony od Modułu 18** (`api/stats/route.ts:45` — pierwszy
+wpis na osi leada zainicjowany przez Ciebie), liczba leadów wg statusu (już
+jest na Pulpicie).
+
+**🆕 NADAL OTWARTE — które źródło (`zrodlo_kategoria`) faktycznie KONWERTUJE na
+klientów, nie tylko generuje leady.** Uwaga (sprawdzone w kodzie 2026-07-17):
+Moduł 18 zbudował **tylko połowę** tego — liczy **% leadów ze źródła
+„Polecenie"** (`stats/route.ts:183`), czyli ile leadów danego rodzaju
+*wpada*, a nie które źródło zamienia się w klienta. Dane są (`leads.client_id`
+jest już pobierany w tym samym zapytaniu), brakuje zestawienia. Mały kandydat
+na przyszły moduł.
 
 ---
 
@@ -241,7 +259,10 @@ wysyłasz, klient akceptuje (e-podpisem) albo oferta wygasa.
 przy akceptacji, atomowe tworzenie projektu+faktury-szkicu w jednej
 transakcji (`lib/offerAccept.ts`).
 
-**🆕 Szablony ofert / pakiety usług** (dopisane 2026-07-14, na wyraźną
+**✅ Szablony ofert / pakiety usług — ZBUDOWANE (Moduł 20, 2026-07-16)**:
+`offer_templates` + `OfferTemplatesPanel`. Treść szablonów definiuje właściciel
+(decyzja biznesowa). Akapit poniżej to pierwotne uzasadnienie (dopisane
+2026-07-14, na wyraźną
 prośbę: "pracować mądrze, nie tylko ciężko") — zamiast pisać każdą ofertę
 od zera, 2-3 gotowe szkielety (typowy zakres + typowa cena za typowy typ
 projektu). Szybsza praca, ale ważniejsze: wymusza spójność zakresu (nic
@@ -255,7 +276,7 @@ klienta.
 
 ---
 
-## Etap 3 — Umowa 🆕 (NOWY MODUŁ)
+## Etap 3 — Umowa ✅ (Moduł 11, zbudowany)
 
 **Co się dzieje**: zanim zaczniesz pracę, obie strony mają czarno na białym:
 dokładny zakres, co NIE wchodzi w zakres, zasady zmiany zakresu (i że to
@@ -270,9 +291,13 @@ się sporami o to, co było umówione. Nawet najprostsza, jednostronicowa
 umowa (zakres + cena + terminy + co się dzieje przy zmianie zakresu) już
 chroni obie strony.
 
-**Stan dziś**: audyt 2026-07-14 potwierdził, że **nic z tego nie istnieje**
-— jedyne miejsce na warunki to wolne pole tekstowe "uwagi" na ofercie,
-widoczne dla klienta, ale nieustrukturyzowane.
+**Stan dziś**: ~~audyt 2026-07-14 potwierdził, że **nic z tego nie istnieje**
+— jedyne miejsce na warunki to wolne pole tekstowe "uwagi" na ofercie.~~
+**NIEAKTUALNE — Moduł 11 to zbudował** (2026-07-15): moduł Umowy w menu,
+`ContractsDashboard`/`ContractEditor`, generowanie z zaakceptowanej oferty,
+e-podpis tym samym mechanizmem co oferta, osobne NDA (`/nda/[token]`).
+**Treść prawna nadal wymaga prawnika** przed użyciem z prawdziwym klientem —
+patrz `docs/DO-PRAWNIKA-I-TLUMACZA.md`.
 
 **Do zaplanowania jako osobny moduł** (`docs/plany-modulow/11-umowy.md`,
 numer do potwierdzenia z właścicielem przy starcie):
@@ -296,7 +321,7 @@ numer do potwierdzenia z właścicielem przy starcie):
 
 ---
 
-## Etap 4 — Onboarding klienta 🆕 (NOWY MODUŁ)
+## Etap 4 — Onboarding klienta ✅ (Moduł 14, zbudowany)
 
 **Co się dzieje**: umowa podpisana, projekt startuje. Zanim zaczniesz
 robotę, klient wie: kto z kim się kontaktuje, jak wygląda komunikacja
@@ -310,9 +335,10 @@ który nie wie, czego się spodziewać, zaczyna się niepokoić i pisać częśc
 niż trzeba (co kradnie Twój czas) albo — gorzej — nie dostarcza w porę
 tego, czego potrzebujesz.
 
-**Stan dziś**: nie istnieje jako osobny krok — projekt startuje bez
-żadnego ustandaryzowanego powitania/checklisty. `ProjectResource` (link do
-zasobów) już istnieje i częściowo się do tego nadaje.
+**Stan dziś**: ~~nie istnieje jako osobny krok — projekt startuje bez żadnego
+ustandaryzowanego powitania/checklisty.~~ **NIEAKTUALNE — Moduł 14 to
+zbudował** (2026-07-15): checklista onboardingowa przy projekcie + wiadomość
+powitalna. Szczegóły i decyzje: `HUB_SETUP.md` → „Moduł 14".
 
 **Do zaplanowania**:
 - Prosta checklista onboardingowa na starcie projektu (co potrzebujesz od
@@ -356,7 +382,10 @@ osobna decyzja z właścicielem): czy chcesz jakąkolwiek formę widoku
 postępu dla klienta (nawet prosty publiczny link ze statusem kamieni,
 podobny do publicznego podglądu oferty/faktury, które już istnieją).
 
-**🆕 Śledzenie czasu pracy** (dopisane 2026-07-14, na wyraźną prośbę:
+**✅ Śledzenie czasu pracy — ZBUDOWANE (Moduł 19, 2026-07-16)**: tabela
+`time_entries`, log godzin przy zadaniu/kamieniu, efektywna stawka godzinowa
+obok rentowności finansowej. Akapit poniżej to pierwotne uzasadnienie (dopisane
+2026-07-14, na wyraźną prośbę:
 "pracować mądrze, nie tylko ciężko") — najczęstszy błąd początkującego
 konsultanta: wycenia projekt "na oko", robi go, dostaje zapłatę, i nigdy
 się nie dowiaduje, że realnie wyszła stawka poniżej sensownej. Dziś
@@ -389,7 +418,10 @@ przy stałej współpracy).
 **Moduł w panelu**: ✅ gotowy — szkic→wystawienie, KSeF, faktury cykliczne,
 proformy/zaliczkowe.
 
-**🆕 Rezerwa podatkowa** (dopisane 2026-07-14, inspiracja: dział "Finance")
+**✅ Rezerwa podatkowa — ZBUDOWANA (Moduł 13, 2026-07-15)**: stawka ustawiana
+ręcznie przez właściciela, wskaźnik przy fakturach/Pulpicie. **Nie ma jej żaden
+konkurent** (audyt 29). Akapit poniżej to pierwotne uzasadnienie (dopisane
+2026-07-14, inspiracja: dział "Finance")
 — łatwo jako początkujący przedsiębiorca wydać to, co wpłynęło na konto,
 zapominając że część należy się fiskusowi. Mały kalkulator/wskaźnik przy
 wystawionych/opłaconych fakturach: "ile z tej kwoty warto odłożyć" wg
@@ -403,7 +435,7 @@ Pulpicie).
 
 ---
 
-## Etap 7 — Płatność i windykacja 🔧 (DO ROZBUDOWY)
+## Etap 7 — Płatność i windykacja ✅ (Moduł 13, rozbudowany)
 
 **Co się dzieje**: klient płaci (w całości albo częściami). Jeśli nie płaci
 w terminie — masz zdefiniowaną, konsekwentną ścieżkę reakcji.
@@ -451,7 +483,7 @@ jednego przypomnienia.
 
 ---
 
-## Etap 8 — Zamknięcie projektu i opinia 🆕 (NOWY MODUŁ)
+## Etap 8 — Zamknięcie projektu i opinia ✅ (Moduł 15, zbudowany)
 
 **Co się dzieje**: projekt/etap się kończy — formalne przekazanie
 (dokumentacja, dostępy, podsumowanie co zrobiono), prośba o opinię/ocenę,
@@ -465,8 +497,11 @@ udanym zakończeniu ma wielokrotnie wyższą skuteczność niż proszenie
 miesiące później. Dla nowej firmy (Leggera Labs — zero klientów na starcie,
 patrz pamięć projektu) **to jest główne źródło przyszłego portfolio**.
 
-**Stan dziś**: nie istnieje — projekt po prostu zmienia status na
-"Wdrożone", bez żadnego rytuału zamknięcia.
+**Stan dziś**: ~~nie istnieje — projekt po prostu zmienia status na
+"Wdrożone", bez żadnego rytuału zamknięcia.~~ **NIEAKTUALNE — Moduł 15 to
+zbudował** (2026-07-16): miękka podpowiedź przy „Wdrożone", szablon
+podsumowania, publiczny formularz opinii (`/opinia/[token]`), ocena i zgoda na
+referencję zapisywane przy kliencie. Szczegóły: `HUB_SETUP.md` → „Moduł 15".
 
 **Do zaplanowania**:
 - Miękka podpowiedź przy zmianie statusu projektu na "Wdrożone": "Wyślij
@@ -509,7 +544,7 @@ wsparcia — nie budować "na zapas"):
 
 ---
 
-## Etap 10 — Retencja i polecenia 🆕 (NOWY MODUŁ, zamyka pętlę)
+## Etap 10 — Retencja i polecenia ✅ (Moduł 17, zbudowany — zamyka pętlę)
 
 **Co się dzieje**: relacja z klientem nie kończy się na fakturze. Kontakt
 "sprawdzający" jakiś czas po zakończeniu (czy wszystko działa, czy są nowe
@@ -523,9 +558,14 @@ czegoś jeszcze?") regularnie generuje kolejne zlecenia i polecenia. Kategoria
 źródła leada "Polecenie" już istnieje w systemie (`SOURCE_CATEGORIES`) —
 to domyka pętlę: zadowolony klient → nowy lead.
 
-**Stan dziś**: nie istnieje. Nurture (Moduł 2) pilnuje leadów PRZED
-zamknięciem sprzedaży, ale nic nie pilnuje klientów PO zakończeniu
-projektu.
+**Stan dziś**: ~~nie istnieje. Nurture (Moduł 2) pilnuje leadów PRZED
+zamknięciem sprzedaży, ale nic nie pilnuje klientów PO zakończeniu projektu.~~
+**NIEAKTUALNE — Moduł 17 to zbudował** (2026-07-16): `client_followups` +
+`NURTURE_OFFSETS` (kontakt +14 i +90 dni po statusie „Wdrożone", planowany
+automatycznie, idempotentnie po `project_id`), % leadów ze źródła „Polecenie"
+na Statystykach. **Uwaga — to działa tylko dla projektów POWIĄZANYCH z
+klientem** (`api/projects/[id]/route.ts` → `if (clientId && …)`); projekt bez
+klienta nie dostanie żadnego kontaktu kontrolnego. To temat **Modułu 30**.
 
 **Do zaplanowania**:
 - Analogicznie do nurture leadów: opcjonalne, ręcznie ustawiane
@@ -543,7 +583,12 @@ nikt jeszcze tego nie pokazuje na Pulpicie).
 
 ## Poprzeczne (nie jeden etap, tylko całość drogi)
 
-### Fundament linkowania 🔧
+### Fundament linkowania ✅ (Moduł 12, zbudowany)
+> **Zrobione 2026-07-15.** Faktury i Oferty mają własne podstrony `/[id]`, oś
+> czasu klienta jest klikalna, martwy link z Pulpitu naprawiony, a gubione pola
+> przy konwersji Lead→Klient (osoba kontaktowa, LinkedIn, źródło, notatki) są
+> przepisywane (`api/offers/route.ts`). Akapit niżej opisuje stan sprzed tego
+> modułu — zostawiony jako uzasadnienie, dlaczego powstał.
 Audyt 2026-07-14: Faktury i Oferty **nie mają własnej podstrony `/[id]`**
 (tylko druk PDF + edytor-modal), więc nic nie może do nich linkować
 bezpośrednio. Oś czasu klienta istnieje, ale żaden wpis na niej nie jest
@@ -552,12 +597,16 @@ zgłoszone przez właściciela) nie da się zrobić porządnie. **To powinno
 być zrobione PRZED etapem 8-10**, bo każdy kolejny moduł dokłada kolejne
 zdarzenia do osi czasu klienta.
 
-### Szybkie porządki (małe, przy okazji) 🔧
-- Naprawić martwy link `/admin/invoices/[id]` z Pulpitu (404 dziś).
-- Przy konwersji Lead→Klient donieść gubione pola (osoba kontaktowa,
-  LinkedIn, źródło, notatki).
+### Szybkie porządki (małe, przy okazji) ✅ (zrobione przy Module 12)
+- ~~Naprawić martwy link `/admin/invoices/[id]` z Pulpitu (404 dziś).~~ ✅
+- ~~Przy konwersji Lead→Klient donieść gubione pola (osoba kontaktowa,
+  LinkedIn, źródło, notatki).~~ ✅ — `api/offers/route.ts` przepisuje je przy
+  awansie leada na klienta.
 
-### Pulpit jako "czy jestem na dobrej drodze" 🔧
+### Pulpit jako "czy jestem na dobrej drodze" ✅ (Moduł 18, zbudowany)
+> **Zrobione 2026-07-16** — osobny ekran **Statystyki** (ostatni w sidebarze,
+> świadomie: to przegląd okresowy, nie krok codziennego lejka). Akapit niżej to
+> pierwotne uzasadnienie.
 Docelowo Pulpit powinien pokazywać nie tylko "co dziś", ale też prosty
 zestaw wskaźników zdrowia biznesu wymienionych w każdym etapie wyżej (czas
 odpowiedzi, konwersje, DSO, wiek zaległości, % opinii, % poleceń). To
@@ -567,6 +616,12 @@ generują — nie ma sensu budować wykresu z danych, których jeszcze nie ma.
 ---
 
 ## Podsumowanie — zatwierdzona kolejność budowy (2026-07-14)
+
+> **STAN 2026-07-17: cała tabela poniżej jest ZBUDOWANA poza Modułem 16
+> (Wsparcie).** Zaplanowany na końcu „ostateczny audyt po ukończeniu modułów
+> 11-20" **też się odbył** — to Moduł 29 (2026-07-17), z którego wyszły briefy
+> **32 ✅ / 30 ⏳ / 31 ⏳**. Tabela zostaje jako zapis decyzji z 2026-07-14, nie
+> jako lista do zrobienia. Aktualny stan: `docs/plany-modulow/README.md`.
 
 Właściciel zatwierdził całą mapę (łącznie z NDA, śledzeniem czasu i
 szablonami ofert dopisanymi w tej rozmowie) i zdecydował: pracujemy
@@ -599,5 +654,6 @@ Moduły 4 (poczta), 5 (mobilny), 7 (AI-szkice mailowe) z `README.md`
 pozostają osobną ścieżką — nie kolidują z powyższą kolejnością, można je
 przeplatać wedle priorytetu.
 
-**Ostateczny, całościowy audyt całej drogi (lead → płatność → wsparcie →
-retencja) — po ukończeniu modułów 11-20.**
+~~**Ostateczny, całościowy audyt całej drogi (lead → płatność → wsparcie →
+retencja) — po ukończeniu modułów 11-20.**~~ **WYKONANY 2026-07-17 jako Moduł
+29** — werdykt i trzy wynikłe briefy (32/30/31): `HUB_SETUP.md` → „Moduł 29".

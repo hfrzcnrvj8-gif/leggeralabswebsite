@@ -177,11 +177,10 @@ pytań:
   przeszłym, a on istnieje w dwóch edytorach).
 - ~~Korekta `00-mapa-drogi-klienta.md` Krok 2~~ — **zrobione w Module 32**
   (Sprostowanie C); najwyżej dopnij po swojej zmianie.
-- **Pytanie otwarte spoza tego briefu** (z Modułu 32, do decyzji właściciela):
-  znaczniki 🆕/🔧 w `00-mapa-drogi-klienta.md` są nieaktualne szeroko — Etapy
-  3/4/8/10 mówią „nie istnieje" o zbudowanych Modułach 11/14/15/17. Jeśli i tak
-  ruszasz ten dokument, to dobra okazja — ale **zapytaj**, to osobna robota.
-  Szczegóły: `HUB_SETUP.md` → „Moduł 32" → ostatnia sekcja.
+- ~~Znaczniki 🆕/🔧 w `00-mapa-drogi-klienta.md` nieaktualne szeroko~~ —
+  **ZROBIONE 2026-07-17** (`HUB_SETUP.md` → „Moduł 32" → „Domknięcie"). Cała
+  mapa jest teraz zweryfikowana w kodzie. **Nie rób tego drugi raz** — jeśli
+  Twoja zmiana dotknie Kroku 2 albo Etapu 10, tylko dopnij po sobie.
 
 ## Weryfikacja
 
