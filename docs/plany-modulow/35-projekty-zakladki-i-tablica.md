@@ -42,21 +42,48 @@ Pytania, które trzeba zadać PRZED kodowaniem:
    osobna zakładka „Powiązania" czy zostają w Podglądzie?
 3. Czy kamienie milowe to Podgląd, czy własna zakładka (mają swój edytor)?
 
-## Część B — layout tablicy (wolna przestrzeń)
+## Część B — martwa przestrzeń na dole (POTWIERDZONA, szersza niż Projekty)
 
-**UWAGA — zanim uznasz, że wiesz, o co chodzi.** Właściciel mówi „tablica", ale
-w Projektach są dwa widoki (`Tablica` = Kanban, `Oś czasu` = Gantt) i **oba
-kończą się kartą wysokości treści, z martwym polem do dołu ekranu**. Poproś o
-zrzut albo dopytaj, który widok ma na myśli — „przesuwany pasek" to równie
-dobrze poziomy scrollbar Kanbanu, co pasek Gantta.
+**Właściciel potwierdził zrzutami (2026-07-17):** *„góra jest zagospodarowana,
+a dół jest wolny, bezużyteczny"* — i dotyczy to **OBU widoków Projektów**
+(Tablica i Oś czasu) **oraz podglądu wiadomości w Poczcie** (*„tam też jest za
+mały podgląd i jest niewykorzystana przestrzeń"*). To nie jest problem jednego
+ekranu — to jeden łańcuch wysokości.
 
-Kierunek (do potwierdzenia): kolumny Kanbanu powinny sięgać dołu okna, żeby
-scrollbar poziomy siedział przy krawędzi, a nie w połowie ekranu. Dziś kolumna
-ma `min-h-[8px]` i wysokość treści (`ProjectKanban.tsx:148` — `w-[300px]`).
+### Diagnoza (zrobiona 2026-07-17, nie zaczynaj od zera)
 
-Porównaj z Leadami/Klientami — mają ten sam problem, więc jeśli ruszasz, ruszaj
-wzorzec, nie jeden ekran (`.card-paper`/kolumny są wspólne konceptualnie, choć
-nie kodowo).
+Panel **nigdzie nie przekazuje wysokości ekranu w dół**. Łańcuch:
+- `AppShell.tsx:322` — root ma `flex min-h-screen flex-col md:flex-row`, więc
+  na `md+` kolumna treści (`AppShell.tsx:450`, `min-w-0 flex-1`) **jest**
+  rozciągnięta (`align-items: stretch`). Do tego miejsca jest dobrze.
+- `AppShell.tsx:459` — `<div className="mx-auto px-4 py-5 …">` ma **wysokość
+  treści**. Tu łańcuch się urywa.
+- Dalej: root dashboardu (`ProjectsDashboard.tsx:265`, `-mx-4 sm:-mx-6`) i
+  kontener kolumn (`ProjectKanban.tsx:126`, `flex gap-4 overflow-x-auto pb-4`)
+  też mają wysokość treści → kolumny kończą się na najwyższej karcie, a poziomy
+  scrollbar ląduje w połowie ekranu (dokładnie to widać na zrzucie).
+
+**Kierunek naprawy:** przeciągnąć `flex flex-col` + `flex-1 min-h-0` od
+kontenera treści w `AppShell` aż do kontenera widoku. `min-h-0` jest kluczowe —
+bez niego element flex nie skurczy się poniżej treści i scroll wyjdzie na
+`<body>` zamiast zostać w kolumnie.
+
+**Uwaga na `AnimatePresence mode="wait"`** w `AppShell` (przejścia stron) —
+opakowuje treść, więc dodanie tam `flex` trzeba sprawdzić wzrokowo, a nie
+zakładać.
+
+**Zakres do potwierdzenia z właścicielem:** ruszamy tylko Projekty + Pocztę
+(zgłoszone), czy od razu wszystkie moduły (Leady/Klienci/Faktury… mają ten sam
+łańcuch)? Zrobienie tego wyrywkowo zostawi panel w połowie drogi — ale zrobienie
+wszystkiego naraz to duża paczka do obejrzenia. **To jest główna decyzja tego
+modułu.**
+
+### Poczta — osobny kształt, ta sama przyczyna
+
+`AppShell.tsx:459` daje Poczcie `max-w-none` (świadomie, Moduł 4e), ale
+wysokości i tak nie przekazuje. Podgląd wiadomości ma własną kartę o wysokości
+treści — stąd „za mały podgląd" przy pustym dole. Jeśli ruszasz Pocztę, cel:
+lista i podgląd wypełniają wysokość okna, a scroll żyje **wewnątrz** nich.
 
 ## ⚠️ Pułapka podglądu — przeczytaj, zanim zdiagnozujesz „błąd"
 

@@ -5096,3 +5096,31 @@ od zawsze**, więc odznaki kanału i filtru NIE DAŁO SIĘ zobaczyć lokalnie.
   uciętą treść — tam natywny dymek jest OK) czeka na osobną decyzję.
 - Menu kontekstowe dla pasków Klientów/Faktur/Kosztów — ten sam wzorzec, gdy
   pojawi się druga akcja.
+
+### Runda 2 — ikony rozsuwają się w podpis (korekta, 2026-07-17)
+
+Właściciel wskazał efekt wprost: **Centrum powiadomień macOS**, gdzie „✕" po
+najechaniu **rozsuwa się** w „Wymaż wszystko". Dymek z rundy 1 to **nie był ten
+efekt** — dymek to OSOBNE pudełko obok kontrolki, a tu rośnie SAMA kontrolka.
+
+`ExpandingIconButton.tsx` (pasek ikon Leadów):
+- pigułka jest **`absolute right-0`**, nie elementem flex — pasek ma kilka ikon
+  obok siebie, więc rosnąc w układzie przesuwałaby sąsiadów (goniłbyś uciekający
+  cel). Zewnętrzny `span` trzyma stałe 24×24 px, pigułka rozsuwa się **w lewo,
+  nad sąsiadów** — jak „Wymaż wszystko" wychodzi nad treść w macOS. Stąd
+  nieprzezroczyste tło (`--bg-soft`) i `z-20`;
+- **`grid-cols-[0fr]` → `[1fr]` TU NIE DZIAŁA** (popularna sztuczka na animowanie
+  szerokości): `1fr` to ułamek WOLNEJ przestrzeni, a pigułka jest absolutna i
+  dopasowuje się do treści, więc wolnej przestrzeni nie ma → track 0 px.
+  Potwierdzone ręcznym wymuszeniem `1fr` (nadal 0 px, szerokość 24 px).
+  Zamienione na **`max-width`** — odporny na kontekst (24 px → 158 px). Cena:
+  przy etykiecie węższej niż limit ruch kończy się przed końcem `duration`,
+  niewidoczne przy 200 ms.
+
+**Podział ról, nie zastępstwo:** pigułka **podpisuje ikonę**, dymek **tłumaczy
+stan**. `Tooltip` zostaje przy odznace kanału, gdzie opis jest dwuliniowy
+(„Ostatni kontakt: WhatsApp · 3 dni temu" + co zrobi klik) i gdzie rozsuwanie
+zasłoniłoby dane w wierszu.
+
+**Do zrobienia:** pigułki na paskach pozostałych modułów (Klienci/Faktury/
+Koszty/Oferty/Umowy) — ten sam komponent, ta sama podmiana co w Leadach.
