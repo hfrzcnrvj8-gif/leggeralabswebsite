@@ -24,6 +24,7 @@ import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { Popover, MenuRow, MenuLabel, MenuDivider, ContextMenu, ContextMenuItem, useContextMenu } from "../Menu";
 import { Tooltip } from "../Tooltip";
+import { ExpandingIconButton } from "../ExpandingIconButton";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
 
@@ -434,74 +435,44 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
-        {/* Pasek ikon bez podpisów — każda musi mówić, co robi, po najechaniu
-            (Moduł 34). Natywne `title=` robiło to po sekundzie i systemowym
-            prostokątem; `Tooltip` ma opóźnienie 400 ms i wspólną kolejkę, więc
-            przejeżdżając po pasku widzisz opisy bez czekania przy każdej. */}
-        <Tooltip label="Znajdź nowe leady">
-          <button
-            onClick={() => setDiscoverOpen(true)}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-            aria-label="Znajdź nowe leady"
-          >
-            <IconSparkles size={15} />
-          </button>
-        </Tooltip>
-        <Tooltip label={sendingReport ? "Wysyłam…" : "Wyślij raport teraz"}>
-          <button
-            onClick={sendReportNow}
-            disabled={sendingReport}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
-            aria-label="Wyślij raport teraz"
-          >
-            <IconMailForward size={15} />
-          </button>
-        </Tooltip>
-        <Tooltip label="Wczytaj listę startową">
-          <button
-            onClick={seedInitial}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-            aria-label="Wczytaj listę startową"
-          >
-            <IconDownload size={15} />
-          </button>
-        </Tooltip>
-        <Tooltip label="Uporządkuj źródła (auto-kategoryzacja starych leadów)">
-          <button
-            onClick={tidySources}
-            disabled={tidyingSources}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)] disabled:opacity-40"
-            aria-label="Uporządkuj źródła"
-          >
-            <IconTag size={15} />
-          </button>
-        </Tooltip>
-        <Tooltip
-          label={
-            <>
-              Eksport CSV (cały rejestr)
-              <span className="block text-muted">Prawy przycisk: więcej opcji</span>
-            </>
-          }
-        >
-          <a
+        {/* Pasek ikon (Moduł 34, runda 2) — po najechaniu ikona ROZSUWA SIĘ w
+            podpisaną pigułkę, wzorem Centrum powiadomień macOS („✕" → „Wymaż
+            wszystko"), na wyraźne wskazanie właściciela. Świadomie NIE dymek:
+            dymek to osobne pudełko obok, tu rośnie sama kontrolka. Pigułka
+            wychodzi w lewo NAD sąsiadów — patrz ExpandingIconButton.tsx. */}
+        <ExpandingIconButton
+          label="Znajdź nowe leady"
+          icon={<IconSparkles size={15} />}
+          onClick={() => setDiscoverOpen(true)}
+        />
+        <ExpandingIconButton
+          label={sendingReport ? "Wysyłam…" : "Wyślij raport teraz"}
+          ariaLabel="Wyślij raport teraz"
+          icon={<IconMailForward size={15} />}
+          onClick={sendReportNow}
+          disabled={sendingReport}
+        />
+        <ExpandingIconButton
+          label="Wczytaj listę startową"
+          icon={<IconDownload size={15} />}
+          onClick={seedInitial}
+        />
+        <ExpandingIconButton
+          label="Uporządkuj źródła"
+          icon={<IconTag size={15} />}
+          onClick={tidySources}
+          disabled={tidyingSources}
+        />
+        {/* Eksport ma dodatkowo menu pod prawym przyciskiem (zakres eksportu),
+            więc zostaje przy zwykłym <a> — pigułka i tak podpisuje ikonę. */}
+        <span className="relative block h-6 w-6 shrink-0" onContextMenu={(e) => exportCtl.openAt(e, null)}>
+          <ExpandingIconButton
+            label="Eksport CSV"
+            icon={<IconFileExport size={15} />}
             href="/api/leads/export"
-            onContextMenu={(e) => exportCtl.openAt(e, null)}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-            aria-label="Eksport CSV"
-          >
-            <IconFileExport size={15} />
-          </a>
-        </Tooltip>
-        <Tooltip label="Dodaj leada">
-          <button
-            onClick={addLead}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-            aria-label="Dodaj leada"
-          >
-            <IconPlus size={16} />
-          </button>
-        </Tooltip>
+          />
+        </span>
+        <ExpandingIconButton label="Dodaj leada" icon={<IconPlus size={16} />} onClick={addLead} />
       </div>
 
       {/* Menu eksportu. Lewy klik na ikonie zostaje "cały rejestr" (jak dotąd),
