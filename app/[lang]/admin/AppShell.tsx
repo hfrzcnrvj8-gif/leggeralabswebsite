@@ -365,7 +365,12 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
         // prostokąt. Treść pod paskiem realnie prześwituje i rozmywa się przy
         // przewijaniu. Ramki boczne/górna z `.glass` wyłączone utility'sami —
         // pasek ma mieć tylko dolną krawędź.
-        className="glass glass-ios sticky top-0 z-30 flex h-12 items-center gap-2 border-x-0 border-t-0 border-b border-b-[var(--glass-border)] px-3 md:hidden"
+        // `min-h-12`, NIE `h-12` (Moduł 5, Paczka 5 — błąd znaleziony dopiero na
+        // realnym iPhonie): przy `box-sizing: border-box` sztywna wysokość 48 px
+        // NIE rośnie o `padding-top`, a bezpieczny margines pod notch to ~59 px.
+        // Treść była więc wypychana poza pasek i dociskana do zegarka. Pasek
+        // musi mieć wysokość 48 px PLUS wcięcie, nie 48 px razem z nim.
+        className="glass glass-ios sticky top-0 z-30 flex min-h-12 items-center gap-2 border-x-0 border-t-0 border-b border-b-[var(--glass-border)] px-3 md:hidden"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <Link href={base} prefetch={false} className="flex min-w-0 items-center gap-1.5">
@@ -572,11 +577,15 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
             // wciskać pod palcem — to jedna z trzech rzeczy, po których apka
             // „czuje się natywnie". Spring, nie tween, żeby dało się przerwać
             // w połowie gestu.
-            <motion.div key={item.href} whileTap={{ scale: 0.9 }} transition={SPRING} className="flex flex-1">
+            // `min-w-0` + `truncate` na etykiecie (Moduł 5, Paczka 5): bez tego
+            // pozycja `flex-1` ma domyślne `min-width: auto`, więc NIE zwęża się
+            // poniżej szerokości swojego tekstu — na wąskim ekranie belka
+            // rozpychała się szerzej niż ekran zamiast ścisnąć etykiety.
+            <motion.div key={item.href} whileTap={{ scale: 0.9 }} transition={SPRING} className="flex min-w-0 flex-1">
               <Link
                 href={`${base}${item.href}`}
                 prefetch={false}
-                className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px]"
+                className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px]"
               >
                 {active && (
                   // `layoutId` — podkreślenie PRZEJEŻDŻA między zakładkami
@@ -588,8 +597,8 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
                     className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-purple"
                   />
                 )}
-                <item.icon size={22} className={active ? "text-[var(--fg)]" : "text-muted"} />
-                <span className={active ? "text-[var(--fg)]" : "text-muted"}>{item.label}</span>
+                <item.icon size={22} className={`shrink-0 ${active ? "text-[var(--fg)]" : "text-muted"}`} />
+                <span className={`max-w-full truncate ${active ? "text-[var(--fg)]" : "text-muted"}`}>{item.label}</span>
               </Link>
             </motion.div>
           );
@@ -598,11 +607,11 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           whileTap={{ scale: 0.9 }}
           transition={SPRING}
           onClick={() => setMoreOpen(true)}
-          className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] text-muted"
+          className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] text-muted"
           aria-label="Więcej modułów"
         >
-          <IconLayoutGrid size={22} />
-          <span>Więcej</span>
+          <IconLayoutGrid size={22} className="shrink-0" />
+          <span className="max-w-full truncate">Więcej</span>
         </motion.button>
       </nav>
 

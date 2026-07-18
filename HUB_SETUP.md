@@ -5630,6 +5630,64 @@ efektu w podglądzie.
 przetestowane na wąsko — należą do kolejnej paczki i mają ten sam problem co
 Leady/Klienci przed tą zmianą (powtórz wzorzec ukrywania kolumn).
 
+## Moduł 5 — Paczka 5: dwa błędy widoczne DOPIERO na realnym iPhonie (2026-07-18)
+
+Właściciel zainstalował PWA na ekranie głównym i ocenił: „serio to jest słabo,
+totalnie mierny UX, źle się skaluje" — rozważał porzucenie PWA na rzecz natywnej
+apki w Xcode. **Zrzuty z telefonu wykazały dwie konkretne przyczyny, nie problem
+strukturalny.** Obie były NIEWIDOCZNE w podglądzie desktopowym.
+
+### Błąd 1 — sztywna wysokość paska zjadana przez wcięcie pod notch
+
+`className="… h-12 …" style={{ paddingTop: "env(safe-area-inset-top)" }}`
+
+Przy `box-sizing: border-box` (domyślne w Tailwindzie) `h-12` to **sztywne 48 px
+razem z paddingiem**, a wcięcie pod notch na iPhonie Pro Max to ~59 px. Wysokość
+NIE rosła, więc treść paska była wypychana poza jego obszar i dociskana do
+zegarka i baterii. → **`min-h-12`**. Zmierzone po poprawce: bez wcięcia 48 px,
+z wcięciem 59 px → **95 px**, treść mieści się w środku.
+
+**Reguła na przyszłość: element z `env(safe-area-inset-*)` w paddingu NIGDY nie
+może mieć sztywnej wysokości.** `min-h-*`, nie `h-*`.
+
+### Błąd 2 — jeden wystający element psuł CAŁY ekran
+
+Objawy ze zrzutów: ucięte „Prospekt" i „Mail" na kartach, ucięte „Filtry",
+brakujący dzwonek w górnym pasku, dolna belka bez etykiet — i strona dająca się
+przewijać w bok.
+
+Wszystko to **jeden łańcuch przyczynowy**: pasek narzędzi nie mieścił się w
+375 px (metryki czcionek iOS są szersze niż w podglądzie desktopowym), więc CAŁY
+dokument stawał się szerszy od ekranu. A wtedy górny pasek — `sticky`, czyli w
+normalnym układzie — rozciągał się na szerokość **dokumentu**, nie ekranu, więc
+jego prawa zawartość (lupa, dzwonek) lądowała poza kadrem. Karty też były cięte.
+
+Naprawa w trzech warstwach:
+1. **Twarda blokada: `overflow-x: clip` na `.admin-linear`.** Jeden wystający
+   piksel nie może już rozepchnąć dokumentu. **MUSI być `clip`, NIE `hidden`** —
+   `hidden` zamienia element w kontener przewijania (`overflow-y` → `auto`), co
+   zabiłoby `position: sticky` górnego paska. Zweryfikowane: po wstrzyknięciu
+   elementu 3000 px dokument został na 375 px (`guardHeld: true`), a pasek nadal
+   trzyma się góry po przewinięciu (`stickyDziała: true`).
+2. **Paski narzędzi Leadów/Klientów: `overflow-x-auto`** — nadmiar przewija się
+   wewnątrz paska, zamiast rozpychać stronę (i zamiast zostać uciętym przez
+   blokadę z p. 1).
+3. **Dolna belka: `min-w-0` + `truncate`** — pozycja `flex-1` ma domyślne
+   `min-width: auto`, więc nie zwężała się poniżej szerokości swojej etykiety.
+
+### Lekcja metodologiczna — dlaczego podgląd tego nie złapał
+
+Podgląd w tym środowisku to przeglądarka desktopowa o zadanej szerokości. Różni
+się od realnego iPhone'a w trzech rzeczach naraz, z których **każda ukryła jeden
+z tych błędów**: (a) `env(safe-area-inset-*)` = 0, więc błąd 1 nie mógł się
+ujawnić; (b) inne metryki czcionek, więc pasek mieścił się tam, gdzie na iOS nie;
+(c) brak trybu standalone. Sonda mierząca `scrollWidth` pokazywała 0 przepełnienia
+— **i była szczera, tylko środowisko było inne**.
+
+Wniosek: dla PWA **zrzut z realnego urządzenia jest jedynym rozstrzygającym
+dowodem**. Nie deklaruj „zweryfikowane na mobile" na podstawie samego podglądu —
+napisz, co zostało sprawdzone czym.
+
 ## Moduł 36 — Animacje i lekkość: jedno źródło płynności (2026-07-17)
 
 Druga rata rundy „lekkości" z 2026-07-16. Tamta naprawiła to, co propaguje się

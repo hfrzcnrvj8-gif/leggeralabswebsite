@@ -437,6 +437,19 @@
   /* Blokuje gumowanie CAŁEJ strony przy przewijaniu do końca listy (spod apki
      wyglądałoby puste tło). Wewnętrzne scrollery działają normalnie. */
   overscroll-behavior: none;
+  /* TWARDA BLOKADA szerokości (Moduł 5, Paczka 5 — znalezione na realnym
+     iPhonie, NIE do zobaczenia w podglądzie desktopowym).
+     Objaw: cokolwiek jednego elementu wystającego w bok (pasek narzędzi przy
+     szerszych metrykach czcionek iOS) robiło CAŁY dokument szerszym od ekranu.
+     Wtedy `sticky` górny pasek rozciągał się na szerokość DOKUMENTU, więc lupa
+     i dzwonek lądowały poza kadrem, a karty miały ucięte „Prospekt"/„Mail".
+     Jeden wystający piksel psuł cały ekran.
+
+     MUSI być `clip`, NIE `hidden`: `overflow-x: hidden` zamienia element w
+     kontener przewijania (`overflow-y` staje się `auto`), co zabiłoby
+     `position: sticky` górnego paska i przyklejonych nagłówków tabel. `clip`
+     przycina, nie tworząc kontenera przewijania. */
+  overflow-x: clip;
 }
 .admin-linear button,
 .admin-linear a,

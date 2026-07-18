@@ -258,7 +258,11 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazanie wysokości okna
     // do Tablicy/Tabeli, żeby kończyły się na krawędzi ekranu, nie na treści.
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
-      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+      {/* `overflow-x-auto` — patrz LeadsDashboard.tsx (Moduł 5, Paczka 5). */}
+      <div
+        className="flex shrink-0 items-center gap-1 overflow-x-auto border-b hairline px-4 sm:px-6"
+        style={{ height: "44px" }}
+      >
         <ViewTabs
           value={view}
           onChange={switchView}

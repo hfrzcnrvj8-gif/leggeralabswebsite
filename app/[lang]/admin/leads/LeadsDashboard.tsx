@@ -358,7 +358,15 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       {/* Kompaktowy pasek — zakładki widoku + filtry + akcje jako małe ikony,
           bez dużego nagłówka strony i bez kolorowych kart statystyk. */}
-      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+      {/* `overflow-x-auto` (Moduł 5, Paczka 5) — na iOS metryki czcionek są
+          szersze niż w podglądzie desktopowym i pasek potrafił nie zmieścić się
+          w 375 px. Bez tego wystawał, robiąc CAŁY dokument szerszym od ekranu
+          (patrz `overflow-x: clip` w globals.css) i psując pozycję wszystkiego
+          innego. Teraz nadmiar przewija się w obrębie samego paska. */}
+      <div
+        className="flex shrink-0 items-center gap-1 overflow-x-auto border-b hairline px-4 sm:px-6"
+        style={{ height: "44px" }}
+      >
         <ViewTabs
           value={view}
           onChange={switchView}
