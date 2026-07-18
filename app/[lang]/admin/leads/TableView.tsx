@@ -103,32 +103,43 @@ export function TableView({
           const meta = [lead.osoba_kontaktowa, lead.branza, lead.miasto].filter(Boolean).join(" · ");
           // ≥44 px — minimalny wygodny cel dotykowy (wytyczne Apple), ten sam
           // rozmiar co `ContactQuickActions` w profilu.
+          // Skala typografii telefonu (Moduł 5, Paczka 6): panel jest gęsty
+          // jak Linear (12-14 px), bo projektowany pod mysz i duży monitor. Na
+          // telefonie to główny powód wrażenia „to jest desktop wciśnięty w
+          // telefon". Tu wartości są o klasę większe — porównywalne z natywnymi
+          // apkami iOS. Tabela desktopowa niżej ZOSTAJE gęsta.
           const quickCls =
-            "touch-press flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border hairline px-3 text-[12.5px] font-medium text-[var(--fg)]";
+            "touch-press flex min-h-[46px] flex-1 items-center justify-center gap-1.5 rounded-full border hairline px-3 text-[13.5px] font-medium text-[var(--fg)]";
           return (
             <div
               key={lead.id}
               onContextMenu={(e) => ctl.openAt(e, lead)}
-              className={`border-b hairline px-3 py-3 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
+              className={`border-b hairline px-4 py-4 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
             >
-              <div className="flex items-start gap-2">
-                <button onClick={() => onOpen(lead.id)} className="min-w-0 flex-1 text-left">
-                  <span className="block truncate text-[14px] font-medium text-[var(--fg)]">{lead.firma}</span>
-                  {meta && <span className="mt-0.5 block truncate text-[12px] text-muted">{meta}</span>}
-                </button>
-                <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
-              </div>
+              {/* Nazwa dostaje CAŁĄ szerokość (Paczka 6). Wcześniej dzieliła
+                  wiersz z plakietką statusu, a statusy leadów bywają długie
+                  („Nowe zgłoszenie ze strony") — przy powiększonej typografii
+                  telefonu nazwa firmy zostawała ucięta w połowie, a to
+                  najważniejszy tekst na karcie. Status schodzi linijkę niżej,
+                  do wiersza z datą kontaktu. */}
+              <button onClick={() => onOpen(lead.id)} className="block w-full text-left">
+                <span className="block truncate text-[17px] font-semibold leading-tight text-[var(--fg)]">
+                  {lead.firma}
+                </span>
+                {meta && <span className="mt-1 block truncate text-[13.5px] text-muted">{meta}</span>}
+              </button>
 
-              <div className="mt-1.5 text-[11.5px]">
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
+                <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
                 <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>
                   {lead.ostatni_kontakt
-                    ? `Kontakt: ${formatPlDate(lead.ostatni_kontakt)}${daysAgoLabel(d) ? ` · ${daysAgoLabel(d)}` : ""}`
+                    ? `${formatPlDate(lead.ostatni_kontakt)}${daysAgoLabel(d) ? ` · ${daysAgoLabel(d)}` : ""}`
                     : "Brak kontaktu"}
                 </span>
               </div>
 
               {(lead.telefon || lead.email || wa) && (
-                <div className="mt-2 flex gap-1.5">
+                <div className="mt-3 flex gap-2">
                   {lead.telefon && (
                     <a href={`tel:${lead.telefon}`} className={quickCls} aria-label={`Zadzwoń do ${lead.firma}`}>
                       <ContactChannelIcon kind="telefon" size={15} /> Zadzwoń

@@ -538,9 +538,10 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
             kontener — dzięki temu zmiana jest bezpieczna dla WSZYSTKICH modułów,
             a nie tylko dla tych przerobionych. */}
         <div
-          // `pb-[…]` na mobile = miejsce na fixed dolną belkę nawigacji
-          // (wysokość belki + safe-area). Od md belki nie ma → zwykłe pb-5.
-          className={`mx-auto flex w-full flex-1 flex-col px-4 pt-5 pb-[calc(1.25rem+4.5rem+env(safe-area-inset-bottom))] sm:px-6 md:min-h-0 md:overflow-y-auto md:pb-5 ${
+          // `pb-[…]` na mobile = miejsce na PŁYWAJĄCĄ kapsułę nawigacji
+          // (wysokość kapsuły + jej odsunięcie od dołu + safe-area). Od md
+          // kapsuły nie ma → zwykłe pb-5.
+          className={`mx-auto flex w-full flex-1 flex-col px-4 pt-5 pb-[calc(1.25rem+5.25rem+env(safe-area-inset-bottom))] sm:px-6 md:min-h-0 md:overflow-y-auto md:pb-5 ${
             pathname.startsWith(`${base}/mail`) ? "max-w-none" : "max-w-[1800px]"
           }`}
         >
@@ -565,10 +566,15 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           safe-area-inset-bottom pod pasek gestów iPhone'a. Cztery moduły
           rdzenia + „Więcej". */}
       <nav
-        // Materiał jak w górnym pasku — lista przewijana pod belką rozmywa się
-        // pod nią, zamiast chować się za nieprzezroczystym prostokątem.
-        className="glass glass-ios fixed inset-x-0 bottom-0 z-30 flex items-stretch border-x-0 border-b-0 border-t border-t-[var(--glass-border)] md:hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        // PŁYWAJĄCA KAPSUŁA (Moduł 5, Paczka 6 — wzorzec wskazany przez
+        // właściciela na przykładzie apki UniFi). Nie pasek przyklejony do
+        // dolnej krawędzi, tylko zaokrąglona wyspa odsunięta od brzegów, pod
+        // którą przepływa treść. To jest ta forma, którą rozpoznaje się jako
+        // „natywnie mobilne", a nie „strona z menu na dole".
+        // `left-3/right-3` + `bottom` z bezpiecznym wcięciem = odsunięcie od
+        // wszystkich trzech krawędzi. `.glass` daje rant i cień kapsuły.
+        className="glass glass-ios fixed left-3 right-3 z-30 flex items-stretch rounded-[26px] md:hidden"
+        style={{ bottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
       >
         {NAV.filter((item) => MOBILE_PRIMARY_HREFS.includes(item.href)).map((item) => {
           const active = isNavActive(item.href);
@@ -585,20 +591,28 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               <Link
                 href={`${base}${item.href}`}
                 prefetch={false}
-                className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px]"
+                className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px]"
               >
                 {active && (
-                  // `layoutId` — podkreślenie PRZEJEŻDŻA między zakładkami
-                  // zamiast znikać i pojawiać się w nowym miejscu (ten sam
-                  // wzorzec co ViewTabs).
+                  // Wypełniona pigułka POD pozycją, nie kreska u góry — w
+                  // zaokrąglonej kapsule kreska przy krawędzi wygląda jak
+                  // artefakt. `layoutId` sprawia, że pigułka PRZEJEŻDŻA między
+                  // pozycjami zamiast znikać i pojawiać się w nowym miejscu.
                   <motion.span
                     layoutId="mobile-nav-active"
                     transition={SPRING}
-                    className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-purple"
+                    className="absolute inset-y-1 inset-x-0.5 rounded-[20px] bg-white/[0.09]"
                   />
                 )}
-                <item.icon size={22} className={`shrink-0 ${active ? "text-[var(--fg)]" : "text-muted"}`} />
-                <span className={`max-w-full truncate ${active ? "text-[var(--fg)]" : "text-muted"}`}>{item.label}</span>
+                <item.icon
+                  size={23}
+                  className={`relative shrink-0 ${active ? "text-[var(--fg)]" : "text-muted"}`}
+                />
+                <span
+                  className={`relative max-w-full truncate ${active ? "font-medium text-[var(--fg)]" : "text-muted"}`}
+                >
+                  {item.label}
+                </span>
               </Link>
             </motion.div>
           );
@@ -607,10 +621,10 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           whileTap={{ scale: 0.9 }}
           transition={SPRING}
           onClick={() => setMoreOpen(true)}
-          className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] text-muted"
+          className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted"
           aria-label="Więcej modułów"
         >
-          <IconLayoutGrid size={22} className="shrink-0" />
+          <IconLayoutGrid size={23} className="shrink-0" />
           <span className="max-w-full truncate">Więcej</span>
         </motion.button>
       </nav>

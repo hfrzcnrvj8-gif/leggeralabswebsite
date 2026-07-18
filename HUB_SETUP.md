@@ -5688,6 +5688,45 @@ Wniosek: dla PWA **zrzut z realnego urządzenia jest jedynym rozstrzygającym
 dowodem**. Nie deklaruj „zweryfikowane na mobile" na podstawie samego podglądu —
 napisz, co zostało sprawdzone czym.
 
+## Moduł 5 — Paczka 6: język mobilny, nie zagęszczony desktop (2026-07-18)
+
+Po Paczce 5 (naprawa dwóch błędów ucinania) właściciel nadal ocenił „wygląda
+fatalnie" i **podesłał wzorzec — zrzut z apki UniFi**. To była kluczowa
+informacja, bo pokazała, że problem nie leży już w błędach, tylko w JĘZYKU:
+panel to interfejs Linear (gęsty, pod mysz i duży monitor) przelany na wąski
+ekran. Trzy różnice odczytane ze wzorca i wdrożone:
+
+### 1. Dolna nawigacja → PŁYWAJĄCA KAPSUŁA
+
+Nie pasek przyklejony do dolnej krawędzi, tylko **zaokrąglona wyspa odsunięta od
+wszystkich trzech krawędzi**, pod którą przepływa treść. To jest forma, którą
+rozpoznaje się jako „natywnie mobilne". Zmierzone: 12 px od boków, 8 px nad
+bezpiecznym wcięciem, wysokość 66 px, promień 26 px, materiał `.glass .glass-ios`.
+
+Wskaźnik aktywnej pozycji: **wypełniona pigułka POD pozycją**, nie kreska u góry
+(w zaokrąglonej kapsule kreska przy krawędzi wygląda jak artefakt). `layoutId`
+zostaje, więc pigułka przejeżdża między pozycjami.
+
+### 2. Skala typografii telefonu — o klasę większa
+
+Panel jest gęsty (10–14 px) z założenia, bo projektowany pod mysz. Na telefonie
+to **główny powód wrażenia „desktop wciśnięty w telefon"**. Na kartach
+Leadów/Klientów: nazwa 14 → **17 px semibold**, meta 12 → 13,5 px, data
+11,5 → 13 px, przyciski 12,5 → 13,5 px, cel dotykowy 44 → 46 px, padding karty
+12 → 16 px. **Tabela desktopowa ZOSTAJE gęsta** — to zmiana tylko dla `md:hidden`.
+
+### 3. Nazwa dostaje całą szerokość
+
+Powiększenie typografii ujawniło problem, którego przy małej czcionce nie było:
+nazwa dzieliła wiersz z plakietką statusu, a statusy leadów bywają długie
+(„Nowe zgłoszenie ze strony") → „Piekarnia Złot…". Nazwa firmy to najważniejszy
+tekst na karcie, więc dostaje własną linię, a status schodzi niżej, do wiersza z
+datą (`flex-wrap`, żeby przy długim statusie data przeszła do nowej linii).
+
+**Wniosek do zapamiętania:** powiększanie typografii na mobile NIE jest bezpieczną
+zmianą kosmetyczną — ujawnia każdy układ, który mieścił się tylko dzięki małej
+czcionce. Po każdym takim podbiciu przejrzyj sąsiednie elementy.
+
 ## Moduł 36 — Animacje i lekkość: jedno źródło płynności (2026-07-17)
 
 Druga rata rundy „lekkości" z 2026-07-16. Tamta naprawiła to, co propaguje się
