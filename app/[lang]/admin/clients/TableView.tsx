@@ -183,15 +183,22 @@ export function TableView({
                   aria-label="Zaznacz wszystkie"
                 />
               </th>
+              {/* Kolumny znikają stopniowo wg ważności (Moduł 5, Paczka 4) —
+                  suma samych `min-w` to ~1030 px, a iPad w pionie daje tabeli
+                  494 px, więc bez tego połowa tabeli była poza ekranem.
+                  ZAWSZE: zaznaczenie, Nazwa, Telefon, Status, akcje.
+                  Od `lg`: Email, Ostatni kontakt. Od `xl`: Branża, Ocena, Dni,
+                  Notatki. Ukrywamy `<th>` I odpowiadające `<td>` — inaczej
+                  wiersze rozjadą się względem nagłówka. */}
               <th className="min-w-[160px] bg-[var(--bg-soft)] p-2">Nazwa</th>
-              <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Branża</th>
+              <th className="hidden min-w-[110px] bg-[var(--bg-soft)] p-2 xl:table-cell">Branża</th>
               <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Telefon</th>
-              <th className="min-w-[150px] bg-[var(--bg-soft)] p-2">Email</th>
+              <th className="hidden min-w-[150px] bg-[var(--bg-soft)] p-2 lg:table-cell">Email</th>
               <th className="min-w-[100px] bg-[var(--bg-soft)] p-2">Status</th>
-              <th className="min-w-[70px] bg-[var(--bg-soft)] p-2">Ocena</th>
-              <th className="min-w-[110px] bg-[var(--bg-soft)] p-2">Ostatni kontakt</th>
-              <th className="bg-[var(--bg-soft)] p-2">Dni</th>
-              <th className="min-w-[220px] bg-[var(--bg-soft)] p-2">Notatki</th>
+              <th className="hidden min-w-[70px] bg-[var(--bg-soft)] p-2 xl:table-cell">Ocena</th>
+              <th className="hidden min-w-[110px] bg-[var(--bg-soft)] p-2 lg:table-cell">Ostatni kontakt</th>
+              <th className="hidden bg-[var(--bg-soft)] p-2 xl:table-cell">Dni</th>
+              <th className="hidden min-w-[220px] bg-[var(--bg-soft)] p-2 xl:table-cell">Notatki</th>
               <th className="bg-[var(--bg-soft)] p-2"></th>
             </tr>
           </thead>
@@ -276,13 +283,13 @@ export function TableView({
                       )}
                     </div>
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 xl:table-cell">
                     <Truncate value={client.branza} />
                   </td>
                   <td className="p-2">
                     <Truncate value={client.telefon} />
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 lg:table-cell">
                     <Truncate value={client.email} />
                     {client.linkedin_url && (
                       <span className="flex items-center gap-1 text-[11px] text-muted opacity-80">
@@ -294,7 +301,7 @@ export function TableView({
                   <td className="p-2">
                     <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 xl:table-cell">
                     {client.avg_rating != null ? (
                       <span className="text-brand-gold" title={`Średnia ocena z opinii: ${client.avg_rating.toFixed(1)}/5`}>
                         ★ {client.avg_rating.toFixed(1)}
@@ -303,13 +310,13 @@ export function TableView({
                       <span className="text-muted opacity-50">—</span>
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 lg:table-cell">
                     <Truncate value={formatPlDate(client.ostatni_kontakt)} />
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 xl:table-cell">
                     {d === null ? "—" : <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>{d} dni</span>}
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 xl:table-cell">
                     <Truncate value={client.notatki} />
                   </td>
                   <td className="p-2">

@@ -5548,6 +5548,88 @@ zostały w buforze i wyglądały na aktualne, mimo że `tsc` przechodził, a str
 renderowała się poprawnie. Rozstrzyga dopiero **świeża karta** (`tabs_create`)
 — tam zero błędów. Nie diagnozuj z bufora starej karty.
 
+## Moduł 5 — Paczka 4: skalowanie, ergonomia dotyku, „odwebowienie" (2026-07-17)
+
+Prośba właściciela: „żeby wszystko dobrze się dopasowywało i skalowało, wygląd
+spójny na iPhonie i iPadzie, maksymalnie jak natywne apki iOS".
+
+**Ustalenie, które ukształtowało zakres:** natywne apki iOS celowo wyglądają
+INACZEJ na iPhonie i iPadzie (Mail Apple: telefon = dolna belka + arkusze, iPad
+= sidebar + widok dzielony + popovery). „Spójność" w topowych apkach oznacza ten
+sam JĘZYK (materiały, ruch, typografia, ergonomia), nie identyczny układ.
+Decyzja właściciela: **iPad zostaje przy układzie desktopowym**, ale dostaje
+dokładnie ten sam język co telefon.
+
+### 1. Ergonomia wg RODZAJU WSKAŹNIKA, nie szerokości — to była realna wada
+
+iPad był urządzeniem dotykowym, któremu podawaliśmy interfejs pod mysz: `md:` i
+`max-width` mówią o SZEROKOŚCI, a iPad jest szeroki ORAZ dotykowy. Nowa sekcja w
+`globals.css` pod **`@media (any-pointer: coarse)`**: pozycje menu i nawigacja
+w sidebarze rosną do **44 px**, dochodzi wciskanie pod palcem (odpowiednik
+`whileTap` z dolnej belki telefonu).
+
+Świadomie **`any-pointer`** („urządzenie MA ekran dotykowy"), nie `pointer`
+(„główny wskaźnik to palec"): iPad z klawiaturą/gładzikiem raportuje wskaźnik
+precyzyjny i przy `pointer` zgubiłby całą ergonomię dotykową. Mac właściciela
+nie ma dotyku, więc desktop zostaje gęsty. **UKŁAD nadal zależy od szerokości
+(`md:`) — nie zamieniaj tych dwóch osi z powrotem na jedną.**
+
+### 2. „Odwebowienie" — drobiazgi zdradzające stronę w przeglądarce
+
+Skopowane do `.admin-linear` (nie ruszamy strony publicznej):
+`-webkit-tap-highlight-color: transparent` (szary błysk przy każdym dotknięciu —
+w natywnych apkach nie istnieje), `touch-action: manipulation` (podwójne
+tapnięcie = zoom + ~300 ms ociężałości), `overscroll-behavior: none` (gumowanie
+całej strony), `-webkit-text-size-adjust: 100%` (Safari powiększał czcionki po
+obrocie iPada → układ „skakał"), `user-select: none` **tylko na chrome**
+(paski/menu) — treść zostaje zaznaczalna, bo z niej się kopiuje numery.
+
+### 3. Kolumny znikają stopniowo zamiast uciekać poza ekran
+
+**Zmierzone, nie oszacowane:** tabela leadów miała bezwarunkowe
+`min-w-[900px]`, a na iPadzie w pionie dostaje **494 px** — brakowało **406 px**,
+czyli prawie połowa kolumn była poza ekranem i trzeba było jeździć palcem w bok.
+Tabela klientów: suma samych `min-w` ≈ 1030 px.
+
+Rozwiązanie jak w topowych listach (Linear): kolumny **ukrywane wg ważności**,
+`min-w-[900px]` dopiero od `xl`.
+- Leady — zawsze: zaznaczenie, Firma, Kontakt, Status, akcje · `lg`: + Branża,
+  Ostatni kontakt · `xl`: + Miasto, Źródło, Dni.
+- Klienci — zawsze: zaznaczenie, Nazwa, Telefon, Status, akcje · `lg`: + Email,
+  Ostatni kontakt · `xl`: + Branża, Ocena, Dni, Notatki.
+
+**Pułapka:** ukrywając kolumnę trzeba ukryć `<col>` ORAZ `<th>` ORAZ `<td>` —
+sam `<col>` nie chowa komórek, a same komórki zostawiłyby pusty pas po `<col>`.
+Zweryfikowane sondą liczącą, że liczba widocznych `<th>` = liczba widocznych
+`<td>` i że **lewe krawędzie kolumn nagłówka i wiersza pokrywają się co do 2 px**
+(`aligned: true`) na 768 / 1024 / 1440 — inaczej nagłówek rozjechałby się z
+danymi i nikt by tego nie zauważył na zrzucie.
+
+### Wynik pomiarów (sonda w przeglądarce, nie „na oko")
+
+| szerokość | przepełnienie strony | przewijanie w bok | kolumny (Leady) |
+|---|---|---|---|
+| 375 (iPhone) | 0 | brak | karty, nie tabela |
+| 430 (iPhone Max) | 0 | brak | karty |
+| 768 (iPad pion) | 0 | **brak** (było: 406 px) | Firma/Kontakt/Status |
+| 1024 (iPad poziom) | 0 | **brak** (było: 150 px) | + Branża, Ostatni kontakt |
+| 1440 (desktop) | 0 | brak | pełne 8 |
+
+### ⚠️ Ograniczenie weryfikacji — przeczytaj, zanim uznasz coś za zepsute
+
+**Podgląd w tym środowisku udaje ROZMIAR ekranu, ale nie DOTYK**: raportuje
+`pointer: fine`, `hover: hover`, `maxTouchPoints: 0`. Wszystkie reguły spod
+`any-pointer: coarse` (44 px, wciskanie) oraz `.touch-press` **są tu niewidoczne**
+i zadziałają dopiero na realnym iPhonie/iPadzie. Zweryfikowane zamiast tego przez
+**CSSOM** — sonda potwierdziła, że reguły wygenerowały się z poprawnymi
+selektorami, i że `tapHighlight: rgba(0,0,0,0)`, `overscroll: none`,
+`touch-action: manipulation` są aktywne. Nie „naprawiaj" ich, bo nie widać
+efektu w podglądzie.
+
+**Dev-baza nie ma faktur ani kosztów**, więc tamte tabele nie zostały
+przetestowane na wąsko — należą do kolejnej paczki i mają ten sam problem co
+Leady/Klienci przed tą zmianą (powtórz wzorzec ukrywania kolumn).
+
 ## Moduł 36 — Animacje i lekkość: jedno źródło płynności (2026-07-17)
 
 Druga rata rundy „lekkości" z 2026-07-16. Tamta naprawiła to, co propaguje się

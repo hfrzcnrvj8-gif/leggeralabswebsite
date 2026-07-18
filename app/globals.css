@@ -175,12 +175,13 @@
   /* Reakcja na dotyk (Moduł 5, Paczka 3) — cel dotykowy ma się WCISKAĆ pod
      palcem. To jedna z trzech rzeczy (obok materiału i arkuszy), po których
      interfejs czyta się jako apka, a nie jako strona otwarta w przeglądarce.
-     Ograniczone do `hover: none` (dotyk), żeby nie zmieniać zachowania myszy
-     na desktopie, gdzie od najeżdżania jest `:hover`. */
+     `any-pointer: coarse` = urządzenie MA ekran dotykowy (patrz uzasadnienie
+     przy sekcji „Ergonomia dotyku" niżej) — Mac bez dotyku zostaje przy
+     `:hover`, iPhone i iPad dostają wciskanie. */
   .touch-press {
     transition: transform 0.12s var(--ease-liquid);
   }
-  @media (hover: none) {
+  @media (any-pointer: coarse) {
     .touch-press:active {
       transform: scale(0.96);
     }
@@ -417,6 +418,85 @@
 }
 .admin-linear .card-paper:hover {
   box-shadow: none;
+}
+
+/* ─── Moduł 5, Paczka 4: „odwebowienie" panelu ──────────────────────────────
+   Drobiazgi, po których na telefonie od razu widać stronę w przeglądarce
+   zamiast aplikacji. Każdy z osobna wygląda błaho, razem odpowiadają za sporą
+   część wrażenia „to nie jest apka". Skopowane do `.admin-linear`, żeby nie
+   zmieniać zachowania publicznej strony marketingowej. */
+.admin-linear {
+  /* Szary prostokąt błyskający przy KAŻDYM dotknięciu linku/przycisku — czysto
+     przeglądarkowy odruch, w natywnych apkach nie istnieje. Zastępujemy go
+     własną reakcją (`.touch-press`). */
+  -webkit-tap-highlight-color: transparent;
+  /* Safari powiększa czcionki przy obrocie do poziomu, jeśli tego nie wyłączyć
+     — układ „skacze" po obrocie iPada. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Blokuje gumowanie CAŁEJ strony przy przewijaniu do końca listy (spod apki
+     wyglądałoby puste tło). Wewnętrzne scrollery działają normalnie. */
+  overscroll-behavior: none;
+}
+.admin-linear button,
+.admin-linear a,
+.admin-linear [role="button"],
+.admin-linear [role^="menuitem"],
+.admin-linear input,
+.admin-linear select,
+.admin-linear textarea {
+  /* `manipulation` wyłącza podwójne tapnięcie = zoom, a przy okazji kasuje
+     ~300 ms opóźnienia, po którym interfejs sprawia wrażenie ociężałego. */
+  touch-action: manipulation;
+}
+/* Chrome (paski, belka, uchwyty) nie ma być zaznaczalny — przytrzymanie palca
+   na etykiecie w natywnej apce nie zaznacza tekstu. Treść (karty, pola,
+   tabele) ZOSTAJE zaznaczalna, bo z niej się kopiuje numery i adresy. */
+.admin-linear nav,
+.admin-linear header,
+.admin-linear aside,
+.admin-linear [role="menu"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ─── Ergonomia dotyku — wg RODZAJU WSKAŹNIKA, nie szerokości ekranu ────────
+   To jest ta poprawka, przez którą iPad dostawał interfejs zaprojektowany pod
+   mysz: `md:` i `max-width` mówią o SZEROKOŚCI, a iPad jest szeroki ORAZ
+   dotykowy. Cele dotykowe rosną więc tam, gdzie realnie klika się palcem, a
+   mysz na desktopie zostaje przy dotychczasowej gęstości.
+
+   Świadomie `any-pointer: coarse` („urządzenie MA ekran dotykowy"), NIE
+   `pointer: coarse` („główny wskaźnik to palec"): iPad z podłączoną klawiaturą
+   albo gładzikiem raportuje wskaźnik precyzyjny i przy `pointer` zgubiłby całą
+   ergonomię dotykową, mimo że nadal dotyka się go palcem. Mac właściciela nie
+   ma ekranu dotykowego, więc desktop i tak zostaje gęsty.
+
+   UKŁAD nadal zależy od szerokości (`md:` — sidebar na iPadzie, dolna belka na
+   telefonie). Rozdzielenie tych dwóch osi jest celowe: iPad ma układ
+   desktopowy, ale ergonomię dotykową. Nie zamieniaj tego z powrotem na
+   `max-width`. */
+@media (any-pointer: coarse) {
+  /* Pozycje KAŻDEGO menu panelu (Filtry, statusy, menu kontekstowe) — są
+     projektowane pod wąski dropdown i kursor (30 px), palcem trafia się w nie
+     źle. Bezpieczne: `[role^=menuitem]` występuje wyłącznie w menu, więc
+     tabele i gęste wiersze zostają nietknięte. */
+  .admin-linear [role^="menuitem"] {
+    min-height: 44px;
+  }
+  /* Nawigacja w bocznym menu (iPad) — te same 44 px co w dolnej belce na
+     telefonie, żeby oba urządzenia miały tę samą ergonomię. */
+  .admin-linear aside nav a {
+    min-height: 44px;
+  }
+  /* Reakcja na dotknięcie dla nawigacji iPada — odpowiednik `whileTap`
+     z dolnej belki telefonu. Ten sam ruch na obu urządzeniach. */
+  .admin-linear aside nav a:active {
+    transform: scale(0.97);
+  }
+  .admin-linear aside nav a {
+    transition: transform 0.12s var(--ease-liquid);
+  }
 }
 
 /* Gradientowa obwódka fiolet→złoto (marka) przez technikę maski, plus

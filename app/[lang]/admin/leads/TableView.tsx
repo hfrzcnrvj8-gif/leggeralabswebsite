@@ -181,20 +181,33 @@ export function TableView({
         // martwe pole pod spodem. Teraz tabela bierze dokładnie tyle, ile jest.
         className="min-w-full flex-1 overflow-auto rounded-2xl md:min-h-0"
       >
-        <table className="w-full min-w-[900px] table-fixed text-xs">
+        {/* `min-w-[900px]` dopiero od `xl` (Moduł 5, Paczka 4). Wcześniej było
+            bezwarunkowe i na iPadzie w pionie tabela potrzebowała 900 px mając
+            494 — brakowało 406 px, czyli prawie połowa kolumn była poza
+            ekranem i trzeba było jeździć palcem w bok. Teraz poniżej `xl`
+            tabela mieści się w kontenerze, a nadmiarowe kolumny są UKRYWANE
+            (patrz colgroup) — tak robią topowe listy (Linear), zamiast zmuszać
+            do przewijania poziomego. */}
+        <table className="w-full table-fixed text-xs xl:min-w-[900px]">
           {/* Wszystkie kolumny w procentach (sumujące się do 100%), żaden
               px-owy wyjątek — inaczej table-fixed nie rozciąga tabeli na
-              całą dostępną szerokość, tylko zostawia martwe miejsce z boku. */}
+              całą dostępną szerokość, tylko zostawia martwe miejsce z boku.
+
+              Kolumny znikają stopniowo wg ważności. ZAWSZE: zaznaczenie,
+              Firma, Kontakt, Status, akcje. Od `lg`: Branża i Ostatni kontakt.
+              Od `xl` (pełna tabela): Miasto, Źródło, Dni. Ukrywając kolumnę
+              MUSISZ ukryć i `<col>`, i `<th>`, i `<td>` — sam `<col>` nie
+              chowa komórek, a same komórki zostawiłyby pusty pas po `<col>`. */}
           <colgroup>
             <col className="w-[3%]" />
             <col className="w-[22%]" />
-            <col className="w-[9%]" />
+            <col className="hidden w-[9%] lg:table-column" />
             <col className="w-[15%]" />
-            <col className="w-[8%]" />
-            <col className="w-[13%]" />
+            <col className="hidden w-[8%] xl:table-column" />
+            <col className="hidden w-[13%] xl:table-column" />
             <col className="w-[12%]" />
-            <col className="w-[9%]" />
-            <col className="w-[4%]" />
+            <col className="hidden w-[9%] lg:table-column" />
+            <col className="hidden w-[4%] xl:table-column" />
             <col className="w-[5%]" />
           </colgroup>
           <thead>
@@ -209,13 +222,13 @@ export function TableView({
                 />
               </th>
               <th className="bg-[var(--bg-soft)] p-2">Firma</th>
-              <th className="bg-[var(--bg-soft)] p-2">Branża</th>
+              <th className="hidden bg-[var(--bg-soft)] p-2 lg:table-cell">Branża</th>
               <th className="bg-[var(--bg-soft)] p-2">Kontakt</th>
-              <th className="bg-[var(--bg-soft)] p-2">Miasto</th>
-              <th className="bg-[var(--bg-soft)] p-2">Źródło</th>
+              <th className="hidden bg-[var(--bg-soft)] p-2 xl:table-cell">Miasto</th>
+              <th className="hidden bg-[var(--bg-soft)] p-2 xl:table-cell">Źródło</th>
               <th className="bg-[var(--bg-soft)] p-2">Status</th>
-              <th className="bg-[var(--bg-soft)] p-2">Ostatni kontakt</th>
-              <th className="bg-[var(--bg-soft)] p-2">Dni</th>
+              <th className="hidden bg-[var(--bg-soft)] p-2 lg:table-cell">Ostatni kontakt</th>
+              <th className="hidden bg-[var(--bg-soft)] p-2 xl:table-cell">Dni</th>
               <th className="bg-[var(--bg-soft)] p-2"></th>
             </tr>
           </thead>
@@ -305,7 +318,7 @@ export function TableView({
                       <Truncate value={lead.osoba_kontaktowa} className="text-[11px] text-muted opacity-80" />
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 lg:table-cell">
                     <Truncate value={lead.branza} />
                   </td>
                   <td className="p-2">
@@ -321,19 +334,19 @@ export function TableView({
                       </span>
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 xl:table-cell">
                     <Truncate value={lead.miasto} />
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 xl:table-cell">
                     <Truncate value={leadSourceLabel(lead)} />
                   </td>
                   <td className="p-2">
                     <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 lg:table-cell">
                     <Truncate value={formatPlDate(lead.ostatni_kontakt)} />
                   </td>
-                  <td className="p-2">
+                  <td className="hidden p-2 xl:table-cell">
                     {d === null ? (
                       "—"
                     ) : (
