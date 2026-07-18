@@ -5808,3 +5808,29 @@ czyste, nietknięte.
   Zero błędów konsoli. **Pułapka rAF potwierdzona** (`visibilityState:"hidden"`,
   swap widoku „zamarzł" na jednej klatce) → obejście: pompowanie klatek
   zrzutami ekranu, jak w Module 35A. To artefakt narzędzia, nie bug.
+
+## Aplikacja natywna, Faza 1 — tokeny per-urządzenie (2026-07-19)
+
+Warunek wstępny apki iOS (patrz `docs/natywna-aplikacja/00-plan.md`): klient
+natywny nie ma ciasteczek przeglądarki. Decyzja właściciela: **tokeny
+per-urządzenie z możliwością odebrania dostępu** (zgubiony telefon odcina się
+z panelu, bez zmiany hasła).
+
+- `POST /api/admin/login` z polem `device` w body → tworzy losowy token
+  per-urządzenie i zwraca go w JSON (jedyny raz; w bazie tylko SHA-256).
+  Bez `device` — dotychczasowy tryb webowy z ciasteczkiem, bez zmian.
+- `isAuthed()` (`lib/auth.ts`) sprawdza nagłówek `Authorization: Bearer`
+  PRZED ciasteczkiem; poprawny token przy okazji odświeża `last_used_at`
+  jednym zapytaniem. Przeglądarka nagłówka nie wysyła → panel webowy nie
+  płaci ani jednym dodatkowym zapytaniem.
+- `POST /api/admin/logout` z Bearerem unieważnia token TEGO urządzenia.
+- `GET /api/admin/devices` + `DELETE /api/admin/devices/:id` — lista
+  urządzeń i odbieranie dostępu; UI: przycisk „Urządzenia" w stopce
+  sidebara (`DevicesPanel.tsx`, wspólny `Modal`).
+- Tabela `device_tokens` (`lib/db.ts`, schemat `device_tokens` z bramką
+  migracji): id, token_hash (UNIQUE), device_name, created_at, last_used_at,
+  revoked_at. Wierszy nie kasujemy — odebranie = `revoked_at`.
+
+Pełna specyfikacja dla apki: `docs/natywna-aplikacja/inwentarz/00-uwierzytelnianie.md`.
+Zweryfikowane end-to-end curlami na serwerze dev z ustawionym hasłem
+(logowanie, Bearer, 401 po odebraniu, tryb webowy nienaruszony).

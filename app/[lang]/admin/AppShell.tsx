@@ -22,6 +22,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconLogout,
+  IconDevices,
   IconPlayerStop,
   IconLayoutGrid,
   IconX,
@@ -31,6 +32,7 @@ import {
 import type { Locale } from "@/i18n/config";
 import { AdminUIProvider, useUI, isTypingTarget, type Action } from "./ui";
 import { CommandPalette } from "./CommandPalette";
+import { DevicesPanel } from "./DevicesPanel";
 import { NotificationBell } from "./NotificationBell";
 import { LogoMark } from "@/components/Logo";
 import type { Lead } from "@/lib/leads";
@@ -137,6 +139,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Moduł 5 — arkusz „Więcej" (mobilna nawigacja). Tylko na telefonie.
   const [moreOpen, setMoreOpen] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   // Przeciąganie arkusza startuje WYŁĄCZNIE z uchwytu (patrz Modal.tsx) —
   // inaczej gest konkurowałby z przewijaniem siatki modułów w środku.
   const moreDragControls = useDragControls();
@@ -509,6 +512,14 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
 
           <div className={`mt-2 flex items-center ${collapsed ? "flex-col" : ""}`}>
             <button
+              onClick={() => setDevicesOpen(true)}
+              className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)]"
+              title="Urządzenia"
+            >
+              <IconDevices size={15} />
+              {!collapsed && <span>Urządzenia</span>}
+            </button>
+            <button
               onClick={async () => {
                 await fetch("/api/admin/logout", { method: "POST" });
                 window.location.reload();
@@ -741,6 +752,17 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               )}
 
               <button
+                onClick={() => {
+                  setMoreOpen(false);
+                  setDevicesOpen(true);
+                }}
+                className="mt-1.5 flex w-full items-center gap-2.5 rounded-xl border hairline px-3 py-3 text-[13px] text-muted hover:bg-[var(--hairline)]"
+              >
+                <IconDevices size={19} />
+                <span>Urządzenia</span>
+              </button>
+
+              <button
                 onClick={async () => {
                   await fetch("/api/admin/logout", { method: "POST" });
                   window.location.reload();
@@ -764,6 +786,8 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
         actions={allActions}
         loading={searching}
       />
+
+      <DevicesPanel open={devicesOpen} onClose={() => setDevicesOpen(false)} />
     </div>
   );
 }

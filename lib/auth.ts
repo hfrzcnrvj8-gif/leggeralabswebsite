@@ -1,5 +1,6 @@
-import { cookies } from "next/headers";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { cookies, headers } from "next/headers";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { getSql, ensureDeviceTokensSchema } from "./db";
 
 const COOKIE_NAME = "leggera_admin_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -43,6 +44,66 @@ export async function destroySession(): Promise<void> {
   jar.delete(COOKIE_NAME);
 }
 
+/**
+ * ── Tokeny per-urządzenie (Faza 1 aplikacji natywnej, 2026-07-19) ──────────
+ *
+ * Aplikacja iOS nie ma ciasteczek przeglądarki, więc dostaje własny kanał:
+ * losowy token per-urządzenie w nagłówku `Authorization: Bearer <token>`.
+ * Decyzja właściciela: per-urządzenie Z MOŻLIWOŚCIĄ ODEBRANIA — zgubiony
+ * telefon odcina się jednym kliknięciem w panelu, bez zmiany hasła.
+ *
+ * W bazie leży wyłącznie SHA-256 tokenu (wyciek bazy nie wycieka tokenów);
+ * pełną wartość widzi tylko urządzenie, jednorazowo w odpowiedzi logowania.
+ * Panel webowy działa jak dotąd — ciasteczko pozostaje nietknięte.
+ */
+
+function hashDeviceToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+/** Tworzy token dla nowego urządzenia. Zwracany `token` pokazuje się TYLKO
+ * raz — dalej istnieje już wyłącznie jego hash. */
+export async function createDeviceToken(deviceName: string): Promise<{ id: string; token: string }> {
+  await ensureDeviceTokensSchema();
+  const sql = getSql();
+  const id = randomUUID();
+  const token = randomBytes(32).toString("hex");
+  await sql`
+    INSERT INTO device_tokens (id, token_hash, device_name)
+    VALUES (${id}, ${hashDeviceToken(token)}, ${deviceName});
+  `;
+  return { id, token };
+}
+
+function bearerFromHeader(authorization: string | null): string | null {
+  if (!authorization?.startsWith("Bearer ")) return null;
+  const token = authorization.slice("Bearer ".length).trim();
+  return token.length > 0 ? token : null;
+}
+
+/** Sprawdza token z nagłówka i przy okazji odnotowuje użycie (jedno
+ * zapytanie — neon() płaci żądaniem HTTP za każde, więc nie rozdzielamy). */
+async function bearerAuthed(token: string): Promise<boolean> {
+  await ensureDeviceTokensSchema();
+  const sql = getSql();
+  const rows = await sql`
+    UPDATE device_tokens SET last_used_at = now()
+    WHERE token_hash = ${hashDeviceToken(token)} AND revoked_at IS NULL
+    RETURNING id;
+  `;
+  return rows.length > 0;
+}
+
+/** Unieważnia token niesiony w bieżącym żądaniu (wylogowanie z urządzenia). */
+export async function revokeCurrentDeviceToken(): Promise<void> {
+  const hdrs = await headers();
+  const token = bearerFromHeader(hdrs.get("authorization"));
+  if (!token) return;
+  await ensureDeviceTokensSchema();
+  const sql = getSql();
+  await sql`UPDATE device_tokens SET revoked_at = now() WHERE token_hash = ${hashDeviceToken(token)};`;
+}
+
 export async function isAuthed(): Promise<boolean> {
   // Dev-only obejście logowania — POTRÓJNIE zabezpieczone, żeby nigdy nie
   // zadziałało na produkcji: (1) NODE_ENV musi być "development" (Vercel
@@ -54,6 +115,14 @@ export async function isAuthed(): Promise<boolean> {
   if (process.env.NODE_ENV === "development" && process.env.DEV_ADMIN_BYPASS === "1") {
     return true;
   }
+  // Klient natywny: nagłówek `Authorization: Bearer` (tokeny per-urządzenie,
+  // patrz sekcja niżej). Sprawdzany PRZED ciasteczkiem, ale tylko gdy w ogóle
+  // jest — przeglądarka go nie wysyła, więc panel webowy nie płaci ani jednym
+  // dodatkowym zapytaniem do bazy.
+  const hdrs = await headers();
+  const bearer = bearerFromHeader(hdrs.get("authorization"));
+  if (bearer) return bearerAuthed(bearer);
+
   const expected = sessionToken();
   if (!expected) return false;
   const jar = await cookies();

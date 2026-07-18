@@ -122,24 +122,25 @@ Zmierzone 2026-07-19: **129 tras API, 183 uchwyty** (62 GET, 71 POST, 27 DELETE,
 
 ### Warunek wstępny: uwierzytelnianie dla klienta natywnego
 
-Dziś `lib/auth.ts` (63 linie): token = `SHA-256(hasło:sekret)` w ciasteczku
-`leggera_admin_session` z `secure: true`. Natywna apka nie ma ciasteczek
-przeglądarki. Potrzebne:
-1. `POST /api/admin/login` zwraca token w JSON (dziś tylko ustawia ciasteczko).
-2. `isAuthed()` akceptuje **także** nagłówek `Authorization: Bearer <token>`,
-   nie tylko ciasteczko. Panel webowy działa dalej bez zmian.
-3. Token w **Keychain** po stronie apki, nie w `UserDefaults`.
+**✅ WYKONANE w Fazie 1 (2026-07-19).** Rozstrzygnięcie właściciela: **tokeny
+per-urządzenie z możliwością odebrania dostępu** (zgubiony telefon odcina się
+z panelu jednym kliknięciem, bez zmiany hasła). Wdrożone:
+1. `POST /api/admin/login` z polem `device` w body zwraca losowy token
+   per-urządzenie w JSON (w bazie tylko SHA-256, tabela `device_tokens`).
+2. `isAuthed()` akceptuje nagłówek `Authorization: Bearer <token>` (sprawdzany
+   przed ciasteczkiem). Panel webowy działa dalej bez zmian.
+3. Lista urządzeń + „Odbierz dostęp" w panelu (przycisk „Urządzenia" w stopce
+   sidebara); `POST /api/admin/logout` z Bearerem unieważnia token urządzenia.
+4. Token w **Keychain** po stronie apki, nie w `UserDefaults` (do zrobienia
+   w Fazie 2, po stronie Swifta).
 
-**Do rozstrzygnięcia z właścicielem przy Fazie 1:** dziś token jest
-deterministyczny (ta sama wartość zawsze), więc *nie da się go unieważnić bez
-zmiany hasła*. Dla apki na telefonie, który można zgubić, warto rozważyć tokeny
-per-urządzenie z możliwością odebrania dostępu. Nie przesądzone.
+Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 
 ## Fazy
 
 | Faza | Co | Gdzie |
 |---|---|---|
-| **1** | Uwierzytelnianie tokenem + **inwentarz API i modelu danych** (staje się specyfikacją apki) | istniejące repo |
+| **1** ✅ | Uwierzytelnianie tokenem + **inwentarz API i modelu danych** (staje się specyfikacją apki) — wykonane 2026-07-19, patrz `01-inwentarz.md` | istniejące repo |
 | **2** | **Pionowy plaster + BRAMKA DECYZYJNA**: logowanie + Leady end-to-end, do działającej apki na symulatorze | nowe repo/target |
 | **3** | Reszta poziomu 1 (bez Poczty) | |
 | **4** | Poczta w pełni (duży, osobny etap) | |

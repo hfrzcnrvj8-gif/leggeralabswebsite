@@ -1202,6 +1202,39 @@ export async function ensureFollowupsSchema(): Promise<void> {
   await followupsSchemaReady;
 }
 
+let deviceTokensSchemaReady: Promise<void> | null = null;
+
+/** Tokeny per-urządzenie dla klientów natywnych (Faza 1 aplikacji iOS,
+ * decyzja właściciela 2026-07-19). Przeglądarka dalej używa deterministycznego
+ * tokenu w ciasteczku (lib/auth.ts) — ta tabela obsługuje WYŁĄCZNIE nagłówek
+ * `Authorization: Bearer`. W bazie trzymamy tylko SHA-256 tokenu; sam token
+ * widzi jedynie urządzenie (u siebie w Keychain). Odebranie dostępu =
+ * `revoked_at`, wiersz zostaje jako ślad. */
+async function createDeviceTokensSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("device_tokens")) return;
+
+  const sql = getSql();
+  await sql`
+    CREATE TABLE IF NOT EXISTS device_tokens (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      device_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      revoked_at TIMESTAMPTZ
+    );
+  `;
+
+  await markSchemaApplied("device_tokens");
+}
+
+export async function ensureDeviceTokensSchema(): Promise<void> {
+  if (!deviceTokensSchemaReady) deviceTokensSchemaReady = createDeviceTokensSchema();
+  await deviceTokensSchemaReady;
+}
+
 let costsSchemaReady: Promise<void> | null = null;
 
 /** Moduł Koszty (Faza G) — ewidencja faktur PRZYCHODZĄCYCH od dostawców, w
