@@ -1,5 +1,13 @@
 # Plany modułów — kolejne kroki Leggera Hub (po audycie przepływów 2026-07-13)
 
+> ⚠️ **2026-07-19 — zmiana kierunku dla wersji mobilnej.** Po przetestowaniu PWA
+> (Moduł 5) na realnym iPhonie właściciel zdecydował o budowie **aplikacji
+> natywnej** (SwiftUI, iOS → iPadOS → macOS). Ten folder opisuje **panel
+> webowy**, który zostaje i jest dalej rozwijany na desktop. Prace nad aplikacją
+> natywną prowadź od **[`docs/natywna-aplikacja/00-plan.md`](../natywna-aplikacja/00-plan.md)**,
+> nie stąd. Moduł 5 (PWA) zamknięty jako nieudany — lekcje z niego są spisane w
+> tamtym dokumencie i w `HUB_SETUP.md`.
+
 **Leggera Hub** = wszechogarniający program do prowadzenia firmy (leady, klienci,
 projekty, faktury, koszty, poczta, kalendarz — w jednym miejscu, docelowo także na
 telefonie). Ten folder to zestaw **briefów wdrożeniowych**, po jednym na moduł.
