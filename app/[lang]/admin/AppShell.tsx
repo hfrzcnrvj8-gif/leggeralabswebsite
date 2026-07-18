@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { EASE_LIQUID, SPRING } from "@/lib/motion";
 import {
   IconHome,
@@ -137,6 +137,9 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Moduł 5 — arkusz „Więcej" (mobilna nawigacja). Tylko na telefonie.
   const [moreOpen, setMoreOpen] = useState(false);
+  // Przeciąganie arkusza startuje WYŁĄCZNIE z uchwytu (patrz Modal.tsx) —
+  // inaczej gest konkurowałby z przewijaniem siatki modułów w środku.
+  const moreDragControls = useDragControls();
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{
     leads: Lead[];
@@ -357,7 +360,12 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           wordmark + Szukaj + dzwonek. Reszta modułów żyje w dolnej belce i
           arkuszu „Więcej", nie tutaj. Sticky + safe-area-inset-top pod notch. */}
       <header
-        className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b hairline bg-[var(--bg-soft)]/90 px-3 backdrop-blur-md md:hidden"
+        // `.glass .glass-ios` (Moduł 5, Paczka 3) — prawdziwy materiał zamiast
+        // wcześniejszego `bg/90 + blur-md`, który wyglądał jak ciemny
+        // prostokąt. Treść pod paskiem realnie prześwituje i rozmywa się przy
+        // przewijaniu. Ramki boczne/górna z `.glass` wyłączone utility'sami —
+        // pasek ma mieć tylko dolną krawędź.
+        className="glass glass-ios sticky top-0 z-30 flex h-12 items-center gap-2 border-x-0 border-t-0 border-b border-b-[var(--glass-border)] px-3 md:hidden"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <Link href={base} prefetch={false} className="flex min-w-0 items-center gap-1.5">
@@ -552,32 +560,50 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           safe-area-inset-bottom pod pasek gestów iPhone'a. Cztery moduły
           rdzenia + „Więcej". */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t hairline bg-[var(--bg-soft)]/95 backdrop-blur-md md:hidden"
+        // Materiał jak w górnym pasku — lista przewijana pod belką rozmywa się
+        // pod nią, zamiast chować się za nieprzezroczystym prostokątem.
+        className="glass glass-ios fixed inset-x-0 bottom-0 z-30 flex items-stretch border-x-0 border-b-0 border-t border-t-[var(--glass-border)] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {NAV.filter((item) => MOBILE_PRIMARY_HREFS.includes(item.href)).map((item) => {
           const active = isNavActive(item.href);
           return (
-            <Link
-              key={item.href}
-              href={`${base}${item.href}`}
-              prefetch={false}
-              className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px]"
-            >
-              {active && <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-purple" />}
-              <item.icon size={22} className={active ? "text-[var(--fg)]" : "text-muted"} />
-              <span className={active ? "text-[var(--fg)]" : "text-muted"}>{item.label}</span>
-            </Link>
+            // `whileTap` (Moduł 5, Paczka 3): każdy cel dotykowy ma się
+            // wciskać pod palcem — to jedna z trzech rzeczy, po których apka
+            // „czuje się natywnie". Spring, nie tween, żeby dało się przerwać
+            // w połowie gestu.
+            <motion.div key={item.href} whileTap={{ scale: 0.9 }} transition={SPRING} className="flex flex-1">
+              <Link
+                href={`${base}${item.href}`}
+                prefetch={false}
+                className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px]"
+              >
+                {active && (
+                  // `layoutId` — podkreślenie PRZEJEŻDŻA między zakładkami
+                  // zamiast znikać i pojawiać się w nowym miejscu (ten sam
+                  // wzorzec co ViewTabs).
+                  <motion.span
+                    layoutId="mobile-nav-active"
+                    transition={SPRING}
+                    className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-purple"
+                  />
+                )}
+                <item.icon size={22} className={active ? "text-[var(--fg)]" : "text-muted"} />
+                <span className={active ? "text-[var(--fg)]" : "text-muted"}>{item.label}</span>
+              </Link>
+            </motion.div>
           );
         })}
-        <button
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          transition={SPRING}
           onClick={() => setMoreOpen(true)}
           className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] text-muted"
           aria-label="Więcej modułów"
         >
           <IconLayoutGrid size={22} />
           <span>Więcej</span>
-        </button>
+        </motion.button>
       </nav>
 
       {/* Arkusz „Więcej" — komplet modułów + szybka notatka + wyloguj. Wysuwa
@@ -593,13 +619,33 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           >
             <div className="absolute inset-0 bg-black/55" onClick={() => setMoreOpen(false)} />
             <motion.div
-              className="card-paper absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border-t hairline p-4"
-              style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+              className="absolute inset-x-0 bottom-0"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={SPRING}
+              drag="y"
+              dragControls={moreDragControls}
+              dragListener={false}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.4 }}
+              onDragEnd={(_e, info) => {
+                if (info.offset.y > 110 || info.velocity.y > 600) setMoreOpen(false);
+              }}
             >
+              {/* Uchwyt — ten sam wzorzec co w Modal.tsx (arkusz zamyka się
+                  ściągnięciem palcem, nie tylko przyciskiem). */}
+              <div
+                onPointerDown={(e) => moreDragControls.start(e)}
+                className="flex touch-none cursor-grab justify-center pb-2 pt-1 active:cursor-grabbing"
+                aria-hidden
+              >
+                <span className="h-1 w-9 rounded-full bg-white/30" />
+              </div>
+              <div
+                className="glass glass-sheet max-h-[82vh] overflow-y-auto rounded-t-2xl border-x-0 border-b-0 border-t border-t-[var(--glass-border)] p-4"
+                style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+              >
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-[12px] font-medium uppercase tracking-wide text-[#62666d]">Wszystkie moduły</span>
                 <button
@@ -681,6 +727,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
                 <IconLogout size={19} />
                 <span>Wyloguj</span>
               </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

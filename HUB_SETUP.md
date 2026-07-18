@@ -5462,6 +5462,92 @@ telefonie to jedyne mobilne wejście do tej funkcji, więc zostaje. Nad listą l
 jest przez to sporo chrome (pasek + pigułka + baner „Wymaga działania dziś" +
 „Zapisz widok") — to decyzja produktowa, nie dług, nie ruszaj bez pytania.
 
+## Moduł 5 — Paczka 3: sznyt natywny iOS (2026-07-17)
+
+Uwaga właściciela po Paczkach 1–2: „wersja mobilna nie wygląda jak natywnie
+mobilna, tylko jak lekko poprawiona wersja desktopowa — nie ma liquid glass,
+za mało rozsuwanych menu i paneli, animacje nie są na poziomie premium".
+Diagnoza trafna. Natywna apka iOS różni się od responsywnego desktopu trzema
+rzeczami i ta paczka dokłada wszystkie trzy.
+
+**Decyzje właściciela** (dwie łamałyby zapisy `CLAUDE.md`, stąd pytania):
+szkło **tylko na chrome** (paski/arkusze/nakładki), NIE na kartach z treścią —
+zgodne z dotychczasową zasadą; profil na telefonie **staje się arkuszem**
+(`CLAUDE.md` mówi „profil = wyśrodkowane okno" — to odstępstwo TYLKO dla
+telefonu, iPad/desktop bez zmian); najpierw sznyt na tym, co już mobilne, potem
+kolejne widoki od razu w tym języku (inaczej robilibyśmy je dwa razy).
+
+### 1. Materiał — dwa warianty szkła, nie jeden
+
+`.glass` już robiło prawdziwy materiał (`blur(16px) saturate(200%)` + rant +
+inset-highlight + sheen) — po prostu mobilne paski go NIE używały, tylko własnej
+słabszej imitacji `bg/90 + blur-md`, która wyglądała jak ciemny prostokąt.
+Doszły dwa warianty w `globals.css`, obu używa się RAZEM z `.glass`:
+
+- **`.glass-ios`** (krycie 0.6, blur 30) — CIENKI, do pasków: górny pasek i dolna
+  belka. Treść pod spodem realnie prześwituje i rozmywa się przy przewijaniu.
+- **`.glass-sheet`** (krycie 0.93, blur 30) — GĘSTY, do arkuszy niosących treść.
+  **Zmierzone na żywo:** przy 0.6 lista leadów przebijała przez arkusz filtrów
+  tak mocno, że tekst pozycji menu zlewał się z kartami pod spodem. iOS robi
+  dokładnie to samo rozróżnienie — pasek cienki, arkusz akcji gruby. Rozmycie
+  zostaje duże, więc to nadal materiał, nie nieprzezroczysty prostokąt.
+
+To jest realny kompromis czytelności, nie kosmetyka — nie „ujednolicaj" tych
+dwóch wartości do jednej.
+
+### 2. Arkusze — dwie zmiany w komponentach WSPÓLNYCH, więc działają wszędzie
+
+- **`Modal.tsx`** — poniżej `md` renderuje ARKUSZ wysuwany z dołu: uchwyt,
+  spring, `drag="y"` z zamykaniem przy przeciągnięciu >110 px albo szarpnięciu
+  >600 px/s, gumowanie (`dragElastic`). Od `md` w górę BEZ ZMIAN (wyśrodkowane
+  okno). Dotyczy wszystkich ~10 modali panelu naraz.
+- **`Menu.tsx` (`Popover`)** — poniżej `md` KAŻDE menu panelu (Filtry, wybór
+  statusu, menu pod prawym przyciskiem, `PropertyMenu`) renderuje się jako
+  **arkusz akcji iOS** przy dolnej krawędzi, zamiast dropdownu przy triggerze.
+  To była odpowiedź na „za mało rozsuwanych menu": jedna zmiana → ~20 miejsc.
+  Klasa-haczyk `.admin-actionsheet` + reguła w `globals.css` powiększa wiersze
+  menu do celu dotykowego **≥44 px** (są projektowane pod wąski dropdown, 12 px).
+
+**Kluczowy szczegół obu:** `dragListener={false}` + `useDragControls()` i start
+przeciągania WYŁĄCZNIE z uchwytu. Bez tego gest konkuruje z przewijaniem treści
+w środku (profil leada ma własny `overflow-y-auto`) i każda próba scrollowania
+zamykałaby arkusz.
+
+Nowy hook **`useIsMobile.ts`** (`matchMedia`, nie `resize`) — bo to różnica
+STRUKTURY i animacji, nie stylu; klasami `md:` się tego nie wyrazi. SSR zwraca
+`false` (wariant desktopowy), korekta w `useEffect` — inaczej błąd hydratacji.
+
+### 3. Ruch — reakcja na palec, nie tylko przejścia między stronami
+
+- `whileTap={{ scale: 0.9 }}` na pozycjach dolnej belki (spring, więc gest da się
+  przerwać w połowie).
+- `layoutId="mobile-nav-active"` — podkreślenie aktywnego modułu PRZEJEŻDŻA
+  między pozycjami, zamiast znikać i pojawiać się (wzorzec `ViewTabs`).
+- Wspólna klasa **`.touch-press`** (`globals.css`) — cel dotykowy wciska się pod
+  palcem, `@media (hover: none)`, żeby nie ruszyć zachowania myszy. Wpięta w
+  przyciski Zadzwoń/WhatsApp/Mail na kartach.
+
+### Uczciwie — czego PWA nie da
+
+**Haptyka jest niemożliwa**: Safari na iOS nie udostępnia `navigator.vibrate`.
+Systemowy materiał „liquid glass" też jest systemowy — powyższe to bardzo
+przekonująca imitacja (rozmycie + nasycenie + rant), ale imitacja. Reszta
+(arkusze z przeciąganiem, sprężyny, reakcja na dotyk, safe-area) jest w pełni
+osiągalna i to ona odpowiada za większość wrażenia „to jest apka".
+
+### Weryfikacja i pułapka
+
+iPhone 375: arkusz profilu (uchwyt + ściągnięcie palcem realnie zamyka —
+przetestowane gestem), arkusz akcji Filtrów, arkusz „Więcej", szkło na paskach.
+iPad 768: **regresja sprawdzona osobno i zerowa** — profil to nadal wyśrodkowane
+okno, Filtry to nadal dropdown przy triggerze. `tsc` czysty.
+
+**Pułapka diagnostyczna:** konsola podglądu KUMULUJE błędy w karcie. Po edycji,
+w której przez chwilę brakowało domykającego `</div>`, cztery błędy parsowania
+zostały w buforze i wyglądały na aktualne, mimo że `tsc` przechodził, a strona
+renderowała się poprawnie. Rozstrzyga dopiero **świeża karta** (`tabs_create`)
+— tam zero błędów. Nie diagnozuj z bufora starej karty.
+
 ## Moduł 36 — Animacje i lekkość: jedno źródło płynności (2026-07-17)
 
 Druga rata rundy „lekkości" z 2026-07-16. Tamta naprawiła to, co propaguje się

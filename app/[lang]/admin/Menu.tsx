@@ -11,9 +11,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { EASE_LIQUID } from "@/lib/motion";
+import { EASE_LIQUID, SPRING } from "@/lib/motion";
 import { IconCheck } from "@tabler/icons-react";
 import { Tooltip } from "./Tooltip";
+import { useIsMobile } from "./useIsMobile";
 
 /**
  * Własne menu/popover w stylu Linear — zastępuje natywne <select>, które
@@ -72,6 +73,10 @@ export function Popover({
 }) {
   const [openState, setOpenState] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // Moduł 5, Paczka 3 — na telefonie menu NIE jest dropdownem przy triggerze,
+  // tylko arkuszem wysuwanym z dołu (wzorzec iOS „action sheet"). Dotyczy to
+  // wszystkich menu panelu naraz, bo wszystkie idą przez ten komponent.
+  const isMobile = useIsMobile();
   const triggerWrapRef = useRef<HTMLSpanElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const measuredRef = useRef(false);
@@ -181,7 +186,9 @@ export function Popover({
         </span>
       )}
       {typeof document !== "undefined" &&
-        pos &&
+        // Na telefonie arkusz nie potrzebuje wyliczonej pozycji (jest zawsze
+        // przy dolnej krawędzi ekranu), więc nie czekamy na `pos`.
+        (isMobile || pos) &&
         // AnimatePresence musi być WEWNĄTRZ portalu (opakowywać motion.div),
         // nie na zewnątrz wywołania createPortal — portal to obiekt
         // ReactPortal, nie zwykły element, więc AnimatePresence owinięte
@@ -189,27 +196,62 @@ export function Popover({
         // wykryć zmiany obecności (popover po prostu przestawał się otwierać).
         createPortal(
           <AnimatePresence>
-            {open && (
-              <motion.div
-                ref={menuRef}
-                initial={{ opacity: 0, scale: 0.96, y: -4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97, y: -2 }}
-                transition={{ duration: 0.16, ease: EASE_LIQUID }}
-                role="menu"
-                // Prawy przycisk WEWNĄTRZ naszego menu nie ma wywoływać
-                // natywnego menu przeglądarki nad nim.
-                onContextMenu={(e) => e.preventDefault()}
-                // `admin-linear` — portal renderuje się w <body>, poza scope'em
-                // AppShell, więc bez tej klasy var(--fg)/var(--fg-muted)/
-                // var(--hairline) spadają do jasnych tokenów strony publicznej
-                // (ciemny tekst na tym samym ciemnym tle popovera = nieczytelne).
-                className="admin-linear glass fixed z-[200] overflow-hidden rounded-lg py-1 text-[var(--fg)]"
-                style={{ top: pos.top, left: pos.left, width }}
-              >
-                {children(() => setOpen(false))}
-              </motion.div>
-            )}
+            {open &&
+              (isMobile ? (
+                // ——— TELEFON: arkusz akcji wysuwany z dołu ———
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.16, ease: EASE_LIQUID }}
+                    className="admin-linear fixed inset-0 z-[199] bg-black/50"
+                    onClick={() => setOpen(false)}
+                  />
+                  <motion.div
+                    ref={menuRef}
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={SPRING}
+                    role="menu"
+                    onContextMenu={(e) => e.preventDefault()}
+                    // `admin-actionsheet` — haczyk dla CSS powiększającego
+                    // wiersze menu do celu dotykowego ≥44 px (globals.css).
+                    // Wiersze są zaprojektowane pod wąski dropdown desktopowy.
+                    className="admin-linear admin-actionsheet glass glass-sheet fixed inset-x-0 bottom-0 z-[200] max-h-[70vh] overflow-y-auto rounded-t-2xl border-x-0 border-b-0 border-t border-t-[var(--glass-border)] pb-2 text-[var(--fg)]"
+                    style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
+                  >
+                    {/* Uchwyt — sam wygląd (arkusz akcji jest niski, zamyka się
+                        wyborem albo tapnięciem w tło; przeciąganie zostawiamy
+                        arkuszom pełnoekranowym, gdzie realnie się przydaje). */}
+                    <div className="sticky top-0 flex justify-center pb-1.5 pt-2" aria-hidden>
+                      <span className="h-1 w-9 rounded-full bg-white/30" />
+                    </div>
+                    {children(() => setOpen(false))}
+                  </motion.div>
+                </>
+              ) : (
+                <motion.div
+                  ref={menuRef}
+                  initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.97, y: -2 }}
+                  transition={{ duration: 0.16, ease: EASE_LIQUID }}
+                  role="menu"
+                  // Prawy przycisk WEWNĄTRZ naszego menu nie ma wywoływać
+                  // natywnego menu przeglądarki nad nim.
+                  onContextMenu={(e) => e.preventDefault()}
+                  // `admin-linear` — portal renderuje się w <body>, poza scope'em
+                  // AppShell, więc bez tej klasy var(--fg)/var(--fg-muted)/
+                  // var(--hairline) spadają do jasnych tokenów strony publicznej
+                  // (ciemny tekst na tym samym ciemnym tle popovera = nieczytelne).
+                  className="admin-linear glass fixed z-[200] overflow-hidden rounded-lg py-1 text-[var(--fg)]"
+                  style={{ top: pos?.top, left: pos?.left, width }}
+                >
+                  {children(() => setOpen(false))}
+                </motion.div>
+              ))}
           </AnimatePresence>,
           document.body
         )}

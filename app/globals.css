@@ -127,6 +127,65 @@
     pointer-events: none;
   }
 
+  /* Wariant „iOS" materiału szklanego (Moduł 5, Paczka 3) — CIEŃSZY i mocniej
+     rozmyty niż `.glass`. Różnica jest celowa: pasek/arkusz ma realnie
+     pokazywać, że treść pod nim żyje i rozmywa się przy przewijaniu — to
+     właśnie ta cecha odróżnia „szkło" od ciemnego prostokąta. `.glass` (0.82
+     krycia) jest dostrojony do dymków i palety poleceń, gdzie tło ma NIE
+     rozpraszać; tu jest odwrotnie.
+
+     Używać RAZEM z `.glass` (`class="glass glass-ios"`) — dziedziczy stamtąd
+     rant, inset-highlight i sheen. Zgodnie z zasadą z CLAUDE.md: TYLKO chrome
+     (górny pasek, dolna belka, arkusze, nakładki), NIGDY karty z treścią —
+     tekst na półprzezroczystym tle czyta się gorzej. */
+  .glass-ios {
+    background: var(--glass-bg-thin, var(--glass-bg));
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+  }
+
+  /* Wariant GĘSTY — to samo mocne rozmycie co `.glass-ios`, ale wyższe krycie.
+     Do arkuszy NIOSĄCYCH TREŚĆ (arkusz akcji, „Więcej"), w odróżnieniu od
+     cienkich pasków. Zmierzone na żywo: przy kryciu 0.6 lista leadów przebijała
+     przez arkusz filtrów tak mocno, że tekst pozycji menu zlewał się z kartami
+     pod spodem. iOS robi dokładnie to samo rozróżnienie — pasek jest cienki,
+     arkusz akcji gruby. Rozmycie zostaje duże, więc to nadal materiał, nie
+     nieprzezroczysty prostokąt. */
+  .glass-sheet {
+    background: var(--glass-bg-thick, var(--glass-bg));
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+  }
+
+  /* Arkusz akcji (Moduł 5, Paczka 3) — na telefonie WSZYSTKIE menu panelu
+     (Filtry, wybór statusu, menu pod prawym przyciskiem) renderują się jako
+     panel wysuwany z dołu, wzorem iOS. Ich wiersze są zaprojektowane pod wąski
+     dropdown desktopowy (12 px, ciasny padding), więc na pełnej szerokości
+     arkusza muszą urosnąć do wygodnego celu dotykowego (≥44 px, wytyczne
+     Apple). Scoped do `.admin-actionsheet`, żeby nie ruszyć desktopu. */
+  @media (max-width: 767px) {
+    .admin-actionsheet button[role^="menuitem"] {
+      min-height: 44px;
+      font-size: 14px;
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+
+  /* Reakcja na dotyk (Moduł 5, Paczka 3) — cel dotykowy ma się WCISKAĆ pod
+     palcem. To jedna z trzech rzeczy (obok materiału i arkuszy), po których
+     interfejs czyta się jako apka, a nie jako strona otwarta w przeglądarce.
+     Ograniczone do `hover: none` (dotyk), żeby nie zmieniać zachowania myszy
+     na desktopie, gdzie od najeżdżania jest `:hover`. */
+  .touch-press {
+    transition: transform 0.12s var(--ease-liquid);
+  }
+  @media (hover: none) {
+    .touch-press:active {
+      transform: scale(0.96);
+    }
+  }
+
   .hairline {
     border-color: var(--hairline);
   }
@@ -340,6 +399,12 @@
      czarnym tle. Stonowane, chłodne odcienie dopasowane do --fg/--fg-muted
      powyżej (nie ciepłe jak w .dark — inna paleta). */
   --glass-bg: rgba(13, 14, 16, 0.82);
+  /* Cieńszy wariant pod `.glass-ios` (chrome mobilne) — patrz komentarz przy
+     tej klasie wyżej. Niższe krycie = treść pod paskiem realnie prześwituje. */
+  --glass-bg-thin: rgba(13, 14, 16, 0.6);
+  /* Gęsty wariant pod `.glass-sheet` — arkusze niosące treść (patrz komentarz
+     przy klasie). Krycie dobrane na żywo pod czytelność tekstu menu. */
+  --glass-bg-thick: rgba(13, 14, 16, 0.93);
   --glass-border: rgba(247, 248, 248, 0.14);
   --glass-highlight: rgba(247, 248, 248, 0.22);
   --glass-sheen: rgba(247, 248, 248, 0.06);

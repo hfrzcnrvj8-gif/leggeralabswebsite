@@ -104,7 +104,7 @@ export function TableView({
           // ≥44 px — minimalny wygodny cel dotykowy (wytyczne Apple), ten sam
           // rozmiar co `ContactQuickActions` w profilu.
           const quickCls =
-            "flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border hairline px-3 text-[12.5px] font-medium text-[var(--fg)]";
+            "touch-press flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border hairline px-3 text-[12.5px] font-medium text-[var(--fg)]";
           return (
             <div
               key={lead.id}
