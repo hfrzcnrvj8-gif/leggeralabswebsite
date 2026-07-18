@@ -1,82 +1,82 @@
 {
-  "generatedAt": "2026-07-17T05:00:03.253Z",
+  "generatedAt": "2026-07-18T05:00:04.462Z",
   "pricingSourceDate": "2026-07-04",
-  "daysCovered": 14,
+  "daysCovered": 15,
   "grandTotal": {
-    "requests": 2146,
-    "tokensTotal": 9971217,
+    "requests": 2254,
+    "tokensTotal": 10658150,
     "costUsdByTier": {
-      "mini": 0.81,
-      "gpt4o": 54.12,
-      "sonnet": 78.74
+      "mini": 0.86,
+      "gpt4o": 58.13,
+      "sonnet": 84.6
     }
   },
   "byDomain": [
     {
       "label": "Rynki krypto",
-      "requests": 92,
-      "tokensTotal": 1009582,
-      "costUsd": 10.31
+      "requests": 97,
+      "tokensTotal": 1063847,
+      "costUsd": 10.78
     },
     {
       "label": "Rynek akcji",
-      "requests": 94,
-      "tokensTotal": 1033458,
-      "costUsd": 8.43
+      "requests": 102,
+      "tokensTotal": 1137973,
+      "costUsd": 9.38
     },
     {
       "label": "Insider Trading (korporacyjny)",
-      "requests": 40,
-      "tokensTotal": 431914,
-      "costUsd": 3.78
-    },
-    {
-      "label": "Produkcja muzyczna",
-      "requests": 48,
-      "tokensTotal": 382342,
-      "costUsd": 3.72
-    },
-    {
-      "label": "Sieci",
-      "requests": 48,
-      "tokensTotal": 433649,
-      "costUsd": 3.71
+      "requests": 44,
+      "tokensTotal": 477274,
+      "costUsd": 4.17
     },
     {
       "label": "Bezpieczeństwo / CVE",
-      "requests": 44,
-      "tokensTotal": 406070,
-      "costUsd": 3.66
+      "requests": 48,
+      "tokensTotal": 448611,
+      "costUsd": 4.06
+    },
+    {
+      "label": "Produkcja muzyczna",
+      "requests": 52,
+      "tokensTotal": 415427,
+      "costUsd": 4.05
+    },
+    {
+      "label": "Sieci",
+      "requests": 52,
+      "tokensTotal": 466606,
+      "costUsd": 3.97
     },
     {
       "label": "Homelab",
-      "requests": 44,
-      "tokensTotal": 351537,
-      "costUsd": 3.4
+      "requests": 48,
+      "tokensTotal": 382783,
+      "costUsd": 3.69
     },
     {
       "label": "Asystent AI / Agenci",
-      "requests": 40,
-      "tokensTotal": 355969,
-      "costUsd": 3.39
-    },
-    {
-      "label": "ERP",
       "requests": 44,
-      "tokensTotal": 344311,
-      "costUsd": 3.31
+      "tokensTotal": 383160,
+      "costUsd": 3.64
     },
     {
       "label": "Sprzęt pod AI",
-      "requests": 40,
-      "tokensTotal": 353952,
-      "costUsd": 3.29
+      "requests": 44,
+      "tokensTotal": 390776,
+      "costUsd": 3.64
+    },
+    {
+      "label": "ERP",
+      "requests": 48,
+      "tokensTotal": 372450,
+      "costUsd": 3.59
     },
     {
       "label": "Self-hosted LLM / RAG",
-      "requests": 44,
-      "tokensTotal": 310407,
-      "costUsd": 3.1
+      "requests": 48,
+      "tokensTotal": 340616,
+      "costUsd": 3.4
     },
     {
       "label": "BI / Analityka",
