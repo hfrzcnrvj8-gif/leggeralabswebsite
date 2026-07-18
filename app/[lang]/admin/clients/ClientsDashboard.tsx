@@ -55,7 +55,14 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   useEffect(() => {
     load();
     const saved = window.localStorage.getItem("leggera_clients_view");
-    if (saved === "table" || saved === "kanban") setView(saved);
+    if (saved === "table" || saved === "kanban") {
+      setView(saved);
+      return;
+    }
+    // Moduł 5 (mobilny) — jak w Leadach: bez zapisanego wyboru na wąskim
+    // ekranie startujemy od Tabeli (renderowanej na telefonie jako lista kart).
+    // Kanban wymaga przeciągania kolumn w poziomie. Wybór właściciela wygrywa.
+    if (window.matchMedia("(max-width: 767px)").matches) setView("table");
   }, [load]);
 
   const switchView = useCallback((v: ViewMode) => {
@@ -266,7 +273,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Szukaj… (/)"
-          className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+          className="w-24 min-w-0 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted sm:w-32"
         />
         <Popover
           align="right"

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { EASE_LIQUID } from "@/lib/motion";
+import { EASE_LIQUID, SPRING } from "@/lib/motion";
 import {
   IconHome,
   IconFolder,
@@ -23,6 +23,9 @@ import {
   IconChevronRight,
   IconLogout,
   IconPlayerStop,
+  IconLayoutGrid,
+  IconX,
+  IconPencilPlus,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
@@ -89,6 +92,13 @@ const PALETTE_ONLY: { href: string; label: string }[] = [
   { href: "/quick-log", label: "Szybka notatka (zaloguj rozmowę)" },
 ];
 
+// Moduł 5 (mobilny) — dolna belka nawigacji dla kciuka. Cztery moduły
+// najczęściej używane na telefonie (rdzeń: Pulpit + Leady/Klienci + Poczta)
+// mieszkają w belce; przycisk „Więcej" otwiera arkusz z KOMPLETEM modułów.
+// Reszta nie mieści się w zasięgu kciuka — nie chowamy jej, tylko przenosimy
+// o jeden dotyk dalej. Kolejność wynika z NAV (filtr ją zachowuje).
+const MOBILE_PRIMARY_HREFS = ["", "/leads", "/clients", "/mail"];
+
 // Chordy nawigacyjne w stylu Linear: "g" a potem litera modułu. "h" (home)
 // dla Pulpitu, bo "p" jest zajęte przez Projekty.
 const GO_CHORDS: Record<string, string> = {
@@ -125,6 +135,8 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
 
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Moduł 5 — arkusz „Więcej" (mobilna nawigacja). Tylko na telefonie.
+  const [moreOpen, setMoreOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{
     leads: Lead[];
@@ -158,6 +170,19 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
   useEffect(() => {
     loadActiveTimer();
   }, [loadActiveTimer, pathname]);
+
+  // Zmiana strony zamyka arkusz „Więcej" (mobilny).
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [pathname]);
+
+  // Wspólne rozpoznanie „aktywnego" modułu — używane i przez sidebar (desktop),
+  // i przez dolną belkę (mobile).
+  const isNavActive = useCallback(
+    (href: string) =>
+      href === "" ? pathname === base || pathname === `${base}/` : pathname.startsWith(`${base}${href}`),
+    [pathname, base]
+  );
 
   useEffect(() => {
     window.addEventListener(TIMER_CHANGED_EVENT, loadActiveTimer);
@@ -328,9 +353,39 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     // Tylko od `md` w górę: na mobile sidebar jest poziomym paskiem u góry,
     // więc strona ma normalnie się przewijać.
     <div className="admin-linear relative flex min-h-screen flex-col bg-[var(--bg)] font-sans text-[var(--fg)] md:h-screen md:flex-row md:overflow-hidden">
-      {/* Sidebar — pozioma lista na mobile, pionowy panel od md w górę. */}
+      {/* Górny pasek — TYLKO na telefonie (md:hidden). Kompaktowe chrome:
+          wordmark + Szukaj + dzwonek. Reszta modułów żyje w dolnej belce i
+          arkuszu „Więcej", nie tutaj. Sticky + safe-area-inset-top pod notch. */}
+      <header
+        className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b hairline bg-[var(--bg-soft)]/90 px-3 backdrop-blur-md md:hidden"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <Link href={base} prefetch={false} className="flex min-w-0 items-center gap-1.5">
+          <LogoMark size={18} />
+          <span style={HUB_WORDMARK_STYLE} className="truncate text-[13px] font-bold uppercase tracking-[0.12em]">
+            Leggera Hub
+          </span>
+        </Link>
+        <div className="ml-auto flex items-center gap-0.5">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Szukaj / akcje"
+            className="rounded-md p-2 text-muted hover:bg-[var(--hairline)]"
+          >
+            <IconSearch size={19} />
+          </button>
+          {/* Dzwonek: w wersji „collapsed" to sam ikonka + kropka — pasuje do
+              paska. Popover i tak przycina się do viewportu (Menu.place). */}
+          <div className="flex w-9 justify-center">
+            <NotificationBell base={base} collapsed />
+          </div>
+        </div>
+      </header>
+
+      {/* Sidebar — pionowy panel Linear, TYLKO od md w górę. Na telefonie
+          zastępuje go górny pasek + dolna belka nawigacji. */}
       <aside
-        className={`shrink-0 border-b hairline bg-[var(--bg-soft)] md:sticky md:top-0 md:h-screen md:border-b-0 md:border-r ${
+        className={`hidden shrink-0 bg-[var(--bg-soft)] hairline md:sticky md:top-0 md:flex md:h-screen md:border-r ${
           collapsed ? "md:w-16" : "md:w-56"
         } transition-[width] duration-200`}
       >
@@ -378,7 +433,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           <nav className="flex flex-1 flex-row gap-0.5 overflow-x-auto md:flex-col md:overflow-visible">
             {NAV.map((item) => {
               const href = `${base}${item.href}`;
-              const active = item.href === "" ? pathname === base || pathname === `${base}/` : pathname.startsWith(href);
+              const active = isNavActive(item.href);
               return (
                 <Link
                   key={item.href}
@@ -470,7 +525,9 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
             kontener — dzięki temu zmiana jest bezpieczna dla WSZYSTKICH modułów,
             a nie tylko dla tych przerobionych. */}
         <div
-          className={`mx-auto flex w-full flex-1 flex-col px-4 py-5 sm:px-6 md:min-h-0 md:overflow-y-auto ${
+          // `pb-[…]` na mobile = miejsce na fixed dolną belkę nawigacji
+          // (wysokość belki + safe-area). Od md belki nie ma → zwykłe pb-5.
+          className={`mx-auto flex w-full flex-1 flex-col px-4 pt-5 pb-[calc(1.25rem+4.5rem+env(safe-area-inset-bottom))] sm:px-6 md:min-h-0 md:overflow-y-auto md:pb-5 ${
             pathname.startsWith(`${base}/mail`) ? "max-w-none" : "max-w-[1800px]"
           }`}
         >
@@ -490,6 +547,144 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Dolna belka nawigacji — TYLKO na telefonie. Kciukiem, fixed na dole,
+          safe-area-inset-bottom pod pasek gestów iPhone'a. Cztery moduły
+          rdzenia + „Więcej". */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t hairline bg-[var(--bg-soft)]/95 backdrop-blur-md md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {NAV.filter((item) => MOBILE_PRIMARY_HREFS.includes(item.href)).map((item) => {
+          const active = isNavActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={`${base}${item.href}`}
+              prefetch={false}
+              className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px]"
+            >
+              {active && <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-purple" />}
+              <item.icon size={22} className={active ? "text-[var(--fg)]" : "text-muted"} />
+              <span className={active ? "text-[var(--fg)]" : "text-muted"}>{item.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setMoreOpen(true)}
+          className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] text-muted"
+          aria-label="Więcej modułów"
+        >
+          <IconLayoutGrid size={22} />
+          <span>Więcej</span>
+        </button>
+      </nav>
+
+      {/* Arkusz „Więcej" — komplet modułów + szybka notatka + wyloguj. Wysuwa
+          się od dołu (SPRING, jak reszta panelu). Tylko telefon. */}
+      <AnimatePresence>
+        {moreOpen && (
+          <motion.div
+            className="fixed inset-0 z-40 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: EASE_LIQUID }}
+          >
+            <div className="absolute inset-0 bg-black/55" onClick={() => setMoreOpen(false)} />
+            <motion.div
+              className="card-paper absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border-t hairline p-4"
+              style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={SPRING}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-[12px] font-medium uppercase tracking-wide text-[#62666d]">Wszystkie moduły</span>
+                <button
+                  onClick={() => setMoreOpen(false)}
+                  aria-label="Zamknij"
+                  className="rounded-md p-1.5 text-muted hover:bg-[var(--hairline)]"
+                >
+                  <IconX size={18} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {NAV.map((item) => {
+                  const active = isNavActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={`${base}${item.href}`}
+                      prefetch={false}
+                      onClick={() => setMoreOpen(false)}
+                      className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center text-[11px] ${
+                        active
+                          ? "admin-nav-active border-transparent text-[var(--fg)]"
+                          : "hairline text-[#c7c9cd] hover:bg-[var(--hairline)]"
+                      }`}
+                    >
+                      <item.icon size={22} className={active ? "text-[var(--fg)]" : "text-muted"} />
+                      <span className="leading-tight">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Szybka notatka — na telefonie inaczej nieosiągalna (Cmd+K trudne
+                  na dotyku), a to główny mobilny scenariusz: zalogować rozmowę
+                  zaraz po telefonie. */}
+              <Link
+                href={`${base}/quick-log`}
+                prefetch={false}
+                onClick={() => setMoreOpen(false)}
+                className="mt-3 flex items-center gap-2.5 rounded-xl border hairline px-3 py-3 text-[13px] text-[#c7c9cd] hover:bg-[var(--hairline)]"
+              >
+                <IconPencilPlus size={19} className="text-muted" />
+                <span>Szybka notatka (zaloguj rozmowę)</span>
+              </Link>
+
+              {activeTimer && !activeTimer.ended_at && (
+                <Link
+                  href={`${base}/projects/${activeTimer.project_id}`}
+                  prefetch={false}
+                  onClick={() => setMoreOpen(false)}
+                  className="mt-1.5 flex items-center gap-2 rounded-xl border hairline px-3 py-3 text-[12.5px] text-emerald-400 hover:bg-[var(--hairline)]"
+                >
+                  <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
+                  <span className="min-w-0 flex-1 truncate">
+                    Stoper działa
+                    {activeTimer.project_tytul ? ` · ${activeTimer.project_tytul}` : ""}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      stopGlobalTimer();
+                    }}
+                    className="shrink-0 text-emerald-400 hover:text-[var(--fg)]"
+                    aria-label="Zatrzymaj stoper"
+                  >
+                    <IconPlayerStop size={15} />
+                  </button>
+                </Link>
+              )}
+
+              <button
+                onClick={async () => {
+                  await fetch("/api/admin/logout", { method: "POST" });
+                  window.location.reload();
+                }}
+                className="mt-1.5 flex w-full items-center gap-2.5 rounded-xl border hairline px-3 py-3 text-[13px] text-muted hover:bg-[var(--hairline)]"
+              >
+                <IconLogout size={19} />
+                <span>Wyloguj</span>
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <CommandPalette
         open={paletteOpen}

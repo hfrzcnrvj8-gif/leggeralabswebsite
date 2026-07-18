@@ -1,0 +1,40 @@
+{
+  "id": "/pl/admin",
+  "name": "Leggera Hub",
+  "short_name": "Leggera Hub",
+  "description": "Leggera Hub — leady, klienci, projekty, faktury, koszty, poczta i kalendarz w jednym miejscu.",
+  "lang": "pl",
+  "dir": "ltr",
+  "start_url": "/pl/admin",
+  "scope": "/pl/admin",
+  "display": "standalone",
+  "background_color": "#08090a",
+  "theme_color": "#08090a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

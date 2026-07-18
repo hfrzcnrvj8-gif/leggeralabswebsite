@@ -254,7 +254,10 @@ export function LeadDetailPanel({
       <PanelHeader onClose={onClose} />
 
       <div className={onClose ? "mt-4" : ""}>
-        <div className="flex items-start justify-between gap-4">
+        {/* Moduł 5 (mobilny): na telefonie kolumna, nie wiersz — nazwa firmy to
+            najważniejszy tekst na ekranie, a dzieląc wiersz z „Usuń leada"
+            zostawała ucięta w połowie. Od `sm` wraca dotychczasowy wiersz. */}
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
           <input
             value={lead.firma}
             onChange={(e) => setLead((prev) => (prev ? { ...prev, firma: e.target.value } : prev))}

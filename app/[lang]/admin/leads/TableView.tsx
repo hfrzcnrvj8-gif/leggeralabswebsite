@@ -13,6 +13,7 @@ import {
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_CLASS,
   StatusTag,
+  waLink,
 } from "./shared";
 import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
@@ -75,7 +76,89 @@ export function TableView({
 
   return (
     // `flex flex-1 flex-col min-h-0` (Moduł 35) — karta tabeli sięga dołu okna.
-    <div className="card-paper relative flex flex-1 flex-col rounded-2xl md:min-h-0">
+    // `md:flex-1`, nie `flex-1` (Moduł 5): na telefonie karta ma obejmować
+    // tylko listę — z `flex-1` rozciągała się na całą wysokość okna i pod
+    // ostatnim leadem zostawał wielki pusty prostokąt. Od `md` rozciąganie
+    // wraca (Moduł 35 — tabela sięga dołu okna).
+    <div className="card-paper relative flex flex-col rounded-2xl md:min-h-0 md:flex-1">
+      {/* ——— TELEFON: lista kart (Moduł 5) ———
+          Tabela niżej ma 10 kolumn i `min-w-[900px]`, więc na 375 px zmuszałaby
+          do ciągłego przewijania w bok. Karta pokazuje to, czego właściciel
+          realnie szuka w terenie: kto, w jakim statusie, jak dawno kontakt — i
+          pozwala od razu zadzwonić / napisać, bez wchodzenia w profil.
+          Świadomie BEZ checkboxów zaznaczania: operacje masowe (eksport
+          zaznaczonych, zmiana statusu paczki) to praca biurkowa, a na telefonie
+          kosztowałyby cel dotykowy w każdej karcie. Zostają od `md`. */}
+      <div className="flex flex-col md:hidden">
+        {leads.length === 0 && (
+          <div className="p-8 text-center text-sm text-muted opacity-60">
+            <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
+            Brak leadów pasujących do filtrów.
+          </div>
+        )}
+        {leads.map((lead) => {
+          const d = daysSince(lead.ostatni_kontakt);
+          const overdueRow = isOverdue(lead);
+          const wa = waLink(lead.telefon);
+          const meta = [lead.osoba_kontaktowa, lead.branza, lead.miasto].filter(Boolean).join(" · ");
+          // ≥44 px — minimalny wygodny cel dotykowy (wytyczne Apple), ten sam
+          // rozmiar co `ContactQuickActions` w profilu.
+          const quickCls =
+            "flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border hairline px-3 text-[12.5px] font-medium text-[var(--fg)]";
+          return (
+            <div
+              key={lead.id}
+              onContextMenu={(e) => ctl.openAt(e, lead)}
+              className={`border-b hairline px-3 py-3 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
+            >
+              <div className="flex items-start gap-2">
+                <button onClick={() => onOpen(lead.id)} className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-[14px] font-medium text-[var(--fg)]">{lead.firma}</span>
+                  {meta && <span className="mt-0.5 block truncate text-[12px] text-muted">{meta}</span>}
+                </button>
+                <StatusTag status={lead.status} onChange={(v) => onUpdate(lead.id, "status", v)} />
+              </div>
+
+              <div className="mt-1.5 text-[11.5px]">
+                <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>
+                  {lead.ostatni_kontakt
+                    ? `Kontakt: ${formatPlDate(lead.ostatni_kontakt)}${daysAgoLabel(d) ? ` · ${daysAgoLabel(d)}` : ""}`
+                    : "Brak kontaktu"}
+                </span>
+              </div>
+
+              {(lead.telefon || lead.email || wa) && (
+                <div className="mt-2 flex gap-1.5">
+                  {lead.telefon && (
+                    <a href={`tel:${lead.telefon}`} className={quickCls} aria-label={`Zadzwoń do ${lead.firma}`}>
+                      <ContactChannelIcon kind="telefon" size={15} /> Zadzwoń
+                    </a>
+                  )}
+                  {wa && (
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={quickCls}
+                      aria-label={`WhatsApp do ${lead.firma}`}
+                    >
+                      <ContactChannelIcon kind="whatsapp" size={15} /> WhatsApp
+                    </a>
+                  )}
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} className={quickCls} aria-label={`Napisz do ${lead.firma}`}>
+                      <ContactChannelIcon kind="email" size={15} /> Mail
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ——— iPad / desktop: pełna tabela (bez zmian) ——— */}
+      <div className="relative hidden flex-1 flex-col md:flex md:min-h-0">
       {/* Cienie sygnalizujące, że w poziomie jest jeszcze coś do przewinięcia
           (styl Linear) — na wąskich ekranach tabela wciąż może scrollować. */}
       <div
@@ -286,6 +369,7 @@ export function TableView({
             })}
           </tbody>
         </table>
+      </div>
       </div>
       <ContextMenu ctl={ctl}>
         {(lead, close) => (

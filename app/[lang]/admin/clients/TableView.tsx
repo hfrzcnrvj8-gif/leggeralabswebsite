@@ -12,6 +12,7 @@ import {
   CONTACT_CHANNEL_LABEL,
   CONTACT_CHANNEL_CLASS,
   StatusTag,
+  waLink,
 } from "./shared";
 import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
@@ -75,8 +76,83 @@ export function TableView({
   };
 
   return (
-    // `flex flex-1 flex-col min-h-0` (Moduł 35) — karta tabeli sięga dołu okna.
-    <div className="card-paper relative flex flex-1 flex-col rounded-2xl md:min-h-0">
+    // `md:flex-1` (Moduł 5): na telefonie karta obejmuje samą listę, bez
+    // rozciągania na całą wysokość okna. Od `md` wraca zachowanie z Modułu 35
+    // (tabela sięga dołu okna).
+    <div className="card-paper relative flex flex-col rounded-2xl md:min-h-0 md:flex-1">
+      {/* ——— TELEFON: lista kart (Moduł 5) ———
+          Bliźniacze z leads/TableView.tsx: tabela ma 9 kolumn i na 375 px
+          zmuszałaby do przewijania w bok. Karta pokazuje kto / status / jak
+          dawno kontakt i pozwala od razu zadzwonić. Bez checkboxów zaznaczania
+          — operacje masowe zostają pracą biurkową (od `md`). */}
+      <div className="flex flex-col md:hidden">
+        {clients.length === 0 && (
+          <div className="p-8 text-center text-sm text-muted opacity-60">
+            <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
+            Brak klientów pasujących do filtrów.
+          </div>
+        )}
+        {clients.map((client) => {
+          const d = clientDaysSince(client.ostatni_kontakt);
+          const overdueRow = isClientOverdue(client);
+          const wa = waLink(client.telefon);
+          const meta = [client.osoba_kontaktowa, client.branza, client.miasto].filter(Boolean).join(" · ");
+          const quickCls =
+            "flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-full border hairline px-3 text-[12.5px] font-medium text-[var(--fg)]";
+          return (
+            <div
+              key={client.id}
+              onContextMenu={(e) => ctl.openAt(e, client)}
+              className={`border-b hairline px-3 py-3 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
+            >
+              <div className="flex items-start gap-2">
+                <button onClick={() => onOpen(client.id)} className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-[14px] font-medium text-[var(--fg)]">{client.nazwa}</span>
+                  {meta && <span className="mt-0.5 block truncate text-[12px] text-muted">{meta}</span>}
+                </button>
+                <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
+              </div>
+
+              <div className="mt-1.5 text-[11.5px]">
+                <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>
+                  {client.ostatni_kontakt
+                    ? `Kontakt: ${formatPlDate(client.ostatni_kontakt)}${daysAgoLabel(d) ? ` · ${daysAgoLabel(d)}` : ""}`
+                    : "Brak kontaktu"}
+                </span>
+              </div>
+
+              {(client.telefon || client.email || wa) && (
+                <div className="mt-2 flex gap-1.5">
+                  {client.telefon && (
+                    <a href={`tel:${client.telefon}`} className={quickCls} aria-label={`Zadzwoń do ${client.nazwa}`}>
+                      <ContactChannelIcon kind="telefon" size={15} /> Zadzwoń
+                    </a>
+                  )}
+                  {wa && (
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={quickCls}
+                      aria-label={`WhatsApp do ${client.nazwa}`}
+                    >
+                      <ContactChannelIcon kind="whatsapp" size={15} /> WhatsApp
+                    </a>
+                  )}
+                  {client.email && (
+                    <a href={`mailto:${client.email}`} className={quickCls} aria-label={`Napisz do ${client.nazwa}`}>
+                      <ContactChannelIcon kind="email" size={15} /> Mail
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ——— iPad / desktop: pełna tabela (bez zmian) ——— */}
+      <div className="relative hidden flex-1 flex-col md:flex md:min-h-0">
       <div
         className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-8 rounded-l-2xl bg-gradient-to-r from-[var(--bg-soft)] to-transparent transition-opacity ${
           canScrollLeft ? "opacity-100" : "opacity-0"
@@ -265,6 +341,7 @@ export function TableView({
             })}
           </tbody>
         </table>
+      </div>
       </div>
       <ContextMenu ctl={ctl}>
         {(client, close) => (

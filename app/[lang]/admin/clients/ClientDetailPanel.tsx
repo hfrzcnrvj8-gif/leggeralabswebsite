@@ -295,7 +295,9 @@ export function ClientDetailPanel({
       <PanelHeader onClose={onClose} />
 
       <div className={onClose ? "mt-4" : ""}>
-        <div className="flex items-start justify-between gap-4">
+        {/* Moduł 5 (mobilny) — jak w LeadDetailPanel: na telefonie kolumna,
+            żeby nazwa klienta nie dzieliła wiersza z „Usuń klienta". */}
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
           <input
             value={client.nazwa}
             onChange={(e) => setClient((prev) => (prev ? { ...prev, nazwa: e.target.value } : prev))}

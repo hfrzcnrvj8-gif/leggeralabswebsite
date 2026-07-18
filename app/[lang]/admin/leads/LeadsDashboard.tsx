@@ -68,7 +68,16 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   useEffect(() => {
     load();
     const saved = window.localStorage.getItem("leggera_leads_view");
-    if (saved === "table" || saved === "kanban") setView(saved);
+    if (saved === "table" || saved === "kanban") {
+      setView(saved);
+      return;
+    }
+    // Moduł 5 (mobilny) — bez zapisanego wyboru na wąskim ekranie startujemy od
+    // Tabeli (na telefonie renderowanej jako lista kart). Kanban wymaga
+    // poziomego przeciągania kolumn i na 375 px jest nieczytelny. To TYLKO
+    // domyślka — świadomy wybór właściciela (localStorage) ma pierwszeństwo,
+    // a przełącznik Tablica/Tabela zostaje dostępny również na telefonie.
+    if (window.matchMedia("(max-width: 767px)").matches) setView("table");
   }, [load]);
 
   const switchView = useCallback((v: ViewMode) => {
@@ -364,7 +373,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Szukaj… (/)"
-          className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+          className="w-24 min-w-0 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted sm:w-32"
         />
         <Popover
           align="right"
@@ -441,37 +450,45 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             wszystko"), na wyraźne wskazanie właściciela. Świadomie NIE dymek:
             dymek to osobne pudełko obok, tu rośnie sama kontrolka. Pigułka
             wychodzi w lewo NAD sąsiadów — patrz ExpandingIconButton.tsx. */}
-        <ExpandingIconButton
-          label="Znajdź nowe leady"
-          icon={<IconSparkles size={15} />}
-          onClick={() => setDiscoverOpen(true)}
-        />
-        <ExpandingIconButton
-          label={sendingReport ? "Wysyłam…" : "Wyślij raport teraz"}
-          ariaLabel="Wyślij raport teraz"
-          icon={<IconMailForward size={15} />}
-          onClick={sendReportNow}
-          disabled={sendingReport}
-        />
-        <ExpandingIconButton
-          label="Wczytaj listę startową"
-          icon={<IconDownload size={15} />}
-          onClick={seedInitial}
-        />
-        <ExpandingIconButton
-          label="Uporządkuj źródła"
-          icon={<IconTag size={15} />}
-          onClick={tidySources}
-          disabled={tidyingSources}
-        />
-        {/* Eksport ma dodatkowo menu pod prawym przyciskiem (zakres eksportu),
-            więc zostaje przy zwykłym <a> — pigułka i tak podpisuje ikonę. */}
-        <span className="inline-flex shrink-0" onContextMenu={(e) => exportCtl.openAt(e, null)}>
+        {/* Moduł 5 (mobilny) — drugorzędne akcje znikają poniżej `sm`. Na 375 px
+            cały pasek (zakładki + szukaj + Filtry + 6 ikon) się nie mieścił i
+            ostatnia ikona była ucięta. NIE tracimy ich na telefonie: „Znajdź
+            nowe leady", „Wyślij raport" i „Uporządkuj źródła" są zarejestrowane
+            w palecie poleceń (lupa w górnym pasku), a eksport/lista startowa to
+            zadania biurkowe. Na iPadzie (≥ sm) wszystko wraca. */}
+        <span className="hidden shrink-0 items-center gap-1 sm:flex">
           <ExpandingIconButton
-            label="Eksport CSV"
-            icon={<IconFileExport size={15} />}
-            href="/api/leads/export"
+            label="Znajdź nowe leady"
+            icon={<IconSparkles size={15} />}
+            onClick={() => setDiscoverOpen(true)}
           />
+          <ExpandingIconButton
+            label={sendingReport ? "Wysyłam…" : "Wyślij raport teraz"}
+            ariaLabel="Wyślij raport teraz"
+            icon={<IconMailForward size={15} />}
+            onClick={sendReportNow}
+            disabled={sendingReport}
+          />
+          <ExpandingIconButton
+            label="Wczytaj listę startową"
+            icon={<IconDownload size={15} />}
+            onClick={seedInitial}
+          />
+          <ExpandingIconButton
+            label="Uporządkuj źródła"
+            icon={<IconTag size={15} />}
+            onClick={tidySources}
+            disabled={tidyingSources}
+          />
+          {/* Eksport ma dodatkowo menu pod prawym przyciskiem (zakres eksportu),
+              więc zostaje przy zwykłym <a> — pigułka i tak podpisuje ikonę. */}
+          <span className="inline-flex shrink-0" onContextMenu={(e) => exportCtl.openAt(e, null)}>
+            <ExpandingIconButton
+              label="Eksport CSV"
+              icon={<IconFileExport size={15} />}
+              href="/api/leads/export"
+            />
+          </span>
         </span>
         <ExpandingIconButton label="Dodaj leada" icon={<IconPlus size={16} />} onClick={addLead} />
       </div>

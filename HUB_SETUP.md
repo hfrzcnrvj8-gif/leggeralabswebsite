@@ -5321,6 +5321,147 @@ jedyne miejsce z tytułem.
   `AnimatePresence mode="wait"` zawiesza swap zakładki) potwierdzona i obejściem
   było wymuszenie klatek zrzutem ekranu — to artefakt narzędzia, nie bug.
 
+## Moduł 5 — Leggera Hub jako aplikacja mobilna (PWA) — Paczka 1: skorupa + nawigacja (2026-07-17)
+
+Moduł domykający. Właściciel chce „całą tę aplikację na telefonie i iPadzie" —
+forma ROZSTRZYGNIĘTA: **PWA** (instalowana przez „Dodaj do ekranu głównego"),
+nie natywna apka ze sklepu. Trzy otwarte decyzje z briefu potwierdzone przez
+właściciela zgodnie z rekomendacją: (1) **rdzeń najpierw, w paczkach**;
+(2) **bez web-push na start** (rolę pełni dzienny mail + Pulpit „co dziś");
+(3) ikona/nazwa = **„Leggera Hub" + logo dwóch „L"** z `app/icon.svg`.
+
+Brief rozdziela dwie osobne prace: **(A) skorupa PWA** (manifest + SW + ikony,
+~1 dzień) i **(B) responsywność widok po widoku** (80% wysiłku, iteracyjnie).
+Ta paczka to **A + powłoka nawigacji**. B (Leady/Klienci lista, tabele→karty,
+edytory pełnoekranowe, Oś czasu→lista, Poczta) idzie w kolejnych paczkach.
+
+### Skorupa PWA — osobny manifest Huba, NIE ruszając strony publicznej
+
+Pułapka: `app/manifest.ts` **już istniał** — to manifest strony marketingowej
+`leggeralabs.pl` (`name: "Leggera Labs"`, `display: browser`). Manifest jest
+per-origin i wstrzykuje `<link rel="manifest">` globalnie. Gdyby go podmienić na
+Hub, potencjalny klient na stronie publicznej „dodałby do ekranu" apkę otwierającą
+ekran logowania — źle dla marki. Rozwiązanie: **osobny manifest tylko dla panelu**.
+
+- `public/hub.webmanifest` — `name/short_name: "Leggera Hub"`, `id`/`start_url`/
+  `scope: "/pl/admin"`, `display: standalone`, `theme_color`/`background_color:
+  #08090a` (tło `.admin-linear`), ikony 192/512 `any` + `maskable`
+  (`public/icons/icon-*.png` — logo dwóch „L" na ciemnym tle, wypełnia kadr do
+  krawędzi → bezpieczne jako maskable).
+- **`app/[lang]/admin/layout.tsx`** (NOWY — panel dotąd go nie miał, każda strona
+  sama owijała się w `<AppShell>`): `metadata.manifest = "/hub.webmanifest"`
+  **nadpisuje** globalny link marketingowy TYLKO dla `/admin` (zweryfikowane
+  `curl`-em: strona admina ma dokładnie 1 link manifestu → Hub; `/pl` nadal ma
+  swój marketingowy). `appleWebApp` (capable, title „Leggera Hub",
+  `black-translucent`) + ręczne `apple-mobile-web-app-capable` (Next emituje tylko
+  nowy `mobile-web-app-capable`; iOS 16.4+ i tak czyta `display:standalone`).
+  `viewport: { themeColor, viewportFit: "cover" }` — **`cover` jest WARUNKIEM**
+  działania `env(safe-area-inset-*)` (notch/pasek gestów).
+- `public/sw.js` + `RegisterSW.tsx` — service worker skorupy. **RODO/świeżość:
+  NIGDY nie cache'uje `/api/*` ani nawigacji (strony admina renderują dane
+  klientów serwerowo)** — cache'uje WYŁĄCZNIE statykę (`/_next/static/`, ikony,
+  manifest) stale-while-revalidate + malutki `public/offline.html`. Rejestracja
+  **tylko na produkcji** (`NODE_ENV==="production"`) — SW i tak działa dopiero na
+  HTTPS, w dev przez `http://localhost` jest pomijany i mieszałby z HMR/Turbopack.
+  **Skorupa PWA zweryfikuje się realnie dopiero na Vercelu** (sandbox nie robi
+  `next build` — EPERM; SW wymaga HTTPS).
+
+### Powłoka responsywna — dolna belka nawigacji dla kciuka
+
+`AppShell.tsx` miał już zalążek trybu mobilnego (sidebar → poziomy przewijany
+pasek 12 ikon), ale to było niewygodne (poziomy scroll przez kilkanaście modułów,
+~400 px „głowy"). Wzorzec docelowy:
+
+- **Telefon (`< md`):** górny pasek (sticky, safe-area-top) = wordmark + Szukaj +
+  dzwonek; **dolna belka `fixed`** (safe-area-bottom) = 4 moduły rdzenia
+  (`MOBILE_PRIMARY_HREFS`: Pulpit/Leady/Klienci/Poczta, kolejność z `NAV`) +
+  „Więcej"; arkusz **„Więcej"** (wysuwany od dołu, `SPRING`) = KOMPLET 12 modułów
+  w siatce 3-kol + „Szybka notatka" (na dotyku inaczej nieosiągalna — Cmd+K
+  trudne) + stoper + Wyloguj. Treść dostała `pb-[calc(… + env(safe-area-inset-
+  bottom))]`, żeby belka niczego nie zasłaniała.
+- **iPad/desktop (`≥ md` = 768):** BEZ ZMIAN — wraca pełny pionowy sidebar Linear,
+  mobilne paski `md:hidden`. iPad w pionie (768) i poziomie (1024) używa układu
+  desktopowego, który się mieści (2- i 6-kolumnowy Pulpit).
+- `isNavActive()` wyekstrahowane jako wspólny helper (sidebar + dolna belka).
+
+Zweryfikowane na żywo: iPhone 375 (górny pasek + dolna belka + arkusz „Więcej"
+z podświetlonym aktywnym modułem), iPad 768 pion i 1024 poziom (sidebar wraca),
+zero błędów konsoli. Uwaga: kółko „N" w lewym dolnym rogu na zrzutach to
+**nakładka narzędzia podglądu, nie element apki** (`elementFromPoint` = brak).
+
+## Moduł 5 — Paczka 2: Leady i Klienci na telefonie + szybkie kontakty (2026-07-17)
+
+Wybór właściciela na następną paczkę: „Leady/Klienci + dzwoń/WhatsApp" — najczęściej
+używane w terenie. Wzorzec wypracowany tutaj jest **do powtórzenia** w kolejnych
+modułach (Faktury/Koszty), więc trzymaj się go zamiast wymyślać drugi.
+
+### Trzy zmiany, wszystkie bliźniacze w Leadach i Klientach
+
+1. **Pasek narzędzi mieścił się dopiero od `sm`.** Leady miały w jednym wierszu
+   44 px: zakładki + szukajka `w-32` + Filtry + **sześć** ikon akcji — na 375 px
+   ostatnia była ucięta. Pięć drugorzędnych ikon (Znajdź nowe leady, Wyślij
+   raport, Wczytaj listę startową, Uporządkuj źródła, Eksport CSV) owinięte w
+   `hidden … sm:flex`; **nie giną na telefonie** — cztery z nich są zarejestrowane
+   w palecie poleceń (lupa w górnym pasku, Moduł 5 Paczka 1), a eksport/lista
+   startowa to zadania biurkowe. Zostaje widoczne „+ Dodaj" (główna akcja).
+   Szukajka `w-24 min-w-0 sm:w-32`. Klienci mieli tylko jedną ikonę → sama szukajka.
+2. **Domyślny widok na wąsko = Tabela, nie Kanban.** `useState<ViewMode>("kanban")`
+   + odczyt `localStorage` — bez zapisanego wyboru telefon dostawał Kanban, który
+   wymaga przeciągania kolumn w poziomie. Dołożone: `if (window.matchMedia("(max-
+   width: 767px)").matches) setView("table")` **po** sprawdzeniu `localStorage` —
+   świadomy wybór właściciela ma pierwszeństwo, przełącznik Tablica/Tabela zostaje
+   dostępny również na telefonie. To TYLKO domyślka.
+3. **Tabela → lista kart poniżej `md`** (`leads/TableView.tsx`, `clients/TableView.tsx`).
+   Tabela leadów ma 10 kolumn i `min-w-[900px]` — na 375 px zmuszała do ciągłego
+   przewijania w bok. Karta: nazwa (tap → profil) + `StatusTag` (edytowalny w
+   miejscu, jak w wierszu) + meta `osoba · branża · miasto` + data ostatniego
+   kontaktu (pomarańczowa gdy po terminie) + **trzy przyciski `tel:` / `wa.me` /
+   `mailto:`** o `min-h-[44px]` (wytyczne Apple; ten sam rozmiar co
+   `ContactQuickActions` w profilu). `waLink()` z `lib/contact.ts` — **nie
+   duplikuj normalizacji numeru**, ona już obsługuje +48/00/9-cyfrowe.
+
+**Struktura zmiany jest addytywna:** lista kart to nowy blok `md:hidden`, a cała
+dotychczasowa tabela poszła bez zmian w nowy wrapper `hidden … md:flex` (cienie
+przewijania zostały w środku, bo są `absolute` względem niego). Desktop/iPad
+dostaje dokładnie to, co miał — potwierdzone zrzutem na 768.
+
+### Dwie pułapki złapane wzrokowo, nie przez `tsc`
+
+- **`flex-1` na karcie listy** rozciągał ją na całą wysokość okna (Moduł 35,
+  słusznie na desktopie) — na telefonie pod ostatnim leadem zostawał wielki pusty
+  prostokąt. → `md:flex-1`, na mobile karta obejmuje samą treść.
+- **Nazwa firmy ucięta w profilu**: nagłówek `flex items-start justify-between`
+  dzielił wiersz z „Usuń leada", więc na 375 px zostawało „Piekarnia Złoty K…" —
+  a to najważniejszy tekst na ekranie. → `flex-col … sm:flex-row` w
+  `LeadDetailPanel` i `ClientDetailPanel`.
+
+### Czego NIE trzeba było robić
+
+Briefowe „duże przyciski `tel:`/`wa.me` to główny zysk mobilny" **w profilu już
+istniało** od Modułu 3 — `ContactQuickActions` (`components.tsx`) ma
+`min-h-[44px]` i jest wpięty w `LeadDetailPanel` i `ClientDetailPanel`.
+Zweryfikowane wzrokowo na 375 zamiast budowane od nowa. Nowość dotyczy wyłącznie
+**listy** (dotąd trzeba było wejść w profil, żeby zadzwonić).
+
+Świadomie BEZ checkboxów zaznaczania w kartach — operacje masowe (eksport
+zaznaczonych) to praca biurkowa, a na telefonie kosztowałyby cel dotykowy w każdej
+karcie. Zostają od `md`.
+
+### Poza tą paczką (kolejne, świadomie odłożone)
+
+Faktury/Koszty (tabele→karty — **powtórz wzorzec z tej paczki**), edytory
+(modal→pełny ekran, cele ≥44 px), Projekty/Oś czasu (→lista kamieni), Poczta
+(3 kolumny → lista→podgląd→odpowiedź), Kalendarz. Każdy dashboard ma WŁASNY pasek
+narzędzi (brak jednego wspólnego komponentu), więc to realnie praca plik-po-pliku.
+**Test „zainstaluj na ekranie głównym" na realnym iPhonie i iPadzie właściciela —
+dopiero po deployu.**
+
+Odnotowane, NIE zmienione: `DiscoverPanel` renderuje **własny** przycisk-pigułkę
+„Znajdź nowe leady" w treści strony, osobny od ikony w pasku — po ukryciu ikony na
+telefonie to jedyne mobilne wejście do tej funkcji, więc zostaje. Nad listą leadów
+jest przez to sporo chrome (pasek + pigułka + baner „Wymaga działania dziś" +
+„Zapisz widok") — to decyzja produktowa, nie dług, nie ruszaj bez pytania.
+
 ## Moduł 36 — Animacje i lekkość: jedno źródło płynności (2026-07-17)
 
 Druga rata rundy „lekkości" z 2026-07-16. Tamta naprawiła to, co propaguje się
