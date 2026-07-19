@@ -146,9 +146,16 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **4** ✅ | Poczta w pełni — wykonane 2026-07-19, patrz „Faza 4" niżej | `leggera-hub-ios` |
 | **5** ✅ | Domknięcie poziomu 1 (Pulpit na agregacie, Notatnik, powiadomienia, szukanie) + **Projekty ze stoperem** — wykonane 2026-07-19, patrz „Faza 5" niżej | `leggera-hub-ios` |
 | **6** ✅ | **Rejestr wiadomości i rozmów** + Kalendarz — wykonane 2026-07-19, patrz „Faza 6" niżej | `leggera-hub-ios` + panel |
-| **7** | iPad (`NavigationSplitView` z tego samego kodu) | |
-| **8** | Reszta poziomu 2 (faktury, oferty) + natywne bajery (widżet, Siri, Share Extension) | |
-| **9** | macOS z tego samego rdzenia | |
+| **7** ← NASTĘPNA | **Natywne bajery**: Face ID, Siri, widżet „co dziś", Share Extension — patrz `04-brief-natywne-bajery.md` | |
+| **8** | iPad (`NavigationSplitView` z tego samego kodu) | |
+| **9** | Reszta poziomu 2 (faktury, oferty — podgląd) | |
+| **10** | macOS z tego samego rdzenia | |
+
+**Kolejność faz 7–9 zmieniona 2026-07-19 przez właściciela**, pytanego wprost,
+co ma być następne. Bajery weszły przed iPada i przed faktury. Powód: apka jest
+już realnie używana codziennie na telefonie, a to są rzeczy, których PWA nie
+potrafiła w ogóle. **To legalna zmiana priorytetu, nie pomyłka** — nie wracaj
+do starej kolejności bez pytania.
 
 ### Faza 2 jest bramką, nie etapem
 
@@ -557,6 +564,7 @@ Rzeczy, których nie da się zweryfikować w symulatorze; nie zakładaj, że dzi
 
 | Co | Gdzie | Uwagi |
 |---|---|---|
+| **Natywne bajery** (NASTĘPNE) | `04-brief-natywne-bajery.md` | Face ID, Siri, widżet, Share Extension. **Zaczyna się od rozstrzygnięcia**, czy darmowe konto Apple pozwala współdzielić Keychain — od tego zależy, czy widżet i Share Extension są wykonalne |
 | iPad | — | `NavigationSplitView` z tego samego kodu |
 | Faktury i oferty (podgląd) | — | poziom 2, reszta zostaje na desktopie |
 | macOS | — | wymaga bliźniaka `WidokHTML` w `NSViewRepresentable` |
