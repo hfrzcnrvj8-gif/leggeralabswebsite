@@ -52,8 +52,13 @@ export async function GET(req: NextRequest) {
   const like = `%${q}%`;
 
   const [leads, clients, projects, notes, events, offers, invoices, contracts] = await Promise.all([
-    sql`SELECT * FROM leads WHERE firma ILIKE ${like} OR branza ILIKE ${like} LIMIT 6;` as unknown as Promise<Lead[]>,
-    sql`SELECT * FROM clients WHERE nazwa ILIKE ${like} OR branza ILIKE ${like} LIMIT 6;` as unknown as Promise<Client[]>,
+    // `email` i `osoba_kontaktowa` w dopasowaniu (2026-07-19): bez nich
+    // wpisanie adresu albo imienia osoby kontaktowej NIC nie znajdowało —
+    // wyszło przy podpowiadaniu adresatów w apce, ale dotyczy tak samo
+    // palety Cmd+K w panelu. `telefon` świadomie pominięty: numery bywają
+    // zapisane w pięciu formatach i `ILIKE` i tak by ich nie złapał.
+    sql`SELECT * FROM leads WHERE firma ILIKE ${like} OR branza ILIKE ${like} OR email ILIKE ${like} OR osoba_kontaktowa ILIKE ${like} LIMIT 6;` as unknown as Promise<Lead[]>,
+    sql`SELECT * FROM clients WHERE nazwa ILIKE ${like} OR branza ILIKE ${like} OR email ILIKE ${like} OR osoba_kontaktowa ILIKE ${like} LIMIT 6;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects WHERE tytul ILIKE ${like} OR opis ILIKE ${like} LIMIT 6;` as unknown as Promise<Project[]>,
     sql`SELECT * FROM notes WHERE tytul ILIKE ${like} OR tresc ILIKE ${like} OR tagi ILIKE ${like} LIMIT 6;` as unknown as Promise<Note[]>,
     sql`SELECT * FROM events WHERE tytul ILIKE ${like} OR opis ILIKE ${like} LIMIT 6;` as unknown as Promise<HubEvent[]>,
