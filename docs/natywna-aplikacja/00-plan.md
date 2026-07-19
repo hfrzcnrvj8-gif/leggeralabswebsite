@@ -670,3 +670,33 @@ przez UI nikt nie przejechał.
 
 `LEGGERA_DEV_WIECEJ=rejestr|kalendarz`, `LEGGERA_DEV_REJESTR_FILTR=<rodzaje po
 przecinku>`, `LEGGERA_DEV_DZIEN=YYYY-MM-DD`.
+
+### Domknięcie po audycie: WhatsApp w szybkich kontaktach (2026-07-19)
+
+Właściciel zapytał wprost, czy apka ma już wszystko, co miała mieć. Sprawdzenie
+gretem — nie z pamięci, bo **dwie wcześniejsze sesje ogłosiły „poziom 1
+kompletny", kiedy nie był** — wykazało jedną realną lukę:
+
+**„Szybkie kontakty (`tel:`/WhatsApp/mail)" stoją w poziomie 1 od pierwszej
+wersji planu, a WhatsAppa nigdy nie podpięto.** Apka miała `tel:` i `mailto:`;
+WhatsApp występował w niej wyłącznie jako *ikonka kanału* przy zalogowanej
+rozmowie, czyli coś zupełnie innego. Panel ma regułę `waLink()` w
+`lib/contact.ts` od Modułu 3 — nikt jej po prostu nie zawołał.
+
+To trzeci raz ten sam wzorzec (Moduł 30, Moduł 31, teraz to):
+**pole istnieje, funkcja istnieje, nikt jej nie woła.** Sprawdzaj, czy coś
+WOŁA kod, nie czy kod istnieje.
+
+Wdrożone: `Kontakty` w rdzeniu (`whatsApp`, `linkedIn`, `telefon`, `mail`) —
+port `waLink()`/`linkedinLink()`. Przycisk i wiersz wizytówki w profilu leada
+i klienta; przy okazji **klikalny LinkedIn u leada**, którego też nie było.
+WhatsApp pokazuje się TYLKO przy numerze, który da się jednoznacznie
+znormalizować — zgadywanie otwierałoby rozmowę z przypadkową osobą.
+
+**Parytet z panelem zweryfikowany** na 17 wariantach numeru (+48, +1, +44,
+zera wiodące, nawiasy, myślniki, adres e-mail zamiast numeru, śmieci) i
+4 wariantach LinkedIna: oba silniki dają identyczny wynik.
+
+Po tej poprawce **poziom 1 jest faktycznie kompletny** — z jednym wyjątkiem
+nazwanym wprost: powiadomienia **push**, które czekają na konto Apple
+Developer i nie da się ich zrobić wcześniej.
