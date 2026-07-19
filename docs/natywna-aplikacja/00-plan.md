@@ -235,11 +235,26 @@ do kompletowania użyteczności". Faza 3 jest więc w toku.
 
 ### Co zostało — kolejny czat zaczyna STĄD
 
-1. **Powiadomienia push** — ODŁOŻONE świadomie: właściciel zakłada konto
+Pełny brief: **`02-brief-projekty-stoper.md`** (decyzja właściciela
+2026-07-19: po Poczcie idziemy w Projekty + stoper, przed iPadem).
+
+1. **Luki poziomu 1** znalezione po fakcie: Notatnik, `GET /api/hub/today`
+   na ekranie „Dziś", kronika powiadomień, globalne szukanie.
+2. **Projekty + stoper** (poziom 2) — patrz brief.
+3. **Powiadomienia push** — ODŁOŻONE świadomie: właściciel zakłada konto
    Apple Developer **na sam koniec**. Bez niego push realnie nie zadziała.
-2. Poziom 2 (projekty + stoper, faktury podgląd), iPad, macOS — wg tabeli faz.
+4. Faktury/oferty (podgląd), iPad, macOS — wg tabeli faz.
 
 ## Faza 4 — Poczta DOMKNIĘTA (2026-07-19, druga tura)
+
+> **Sprostowanie do wcześniejszego zdania „poziom 1 kompletny".** Nie jest.
+> Sprawdzone gretem po fakcie (2026-07-19): apka **nie ma** Notatnika
+> („szybka notatka" jest wprost wymieniona w poziomie 1 wyżej), nie ma
+> kroniki powiadomień w apce ani globalnego szukania, a ekran „Dziś"
+> **nie woła `GET /api/hub/today`** — liczy się sam z leadów i klientów,
+> więc nie widzi projektów po terminie, faktur ani wydarzeń. To są luki
+> poziomu 1, nie poziomu 2. Patrz brief `02-brief-projekty-stoper.md`,
+> który zaczyna się od ich domknięcia.
 
 Moduł Poczty jest kompletny wobec `inwentarz/04-poczta-ai.md`. Dołożone
 w tej turze (wszystkie trasy zweryfikowane curlem, ekrany obejrzane w
