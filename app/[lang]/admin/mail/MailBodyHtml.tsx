@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { buildMailSrcDoc } from "@/lib/mailHtml";
 
@@ -24,21 +24,46 @@ export function MailBodyHtml({ html, blockedImages, onShowImages }: { html: stri
   const [height, setHeight] = useState(460);
   const [rozwiniete, setRozwiniete] = useState(false);
 
-  // Ramka jest odizolowana, więc nie może sama zgłosić swojej wysokości
-  // (to wymagałoby skryptu w środku, czyli allow-scripts — a na to się nie
-  // godzimy). Nie da się jej też zmierzyć z zewnątrz: bez allow-same-origin
-  // `contentDocument` jest dla nas niedostępny. Świadomy kompromis:
-  // bezpieczeństwo > idealne dopasowanie.
+  /**
+   * Podgląd ma WYPEŁNIAĆ miejsce, które zostało, a nie być małym kwadratem
+   * pośrodku (zgłoszenie właściciela 2026-07-19).
+   *
+   * Wysokości nie da się wpisać w CSS-ie na sztywno: ramka wisi raz na
+   * osobnej podstronie, raz w widoku dzielonym obok listy, więc jej odległość
+   * od góry ekranu za każdym razem jest inna, a `100vh` nie umie odjąć „tego,
+   * co nade mną". Mierzymy więc własną pozycję — to NASZ element, nie wnętrze
+   * piaskownicy, więc nie ma to nic wspólnego z izolacją cudzego HTML-a.
+   */
+  useLayoutEffect(() => {
+    const przelicz = () => {
+      const el = ref.current;
+      if (!el) return;
+      const gora = el.getBoundingClientRect().top;
+      // 28 px oddechu na przycisk pod ramką i margines karty.
+      const dostepne = window.innerHeight - gora - 28;
+      setHeight(Math.max(320, Math.round(dostepne)));
+    };
+    przelicz();
+    window.addEventListener("resize", przelicz);
+    // Pozycja ramki zmienia się też, gdy nad nią coś urośnie (baner obrazków,
+    // rozwinięty wątek) — `ResizeObserver` na karcie łapie to bez zgadywania.
+    const obserwator = new ResizeObserver(przelicz);
+    if (ref.current?.parentElement) obserwator.observe(ref.current.parentElement);
+    return () => {
+      window.removeEventListener("resize", przelicz);
+      obserwator.disconnect();
+    };
+  }, [html, blockedImages]);
+
+  // Ile treści jest W ŚRODKU ramki — tego nadal nie wiemy i wiedzieć nie
+  // będziemy: zgłoszenie własnej wysokości wymagałoby skryptu w piaskownicy
+  // (allow-scripts), a zmierzenie jej z zewnątrz — dostępu do jej dokumentu
+  // (allow-same-origin). Na żadne z dwojga się nie godzimy.
   //
-  // Zostaje więc oszacowanie z długości HTML-a — ale WYRAŹNIE wyższe niż
-  // pierwotne 240/400/560 px. Tamte wartości sprawiały, że newsletter oglądało
-  // się przez szparę i trzeba go było przewijać w środku ramki, co właściciel
-  // opisał jako „za małe, skurczone, nieczytelne" (2026-07-19). Do tego
-  // dochodzi ręczne rozwinięcie: skoro nie umiemy zmierzyć, niech decyduje
-  // człowiek — jedno kliknięcie zamiast przewijania w szparze.
-  useEffect(() => {
-    setHeight(html.length > 8000 ? 760 : html.length > 4000 ? 640 : html.length > 1200 ? 520 : 340);
-  }, [html]);
+  // Dlatego domyślnie wypełniamy dostępne miejsce (wyżej), a długie
+  // newslettery przewijają się w środku ramki — dokładnie jak panel czytania
+  // w Outlooku czy Apple Mail. Przycisk niżej daje wyjście awaryjne dla tych
+  // naprawdę długich: rozwija ramkę tak, że przewija się cała strona.
 
   const srcDoc = buildMailSrcDoc(html, resolvedTheme === "dark");
 
@@ -66,14 +91,14 @@ export function MailBodyHtml({ html, blockedImages, onShowImages }: { html: stri
           referrerPolicy="no-referrer"
           title="Treść wiadomości"
           className="w-full rounded-xl border hairline bg-white shadow-sm dark:bg-[#141414]"
-          style={{ height: rozwiniete ? "85vh" : height }}
+          style={{ height: rozwiniete ? height * 3 : height }}
         />
         <div className="flex justify-center pt-1.5">
           <button
             onClick={() => setRozwiniete((v) => !v)}
             className="rounded-full border hairline px-3 py-0.5 text-[12px] text-muted hover:bg-[var(--hairline)]"
           >
-            {rozwiniete ? "Zmniejsz podgląd" : "Pokaż całość"}
+            {rozwiniete ? "Dopasuj do okna" : "Rozwiń długi mail"}
           </button>
         </div>
       </div>
