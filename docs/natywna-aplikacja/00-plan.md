@@ -243,6 +243,10 @@ Pełny brief: **`02-brief-projekty-stoper.md`** (decyzja właściciela
 2. **Projekty + stoper** (poziom 2) — patrz brief.
 3. **Powiadomienia push** — ODŁOŻONE świadomie: właściciel zakłada konto
    Apple Developer **na sam koniec**. Bez niego push realnie nie zadziała.
+   **Nie myl tego z powiadomieniami LOKALNYMI** (`UNUserNotificationCenter`):
+   apka planuje je sama, bez serwera i bez żadnego konta, działają też
+   w symulatorze. Przypominanie o chodzącym stoperze (decyzja właściciela
+   2026-07-19) opiera się właśnie na nich i NIE jest zablokowane.
 4. Faktury/oferty (podgląd), iPad, macOS — wg tabeli faz.
 
 ## Faza 4 — Poczta DOMKNIĘTA (2026-07-19, druga tura)

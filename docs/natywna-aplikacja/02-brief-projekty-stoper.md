@@ -105,10 +105,56 @@ To jest powód, dla którego ten moduł wyprzedził iPada. Trasy: `POST /api/tim
 Minuty bywają **ułamkowe** (np. `0.42`) — krótkie sesje celowo nie zaokrąglają
 się do „1 min". Nie rzutuj ich na `Int` przy wyświetlaniu sumy.
 
-**Do rozstrzygnięcia z właścicielem, nie samodzielnie:** czy stoper ma chodzić
-przy zamkniętej apce / po restarcie telefonu. Serwer trzyma `started_at`, więc
-technicznie czas leci dalej — pytanie jest o to, czego właściciel oczekuje,
-gdy zapomni zatrzymać. To pytanie po polsku, bez żargonu.
+### Decyzja właściciela (2026-07-19): stoper leci dalej + przypomina
+
+Rozstrzygnięte, nie pytaj drugi raz:
+
+> Stoper **ma lecieć dalej po zamknięciu apki**, ale **ma przypominać, że jest
+> uruchomiony** — albo pytać, czy aby nie trzeba go wyłączyć.
+
+Bieg jest darmowy: czas mieszka w `started_at` na serwerze, apka tylko liczy
+różnicę. Cała robota jest w przypominaniu.
+
+#### To NIE wymaga konta Apple Developer
+
+Ważne, bo plan mówi „powiadomienia odłożone do konta Apple Developer" i łatwo
+z tego wyciągnąć wniosek, że przypominanie o stoperze też trzeba odłożyć.
+**Nie trzeba.** Trzeba rozróżnić dwie rzeczy:
+
+- **Push (zdalne, APNs)** — serwer budzi telefon. Wymaga konta Apple
+  Developer, certyfikatów i zaplecza. Odłożone świadomie.
+- **Powiadomienia lokalne (`UNUserNotificationCenter`)** — apka planuje je
+  sama, na tym samym urządzeniu, bez serwera i **bez żadnego konta**. Działają
+  też w symulatorze, więc **da się je obejrzeć w tej samej pętli co resztę**.
+
+Stoper potrzebuje wyłącznie tych drugich. To jest cała treść tej decyzji.
+
+#### Jak to zrobić
+
+Przy `POST /api/time/start` zaplanuj powiadomienia lokalne, przy `stop` (i przy
+`stopped_previous`, gdy serwer ubił stoper za Ciebie) **skasuj je** — inaczej
+właściciel dostanie pytanie o stoper, którego już nie ma, i przestanie ufać
+przypomnieniom.
+
+Treść ma pytać, nie informować: „Stoper przy *Nordwind Studio* chodzi od
+4 godzin — zatrzymać?". Jeśli da się dołożyć akcję „Zatrzymaj" wprost
+w powiadomieniu (kategoria akcji `UNNotificationAction`), zrób to — zatrzymanie
+stopera bez otwierania apki jest dokładnie tą wygodą, dla której ten moduł
+wyprzedził iPada.
+
+**Propozycja rytmu do zatwierdzenia jednym pytaniem** (nie wdrażaj w ciemno,
+ale też nie rób z tego narady): pierwsze przypomnienie po **4 godzinach**,
+potem **co 2 godziny**, plus jedno **wieczorem o 18:00**, jeśli stoper wciąż
+chodzi. Cel jest jeden — żeby nie dało się przypadkiem naliczyć klientowi nocy.
+
+Dodatkowo, **niezależnie od powiadomień**: wskaźnik działającego stopera musi
+być widoczny w chrome apki na każdym ekranie (patrz punkt 2 wyżej), a przy
+starcie apki `GET /api/time/active` odtwarza stan — łącznie z sytuacją
+„stoper ruszył wczoraj, apka była zamknięta".
+
+**O zgodę na powiadomienia pytaj przy PIERWSZYM starcie stopera**, nie przy
+pierwszym uruchomieniu apki. Pytanie o zgodę bez kontekstu jest odruchowo
+odrzucane, a drugiej szansy iOS nie daje — trzeba by chodzić w Ustawienia.
 
 ---
 
