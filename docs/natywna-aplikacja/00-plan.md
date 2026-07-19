@@ -142,8 +142,8 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 |---|---|---|
 | **1** ✅ | Uwierzytelnianie tokenem + **inwentarz API i modelu danych** (staje się specyfikacją apki) — wykonane 2026-07-19, patrz `01-inwentarz.md` | istniejące repo |
 | **2** ✅ | **Pionowy plaster + BRAMKA**: logowanie + Leady — bramka PRZESZŁA 2026-07-19 (właściciel obejrzał, zgłosił uwagi, wdrożone) | `leggera-hub-ios` |
-| **3** | Reszta poziomu 1 (bez Poczty) | |
-| **4** | Poczta w pełni (duży, osobny etap) | |
+| **3** ✅ | Reszta poziomu 1 (bez Poczty) — wykonane 2026-07-19 | `leggera-hub-ios` |
+| **4** ✅ | Poczta w pełni — wykonane 2026-07-19, patrz „Faza 4" niżej | `leggera-hub-ios` |
 | **5** | iPad (`NavigationSplitView` z tego samego kodu) | |
 | **6** | Poziom 2 + natywne bajery (widżet, Siri, Share Extension) | |
 | **7** | macOS z tego samego rdzenia | |
@@ -235,12 +235,76 @@ do kompletowania użyteczności". Faza 3 jest więc w toku.
 
 ### Co zostało — kolejny czat zaczyna STĄD
 
-1. **Poczta, reszta modułu**: załączniki, nowa wiadomość od zera, przekazanie
-   dalej, szablony, screener nadawców, snooze, nudge, szkic odpowiedzi od AI.
-   Wszystko opisane w `inwentarz/04-poczta-ai.md`.
-2. **Powiadomienia push** — ODŁOŻONE świadomie: właściciel zakłada konto
+1. **Powiadomienia push** — ODŁOŻONE świadomie: właściciel zakłada konto
    Apple Developer **na sam koniec**. Bez niego push realnie nie zadziała.
-3. Poziom 2 (projekty + stoper, faktury podgląd), iPad, macOS — wg tabeli faz.
+2. Poziom 2 (projekty + stoper, faktury podgląd), iPad, macOS — wg tabeli faz.
+
+## Faza 4 — Poczta DOMKNIĘTA (2026-07-19, druga tura)
+
+Moduł Poczty jest kompletny wobec `inwentarz/04-poczta-ai.md`. Dołożone
+w tej turze (wszystkie trasy zweryfikowane curlem, ekrany obejrzane w
+symulatorze iPhone 17):
+
+- **Nowa wiadomość od zera** (`POST /api/mail/compose`) i **przekazanie dalej**
+  (`POST /api/mail/[id]/forward`) — obie multipartowe, z **załącznikami**
+  (zdjęcie z galerii albo plik; walidacja MIME/3 MB/4 MB po stronie apki,
+  zanim właściciel napisze całą wiadomość).
+- **Szablony** — pełny CRUD (`/api/mail-templates`) + wstawianie w treść
+  podczas pisania.
+- **Screener nadawców** — osobna kolejka „Nowi nadawcy" + pasek decyzji
+  („Wpuść"/„Zablokuj") na profilu wiadomości.
+- **Odkładanie (snooze)** — cztery nazwane terminy, **logika `snoozeOptions()`
+  odtworzona lokalnie w `Snooze.opcje()`**, bo endpointu na listę opcji nie ma.
+  Godziny liczone w strefie Europa/Warszawa przez `Calendar`, nie z palca.
+- **„Bez odpowiedzi" (nudge)** — `GET /api/mail/nudge` + wyciszanie gestem.
+- **Szkic odpowiedzi od AI** — przycisk widoczny TYLKO gdy `GET /api/ai/health`
+  mówi `available: true`; 503 z Ollamy nie blokuje ręcznego pisania.
+- **Z maila → lead / klient / zadanie w projekcie** (trasy `create-lead`,
+  `create-client`, `to-task`).
+- Flaga „ważne", „Zignoruj", „Przenieś do Kosza", DW/UDW, wybór języka podpisu.
+
+### Trzy rzeczy, które wyszły dopiero przy pisaniu kodu
+
+1. **Sync raportował zawsze „brak nowych".** Apka dekodowała pole `nowe`,
+   którego trasa `/api/mail/sync` nigdy nie zwracała (zwraca `fetched`/`saved`).
+   Poprawione na `saved` — `fetched` liczy też wiadomości odrzucone dedupem,
+   więc pokazywałoby ruch tam, gdzie go nie ma.
+2. **`ISO8601DateFormatter` nie jest `Sendable`** — nie da się go trzymać
+   w statycznej stałej w Swifcie 6. `Daty.isoUTC` używa `DateFormatter`
+   z jawnym formatem.
+3. **Ostrzeżenia wysyłki to nie błąd.** Serwer wysyła SMTP-em NAJPIERW, a
+   wszystko po tym (kopia w Sent, wpis na oś kontaktu) degraduje do
+   `warnings`. Apka zamyka arkusz i pokazuje uwagi osobnym komunikatem —
+   pod żadnym pozorem nie ponawia wysyłki.
+
+### Świadome decyzje tej tury
+
+- **Bez auto-syncu przy wejściu w Pocztę.** Inwentarz sugeruje sync przy
+  otwarciu widoku, ale to żądanie do 90 s — na telefonie oznaczałoby spinner
+  przy każdym wejściu. Sync jest w menu, ręczny. Do zmiany, jeśli właściciel
+  powie, że woli czekać.
+- **Kolejki („Nowi nadawcy", „Bez odpowiedzi") mieszkają w tym samym menu
+  co foldery** — na telefonie to po prostu „inne listy do przejrzenia",
+  a nie osobny wymiar wymagający własnej belki.
+- **Kolejka screenera filtrowana po stronie apki** — serwer nie ma na nią
+  parametru, a lista folderu i tak przychodzi w komplecie (max 200).
+- **Załączniki tylko w compose/forward.** Odpowiedź jest trasą JSON-ową
+  i nie ma gdzie ich zmieścić — apka chowa wtedy całą sekcję zamiast
+  udawać, że się da.
+
+### Czego NIE dało się zweryfikować
+
+Dotyk i klawiatura symulatora (bez zgody na kontrolę aplikacji) — ekrany
+oglądane przez furtki DEBUG, zapisy sprawdzane curlem w kształcie używanym
+przez apkę. **Realna wysyłka maila niemożliwa lokalnie**: `MAIL_*` żyje tylko
+w env Vercela, więc compose/forward/reply zwracają lokalnie 400 „Skrzynka
+pocztowa nie jest skonfigurowana" — apka ten komunikat pokazuje poprawnie,
+ale sama wysyłka wymaga testu na produkcji. Wybór pliku/zdjęcia wymaga
+dotyku — nie sprawdzony.
+
+Nowe furtki DEBUG (README apki): `LEGGERA_DEV_TAB`, `LEGGERA_DEV_MAIL_VIEW`
+(`screener`/`nudge`), `LEGGERA_DEV_MAIL_SHEET` (`nowa`/`szablony`),
+`LEGGERA_DEV_OPEN_MAIL=<id wiadomości>`.
 
 ### Czego NIE dało się zweryfikować w tej sesji
 
