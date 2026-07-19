@@ -84,6 +84,23 @@ export function sanitizeMailHtml(rawHtml: string, allowImages = false): Sanitize
         width: [/^[\d.]+(px|pt|em|rem|%)$/],
         "max-width": [/^[\d.]+(px|pt|em|rem|%)$/],
         height: [/^[\d.]+(px|pt|em|rem|%)$/],
+        // UKRYWANIE — musi przejść, inaczej psujemy maile zamiast je czyścić.
+        // Newslettery chowają tak „preheader": tekst podglądu dla skrzynki
+        // odbiorczej, zapisany na początku <body> i schowany przez
+        // `display:none` albo `max-height:0;overflow:hidden;opacity:0`.
+        // Gdy te reguły wylecą, ukryty tekst ROBI SIĘ WIDOCZNY i wygląda jak
+        // wyciek śmieci na górze wiadomości (zgłoszenie właściciela 2026-07-19:
+        // duchy liter obok treści). Żadna z nich nie pozwala wykonać kodu —
+        // `position` świadomie zostaje poza listą, bo mail nie ma prawa
+        // nakładać się na panel.
+        display: [/^(none|block|inline|inline-block|inline-table|table|table-row|table-cell|list-item|flex|inline-flex)$/],
+        visibility: [/^(visible|hidden|collapse)$/],
+        opacity: [/^[\d.]+$/],
+        overflow: [/^(visible|hidden|auto|scroll)$/],
+        // Jednostka opcjonalna: preheadery pisze się jako `max-height:0`,
+        // a samo zero bez jednostki odpadłoby na wzorcu wymagającym `px`.
+        "max-height": [/^[\d.]+(px|pt|em|rem|%)?$/],
+        "line-height": [/^[\d.]+(px|pt|em|rem|%)?$/],
         border: [/^[^;{}()]*$/],
         "border-radius": [/^[\d.]+(px|pt|em|rem|%)$/],
       },
@@ -134,11 +151,27 @@ export function buildMailSrcDoc(cleanHtml: string, dark: boolean): string {
     font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     word-break:break-word;overflow-wrap:anywhere;}
   a{color:${link};}
-  img{max-width:100%;height:auto;}
-  table{max-width:100%;border-collapse:collapse;}
-  /* Maile marketingowe lubią sztywne szerokości (600px+) — na wąskim ekranie
-     rozjeżdżałyby ramkę w bok. */
-  *{max-width:100%!important;}
+  /* SZTYWNE SZEROKOŚCI — sedno dopasowania do ekranu.
+     Newslettery budują układ na tabelach z atrybutem width=600 albo stylem
+     width:600px. Samo max-width:100% ich NIE pokona: tabela nie zejdzie
+     poniżej szerokości minimalnej, którą narzucają jej komórki — dlatego
+     wcześniej treść była ucinana z prawej. Zerujemy więc szerokości wprost,
+     u źródła. Selektory atrybutowe mają wyższą swoistość niż samo table,
+     więc wygrywają bez wyścigu na !important.
+     (Uwaga: bez odwrotnych apostrofów w tym komentarzu — cały dokument jest
+     szablonem w odwrotnych apostrofach i zamknęłyby go w połowie.) */
+  table,td,th,img,div{max-width:100%!important;}
+  /* Świadomie BEZ img[width]: obrazek zablokowany podmieniamy na przezroczysty
+     piksel 1x1, więc wyzerowanie mu szerokości zwinęłoby go do 1 px i rozwaliło
+     układ, zamiast go zachować (zmierzone). Obrazkom wystarcza max-width. */
+  table[width],td[width],th[width],col[width]{width:auto!important;}
+  table{border-collapse:collapse;}
+  img{height:auto!important;}
+  /* Ostatnia deska ratunku dla maili, które i tak nie chcą się zmieścić
+     (sztywne szerokości w piksele wpisane w zagnieżdżone komórki): niech dadzą
+     się przewinąć w bok, zamiast zostać ucięte. Przewinąć można zawsze,
+     odzyskać uciętego fragmentu — nie. */
+  body{overflow-x:auto;}
 </style>
 </head><body>${cleanHtml}</body></html>`;
 }

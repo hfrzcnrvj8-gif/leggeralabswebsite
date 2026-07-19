@@ -434,3 +434,46 @@ przejścia przez alert zgody na powiadomienia (do testu użyto trybu
 `provisional`, który iOS przyznaje bez pytania) oraz **dostarczenia**
 powiadomienia o zaplanowanej godzinie — zaplanowanie jest potwierdzone,
 samo dostarczenie to już zachowanie systemu.
+### Poprawka po pierwszym dniu na prawdziwym telefonie (2026-07-19)
+
+Właściciel wgrał apkę na iPhone'a i zgłosił jedną wadę, tę samą co w panelu:
+**„podgląd maila kompletnie się nie skaluje i nie dopasowuje do ekranu"**.
+Przyczyny okazały się dwie i żadna nie leżała w apce.
+
+1. **Odkażanie wycinało `display`.** `allowedStyles` w `lib/mailHtml.ts` nie
+   miało go na liście, więc `display:none` znikało — a newslettery chowają tak
+   **preheader**, czyli tekst podglądu dla skrzynki odbiorczej. Po wycięciu
+   reguły ukryty tekst robił się widoczny i to on był tymi „duchami liter"
+   obok treści na zrzucie z telefonu. Dopuszczone zostały wyłącznie style
+   ukrywania (`display`, `visibility`, `opacity`, `overflow`, `max-height`,
+   `line-height`); `position` świadomie ZOSTAJE poza listą, bo mail nie ma
+   prawa nakładać się na panel.
+2. **`max-width:100%` nie pokonuje sztywnych szerokości.** Newslettery
+   opakowują treść w `<div style="width:600px">` i tabele z `width="600"`.
+   Stary CSS apki obejmował tylko `img, table` — `div` nie był objęty niczym.
+   Zmierzone w przeglądarce: taki mail wystawał o **234 px** na ekranie 390 px
+   i był ucinany. Teraz szerokości zerujemy u źródła
+   (`table[width],td[width],th[width],col[width]{width:auto}`), a `overflow-x`
+   zostaje jako ostatnia deska ratunku — przewinąć można zawsze, odzyskać
+   uciętego fragmentu nie.
+
+**Regresja złapana po drodze:** pierwsza wersja poprawki zerowała też
+`img[width]`. Zablokowany obrazek podmieniamy na przezroczysty piksel 1×1, więc
+zwijał się do 1 px i psuł układ, zamiast go zachować. Zmierzone i cofnięte —
+obrazkom wystarcza `max-width`.
+
+Przy okazji: podgląd w apce dostał **prawdziwą wysokość**. Sztywne 260 punktów
+ucinało każdy dłuższy mail. Mierzymy `contentSize` własnego `UIScrollView`
+przez KVO — czyli **bez JavaScriptu**, żeby nie zdejmować drugiej warstwy
+obrony w widoku cudzej treści.
+
+Próbka regresyjna siedzi w ziarnie deweloperskim (`ensureSeeded()` w
+`lib/dev-db.ts`): mail „Alerty o ofertach pracy" ma teraz ukryty preheader
+i opakowanie 600 px obok wcześniejszych pułapek bezpieczeństwa. Jeśli
+kiedykolwiek zobaczysz w nim tekst zaczynający się od „Preheader:" albo treść
+uciętą z prawej — to regresja dokładnie tych dwóch reguł.
+
+**Nowa furtka DEBUG:** `LEGGERA_DEV_BACKEND=lokalny` przełącza apkę na panel
+na Macu. Domyślnie apka celuje w produkcję (właściciel używa jej na telefonie),
+a bez tej furtki weryfikacja w symulatorze wymagałaby edytowania kodu tam
+i z powrotem — prosta droga do wypchnięcia apki celującej w localhost.

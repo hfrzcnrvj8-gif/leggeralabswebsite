@@ -316,10 +316,21 @@ async function ensureSeeded(): Promise<void> {
       // rzeczy, które MUSZĄ zostać wycięte przez odkażanie: <script>, atrybut
       // onerror= i link javascript:. Jeśli po zmianie w regułach zobaczysz w
       // panelu alert albo goły kod — to regresja bezpieczeństwa.
+      //
+      // Od 2026-07-19 jest tu też próbka pod DOPASOWANIE DO EKRANU (zgłoszenie
+      // właściciela z telefonu: „podgląd maila kompletnie się nie skaluje"):
+      //  1. preheader ukryty przez display:none — jeśli go WIDAĆ, to znaczy,
+      //     że odkażanie znów wycina style ukrywania i newsletterom wycieka
+      //     tekst podglądu;
+      //  2. opakowanie <div style="width:600px"> — jeśli treść UCINA SIĘ
+      //     z prawej, to znaczy, że reguły szerokości przestały je zerować.
+      //     Zmierzone: bez nich ten mail wystawał o 234 px na ekranie 390 px.
       await raw(
         `UPDATE mail_messages SET body_html = $1 WHERE id = $2`,
         [
           `<html><body style="font-family:sans-serif">
+            <div style="display:none;max-height:0;overflow:hidden;opacity:0">Preheader: ten tekst NIE ma być widoczny w treści wiadomości.</div>
+            <div style="width:600px">
             <table width="600" cellpadding="8"><tr><td bgcolor="#0a66c2" style="color:#fff">
               <h2 style="margin:0">Alerty o ofertach pracy</h2></td></tr>
               <tr><td><p>Twój alert o ofertach pracy na stanowisko <b>Konsultant systemu SAP</b>.</p>
@@ -328,6 +339,7 @@ async function ensureSeeded(): Promise<void> {
               <p><a href="javascript:alert('xss')">Podejrzany link</a></p>
               <script>alert('xss')</script>
               </td></tr></table>
+            </div>
           </body></html>`,
           mailNoise,
         ]
