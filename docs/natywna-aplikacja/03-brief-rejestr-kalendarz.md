@@ -64,10 +64,22 @@ Apka pobiera to, co już umie, i skleja w pamięci.
   o co właściciel prosił. Stronicowanie po scalonej liście też trzeba by
   napisać ręcznie.
 
-**Rekomendacja: Droga 1.** Droga 2 wygląda taniej tylko do momentu, w którym
-sprawdzisz, że logi kontaktu nie mają trasy zbiorczej. **Sprawdź to sam
-gretem, zanim zaufasz temu zdaniu** — dokładnie ta klasa pomyłki („pole
-istnieje, tylko nikt go nie woła") wróciła w tym projekcie już cztery razy.
+**Rekomendacja: Droga 1** — i to jest już SPRAWDZONE, nie przeczucie
+(zweryfikowane gretem 2026-07-19, przy zamykaniu poprzedniej sesji):
+
+- **Trasy zbiorczej dla logów kontaktu NIE MA.** Każde zapytanie do
+  `lead_activity` i `client_activity` filtruje po jednym rekordzie
+  (`WHERE lead_id = ...` / `WHERE client_id = ...`). Droga 2 oznaczałaby więc
+  odpytanie każdego leada i każdego klienta z osobna — dziesiątki żądań na
+  jedno otwarcie ekranu.
+- **Ale scalanie już gdzieś istnieje i warto je podebrać.**
+  `app/api/events/deadlines/route.ts` odpytuje `lead_activity JOIN leads`
+  oraz `client_activity JOIN clients` **bez filtra po pojedynczym rekordzie**
+  (ogranicza je miesiącem) i produkuje gotowe rodzaje `call`, `call-missed`
+  i `email`. To jest najbliższy istniejący wzorzec — przeczytaj go, zanim
+  napiszesz własny SQL. Uwaga: to nie jest to samo zadanie (deadline'y są
+  nakładką na kalendarz w oknie miesiąca, rejestr ma być historią wstecz
+  ze stronicowaniem), więc kopiuj kształt zapytań, nie logikę zakresu.
 
 ### Kształt, gdy wybierzecie Drogę 1
 
