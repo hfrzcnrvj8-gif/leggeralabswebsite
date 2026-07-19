@@ -21,16 +21,23 @@ import { buildMailSrcDoc } from "@/lib/mailHtml";
 export function MailBodyHtml({ html, blockedImages, onShowImages }: { html: string; blockedImages: boolean; onShowImages: () => void }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const { resolvedTheme } = useTheme();
-  const [height, setHeight] = useState(240);
+  const [height, setHeight] = useState(460);
+  const [rozwiniete, setRozwiniete] = useState(false);
 
   // Ramka jest odizolowana, więc nie może sama zgłosić swojej wysokości
   // (to wymagałoby skryptu w środku, czyli allow-scripts — a na to się nie
-  // godzimy). Mierzymy ją więc z zewnątrz: to ten sam origin (srcdoc), tylko
-  // bez allow-same-origin dokument jest dla nas nieczytelny... dlatego
-  // ograniczamy się do sensownego maksimum i pozwalamy ramce scrollować się
-  // w środku. Świadomy kompromis: bezpieczeństwo > idealne dopasowanie.
+  // godzimy). Nie da się jej też zmierzyć z zewnątrz: bez allow-same-origin
+  // `contentDocument` jest dla nas niedostępny. Świadomy kompromis:
+  // bezpieczeństwo > idealne dopasowanie.
+  //
+  // Zostaje więc oszacowanie z długości HTML-a — ale WYRAŹNIE wyższe niż
+  // pierwotne 240/400/560 px. Tamte wartości sprawiały, że newsletter oglądało
+  // się przez szparę i trzeba go było przewijać w środku ramki, co właściciel
+  // opisał jako „za małe, skurczone, nieczytelne" (2026-07-19). Do tego
+  // dochodzi ręczne rozwinięcie: skoro nie umiemy zmierzyć, niech decyduje
+  // człowiek — jedno kliknięcie zamiast przewijania w szparze.
   useEffect(() => {
-    setHeight(html.length > 4000 ? 560 : html.length > 1200 ? 400 : 240);
+    setHeight(html.length > 8000 ? 760 : html.length > 4000 ? 640 : html.length > 1200 ? 520 : 340);
   }, [html]);
 
   const srcDoc = buildMailSrcDoc(html, resolvedTheme === "dark");
@@ -59,8 +66,16 @@ export function MailBodyHtml({ html, blockedImages, onShowImages }: { html: stri
           referrerPolicy="no-referrer"
           title="Treść wiadomości"
           className="w-full rounded-xl border hairline bg-white shadow-sm dark:bg-[#141414]"
-          style={{ height }}
+          style={{ height: rozwiniete ? "85vh" : height }}
         />
+        <div className="flex justify-center pt-1.5">
+          <button
+            onClick={() => setRozwiniete((v) => !v)}
+            className="rounded-full border hairline px-3 py-0.5 text-[12px] text-muted hover:bg-[var(--hairline)]"
+          >
+            {rozwiniete ? "Zmniejsz podgląd" : "Pokaż całość"}
+          </button>
+        </div>
       </div>
     </div>
   );

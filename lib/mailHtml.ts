@@ -147,8 +147,11 @@ export function buildMailSrcDoc(cleanHtml: string, dark: boolean): string {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; style-src 'unsafe-inline'; font-src data:;">
 <base target="_blank">
 <style>
+  /* 15 px, nie 13 px: 13 px to rozmiar gęstego UI panelu, ale treść maila się
+     CZYTA, a nie skanuje wzrokiem. Apka ma tu tyle samo — ten sam mail ma
+     wyglądać tak samo na telefonie i przy biurku. */
   html,body{margin:0;padding:12px;background:${bg};color:${fg};
-    font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     word-break:break-word;overflow-wrap:anywhere;}
   a{color:${link};}
   /* SZTYWNE SZEROKOŚCI — sedno dopasowania do ekranu.

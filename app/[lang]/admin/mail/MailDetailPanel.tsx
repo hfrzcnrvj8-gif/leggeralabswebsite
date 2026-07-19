@@ -983,11 +983,19 @@ export function MailDetailPanel({
           `mx-auto` wycentrowuje blok: bez tego, na szerokim ekranie, całe
           puste miejsce lądowało tylko po prawej stronie (zgłoszone
           2026-07-16) — wycentrowanie rozkłada je symetrycznie. */}
-      <div className="mb-5 mx-auto max-w-[70ch]">
+      {/* Szerokość zależy od tego, CO pokazujemy, i to nie jest kosmetyka.
+          `max-w-[70ch]` to reguła dla czytania TEKSTU (za długie linijki męczą
+          oko) — przy foncie 13 px wychodzi z tego jakieś 490 px. Newsletter
+          w HTML-u jest natomiast zaprojektowany na 600 px i więcej, więc ta
+          sama reguła WCISKAŁA go w ramkę węższą, niż został narysowany:
+          kolumny się zlewały, a całość wyglądała na skurczoną i nieczytelną
+          (zgłoszenie właściciela 2026-07-19). Dlatego ograniczenie zostaje
+          tylko na wersji tekstowej, a HTML dostaje pełną szerokość karty. */}
+      <div className="mb-5">
         {html ? (
           <MailBodyHtml html={html} blockedImages={blockedImages} onShowImages={() => setShowImages(true)} />
         ) : (
-          <div className="rounded-xl border hairline bg-[var(--hairline)]/20 p-4">
+          <div className="mx-auto max-w-[70ch] rounded-xl border hairline bg-[var(--hairline)]/20 p-4">
             <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed">
               {mail.body_text || "(pusta treść)"}
             </pre>
