@@ -340,6 +340,22 @@ async function ensureSeeded(): Promise<void> {
               <script>alert('xss')</script>
               </td></tr></table>
             </div>
+            <!-- Druga pułapka szerokości, INNA niż powyższa: nowocześni nadawcy
+                 (Calendly, Stripe) nie używają atrybutu width, tylko stylu
+                 inline. Selektor [width] ich nie łapie, więc muszą je zerować
+                 reguły na samym table/td. Bez tego mail wychodzi poza ekran
+                 i jest ucinany (zgłoszenie właściciela 2026-07-19, druga tura). -->
+            <table style="width:640px"><tr>
+              <td style="width:400px">Upgrade to keep using the premium features you love</td>
+              <td style="width:240px">Automate email and text reminder Workflows</td>
+            </tr></table>
+            <!-- Trzecia pułapka, ta najbardziej podstępna: sztywna szerokość
+                 na elementach, które NIE są tabelą ani obrazkiem. Lista tagów
+                 (table,td,th,img,div) przepuszczała je bez zmian — dopiero
+                 reguła na gwiazdkę (selektor uniwersalny) je łapie. Zmierzone: ten nagłówek wystawał
+                 o 234 px poza ekran 390 px. -->
+            <h1 style="width:600px">Upgrade to keep using the premium features you love</h1>
+            <p style="width:600px">Your 14-day trial may have ended, but your scheduling is just getting started.</p>
           </body></html>`,
           mailNoise,
         ]

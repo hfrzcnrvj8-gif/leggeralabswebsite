@@ -163,11 +163,25 @@ export function buildMailSrcDoc(cleanHtml: string, dark: boolean): string {
      więc wygrywają bez wyścigu na !important.
      (Uwaga: bez odwrotnych apostrofów w tym komentarzu — cały dokument jest
      szablonem w odwrotnych apostrofach i zamknęłyby go w połowie.) */
+  /* Na WSZYSTKIM, nie na wybranej liście tagów. Sztywną szerokość da się
+     wpisać w dowolny element — Calendly i spółka robią to na nagłówkach
+     i akapitach, nie tylko na tabelach. Lista table,td,th,img,div
+     przepuszczała dokładnie te przypadki: zmierzone, nagłówek 600 px
+     wystawał o 234 px poza ekran 390 px i był ucinany. */
+  *{max-width:100%!important;}
   table,td,th,img,div{max-width:100%!important;}
   /* Świadomie BEZ img[width]: obrazek zablokowany podmieniamy na przezroczysty
      piksel 1x1, więc wyzerowanie mu szerokości zwinęłoby go do 1 px i rozwaliło
      układ, zamiast go zachować (zmierzone). Obrazkom wystarcza max-width. */
-  table[width],td[width],th[width],col[width]{width:auto!important;}
+  /* Na tabelach i komórkach zerujemy SZEROKOŚĆ, nie tylko max-width — i to
+     bez oglądania się na to, czy przyszła atrybutem, czy stylem inline.
+     Powód: max-width nie zmusi komórki do zejścia poniżej zadanej szerokości,
+     więc dwukolumnowy układ 400+240 px i tak rozpychał tabelę poza ekran
+     (zmierzone na mailu Calendly). Cena: kolumny zadeklarowane w procentach
+     rozłożą się automatycznie zamiast dokładnie tak, jak chciał nadawca.
+     Świadomy wybór — układ trochę inny niż zamierzony jest lepszy niż układ
+     ucięty. */
+  table,td,th,col{width:auto!important;}
   table{border-collapse:collapse;}
   img{height:auto!important;}
   /* Ostatnia deska ratunku dla maili, które i tak nie chcą się zmieścić
