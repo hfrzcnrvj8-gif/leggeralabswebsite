@@ -147,48 +147,27 @@ export function buildMailSrcDoc(cleanHtml: string, dark: boolean): string {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; style-src 'unsafe-inline'; font-src data:;">
 <base target="_blank">
 <style>
-  /* 15 px, nie 13 px: 13 px to rozmiar gęstego UI panelu, ale treść maila się
-     CZYTA, a nie skanuje wzrokiem. Apka ma tu tyle samo — ten sam mail ma
-     wyglądać tak samo na telefonie i przy biurku. */
+  /* CSS jest CELOWO minimalny — i to jest zmiana podejścia (2026-07-19).
+     Wcześniej były tu reguły zerujące sztywne szerokości (max-width na
+     wszystkim, width:auto na tabelach), które ZMUSZAŁY maila do przebudowy
+     układu. To odwrotność tego, co robią klienty pocztowe: newsletter jest
+     projektem graficznym o zadanej szerokości i przelany na inną szerokość
+     rozpada się, nawet gdy nic nie jest ucięte. Apple Mail pokazuje go
+     w naturalnych proporcjach i pomniejsza, gdy trzeba.
+     Panel ma na treść ~865 px, więc typowy mail (600 px) mieści się bez
+     żadnych sztuczek; szerszy dostaje poziomy pasek przewijania w ramce,
+     zamiast rozjechanego układu. Skalowanie „jak w Apple Mail" robi apka
+     natywna (WidokHTML w WiadomoscView.swift) — tam ekran bywa węższy niż
+     mail i bez tego się nie da.
+     15 px, nie 13 px: 13 px to rozmiar gęstego UI panelu, ale treść maila
+     się CZYTA, a nie skanuje wzrokiem. */
   html,body{margin:0;padding:12px;background:${bg};color:${fg};
-    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    word-break:break-word;overflow-wrap:anywhere;}
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
   a{color:${link};}
-  /* SZTYWNE SZEROKOŚCI — sedno dopasowania do ekranu.
-     Newslettery budują układ na tabelach z atrybutem width=600 albo stylem
-     width:600px. Samo max-width:100% ich NIE pokona: tabela nie zejdzie
-     poniżej szerokości minimalnej, którą narzucają jej komórki — dlatego
-     wcześniej treść była ucinana z prawej. Zerujemy więc szerokości wprost,
-     u źródła. Selektory atrybutowe mają wyższą swoistość niż samo table,
-     więc wygrywają bez wyścigu na !important.
-     (Uwaga: bez odwrotnych apostrofów w tym komentarzu — cały dokument jest
-     szablonem w odwrotnych apostrofach i zamknęłyby go w połowie.) */
-  /* Na WSZYSTKIM, nie na wybranej liście tagów. Sztywną szerokość da się
-     wpisać w dowolny element — Calendly i spółka robią to na nagłówkach
-     i akapitach, nie tylko na tabelach. Lista table,td,th,img,div
-     przepuszczała dokładnie te przypadki: zmierzone, nagłówek 600 px
-     wystawał o 234 px poza ekran 390 px i był ucinany. */
-  *{max-width:100%!important;}
-  table,td,th,img,div{max-width:100%!important;}
-  /* Świadomie BEZ img[width]: obrazek zablokowany podmieniamy na przezroczysty
-     piksel 1x1, więc wyzerowanie mu szerokości zwinęłoby go do 1 px i rozwaliło
-     układ, zamiast go zachować (zmierzone). Obrazkom wystarcza max-width. */
-  /* Na tabelach i komórkach zerujemy SZEROKOŚĆ, nie tylko max-width — i to
-     bez oglądania się na to, czy przyszła atrybutem, czy stylem inline.
-     Powód: max-width nie zmusi komórki do zejścia poniżej zadanej szerokości,
-     więc dwukolumnowy układ 400+240 px i tak rozpychał tabelę poza ekran
-     (zmierzone na mailu Calendly). Cena: kolumny zadeklarowane w procentach
-     rozłożą się automatycznie zamiast dokładnie tak, jak chciał nadawca.
-     Świadomy wybór — układ trochę inny niż zamierzony jest lepszy niż układ
-     ucięty. */
-  table,td,th,col{width:auto!important;}
-  table{border-collapse:collapse;}
-  img{height:auto!important;}
-  /* Ostatnia deska ratunku dla maili, które i tak nie chcą się zmieścić
-     (sztywne szerokości w piksele wpisane w zagnieżdżone komórki): niech dadzą
-     się przewinąć w bok, zamiast zostać ucięte. Przewinąć można zawsze,
-     odzyskać uciętego fragmentu — nie. */
-  body{overflow-x:auto;}
+  /* Jedyne ograniczenie szerokości, jakie zostaje: pojedynczy obrazek
+     o gigantycznych wymiarach rozpychałby ramkę bez potrzeby. Tabel i tekstu
+     nie ruszamy — to układ nadawcy. */
+  img{max-width:100%;height:auto;}
 </style>
 </head><body>${cleanHtml}</body></html>`;
 }

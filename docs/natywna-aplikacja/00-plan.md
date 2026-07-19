@@ -477,3 +477,46 @@ uciętą z prawej — to regresja dokładnie tych dwóch reguł.
 na Macu. Domyślnie apka celuje w produkcję (właściciel używa jej na telefonie),
 a bez tej furtki weryfikacja w symulatorze wymagałaby edytowania kodu tam
 i z powrotem — prosta droga do wypchnięcia apki celującej w localhost.
+
+### Podgląd maila: model Apple Mail zamiast przebudowy układu (2026-07-19)
+
+**Zmiana podejścia po trzeciej rundzie uwag właściciela.** Pytanie, które ją
+wywołało: „dlaczego kiedy uruchamiam Apple Mail, to zawsze wszystko wczyta się
+tak, że się odpowiednio pomniejszy i wyskaluje do ekranu?".
+
+Odpowiedź: bo Apple Mail **nie przelewa treści** — renderuje maila w jego
+naturalnej szerokości i **pomniejsza całość**. Nasza apka robiła odwrotnie:
+zerowała sztywne szerokości i zmuszała newsletter do przebudowy. Stąd trzy
+rundy „lepiej, ale nadal nie to" — bo każda kolejna reguła CSS naprawiała jeden
+przypadek i rozbijała projekt nadawcy w innym. **To była zła droga i została
+porzucona.**
+
+Jak jest teraz (`WidokHTML` w `WiadomoscView.swift`):
+
+1. Mail renderuje się w naturalnej szerokości. CSS jest minimalny — kolory pod
+   ciemną apkę i `img{max-width:100%}`, żeby jeden gigantyczny obrazek nie
+   zepchnął skali do minimum. **Żadnego zerowania szerokości tabel.**
+2. Widok mierzy naturalną szerokość treści (`scrollView.contentSize.width`)
+   i ustawia `zoomScale = szerokość ramki / szerokość treści`.
+3. Dopasowanie powtarza się przy **każdej** zmianie układu, nie tylko po
+   `didFinish`: najszerszy element bywa policzony później i jednorazowe
+   dopasowanie zostawiało kilka procent poza ekranem (widoczne jako ucięte
+   końcówki wyrazów). Pętli nie ma — naturalną szerokość odtwarzamy dzieląc
+   przez aktualne powiększenie, więc kolejne wyliczenie daje tę samą skalę.
+4. Dolny limit skali to **0,4**. Niżej mail robi się nieczytelnym znaczkiem,
+   więc zamiast dalej pomniejszać pozwalamy przewinąć w bok.
+5. Wszystko **bez JavaScriptu** — pomiar idzie z natywnego `UIScrollView`.
+   Włączenie skryptów zdjęłoby jedną z dwóch warstw obrony przed cudzym HTML-em.
+
+Panel webowy dostał ten sam minimalny CSS. Nie ma tam skalowania i nie jest
+potrzebne: na treść przypada ~865 px, więc typowy mail (600 px) mieści się bez
+sztuczek, a szerszy dostaje poziomy pasek przewijania w ramce zamiast
+rozjechanego układu. Skalowania w ramce i tak nie da się tam zrobić uczciwie —
+`iframe` jest w piaskownicy bez `allow-same-origin`, więc jego zawartości nie
+zmierzymy, a rezygnacja z tej izolacji byłaby złym interesem.
+
+**iPadOS dostaje to za darmo** — ta sama apka, ten sam kod widoku.
+**macOS będzie wymagał bliźniaka**: `WidokHTML` jest `UIViewRepresentable`
+(UIKit), więc na Maca trzeba go przepisać na `NSViewRepresentable`. Sama logika
+przenosi się 1:1 (`WKWebView` jest na obu platformach), ale to nie jest zerowy
+koszt i nie należy zakładać, że „samo pojedzie".
