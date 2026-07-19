@@ -141,7 +141,7 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | Faza | Co | Gdzie |
 |---|---|---|
 | **1** ✅ | Uwierzytelnianie tokenem + **inwentarz API i modelu danych** (staje się specyfikacją apki) — wykonane 2026-07-19, patrz `01-inwentarz.md` | istniejące repo |
-| **2** | **Pionowy plaster + BRAMKA DECYZYJNA**: logowanie + Leady end-to-end, do działającej apki na symulatorze | nowe repo/target |
+| **2** ✅ | **Pionowy plaster + BRAMKA**: logowanie + Leady — bramka PRZESZŁA 2026-07-19 (właściciel obejrzał, zgłosił uwagi, wdrożone) | `leggera-hub-ios` |
 | **3** | Reszta poziomu 1 (bez Poczty) | |
 | **4** | Poczta w pełni (duży, osobny etap) | |
 | **5** | iPad (`NavigationSplitView` z tego samego kodu) | |
@@ -181,3 +181,77 @@ klimat", tracimy dni, nie kwartał.
 - Publikacja w App Store (apka jest wewnętrznym narzędziem; TestFlight wystarcza).
 - Android.
 - Przepisywanie zaplecza — zostaje Next.js na Vercelu.
+
+## Faza 2 — stan na 2026-07-19 (BRAMKA: czeka na decyzję właściciela)
+
+Repozytorium apki: **`/Volumes/OWC_SN850X/projekty_ai/leggera-hub-ios`**
+(osobne repo, decyzja właściciela 2026-07-19). Projekt Xcode jest generowany
+z `project.yml` przez `xcodegen generate` — w repo trzyma się źródło, nie
+wygenerowany `.xcodeproj`.
+
+Zbudowane i obejrzane w symulatorze iPhone 17 (Xcode 26.6, Swift 6.3.3):
+- logowanie hasłem → token per-urządzenie → Keychain,
+- lista leadów: szukanie, odświeżanie ściągnięciem, filtr „wymaga działania
+  dziś" (reguła przeniesiona 1:1 z `lib/leads.ts` do `LeadRules.swift`),
+- profil leada: szybkie kontakty `tel:`/`mailto:`, dane, historia kontaktu,
+  zmiana statusu,
+- arkusz „Zaloguj rozmowę" (kanał, kierunek, wynik) z detentami.
+
+Podczas budowy podczas oglądania realnego renderu wyszły dwa błędy, których
+opis by nie wyłapał: surowa data ISO zamiast polskiej (`Daty.swift`) i główna
+akcja zwinięta przez iOS 26 do nieopisanej ikony w dolnym pasku (przeniesiona
+do treści). To dokładnie ta pętla, której zabrakło przy PWA.
+
+**Czego jeszcze NIE zweryfikowano dotykiem:** zapis rozmowy i zmiana statusu
+z poziomu UI — Claude nie może sterować klawiaturą/dotykiem symulatora bez
+zgody na kontrolę aplikacji. Same trasy zapisu sprawdzone curlem w dokładnie
+tym kształcie, którego używa apka (przyjęte, odczyt zwrotny się zgadza).
+
+Faza 2 jest bramką: **następny krok to obejrzenie apki przez właściciela**
+(na symulatorze przez Xcode albo na własnym iPhonie) i decyzja, czy idziemy
+w Fazę 3. Nie dokładać modułów przed tą decyzją.
+
+## Stan na koniec sesji 2026-07-19 (przekazanie do nowego czatu)
+
+**Bramka Fazy 2 przeszła** — właściciel obejrzał apkę, zgłosił uwagi
+(wygląd + braki funkcji), zostały wdrożone, i sam powiedział „przechodzimy
+do kompletowania użyteczności". Faza 3 jest więc w toku.
+
+### Co apka już umie (zweryfikowane w symulatorze i curlem)
+
+- **Logowanie** tokenem per-urządzenie, token w Keychain, 401 = powrót na
+  ekran logowania.
+- **Dziś** — licznik i lista tego, co wymaga ruchu (leady + klienci).
+- **Leady** — lista z filtrem/szukaniem, profil na 4 zakładkach
+  (Wizytówka/Historia/Logi/Akcje), edycja pól, przypomnienie z kalendarza,
+  logowanie rozmowy, zmiana statusu, dodawanie nowego leada.
+- **Klienci** — lista, profil ze scalonym feedem (wpisy „z leada" oznaczone),
+  logowanie rozmowy, zmiana statusu relacji, dodawanie klienta.
+- **Koszty** — pełna ścieżka „paragon ze zdjęcia": aparat → upload →
+  odczyt lokalnym modelem → poprawki właściciela → zapis.
+- **Poczta (pierwsza tura)** — lista folderu z filtrem statusu i szukaniem,
+  gesty (obsłużone / archiwum), podgląd wiadomości z odkażonym HTML-em
+  i blokadą zdalnych obrazków, wątek, odpowiedź, ręczna synchronizacja.
+
+### Co zostało — kolejny czat zaczyna STĄD
+
+1. **Poczta, reszta modułu**: załączniki, nowa wiadomość od zera, przekazanie
+   dalej, szablony, screener nadawców, snooze, nudge, szkic odpowiedzi od AI.
+   Wszystko opisane w `inwentarz/04-poczta-ai.md`.
+2. **Powiadomienia push** — ODŁOŻONE świadomie: właściciel zakłada konto
+   Apple Developer **na sam koniec**. Bez niego push realnie nie zadziała.
+3. Poziom 2 (projekty + stoper, faktury podgląd), iPad, macOS — wg tabeli faz.
+
+### Czego NIE dało się zweryfikować w tej sesji
+
+Dotyk i klawiatura symulatora (brak zgody na kontrolę aplikacji) — zapisy
+sprawdzane curlem w kształcie używanym przez apkę, a ekrany oglądane przez
+furtki DEBUG (`LEGGERA_DEV_TOKEN`, `LEGGERA_DEV_OPEN_LEAD`, `LEGGERA_DEV_TAB`).
+Aparat nie istnieje w symulatorze — realny test paragonu wymaga iPhone'a.
+
+### Reguły wyglądu ustalone przez właściciela (nie zmieniaj bez pytania)
+
+Zapisane w pamięci projektu (`apka-jezyk-wizualny`): jeden akcent na ekran,
+prawdziwy Liquid Glass (`glassEffect`), **gradient wyłącznie na ikonach,
+tekst biały**, znak LL w proporcjach ZMIERZONYCH z glifu Inter, bez systemowej
+czerwieni (wylogowanie w ciemnej czerwieni #8B272F).
