@@ -147,9 +147,10 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **5** ✅ | Domknięcie poziomu 1 (Pulpit na agregacie, Notatnik, powiadomienia, szukanie) + **Projekty ze stoperem** — wykonane 2026-07-19, patrz „Faza 5" niżej | `leggera-hub-ios` |
 | **6** ✅ | **Rejestr wiadomości i rozmów** + Kalendarz — wykonane 2026-07-19, patrz „Faza 6" niżej | `leggera-hub-ios` + panel |
 | **7** ← NASTĘPNA | **Natywne bajery**: Face ID, Siri, widżet „co dziś", Share Extension — patrz `04-brief-natywne-bajery.md` | |
-| **8** | iPad (`NavigationSplitView` z tego samego kodu) | |
-| **9** | Reszta poziomu 2 (faktury, oferty — podgląd) | |
-| **10** | macOS z tego samego rdzenia | |
+| **8** ← NASTĘPNA | **Załączniki + skrzynka**: załączniki przychodzące (panel + apka), wyciszenie wątku, ekran „Subskrypcje", wysyłka odłożona — patrz `05-brief-zalaczniki-i-skrzynka.md` | oba repo |
+| **9** | iPad (`NavigationSplitView` z tego samego kodu) | |
+| **10** | Reszta poziomu 2 (faktury, oferty — podgląd) | |
+| **11** | macOS z tego samego rdzenia | |
 
 **Kolejność faz 7–9 zmieniona 2026-07-19 przez właściciela**, pytanego wprost,
 co ma być następne. Bajery weszły przed iPada i przed faktury. Powód: apka jest
@@ -836,3 +837,28 @@ przyciskiem ▶ robi to sam, terminal musi dostać zgodę wprost.
 
 Koszt uboczny, o którym trzeba pamiętać: trzy targety = **trzy identyfikatory
 aplikacji**, a darmowe konto ma limit ~10 na 7 dni.
+
+## Reguła „zero AI w decydowaniu" jest OTWARTA (2026-07-19)
+
+Do tej pory `CLAUDE.md` traktował brak AI w podpowiedziach, dopasowaniach
+i kolejkowaniu jako decyzję zamkniętą. **Właściciel ją otworzył** — pytany
+o inteligentne funkcje w skrzynce (kategorie, podsumowania, priorytetyzacja):
+
+> „do tych funkcji AI to jeszcze będziemy wracać po audycie, bo trochę się to
+> gryzie, że ja jako integrator lokalnych LLM sam nie korzystam w moim własnym
+> produkcie, z którego korzystam — to słaba autoreklama"
+
+To jest argument **produktowy**, nie techniczny: narzędzie, które sprzedaje
+kompetencję we wdrażaniu lokalnych modeli, samo ich prawie nie używa.
+
+**Co to znaczy w praktyce:**
+
+- **Nie dokładaj AI na własną rękę** — decyzja jeszcze nie zapadła.
+- **Ale nie powołuj się na „zero AI" jako na rozstrzygnięcie.** Jeśli trafisz
+  na miejsce, gdzie lokalny model miałby sens, odnotuj je jako materiał na
+  audyt zamiast odrzucać z automatu.
+- Stan zastany do tamtej rozmowy: dwa punktowe użycia (szkic odpowiedzi
+  mailowej, odczyt paragonu), oba w kształcie **„model proponuje, właściciel
+  zatwierdza"**, oba na Ollamie na Macu właściciela, nigdy w chmurze.
+- Pytanie na audyt nie brzmi więc „czy AI", tylko **„czy ten kształt da się
+  rozszerzyć, nie oddając modelowi decyzji"**.
