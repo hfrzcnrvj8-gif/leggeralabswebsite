@@ -796,3 +796,43 @@ faktyczne dopasowanie twarzy, wypowiedzenie frazy do Siri oraz — najważniejsz
 
 `LEGGERA_DEV_BLOKADA` — `1` (blokada + od razu monit) albo `ekran` (blokada bez
 monitu, żeby dało się zobaczyć własny ekran blokady zamiast systemowego arkusza).
+
+### ROZSTRZYGNIĘTE: darmowe konto Apple wystarcza (2026-07-19, po zgłoszeniu błędu)
+
+Właściciel zgłosił błąd przy budowaniu na telefon z Xcode. Diagnoza obaliła
+ostrożne założenie z briefu Fazy 7 — **i to na korzyść**.
+
+**Prawdziwa przyczyna błędu była banalna:** `Signing.xcconfig` miał PUSTE pole
+`DEVELOPMENT_TEAM`. Do Fazy 6 nie bolało, bo target był jeden i właściciel
+wybierał zespół klikając w Xcode. Od Fazy 7 targety są TRZY, więc każde
+`xcodegen generate` kasowało trzy ręczne wybory naraz i dawało trzy błędy
+„Signing for … requires a development team". Identyfikator (`2DKNXGZMDY`)
+odczytany z profilu leżącego na Macu i wpisany na stałe.
+
+**Przy okazji rozstrzygnęła się główna niewiadoma modułu.** Profil, który Xcode
+wystawia dla DARMOWEGO konta, przyznaje `keychain-access-groups: <zespół>.*`
+(wildcard). Build na urządzenie potwierdza, że wszystkie trzy targety dostają
+tę samą grupę:
+
+```
+LeggeraHub.app        keychain-access-groups: 2DKNXGZMDY.pl.leggeralabs.hub
+Widzet.appex          keychain-access-groups: 2DKNXGZMDY.pl.leggeralabs.hub
+UdostepnijLead.appex  keychain-access-groups: 2DKNXGZMDY.pl.leggeralabs.hub
+```
+
+Czyli **widżet i Share Extension zobaczą token bez płatnego konta.** Cała
+ostrożność briefu („to jest pytanie, czy połowa modułu jest wykonalna") była
+uzasadniona jako pytanie, ale odpowiedź brzmi: tak, wykonalna.
+`project-telefon.yml` zostaje jako wariant awaryjny, ale nie jest potrzebny.
+
+**Metodologicznie warto to zapamiętać:** odpowiedzi nie dała dokumentacja Apple
+ani rozumowanie, tylko **odczytanie uprawnień z realnie podpisanego builda na
+urządzenie**. Symulator kłamał w drugą stronę — tam uprawnienia są puste, a kod
+i tak działa, bo symulator nie egzekwuje grup dostępu Keychaina.
+
+Drugi błąd po drodze: `xcodebuild` na urządzenie wymaga `-allowProvisioningUpdates`,
+bo rozszerzenia mają własne identyfikatory i potrzebują nowych profili. Xcode
+przyciskiem ▶ robi to sam, terminal musi dostać zgodę wprost.
+
+Koszt uboczny, o którym trzeba pamiętać: trzy targety = **trzy identyfikatory
+aplikacji**, a darmowe konto ma limit ~10 na 7 dni.
