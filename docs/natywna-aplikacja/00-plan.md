@@ -520,3 +520,45 @@ zmierzymy, a rezygnacja z tej izolacji byłaby złym interesem.
 (UIKit), więc na Maca trzeba go przepisać na `NSViewRepresentable`. Sama logika
 przenosi się 1:1 (`WKWebView` jest na obu platformach), ale to nie jest zerowy
 koszt i nie należy zakładać, że „samo pojedzie".
+
+## Stan na koniec sesji 2026-07-19 (przekazanie)
+
+Apka **działa na fizycznym iPhonie właściciela**, na produkcji, i jest realnie
+używana. To pierwsza sesja, w której uwagi przychodzą z prawdziwego użycia,
+a nie z symulatora — i od razu wyłapały rzeczy, których symulator nie pokazał
+(skalowanie maili, wyciek preheadera).
+
+### Zamknięte w tej sesji
+
+- **Faza 5**: poziom 1 domknięty (Pulpit na agregacie, Notatnik, powiadomienia,
+  szukanie) + Projekty ze stoperem i przypominaniem powiadomieniami lokalnymi.
+- **Belka**: Pulpit · Poczta · Leady · Projekty · Więcej.
+- **Wgranie na telefon**: produkcja, `Signing.xcconfig`, adres z `www`
+  (przekierowanie 308 gubiło nagłówek autoryzacji).
+- **Podgląd maila**: model Apple Mail (naturalna szerokość + pomniejszenie),
+  preheader przestał wyciekać, panel wypełnia dostępną wysokość.
+
+### Otwarte — do sprawdzenia PRZEZ WŁAŚCICIELA na telefonie
+
+Rzeczy, których nie da się zweryfikować w symulatorze; nie zakładaj, że działają:
+
+1. **Czy przypomnienie o stoperze faktycznie przychodzi** o zaplanowanej
+   godzinie. Zaplanowanie jest potwierdzone odczytem kolejki iOS-a, samo
+   dostarczenie to już zachowanie systemu.
+2. **Czy „Zatrzymaj" wprost z powiadomienia** zatrzymuje stoper bez otwierania
+   apki.
+3. **Ścieżka paragonu ze zdjęcia** — aparat nie istnieje w symulatorze, więc
+   cała droga foto → OCR → zapis nie była nigdy przejechana na prawdziwym
+   sprzęcie.
+4. **Realna wysyłka maila** (compose/reply/forward) — lokalnie zwraca 400, bo
+   `MAIL_*` żyje tylko w env Vercela.
+
+### Otwarte — do zrobienia
+
+| Co | Gdzie | Uwagi |
+|---|---|---|
+| Rejestr wiadomości i rozmów + Kalendarz | `03-brief-rejestr-kalendarz.md` | brief gotowy; **zaczyna się od decyzji** (nowa trasa agregująca vs scalanie w apce) |
+| iPad | — | `NavigationSplitView` z tego samego kodu |
+| Faktury i oferty (podgląd) | — | poziom 2, reszta zostaje na desktopie |
+| macOS | — | wymaga bliźniaka `WidokHTML` w `NSViewRepresentable` |
+| Powiadomienia push | — | czekają na konto Apple Developer; **to co innego niż lokalne**, które już działają |
