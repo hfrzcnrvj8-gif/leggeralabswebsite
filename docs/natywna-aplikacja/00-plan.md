@@ -708,3 +708,91 @@ zera wiodące, nawiasy, myślniki, adres e-mail zamiast numeru, śmieci) i
 Po tej poprawce **poziom 1 jest faktycznie kompletny** — z jednym wyjątkiem
 nazwanym wprost: powiadomienia **push**, które czekają na konto Apple
 Developer i nie da się ich zrobić wcześniej.
+
+## Faza 7 — natywne bajery (2026-07-19)
+
+Wykonane wg `04-brief-natywne-bajery.md`. Właściciel powiedział, że konto Apple
+Developer kupi **na koniec**, ale „możesz już wszystko przygotowywać" — więc
+całość jest zbudowana i czeka, a nie odłożona.
+
+### Sprostowanie do briefu: symulator nie zna tego ograniczenia
+
+Brief zakładał, że brak płatnego konta może uniemożliwić zrobienie widżetu
+i Share Extension. **Nieprawda** — ograniczenie dotyczy WYŁĄCZNIE wgrywania na
+fizyczny telefon. W symulatorze rozszerzenia i uprawnienia działają bez konta,
+więc oba zostały napisane, zbudowane i wbudowane w apkę.
+
+### Co powstało
+
+- **Face ID** (`Blokada.swift`) — `.deviceOwnerAuthentication`, czyli
+  z powrotem do kodu urządzenia, gdy twarz zawiedzie. **Wyłączalne**
+  przełącznikiem w „Więcej". Nieudane uwierzytelnienie NIE kasuje tokenu.
+  Ponowna prośba po **2 minutach** w tle, nie przy każdym powrocie — inaczej
+  skok do przeglądarki po adres prosiłby o twarz co kilkanaście sekund
+  i skończyłoby się wyłączeniem zabezpieczenia na stałe.
+- **Siri / Skróty** (`Intencje.swift`) — `AppIntents`, bez rozszerzenia i bez
+  uprawnień, więc działa na darmowym koncie. Dwie intencje: „zaloguj rozmowę"
+  (z `LeadEntity`, żeby dało się powiedzieć nazwę firmy) i „zapisz notatkę".
+  Obie z `openAppWhenRun = false` — cała wartość polega na użyciu ich zaraz po
+  odłożeniu słuchawki, bez patrzenia w ekran.
+- **Widżet „co dziś"** (`Widzet/`) — na `PulpitDzis`, tym samym agregacie co
+  Pulpit, więc nie ma trzeciego miejsca, w którym reguła „co wymaga ruchu"
+  mogłaby się rozjechać. Rozróżnia „nic nie ma" od „nie wiem": pusty widżet
+  mówiący „ogarnięte" przy wygasłym tokenie byłby kłamstwem w najgorszym
+  możliwym miejscu.
+- **Share Extension** (`UdostepnijLead/`) — celowo głupie: adres, jedno pole
+  na nazwę, `POST /api/leads`. `zrodlo_kategoria` = „Ręcznie dodane", bo panel
+  dzwoni wyłącznie przy „Formularz na stronie".
+
+### Dwa warianty budowy — po co i dlaczego to nie jest nadgorliwość
+
+`baza.yml` (sama apka) + `project.yml` (z rozszerzeniami) +
+`project-telefon.yml` (wariant awaryjny bez uprawnień).
+
+Powód jest konkretny: właściciel **używa apki codziennie**. Gdyby uprawnienia
+okazały się nie do podpisania darmowym kontem, jednorodny `project.yml`
+zostawiłby go z wersją, której NIE DA SIĘ zainstalować. Wariant awaryjny
+wgrywa się dokładnie jak dotąd.
+
+### Migracja tokenu — rzecz, która wywaliłaby właściciela z apki
+
+`Keychain` dostał grupę dostępu (bez niej rozszerzenia nie widzą tokenu).
+Ale na telefonie właściciela token **już leży zapisany BEZ grupy**, z wersji
+sprzed Fazy 7. Szukanie wyłącznie w grupie wyrzuciłoby go na ekran logowania
+przy zwykłej aktualizacji, bez żadnego powodu widocznego z zewnątrz. Dlatego
+`odczytajToken()` sprawdza grupę, potem stary adres, i przy okazji przepisuje.
+`usunToken()` kasuje w obu miejscach — wylogowanie zostawiające kopię tokenu
+jest gorsze niż brak wylogowania, bo wygląda na wykonane.
+
+### Czego symulator NIE JEST W STANIE udowodnić
+
+**Symulator nie egzekwuje grup dostępu Keychaina** — wszystkie procesy widzą
+tam ten sam schowek niezależnie od uprawnień. Sprawdzone: uprawnienia
+w podpisie buildu symulatorowego są PUSTE, a mimo to kod działa. Znaczy to, że
+**działający widżet w symulatorze nie jest dowodem, że zadziała na telefonie**.
+Jedyny prawdziwy test to fizyczne urządzenie z kontem Apple Developer.
+
+To jest wariant tej samej lekcji co przy stoperze w Fazie 5: sprawdzaj
+prawdziwy stan systemu, a gdy się nie da — powiedz wprost, że się nie da,
+zamiast uznawać zielony build za dowód.
+
+### Co zweryfikowano, a czego nie
+
+**Zweryfikowane:** obie intencje są w `Metadata.appintents` zbudowanej apki
+(czyli system je zobaczy, nie tylko „kod się skompilował"); oba rozszerzenia
+są wbudowane w `PlugIns/` z poprawnymi punktami wejścia
+(`com.apple.widgetkit-extension`, `com.apple.share-services`) i regułą
+aktywacji „tylko strony WWW, jedna"; ekran blokady na zrzucie; **realne
+zadziałanie blokady** — systemowy monit iOS-a pojawił się i zszedł do kodu
+urządzenia, bo symulator nie ma wgranej twarzy; dane widżetu przez curl na tym
+samym agregacie.
+
+**NIE zweryfikowane, wymaga telefonu i/lub dotyku:** wygląd widżetu na ekranie
+głównym (dodanie widżetu wymaga dotyku), przejście Share Extension z Safari,
+faktyczne dopasowanie twarzy, wypowiedzenie frazy do Siri oraz — najważniejsze
+— **czy współdzielenie Keychaina w ogóle zadziała na fizycznym urządzeniu**.
+
+### Nowa furtka DEBUG
+
+`LEGGERA_DEV_BLOKADA` — `1` (blokada + od razu monit) albo `ekran` (blokada bez
+monitu, żeby dało się zobaczyć własny ekran blokady zamiast systemowego arkusza).
