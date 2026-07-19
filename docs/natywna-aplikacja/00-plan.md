@@ -145,7 +145,7 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **3** ✅ | Reszta poziomu 1 (bez Poczty) — wykonane 2026-07-19 | `leggera-hub-ios` |
 | **4** ✅ | Poczta w pełni — wykonane 2026-07-19, patrz „Faza 4" niżej | `leggera-hub-ios` |
 | **5** ✅ | Domknięcie poziomu 1 (Pulpit na agregacie, Notatnik, powiadomienia, szukanie) + **Projekty ze stoperem** — wykonane 2026-07-19, patrz „Faza 5" niżej | `leggera-hub-ios` |
-| **6** | **Rejestr wiadomości i rozmów** + Kalendarz — patrz `03-brief-rejestr-kalendarz.md` | |
+| **6** ✅ | **Rejestr wiadomości i rozmów** + Kalendarz — wykonane 2026-07-19, patrz „Faza 6" niżej | `leggera-hub-ios` + panel |
 | **7** | iPad (`NavigationSplitView` z tego samego kodu) | |
 | **8** | Reszta poziomu 2 (faktury, oferty) + natywne bajery (widżet, Siri, Share Extension) | |
 | **9** | macOS z tego samego rdzenia | |
@@ -557,8 +557,116 @@ Rzeczy, których nie da się zweryfikować w symulatorze; nie zakładaj, że dzi
 
 | Co | Gdzie | Uwagi |
 |---|---|---|
-| Rejestr wiadomości i rozmów + Kalendarz | `03-brief-rejestr-kalendarz.md` | brief gotowy; **zaczyna się od decyzji** (nowa trasa agregująca vs scalanie w apce) |
 | iPad | — | `NavigationSplitView` z tego samego kodu |
 | Faktury i oferty (podgląd) | — | poziom 2, reszta zostaje na desktopie |
 | macOS | — | wymaga bliźniaka `WidokHTML` w `NSViewRepresentable` |
 | Powiadomienia push | — | czekają na konto Apple Developer; **to co innego niż lokalne**, które już działają |
+
+## Faza 6 — Rejestr i Kalendarz (2026-07-19)
+
+Wykonane wg `03-brief-rejestr-kalendarz.md`, obie części. **Jedyna faza, która
+dotknęła też panelu** — bo musiała.
+
+### Sprostowanie, które padło ZANIM powstał kod
+
+**Komunikatory odpadają i to nie jest kwestia nakładu pracy.** iOS nie daje
+żadnej aplikacji dostępu do wiadomości WhatsAppa, Messengera ani iMessage.
+W panelu „WhatsApp"/„LinkedIn" istnieją wyłącznie jako **etykieta kanału przy
+rozmowie zalogowanej ręcznie** — żadna integracja nic stamtąd nie zaciąga
+i nigdy nie zaciągała. Zapisane w trzech miejscach (`RodzajWpisu`,
+`RejestrView`, README apki), żeby nie trzeba było odkrywać tego drugi raz.
+
+### Część A — Rejestr: wybrana Droga 1 (nowa trasa w panelu)
+
+`GET /api/activity` — UNION po `mail_messages`, `lead_activity`
+i `client_activity`, malejąco po dacie, stronicowany kursorem, z filtrem
+`kind=` po stronie serwera. Kształt zapytań podebrany z
+`/api/events/deadlines` (najbliższy istniejący wzorzec), logika zakresu własna.
+
+Trzy rzeczy, które wyszły dopiero przy pisaniu:
+
+1. **Dedup maili przypiętych do kontaktu.** Panel przy przypięciu maila dopisuje
+   wiersz na oś kontaktu (`mail_message_id`). Bez `WHERE mail_message_id IS NULL`
+   każdy taki mail pojawiałby się w rejestrze DWA RAZY — raz z `mail_messages`,
+   raz z osi.
+2. **Kursor musi być WŁĄCZNY (`<=`), nie wyłączny.** Kilka wpisów potrafi mieć
+   identyczny znacznik czasu (paczka syncu, dwa wpisy w tej samej sekundzie).
+   Przy `<` granica strony wypadająca dokładnie między nimi **kasowała drugi
+   bezpowrotnie i bez żadnego objawu**. Pierwszy przebieg testu stronicowania
+   przeszedł — przypadkiem, bo granica akurat nie trafiła w remis. Cena
+   poprawki: ostatni wpis powtarza się na następnej stronie, więc apka odsiewa
+   po `id`.
+3. **Zwyrodniały `limit=1` wisiał w pętli.** Przy kursorze włącznym powtórka
+   wypełniała całą stronę i kursor nie miał jak ruszyć. Serwer trzyma teraz
+   minimum 2, apka dodatkowo kończy doczytywanie, gdy strona nie wniosła nic
+   nowego. Sprawdzone dla limitów 1/2/3/5/7/21/22/60 — każdy przechodzi
+   komplet 22 wpisów bez gubienia i bez pętli.
+
+### Część B — Kalendarz
+
+Miesiąc + lista dnia, dodawanie wydarzenia, podgląd terminów. Siatki
+tygodniowej i przeciągania świadomie NIE ma — to praca przy biurku.
+
+**Dwa strumienie są dwoma TYPAMI**, nie jednym z flagą: `Wydarzenie`
+(edytowalne) i `Termin` (wyliczony, tylko do odczytu, osobna sekcja
+z wyjaśnieniem „zmienia się je tam, gdzie powstały"). Dzięki temu próba
+skasowania terminu faktury z kalendarza jest błędem kompilacji, a nie czymś,
+co wychodzi u właściciela.
+
+### Szybki dopisek ujawnił CZTERY błędy w panelu
+
+`parseQuickAdd()` miał być tylko przeniesiony do rdzenia. Przy porównaniu obu
+implementacji na kompletach próbek okazało się, że **panel od zawsze gubił
+polskie znaki**, bo `\b` w JavaScripcie liczy litery po ASCII:
+
+| Wejście | Panel PRZED | Powinno |
+|---|---|---|
+| `dziś o 9 kawa` | tytuł „dziś kawa", **data przepadała** | „kawa", dziś, 09:00 |
+| `za tydzień retro` | nierozpoznane w ogóle | „retro", +7 dni |
+| `w niedzielę odpoczynek` | tytuł **„ę odpoczynek"** | „odpoczynek", najbliższa niedziela |
+| `w kosmosie konferencja` | zjadało „w kosmosie" bez dawania daty | tytuł nietknięty |
+
+Naprawione w panelu i odtworzone w apce — jawne `(?![\p{L}\d])` zamiast `\b`,
+plus warunek „nie zjadaj frazy, jeśli to nie jest nazwa dnia". **Parytet
+zweryfikowany**: oba silniki dają identyczny wynik na 25 próbkach, łącznie
+z `dzień o 9 spotkanie`, emoji w tytule i nieznanym dniem tygodnia.
+
+To jest dokładnie ten rodzaj długu, który wychodzi wyłącznie przy przenoszeniu
+reguły na drugą platformę — w panelu nikt by tego nie zauważył, bo „jakoś
+działało".
+
+### Dwie rzeczy, które wyszły dopiero na zrzucie, nie w kodzie
+
+1. **Wiersz rejestru mówił to samo dwa razy.** Trzecia linia pisała „Mail od"
+   albo „Telefon" — czyli dokładnie to, co niesie ikona obok. Przy nieodebranych
+   było jeszcze gorzej: „Nieodebrane" w podtytule z serwera i „Nieodebrane"
+   w podpisie. Teraz trzecia linia pojawia się tylko wtedy, gdy coś wnosi.
+2. **Termin w kalendarzu też się dublował** — serwer koduje rodzaj już
+   w tytule („Płatność — …", „Kamień — …"), a widok dopisywał go pod spodem.
+
+### Co zweryfikowano, a czego nie
+
+**Curlem, w kształcie używanym przez apkę:** `/api/activity` bez filtra
+i z każdym filtrem osobno oraz w parach, stronicowanie przy siedmiu rozmiarach
+strony (porównane z pełną listą — zero zgubionych), odrzucenie niepoprawnego
+kursora, przycięcie limitu; `POST /api/events` całodniowe i z godziną,
+`PATCH` z zerowaniem godziny i przeniesieniem na inny miesiąc, `DELETE`,
+oraz walidacje 400 (`data_koniec` < `data`, rok „0202", brak tytułu).
+
+**W symulatorze, na zrzutach:** Rejestr bez filtra i z filtrem
+`call-missed,contact`, Kalendarz na dwóch różnych dniach (rozwijanie zakresu
+wielodniowego, „dziś" na złoto obok innego dnia zaznaczonego).
+
+**W przeglądarce:** kalendarz panelu po zmianie `parseQuickAdd` — renderuje
+się bez błędów w konsoli.
+
+**NIE zweryfikowano dotykiem** (bez zgody na kontrolę symulatora): stuknięcia
+w pigułkę filtra, w dzień siatki, oraz **przejścia całego formularza „nowe
+wydarzenie" z szybkim dopiskiem** — sama reguła rozbioru jest sprawdzona
+porównaniem z panelem, a trasa zapisu curlem, ale złożenia jednego z drugim
+przez UI nikt nie przejechał.
+
+### Nowe furtki DEBUG
+
+`LEGGERA_DEV_WIECEJ=rejestr|kalendarz`, `LEGGERA_DEV_REJESTR_FILTR=<rodzaje po
+przecinku>`, `LEGGERA_DEV_DZIEN=YYYY-MM-DD`.

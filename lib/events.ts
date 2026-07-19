@@ -111,19 +111,45 @@ const WEEKDAY_NAMES: Record<string, number> = {
   niedziela: 6, niedziele: 6, niedzielę: 6,
 };
 
+/** Koniec słowa, który rozumie polskie znaki.
+ *
+ * `\b` w JavaScripcie liczy litery po ASCII, więc „ś", „ń" czy „ę" są dla
+ * niego znakiem NIE-słownym — a to znaczy, że `/^dziś\b/` NIE dopasowuje
+ * "dziś ", bo po obu stronach granicy stoi znak nie-słowny. Efekt był realny
+ * i cichy: "dziś o 9 kawa" gubiło datę i zostawiało tytuł „dziś kawa", a
+ * "za tydzień retro" nie rozpoznawało się w ogóle. Wyszło przy przenoszeniu
+ * tej funkcji do aplikacji natywnej (2026-07-19) — w Swifcie `\b` jest
+ * unikodowe, więc ten sam wzorzec zachowywał się TAM inaczej niż tutaj.
+ *
+ * Zamiast granicy sprawdzamy więc wprost: po dopasowaniu nie stoi kolejna
+ * litera ani cyfra. */
+const KONIEC_SLOWA = "(?![\\p{L}\\d])";
+
 /** Deterministyczne (bez AI/LLM — zgodnie z zasadą projektu) rozpoznawanie
  * daty/godziny na początku/w treści szybko wpisanego tekstu, np. "jutro
  * 14:00 call z klientem" albo "w piątek o 10 przegląd". Rozpoznane frazy są
  * usuwane z tekstu — to, co zostanie, staje się tytułem wydarzenia. Zwraca
  * `date`/`time` jako `null`, gdy nic nie rozpoznano (wywołujący używa wtedy
- * dnia/godziny już wybranych w formularzu). */
+ * dnia/godziny już wybranych w formularzu).
+ *
+ * Bliźniak w aplikacji natywnej: `SzybkiDopisek.rozbierz()` w
+ * `LeggeraHubCore/Models/Kalendarz.swift`. Właściciel wpisuje to samo w obu
+ * miejscach, więc **zmiana tutaj musi iść tam** (i odwrotnie). */
 export function parseQuickAdd(input: string, today: string): { title: string; date: string | null; time: string | null } {
   let text = input.trim();
   let date: string | null = null;
 
-  const consume = (re: RegExp, handler: (m: RegExpMatchArray) => void): boolean => {
+  /** `akceptuj` pozwala wzorcowi dopasować się, a mimo to NIE zjeść frazy —
+   * potrzebne przy dniach tygodnia, gdzie „w <słowo>" pasuje do czegokolwiek,
+   * ale datą jest tylko rozpoznana nazwa dnia. Bez tego "w kosmosie
+   * konferencja" gubiło „w kosmosie" z tytułu, nie dając nic w zamian. */
+  const consume = (
+    re: RegExp,
+    handler: (m: RegExpMatchArray) => void,
+    akceptuj?: (m: RegExpMatchArray) => boolean
+  ): boolean => {
     const m = text.match(re);
-    if (m && m.index === 0) {
+    if (m && m.index === 0 && (!akceptuj || akceptuj(m))) {
       handler(m);
       text = text.slice(m[0].length).trim();
       return true;
@@ -132,22 +158,24 @@ export function parseQuickAdd(input: string, today: string): { title: string; da
   };
 
   // Kolejność ma znaczenie — bardziej specyficzne wzorce najpierw.
-  consume(/^dzisiaj\b/i, () => { date = today; })
-    || consume(/^dziś\b/i, () => { date = today; })
-    || consume(/^pojutrze\b/i, () => { date = addDaysToISO(today, 2); })
-    || consume(/^jutro\b/i, () => { date = addDaysToISO(today, 1); })
-    || consume(/^za\s+tydzień\b/i, () => { date = addDaysToISO(today, 7); })
-    || consume(/^za\s+(\d+)\s+tygodni(?:e|a)?\b/i, (m) => { date = addDaysToISO(today, 7 * Number(m[1])); })
-    || consume(/^za\s+(\d+)\s+dni\b/i, (m) => { date = addDaysToISO(today, Number(m[1])); })
-    || consume(/^(?:w|we)\s+(\p{L}+)\b/iu, (m) => {
+  consume(new RegExp(`^dzisiaj${KONIEC_SLOWA}`, "iu"), () => { date = today; })
+    || consume(new RegExp(`^dziś${KONIEC_SLOWA}`, "iu"), () => { date = today; })
+    || consume(new RegExp(`^pojutrze${KONIEC_SLOWA}`, "iu"), () => { date = addDaysToISO(today, 2); })
+    || consume(new RegExp(`^jutro${KONIEC_SLOWA}`, "iu"), () => { date = addDaysToISO(today, 1); })
+    || consume(new RegExp(`^za\\s+tydzień${KONIEC_SLOWA}`, "iu"), () => { date = addDaysToISO(today, 7); })
+    || consume(new RegExp(`^za\\s+(\\d+)\\s+tygodni(?:e|a)?${KONIEC_SLOWA}`, "iu"), (m) => { date = addDaysToISO(today, 7 * Number(m[1])); })
+    || consume(new RegExp(`^za\\s+(\\d+)\\s+dni${KONIEC_SLOWA}`, "iu"), (m) => { date = addDaysToISO(today, Number(m[1])); })
+    // Dzień tygodnia sprawdzamy PRZED zjedzeniem frazy — inaczej "w kosmosie
+    // konferencja" znikało z tytułu jako rzekoma data, a "w niedzielę …"
+    // zostawiało ogon „ę …" (backtracking na `\b` po polskiej literze).
+    || consume(new RegExp(`^(?:w|we)\\s+(\\p{L}+)${KONIEC_SLOWA}`, "iu"), (m) => {
       const idx = WEEKDAY_NAMES[m[1].toLowerCase()];
-      if (idx === undefined) return;
       const [y, mo, d] = today.split("-").map(Number);
       const todayIdx = (new Date(y, mo - 1, d).getDay() + 6) % 7;
       const diff = (idx - todayIdx + 7) % 7;
       date = addDaysToISO(today, diff === 0 ? 7 : diff);
-    })
-    || consume(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?\b/, (m) => {
+    }, (m) => WEEKDAY_NAMES[m[1].toLowerCase()] !== undefined)
+    || consume(new RegExp(`^(\\d{1,2})\\.(\\d{1,2})(?:\\.(\\d{4}))?${KONIEC_SLOWA}`, "u"), (m) => {
       const day = Number(m[1]);
       const month = Number(m[2]);
       const year = m[3] ? Number(m[3]) : Number(today.slice(0, 4));
@@ -156,8 +184,18 @@ export function parseQuickAdd(input: string, today: string): { title: string; da
     });
 
   // Godzina — gdziekolwiek w pozostałym tekście, nie tylko na początku.
+  // Granice słowa znów jawne, nie przez `\b`: "dzień o 9" ma po polsku
+  // literę przed „o", a ASCII-owe `\b` widziało tam granicę, której unikodowe
+  // `\b` w Swifcie NIE widzi. Bez tego apka i panel rozumiałyby to zdanie inaczej.
+  const POCZATEK_SLOWA = "(?<![\\p{L}\\d])";
   let time: string | null = null;
-  const timeMatch = text.match(/\bo\s+(\d{1,2})(?:[:.](\d{2}))?\b|\b(\d{1,2}):(\d{2})\b/i);
+  const timeMatch = text.match(
+    new RegExp(
+      `${POCZATEK_SLOWA}o\\s+(\\d{1,2})(?:[:.](\\d{2}))?${KONIEC_SLOWA}` +
+        `|${POCZATEK_SLOWA}(\\d{1,2}):(\\d{2})${KONIEC_SLOWA}`,
+      "iu"
+    )
+  );
   if (timeMatch && timeMatch.index !== undefined) {
     const h = Number(timeMatch[1] ?? timeMatch[3]);
     const mi = Number(timeMatch[2] ?? timeMatch[4] ?? 0);

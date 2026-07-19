@@ -5834,3 +5834,64 @@ z panelu, bez zmiany hasła).
 Pełna specyfikacja dla apki: `docs/natywna-aplikacja/inwentarz/00-uwierzytelnianie.md`.
 Zweryfikowane end-to-end curlami na serwerze dev z ustawionym hasłem
 (logowanie, Bearer, 401 po odebraniu, tryb webowy nienaruszony).
+
+## Aplikacja natywna, Faza 6 — `GET /api/activity` i naprawa quick-adda (2026-07-19)
+
+Faza 6 (Rejestr + Kalendarz w apce, `docs/natywna-aplikacja/00-plan.md`) była
+pierwszą, która **musiała ruszyć panel**. Dwie zmiany, obie mają znaczenie także
+dla panelu webowego.
+
+### Nowa trasa: `GET /api/activity` — rejestr wiadomości i rozmów
+
+Panel trzymał historię kontaktu w trzech miejscach (`mail_messages`,
+`lead_activity`, `client_activity`) i **nie miał niczego, co by je scalało** —
+każde zapytanie do logów filtruje po pojedynczym rekordzie
+(`WHERE lead_id = …`). Nowa trasa robi UNION po trzech źródłach, sortuje
+malejąco po dacie, stronicuje kursorem i przyjmuje filtr `kind=`.
+
+Panel webowy z niej jeszcze nie korzysta, ale **może** — gdyby kiedyś miał
+dostać własny widok „co się działo", jest gotowa.
+
+Trzy pułapki zapisane w komentarzach przy trasie, warte powtórzenia:
+
+- **`mail_message_id IS NULL` przy logach kontaktu to nie optymalizacja.**
+  Panel przy przypięciu maila dopisuje wiersz na oś kontaktu; bez tego warunku
+  każdy taki mail byłby w rejestrze dwa razy.
+- **Kursor jest WŁĄCZNY (`<=`).** Wpisy potrafią mieć identyczny znacznik
+  czasu, a wyłączny kursor gubił te na granicy strony — cicho i bezpowrotnie.
+  Ceną jest powtórzenie ostatniego wpisu, które wołający odsiewa po `id`.
+- **Minimalny rozmiar strony to 2**, bo przy `limit=1` powtórka wypełniała całą
+  stronę i stronicowanie wisiało w pętli.
+
+### Naprawa `parseQuickAdd()` — cztery błędy, wszystkie na polskich znakach
+
+Przenoszenie quick-adda kalendarza do apki ujawniło, że **funkcja od zawsze
+gubiła polskie znaki**. `\b` w JavaScripcie liczy litery po ASCII, więc „ś",
+„ń" i „ę" są dla niego znakiem nie-słownym — a to znaczy, że `/^dziś\b/` nie
+dopasowuje "dziś ".
+
+| Wejście w kalendarzu | Było | Jest |
+|---|---|---|
+| `dziś o 9 kawa` | tytuł „dziś kawa", **data przepadała** | „kawa", dziś, 09:00 |
+| `za tydzień retro` | nierozpoznane | „retro", +7 dni |
+| `w niedzielę odpoczynek` | tytuł **„ę odpoczynek"** | „odpoczynek", najbliższa niedziela |
+| `w kosmosie konferencja` | zjadało „w kosmosie", nie dając daty | tytuł nietknięty |
+
+Zamiast `\b` wzorce używają teraz jawnego `(?![\p{L}\d])` / `(?<![\p{L}\d])`,
+a gałąź dnia tygodnia sprawdza nazwę **zanim** zje frazę.
+
+**`parseQuickAdd()` ma bliźniaka w aplikacji natywnej** —
+`SzybkiDopisek.rozbierz()` w `LeggeraHubCore/Models/Kalendarz.swift`.
+Właściciel wpisuje to samo w obu miejscach, więc **zmiana tutaj musi iść tam**.
+Uwaga: w Swifcie (`NSRegularExpression`, silnik ICU) `\b` jest unikodowe, czyli
+zachowuje się INACZEJ niż w JS — dlatego oba pliki celowo go nie używają.
+Parytet sprawdzony na 25 próbkach, oba silniki dają identyczny wynik.
+
+### Ziarno deweloperskie
+
+`ensureSeeded()` (`lib/dev-db.ts`) dostało wpisy telefoniczne (odebrane
+z czasem trwania, odebrane z notatką, dwa nieodebrane), kanały nietelefoniczne
+(WhatsApp, LinkedIn, spotkanie) i trzy kształty wydarzeń kalendarza
+(z godziną i czasem trwania, całodniowe, wielodniowe). Do tej pory seed miał
+wyłącznie wpisy kanału `email` dopięte do maili, więc ani rejestru, ani
+rozwijania zakresów wielodniowych nie dało się obejrzeć lokalnie.

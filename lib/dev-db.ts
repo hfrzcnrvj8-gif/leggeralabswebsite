@@ -155,11 +155,21 @@ async function ensureSeeded(): Promise<void> {
       );
 
       // — Wydarzenia (dziś + w tym miesiącu) —
+      // Trzy kształty, których kalendarz w apce MUSI nie pomylić: z godziną
+      // i czasem trwania, całodniowe (`godzina` NULL) oraz wielodniowe
+      // (`data_koniec` — musi być widoczne w każdym dniu zakresu, także gdy
+      // zaczyna się w poprzednim miesiącu).
       await raw(
-        `INSERT INTO events (id, tytul, data, godzina) VALUES ($1,$2,$3,$4),($5,$6,$7,$8)`,
+        `INSERT INTO events (id, tytul, opis, data, godzina, data_koniec, czas_trwania_min) VALUES
+           ($1,$2,$3,$4,'10:00',NULL,45),
+           ($5,$6,$7,$8,'14:30',NULL,90),
+           ($9,$10,$11,$12,NULL,NULL,NULL),
+           ($13,$14,$15,$16,NULL,$17,NULL)`,
         [
-          randomUUID(), "Call z klientem", iso(0), "10:00",
-          randomUUID(), "Demo produktu", iso(3), "14:30",
+          randomUUID(), "Call z klientem", "Omówienie zakresu pilotażu.", iso(0),
+          randomUUID(), "Demo produktu", "", iso(3),
+          randomUUID(), "Deadline: wysłać ofertę", "Całodniowe — bez godziny.", iso(1),
+          randomUUID(), "Urlop", "Wielodniowe — sprawdza rozwijanie zakresu.", iso(-2), iso(2),
         ]
       );
 
@@ -310,6 +320,42 @@ async function ensureSeeded(): Promise<void> {
       // Jedna wiadomość oflagowana jako "ważne" (04e runda 2) — bez tego nie
       // da się lokalnie zweryfikować gwiazdki w liście/podglądzie.
       await raw(`UPDATE mail_messages SET flagged = true WHERE id = $1`, [mailLead]);
+
+      // — Telefony i pozostałe kanały (REJESTR, `GET /api/activity`) —
+      // Bez tych wierszy rejestr w apce pokazuje same maile i nie da się
+      // sprawdzić ani wyróżnienia nieodebranych, ani filtra po rodzaju:
+      // seed miał do tej pory WYŁĄCZNIE wpisy kanału `email`, dopięte do
+      // wiadomości. Świadomie mieszanka: odebrane z czasem trwania, odebrane
+      // z ręczną notatką (notatka wygrywa nad "Odebrane · 4 min"), dwa
+      // nieodebrane (lead i klient) oraz kanały nietelefoniczne.
+      //
+      // `created_at` rozrzucone po godzinach, nie wszystkie `now()` — inaczej
+      // sortowanie rejestru byłoby nie do zweryfikowania, bo wszystko miałoby
+      // ten sam znacznik czasu.
+      await raw(
+        `INSERT INTO lead_activity (id, lead_id, text, kanal, kierunek, wynik, czas_trwania_sek, created_at) VALUES
+           ($1,$2,$3,'telefon','wychodzacy','odebrane',222, now() - interval '5 hours'),
+           ($4,$5,$6,'telefon','przychodzacy','nieodebrane',NULL, now() - interval '26 hours'),
+           ($7,$8,$9,'whatsapp','wychodzacy',NULL,NULL, now() - interval '3 days'),
+           ($10,$11,$12,'spotkanie','przychodzacy',NULL,NULL, now() - interval '9 days')`,
+        [
+          randomUUID(), leadA, "Ustalone: pilotaż na dwóch typach umów, wracam z wyceną do piątku.",
+          randomUUID(), leadB, "",
+          randomUUID(), leadA, "Wysłałem link do kalendarza.",
+          randomUUID(), leadB, "Spotkanie w piekarni — obejrzeliśmy obieg zamówień.",
+        ]
+      );
+      await raw(
+        `INSERT INTO client_activity (id, client_id, text, kanal, kierunek, wynik, czas_trwania_sek, created_at) VALUES
+           ($1,$2,$3,'telefon','przychodzacy','odebrane',95, now() - interval '31 hours'),
+           ($4,$5,$6,'telefon','wychodzacy','nieodebrane',NULL, now() - interval '4 days'),
+           ($7,$8,$9,'linkedin','przychodzacy',NULL,NULL, now() - interval '12 days')`,
+        [
+          randomUUID(), clientA, "",
+          randomUUID(), clientA, "",
+          randomUUID(), clientA, "Anna podesłała kontakt do znajomej z branży.",
+        ]
+      );
 
       // HTML dla maila "reklamowego" — sprawdza renderowanie w izolowanej
       // ramce (lib/mailHtml.ts + MailBodyHtml.tsx). Zawiera CELOWO trzy
