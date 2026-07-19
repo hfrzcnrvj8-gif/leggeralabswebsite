@@ -144,9 +144,11 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **2** ✅ | **Pionowy plaster + BRAMKA**: logowanie + Leady — bramka PRZESZŁA 2026-07-19 (właściciel obejrzał, zgłosił uwagi, wdrożone) | `leggera-hub-ios` |
 | **3** ✅ | Reszta poziomu 1 (bez Poczty) — wykonane 2026-07-19 | `leggera-hub-ios` |
 | **4** ✅ | Poczta w pełni — wykonane 2026-07-19, patrz „Faza 4" niżej | `leggera-hub-ios` |
-| **5** | iPad (`NavigationSplitView` z tego samego kodu) | |
-| **6** | Poziom 2 + natywne bajery (widżet, Siri, Share Extension) | |
-| **7** | macOS z tego samego rdzenia | |
+| **5** ✅ | Domknięcie poziomu 1 (Pulpit na agregacie, Notatnik, powiadomienia, szukanie) + **Projekty ze stoperem** — wykonane 2026-07-19, patrz „Faza 5" niżej | `leggera-hub-ios` |
+| **6** | **Rejestr wiadomości i rozmów** + Kalendarz — patrz `03-brief-rejestr-kalendarz.md` | |
+| **7** | iPad (`NavigationSplitView` z tego samego kodu) | |
+| **8** | Reszta poziomu 2 (faktury, oferty) + natywne bajery (widżet, Siri, Share Extension) | |
+| **9** | macOS z tego samego rdzenia | |
 
 ### Faza 2 jest bramką, nie etapem
 
@@ -338,3 +340,97 @@ Zapisane w pamięci projektu (`apka-jezyk-wizualny`): jeden akcent na ekran,
 prawdziwy Liquid Glass (`glassEffect`), **gradient wyłącznie na ikonach,
 tekst biały**, znak LL w proporcjach ZMIERZONYCH z glifu Inter, bez systemowej
 czerwieni (wylogowanie w ciemnej czerwieni #8B272F).
+
+## Faza 5 — poziom 1 domknięty + Projekty ze stoperem (2026-07-19)
+
+Wykonane wg `02-brief-projekty-stoper.md`, w całości. Zmiana układu belki
+i rozszerzenie Pulpitu doszły w trakcie, na wyraźną prośbę właściciela.
+
+### Część A — trzy luki poziomu 1 (zamknięte)
+
+- **Pulpit na `GET /api/hub/today`.** Ekran nazywa się teraz **Pulpit** (nie
+  „Dziś") i pokazuje to, co panel: leady, klienci, projekty po terminie,
+  kamienie milowe, faktury po terminie i szkice, uśpione umowy, kontakty
+  nurture, pocztę do obsługi, wydarzenia dnia, ostatnie notatki i wskaźniki.
+  Lokalne liczenie **zostało jako zapas** przy padniętej trasie i ekran mówi
+  o tym wprost („liczba obejmuje tylko leady i klientów z pamięci apki") —
+  cicha niedokładność była pierwotną przyczyną tej luki.
+- **Notatnik** — zakładki Wszystkie/Przypięte/Archiwum, dopisywanie, edycja
+  treści, przypinanie i archiwizacja gestem, trwałe usuwanie tylko z Archiwum,
+  „przekuj w projekt" (idempotentne po stronie serwera — dwuklik nie robi
+  duplikatu, tylko mówi, że projekt już jest).
+- **Kronika powiadomień** i **globalne szukanie**. Szukanie świadomie pomija
+  dokumenty (oferty/faktury/umowy), które serwer zwraca: to poziom 3, apka nie
+  ma ekranu, na który mogłaby z nich przejść, a wynik prowadzący donikąd jest
+  gorszy niż jego brak.
+
+### Część B — Projekty (poziom 2)
+
+Lista z paskiem postępu i sortowaniem „po terminie na górę", profil z
+zadaniami pogrupowanymi pod kamienie, dziennikiem (wpisy „system" renderowane
+dyskretnie), zasobami i czasem. Obie reguły biznesowe przeniesione świadomie:
+
+- **Bramka umowy** — apka NIE przewiduje jej po swojej stronie (nie zna umów).
+  Wysyła zmianę, a 409 pokazuje jako **odmowę z powodem** w osobnym alercie
+  („Nie można zmienić statusu"), nie jako awarię, i wraca do stanu z serwera.
+  Osobny przypadek `APIError.odmowa` istnieje wyłącznie po to, żeby nie dało
+  się tego pomylić z błędem sieci. Na profilu projektu z klientem jest miękkie
+  uprzedzenie — informacja, nigdy blokada.
+- **Zdrowie** to osobny `Picker` obok statusu, nigdy wspólny przełącznik.
+
+### Część C — Stoper
+
+Start/stop gestem na liście i przyciskiem w profilu. Wskaźnik z licznikiem na
+żywo w chrome apki, **na każdym ekranie**. `stopped_previous` pokazywane
+alertem z nazwą projektu i czasem. Suma czasu pomija działający stoper
+(widać to na profilu: „Razem 0 s" przy jednym chodzącym wpisie oznaczonym
+„chodzi"). Minuty traktowane jako ułamkowe.
+
+**Przypominanie powiadomieniami lokalnymi** wg zatwierdzonego rytmu: 4 h →
+co 2 h → 18:00 czasu lokalnego. Rytm liczy czysta funkcja `RytmPrzypomnien`
+w rdzeniu (bez `UserNotifications`), maszyneria iOS-a siedzi w warstwie
+widoku — dzięki temu rytm da się sprawdzić bez symulatora i pojedzie na macOS.
+
+### Cztery rzeczy, które wyszły dopiero przy oglądaniu, nie przy pisaniu
+
+1. **Kasowanie przypomnień wyścigiem zjadało nowe.** `skasuj()` pytał
+   `getPendingNotificationRequests` i kasował w domknięciu; domknięcie jest
+   asynchroniczne, a `zaplanuj()` dodaje zaraz potem — więc kasowanie
+   dostawało migawkę kolejki JUŻ z nowymi wpisami i wycierało wszystko.
+   Efekt: **zero zaplanowanych przypomnień przy zerowej liczbie błędów.**
+   W kodzie wyglądało poprawnie. Wyszło dopiero po odczytaniu prawdziwej
+   kolejki iOS-a w symulatorze. Naprawione deterministyczną listą
+   identyfikatorów (`stoper-0`…), bez odpytywania systemu.
+2. **Pasek stopera nachodził na podpisy zakładek.** Pierwsza wersja używała
+   `safeAreaInset(edge: .bottom)` na `TabView`. iOS 26 ma na to własną półkę —
+   `tabViewBottomAccessory`, tę samą, na której Muzyka trzyma mini-odtwarzacz.
+3. **Pusta półka rysowała się bez stopera** — goła kapsuła nad belką. Półkę
+   trzeba podpinać warunkowo; `StoperPasek` poprawnie nie zwracał nic, ale
+   kontener i tak się renderował.
+4. **`started_at` przychodzi w formacie Postgresa** (`2026-07-19 13:17:09.43+01`
+   — spacja zamiast `T`, ułamek sekundy, strefa bez dwukropka), a nie jako ISO
+   z `Z`. Bez parsera znoszącego oba warianty licznik startowałby od północy.
+   `Daty.zZnacznika` obsługuje oba; sprawdzone testem na pięciu wariantach.
+
+### Co zweryfikowano, a czego nie
+
+**Curlem, w kształcie używanym przez apkę:** bramka umowy (409 z projektem
+mającym klienta, 200 bez klienta), `stopped_previous` przy starcie drugiego
+stopera, `stop` bez stopera (`{stopped: null}`, HTTP 200), odhaczanie zadania,
+wpis do dziennika, CRUD notatek, idempotencja `promote`, PATCH powiadomień,
+szukanie.
+
+**W symulatorze, na zrzutach:** Pulpit z agregatem, lista i profil projektu
+(z zadaniami i bez), Notatnik, Powiadomienia, „Więcej", regresja Poczty
+i Leadów po zmianie belki.
+
+**Realnym odczytem kolejki iOS-a:** pełny cykl przypomnień — stoper chodzi →
+16 zaplanowanych (pierwsze o 18:00 lokalnego, bo stoper ruszył po południu),
+stoper zatrzymany → 0.
+
+**NIE zweryfikowano dotykiem** (Claude nie może sterować klawiaturą ani
+dotykiem symulatora): faktycznego stuknięcia w „Zatrzymaj" w powiadomieniu,
+przejścia przez alert zgody na powiadomienia (do testu użyto trybu
+`provisional`, który iOS przyznaje bez pytania) oraz **dostarczenia**
+powiadomienia o zaplanowanej godzinie — zaplanowanie jest potwierdzone,
+samo dostarczenie to już zachowanie systemu.
