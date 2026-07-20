@@ -411,9 +411,14 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               collapsed ? "flex-col gap-1.5" : "justify-between"
             }`}
           >
+            {/* Zamiennie (decyzja właściciela 2026-07-21): sidebar rozsunięty
+                → sam NAPIS „Leggera Hub"; zsunięty → sam NOWY znak `LogoMark`.
+                Wcześniej znak był widoczny ZAWSZE, a napis dochodził przy
+                rozwinięciu — teraz jedno albo drugie, jak w nagłówku strony. */}
             <span className="flex items-center gap-1.5">
-              <LogoMark size={18} />
-              {!collapsed && (
+              {collapsed ? (
+                <LogoMark size={22} />
+              ) : (
                 <span style={HUB_WORDMARK_STYLE} className="text-[13px] font-bold uppercase tracking-[0.12em]">
                   Leggera Hub
                 </span>

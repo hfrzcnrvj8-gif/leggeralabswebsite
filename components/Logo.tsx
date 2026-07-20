@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useId } from "react";
-import { motion, useMotionValue, useTransform, type MotionValue } from "framer-motion";
+import { useId, useState } from "react";
+import {
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  AnimatePresence,
+  type MotionValue,
+} from "framer-motion";
 import type { Locale } from "@/i18n/config";
 
 // A faint dark rim keeps light letters (the gradient ends near-white)
@@ -74,32 +80,18 @@ export function LogoMark({ size = 32 }: { size?: number }) {
 }
 
 /**
- * `progress` is a 0→1 scroll-linked MotionValue (see Header.tsx), the same
- * pattern as the Hero orb parallax and the Showcase window's width grow —
- * NOT a boolean toggle. The wordmark shrinks in place continuously as you
- * scroll: "EGGERA"/" "/"ABS"/"." collapse their own width+opacity together,
- * while the second "L" slides into a tight offset behind the first,
- * forming the same mark as LogoMark.
+ * Logo ZAMIENNE (decyzja właściciela 2026-07-21):
+ *  - pasek rozsunięty (progress ≈ 0, u góry strony) → PEŁEN napis
+ *    „LEGGERA LABS." — dokładnie jak dotąd, bez zmian,
+ *  - pasek zsunięty (progress > 0.5, po przewinięciu) → NOWY znak `LogoMark`
+ *    (konturowe „LL"), ten sam co favicon / ikona apki / faktura.
  *
- * "EGGERA" and "ABS" inherit the shared `wordmarkGradient` from the
- * outer span (see above for why the two L's don't). The second "L" is
- * a flat color (`goldFlat`); its offset uses `marginLeft` +
- * `verticalAlign` only (plain layout, safe).
+ * Wcześniej napis „zwijał się" w miejscu do dwóch WYPEŁNIONYCH liter L —
+ * to był STARY znak, niespójny z nowym konturowym. Teraz zamiast zwijania
+ * jest krótki crossfade między pełnym napisem a nowym znakiem.
  *
- * The first "L" (the faded echo) can NOT fade via `opacity`: any
- * descendant of a background-clip:text element that gets `opacity < 1`
- * is promoted to its own compositing layer, and since that descendant has
- * no background-image of its own, the isolated layer paints empty — the
- * letter silently disappears even though every computed style looks
- * correct. Confirmed by isolating it in an overlay: two plain sibling
- * spans both render, but the moment either one gets `opacity`, that one
- * (and only that one) vanishes. Fix: fade it with a flat `color-mix()`
- * result on the plain `color` property instead — no gradient, no
- * background-clip, so there's nothing for an isolated layer to lose.
- * Blended toward a fixed dark neutral rather than `var(--bg)`: mixing
- * purple with the light theme's warm cream shifts the perceived hue
- * toward pale pink, while blending toward a constant dark tone reads as
- * purple in both themes.
+ * `progress` bywa `undefined` (stopka) — wtedy `p` stoi na 0 i widać sam
+ * napis, na stałe.
  */
 export function Logo({
   lang,
@@ -112,75 +104,53 @@ export function Logo({
 }) {
   const fallback = useMotionValue(0);
   const p = progress ?? fallback;
-
-  const firstMixPercent = useTransform(p, [0, 1], [100, 80]);
-  const firstColor = useTransform(
-    firstMixPercent,
-    (m) => `color-mix(in srgb, #7C3AED ${m}%, #14120f)`
-  );
-  const secondMarginLeft = useTransform(p, [0, 1], [0, -9]);
-  const secondVerticalAlign = useTransform(p, [0, 1], [0, -3]);
-  const restOpacity = useTransform(p, [0, 0.6], [1, 0]);
-  const restWidth = useTransform(p, [0, 0.6], [190, 0]);
-  const dotWidth = useTransform(p, [0, 0.6], [16, 0]);
+  const [zsuniete, setZsuniete] = useState(false);
+  // Próg 0.5 z lekką histerezą, żeby na granicy przewinięcia znak nie
+  // „mrugał" tam i z powrotem przy drobnym ruchu scrolla.
+  useMotionValueEvent(p, "change", (v) => {
+    setZsuniete((teraz) => (teraz ? v > 0.42 : v > 0.58));
+  });
 
   return (
-    <Link href={`/${lang}`} className={`flex items-center ${className}`}>
-      <span
-        style={wordmarkGradient}
-        className="flex items-baseline font-sans text-lg font-bold uppercase tracking-[0.15em]"
-      >
-        <motion.span
-          style={{
-            color: firstColor,
-            display: "inline-block",
-            ...textStroke,
-          }}
-        >
-          L
-        </motion.span>
-        <motion.span
-          style={{
-            maxWidth: restWidth,
-            overflow: "hidden",
-            display: "inline-block",
-            whiteSpace: "nowrap",
-          }}
-        >
-          EGGERA&nbsp;
-        </motion.span>
-        <motion.span
-          style={{
-            display: "inline-block",
-            marginLeft: secondMarginLeft,
-            verticalAlign: secondVerticalAlign,
-            ...goldFlat,
-          }}
-        >
-          L
-        </motion.span>
-        <motion.span
-          style={{
-            maxWidth: restWidth,
-            overflow: "hidden",
-            display: "inline-block",
-            whiteSpace: "nowrap",
-          }}
-        >
-          ABS
-        </motion.span>
-      </span>
-      <motion.span
-        style={{
-          maxWidth: dotWidth,
-          opacity: restOpacity,
-          overflow: "hidden",
-          display: "inline-block",
-        }}
-        className="text-brand-cyan text-lg font-bold"
-      >
-        .
-      </motion.span>
+    <Link
+      href={`/${lang}`}
+      aria-label="Leggera Labs"
+      className={`flex items-center ${className}`}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        {zsuniete ? (
+          <motion.span
+            key="mark"
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="inline-flex"
+          >
+            <LogoMark size={30} />
+          </motion.span>
+        ) : (
+          <motion.span
+            key="wordmark"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={wordmarkGradient}
+            className="flex items-baseline whitespace-nowrap font-sans text-lg font-bold uppercase tracking-[0.15em]"
+          >
+            {/* Struktura napisu 1:1 z poprzednią wersją rozsuniętą — pierwsza
+                „L" fiolet (flat, nie opacity — patrz historia buga niżej),
+                „EGGERA"/„ABS" dziedziczą wspólny gradient, druga „L" złota,
+                kropka cyan. */}
+            <span style={{ color: "#7C3AED", ...textStroke }}>L</span>
+            <span>EGGERA&nbsp;</span>
+            <span style={goldFlat}>L</span>
+            <span>ABS</span>
+            <span className="text-brand-cyan">.</span>
+          </motion.span>
+        )}
+      </AnimatePresence>
     </Link>
   );
 }
