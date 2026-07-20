@@ -1195,3 +1195,73 @@ duplikaty; `waitsForConnectivity` + rozróżnienie braku internetu od timeoutu.
 
 **Punkt 6 `docs/AUDYTY-KONCOWE.md`** (parytet panel↔apka) jest wykonany
 tutaj — nie robić drugi raz.
+
+## Faza 12 — Live Activity / Dynamic Island stopera (2026-07-20)
+
+Wykonana wg `09-brief-dynamic-island-stoper.md`. Wszystkie ustalenia briefu
+potwierdziły się: osobny target zbędny (`WidgetBundle` w istniejącym
+`Widzet`), płatne konto Apple niepotrzebne, cykliczne `.update()` niepotrzebne.
+
+**Co powstało:**
+
+- `Wspolne/StoperAktywnosc.swift` — `ActivityAttributes` w **nowym katalogu
+  dzielonym** przez apkę i widżet (wpięty w `sources` obu targetów). NIE
+  w `LeggeraHubCore`: `ActivityKit` jest frameworkiem platformy, a rdzeń
+  trzyma regułę „zero frameworków platformy" pod tanią wersję na macOS.
+- `Widzet/StoperWyspa.swift` — trzy stany (ekran blokady, Wyspa zwinięta,
+  Wyspa rozwinięta) + `ZatrzymajStoperIntent` (`LiveActivityIntent`), który
+  woła API tokenem z Keychaina i kończy aktywność sam, bo apka może nie żyć.
+- `LeggeraHub/Views/StoperWyspaSterowanie.swift` — strona apki.
+- Wpięcie w `AppStore` **tym samym wzorcem i w te same punkty** co
+  przypomnienia: `odswiezStoper`, `startStopera`, `stopStopera`, plus
+  `wyczyscSesje` (wylogowanie) i `odswiezPulpit` (druga linia).
+- `INFOPLIST_KEY_NSSupportsLiveActivities` w `baza.yml`.
+- Furtka `LEGGERA_DEV_STOPER` (README apki) — bez niej Wyspy nie da się
+  obejrzeć, bo powstaje tylko przy chodzącym stoperze.
+
+**Obejrzane w symulatorze** (iPhone 17, zaplecze lokalne PGlite): Wyspa
+zwinięta (ikona + `0:34`), rozwinięta (`Leggera Flow`, `2:08`, „1 sprawa na
+dziś", „Stop") i ekran zablokowany. Polska odmiana liczebnika zrobiona —
+inaczej Wyspa mówiła „2 spraw".
+
+### Sekundy „13:--" na blokadzie — ZACHOWANIE iOS-a, rozstrzygnięte dowodem
+
+Po kilku minutach ekran blokady przestaje pokazywać sekundy. **To system, nie
+nasz układ.** Dowód: przy jednym pomiarze, w odstępie kilkunastu sekund, ekran
+blokady pokazywał „13:--", a Dynamic Island tej samej aktywności „14:34"
+z sekundami. Ta sama data startu, ten sam widok, różna powierzchnia. Poniżej
+~3 minut sekundy widać także na blokadzie — dlatego krótkie zrzuty („0:16",
+„0:49") niczego nie przeczą.
+
+Sprawdzone i ODRZUCONE jako przyczyny: szerokość kolumny (sufit, podłoga,
+`fixedSize`, `layoutPriority`), skończony vs nieskończony zakres dat, gradient
+zamiast koloru pełnego.
+
+**Przebieg tej diagnozy jest ważniejszy niż jej wynik.** Najpierw uznałem to
+za zachowanie systemu po dwóch nieudanych próbach — obie testowały to samo
+(szerokość), więc nie były dowodem. Potem, gdy krótki pomiar pokazał sekundy,
+publicznie się z tego wycofałem i wpisałem do dokumentacji tezę odwrotną —
+też bez dowodu, bo nie sprawdziłem, czy przy dłuższym czasie zachowanie się
+nie zmienia. Dopiero porównanie DWÓCH POWIERZCHNI W TYM SAMYM MOMENCIE
+rozstrzygnęło sprawę. Zasada: dowodem jest kontrolowane porównanie, nie seria
+prób tego samego i nie pojedyncza obserwacja w jednym punkcie czasu.
+
+Co ZOSTAJE prawdą o układzie: `.fixedSize()` na liczniku wypycha kolumnę poza
+kartę i **znika przycisk „Stop"** razem z całym wierszem — nie wracać do tego.
+`.layoutPriority(1)` z kolei kasuje nazwę projektu.
+
+### NIE zweryfikowane dotykiem
+
+Build **jest wgrany na telefon właściciela** (iPhone 15 Pro Max, kablem,
+wszystkie trzy targety, darmowe konto). Czego Claude nie mógł zrobić sam:
+
+- stuknięcia „Start stopera" na telefonie — furtka DEBUG startuje pomiar
+  z palca w zapleczu, a telefon gada z **produkcją**, więc byłby to prawdziwy
+  wpis czasu w danych rozliczeniowych właściciela. **Do obejrzenia przez
+  właściciela: uruchom stoper w apce i zablokuj telefon.**
+- stuknięcia „Stop" na samej Wyspie,
+- zachowania po ~8 h (iOS sam ubija aktywność),
+- urządzenia starszego niż iPhone 14 Pro (tam Live Activity żyje wyłącznie
+  na ekranie blokady — to nie błąd).
+
+**Kolejny czat: `10-brief-qr-platnosci-kosztow.md`.**
