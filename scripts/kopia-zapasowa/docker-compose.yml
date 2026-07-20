@@ -20,7 +20,14 @@ services:
     build: .
     image: leggera-kopia-bazy:1
     container_name: leggera-kopia-bazy
-    restart: unless-stopped
+    # `always`, nie `unless-stopped`. Różnica jest istotna i wyszła w teście
+    # 2026-07-20: przy `unless-stopped` Docker traktuje ubicie kontenera jako
+    # świadome zatrzymanie i NIE podnosi go z powrotem — także po restarcie
+    # NAS-a. Kopie po cichu przestałyby powstawać.
+    #
+    # To zadanie ma chodzić zawsze; nie ma scenariusza, w którym właściciel
+    # celowo je wyłącza i chce, żeby zostało wyłączone.
+    restart: always
 
     environment:
       # Adres bazy TYLKO-DO-ODCZYTU z Neona. Patrz README, krok 1 —
