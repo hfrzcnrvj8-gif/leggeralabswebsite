@@ -12,7 +12,7 @@ paczki wg tego, ile kosztuje brak:
 | Paczka | Zakres | Stan |
 |---|---|---|
 | 1 — poza biurkiem | nurture, opinie, NIP/VIES, logi klienta | ✅ 2026-07-20 |
-| **2 — kształtowanie projektu** | **ten dokument** | ⏳ |
+| **2 — kształtowanie projektu** | **ten dokument** | ✅ 2026-07-20 |
 | 3 — konfiguracja i liczby | ustawienia, `/api/stats`, cykliczne, eksporty, ICS | ⏳ |
 
 Paczka 3 jest ostatnia świadomie: `/api/stats` to największy model do napisania
@@ -52,6 +52,28 @@ Zweryfikowane w kodzie 2026-07-20, wbrew temu, co sugerował brief 13:
   i kolejność, nie edycja.
 - Zależności apka świadomie pomijała przy dekodowaniu (`ProjektSzczegoly`) —
   tu model trzeba faktycznie dołożyć.
+
+### Co brief mówił ŹLE (sprawdzone w kodzie przy wykonaniu, 2026-07-20)
+
+Zapis wyżej („onboarding, kamienie i zasoby są czytane, brakuje zapisu")
+POTWIERDZIŁ SIĘ. Ale trzy rzeczy w tym dokumencie były nieprawdziwe i każda
+kosztowałaby cichą usterkę:
+
+1. **`DELETE /dependencies` bierze `depends_on_id` z QUERY STRINGA, nie z ciała**
+   (`req.nextUrl.searchParams`). Wersja z briefu odpowiada 400 „depends_on_id
+   required" — kasowanie wyglądałoby na działające i nie robiło nic.
+   `APIClient.usunZaleznosc` buduje URL przez `URLComponents`.
+2. **`POST /milestones` NIE walidował `termin`** — w przeciwieństwie do swojego
+   `PATCH`. Rok „0202" wchodził do bazy przez zakładanie kamienia, a przez
+   edycję nie. Naprawione po stronie serwera przy tej paczce.
+3. **Zależności odmawia się kodem 400, nie 409** — a wspólna warstwa `APIClient`
+   zamienia na `.odmowa` tylko 409. Tłumaczenie 400→`.odmowa` siedzi punktowo
+   w `dodajZaleznosc`, bo globalne dotknęłoby każdej trasy w apce.
+
+Do tego dane testowe: `lib/dev-db.ts` seedował WYŁĄCZNIE kamienie i zadania.
+Onboardingu, zasobów i zależności nie było w ogóle — a sekcja „Zasoby"
+istniała w apce od Fazy 5 i lokalnie była zawsze pusta. Dołożone: 4 pozycje
+onboardingu (2 odhaczone), 2 zasoby, zależność Leggera Source → Website.
 
 ## Zasada przewodnia (bez zmian, właściciel 2026-07-20)
 

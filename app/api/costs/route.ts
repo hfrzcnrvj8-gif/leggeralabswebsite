@@ -17,9 +17,14 @@ export async function GET() {
       c.created_at, c.updated_at, c.zalacznik_nazwa, c.zalacznik_typ, c.ksef_numer, c.ksef_tryb,
       c.metoda_platnosci, c.dostawca_konto, c.numer_faktury, c.data_wplywu,
       c.vat_odliczenie_procent, c.duplikat_potwierdzony,
-      p.tytul AS project_tytul
+      c.client_id, c.lead_id,
+      p.tytul AS project_tytul,
+      cl.nazwa AS client_nazwa,
+      l.firma AS lead_firma
     FROM costs c
     LEFT JOIN projects p ON p.id = c.project_id
+    LEFT JOIN clients cl ON cl.id = c.client_id
+    LEFT JOIN leads l ON l.id = c.lead_id
     ORDER BY c.data_wydatku DESC, c.created_at DESC;
   `;
   return NextResponse.json({

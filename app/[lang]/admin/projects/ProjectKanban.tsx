@@ -31,13 +31,17 @@ import {
 } from "../Menu";
 import { useCopy } from "../ui";
 
-// Status jako ikona (styl Linear) — kształt koła oddaje etap, nie słowo.
+// Status jako ikona (styl Linear) — KSZTAŁT koła oddaje etap, kolor tylko go
+// wzmacnia. Kolory zgodne z pigułkami (`PROJECT_STATUS_CLASS` w lib/projects.ts),
+// które od 2026-07-20 są jedynym źródłem prawdy: wcześniej ta mapa dawała
+// „W trakcie" złoty, pigułki cyan, a oś czasu niebieski — trzy kolory jednego
+// stanu na trzech ekranach tego samego panelu.
 const STATUS_ICON: Record<string, { icon: TablerIcon; className: string }> = {
   "Pomysł": { icon: IconCircleDashed, className: "text-[#8a8f98]" },
-  "Planowanie": { icon: IconCircle, className: "text-[#8a8f98]" },
-  "W trakcie": { icon: IconProgress, className: "text-[#e2a336]" },
-  "Testy / review": { icon: IconProgressCheck, className: "text-[#4ea7fc]" },
-  "Wdrożone": { icon: IconCircleCheckFilled, className: "text-[#3fb987]" },
+  "Planowanie": { icon: IconCircle, className: "text-brand-gold" },
+  "W trakcie": { icon: IconProgress, className: "text-brand-cyan" },
+  "Testy / review": { icon: IconProgressCheck, className: "text-orange-400" },
+  "Wdrożone": { icon: IconCircleCheckFilled, className: "text-emerald-400" },
   "Wstrzymane": { icon: IconCircleMinus, className: "text-[#8a8f98]" },
 };
 

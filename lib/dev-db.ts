@@ -109,9 +109,13 @@ async function ensureSeeded(): Promise<void> {
         { tytul: "Leggera Flow", zdrowie: "Na dobrej drodze", priorytet: "Niski", start: iso(20), termin: iso(70), lead: null,
           milestones: [ ["Model procesu", iso(35)] ] },
       ];
+      // Identyfikatory projektów zbieramy, bo zależność (niżej) potrzebuje
+      // DWÓCH istniejących projektów — inaczej nie ma czego wskazać.
+      const projectIds: string[] = [];
       for (let i = 0; i < projects.length; i++) {
         const p = projects[i];
         const pid = randomUUID();
+        projectIds.push(pid);
         await raw(
           `INSERT INTO projects (id, tytul, opis, status, priorytet, zdrowie, start, termin, lead_id)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -128,6 +132,53 @@ async function ensureSeeded(): Promise<void> {
           await raw(
             `INSERT INTO project_tasks (id, project_id, text, done, position) VALUES ($1,$2,$3,$4,$5)`,
             [randomUUID(), pid, `Zadanie ${t + 1}`, t < 2, t]
+          );
+        }
+      }
+
+      // — Onboarding, zasoby i zależność (paczka 2 apki natywnej) —
+      // Te trzy tabele NIE BYŁY seedowane do 2026-07-20, przez co sekcja
+      // „Zasoby" w `ProjektDetailView.swift` — istniejąca od Fazy 5 — była
+      // lokalnie ZAWSZE pusta, a onboardingu i zależności nie dało się
+      // obejrzeć w ogóle. Dokładnie ten sam błąd, co z kontaktami nurture
+      // w paczce 1: funkcja oddana bez wiersza, który by ją pokazał.
+      {
+        const [pierwszy, drugi] = projectIds;
+
+        // Onboarding pierwszego projektu: część odhaczona, część nie —
+        // inaczej nie widać różnicy między stanem zrobionym a otwartym.
+        const onboardingItems: [string, boolean][] = [
+          ["Dostępy do hostingu", true],
+          ["Materiały od klienta (logo, teksty)", true],
+          ["Zakres i harmonogram potwierdzone mailem", false],
+          ["Kanał komunikacji ustalony", false],
+        ];
+        for (let i = 0; i < onboardingItems.length; i++) {
+          await raw(
+            `INSERT INTO project_onboarding_items (id, project_id, tekst, done, position) VALUES ($1,$2,$3,$4,$5)`,
+            [randomUUID(), pierwszy, onboardingItems[i][0], onboardingItems[i][1], i]
+          );
+        }
+
+        // Zasoby — dwa linki, żeby sekcja miała więcej niż jeden wiersz
+        // (przy jednym nie widać, czy kolejność i gest kasowania działają).
+        const zasoby: [string, string][] = [
+          ["Makiety w Figmie", "https://figma.com/file/dev-seed"],
+          ["Dokument zakresu", "https://docs.google.com/document/d/dev-seed"],
+        ];
+        for (let i = 0; i < zasoby.length; i++) {
+          await raw(
+            `INSERT INTO project_resources (id, project_id, etykieta, url, position) VALUES ($1,$2,$3,$4,$5)`,
+            [randomUUID(), pierwszy, zasoby[i][0], zasoby[i][1], i]
+          );
+        }
+
+        // Zależność: „Leggera Source" czeka na „Website". Kierunek zgodny
+        // z trasą: project_id ZALEŻY OD depends_on_id (poprzednika).
+        if (drugi) {
+          await raw(
+            `INSERT INTO project_dependencies (id, project_id, depends_on_id) VALUES ($1,$2,$3)`,
+            [randomUUID(), drugi, pierwszy]
           );
         }
       }
@@ -196,11 +247,14 @@ async function ensureSeeded(): Promise<void> {
         // Ma też `ksef_status='przyjeto'` — jedyny sposób na obejrzenie
         // plakietki KSeF bez realnej wysyłki (ta trasa nie idzie przez
         // PATCH, więc inaczej nie dałoby się tego zobaczyć w dev-seedzie).
+        // `project_id` = pierwszy projekt („Website"): bez tego RENTOWNOŚĆ
+        // projektu (przychód − koszty) jest zawsze 0 i sekcji w apce nie da się
+        // obejrzeć. Ta faktura daje przychód netto 6×350 = 2100 zł.
         const invOplacona = randomUUID();
         await raw(
-          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta, ksef_status)
-           VALUES ($1,'FV 2/2026','Studio Kreska','biuro@studiokreska.pl',$2,$3,'Opłacona','PLN','przyjeto')`,
-          [invOplacona, iso(-40), iso(-26)]
+          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta, ksef_status, project_id)
+           VALUES ($1,'FV 2/2026','Studio Kreska','biuro@studiokreska.pl',$2,$3,'Opłacona','PLN','przyjeto',$4)`,
+          [invOplacona, iso(-40), iso(-26), projectIds[0]]
         );
         await raw(
           `INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
@@ -253,15 +307,29 @@ async function ensureSeeded(): Promise<void> {
         // akurat sprzyjała), a chwilę później wszystko się posypało.
         const { ensureCostsSchema } = await import("./db");
         await ensureCostsSchema();
+        // Załącznik (mały, poprawny PDF „faktury kosztowej") wpięty do jednego
+        // kosztu, żeby dało się LOKALNIE obejrzeć podgląd w apce. Bez wiersza
+        // z `zalacznik_dane` trasa `GET /api/costs/:id/attachment` zwraca 404
+        // i nie ma czego stuknąć — dokładnie ta luka „funkcja bez danych",
+        // która wracała w tej fazie. Na produkcji załączniki wgrywa właściciel
+        // ze zdjęcia paragonu; ten seed tylko udowadnia, że podgląd działa.
+        const kosztPdfB64 =
+          "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCAzNjAgMjQwXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxODQgPj4Kc3RyZWFtCkJUIC9GMSAyMCBUZiA0MCAxNzAgVGQgKEZha3R1cmEga29zenRvd2EpIFRqIDAgLTMwIFRkIC9GMSAxMyBUZiAoU2Vyd2VyeSBzcC4geiBvLm8uKSBUaiAwIC0yMiBUZCAoTmV0dG86IDI0OSwwMCB6bCAgQnJ1dHRvOiAzMDYsMjcgemwpIFRqIDAgLTIyIFRkIChkZXYgc2VlZCAtIHBvZGdsYWQgemFsYWN6bmlrYSkgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAwMDAwMDA0NzYgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo1NDYKJSVFT0Y=";
         await raw(
-          `INSERT INTO costs (id, dostawca_nazwa, dostawca_nip, kategoria, numer_faktury, data_wydatku, kwota_netto, vat_stawka, kwota_brutto, status)
-           VALUES ($1,'Serwery sp. z o.o.','5261234567','Subskrypcje','FS/2026/07/0088',$2,249,'23',306.27,'Nieopłacony')`,
-          [randomUUID(), iso(-4)]
+          `INSERT INTO costs (id, dostawca_nazwa, dostawca_nip, kategoria, numer_faktury, data_wydatku, kwota_netto, vat_stawka, kwota_brutto, status, zalacznik_nazwa, zalacznik_typ, zalacznik_dane)
+           VALUES ($1,'Serwery sp. z o.o.','5261234567','Subskrypcje','FS/2026/07/0088',$2,249,'23',306.27,'Nieopłacony','faktura-serwery.pdf','application/pdf',$3)`,
+          [randomUUID(), iso(-4), kosztPdfB64]
         );
+        // `project_id` = „Website": koszt netto 600 zł podpięty do projektu,
+        // żeby rentowność pokazała zysk 2100 − 600 = 1500 zł, a nie sam przychód.
+        // `ksef_numer` + `ksef_tryb='test'`: koszt „pobrany z KSeF" — bez tego
+        // plakietki „z KSeF" na liście i w profilu nie da się obejrzeć lokalnie
+        // (import KSeF wymaga realnego połączenia z systemem, którego w dev nie
+        // ma). Numer w formacie zbliżonym do prawdziwego (NIP-data-losowe-suma).
         await raw(
-          `INSERT INTO costs (id, dostawca_nazwa, dostawca_nip, kategoria, numer_faktury, data_wydatku, kwota_netto, vat_stawka, kwota_brutto, status, data_platnosci)
-           VALUES ($1,'Biuro Rachunkowe Klarowni','7791234567','Usługi','FV/22/2026',$2,600,'23',738,'Opłacony',$3)`,
-          [randomUUID(), iso(-15), iso(-13)]
+          `INSERT INTO costs (id, dostawca_nazwa, dostawca_nip, kategoria, numer_faktury, data_wydatku, kwota_netto, vat_stawka, kwota_brutto, status, data_platnosci, project_id, ksef_numer, ksef_tryb)
+           VALUES ($1,'Biuro Rachunkowe Klarowni','7791234567','Usługi','FV/22/2026',$2,600,'23',738,'Opłacony',$3,$4,'7791234567-20260705-6F3A1B2C4D-9E','test')`,
+          [randomUUID(), iso(-15), iso(-13), projectIds[0]]
         );
       }
 
@@ -301,14 +369,24 @@ async function ensureSeeded(): Promise<void> {
         // klikalna odznaka kanału na liście klientów jest lokalnie niewidoczna.
         // Świadomie INNY kanał niż leady (whatsapp), żeby było widać, że ikona
         // marki czyta się w monochromie, i żeby filtr miał co odsiewać.
-        `INSERT INTO clients (id, nazwa, osoba_kontaktowa, email, telefon, status, ostatni_kontakt, ostatni_kanal)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [clientA, "Nordwind Studio", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3), "whatsapp"]
+        // NIP celowo TAKI SAM jak dostawca kosztu „Serwery sp. z o.o."
+        // (5261234567) — żeby dało się lokalnie zobaczyć AUTO-PODPOWIEDŹ klienta
+        // na koszcie (dopasowanie po NIP, `matchClientForOrphan`). Bez pasującego
+        // NIP-u banner „To chyba klient…" nigdy by się nie pokazał.
+        `INSERT INTO clients (id, nazwa, nip, osoba_kontaktowa, email, telefon, status, ostatni_kontakt, ostatni_kanal)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [clientA, "Nordwind Studio", "5261234567", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3), "whatsapp"]
       );
       // Moduł 31 — dopięcie umowy do klienta, dopiero teraz, bo klient
       // powstaje po niej. Dzięki temu sekcja „Umowy i NDA" na karcie klienta
       // też ma co pokazać w dev.
       await raw(`UPDATE contracts SET client_id = $1 WHERE id = $2`, [clientA, contractStale]);
+
+      // Podpięcie klienta do projektu „Website" — dopiero teraz, bo klient
+      // powstaje po projektach. Bez tego profil projektu w apce nie ma linku
+      // „Klient →" do czego prowadzić (i nie widać uprzedzenia o bramce umowy,
+      // która włącza się dopiero dla projektu z klientem).
+      await raw(`UPDATE projects SET client_id = $1 WHERE id = $2`, [clientA, projectIds[0]]);
 
       // — Zaplanowany kontakt nurture (Moduł 2 / Moduł 17) —
       // Bez tego wiersza sekcja „Zaplanowane kontakty" na Pulpicie jest pusta

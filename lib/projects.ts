@@ -265,13 +265,27 @@ export const PROJECT_STATUSES = [
 /** Kolor (hex) przypisany do statusu projektu — każdy status ma własną barwę,
  * żeby z daleka na osi czasu rozpoznać stan projektu (pasek jest kolorowany wg
  * statusu). Używane też do obramowania i gradientowego wypełnienia paska. */
+/**
+ * ŹRÓDŁEM PRAWDY dla koloru statusu są pigułki (`PROJECT_STATUS_CLASS` niżej).
+ * Ta mapa jest ich odpowiednikiem w hex, bo oś czasu rysuje paski inline'owym
+ * stylem i nie może użyć klas Tailwinda.
+ *
+ * Do 2026-07-20 panel miał TRZY sprzeczne mapy dla tego samego statusu: tę,
+ * pigułki i `STATUS_ICON` w `ProjectKanban.tsx`. „W trakcie" był kolejno
+ * niebieski, cyan i złoty; „Planowanie" — fioletowe, złote i szare. Ten sam
+ * projekt miał inny kolor zależnie od tego, gdzie się na niego patrzyło.
+ * Właściciel wybrał pigułki jako obowiązujące (są najczęściej widoczne i mówią
+ * tym samym słownikiem, co leady, faktury i oferty), a pozostałe dwie zostały
+ * do nich doprowadzone. **Zmieniasz kolor statusu → zmieniasz we WSZYSTKICH
+ * trzech miejscach**, inaczej rozjazd wraca.
+ */
 export const PROJECT_STATUS_HEX: Record<string, string> = {
-  Pomysł: "#64748b", // szary — luźny pomysł
-  Planowanie: "#8b5cf6", // fiolet — planowanie
-  "W trakcie": "#4ea7fc", // niebieski — w realizacji
-  "Testy / review": "#E0A93B", // złoto — testy/review
+  Pomysł: "#8a8f98", // szary — luźny pomysł
+  Planowanie: "#E0A93B", // złoto marki — planowanie
+  "W trakcie": "#22D3EE", // cyan marki — w realizacji
+  "Testy / review": "#f97316", // pomarańcz — testy/review
   Wdrożone: "#10b981", // zielony — zrobione
-  Wstrzymane: "#f97316", // pomarańcz — pauza
+  Wstrzymane: "#8a8f98", // szary — pauza
 };
 export const DEFAULT_STATUS_HEX = "#8a8f98";
 

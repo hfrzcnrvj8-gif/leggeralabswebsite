@@ -43,21 +43,32 @@ const goldFlat = { color: "#E0A93B", ...textStroke };
 /** Static mark for contexts that can't run React/framer-motion (favicon, OG image). */
 export function LogoMark({ size = 32 }: { size?: number }) {
   const gradientId = `ll-gradient-${useId()}`;
+  // Znak KONTUROWY (gradientowy obrys, bez wypełnienia) — spójny z ikoną
+  // aplikacji, faviconem, znakiem w apce iOS i DocLogoMark na fakturze.
+  // Blokowa „L" jako polygon (nie glif czcionki), żeby wyglądała identycznie
+  // niezależnie od załadowanego fontu; proporcje 1:1 z `LogoMark` w apce.
   return (
     <svg width={size} height={size} viewBox="0 0 90 90" aria-hidden>
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="90" y2="90" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradientId} x1="13.52" y1="1.96" x2="76.48" y2="88.04" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#A78BFA" />
           <stop offset="60%" stopColor="#E0A93B" />
           <stop offset="100%" stopColor="#FFF7E8" />
         </linearGradient>
       </defs>
-      <text x="18" y="55" fontFamily="var(--font-inter)" fontWeight="800" fontSize="62" fill={`url(#${gradientId})`} opacity={0.5}>
-        L
-      </text>
-      <text x="30" y="67" fontFamily="var(--font-inter)" fontWeight="800" fontSize="62" fill={`url(#${gradientId})`}>
-        L
-      </text>
+      <path
+        d="M 13.52,1.96 L 29.84,1.96 L 29.84,56.63 L 58.40,56.63 L 58.40,69.96 L 13.52,69.96 Z"
+        fill="none"
+        stroke={`url(#${gradientId})`}
+        strokeWidth={3.74}
+        opacity={0.5}
+      />
+      <path
+        d="M 31.60,20.04 L 47.92,20.04 L 47.92,74.72 L 76.48,74.72 L 76.48,88.04 L 31.60,88.04 Z"
+        fill="none"
+        stroke={`url(#${gradientId})`}
+        strokeWidth={3.74}
+      />
     </svg>
   );
 }
