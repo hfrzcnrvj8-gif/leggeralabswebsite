@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema, ensureBackupSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
@@ -10,6 +10,7 @@ import { isClientOverdue, type Client } from "@/lib/clients";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { todayLocalISO } from "@/lib/dates";
+import { ocenKopie, type BackupRun } from "@/lib/backup";
 
 export const runtime = "nodejs";
 
@@ -213,7 +214,25 @@ export async function GET() {
   const reviewAverages = reviewedProjects.map(projectReviewAverage).filter((v): v is number => v != null);
   const avgClientRating = reviewAverages.length ? reviewAverages.reduce((a, b) => a + b, 0) / reviewAverages.length : null;
 
+  // Stan kopii zapasowych (2026-07-20). Osobne, TANIE zapytanie po głównym
+  // agregacie — kilkanaście wierszy z indeksu. Świadomie NIE w Promise.all
+  // wyżej: gdyby ta tabela z jakiegoś powodu nie istniała, nie ma prawa
+  // wywrócić całego Pulpitu. Kopie są ważne, ale nie ważniejsze niż to,
+  // co właściciel ma dziś do zrobienia.
+  let backup = null;
+  try {
+    await ensureBackupSchema();
+    const runs = (await sql`
+      SELECT id, ok, host, powod, tabel, rozmiar_bajtow, trwalo_sekund, created_at
+      FROM backup_runs ORDER BY created_at DESC LIMIT 20;
+    `) as unknown as BackupRun[];
+    backup = ocenKopie(runs);
+  } catch (e) {
+    console.error("[GET /api/hub/today] nie udało się odczytać stanu kopii zapasowych", e);
+  }
+
   return NextResponse.json({
+    backup,
     overdueLeads,
     overdueClients,
     dueProjects,

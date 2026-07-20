@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Kopia zapasowa bazy Leggera Hub na NAS (2026-07-20).
 #
 # Uruchamiana W KONTENERZE `postgres:17`, który ma już `pg_dump`, `psql`
@@ -19,7 +19,14 @@
 # (patrz docker-compose.yml). Nigdy nie wypisuje connection stringa do logu:
 # ten adres daje dostęp do wszystkich danych klientów, a logi bywają czytane
 # przez przypadek.
-set -eu
+# `pipefail` jest tu WARUNKIEM POPRAWNOŚCI, nie stylem. Bez niego w potoku
+# `pg_dump | gzip | openssl` liczy się wynik OSTATNIEGO polecenia — więc gdy
+# pg_dump padał (złe hasło, brak sieci), openssl i tak kończył się sukcesem
+# zapisując pusty plik, a skrypt zgłaszał zupełnie inny powód („konto nie ma
+# uprawnień"). Właściciel szukałby wtedy problemu w złym miejscu.
+# Złapane 2026-07-20 testem ze złym hasłem. Stąd też `bash`, nie `sh`:
+# `pipefail` nie jest w POSIX-owym `sh`.
+set -euo pipefail
 
 KATALOG="${KATALOG_KOPII:-/kopie}"
 DNI_DZIENNYCH="${DNI_DZIENNYCH:-7}"
@@ -27,16 +34,54 @@ TYGODNI="${TYGODNI:-4}"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
+# Meldunek do panelu po KAŻDYM przebiegu — udanym i nieudanym.
+#
+# Ten drugi jest ważniejszy. Bez meldunku o porażce panel widziałby tylko
+# ciszę, a cisza znaczy jednocześnie „kopie się nie robią" i „NAS wyłączony",
+# czyli nie znaczy nic. Powód awarii dojeżdża wprost na Pulpit, żeby
+# właściciel nie musiał czytać logów kontenera.
+#
+# Nieudany meldunek NIE może wywrócić kopii: sama kopia jest ważniejsza niż
+# powiadomienie o niej. Dlatego wszystko tu jest „best effort".
+melduj() {
+  _ok="$1"; _powod="$2"; _tabel="${3:-null}"; _rozmiar="${4:-null}"; _trwalo="${5:-null}"
+  [ -z "${PANEL_URL:-}" ] && return 0
+  [ -z "${BACKUP_PING_SECRET:-}" ] && return 0
+
+  # Powód to SUROWY komunikat błędu z Postgresa, więc może zawierać wszystko:
+  # cudzysłowy, odwrotne ukośniki i — co mnie tu wywróciło — TABULATORY.
+  # Surowy tabulator jest w JSON-ie niedozwolony, więc panel odrzucał cały
+  # meldunek błędem 400 i na Pulpit dojeżdżał poprzedni, MYLĄCY powód.
+  # Złapane 2026-07-20; komunikaty pg_dump zaczynają się od tabulatora.
+  # Dlatego: najpierw znaki sterujące na spacje, dopiero potem escapowanie.
+  _powod_json=$(printf '%s' "$_powod" \
+    | tr '\n\r\t' '   ' \
+    | sed 's/\\/\\\\/g; s/"/\\"/g; s/  */ /g')
+
+  if ! curl -fsS -m 20 -X POST "$PANEL_URL/api/backup/ping" \
+      -H "Authorization: Bearer $BACKUP_PING_SECRET" \
+      -H "Content-Type: application/json" \
+      -d "{\"ok\":$_ok,\"host\":\"$(hostname)\",\"powod\":\"$_powod_json\",\"tabel\":$_tabel,\"rozmiarBajtow\":$_rozmiar,\"trwaloSekund\":$_trwalo}" \
+      >/dev/null 2>&1
+  then
+    log "UWAGA: nie udało się zameldować do panelu (kopia i tak jest zrobiona)."
+  fi
+}
+
 wykonaj_kopie() {
   # Brakujące zmienne łapiemy TU, a nie przy starcie kontenera — inaczej
   # literówka w konfiguracji ubijałaby kontener w pętli restartów, zamiast
   # zostawić czytelny wpis w logu.
+  START=$(date +%s)
+
   if [ -z "${DATABASE_URL_RO:-}" ]; then
     log "BŁĄD: brak DATABASE_URL_RO (adres bazy tylko-do-odczytu). Kopia pominięta."
+    melduj false "Brak adresu bazy (DATABASE_URL_RO) w konfiguracji kontenera."
     return 1
   fi
   if [ -z "${HASLO_KOPII:-}" ]; then
     log "BŁĄD: brak HASLO_KOPII (hasło szyfrowania). Kopia pominięta."
+    melduj false "Brak hasła szyfrowania (HASLO_KOPII) w konfiguracji kontenera."
     return 1
   fi
 
@@ -59,16 +104,24 @@ wykonaj_kopie() {
   # `--no-owner --no-privileges`: kopia ma się odtwarzać na DOWOLNEJ bazie
   # (lokalnej, testowej), a nie tylko na koncie o tej samej nazwie co w Neonie.
   # Bez tego odtworzenie u siebie wywala się na nieistniejących rolach.
+  # Błędy pg_dump łapiemy do pliku, żeby przekazać właścicielowi PRAWDZIWY
+  # komunikat („password authentication failed…", „could not connect…"),
+  # a nie ogólnik. To jest różnica między „coś nie działa" a „wiem, co
+  # naprawić" — czyli cały sens tego meldunku.
+  BLAD_PG="$KATALOG/.blad-$ZNACZNIK.txt"
   if ! pg_dump "$DATABASE_URL_RO" \
-        --no-owner --no-privileges --format=plain \
+        --no-owner --no-privileges --format=plain 2>"$BLAD_PG" \
       | gzip -9 \
       | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
           -pass env:HASLO_KOPII -out "$ROBOCZY"
   then
-    log "BŁĄD: zrzut bazy nie powiódł się."
-    rm -f "$ROBOCZY"
+    SZCZEGOL=$(tr -d '\r' < "$BLAD_PG" 2>/dev/null | grep -v '^$' | tail -2 | tr '\n' ' ' | cut -c1-500)
+    log "BŁĄD: zrzut bazy nie powiódł się. $SZCZEGOL"
+    melduj false "Zrzut bazy nie powiódł się: ${SZCZEGOL:-brak szczegółów}. Sprawdź adres i hasło konta kopia_ro oraz połączenie NAS-a z internetem."
+    rm -f "$ROBOCZY" "$BLAD_PG"
     return 1
   fi
+  rm -f "$BLAD_PG"
 
   # Kontrola, że plik NAPRAWDĘ da się odczytać — a nie tylko że powstał.
   # Pusty albo ucięty plik waży swoje i wygląda jak kopia; różnicę widać
@@ -78,6 +131,7 @@ wykonaj_kopie() {
       | gzip -t 2>/dev/null
   then
     log "BŁĄD: powstały plik nie daje się odszyfrować lub jest uszkodzony. Nie zapisuję go jako kopii."
+    melduj false "Powstały plik nie daje się odszyfrować — kopia odrzucona. Najczęściej: brak miejsca na dysku NAS-a."
     rm -f "$ROBOCZY"
     return 1
   fi
@@ -90,6 +144,7 @@ wykonaj_kopie() {
           | gzip -dc 2>/dev/null | grep -c '^CREATE TABLE' || true)
   if [ "$TABEL" -lt 1 ]; then
     log "BŁĄD: w zrzucie nie ma ANI JEDNEJ tabeli — sprawdź uprawnienia konta tylko-do-odczytu. Nie zapisuję."
+    melduj false "Zrzut nie zawiera ani jednej tabeli — konto kopia_ro nie ma uprawnień do odczytu danych (krok 1 instrukcji)."
     rm -f "$ROBOCZY"
     return 1
   fi
@@ -114,6 +169,10 @@ wykonaj_kopie() {
   ILE_D=$(find "$KATALOG/dzienne" -name 'leggera-*.enc' -type f | wc -l | tr -d ' ')
   ILE_T=$(find "$KATALOG/tygodniowe" -name 'leggera-*.enc' -type f | wc -l | tr -d ' ')
   log "Stan: $ILE_D dziennych, $ILE_T tygodniowych."
+
+  BAJTY=$(wc -c < "$CEL" | tr -d ' ')
+  melduj true "Kopia OK: $TABEL tabel, $ILE_D dziennych, $ILE_T tygodniowych." \
+    "$TABEL" "$BAJTY" "$(( $(date +%s) - START ))"
   return 0
 }
 

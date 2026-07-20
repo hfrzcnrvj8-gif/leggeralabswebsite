@@ -514,6 +514,53 @@ export async function ensureHubSchema(): Promise<void> {
   await hubSchemaReady;
 }
 
+let backupSchemaReady: Promise<void> | null = null;
+
+/** Kopie zapasowe bazy na NAS (2026-07-20) — dziennik przebiegów.
+ *
+ * Po co panel ma o tym wiedzieć: skrypt na NAS-ie może przestać działać
+ * na dziesięć sposobów (kontener padł, zmieniło się hasło do Neona, dysk
+ * pełny, NAS wyłączony) i **żaden z nich nie daje o sobie znać**. Bez tej
+ * tabeli właściciel dowiedziałby się dopiero wtedy, gdy będzie potrzebował
+ * odtworzyć dane — czyli w najgorszym możliwym momencie.
+ *
+ * Trzymamy HISTORIĘ, nie tylko ostatni stan: „nie udaje się od trzech dni"
+ * to zupełnie inna informacja niż „nie udało się dziś", a po jednym wierszu
+ * nie da się ich rozróżnić.
+ *
+ * `powod` jest tu najważniejszą kolumną — właściciel nie jest programistą
+ * i nie będzie czytał logów kontenera na NAS-ie. Powód awarii ma dojechać
+ * do niego sam, na Pulpit. */
+async function createBackupSchema(): Promise<void> {
+  if (await schemaUpToDate("backup")) return;
+
+  const sql = getSql();
+  await sql`
+    CREATE TABLE IF NOT EXISTS backup_runs (
+      id TEXT PRIMARY KEY,
+      ok BOOLEAN NOT NULL,
+      /* Nazwa maszyny, która zrobiła kopię. Docker jest też na Macu
+         właściciela, a kopie robione tam powstają tylko gdy komputer nie
+         śpi — dlatego panel pokazuje, SKĄD przyszedł meldunek. */
+      host TEXT NOT NULL DEFAULT '',
+      /* Przy niepowodzeniu: dlaczego. Przy powodzeniu: krótkie podsumowanie. */
+      powod TEXT NOT NULL DEFAULT '',
+      tabel INTEGER,
+      rozmiar_bajtow BIGINT,
+      trwalo_sekund INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS backup_runs_created_idx ON backup_runs(created_at DESC);`;
+
+  await markSchemaApplied("backup");
+}
+
+export async function ensureBackupSchema(): Promise<void> {
+  if (!backupSchemaReady) backupSchemaReady = createBackupSchema();
+  await backupSchemaReady;
+}
+
 let invoicesSchemaReady: Promise<void> | null = null;
 
 async function createInvoicesSchema(): Promise<void> {

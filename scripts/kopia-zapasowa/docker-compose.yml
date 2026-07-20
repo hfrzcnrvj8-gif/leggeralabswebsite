@@ -11,12 +11,14 @@
 # dostępu do gniazda Dockera ani żadnych podwyższonych uprawnień — widzi tylko
 # swój katalog na kopie.
 #
-# UWAGA: obraz `postgres:17`, NIE `postgres:17-alpine`. Wariant alpine nie ma
-# `openssl`, więc szyfrowanie by nie zadziałało (sprawdzone 2026-07-20).
+# Obraz budujemy z Dockerfile obok (postgres:17 + curl) — powody w tamtym
+# pliku. W skrócie: alpine nie ma `openssl` (szyfrowanie), a goły postgres:17
+# nie ma `curl` (meldunek do panelu). Oba sprawdzone uruchomieniem.
 
 services:
   kopia-bazy:
-    image: postgres:17
+    build: .
+    image: leggera-kopia-bazy:1
     container_name: leggera-kopia-bazy
     restart: unless-stopped
 
@@ -34,6 +36,11 @@ services:
       TYGODNI: "4"
       KATALOG_KOPII: "/kopie"
       TZ: "Europe/Warsaw"
+      # Meldunek do panelu po każdym przebiegu — dzięki temu Pulpit wie,
+      # czy kopie się robią, a gdy nie, POKAZUJE POWÓD. Bez tych dwóch
+      # zmiennych kopie działają dalej, tylko po cichu.
+      PANEL_URL: "https://www.leggeralabs.pl"
+      BACKUP_PING_SECRET: "${BACKUP_PING_SECRET}"
 
     volumes:
       - ./kopia.sh:/kopia.sh:ro
@@ -41,7 +48,7 @@ services:
       # ZMIEŃ lewą stronę na realną ścieżkę udziału na Twoim NAS-ie.
       - /volume1/kopie/leggera:/kopie
 
-    entrypoint: ["/bin/sh", "/kopia.sh", "--petla"]
+    entrypoint: ["/bin/bash", "/kopia.sh", "--petla"]
 
     # Kontener nie potrzebuje portów ani sieci przychodzącej — łączy się
     # wyłącznie na zewnątrz, do Neona.

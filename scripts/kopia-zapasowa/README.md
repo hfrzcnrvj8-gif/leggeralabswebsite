@@ -66,22 +66,43 @@ Wymyśl (albo wylosuj) drugie, osobne hasło. Będzie szyfrować pliki kopii.
 ⚠️ **Zapisz je w menedżerze haseł.** Zgubienie tego hasła oznacza, że kopie
 są bezużyteczne — nie ma żadnej furtki awaryjnej i nikt Ci go nie odzyska.
 
-## Krok 3 — katalog na NAS-ie
+## Krok 3 — sekret do meldunków (żebyś wiedział, czy kopie działają)
+
+Kopia, która cicho przestała się robić, jest tak samo bezużyteczna jak jej
+brak — z tą różnicą, że brak widać. Dlatego skrypt po **każdym** przebiegu
+melduje się do panelu, a Pulpit pokazuje ostrzeżenie **razem z powodem**,
+gdy coś jest nie tak.
+
+Wymyśl trzeci, osobny sekret (dowolny długi losowy ciąg) i dodaj go
+w **panelu Vercela → Settings → Environment Variables**:
+
+```
+BACKUP_PING_SECRET = twoj-losowy-sekret
+```
+
+Po dodaniu zmiennej Vercel musi zbudować projekt na nowo — kliknij
+**Redeploy** przy ostatnim wdrożeniu.
+
+> Jeśli pominiesz ten krok, kopie i tak będą się robić — po prostu panel nie
+> będzie o nich wiedział i pokaże „Kopie zapasowe bazy nie są uruchomione".
+
+## Krok 4 — katalog na NAS-ie
 
 Załóż udział/katalog na kopie, np. `kopie/leggera`. Zapisz jego pełną ścieżkę
 (w UGOS widać ją we właściwościach folderu, zwykle zaczyna się od `/volume1/`).
 
-## Krok 4 — uruchomienie w Dockerze na NAS-ie
+## Krok 5 — uruchomienie w Dockerze na NAS-ie
 
-1. Skopiuj na NAS trzy pliki z tego katalogu: `kopia.sh`, `odtworz.sh`,
-   `docker-compose.yml`.
+1. Skopiuj na NAS **cztery** pliki z tego katalogu: `kopia.sh`, `odtworz.sh`,
+   `docker-compose.yml` i `Dockerfile`.
 2. W `docker-compose.yml` podmień ścieżkę `/volume1/kopie/leggera` na tę
-   z kroku 3 (lewa strona dwukropka).
+   z kroku 4 (lewa strona dwukropka).
 3. Obok nich utwórz plik `.env` o treści:
 
 ```
 DATABASE_URL_RO=postgresql://kopia_ro:HASLO@ep-...neon.tech/neondb?sslmode=require
 HASLO_KOPII=twoje-haslo-szyfrowania
+BACKUP_PING_SECRET=ten-sam-sekret-co-w-Vercelu
 ```
 
 4. W UGOS: **Docker → Projekty → Utwórz**, wskaż ten katalog i uruchom.
@@ -89,13 +110,13 @@ HASLO_KOPII=twoje-haslo-szyfrowania
 Kontener wystartuje, napisze w logu, za ile godzin zrobi pierwszą kopię,
 i od tej pory będzie ją robił codziennie o 3:00.
 
-## Krok 5 — sprawdź, że działa (nie pomijaj)
+## Krok 6 — sprawdź, że działa (nie pomijaj)
 
 Nie czekaj do 3:00. Uruchom jeden przebieg ręcznie — w UGOS w terminalu
 kontenera albo przez SSH:
 
 ```sh
-docker exec leggera-kopia-bazy sh /kopia.sh
+docker exec leggera-kopia-bazy bash /kopia.sh
 ```
 
 Powinieneś zobaczyć mniej więcej:
@@ -112,6 +133,10 @@ podejrzanie mała, konto tylko-do-odczytu nie widzi części danych, wróć do
 kroku 1. Po drugie na **nazwę maszyny** w pierwszej linii: musi to być Twój
 NAS. Jeśli zobaczysz tam nazwę Maca, zatrzymaj to i przenieś na NAS.
 
+Potem otwórz **Pulpit** w panelu. Jeśli wszystko gra, **nie zobaczysz tam nic
+o kopiach** — i tak ma być. Pulpit odzywa się wyłącznie wtedy, gdy coś wymaga
+Twojej reakcji; kolejny zielony wskaźnik uczyłby tylko przewijania.
+
 ---
 
 ## Jak odtworzyć kopię
@@ -126,7 +151,7 @@ ją na chwilę w Dockerze:
 docker run -d --name test-odtworzenia -e POSTGRES_PASSWORD=test -p 5432:5432 postgres:17
 
 docker exec -e HASLO_KOPII='twoje-haslo' leggera-kopia-bazy \
-  sh /odtworz.sh /kopie/dzienne/leggera-2026-07-20-0300.sql.gz.enc \
+  bash /odtworz.sh /kopie/dzienne/leggera-2026-07-20-0300.sql.gz.enc \
   postgresql://postgres:test@172.17.0.1:5432/postgres
 ```
 
@@ -144,6 +169,32 @@ wygląda na produkcyjnego Neona — żeby nie dało się nadpisać żywej bazy j
 nieuważnym poleceniem.
 
 ---
+
+## Skąd wiesz, że kopie działają
+
+Nie musisz nic sprawdzać — panel sam się odezwie. Skrypt melduje każdy
+przebieg, a Pulpit pokazuje pas ostrzegawczy w trzech przypadkach:
+
+| Co zobaczysz | Co to znaczy |
+|---|---|
+| „Kopie zapasowe bazy nie są uruchomione" | Nigdy nie przyszedł żaden meldunek — wróć do kroku 5 |
+| „Ostatnia kopia zapasowa się nie udała" | Coś padło. **Pod spodem masz dokładny powód**, cytat z serwera |
+| „Kopie zapasowe są nieaktualne" | Nic nie zgłosiło błędu, ale od ponad 36 godzin nie ma udanej kopii — najczęściej kontener stoi albo NAS był wyłączony |
+
+Powód awarii jest cytowany **dosłownie**, np.:
+
+```
+Zrzut bazy nie powiódł się: FATAL: password authentication failed for user
+"kopia_ro". Sprawdź adres i hasło konta kopia_ro oraz połączenie NAS-a
+z internetem.
+```
+
+Dzięki temu nie musisz szukać po logach kontenera — od razu wiesz, co
+naprawić.
+
+Próg 36 godzin (a nie 24) jest celowy: kopia leci raz na dobę, więc drobne
+przesunięcie nie może wywoływać fałszywego alarmu. Fałszywe alarmy uczą
+ignorowania ostrzeżeń, a to ma zadziałać wtedy, gdy zapali się raz na rok.
 
 ## Co jest w kopiach i jak długo leżą
 
@@ -169,6 +220,11 @@ nie tylko „skrypt się uruchamia"): zrzut bazy z danymi → szyfrowanie →
 odtworzenie na czystą bazę → **porównanie zawartości, zgadza się co do
 znaku**; odrzucenie złego hasła; nieczytelność pliku bez hasła; wykrycie
 braku `openssl` i odmowa zapisania kopii, zamiast zapisania niezaszyfrowanej.
+
+**Meldunki sprawdzone na czterech realnych awariach**, z obejrzeniem Pulpitu:
+złe hasło do bazy, brak konfiguracji kontenera, konto bez uprawnień do tabel
+oraz powrót do stanu normalnego (pas ostrzegawczy znika). Odrzucanie
+meldunków bez sekretu i ze złym sekretem — również sprawdzone.
 
 **NIE sprawdzone, bo wymaga Twojego udziału:** połączenie z prawdziwym
 Neonem (adres bazy jest tylko w Vercelu, nie mam do niego dostępu),

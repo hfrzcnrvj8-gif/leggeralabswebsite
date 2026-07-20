@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 # Odtworzenie bazy Leggera Hub z kopii (2026-07-20).
 #
 # **Ten plik jest równie ważny jak sama kopia.** Kopia, której nigdy nie
 # odtworzyłeś, nie jest kopią — jest plikiem, co do którego masz nadzieję.
 #
-# Użycie (w kontenerze `postgres:17-alpine`, tak samo jak kopia.sh):
+# Użycie (w tym samym kontenerze co kopia.sh):
 #
 #   odtworz.sh <plik.sql.gz.enc> <adres-bazy-docelowej>
 #

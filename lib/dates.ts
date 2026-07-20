@@ -87,6 +87,34 @@ export function daysSinceISO(iso: string, now: Date = new Date()): number {
   return Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000);
 }
 
+/**
+ * Parsuje TIMESTAMPTZ tak, jak NAPRAWDĘ zwraca go sterownik Neona.
+ *
+ * Postgres oddaje `2026-07-20 08:55:44.709+01`: **spacja zamiast `T`**
+ * i **strefa bez dwukropka**. `new Date()` w JS nie zjada ani jednego, ani
+ * drugiego — zwraca `Invalid Date`, po cichu.
+ *
+ * Dlaczego to ma osobną funkcję i komentarz: ta sama pułapka wyszła już raz
+ * po stronie apki (Faza 5, `Daty.zZnacznika` — licznik stopera startowałby od
+ * północy) i drugi raz przy kopiach zapasowych 2026-07-20, gdzie objawiła się
+ * najgorzej z możliwych: Pulpit pokazał „kopie są przestarzałe, ostatnia
+ * Infinity dni temu" **sekundę po udanej kopii**. Fałszywy alarm w mechanizmie
+ * ostrzegawczym jest gorszy niż brak mechanizmu — uczy ignorowania ostrzeżeń.
+ *
+ * Zwraca `null` zamiast `Invalid Date`, żeby wołający MUSIAŁ obsłużyć
+ * przypadek „nie dało się odczytać", a nie dostał w wyniku `NaN`.
+ */
+export function parsePgTimestamp(wartosc: string | null | undefined): Date | null {
+  if (!wartosc) return null;
+
+  let s = wartosc.trim().replace(" ", "T");
+  // Strefa bez dwukropka (`+01`, `+0100`) → postać, którą rozumie JS.
+  s = s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2").replace(/([+-]\d{2})$/, "$1:00");
+
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** Data + godzina po polsku ("16.07.2026, 18:00") — jak formatPlDate()
  * w lib/projects.ts, ale z godziną; do TIMESTAMPTZ-ów jak snooze_until,
  * gdzie sama data nie wystarcza. */

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { IconRepeat } from "@tabler/icons-react";
+import { IconRepeat, IconDatabaseExclamation } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Lead } from "@/lib/leads";
 import { type Project, formatPlDate } from "@/lib/projects";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
+import { kopieWymagajaUwagi, type BackupStan } from "@/lib/backup";
 import { overdueReason } from "@/lib/leads";
 import { type Invoice, formatMoney } from "@/lib/invoices";
 import type { Offer } from "@/lib/offers";
@@ -78,6 +79,9 @@ type TodayData = {
   recentNotes: Note[];
   kpi: Kpi;
   counts: { leads: number; clients: number; projects: number; invoices: number; offers: number };
+  /** Stan kopii zapasowych bazy (2026-07-20). `null`, gdy nie udało się go
+   * odczytać — Pulpit milczy zamiast straszyć fałszywym alarmem. */
+  backup: BackupStan | null;
 };
 
 /** Sumy w różnych walutach nie da się zmergować w jedną liczbę — każda
@@ -322,6 +326,42 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             : `Pulpit — ${totalActionable} ${totalActionable === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania.`}
         </span>
       </div>
+
+      {/* Kopie zapasowe (2026-07-20) — pas widoczny WYŁĄCZNIE wtedy, gdy coś
+          jest nie tak. Gdy kopie chodzą, Pulpit o nich milczy: to ekran „co
+          wymaga działania", a nie tablica kontrolna, i kolejny zielony
+          wskaźnik uczyłby tylko przewijania.
+
+          Powód awarii idzie WPROST, cytatem ze skryptu. Właściciel nie jest
+          programistą i nie będzie czytał logów kontenera na NAS-ie — jeśli
+          powód nie dojedzie tutaj, to praktycznie nie istnieje. */}
+      {data.backup && kopieWymagajaUwagi(data.backup) && (
+        <div className="mx-4 mt-4 rounded-xl border hairline bg-brand-gold/10 p-3 sm:mx-6">
+          <div className="flex items-start gap-2">
+            <IconDatabaseExclamation size={16} className="mt-0.5 shrink-0 text-brand-gold" />
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium">
+                {data.backup.stan === "brak"
+                  ? "Kopie zapasowe bazy nie są uruchomione"
+                  : data.backup.stan === "blad"
+                    ? "Ostatnia kopia zapasowa się nie udała"
+                    : "Kopie zapasowe są nieaktualne"}
+              </p>
+              <p className="mt-0.5 text-[12px] text-muted">{data.backup.opis}</p>
+              {data.backup.stan === "blad" && (
+                <p className="mt-1 rounded-lg bg-[var(--hairline)]/60 px-2 py-1 font-mono text-[11px] text-muted">
+                  {data.backup.powod}
+                </p>
+              )}
+              {data.backup.stan === "brak" && (
+                <p className="mt-0.5 text-[11px] text-muted">
+                  Instrukcja: <code>scripts/kopia-zapasowa/README.md</code>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-6">
         <div className="card-paper rounded-xl border hairline p-4">
