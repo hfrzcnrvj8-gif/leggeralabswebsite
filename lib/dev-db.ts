@@ -71,11 +71,15 @@ async function ensureSeeded(): Promise<void> {
     seedPromise = (async () => {
       // Schemat tworzą migracje aplikacji, ale seeder może odpalić się jako
       // pierwszy — więc na wszelki wypadek importujemy i uruchamiamy je tu.
-      const { ensureLeadsSchema, ensureHubSchema, ensureClientsSchema, ensureMailSchema } = await import("./db");
+      const { ensureLeadsSchema, ensureHubSchema, ensureClientsSchema, ensureMailSchema, ensureFollowupsSchema } =
+        await import("./db");
       await ensureLeadsSchema();
       await ensureHubSchema();
       await ensureClientsSchema();
       await ensureMailSchema();
+      // Followupy mają WŁASNY schemat, nieciągnięty przez pozostałe — bez tego
+      // seed kontaktu nurture niżej wywala się na nieistniejącej tabeli.
+      await ensureFollowupsSchema();
 
       const existing = await raw("SELECT COUNT(*)::int AS n FROM projects", []);
       if ((existing[0]?.n as number) > 0) return; // już zaseedowane
@@ -305,6 +309,23 @@ async function ensureSeeded(): Promise<void> {
       // powstaje po niej. Dzięki temu sekcja „Umowy i NDA" na karcie klienta
       // też ma co pokazać w dev.
       await raw(`UPDATE contracts SET client_id = $1 WHERE id = $2`, [clientA, contractStale]);
+
+      // — Zaplanowany kontakt nurture (Moduł 2 / Moduł 17) —
+      // Bez tego wiersza sekcja „Zaplanowane kontakty" na Pulpicie jest pusta
+      // W KAŻDYM środowisku deweloperskim, bo followupy powstają wyłącznie
+      // automatycznie: przy przejściu projektu Z KLIENTEM w status „Wdrożone",
+      // z terminem +14 i +90 dni. Żeby zobaczyć je własnymi oczami, trzeba by
+      // zamknąć projekt i przestawić zegar o dwa tygodnie.
+      //
+      // Kosztowało to jedną nieudaną weryfikację (2026-07-20): apka dostała
+      // pełną obsługę kontaktów nurture, po czym ani na telefonie, ani lokalnie
+      // nie było czego kliknąć — i wyglądało to na zepsutą funkcję zamiast na
+      // brak danych. `due_date` w przeszłości, bo Pulpit bierze `<= dziś`.
+      await raw(
+        `INSERT INTO client_followups (id, client_id, project_id, due_date, powod)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [randomUUID(), clientA, null, iso(-1), "kontakt kontrolny: referencja/opinia"]
+      );
 
       // — Poczta (Moduł 4) —
       // Dev nie ma dostępu do skrzynki az.pl (IMAP żyje tylko na Vercelu z

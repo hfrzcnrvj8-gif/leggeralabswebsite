@@ -20,6 +20,53 @@ serwera (lead z `client_id` dostaje z powrotem istniejącego klienta), więc apk
 (`biezacyLead`), nie kopię z konstruktora — inaczej przycisk zostawałby na
 ekranie po udanej akcji i wyglądał na zepsuty.
 
+**Faza 13.1, paczka 1 — „poza biurkiem" ✅ (2026-07-20).** Cztery pozycje
+z czternastu, wybrane wg kosztu braku, nie łatwości budowy:
+
+1. **Kontakty nurture** — wiersz „Zaplanowane kontakty" na Pulpicie jest
+   klikalny: szkic z serwera → poprawka → wysyłka (jedno żądanie, które wysyła,
+   odhacza i loguje zdarzenie na osi klienta), plus „załatwione bez maila"
+   gestem w bok. Apka **nie ma własnego szablonu** i nie powinna dostać —
+   `buildNurtureMessage` zna rytm 14/90 dni, język i link do opinii; kopia
+   w Swifcie byłaby czwartym bliźniakiem do synchronizowania ręcznie.
+2. **Opinie klienta** — sekcja w profilu projektu w trzech stanach (zebrana /
+   poproszono i czekamy / nic nie ruszyło): prośba mailem, kopiowanie samego
+   linku, wpisanie opinii zebranej ustnie. To **zdjęło „prośbę o opinię"
+   z poziomu 3** — opinię zbiera się po spotkaniu, nie po powrocie do biurka.
+   Szkic podsumowania jest lokalny, krótszy i tylko po polsku; przy projekcie
+   obcojęzycznym ekran mówi wprost, że pełną wersję zrobi panel (świadome
+   odstępstwo — panel nie wystawia `buildProjectClosingSummary` żadną trasą).
+3. **NIP / VAT-UE** przy dodawaniu klienta — numer polski idzie do Białej Listy
+   MF, numer z kodem kraju do VIES (ta sama reguła co w panelu: „PL" nigdy
+   przez VIES). Nie nadpisuje pól już wypełnionych.
+4. **Logi zmian klienta** — zakładka „Logi", której klient nie miał, choć lead
+   miał ją od początku. Wygląd logu wyjechał do wspólnego `ListaZmian`.
+
+**Cztery poprawki po weryfikacji na telefonie (ten sam dzień).** Żadnej z nich
+nie dało się zobaczyć przed oddaniem apki właścicielowi — warto wiedzieć, czego
+szukać następnym razem:
+
+- **Nie było czego kliknąć.** Kontakty nurture powstają wyłącznie automatycznie
+  (14 i 90 dni po zamknięciu projektu Z KLIENTEM), więc sekcja była pusta i na
+  produkcji, i w danych testowych. Dev-seed (`lib/dev-db.ts`) ma teraz jeden
+  wymagalny kontakt, a apka furtkę `LEGGERA_DEV_NURTURE=1`. **Funkcja bez
+  danych testowych jest funkcją niesprawdzalną.**
+- **Wiersz nie wyglądał na klikalny** — brakowało strzałki, którą ma lead obok.
+  Właściciel zobaczył Pulpit i powiedział „nie widzę nic nowego". Miał rację.
+- **Adres z Białej Listy ginął przy zapisie.** Komentarz w apce twierdził, że
+  `POST /api/clients` nie przyjmuje ulicy i kodu — nieprawda, przyjmuje
+  `ulica`, `kod`, `miasto`, `kraj`. Apka wysyłała samo miasto. Sprawdzaj trasę,
+  nie własny komentarz sprzed godziny.
+- **Face ID: dwa błędy.** Monit czekał na rundę HTTP do produkcji (stąd „lag
+  przy drugim uruchomieniu"), a karencja zerowała się przy każdym powrocie na
+  pierwszy plan, bo `.inactive` pada w OBIE strony — blokada po pierwszym
+  odblokowaniu nie wracała już nigdy. Drugi błąd nie był zgłoszony; wyszedł
+  przy czytaniu tego samego pliku.
+
+Uboczne: `AppStore.bladAkcji` — osobne pole błędu dla akcji z arkuszy, żeby
+komunikat został przy przycisku, a nie malował paska na całej liście. To wąski
+krok w stronę A1 z audytu Fazy 11½, nie jego domknięcie.
+
 ## Zasada przewodnia (właściciel, 2026-07-20)
 
 Cokolwiek dokładasz, ma trzymać cztery rzeczy, na których stoi ten produkt:
@@ -57,9 +104,52 @@ tego, ile kosztuje ich brak:
 | Planowanie notatki | `/api/notes/[id]/schedule`, `/activity` | |
 | Zmiany klienta | `/api/clients/[id]/changes` | lead to ma, klient nie |
 
+### Weryfikacja listy w kodzie (2026-07-20) — lista się obroniła
+
+Sprawdzone ponownie, tą samą metodą (137 tras `app/api/**/route.ts` × 82
+literały ścieżek w repo apki). **Wszystkie 14 pozycji potwierdzone jako
+niewołane.** Cały ruch sieciowy apki jest w jednym pliku (`APIClient.swift`),
+bez sklejania URL-i z kawałków — zbiór jest więc zamknięty, a nie „tyle
+udało się znaleźć". Widżet i Share Extension nie budują własnych żądań.
+
+Trzy sprostowania, które zmieniają wycenę (brief opisywał je za ostro):
+
+- **Onboarding, kamienie i zasoby są już CZYTANE.** `GET /api/projects/[id]`
+  zwraca je w środku, apka dekoduje i wyświetla. Brakuje wyłącznie zapisu —
+  modele stoją, więc to nie jest „cały Moduł 14 niewidoczny".
+- **Zadania: edycja działa.** `PATCH /tasks/[taskId]` jest wołany; brak dotyczy
+  tylko zakładania (`POST`) i kolejności (`/reorder`).
+- **Zmiany klienta były prawie darmowe** — wersja dla leada już działała,
+  a kształt odpowiedzi jest identyczny (zrobione, patrz Faza 13.1 ✅ niżej).
+
+### Luki, których ta lista NIE zawierała (uzupełnienie inwentarza)
+
+Wyszły przy tej samej weryfikacji. Nie są częścią Fazy 13.1 — do decyzji
+osobno, wpisane tu, żeby nie trzeba było ich odkrywać trzeci raz:
+
+- `/api/admin/devices` (GET) i `/[id]` (DELETE) — **jedyna z wagą
+  bezpieczeństwa**: odebranie dostępu zgubionemu telefonowi wymaga dziś panelu.
+- `/api/projects/timeline` — dane Gantta (`{projects, dependencies}`).
+- `/api/catalog` — katalog produktów, w apce nieobecny w całości.
+- `/api/offer-templates` (+`/[id]`, `apply-template`, `duplicate`).
+- `/api/costs/analytics`, `/api/costs/hints`, `/api/costs/import-ksef`.
+- `/api/references`, `/api/contacts/lookup`, `/api/links/orphans`,
+  `/api/leads/discover`, `/api/leads/notify`.
+- **Brak usuwania czegokolwiek**: `DELETE` na projekcie, leadzie, kliencie,
+  wpisie aktywności (trzy trasy), wpisie czasu, wpłacie do faktury. Apka
+  potrafi tworzyć i zmieniać, nie potrafi cofnąć.
+- `/api/notes/[id]` GET, `/api/time/[id]` (PATCH|DELETE).
+
+Pominięte świadomie jako niedotyczące apki: trasy publiczne/tokenowe, webhooki
+i ops (`ksef/auth/test`, `backup/ping`, `mail/outbox/run`, `telefonia/webhook`).
+
 **Świadomie NIE ruszaj** (to jest „poziom 3", udokumentowany): wystawianie
 i edycja faktur, korekty, KSeF (apka pokazuje status, nigdy go nie zmienia),
 pozycje i akceptacja ofert, cały moduł umów.
+
+**Dalszy ciąg Fazy 13.1 ma własny brief:**
+`14-brief-faza13-paczka2.md` (paczka 2 — kształtowanie projektu; paczka 3 —
+ustawienia, `/api/stats`, cykliczne, eksporty, ICS — opisana tam w tabeli).
 
 ## Faza 13.2 — funkcje, które mają sens TYLKO na telefonie
 
