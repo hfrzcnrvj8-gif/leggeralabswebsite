@@ -35,6 +35,12 @@ export {
   MAIL_ATTACHMENT_MAX_TOTAL_BYTES,
   type NudgeThread,
   MAIL_NUDGE_DAYS,
+  // Faza 8 — załączniki przychodzące, subskrypcje, wysyłka odłożona.
+  type MailAttachment,
+  type MailSubscription,
+  type SendLaterOption,
+  sendLaterOptions,
+  formatFileSize,
 } from "@/lib/mail";
 
 export { CONTACT_CHANNEL_CLASS } from "@/lib/contact";

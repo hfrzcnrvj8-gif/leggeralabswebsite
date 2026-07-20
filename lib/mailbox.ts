@@ -12,7 +12,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
-import { extractEmailAddress, parseUnsubscribeUrl, type MailHeaderHints } from "./mail";
+import { extractEmailAddress, parseUnsubscribeUrl, safeAttachmentFilename, type MailHeaderHints } from "./mail";
 import { SIGNATURE_IMAGES } from "./mailSignature";
 import { siteUrl } from "./site";
 
@@ -34,6 +34,18 @@ export type FetchedMessage = {
   /** Sygnały ze standardowych nagłówków: czy to masówka/automat. Patrz
    * isNoiseMail() w lib/mail.ts — pewniejsze niż zgadywanie z nazwy adresu. */
   hints: MailHeaderHints;
+  /** Załączniki — SAM OPIS, bez bajtów (Faza 8). Treść ściągamy z IMAP
+   * dopiero na żądanie, patrz downloadAttachmentPart() niżej. */
+  attachments: ParsedAttachmentMeta[];
+};
+
+/** Opis jednego załącznika odczytany z BODYSTRUCTURE. */
+export type ParsedAttachmentMeta = {
+  /** Numer części MIME wg RFC 3501 ("2", "3.1") — klucz do pobrania treści. */
+  partId: string;
+  filename: string;
+  mime: string;
+  sizeBytes: number;
 };
 
 export type MailboxConfig = {
@@ -205,6 +217,106 @@ async function connectImap(cfg: MailboxConfig): Promise<ImapFlow> {
  * czasu funkcji serverless — bierzemy najnowsze wiadomości, resztę dociągną
  * kolejne przebiegi.
  */
+/** Węzeł drzewa MIME tak, jak zwraca go imapflow w `bodyStructure`. Własny
+ * typ, bo eksportowany typ imapflow nie obejmuje wszystkich pól, których
+ * tu używamy. */
+type BodyNode = {
+  part?: string;
+  type?: string;
+  parameters?: Record<string, string>;
+  dispositionParameters?: Record<string, string>;
+  disposition?: string;
+  id?: string;
+  size?: number;
+  childNodes?: BodyNode[];
+};
+
+/**
+ * Wyciąga z BODYSTRUCTURE listę PRAWDZIWYCH załączników.
+ *
+ * **Dlaczego z BODYSTRUCTURE, a nie z mailparsera.** `simpleParser` zwraca
+ * załączniki razem z treścią, ale NIE podaje numeru części MIME — a bez
+ * niego nie da się później ściągnąć pliku z serwera na żądanie. Numer części
+ * jest wyłącznie w BODYSTRUCTURE. Przy okazji jest to tańsze: całą decyzję
+ * podejmujemy na strukturze, nie na bajtach.
+ *
+ * **Inline vs prawdziwy załącznik.** Newslettery wkładają obrazki jako części
+ * z `Content-ID` i odwołują się do nich z HTML-a (`cid:`). To NIE są
+ * załączniki dla właściciela — pokazanie ich zrobiłoby z każdego newslettera
+ * „mail z 14 załącznikami". Odrzucamy je po `disposition: inline` + obecności
+ * `id`. Odrzucamy też części bez nazwy pliku — to sama treść wiadomości.
+ */
+export function extractAttachmentMeta(root: BodyNode | undefined): ParsedAttachmentMeta[] {
+  const out: ParsedAttachmentMeta[] = [];
+  if (!root) return out;
+
+  const walk = (node: BodyNode) => {
+    for (const child of node.childNodes ?? []) walk(child);
+
+    // Kontenery (multipart/*) same w sobie nie są plikiem.
+    const mime = (node.type || "").toLowerCase();
+    if (!node.part || mime.startsWith("multipart/")) return;
+
+    const disposition = (node.disposition || "").toLowerCase();
+    const filenameRaw = node.dispositionParameters?.filename || node.parameters?.name || "";
+
+    // Obrazek osadzony w treści — należy do HTML-a, nie do listy plików.
+    if (disposition === "inline" && node.id) return;
+    // Bez nazwy i bez jawnego `attachment` to po prostu treść wiadomości.
+    if (!filenameRaw && disposition !== "attachment") return;
+
+    out.push({
+      partId: node.part,
+      filename: safeAttachmentFilename(filenameRaw || `zalacznik-${node.part}`),
+      mime: mime || "application/octet-stream",
+      sizeBytes: typeof node.size === "number" ? node.size : 0,
+    });
+  };
+
+  walk(root);
+  // Kolejność części MIME = kolejność, w jakiej nadawca je dołączył.
+  out.sort((a, b) => a.partId.localeCompare(b.partId, undefined, { numeric: true }));
+  return out;
+}
+
+/**
+ * Ściąga treść JEDNEJ części MIME — sedno decyzji „na żądanie z IMAP".
+ *
+ * Wołane dopiero, gdy właściciel stuknie w konkretny plik. Zwraca `null`,
+ * gdy serwer nie zna już tej wiadomości (mail skasowany ze skrzynki innym
+ * klientem) — to normalny scenariusz przy tym sposobie trzymania danych,
+ * a nie awaria, więc wołający zamienia go na czytelny komunikat.
+ */
+export async function downloadAttachmentPart(
+  imapPath: string,
+  uid: number,
+  partId: string
+): Promise<{ content: Buffer; mime: string | null } | null> {
+  const cfg = mailboxConfig();
+  const client = await connectImap(cfg);
+  try {
+    const lock = await client.getMailboxLock(imapPath);
+    try {
+      const res = await client.download(String(uid), partId, { uid: true });
+      if (!res?.content) return null;
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of res.content) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      const meta = res.meta as { contentType?: string } | undefined;
+      return { content: Buffer.concat(chunks), mime: meta?.contentType ?? null };
+    } finally {
+      lock.release();
+    }
+  } catch (e) {
+    console.error(`[mailbox] nie udało się pobrać części ${partId} wiadomości uid=${uid} z ${imapPath}`, e);
+    return null;
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
 export async function fetchMessagesInFolder(
   imapPath: string,
   sinceUid: number,
@@ -244,11 +356,20 @@ export async function fetchMessagesInFolder(
       // (bo "*" zawsze coś dopasowuje) — dlatego niżej jawnie odfiltrowujemy
       // uid <= sinceUid, zamiast ufać zakresowi.
       const range = `${sinceUid + 1}:*`;
-      const collected: { uid: number; source: Buffer }[] = [];
+      const collected: { uid: number; source: Buffer; bodyStructure?: BodyNode }[] = [];
 
-      for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
+      // `bodyStructure` dokładamy do TEGO SAMEGO fetcha, co treść — drugie
+      // przejście po skrzynce tylko dla struktury byłoby kolejnym pełnym
+      // obiegiem IMAP-a przy każdym syncu.
+      for await (const msg of client.fetch(range, { uid: true, source: true, bodyStructure: true }, { uid: true })) {
         if (msg.uid <= sinceUid) continue;
-        if (msg.source) collected.push({ uid: msg.uid, source: msg.source as Buffer });
+        if (msg.source) {
+          collected.push({
+            uid: msg.uid,
+            source: msg.source as Buffer,
+            bodyStructure: msg.bodyStructure as BodyNode | undefined,
+          });
+        }
       }
 
       // Najnowsze najpierw, przytnij do limitu — przy pierwszym syncu dużej
@@ -311,6 +432,7 @@ export async function fetchMessagesInFolder(
           refs,
           receivedAt: parsed.date || new Date(),
           hints,
+          attachments: extractAttachmentMeta(item.bodyStructure),
         });
       }
 

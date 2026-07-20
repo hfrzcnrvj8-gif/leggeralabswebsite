@@ -3,8 +3,10 @@ import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema } from "@/lib/db";
 import { MAIL_STATUSES, MAIL_CATEGORIES, MAIL_FOLDERS, type MailMessageWithLinks } from "@/lib/mail";
 import { isMailboxConfigured } from "@/lib/mailbox";
+import { runDueOutbox } from "@/lib/mailOutbox";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
  * GET /api/mail?folder=inbox&status=nowy&filter=unassigned — lista wiadomości
@@ -22,6 +24,21 @@ export async function GET(req: NextRequest) {
 
   await ensureMailSchema();
   const sql = getSql();
+
+  // Wysyłka odłożona (Faza 8) — kolejkę ruszamy PRZY OKAZJI wejścia w Pocztę,
+  // bo cron na Vercelu chodzi raz dziennie. Bez tego mail odłożony na 14:00
+  // czekałby do jutra rana.
+  //
+  // `await`, nie „wystrzel i zapomnij": funkcja serverless bywa uśpiona zaraz
+  // po odpowiedzi, więc niedokończona obietnica po prostu by przepadła —
+  // i wysyłka działałaby „czasami". Gdy nic nie czeka (przypadek zwykły), to
+  // jedno tanie zapytanie po indeksie częściowym; gdy coś czeka, opóźnienie
+  // jest ceną faktycznego wysłania poczty.
+  await runDueOutbox().catch((e) => {
+    // Awaria kolejki NIE może zabrać ze sobą listy wiadomości — właściciel
+    // przyszedł tu czytać pocztę, nie wysyłać zaległości.
+    console.error("[GET /api/mail] ruszenie kolejki wysyłki nie powiodło się", e);
+  });
 
   const folderParam = req.nextUrl.searchParams.get("folder");
   const folder = (MAIL_FOLDERS as readonly string[]).includes(folderParam || "") ? (folderParam as string) : "inbox";
@@ -47,7 +64,8 @@ export async function GET(req: NextRequest) {
            m.from_addr, m.from_name, m.to_addr, m.subject, m.body_text,
            '' AS body_html,
            m.message_id, m.in_reply_to, m.refs, m.thread_id, m.status, m.kategoria, m.list_unsubscribe_url, m.flagged,
-           m.snooze_until,
+           m.snooze_until, m.has_attachments,
+           (mt.thread_id IS NOT NULL) AS muted,
            m.received_at, m.handled_at,
            c.nazwa AS client_nazwa, c.status AS client_status, l.firma AS lead_nazwa, i.numer AS invoice_numer,
            ms.status AS sender_status
@@ -56,6 +74,7 @@ export async function GET(req: NextRequest) {
     LEFT JOIN leads l ON l.id = m.lead_id
     LEFT JOIN invoices i ON i.id = m.invoice_id
     LEFT JOIN mail_senders ms ON ms.email = m.from_addr
+    LEFT JOIN mail_muted_threads mt ON mt.thread_id = m.thread_id
     WHERE m.folder = ${folder}
       AND (${status}::text IS NULL OR m.status = ${status})
       AND (${unassignedOnly} = false OR (m.client_id IS NULL AND m.lead_id IS NULL))
@@ -81,8 +100,12 @@ export async function GET(req: NextRequest) {
   // do liczników w sidebarze folderów.
   const [counts] = (await sql`
     SELECT
+      /* Wyciszony wątek NIE liczy się do „do odpowiedzi" — o to właśnie
+         chodzi w wyciszeniu: wiadomości zostają widoczne na liście, ale
+         przestają wołać o reakcję. */
       COUNT(*) FILTER (WHERE m.status = 'nowy' AND m.kierunek = 'in' AND m.folder = 'inbox'
         AND COALESCE(ms.status,'') NOT IN ('pending','blocked')
+        AND mt.thread_id IS NULL
         AND (m.snooze_until IS NULL OR m.snooze_until <= now()))::int AS nowe,
       COUNT(*) FILTER (WHERE m.client_id IS NULL AND m.lead_id IS NULL AND m.kierunek = 'in'
         AND m.status != 'zignorowany' AND m.folder = 'inbox'
@@ -102,7 +125,8 @@ export async function GET(req: NextRequest) {
       COUNT(*) FILTER (WHERE m.folder = 'archive')::int AS folder_archive
     FROM mail_messages m
     LEFT JOIN mail_senders ms ON ms.email = m.from_addr
-    LEFT JOIN clients c ON c.id = m.client_id;
+    LEFT JOIN clients c ON c.id = m.client_id
+    LEFT JOIN mail_muted_threads mt ON mt.thread_id = m.thread_id;
   `) as unknown as Record<string, number>[];
 
   return NextResponse.json({ messages: rows, counts, configured: isMailboxConfigured() });

@@ -155,6 +155,13 @@ export type MailSenderStatus = (typeof MAIL_SENDER_STATUSES)[number];
  * GET /api/mail (lista) i GET /api/mail/[id] (podgląd). Nazwy dołącza serwer,
  * żeby lista nie musiała dociągać każdego klienta osobno. */
 export type MailMessageWithLinks = MailMessage & {
+  /** Czy wiadomość ma załączniki (Faza 8) — denormalizacja pod ikonkę
+   * spinacza na liście, żeby nie robić złączenia przy każdym odczycie
+   * folderu. Sama LISTA plików przychodzi dopiero z GET /api/mail/[id]. */
+  has_attachments?: boolean;
+  /** Czy WĄTEK tej wiadomości jest wyciszony (Faza 8). Dołączane przy
+   * odczycie listy i profilu — w bazie siedzi na `thread_id`, nie tutaj. */
+  muted?: boolean;
   client_nazwa: string | null;
   lead_nazwa: string | null;
   invoice_numer: string | null;
@@ -490,10 +497,10 @@ export function mailSummaryLine(subject: string, bodyText: string, maxLen = 160)
 }
 
 /** Załączniki WYCHODZĄCE (Etap 1 Modułu 4b, druga runda) — TYLKO wysyłka, w
- * pamięci serwera na czas jednego żądania, NIGDY zapisywane w Postgresie
- * (odbieranie/przechowywanie załączników z przychodzącej poczty to osobna,
- * świadomie odłożona sprawa — wymaga tabeli + decyzji o retencji RODO, patrz
- * docs/plany-modulow/04b-poczta-pelny-klient.md → "Świadomie ODŁOŻONE").
+ * pamięci serwera na czas jednego żądania, NIGDY zapisywane w Postgresie.
+ * Załączniki PRZYCHODZĄCE to osobna sprawa i osobne stałe — patrz niżej
+ * (Faza 8, 2026-07-20): w bazie leżą wyłącznie METADANE, treść ściągamy
+ * z IMAP na żądanie.
  * Limity dobrane z marginesem pod platformowy pułap treści żądania Vercel
  * Functions (Node.js runtime, ok. 4.5 MB, niekonfigurowalny) — zweryfikuj
  * aktualną wartość przed podnoszeniem tych stałych. */
@@ -514,6 +521,82 @@ export const MAIL_ATTACHMENT_MIME_TYPES = [
 
 export const MAIL_ATTACHMENT_MAX_FILE_BYTES = 3 * 1024 * 1024; // 3 MB/plik
 export const MAIL_ATTACHMENT_MAX_TOTAL_BYTES = 4 * 1024 * 1024; // 4 MB łącznie
+
+/* ── Załączniki PRZYCHODZĄCE (Faza 8, 2026-07-20) ─────────────────────────
+ *
+ * Decyzja właściciela: w bazie trzymamy WYŁĄCZNIE metadane (nazwa, typ,
+ * rozmiar, numer części MIME), a treść ściągamy z IMAP dopiero przy
+ * kliknięciu. Powód jest kosztowy: Neon liczy za rozmiar bazy, skrzynka
+ * z PDF-ami puchnie nieodwracalnie, a 99 % załączników nigdy nie zostanie
+ * otwartych. Świadomie zaakceptowana cena: brak offline, kilka sekund na
+ * otwarcie i to, że załącznik znika razem z mailem skasowanym ze skrzynki.
+ *
+ * NIE zamieniaj tego na magazyn plików ani base64 bez pytania właściciela —
+ * to cofnięcie jego decyzji, nie usprawnienie. */
+
+/** Jeden załącznik przychodzący — sam OPIS, bez bajtów treści. */
+export type MailAttachment = {
+  id: string;
+  message_id: string;
+  /** Nazwa pliku po odkażeniu (patrz safeAttachmentFilename). */
+  filename: string;
+  mime: string;
+  size_bytes: number;
+  /** Numer części MIME wg IMAP-a ("2", "3.1") — po nim ściągamy treść.
+   * Bierze się z BODYSTRUCTURE, NIE z mailparsera (ten go nie zwraca). */
+  part_id: string;
+};
+
+/** Górny próg pobrania załącznika przez trasę serverless.
+ *
+ * Odpowiedź funkcji na Vercelu ma platformowy pułap; plik 30 MB przez nią
+ * nie przejdzie. Zamiast wiecznego spinnera pokazujemy wprost, że pliku nie
+ * da się otworzyć w panelu — jest w skrzynce i zawsze można go wziąć
+ * stamtąd. Metadane zapisujemy NIEZALEŻNIE od tego progu: właściciel ma
+ * wiedzieć, że załącznik istnieje, nawet gdy go tu nie otworzy. */
+export const MAIL_INCOMING_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+
+/**
+ * Odkaża nazwę pliku, zanim trafi do nagłówka `Content-Disposition`.
+ *
+ * Trzy osobne zagrożenia, każde realne:
+ * 1. Znaki ścieżki (`../`, `/`, `\`) — nazwa bywa używana przy zapisie na
+ *    dysk po stronie klienta.
+ * 2. Znaki sterujące i cudzysłowy — rozbijają sam nagłówek HTTP
+ *    (wstrzyknięcie kolejnych pól przez CR/LF).
+ * 3. Podwójne rozszerzenie w rodzaju `faktura.pdf.exe` — nazwy NIE
+ *    przepisujemy (to byłoby kłamstwo o zawartości), ale nagłówek zawsze
+ *    idzie z `attachment`, nigdy `inline`, więc nic się samo nie uruchomi.
+ */
+export function safeAttachmentFilename(raw: string): string {
+  const bezSciezki = (raw || "").replace(/[\\/]+/g, "_");
+  const czysta = bezSciezki
+    // eslint-disable-next-line no-control-regex -- właśnie o znaki sterujące chodzi
+    .replace(/[\x00-\x1f\x7f"]/g, "")
+    .replace(/^\.+/, "") // ukrycie pliku i ".." na starcie nazwy
+    .trim();
+  const przycieta = czysta.slice(0, 200);
+  return przycieta || "zalacznik";
+}
+
+/** Jeden nadawca masówki na ekranie „Subskrypcje" (Faza 8). */
+export type MailSubscription = {
+  from_addr: string;
+  from_name: string | null;
+  /** Adres wypisania z nagłówka List-Unsubscribe. `null` = nadawca nie podał
+   * żadnego — wtedy zostaje samo posprzątanie skrzynki. */
+  unsubscribe_url: string | null;
+  ile: number;
+  ostatnia: string;
+};
+
+/** Rozmiar po ludzku — do etykiety przy pliku ("2,4 MB"). */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} kB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+}
 
 /** Retencja treści maili — decyzja właściciela 2026-07-15 (RODO): 24
  * miesiące. Starsze wiadomości kasuje dzienny cron (app/api/leads/notify);
@@ -558,6 +641,50 @@ export function snoozeOptions(now: Date = new Date()): SnoozeOption[] {
   options.push({
     id: "next_week",
     label: "Przyszły tydzień (poniedziałek 8:00)",
+    targetIso: warsawWallTimeToUtcISO(addDaysToISO(today, daysToNextMonday), "8:00"),
+  });
+  return options;
+}
+
+/** Jeden nazwany termin wysyłki odłożonej (Faza 8). */
+export type SendLaterOption = { id: string; label: string; targetIso: string };
+
+/**
+ * Nazwane terminy wysyłki odłożonej — ten sam duch co snoozeOptions() wyżej:
+ * właściciel WYBIERA z listy, nigdy nie wpisuje daty ręcznie (pułapka
+ * `<input type="date">` z rokiem „0202", CLAUDE.md).
+ *
+ * Godziny są celowo „ludzkie" (8:00, 9:00), a nie co do minuty — bo i tak
+ * nie umiemy obiecać minuty. Cron na Vercelu chodzi raz dziennie, a resztę
+ * dowozi ruszanie kolejki przy wejściu w Pocztę (patrz
+ * app/api/mail/outbox/run). Deklarowana godzina to NAJWCZEŚNIEJSZY moment
+ * wysyłki — UI ma to mówić wprost, patrz opisTerminuWysylki().
+ */
+export function sendLaterOptions(now: Date = new Date()): SendLaterOption[] {
+  const today = todayLocalISO();
+  const nowMin = warsawNowMinutes(now);
+  const [y, m, d] = today.split("-").map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Nd..6=Sob
+
+  const options: SendLaterOption[] = [];
+
+  // „Dziś o 17:00" tylko wtedy, gdy realnie jest jeszcze przed 17:00 —
+  // inaczej opcja obiecywałaby termin, który już minął.
+  if (nowMin < 17 * 60) {
+    options.push({ id: "today_afternoon", label: "Dziś po południu (17:00)", targetIso: warsawWallTimeToUtcISO(today, "17:00") });
+  }
+  options.push({
+    id: "tomorrow_morning",
+    label: "Jutro rano (8:00)",
+    targetIso: warsawWallTimeToUtcISO(addDaysToISO(today, 1), "8:00"),
+  });
+
+  // Poniedziałek ŚCIŚLE po dziś — „na początku tygodnia" ma być odległym
+  // terminem także wtedy, gdy dziś jest poniedziałek.
+  const daysToNextMonday = ((1 - weekday + 7) % 7) || 7;
+  options.push({
+    id: "next_week",
+    label: "Poniedziałek rano (8:00)",
     targetIso: warsawWallTimeToUtcISO(addDaysToISO(today, daysToNextMonday), "8:00"),
   });
   return options;

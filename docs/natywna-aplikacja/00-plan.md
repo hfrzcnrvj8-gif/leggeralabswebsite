@@ -146,8 +146,8 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **4** ✅ | Poczta w pełni — wykonane 2026-07-19, patrz „Faza 4" niżej | `leggera-hub-ios` |
 | **5** ✅ | Domknięcie poziomu 1 (Pulpit na agregacie, Notatnik, powiadomienia, szukanie) + **Projekty ze stoperem** — wykonane 2026-07-19, patrz „Faza 5" niżej | `leggera-hub-ios` |
 | **6** ✅ | **Rejestr wiadomości i rozmów** + Kalendarz — wykonane 2026-07-19, patrz „Faza 6" niżej | `leggera-hub-ios` + panel |
-| **7** ← NASTĘPNA | **Natywne bajery**: Face ID, Siri, widżet „co dziś", Share Extension — patrz `04-brief-natywne-bajery.md` | |
-| **8** ← NASTĘPNA | **Załączniki + skrzynka**: załączniki przychodzące (panel + apka), wyciszenie wątku, ekran „Subskrypcje", wysyłka odłożona — patrz `05-brief-zalaczniki-i-skrzynka.md` | oba repo |
+| **7** ✅ | **Natywne bajery**: Face ID, Siri, widżet „co dziś", Share Extension — patrz `04-brief-natywne-bajery.md` | |
+| **8** ✅ | **Załączniki + skrzynka**: załączniki przychodzące (panel + apka), wyciszenie wątku, ekran „Subskrypcje", wysyłka odłożona — wykonane 2026-07-20, patrz „Faza 8" niżej | oba repo |
 | **9** | iPad (`NavigationSplitView` z tego samego kodu) | |
 | **10** | Reszta poziomu 2 (faktury, oferty — podgląd) | |
 | **11** | macOS z tego samego rdzenia | |
@@ -862,3 +862,125 @@ kompetencję we wdrażaniu lokalnych modeli, samo ich prawie nie używa.
   zatwierdza"**, oba na Ollamie na Macu właściciela, nigdy w chmurze.
 - Pytanie na audyt nie brzmi więc „czy AI", tylko **„czy ten kształt da się
   rozszerzyć, nie oddając modelowi decyzji"**.
+
+## Faza 8 — załączniki i skrzynka (2026-07-20)
+
+Wykonane wg `05-brief-zalaczniki-i-skrzynka.md`, wszystkie cztery części.
+Moduł dotknął OBU repozytoriów, z ciężarem po stronie panelu.
+
+### Decyzja właściciela, od której wszystko zależało
+
+Pytany o sposób trzymania załączników przychodzących (wybór kosztowy, nie
+techniczny), właściciel wybrał **wariant „na żądanie z IMAP"**: w bazie leżą
+WYŁĄCZNIE metadane (nazwa, typ, rozmiar, numer części MIME), a treść ściągamy
+z serwera pocztowego dopiero przy kliknięciu.
+
+Świadomie zaakceptowana cena: brak dostępu offline, kilka sekund na otwarcie
+i to, że **załącznik znika razem z mailem skasowanym ze skrzynki**. Panel
+i apka mówią o tym wprost pod listą plików — to nie jest awaria, tylko
+własność wybranego rozwiązania.
+
+**Nie zamieniaj tego na magazyn plików ani base64 bez pytania** — to cofnięcie
+decyzji właściciela, nie usprawnienie.
+
+### Metadane idą z BODYSTRUCTURE, nie z mailparsera
+
+Rzecz, która przesądziła o kształcie kodu: `simpleParser` zwraca załączniki
+razem z treścią, ale **NIE podaje numeru części MIME** — a bez niego nie da się
+później ściągnąć pliku na żądanie. Numer jest wyłącznie w BODYSTRUCTURE, więc
+całą listę plików wyprowadzamy ze struktury (`extractAttachmentMeta()`
+w `lib/mailbox.ts`), dokładanej do TEGO SAMEGO fetcha co treść.
+
+Przy okazji rozwiązuje to pułapkę nr 1 z briefu: obrazki osadzone w HTML-u
+(`disposition: inline` + `Content-ID`) odpadają na poziomie struktury, więc
+newsletter nie robi się „mailem z 14 załącznikami".
+
+### Wyciszenie wątku — znacznik na `thread_id`, nie na wiadomości
+
+Osobna tabela `mail_muted_threads`, bo wątek bywa wyciszony, zanim dotrze jego
+kolejna wiadomość. **Zweryfikowane, że działa na poziomie wątku**, a nie
+pojedynczego maila: wyciszenie przez wiadomość w Wysłanych ustawiło
+`muted = true` także na wiadomości w Odebranych, której nie dotykano. Ten sam
+mechanizm obejmuje wiadomości przyszłe.
+
+Wyciszenie wypina wątek z trzech miejsc naraz: licznika „Do odpowiedzi",
+`GET /api/mail/nudge` i **Pulpitu** (`/api/hub/today`). Pominięcie tego
+ostatniego byłoby cichą dziurą — wątek znikałby z Poczty i wracał na ekran
+główny.
+
+### Wysyłka odłożona — cron na Vercelu NIE chodzi co kilka minut
+
+Brief zakładał „cron sprawdzający co kilka minut". Na planie Hobby cron chodzi
+**raz dziennie**, więc mail odłożony na 14:00 czekałby do jutra rana. Dlatego
+kolejkę ruszają DWA wejścia: cron o 8:00 (`vercel.json`) **oraz każde wejście
+w Pocztę** (`GET /api/mail`). W praktyce to drugie wysyła większość poczty.
+
+Konsekwencja, którą UI mówi wprost w obu klientach: **zadeklarowana godzina to
+najwcześniejszy moment wysyłki, nie gwarantowany.** Obiecanie minuty, której
+nie umiemy dotrzymać, byłoby gorsze niż brak funkcji.
+
+Dwie rzeczy warte zapamiętania:
+- Wiersze są **zaklepywane atomowym UPDATE-em** (`FOR UPDATE SKIP LOCKED`)
+  przed wysyłką. Bez tego dwa nakładające się przebiegi wysłałyby maila DWA
+  RAZY do klienta — a tego nie da się cofnąć.
+- Status `sent` ustawiamy NATYCHMIAST po udanym SMTP, przed zapisami
+  pobocznymi. Wyjątek w którymkolwiek z nich zostawiłby wiersz w `queued`,
+  czyli do ponownego wysłania.
+- **Załączniki są poza zakresem wysyłki odłożonej** — musiałyby czekać w bazie
+  jako bajty, czyli dokładnie to, czego właściciel nie chciał. Trasa odrzuca
+  je komunikatem, a apka i panel chowają opcję zamiast ją blokować.
+
+### Cztery rzeczy, które wyszły dopiero przy robocie
+
+1. **Kilka `.sheet` na jednym widoku SwiftUI = działa jeden.** Dwa nowe ekrany
+   apki („Subskrypcje", „Zaplanowane") dołożone jako `.sheet` obok dwóch
+   istniejących **po prostu się nie otwierały**, przy zerowej liczbie błędów
+   i poprawnie wyglądającym kodzie. Wyszło dopiero na zrzucie z symulatora.
+   Naprawione przejściem na `navigationDestination(for: EkranPoczty.self)` —
+   przy okazji furtka DEBUG sprawdza teraz TĘ SAMĄ ścieżkę, z której korzysta
+   właściciel, a nie obejście.
+2. **Nieistniejące id wiadomości źródłowej dawało 500.** `reply_to_message_id`
+   to klucz obcy; zapisywaliśmy je nawet wtedy, gdy wiadomości nie było
+   (skasowana przez retencję albo nieaktualne id z otwartego widoku). Teraz
+   odkładamy bez kontekstu wątku i mówimy o tym w logu — utrata wątku jest
+   mniejszą szkodą niż utrata napisanej wiadomości.
+3. **Kolizja nazw w rdzeniu apki**: `MailZalacznik` był już zajęty przez
+   załączniki WYCHODZĄCE. Przychodzące to `MailZalacznikPrzychodzacy` —
+   te dwa typy nie mają ze sobą nic wspólnego poza słowem w nazwie.
+4. **Wiersz „Subskrypcji" w panelu ściskał nazwę nadawcy do „Skle…"**, czyli
+   kasował jedyną informację, po której da się tam kogokolwiek rozpoznać.
+   Kolumna listy Poczty jest wąska; wiersz rozbity na dwie linie. Zmierzone
+   na zrzucie, nie założone.
+
+### Co zweryfikowano, a czego nie
+
+**Curlem, w kształcie używanym przez apkę:** lista i sortowanie subskrypcji
+(3→2→1, malejąco); pobranie załącznika przy braku skrzynki (503), powyżej
+progu rozmiaru (413) i z cudzym id wiadomości (404); wyciszenie i odciszenie
+wątku z odczytem zwrotnym z trzech miejsc (licznik, nudge, Pulpit); dowód
+działania na poziomie WĄTKU, nie wiadomości; komplet walidacji odkładania
+(przeszłość, rok „0202", załączniki, zły adres), anulowanie i ponowne
+anulowanie (409), kontekst wątku przy istniejącej i nieistniejącej wiadomości
+źródłowej.
+
+**W przeglądarce, na zrzutach:** ekran „Subskrypcje" (przed i po poprawce
+układu), profil wiadomości z trzema załącznikami, przełączenie wyciszenia
+z potwierdzeniem, kolejka „Zaplanowane" z anulowaniem.
+
+**W symulatorze iPhone 17, na zrzutach:** spinacz na liście wiadomości, ekran
+„Subskrypcje", ekran „Zaplanowane", sekcja załączników z ikonami wg typu pliku.
+
+**NIE zweryfikowano** (i nie da się z tej sesji):
+- **Realne pobranie załącznika z IMAP-a** — `MAIL_*` żyje tylko w env Vercela,
+  więc lokalnie każda próba kończy się komunikatem „skrzynka nie jest
+  skonfigurowana". Sprawdzona jest cała droga DO tego miejsca, ale samo
+  ściągnięcie pliku z az.pl wymaga produkcji.
+- **Zapis metadanych przy syncu** — z tego samego powodu; dane testowe wpisano
+  do ziarna deweloperskiego ręcznie.
+- **Realna wysyłka odłożona** — jw.
+- **Podgląd QuickLook** i gesty przesunięcia w apce — wymagają dotyku.
+
+### Nowe furtki DEBUG
+
+`LEGGERA_DEV_MAIL_SHEET=subskrypcje|zaplanowane` (obok istniejących
+`nowa|szablony`).

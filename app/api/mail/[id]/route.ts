@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureMailSchema, ensureMailFoldersSchema } from "@/lib/db";
-import { MAIL_STATUSES, mailSummaryLine, isPlausibleTimestamp, type MailMessageWithLinks } from "@/lib/mail";
+import { MAIL_STATUSES, mailSummaryLine, isPlausibleTimestamp, type MailMessageWithLinks, type MailAttachment } from "@/lib/mail";
 import { logMailOnTimeline } from "@/lib/mailSync";
 import { countUnassignedFromAddress, rememberAddressLink } from "@/lib/contactLookup";
 import { sanitizeMailHtml } from "@/lib/mailHtml";
@@ -81,11 +81,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ? await countUnassignedFromAddress(message.from_addr, id)
       : 0;
 
+  // Załączniki (Faza 8) — SAM OPIS. Treść leży na serwerze pocztowym i
+  // ściąga ją dopiero trasa .../attachment/[aid], gdy właściciel stuknie
+  // w konkretny plik.
+  const attachments = (await sql`
+    SELECT id, message_id, part_id, filename, mime, size_bytes::int AS size_bytes
+    FROM mail_attachments
+    WHERE message_id = ${id}
+    ORDER BY part_id;
+  `) as unknown as MailAttachment[];
+
+  // Czy WĄTEK jest wyciszony — pytamy o wątek, nie o tę wiadomość, bo
+  // wyciszenie z definicji dotyczy całej rozmowy (także jej przyszłych
+  // wiadomości).
+  const muted = message.thread_id
+    ? ((await sql`SELECT 1 FROM mail_muted_threads WHERE thread_id = ${message.thread_id};`) as unknown as unknown[]).length > 0
+    : false;
+
   return NextResponse.json({
     message: { ...message, body_html: "" },
     html,
     blockedImages,
     thread,
+    attachments,
+    muted,
     unassignedSameAddress,
   });
 }
@@ -111,6 +130,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     senderDecision?: unknown;
     snoozeUntil?: unknown;
     nudgeDismissed?: unknown;
+    /** Faza 8 — wycisz/odcisz CAŁY wątek (nie pojedynczą wiadomość). */
+    muted?: unknown;
     /** Moduł 22 — rozciągnij to przypisanie na CAŁY adres nadawcy:
      * zapamiętaj alias na przyszłość i przypnij zaległe nieprzypisane
      * wiadomości z tego adresu. Zawsze jawna zgoda właściciela (panel pyta),
@@ -131,9 +152,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     from_addr: string;
     client_id: string | null;
     lead_id: string | null;
+    thread_id: string | null;
   }[];
   const mail = existing[0];
   if (!mail) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const mailThreadId = mail.thread_id;
 
   // "Usuń"/"Archiwizuj"/"Przywróć do Odebranych" (Etap 2 Modułu 4b) — to
   // ZAWSZE prawdziwy MOVE na serwerze (RFC 6851, patrz lib/mailbox.ts —
@@ -241,6 +264,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // wątku (patrz komentarz przy getNudgeThreads(), lib/db.ts).
   if (body.nudgeDismissed === true) {
     await sql`UPDATE mail_messages SET nudge_dismissed_at = now() WHERE id = ${id};`;
+  }
+
+  // Wyciszenie WĄTKU (Faza 8) — „jestem w kopii, nie muszę reagować".
+  // Wiadomości zostają widoczne, przestają tylko wołać o odpowiedź.
+  //
+  // Znacznik idzie na `thread_id`, więc obejmuje też PRZYSZŁE wiadomości
+  // w tej rozmowie. Wiadomość bez wątku (wąskie okno przed pierwszym
+  // backfillThreadIds()) nie ma czego wyciszyć — mówimy o tym wprost,
+  // zamiast po cichu nic nie zrobić i udawać sukces.
+  if (typeof body.muted === "boolean") {
+    if (!mailThreadId) {
+      return NextResponse.json(
+        { error: "Ta wiadomość nie ma jeszcze przypisanego wątku — spróbuj po najbliższej synchronizacji." },
+        { status: 422 }
+      );
+    }
+    if (body.muted) {
+      await sql`
+        INSERT INTO mail_muted_threads (thread_id) VALUES (${mailThreadId})
+        ON CONFLICT (thread_id) DO NOTHING;
+      `;
+    } else {
+      await sql`DELETE FROM mail_muted_threads WHERE thread_id = ${mailThreadId};`;
+    }
   }
 
   // Ręczne przypisanie z kolejki "Nieprzypisane". Zawsze dokładnie jedna

@@ -18,7 +18,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { SPRING } from "@/lib/motion";
-import { IconPaperclip, IconCheck } from "@tabler/icons-react";
+import { IconPaperclip, IconCheck, IconClock } from "@tabler/icons-react";
 import {
   SIGNATURE_LANGS,
   SIGNATURE_LANG_LABEL,
@@ -26,12 +26,14 @@ import {
   MAIL_ATTACHMENT_MIME_TYPES,
   MAIL_ATTACHMENT_MAX_FILE_BYTES,
   MAIL_ATTACHMENT_MAX_TOTAL_BYTES,
+  sendLaterOptions,
   type SignatureLang,
 } from "./shared";
 import { RecipientField, useMailContacts } from "./RecipientPicker";
 import { TemplatePickerButton, useMailTemplates, type MailTemplate } from "./TemplatePickerButton";
 import { useUndoSend } from "./useUndoSend";
 import { useUI } from "../ui";
+import { Popover, MenuRow } from "../Menu";
 
 function formatBytes(n: number): string {
   return n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(1)} MB`;
@@ -95,6 +97,48 @@ export function MailComposeForm({
       next.push(f);
     }
     if (next.length > 0) setAttachments((prev) => [...prev, ...next]);
+  };
+
+  /** Wysyłka odłożona (Faza 8) — JSON, nie FormData: kolejka nie przyjmuje
+   * załączników (nie trzymamy bajtów w bazie), więc nie ma czego przesyłać
+   * wieloczęściowo.
+   *
+   * Świadomie NIE przechodzi przez useUndoSend(): odliczanie „cofnij" ma sens
+   * przy wysyłce nieodwracalnej, a odłożoną można po prostu anulować
+   * z kolejki, i to przez wiele godzin, a nie przez 5 sekund. */
+  const scheduleSend = async (sendAt: string) => {
+    if (to.length === 0) {
+      toast("Podaj adres odbiorcy.", "error");
+      return;
+    }
+    if (!text.trim()) {
+      toast("Treść wiadomości nie może być pusta.", "error");
+      return;
+    }
+    const res = await fetch("/api/mail/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: to.join(", "),
+        cc: cc.join(", "),
+        bcc: bcc.join(", "),
+        subject,
+        text,
+        podpis,
+        sendAt,
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      toast(data?.error || "Nie udało się odłożyć wiadomości.", "error");
+      return;
+    }
+    // „Najwcześniej", nie „o" — bo tego drugiego nie umiemy obiecać:
+    // cron na Vercelu chodzi raz dziennie, a resztę dowozi wejście w Pocztę
+    // (patrz app/api/mail/outbox/run/route.ts). Lepiej obiecać mniej.
+    toast("Odłożone — poleci najwcześniej o wybranej porze. Możesz anulować w „Zaplanowane”.");
+    await onSent();
+    onClose();
   };
 
   const submit = () => {
@@ -276,6 +320,43 @@ export function MailComposeForm({
               <button onClick={submit} disabled={busy} className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50">
                 {mode === "forward" ? "Przekaż" : "Wyślij"}
               </button>
+              {/* Wysyłka odłożona (Faza 8) — TYLKO dla nowej wiadomości i tylko
+                  bez załączników. Przekazanie dalej nie wchodzi w grę, bo
+                  niesie treść oryginału razem z jego plikami, a kolejka
+                  świadomie nie trzyma bajtów (patrz /api/mail/schedule).
+                  Ukrywamy przycisk zamiast go blokować: opcja, której nie
+                  wolno użyć, tylko myli. */}
+              {mode === "compose" && attachments.length === 0 && (
+                <Popover
+                  width={240}
+                  trigger={(open) => (
+                    <button
+                      onClick={open}
+                      disabled={busy}
+                      title="Napisz teraz, wyślij o wybranej porze"
+                      className="rounded-full border hairline px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                    >
+                      <IconClock size={13} className="mr-1 inline align-[-2px]" />
+                      Wyślij później
+                    </button>
+                  )}
+                >
+                  {(close) => (
+                    <div>
+                      {sendLaterOptions().map((opt) => (
+                        <MenuRow
+                          key={opt.id}
+                          label={opt.label}
+                          onClick={() => {
+                            void scheduleSend(opt.targetIso);
+                            close();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Popover>
+              )}
               <button onClick={onClose} className="rounded-full px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)]">
                 Anuluj
               </button>

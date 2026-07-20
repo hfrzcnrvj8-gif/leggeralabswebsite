@@ -424,6 +424,65 @@ async function ensureSeeded(): Promise<void> {
         ]
       );
 
+      // Faza 8 — DRUGI i TRZECI nadawca masówki, żeby ekran „Subskrypcje"
+      // miał co grupować i sortować. Sedno tego ekranu to kolejność malejąco
+      // po liczbie wiadomości, a listy jednoelementowej nie da się posortować
+      // źle — bez tych wierszy błąd sortowania przeszedłby niezauważony.
+      // „Sklep Ogrodowy" celowo dostaje 3 wiadomości, a „Portal Pracy" 2.
+      for (let i = 0; i < 3; i++) {
+        await raw(
+          `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, kategoria, list_unsubscribe, list_unsubscribe_url, received_at)
+           VALUES ($1,$2,'in',$3,$4,$5,$6,$7,$8,$8,'zignorowany','reklama',true,$9,now() - interval '1 day' * $10)`,
+          [
+            randomUUID(), 130 + i, "promocje@sklepogrodowy.pl", "Sklep Ogrodowy", "kontakt@leggeralabs.pl",
+            `Wyprzedaż tygodnia (${i + 1})`,
+            "Rabaty do 60% na narzędzia ogrodowe.",
+            `<dev-ogrod-${i}@sklepogrodowy.pl>`,
+            "https://example.com/unsub/ogrod",
+            i + 1,
+          ]
+        );
+      }
+      for (let i = 0; i < 2; i++) {
+        await raw(
+          `INSERT INTO mail_messages (id, uid, kierunek, from_addr, from_name, to_addr, subject, body_text, message_id, thread_id, status, kategoria, list_unsubscribe, list_unsubscribe_url, received_at)
+           VALUES ($1,$2,'in',$3,$4,$5,$6,$7,$8,$8,'zignorowany','reklama',true,$9,now() - interval '2 days' * $10)`,
+          [
+            randomUUID(), 140 + i, "alerty@portalpracy.pl", "Portal Pracy", "kontakt@leggeralabs.pl",
+            `Nowe oferty dla Ciebie (${i + 1})`,
+            "Zobacz oferty dopasowane do Twojego profilu.",
+            `<dev-praca-${i}@portalpracy.pl>`,
+            "", // nadawca BEZ działającego linku wypisania — ekran musi to znieść
+            i + 1,
+          ]
+        );
+      }
+
+      // Faza 8 — załączniki. PGlite nie ma dostępu do IMAP-a, więc treści
+      // i tak nie pobierzemy lokalnie; te wiersze istnieją po to, żeby dało
+      // się zweryfikować LISTĘ plików, ikonkę spinacza i zachowanie panelu
+      // przy próbie pobrania bez skrzynki (czytelny komunikat, nie spinner).
+      //
+      // Trzeci wiersz jest CELOWO większy niż próg pobrania
+      // (MAIL_INCOMING_ATTACHMENT_MAX_BYTES) — bez niego ścieżka „za duży
+      // plik" nigdy nie zostałaby przejechana.
+      await raw(
+        `INSERT INTO mail_attachments (id, message_id, part_id, filename, mime, size_bytes)
+         VALUES ($1,$2,'2','faktura-2026-07.pdf','application/pdf',148231)`,
+        [randomUUID(), mailClient]
+      );
+      await raw(
+        `INSERT INTO mail_attachments (id, message_id, part_id, filename, mime, size_bytes)
+         VALUES ($1,$2,'3','zrzut-ekranu.png','image/png',402118)`,
+        [randomUUID(), mailClient]
+      );
+      await raw(
+        `INSERT INTO mail_attachments (id, message_id, part_id, filename, mime, size_bytes)
+         VALUES ($1,$2,'4','nagranie-spotkania.mp4','video/mp4',31457280)`,
+        [randomUUID(), mailClient]
+      );
+      await raw(`UPDATE mail_messages SET has_attachments = true WHERE id = $1`, [mailClient]);
+
       // VIP (Moduł 4, Etap 3) — druga wiadomość od TEGO SAMEGO klienta
       // (clientA, status 'Aktywny' = VIP z automatu), ale już OBSŁUŻONA. Bez
       // tego wiersza nie da się odróżnić zakładki "VIP" (pokazuje WSZYSTKO

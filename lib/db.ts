@@ -1684,6 +1684,56 @@ async function createMailSchema(): Promise<void> {
     () => sql`UPDATE mail_messages SET kierunek = 'out', status = 'obsłużony' WHERE folder = 'sent' AND kierunek = 'in';`
   );
 
+  // ── Faza 8 (2026-07-20) — załączniki PRZYCHODZĄCE ────────────────────────
+  //
+  // Decyzja właściciela: TYLKO metadane. Treść ściągamy z IMAP na żądanie
+  // (lib/mailbox.ts → downloadAttachmentPart), więc w tej tabeli NIE MA i nie
+  // powinno być kolumny z bajtami. Gdyby ktoś chciał ją dołożyć — to zmiana
+  // decyzji kosztowej właściciela, nie usprawnienie techniczne. Patrz
+  // MAIL_INCOMING_ATTACHMENT_MAX_BYTES w lib/mail.ts.
+  //
+  // `part_id` to numer części MIME wg BODYSTRUCTURE ("2", "3.1") — razem
+  // z `uid` i folderem wiadomości stanowi pełny adres pliku na serwerze.
+  // ON DELETE CASCADE: retencja kasująca stare maile (MAIL_RETENTION_MONTHS)
+  // ma zabrać ze sobą ich załączniki, inaczej zostawałyby sieroty wskazujące
+  // na nieistniejące wiersze.
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_attachments (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL REFERENCES mail_messages(id) ON DELETE CASCADE,
+      part_id TEXT NOT NULL,
+      filename TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size_bytes BIGINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (message_id, part_id)
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS mail_attachments_message_idx ON mail_attachments(message_id);`;
+
+  // Denormalizacja pod ikonkę spinacza na LIŚCIE wiadomości. Bez niej lista
+  // 200 wiadomości wymagałaby złączenia albo podzapytania przy każdym
+  // odczycie folderu — a spinacz to jedyna informacja o załącznikach, jakiej
+  // lista potrzebuje.
+  await sql`ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS has_attachments BOOLEAN NOT NULL DEFAULT false;`;
+
+  // ── Faza 8 — wyciszenie WĄTKU ────────────────────────────────────────────
+  //
+  // Znacznik siedzi na `thread_id`, a NIE na pojedynczej wiadomości — i to
+  // jest sedno funkcji, nie szczegół. Wyciszenie ma obejmować także PRZYSZŁE
+  // wiadomości w wątku: gdyby wisiało na mailu, jutrzejsza odpowiedź wróciłaby
+  // do kolejki „do odpowiedzi" i cała funkcja nic by nie dała.
+  //
+  // Osobna tabela, nie kolumna: wątek bywa wyciszony, zanim dotrze jego
+  // kolejna wiadomość, więc znacznik musi umieć istnieć bez wiersza w
+  // mail_messages.
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_muted_threads (
+      thread_id TEXT PRIMARY KEY,
+      muted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
   await markSchemaApplied("mail");
 }
 
@@ -1725,6 +1775,11 @@ export async function getNudgeThreads(sql: Sql, days: number = MAIL_NUDGE_DAYS):
     WHERE t.received_at <= now() - make_interval(days => ${days})
       AND NOT EXISTS (
         SELECT 1 FROM mail_messages r WHERE r.thread_id = t.thread_id AND r.kierunek = 'in'
+      )
+      /* Wyciszenie wątku (Faza 8) — działa też na PRZYSZŁE wiadomości, bo
+         znacznik wisi na thread_id, nie na pojedynczym mailu. */
+      AND NOT EXISTS (
+        SELECT 1 FROM mail_muted_threads mt WHERE mt.thread_id = t.thread_id
       )
     ORDER BY t.received_at ASC;
   `) as unknown as NudgeThread[];
@@ -1785,6 +1840,73 @@ async function createMailFoldersSchema(): Promise<void> {
 export async function ensureMailFoldersSchema(): Promise<void> {
   if (!mailFoldersSchemaReady) mailFoldersSchemaReady = createMailFoldersSchema();
   await mailFoldersSchemaReady;
+}
+
+let mailOutboxSchemaReady: Promise<void> | null = null;
+
+/** Faza 8 (2026-07-20) — kolejka wysyłki odłożonej („wyślij o 8:00").
+ *
+ * Cała treść wiadomości leży TUTAJ, a nie w mail_messages: dopóki nic nie
+ * poszło, to nie jest korespondencja, tylko zamiar. Wiersz w mail_messages
+ * powstaje dopiero po udanej wysyłce, tą samą drogą co wysyłka natychmiastowa
+ * — dzięki temu kolejka nie tworzy drugiej ścieżki zapisu, którą trzeba by
+ * utrzymywać równolegle.
+ *
+ * `status`: 'queued' | 'sent' | 'failed' | 'cancelled'. Wysłanych i
+ * nieudanych NIE kasujemy — „wysłało się i zniknęło bez śladu" jest nie do
+ * odróżnienia od „nigdy nie zadziałało", a to najgorsza możliwa własność
+ * kolejki.
+ *
+ * ZAŁĄCZNIKI są świadomie poza zakresem wysyłki odłożonej: musiałyby czekać
+ * w bazie jako bajty, czyli dokładnie to, czego właściciel nie chciał przy
+ * załącznikach przychodzących. Trasa odrzuca je wprost, zamiast po cichu
+ * gubić — patrz app/api/mail/schedule/route.ts. */
+async function createMailOutboxSchema(): Promise<void> {
+  if (await schemaUpToDate("mail_outbox")) return;
+  await ensureMailSchema();
+
+  const sql = getSql();
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_outbox (
+      id TEXT PRIMARY KEY,
+      to_addr TEXT NOT NULL,
+      cc_addr TEXT NOT NULL DEFAULT '',
+      bcc_addr TEXT NOT NULL DEFAULT '',
+      subject TEXT NOT NULL DEFAULT '',
+      body_text TEXT NOT NULL DEFAULT '',
+      /* Kontekst odpowiedzi — pozwala odłożonej odpowiedzi wpaść w ten sam
+         wątek u odbiorcy, tak jak wysłanej od ręki. */
+      in_reply_to TEXT,
+      refs TEXT,
+      reply_to_message_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL,
+      jezyk TEXT NOT NULL DEFAULT 'pl',
+      send_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'queued',
+      /* Ślad po próbie wysyłki: co poszło nie tak albo jakie były ostrzeżenia
+         (kopia w Sent, wpis na oś kontaktu). Ostrzeżenie NIE jest błędem
+         i NIE powoduje ponowienia — mail już poleciał. */
+      error TEXT,
+      warnings TEXT,
+      sent_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  // Cron pyta wyłącznie o „co jest do wysłania teraz" — indeks częściowy
+  // trzyma to zapytanie tanim niezależnie od tego, ile wysłanych wierszy
+  // zostało w historii.
+  await sql`
+    CREATE INDEX IF NOT EXISTS mail_outbox_due_idx
+      ON mail_outbox(send_at)
+      WHERE status = 'queued';
+  `;
+
+  await markSchemaApplied("mail_outbox");
+}
+
+/** Lazily tworzy tabelę kolejki wysyłki odłożonej (Faza 8). */
+export async function ensureMailOutboxSchema(): Promise<void> {
+  if (!mailOutboxSchemaReady) mailOutboxSchemaReady = createMailOutboxSchema();
+  await mailOutboxSchemaReady;
 }
 
 let mailTemplatesSchemaReady: Promise<void> | null = null;

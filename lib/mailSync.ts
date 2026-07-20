@@ -21,6 +21,7 @@ import {
   type FetchedMessage,
   type MailFolderRole,
   type DiscoveredFolder,
+  type ParsedAttachmentMeta,
 } from "./mailbox";
 import {
   classifyMail,
@@ -563,6 +564,12 @@ async function saveOutgoingFromServer(sql: ReturnType<typeof getSql>, msg: Fetch
 
   if (written.length === 0) return "duplicate";
   registerThreadedRow(threadCtx, { message_id: msg.messageId, thread_id: threadId, subject: msg.subject, from_addr: msg.fromAddr, to_addr: msg.toAddr, cc_addr: msg.ccAddr, received_at: msg.receivedAt });
+
+  // `written[0].id`, nie lokalne `id` — z tego samego powodu, co przy
+  // logMailOnTimeline() niżej: przy ON CONFLICT to jest id ISTNIEJĄCEGO
+  // wiersza, a klucz obcy w mail_attachments wskazuje właśnie na niego.
+  await saveAttachmentMeta(sql, written[0].id, msg.attachments);
+
   if (!match) return "unassigned";
 
   // UWAGA: gdy INSERT trafił w ON CONFLICT (wiadomość już istniała pod INNYM
@@ -623,6 +630,7 @@ async function saveArchivedOrTrashed(
 
   if (written.length === 0) return "duplicate";
   registerThreadedRow(threadCtx, { message_id: msg.messageId, thread_id: threadId, subject: msg.subject, from_addr: msg.fromAddr, to_addr: msg.toAddr, cc_addr: msg.ccAddr, received_at: msg.receivedAt });
+  await saveAttachmentMeta(sql, written[0].id, msg.attachments);
   return "saved";
 }
 
@@ -796,6 +804,39 @@ type SaveOutcome = "matched" | "unassigned" | "ignored" | "duplicate";
 
 /** Zapisz jedną przychodzącą wiadomość + (gdy dopasowana) wpis na osi
  * kontaktu klienta/leada. */
+/**
+ * Zapisuje OPIS załączników wiadomości — nazwę, typ, rozmiar i numer części
+ * MIME. Bajtów tu nie ma i być nie powinno: treść ściągamy z IMAP dopiero na
+ * żądanie (decyzja właściciela 2026-07-20, patrz lib/mail.ts).
+ *
+ * `has_attachments` na samej wiadomości to denormalizacja pod ikonkę spinacza
+ * na liście — ustawiamy ją TYLKO gdy coś faktycznie jest, żeby lista mogła
+ * ufać tej kolumnie bez złączenia.
+ *
+ * Awaria zapisu metadanych NIE może wywrócić syncu: wiadomość z treścią jest
+ * warta więcej niż lista jej plików, a te i tak da się odtworzyć — wystarczy
+ * ponownie odczytać strukturę ze skrzynki.
+ */
+async function saveAttachmentMeta(
+  sql: ReturnType<typeof getSql>,
+  messageId: string,
+  attachments: ParsedAttachmentMeta[]
+): Promise<void> {
+  if (!attachments || attachments.length === 0) return;
+  try {
+    for (const a of attachments) {
+      await sql`
+        INSERT INTO mail_attachments (id, message_id, part_id, filename, mime, size_bytes)
+        VALUES (${randomUUID()}, ${messageId}, ${a.partId}, ${a.filename}, ${a.mime}, ${a.sizeBytes})
+        ON CONFLICT (message_id, part_id) DO NOTHING;
+      `;
+    }
+    await sql`UPDATE mail_messages SET has_attachments = true WHERE id = ${messageId};`;
+  } catch (e) {
+    console.error(`[mailSync] nie udało się zapisać opisu załączników wiadomości ${messageId}`, e);
+  }
+}
+
 async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage, threadCtx: ThreadContext): Promise<SaveOutcome> {
   const noise = isNoiseMail(msg.fromAddr, msg.hints);
 
@@ -845,6 +886,8 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage,
   // Pusty RETURNING = ON CONFLICT zadziałał, czyli znaliśmy już tę wiadomość.
   if (inserted.length === 0) return "duplicate";
   registerThreadedRow(threadCtx, { message_id: msg.messageId, thread_id: threadId, subject: msg.subject, from_addr: msg.fromAddr, to_addr: msg.toAddr, cc_addr: msg.ccAddr, received_at: msg.receivedAt });
+
+  await saveAttachmentMeta(sql, id, msg.attachments);
 
   // Screener nowych nadawców (Moduł 4, Etap 3) — 'oferta' jest jedyną
   // kategorią przypisywaną naprawdę nieznanym, nie-spamowym nadawcom (patrz

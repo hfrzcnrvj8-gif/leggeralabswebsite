@@ -13,6 +13,10 @@ import {
   IconCornerUpLeft,
   IconStar,
   IconStarFilled,
+  IconPaperclip,
+  IconBellOff,
+  IconMailForward,
+  IconX,
 } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SPRING } from "@/lib/motion";
@@ -38,6 +42,8 @@ import {
   type NudgeThread,
 } from "./shared";
 import { MailDetailPanel } from "./MailDetailPanel";
+import { SubscriptionsView } from "./SubscriptionsView";
+import { ScheduledView } from "./ScheduledView";
 import { MailComposeForm } from "./MailComposeForm";
 import { Modal } from "../Modal";
 import { ContextMenu, ContextMenuItem, MenuDivider, MenuLabel, PropertyMenu, useContextMenu } from "../Menu";
@@ -49,7 +55,7 @@ import { ViewSwitch } from "../ViewTabs";
 // listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki". Sensowne
 // TYLKO w Odebranych (Etap 2 Modułu 4b) — Wysłane/Kosz/Archiwum nie mają
 // pojęcia "do odpowiedzi" ani klasyfikacji treści.
-type Filter = "nowy" | "unassigned" | "vip" | "snoozed" | "screener" | "all" | "nudge";
+type Filter = "nowy" | "unassigned" | "vip" | "snoozed" | "screener" | "all" | "nudge" | "subs" | "scheduled";
 type CatFilter = "wszystkie" | "oferta" | "rachunek" | "urzedowe" | "inne" | "reklama";
 
 const FILTERS: { id: Filter; label: string }[] = [
@@ -58,6 +64,11 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "vip", label: "VIP" },
   { id: "snoozed", label: "Uśpione" },
   { id: "screener", label: "Nowi nadawcy" },
+  // Faza 8 — „Subskrypcje" mieszkają wśród filtrów Odebranych, a nie jako
+  // osobny wymiar interfejsu: z punktu widzenia właściciela to po prostu
+  // kolejna lista do przejrzenia. Ta sama decyzja co przy kolejkach
+  // „Nowi nadawcy"/„Bez odpowiedzi" (Faza 4).
+  { id: "subs", label: "Subskrypcje" },
   { id: "all", label: "Wszystkie" },
 ];
 
@@ -67,6 +78,9 @@ const FILTERS: { id: Filter; label: string }[] = [
 const SENT_FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Wszystkie" },
   { id: "nudge", label: "Bez odpowiedzi" },
+  // Faza 8 — kolejka wysyłki odłożonej mieszka w Wysłanych, bo to jest
+  // poczta WYCHODZĄCA, tylko jeszcze nie wysłana.
+  { id: "scheduled", label: "Zaplanowane" },
 ];
 
 const CAT_FILTERS: { id: CatFilter; label: string }[] = [
@@ -700,6 +714,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   // `messages`), więc lista niżej ma dwie gałęzie renderowania zamiast
   // filtrowania wspólnego źródła jak VIP/Uśpione.
   const isNudgeView = activeFolder === "sent" && filter === "nudge";
+  // Faza 8 — trzecia gałąź renderowania, z tego samego powodu co nudge:
+  // „Subskrypcje" to agregat po NADAWCY (MailSubscription), a nie lista
+  // wiadomości, więc nie da się jej uzyskać filtrowaniem `messages`.
+  const isSubsView = activeFolder === "inbox" && filter === "subs";
+  const isScheduledView = activeFolder === "sent" && filter === "scheduled";
 
   return (
     // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — Poczta wypełnia wysokość
@@ -915,7 +934,11 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               zostaje na zewnątrz, żeby przenikała tylko TREŚĆ, a nie całe
               pudełko wraz z obrysem. */}
           <ViewSwitch viewKey={`${activeFolder}:${filter}:${catFilter}`}>
-          {isNudgeView ? (
+          {isSubsView ? (
+            <SubscriptionsView onChanged={load} />
+          ) : isScheduledView ? (
+            <ScheduledView />
+          ) : isNudgeView ? (
             nudgeThreads === null ? (
               <p className="p-8 text-center text-sm text-muted opacity-60">Wczytuję…</p>
             ) : nudgeThreads.length === 0 ? (
@@ -1100,9 +1123,21 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                             ⏰
                           </span>
                         )}
+                        {/* Wyciszony wątek (Faza 8) — ikonka zamiast ukrycia:
+                            wiadomość ZOSTAJE widoczna, przestaje tylko wołać
+                            o odpowiedź. Ukrycie byłoby czymś innym (Archiwum). */}
+                        {m.muted && (
+                          <IconBellOff size={12} className="shrink-0 text-muted" aria-label="Wątek wyciszony" />
+                        )}
                         <span className="shrink-0 text-[11px] text-muted">{formatWhen(m.received_at)}</span>
                       </span>
                       <span className="mt-1 flex items-center gap-1.5">
+                        {/* Spinacz jak w Apple Mail — z denormalizowanej
+                            kolumny `has_attachments`, żeby lista nie musiała
+                            dociągać listy plików dla 200 wierszy naraz. */}
+                        {m.has_attachments && (
+                          <IconPaperclip size={12} className="shrink-0 text-muted" aria-label="Ma załączniki" />
+                        )}
                         <span className="min-w-0 flex-1 truncate text-[13px]">{m.subject || "(bez tematu)"}</span>
                         {/* Licznik wątku (Moduł 4, Etap 3) — ile wiadomości TEGO
                             wątku jest w TYM folderze (grupowanie jest świadomie

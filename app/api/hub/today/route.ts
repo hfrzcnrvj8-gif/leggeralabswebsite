@@ -130,6 +130,10 @@ export async function GET() {
       LEFT JOIN clients c ON c.id = m.client_id
       LEFT JOIN leads l ON l.id = m.lead_id
       WHERE m.status = 'nowy' AND m.kierunek = 'in'
+        -- Wyciszony wątek (Faza 8) nie wypływa na Pulpit. Pominięcie tego
+        -- warunku tutaj byłoby cichą dziurą: wątek zniknąłby z licznika
+        -- w Poczcie, a dalej wracał na ekran główny.
+        AND NOT EXISTS (SELECT 1 FROM mail_muted_threads mt WHERE mt.thread_id = m.thread_id)
       ORDER BY m.received_at DESC;
     ` as unknown as Promise<
       { id: string; from_addr: string; from_name: string; subject: string; received_at: string; client_nazwa: string | null; lead_nazwa: string | null }[]

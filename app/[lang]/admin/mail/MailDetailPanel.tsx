@@ -18,6 +18,11 @@ import {
   IconFileInvoice,
   IconLink,
   IconClipboard,
+  IconPaperclip,
+  IconFile,
+  IconDownload,
+  IconBellOff,
+  IconBell,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
@@ -35,6 +40,8 @@ import {
   SIGNATURE_LANG_LABEL,
   snoozeOptions,
   formatPlDateTime,
+  formatFileSize,
+  type MailAttachment,
   type SignatureLang,
   type MailMessageWithLinks,
   type MailStatus,
@@ -122,6 +129,10 @@ export function MailDetailPanel({
   const [html, setHtml] = useState("");
   const [blockedImages, setBlockedImages] = useState(false);
   const [thread, setThread] = useState<ThreadSibling[]>([]);
+  // Faza 8 — załączniki (sam opis; treść ściągana z IMAP przy kliknięciu)
+  // i wyciszenie WĄTKU (nie tej jednej wiadomości).
+  const [attachments, setAttachments] = useState<MailAttachment[]>([]);
+  const [muted, setMuted] = useState(false);
   const [showImages, setShowImages] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -150,6 +161,8 @@ export function MailDetailPanel({
     setHtml(data.html || "");
     setBlockedImages(Boolean(data.blockedImages));
     setThread(Array.isArray(data.thread) ? data.thread : []);
+    setAttachments(Array.isArray(data.attachments) ? data.attachments : []);
+    setMuted(Boolean(data.muted));
     setSameAddress(typeof data.unassignedSameAddress === "number" ? data.unassignedSameAddress : 0);
   }, [mailId, showImages, toast]);
 
@@ -333,6 +346,32 @@ export function MailDetailPanel({
     },
     [mail, mailId, load, onChanged, toast]
   );
+
+  /** Wyciszenie WĄTKU (Faza 8). Serwer zapisuje znacznik na `thread_id`,
+   * więc jedno kliknięcie obejmuje całą rozmowę — i tę, która dopiero
+   * przyjdzie. 422 znaczy „wiadomość nie ma jeszcze wątku" (wąskie okno przed
+   * backfillThreadIds()) i pokazujemy je jako czytelny powód, nie awarię. */
+  const toggleMute = useCallback(async () => {
+    if (!mail) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/mail/${mailId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ muted: !muted }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        toast(data?.error || "Nie udało się zmienić wyciszenia wątku.", "error");
+        return;
+      }
+      await load();
+      await onChanged();
+      toast(muted ? "Wątek znów przypomina o sobie." : "Wątek wyciszony — przestanie wracać do „Do odpowiedzi”.");
+    } finally {
+      setBusy(false);
+    }
+  }, [mail, mailId, muted, load, onChanged, toast]);
 
   /** Snooze / Odłóż (Moduł 4, Etap 3) — `targetIso` z jednej z nazwanych
    * opcji snoozeOptions() (lib/mail.ts), albo `null` dla "Wróć teraz". Ten
@@ -777,6 +816,30 @@ export function MailDetailPanel({
               )}
             </Popover>
           )}
+          {/* Wyciszenie WĄTKU (Faza 8) — „jestem w kopii, nie muszę reagować".
+              Świadomie osobna oś od „Odłóż" (to przesuwa w czasie) i od
+              „Zignoruj" (to dotyczy jednej wiadomości): wyciszenie obejmuje
+              całą rozmowę, także jej przyszłe wiadomości. */}
+          <button
+            onClick={() => void toggleMute()}
+            disabled={busy}
+            title={
+              muted
+                ? "Wątek jest wyciszony — przestał wracać do „Do odpowiedzi”."
+                : "Przestań przypominać o tym wątku, także o przyszłych wiadomościach w nim."
+            }
+            className="rounded-full border hairline px-3 py-1.5 text-[12px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            {muted ? (
+              <>
+                <IconBell size={12} className="mr-1 inline align-[-2px]" />Przywróć wątek
+              </>
+            ) : (
+              <>
+                <IconBellOff size={12} className="mr-1 inline align-[-2px]" />Wycisz wątek
+              </>
+            )}
+          </button>
           {mail.folder !== "archive" && (
             <button
               onClick={() => void moveTo("archive")}
@@ -1002,6 +1065,39 @@ export function MailDetailPanel({
           </div>
         )}
       </div>
+
+      {/* Załączniki (Faza 8). W bazie leżą TYLKO metadane — plik ściąga się
+          z serwera pocztowego dopiero po kliknięciu, więc to zwykły link, nie
+          `fetch` z podglądem. Stąd też ostrzeżenie pod listą: właściciel ma
+          wiedzieć, że pliki nie są przechowywane w panelu, zanim skasuje
+          maila w Outlooku i zdziwi się, że załącznika już nie ma. */}
+      {attachments.length > 0 && (
+        <div className="mb-5">
+          <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-muted">
+            <IconPaperclip size={13} />
+            Załączniki ({attachments.length})
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {attachments.map((a) => (
+              <a
+                key={a.id}
+                href={`/api/mail/${mailId}/attachment/${a.id}`}
+                download={a.filename}
+                className="flex items-center gap-2.5 rounded-xl border hairline px-3 py-2 text-[13px] hover:bg-[var(--hairline)]/50"
+              >
+                <IconFile size={16} className="shrink-0 text-muted" />
+                <span className="min-w-0 flex-1 truncate">{a.filename}</span>
+                <span className="shrink-0 text-[11px] text-muted">{formatFileSize(a.size_bytes)}</span>
+                <IconDownload size={14} className="shrink-0 text-muted" />
+              </a>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-muted">
+            Pliki pobierają się ze skrzynki na żądanie — może to potrwać chwilę i nie zadziała, jeśli usuniesz
+            wiadomość z serwera pocztowego.
+          </p>
+        </div>
+      )}
 
       {projects && projects.length > 0 && (
         <div className="mb-5">
