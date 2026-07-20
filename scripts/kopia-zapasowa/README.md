@@ -3,6 +3,23 @@
 Codzienna, zaszyfrowana kopia całej bazy Leggera Hub (Neon) na Twoim NAS-ie
 Ugreen DXP4800 Plus. Powstała 2026-07-20.
 
+> ## ⚠️ To ma chodzić NA NAS-ie, nie na Macu
+>
+> Docker jest zainstalowany także na Twoim Macu i wszystko poniżej uruchomi
+> się tam bez mrugnięcia okiem. **Nie rób tego.**
+>
+> Pułapka polega na tym, że na Macu to *będzie działać* — kopie zaczną się
+> pojawiać i wszystko będzie wyglądać poprawnie. Ale powstaną wyłącznie wtedy,
+> gdy Mac akurat nie śpi o 3:00. Dostaniesz dziury w kopiach, o których się
+> nie dowiesz, dopóki nie będziesz czegoś odtwarzał. **To jest gorsze niż brak
+> kopii**, bo brak widać od razu, a dziurę dopiero w najgorszym momencie.
+>
+> NAS chodzi non stop i dlatego to jego zadanie. Docker na Macu przydaje się
+> tu do jednej rzeczy: do **ćwiczebnego odtworzenia** kopii (sekcja niżej).
+>
+> Jak sprawdzić, gdzie faktycznie chodzi: każdy przebieg zapisuje w logu nazwę
+> maszyny — patrz krok 5.
+
 **Po co, skoro baza jest w chmurze.** Neon na darmowym planie trzyma bardzo
 krótką historię zmian. Jeśli coś zostanie skasowane albo zepsute i zauważysz
 to po tygodniu — bez własnej kopii nie ma czego odtwarzać. To jest ta jedna
@@ -84,13 +101,16 @@ docker exec leggera-kopia-bazy sh /kopia.sh
 Powinieneś zobaczyć mniej więcej:
 
 ```
+[2026-07-20 21:15:01] Maszyna: leggera-nas | katalog: /kopie
 [2026-07-20 21:15:02] Zrzucam bazę…
 [2026-07-20 21:15:06] Kopia gotowa: leggera-2026-07-20-2115.sql.gz.enc (2,1M, tabel: 43)
 [2026-07-20 21:15:06] Stan: 1 dziennych, 0 tygodniowych.
 ```
 
-**Popatrz na liczbę tabel.** Jeśli jest podejrzanie mała, konto tylko-do-odczytu
-nie widzi części danych — wróć do kroku 1.
+**Popatrz na dwie rzeczy.** Po pierwsze na liczbę tabel — jeśli jest
+podejrzanie mała, konto tylko-do-odczytu nie widzi części danych, wróć do
+kroku 1. Po drugie na **nazwę maszyny** w pierwszej linii: musi to być Twój
+NAS. Jeśli zobaczysz tam nazwę Maca, zatrzymaj to i przenieś na NAS.
 
 ---
 

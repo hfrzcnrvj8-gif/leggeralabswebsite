@@ -46,6 +46,10 @@ wykonaj_kopie() {
   ROBOCZY="$KATALOG/.robocza-$ZNACZNIK.sql.gz.enc"
   CEL="$KATALOG/dzienne/leggera-$ZNACZNIK.sql.gz.enc"
 
+  # Nazwa maszyny w KAŻDYM przebiegu — jedyny sposób, żeby po miesiącach
+  # jednym spojrzeniem stwierdzić, czy kopie robi NAS, czy przypadkiem Mac
+  # (Docker jest na obu, a na Macu kopie powstają tylko gdy nie śpi).
+  log "Maszyna: $(hostname) | katalog: $KATALOG"
   log "Zrzucam bazę…"
 
   # Jeden potok: pg_dump → gzip → szyfrowanie. Dane NIGDY nie lądują na dysku

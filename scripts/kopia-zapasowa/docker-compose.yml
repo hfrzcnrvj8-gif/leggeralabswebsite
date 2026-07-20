@@ -1,5 +1,11 @@
-# Kopia zapasowa bazy Leggera Hub — do uruchomienia na NAS-ie (Ugreen DXP4800
+# Kopia zapasowa bazy Leggera Hub — do uruchomienia NA NAS-ie (Ugreen DXP4800
 # Plus, UGOS Pro → Docker → Projekt/Compose).
+#
+# ⚠️ NIE uruchamiaj tego na Macu, mimo że Docker tam jest i wszystko ruszy.
+# Na Macu kopie powstaną TYLKO wtedy, gdy komputer nie śpi o wyznaczonej
+# godzinie — czyli dostaniesz dziury, których nie widać. NAS chodzi non stop
+# i dlatego to jego zadanie. Każdy przebieg wpisuje do logu nazwę maszyny,
+# żeby dało się to sprawdzić jednym spojrzeniem.
 #
 # Kontener chodzi non stop i sam budzi się o wyznaczonej godzinie. Nie wymaga
 # dostępu do gniazda Dockera ani żadnych podwyższonych uprawnień — widzi tylko
