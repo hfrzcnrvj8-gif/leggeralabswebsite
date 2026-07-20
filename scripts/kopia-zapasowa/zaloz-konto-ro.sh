@@ -67,8 +67,38 @@ if [[ "$DBURL" != postgres://* && "$DBURL" != postgresql://* ]]; then
   echo "         Skopiuj SAMĄ WARTOŚĆ, bez nazwy DATABASE_URL i bez cudzysłowów."
   exit 1
 fi
-# Hasło zastępujemy gwiazdkami — reszta wystarczy, żebyś rozpoznał swój adres.
-echo "   Wczytano: $(printf '%s' "$DBURL" | sed -E 's#(//[^:]+:)[^@]+(@)#\1****\2#')"
+# Hasło zastępujemy gwiazdkami — reszta wystarczy, żebyś rozpoznał swój adres,
+# a taki wiersz da się bezpiecznie pokazać komuś do pomocy.
+ZAMASKOWANY="$(printf '%s' "$DBURL" | sed -E 's#(//[^:]+:)[^@]+(@)#\1****\2#')"
+echo "   Wczytano: $ZAMASKOWANY"
+
+# Rozbiór końcówki adresu (część po znaku zapytania). Błąd
+# `extra key/value separator "=" in URI query parameter` znaczy, że któryś
+# parametr ma DWA znaki równości — najczęściej skutek kopiowania z miejsca,
+# które dokleiło coś od siebie. Zamiast zostawić właściciela z surowym
+# komunikatem psql, mówimy dokładnie, KTÓRY parametr jest zepsuty.
+CZESC_PYTAJNA="${DBURL#*\?}"
+if [ "$CZESC_PYTAJNA" != "$DBURL" ]; then
+  ZLE=0
+  IFS='"'"'&'"'"' read -ra PARAMY <<< "$CZESC_PYTAJNA"
+  for PAR in "${PARAMY[@]}"; do
+    ILE_ROWNA="$(printf '%s' "$PAR" | tr -cd '"'"'='"'"' | wc -c | tr -d '"'"' '"'"')"
+    if [ "$ILE_ROWNA" -ne 1 ]; then
+      echo "   BŁĄD: parametr \"$PAR\" ma $ILE_ROWNA znaków '"'"'='"'"' zamiast jednego."
+      ZLE=1
+    fi
+  done
+  if [ "$ZLE" = "1" ]; then
+    echo
+    echo "   Adres jest zniekształcony na końcu. Najpewniej kopiowanie z Vercela"
+    echo "   dokleiło coś od siebie."
+    echo
+    echo "   Co zrobić: w Vercelu kliknij przy DATABASE_URL ikonę OKA (Show value),"
+    echo "   dopiero potem zaznacz myszą SAM adres — od 'postgres' do końca —"
+    echo "   i skopiuj. Nie używaj przycisku kopiowania całego wiersza."
+    exit 1
+  fi
+fi
 echo
 echo "2) Hasło dla NOWEGO konta kopia_ro."
 echo "   Wymyśl długie i od razu zapisz w menedżerze haseł — będzie"
