@@ -71,6 +71,12 @@ przenoszenie stopera na inne powierzchnie.
 
 - **Dynamic Island jest tylko na iPhone 14 Pro i nowszych.** Na starszych
   Live Activity działa, ale wyłącznie na ekranie blokady. To nie błąd.
+  **Telefon właściciela to iPhone 15 Pro Max — Wyspę MA**, a wgrywanie buildu
+  na urządzenie zostało sprawdzone 2026-07-20 (`xcodegen generate` + build
+  z `-allowProvisioningUpdates` na `platform=iOS,id=…` + `xcrun devicectl
+  device install app`, wszystkie trzy targety podpisane darmowym kontem).
+  Czyli **tę funkcję da się zweryfikować naprawdę**, nie tylko w symulatorze —
+  i trzeba, bo symulator nie odda zachowania Wyspy przy zablokowanym ekranie.
 - **Wariant `project-telefon.yml` buduje bez rozszerzeń** — tam Wyspy nie
   będzie. Znane ograniczenie, dokładnie jak dziś z widżetem.
 - **Widżet nie widzi `Theme.swift`** z rdzenia apki — precedens rozwiązania
