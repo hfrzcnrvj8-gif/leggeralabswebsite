@@ -170,6 +170,20 @@ Co jeszcze rozwiązuje przejście na Pro (rzeczy, które JUŻ uwierają):
 jednoosobowej firmie bez administratora serwera dalej jest najlepsza.
 To jest zmiana planu, nie zmiana dostawcy.
 
+## 14. Audyty końcowe — przed albo najpóźniej przy rejestracji
+
+`docs/AUDYTY-KONCOWE.md` opisuje siedem obszarów do sprawdzenia, zanim system
+zostanie uznany za gotowy do wieloletniego używania. Rejestracja działalności
+jest tam **terminem granicznym**, nie przypadkiem: od tego dnia w bazie siedzą
+prawdziwe dane prawdziwych klientów, a część ustaleń przestaje być techniczna
+i staje się prawna (retencja, prawo do usunięcia danych, mapa przepływów).
+
+Dwa obszary dotykają wprost tej listy: **Audyt 2 (RODO)** dokłada pozycje do
+polityki prywatności i do `docs/DO-PRAWNIKA-I-TLUMACZA.md`, a **Audyt 1
+(bezpieczeństwo)** wskazuje adres e-mail konta Vercel do wymiany — dziś jest
+to pośrednik Apple, który nie przyjmuje poczty od innych nadawców, więc
+ostrzeżenia o płatnościach i próbach przejęcia konta nie mają jak dojść.
+
 ---
 _Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`.
 Uzupełnienie pozycji 6–12: audyt Modułu 29, `docs/plany-modulow/29-audyt-koncowy.md`._

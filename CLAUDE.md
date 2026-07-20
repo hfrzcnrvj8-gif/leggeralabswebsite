@@ -227,6 +227,11 @@ motyw jasny/ciemny dotyczy tylko strony publicznej. Nie szukaj jasnego panelu.
   w polityce prywatności, przełączenie KSeF test→produkcja, ustawienia
   sprzedawcy). Firma NIE jest jeszcze zarejestrowana — te elementy świadomie
   odłożone; NIE traktować jako braki do „naprawienia" przed rejestracją.
+- `docs/AUDYTY-KONCOWE.md` — **co ma zostać sprawdzone, ZANIM uznamy panel
+  i apkę za skończone**: bezpieczeństwo, RODO, niezawodność, obserwowalność
+  (logi), wydajność, poprawność kodu. Spisane 2026-07-20 na zlecenie
+  właściciela. Nie uruchamiaj go wcześniej niż po domknięciu wszystkich
+  modułów i faz apki — ale też nie później niż przy rejestracji firmy.
 - `docs/plany-modulow/` — **briefy wdrożeniowe kolejnych modułów, po jednym na
   osobny czat** (podpowiedzi leadów, nurture, kanały kontaktu, skrzynka
   mailowa). Powstały po audycie przepływów 2026-07-13 jako domknięcie trzech

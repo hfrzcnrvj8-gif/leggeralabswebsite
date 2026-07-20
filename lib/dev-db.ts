@@ -145,6 +145,95 @@ async function ensureSeeded(): Promise<void> {
         );
       }
 
+      // — Faktury i oferty (Faza 10 apki natywnej) —
+      // Bez tego apka pokazywałaby lokalnie wyłącznie puste ekrany „Brak
+      // faktur"/„Brak ofert" — nie dałoby się obejrzeć list, filtrów
+      // (nieopłacone/po terminie), pozycji ani stanu wpłat.
+      {
+        const { ensureInvoicesSchema, ensureOffersSchema } = await import("./db");
+        await ensureInvoicesSchema();
+        await ensureOffersSchema();
+
+        // Wystawiona, po terminie, bez wpłaty — trafia do filtrów
+        // „Nieopłacone" I „Po terminie" naraz.
+        const invPoTerminie = randomUUID();
+        await raw(
+          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta)
+           VALUES ($1,'FV 3/2026','Nordwind Studio','anna@nordwind.pl',$2,$3,'Po terminie','PLN')`,
+          [invPoTerminie, iso(-30), iso(-10)]
+        );
+        await raw(
+          `INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
+           VALUES ($1,$2,'Wdrożenie panelu zamówień — etap 1',1,'szt.',5000,'23',0)`,
+          [randomUUID(), invPoTerminie]
+        );
+
+        // Wystawiona, termin jeszcze nie minął, częściowa wpłata — testuje
+        // „Pozostało" i to, że przycisk „Oznacz jako opłaconą" liczy resztę,
+        // nie całość.
+        const invCzesciowo = randomUUID();
+        await raw(
+          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta)
+           VALUES ($1,'FV 4/2026','Baltic Retail sp. z o.o.','ksiegowosc@baltic-retail.pl',$2,$3,'Wystawiona','PLN')`,
+          [invCzesciowo, iso(-5), iso(9)]
+        );
+        await raw(
+          `INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
+           VALUES ($1,$2,'Automatyzacja raportów miesięcznych',1,'szt.',8000,'23',0)`,
+          [randomUUID(), invCzesciowo]
+        );
+        await raw(
+          `INSERT INTO invoice_payments (id, invoice_id, kwota, data) VALUES ($1,$2,3000,$3)`,
+          [randomUUID(), invCzesciowo, iso(-2)]
+        );
+
+        // Opłacona w całości — znika z „Nieopłacone", zostaje tylko na
+        // „Wszystkie"; testuje, że „Oznacz jako opłaconą" się chowa.
+        const invOplacona = randomUUID();
+        await raw(
+          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta)
+           VALUES ($1,'FV 2/2026','Studio Kreska','biuro@studiokreska.pl',$2,$3,'Opłacona','PLN')`,
+          [invOplacona, iso(-40), iso(-26)]
+        );
+        await raw(
+          `INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
+           VALUES ($1,$2,'Konsultacja AI-automation',6,'godz.',350,'23',0)`,
+          [randomUUID(), invOplacona]
+        );
+        await raw(
+          `INSERT INTO invoice_payments (id, invoice_id, kwota, data) VALUES ($1,$2,2583,$3)`,
+          [randomUUID(), invOplacona, iso(-38)]
+        );
+
+        // Oferta wysłana, ważna — testuje wysyłkę i link publicznego podglądu.
+        const ofertaOtwarta = randomUUID();
+        await raw(
+          `INSERT INTO offers (id, tytul, klient_nazwa, klient_email, wazna_do, status)
+           VALUES ($1,'Oferta — wdrożenie asystenta AI','Nordwind Studio','anna@nordwind.pl',$2,'Wysłana')`,
+          [ofertaOtwarta, iso(14)]
+        );
+        await raw(
+          `INSERT INTO offer_items (id, offer_id, nazwa, ilosc, jednostka, cena, position)
+           VALUES ($1,$2,'Wdrożenie lokalnego modelu do obsługi zgłoszeń',1,'szt.',12000,0)`,
+          [randomUUID(), ofertaOtwarta]
+        );
+
+        // Oferta wysłana, ale ważność minęła — testuje odznakę „po terminie
+        // ważności" bez zmiany statusu (`isOfferExpired()` liczy to z daty,
+        // nie ze statusu).
+        const ofertaWygasla = randomUUID();
+        await raw(
+          `INSERT INTO offers (id, tytul, klient_nazwa, klient_email, wazna_do, status)
+           VALUES ($1,'Oferta — automatyzacja fakturowania','Baltic Retail sp. z o.o.','ksiegowosc@baltic-retail.pl',$2,'Wysłana')`,
+          [ofertaWygasla, iso(-3)]
+        );
+        await raw(
+          `INSERT INTO offer_items (id, offer_id, nazwa, ilosc, jednostka, cena, position)
+           VALUES ($1,$2,'Integracja KSeF',1,'szt.',6000,0)`,
+          [randomUUID(), ofertaWygasla]
+        );
+      }
+
       // — Notatki —
       await raw(
         `INSERT INTO notes (id, tytul, tresc, tagi) VALUES ($1,$2,$3,$4),($5,$6,$7,$8)`,

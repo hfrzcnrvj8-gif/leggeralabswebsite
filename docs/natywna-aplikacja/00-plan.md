@@ -151,6 +151,7 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **9** | iPad (`NavigationSplitView` z tego samego kodu) — **przeskoczona**, wybór właściciela 2026-07-20 | |
 | **10** ← NASTĘPNA | Faktury i oferty w apce (podgląd, „opłacona", przypomnienie, wysyłka oferty) — patrz `06-brief-faktury-oferty.md` | |
 | **11** | macOS z tego samego rdzenia | |
+| **po wszystkim** | **Audyty końcowe** — bezpieczeństwo, RODO, niezawodność, logi, wydajność, kod. Patrz `docs/AUDYTY-KONCOWE.md` | oba repo |
 
 **Kolejność faz 7–9 zmieniona 2026-07-19 przez właściciela**, pytanego wprost,
 co ma być następne. Bajery weszły przed iPada i przed faktury. Powód: apka jest
