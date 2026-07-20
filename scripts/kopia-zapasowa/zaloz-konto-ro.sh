@@ -22,12 +22,27 @@ if [ ! -f "$KATALOG/konto-ro.sql" ]; then
   exit 1
 fi
 
+# Domyślnie wpisywane znaki są UKRYTE (jak przy haśle) — to bezpieczniejsze,
+# bo sekret nie zostaje w historii przewijania terminala.
+#
+# Ale wpisywanie na ślepo bywa mylące („czy w ogóle się wkleiło?"), a mylące
+# = podatne na błąd. Dlatego jest przełącznik: WIDOCZNE=1 pokazuje znaki.
+# Świadomie NIE odwrotnie — domyślnie chronimy sekret, a widoczność włącza
+# się jawnie, gdy właściciel wie, że nikt nie patrzy na ekran.
+if [ "${WIDOCZNE:-0}" = "1" ]; then
+  CZYTAJ="-rp"
+  echo "(tryb widoczny — wpisywane znaki będą pokazane na ekranie)"
+  echo
+else
+  CZYTAJ="-rsp"
+fi
+
 echo "Zakładanie konta tylko-do-odczytu dla kopii zapasowych."
 echo
 echo "1) Adres bazy PRODUKCYJNEJ."
 echo "   Vercel → projekt → Settings → Environment Variables → DATABASE_URL"
 echo "   → pokaż wartość i skopiuj CAŁOŚĆ (zaczyna się od 'postgres')."
-read -rsp "   Wklej i naciśnij Enter: " DBURL; echo
+read $CZYTAJ "   Wklej i naciśnij Enter: " DBURL; echo
 
 # Vercel kopiuje zmienne środowiskowe RAZEM Z NAZWĄ (`DATABASE_URL="postgres://…"`),
 # a przy zaznaczaniu myszą łatwo złapać nazwę dwa razy. Pierwsza próba
@@ -58,7 +73,7 @@ echo
 echo "2) Hasło dla NOWEGO konta kopia_ro."
 echo "   Wymyśl długie i od razu zapisz w menedżerze haseł — będzie"
 echo "   potrzebne za chwilę w pliku .env."
-read -rsp "   Wpisz i naciśnij Enter: " HASLO_RO; echo
+read $CZYTAJ "   Wpisz i naciśnij Enter: " HASLO_RO; echo
 if [ -n "$HASLO_RO" ]; then
   echo "   Wczytano hasło (${#HASLO_RO} znaków)."
 fi
