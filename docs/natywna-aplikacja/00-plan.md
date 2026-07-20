@@ -151,7 +151,8 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **9** | iPad (`NavigationSplitView` z tego samego kodu) — **przeskoczona**, wybór właściciela 2026-07-20 | |
 | **10** ✅ | **Faktury i oferty w apce** (podgląd, „opłacona", przypomnienie, wysyłka oferty) — wykonane 2026-07-20, patrz „Faza 10" niżej | `leggera-hub-ios` + dev-seed panelu |
 | **11** ← NASTĘPNA | macOS z tego samego rdzenia | |
-| **po wszystkim** | **Audyty końcowe** — bezpieczeństwo, RODO, niezawodność, logi, wydajność, kod. Patrz `docs/AUDYTY-KONCOWE.md` | oba repo |
+| **11½** (opcjonalna, niezależna) | **Audyt apki**: poprawność/architektura/wąskie gardła + osobno kandydaci na nowe funkcje — zlecone 2026-07-20, patrz `07-brief-audyt-apki.md`. Nie blokuje Fazy 11, można zrobić w dowolnej chwili | `leggera-hub-ios` |
+| **po wszystkim** | **Audyty końcowe** — bezpieczeństwo, RODO, niezawodność, logi, wydajność, kod. Patrz `docs/AUDYTY-KONCOWE.md` (szerszy zakres, gated na ukończenie WSZYSTKIEGO — to nie jest to samo, co Faza 11½) | oba repo |
 
 **Kolejność faz 7–9 zmieniona 2026-07-19 przez właściciela**, pytanego wprost,
 co ma być następne. Bajery weszły przed iPada i przed faktury. Powód: apka jest
