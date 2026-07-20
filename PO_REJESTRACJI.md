@@ -142,6 +142,34 @@ zostały przygotowane, ale nie wypełnione. **Po rejestracji przejść całą li
   istnieje i jest wskazana jako administrator w polityce prywatności (pkt 2).
 - Treść zgody → `docs/DO-PRAWNIKA-I-TLUMACZA.md` pkt 1.4.
 
+## 13. Vercel — przejść z planu Hobby na Pro (2026-07-20)
+
+**To jedyna pozycja na tej liście, która jest problemem UMOWNYM z dostawcą,
+a nie brakiem danych rejestrowych.**
+
+Stan sprawdzony 2026-07-20 przez API Vercela: konto jest na planie **Hobby**.
+Warunki Vercela dopuszczają Hobby **wyłącznie do użytku niekomercyjnego**,
+a `leggeralabs.pl` jest witryną sprzedającą usługi i panelem do prowadzenia
+firmy. Po rejestracji działalności ten stan robi się nie do obrony:
+Vercel egzekwuje to (mail z żądaniem przejścia na Pro, w skrajnym
+przypadku wstrzymanie projektu — czyli strona i panel przestają działać
+z dnia na dzień).
+
+Koszt: **Pro ok. 20 USD/mies.** za użytkownika.
+
+Co jeszcze rozwiązuje przejście na Pro (rzeczy, które JUŻ uwierają):
+- **Limit crona.** Hobby daje maksymalnie 2 zadania cron i wyłącznie
+  raz na dobę. Po Fazie 8 mamy dokładnie 2 z 2 — kolejna funkcja
+  wymagająca harmonogramu nie ma już miejsca. Wysyłka odłożona musiała
+  z tego powodu dostać obejście (kolejkę rusza też wejście w Pocztę,
+  patrz `app/api/mail/outbox/run/route.ts`).
+- **Czas funkcji.** Synchronizacja IMAP i pobieranie załączników potrafią
+  trwać kilkadziesiąt sekund; na Pro jest wyraźnie więcej zapasu.
+
+**Nie ma powodu uciekać z Vercela** — decyzja o nim była dobra i przy
+jednoosobowej firmie bez administratora serwera dalej jest najlepsza.
+To jest zmiana planu, nie zmiana dostawcy.
+
 ---
 _Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`.
 Uzupełnienie pozycji 6–12: audyt Modułu 29, `docs/plany-modulow/29-audyt-koncowy.md`._
