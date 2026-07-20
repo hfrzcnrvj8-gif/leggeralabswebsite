@@ -1,0 +1,42 @@
+# Kopia zapasowa bazy Leggera Hub — do uruchomienia na NAS-ie (Ugreen DXP4800
+# Plus, UGOS Pro → Docker → Projekt/Compose).
+#
+# Kontener chodzi non stop i sam budzi się o wyznaczonej godzinie. Nie wymaga
+# dostępu do gniazda Dockera ani żadnych podwyższonych uprawnień — widzi tylko
+# swój katalog na kopie.
+#
+# UWAGA: obraz `postgres:17`, NIE `postgres:17-alpine`. Wariant alpine nie ma
+# `openssl`, więc szyfrowanie by nie zadziałało (sprawdzone 2026-07-20).
+
+services:
+  kopia-bazy:
+    image: postgres:17
+    container_name: leggera-kopia-bazy
+    restart: unless-stopped
+
+    environment:
+      # Adres bazy TYLKO-DO-ODCZYTU z Neona. Patrz README, krok 1 —
+      # NIE wklejaj tu głównego adresu produkcyjnego.
+      DATABASE_URL_RO: "${DATABASE_URL_RO}"
+      # Hasło szyfrowania kopii. Zgubienie go = kopie są bezużyteczne,
+      # więc zapisz je w menedżerze haseł, a nie tylko tutaj.
+      HASLO_KOPII: "${HASLO_KOPII}"
+      # Godzina (0–23) czasu NAS-a. 3:00 — nikt wtedy nie pracuje,
+      # a Neon nie jest obciążony.
+      GODZINA_KOPII: "3"
+      DNI_DZIENNYCH: "7"
+      TYGODNI: "4"
+      KATALOG_KOPII: "/kopie"
+      TZ: "Europe/Warsaw"
+
+    volumes:
+      - ./kopia.sh:/kopia.sh:ro
+      - ./odtworz.sh:/odtworz.sh:ro
+      # ZMIEŃ lewą stronę na realną ścieżkę udziału na Twoim NAS-ie.
+      - /volume1/kopie/leggera:/kopie
+
+    entrypoint: ["/bin/sh", "/kopia.sh", "--petla"]
+
+    # Kontener nie potrzebuje portów ani sieci przychodzącej — łączy się
+    # wyłącznie na zewnątrz, do Neona.
+    network_mode: bridge
