@@ -20,6 +20,7 @@ import {
 } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload, buildPolishQrPayload } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
+import { DokumentResponsywny } from "../../../DocumentScale";
 
 /** Podgląd/wydruk faktury — samodzielny biały dokument (niezależny od motywu
  * panelu), gotowy do „Drukuj / Zapisz jako PDF" przeglądarki. Premium,
@@ -462,6 +463,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
           wyłączone (print:min-h-0), żeby nie wymuszać pustej drugiej strony
           przy krótkich fakturach; stopka i tak trzyma się dołu dzięki
           mt-auto w środku. */}
+      <DokumentResponsywny>
       <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
         {/* Cienki pasek akcentu marki na górze dokumentu */}
         <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
@@ -782,6 +784,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
           </div>
         </div>
       </div>
+      </DokumentResponsywny>
     </div>
   );
 }

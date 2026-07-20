@@ -16,6 +16,7 @@ import {
 } from "@/lib/invoices";
 import { docDate, DOC_GRADIENT } from "@/lib/documents";
 import { DocLogoMark } from "../../../../DocLogoMark";
+import { DokumentResponsywny } from "../../../../DocumentScale";
 
 type DunningInvoice = Invoice & { brutto: number };
 
@@ -86,6 +87,7 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
         </button>
       </div>
 
+      <DokumentResponsywny>
       <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
         <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
 
@@ -181,6 +183,7 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
           </div>
         </div>
       </div>
+      </DokumentResponsywny>
     </div>
   );
 }

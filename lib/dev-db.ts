@@ -189,10 +189,13 @@ async function ensureSeeded(): Promise<void> {
 
         // Opłacona w całości — znika z „Nieopłacone", zostaje tylko na
         // „Wszystkie"; testuje, że „Oznacz jako opłaconą" się chowa.
+        // Ma też `ksef_status='przyjeto'` — jedyny sposób na obejrzenie
+        // plakietki KSeF bez realnej wysyłki (ta trasa nie idzie przez
+        // PATCH, więc inaczej nie dałoby się tego zobaczyć w dev-seedzie).
         const invOplacona = randomUUID();
         await raw(
-          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta)
-           VALUES ($1,'FV 2/2026','Studio Kreska','biuro@studiokreska.pl',$2,$3,'Opłacona','PLN')`,
+          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta, ksef_status)
+           VALUES ($1,'FV 2/2026','Studio Kreska','biuro@studiokreska.pl',$2,$3,'Opłacona','PLN','przyjeto')`,
           [invOplacona, iso(-40), iso(-26)]
         );
         await raw(
@@ -231,6 +234,30 @@ async function ensureSeeded(): Promise<void> {
           `INSERT INTO offer_items (id, offer_id, nazwa, ilosc, jednostka, cena, position)
            VALUES ($1,$2,'Integracja KSeF',1,'szt.',6000,0)`,
           [randomUUID(), ofertaWygasla]
+        );
+
+        // — Koszty (faktury kosztowe) — jeden nieopłacony, jeden opłacony,
+        // do przetestowania „Oznacz jako opłacony" w apce.
+        //
+        // BEZ `ensureCostsSchema()` tu poniżej ten INSERT rzuca „relation
+        // costs does not exist" przy niekorzystnej kolejności żądań (gdy
+        // seeder odpala się PRZED tym, jak cokolwiek inne zdąży stworzyć tę
+        // tabelę) — a rzucony błąd zatruwa `seedPromise` na stałe, więc
+        // WSZYSTKIE trasy API (nie tylko koszty) zaczynają zwracać 500,
+        // dopóki proces się nie zrestartuje. Złapane na własnej skórze
+        // 2026-07-20: curl od razu po edycji wyglądał na sukces (kolejność
+        // akurat sprzyjała), a chwilę później wszystko się posypało.
+        const { ensureCostsSchema } = await import("./db");
+        await ensureCostsSchema();
+        await raw(
+          `INSERT INTO costs (id, dostawca_nazwa, dostawca_nip, kategoria, numer_faktury, data_wydatku, kwota_netto, vat_stawka, kwota_brutto, status)
+           VALUES ($1,'Serwery sp. z o.o.','5261234567','Subskrypcje','FS/2026/07/0088',$2,249,'23',306.27,'Nieopłacony')`,
+          [randomUUID(), iso(-4)]
+        );
+        await raw(
+          `INSERT INTO costs (id, dostawca_nazwa, dostawca_nip, kategoria, numer_faktury, data_wydatku, kwota_netto, vat_stawka, kwota_brutto, status, data_platnosci)
+           VALUES ($1,'Biuro Rachunkowe Klarowni','7791234567','Usługi','FV/22/2026',$2,600,'23',738,'Opłacony',$3)`,
+          [randomUUID(), iso(-15), iso(-13)]
         );
       }
 
