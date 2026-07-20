@@ -1094,3 +1094,50 @@ wysyłce/wystawieniu na produkcji).
 `LEGGERA_DEV_OPEN_INVOICE` / `LEGGERA_DEV_OPEN_OFFER` — `1` (pierwszy rekord)
 albo konkretne id; otwierają profil z pominięciem listy, dwoma segmentami
 `NavigationPath` naraz (`Cel.faktury` + `SzczegolyCel.faktura(id)`).
+
+### Poprawki po pierwszym realnym użyciu (2026-07-20, druga tura)
+
+Właściciel zaczął realnie używać Faktur/Ofert/Kosztów i stopera tego samego
+dnia — jak zwykle w tym projekcie, pierwsze realne użycie wyłapało rzeczy,
+których symulator i czytanie kodu nie pokazały. Sześć poprawek, wszystkie
+wypchnięte:
+
+1. **Face ID bez furtki ucieczki.** Wyłącznik blokady mieszkał w „Więcej", a
+   do „Więcej" nie dało się dojść bez pokonania blokady — zepsute Face ID
+   zamykało właściciela poza własnymi danymi bez wyjścia w UI. Dodany link
+   „Nie działa? Wyloguj i wyłącz blokadę" na samym ekranie blokady (wylogowanie
+   OD RAZU wyłącza też blokadę, inaczej ponowne logowanie hasłem wpadałoby
+   w tę samą pułapkę) + guard przed nakładającymi się `evaluatePolicy`.
+2. **„Otwórz kodem telefonu" wprost widoczne** po 2 nieudanych próbach Face
+   ID — życzenie właściciela, „tak jak to zwykle wygląda w aplikacjach". iOS
+   nie pozwala pominąć próby biometrii, ale system i tak ma link do kodu na
+   tym samym arkuszu (`localizedFallbackTitle`) — apka go tylko odsłania.
+3. **KSeF jako plakietka**, nie szary podpis — kolor 1:1 z `KSEF_STATUS_CLASS`
+   panelu.
+4. **Koszty: klikalne wiersze + `KosztDetailView`** („Oznacz jako opłacony").
+   Wcześniej lista kosztów nie miała ŻADNEGO klikalnego wiersza — funkcja
+   „zobacz i opłać koszt" nie istniała, mimo gotowego PATCH-a od dawna.
+5. **Publiczny podgląd dokumentu (`InvoicePrint`/`OfferPrint`/`ContractPrint`/
+   `DunningPrint`) skaluje się do szerokości telefonu** zamiast wystawać poza
+   ekran (`DokumentResponsywny`, `app/[lang]/admin/DocumentScale.tsx` w
+   panelu) — `document.documentElement.clientWidth`, NIE `window.innerWidth`
+   (to drugie potrafi zgłosić poszerzony layout viewport). Przy okazji
+   złapany i naprawiony realny bug w dev-seedzie panelu: `INSERT INTO costs`
+   bez `ensureCostsSchema()` przed nim zatruwał `seedPromise` na stałe,
+   psując WSZYSTKIE trasy API do restartu procesu.
+6. **Stoper**: trzy zgłoszenia po pierwszym realnym starcie —
+   „na pulpicie się nic nie wyświetla" (dodana sekcja „Stoper" na Pulpicie,
+   ten sam `aktywnyStoper` co pasek w chrome), „nie działa responsywnie"
+   (spinner + disabled natychmiast po dotknięciu, świadomie NIE optymistyczna
+   zmiana stanu — stoper jest rozliczeniowo wrażliwy), „przycisk wygląda jak
+   dodany w ostatniej chwili" (połączony z podsumowaniem czasu w jedną,
+   zawsze widoczną kartę „Czas pracy" zamiast samotnego przycisku w sekcji
+   „Praca").
+
+**Dwa pomysły właściciela padły przy okazji i czekają w `07-brief-audyt-apki.md`
+Część B** (dopisane tam, nie tutaj): Dynamic Island dla stopera (+ sygnalizacja
+liczby spraw z Pulpitu) i kod QR z danymi przelewu na koszcie (zamiast
+prawdziwej integracji bankowej — ta odradzona: wymagałaby licencji PISP,
+zupełnie nieadekwatnej do jednoosobowej działalności płacącej własne koszty).
+
+**Kolejny czat zaczyna od `07-brief-audyt-apki.md`.**

@@ -121,6 +121,33 @@ backend faktycznie to obsługuje, ZANIM zaproponujesz).
 - **Widżet i Siri** — sprawdź, czy warto rozszerzyć zestaw intencji (dziś:
   „zaloguj rozmowę", „zapisz notatkę") o coś z nowszych faz, np. „oznacz
   fakturę jako opłaconą" głosowo.
+- **Dynamic Island / Live Activity dla stopera** (priorytet — właściciel
+  pytał o to dwa razy przy okazji poprawek stopera, 2026-07-20). Dziś stoper
+  ma tylko pasek w chrome apki i sekcję na Pulpicie — obie widoczne wyłącznie
+  gdy apka jest otwarta. Live Activity pokazywałaby chodzący czas na
+  ekranie zablokowanym i w Dynamic Island bez otwierania apki wcale.
+  Właściciel dorzucił drugi pomysł: żeby ta sama Wyspa sygnalizowała też
+  liczbę spraw czekających na Pulpicie (`doZrobienia` z `PulpitDzis`) — to
+  są DWA różne rodzaje Live Activity (jedna trwa tak długo, jak chodzi
+  stoper; druga musiałaby żyć cały czas albo odświeżać się cyklicznie) i
+  prawdopodobnie warto je rozdzielić w ocenie kosztu/ryzyka. Do sprawdzenia
+  PRZED szacowaniem: czy rozszerzenie widżetu z Fazy 7 (`Widzet/`) może
+  hostować też `ActivityConfiguration`, czy potrzebny osobny target;
+  `ActivityKit` na darmowym koncie Apple (Faza 7 pokazała, że nie wszystko,
+  czego się obawiano, wymagało płatnego konta — sprawdź to samo tutaj,
+  zamiast zakładać).
+- **Kod QR z danymi przelewu na koszcie** (właściciel pytał wprost: „czy jest
+  możliwość płacić z telefonu"). **Prawdziwa integracja bankowa
+  (automatyczne inicjowanie przelewu) odradzona przy tej rozmowie** — wymagałaby
+  licencji PISP albo pośrednika z taką licencją, zupełnie nieadekwatne dla
+  jednoosobowej działalności płacącej własne koszty. Zamiast tego: kod QR
+  (numer konta dostawcy + kwota + tytuł) do zeskanowania własną aplikacją
+  bankową — zero integracji, zero nowych uprawnień. Panel ma już taki
+  mechanizm (`buildEpcQrPayload`/`buildPolishQrPayload` w `lib/documents.ts`,
+  używany na fakturach do „zeskanuj, aby zapłacić" — tu kierunek odwrotny:
+  płaci właściciel, nie klient). Uwaga: `Cost` w rdzeniu apki dziś w ogóle
+  nie dekoduje `dostawca_konto` — trzeba dołożyć pole, zanim cokolwiek
+  innego.
 - Wszystko inne, co wyjdzie przy czytaniu kodu i rozmowie z właścicielem —
   ta lista jest punktem startu, nie sufitem.
 
@@ -145,3 +172,16 @@ Lista ustaleń z priorytetem (Część A), plus osobna, jawnie oznaczona lista
 kandydatów na nowe funkcje z krótką oceną kosztu/ryzyka każdego (Część B).
 Jeśli coś sprawdzone wyszło w porządku — wypisz to też wprost, to też jest
 wynik (nie tylko błędy).
+
+## Prompt otwierający kolejny czat
+
+```
+Kontynuujemy aplikację natywną Leggera Hub. Przeczytaj
+docs/natywna-aplikacja/00-plan.md (sekcja „Poprawki po pierwszym realnym
+użyciu" na końcu ma najświeższy stan) oraz
+docs/natywna-aplikacja/07-brief-audyt-apki.md, potem zrób audyt apki:
+Część A (poprawność/architektura/wąskie gardła) i Część B (kandydaci na
+nowe funkcje — Dynamic Island dla stopera i kod QR do płatności kosztów
+są tam już rozpisane jako priorytetowe, bo właściciel pytał o nie wprost).
+Repo apki: /Volumes/OWC_SN850X/projekty_ai/leggera-hub-ios.
+```
