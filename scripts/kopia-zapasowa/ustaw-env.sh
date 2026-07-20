@@ -27,11 +27,34 @@ else
   CZYTAJ="-rsp"
 fi
 
+# Zamienia znaki specjalne na postać %XX. Bez tego hasło z `openssl rand
+# -base64` (zawiera `/` i `+`) rozbiłoby adres: `/` zostałby wzięty za
+# początek nazwy bazy. To nie jest teoria — to najbardziej prawdopodobny
+# sposób, w jaki ta konfiguracja mogłaby cicho nie zadziałać.
+zakoduj() {
+  local we="$1" i znak wynik=""
+  for (( i=0; i<${#we}; i++ )); do
+    znak="${we:i:1}"
+    case "$znak" in
+      [a-zA-Z0-9.~_-]) wynik+="$znak" ;;
+      # Apostrof przed znakiem każe printf-owi wziąć jego kod liczbowy.
+      *) wynik+="$(printf '%%%02X' "'$znak")" ;;
+    esac
+  done
+  printf '%s' "$wynik"
+}
+
 # ── 1. Adres bazy tylko-do-odczytu ────────────────────────────────────────
-echo "1) Adres bazy dla konta kopia_ro."
-echo "   Weź adres produkcyjny z Vercela i podmień w nim TYLKO nazwę"
-echo "   użytkownika i hasło na 'kopia_ro' oraz hasło z poprzedniego kroku."
-echo "   Reszta (wszystko po znaku @) zostaje bez zmian."
+#
+# ŚWIADOMIE pytamy o adres PRODUKCYJNY i hasło osobno, a adres dla kopia_ro
+# składamy sami. Kazanie właścicielowi podmienić nazwę użytkownika i hasło
+# w środku długiego adresu zawiodło już dwa razy (2026-07-20) — to jest
+# dokładnie ten rodzaj ręcznej roboty, w której literówka jest normą,
+# a nie wyjątkiem.
+echo "1) Adres bazy PRODUKCYJNEJ (ten sam, co przy zakładaniu konta)."
+echo "   Vercel → Settings → Environment Variables → DATABASE_URL"
+echo "   → pokaż wartość i skopiuj całość."
+echo "   Adres dla kopia_ro złożę sam — nie musisz nic podmieniać."
 read $CZYTAJ "   Wklej i naciśnij Enter: " DBURL; echo
 
 # To samo sprzątanie co w zaloz-konto-ro.sh — Vercel kopiuje razem z nazwą
@@ -47,16 +70,22 @@ if [[ "$DBURL" != postgres://* && "$DBURL" != postgresql://* ]]; then
 fi
 echo "   Wczytano: $(printf '%s' "$DBURL" | sed -E 's#(//[^:]+:)[^@]+(@)#\1****\2#')"
 
-# Ostrzeżenie, nie błąd: właściciel MOŻE świadomie użyć innego konta, ale
-# użycie konta produkcyjnego do kopii przekreśla sens całego rozdzielenia.
-if [[ "$DBURL" != *"//kopia_ro:"* ]]; then
-  echo
-  echo "   UWAGA: w adresie nie widzę użytkownika 'kopia_ro'."
-  echo "   Kopia miała chodzić kontem tylko-do-odczytu — konto produkcyjne"
-  echo "   pozwalałoby skasować dane, gdyby NAS kiedyś został przejęty."
-  read -rp "   Kontynuować mimo to? (wpisz tak) " ZGODA
-  [ "$ZGODA" = "tak" ] || { echo "   Przerwane."; exit 1; }
+# Wszystko po pierwszym znaku @ — host, port, nazwa bazy i parametry.
+# Ta część jest identyczna dla obu kont, więc przepisujemy ją bez zmian.
+RESZTA="${DBURL#*@}"
+if [ "$RESZTA" = "$DBURL" ]; then
+  echo "   BŁĄD: w adresie nie ma znaku @ — to nie jest pełny adres bazy."
+  exit 1
 fi
+echo
+
+echo "   Hasło konta kopia_ro (to z poprzedniego kroku)."
+read $CZYTAJ "   Wpisz i naciśnij Enter: " HASLO_RO; echo
+[ -n "$HASLO_RO" ] || { echo "   BŁĄD: hasło nie może być puste."; exit 1; }
+echo "   Wczytano hasło (${#HASLO_RO} znaków)."
+
+DBURL="postgresql://kopia_ro:$(zakoduj "$HASLO_RO")@$RESZTA"
+echo "   Złożony adres: $(printf '%s' "$DBURL" | sed -E 's#(//[^:]+:)[^@]+(@)#\1****\2#')"
 
 echo "   Sprawdzam połączenie…"
 # `tr -d " "` odpada: przycinał też spacje w KOMUNIKATACH BŁĘDU, przez co
