@@ -1141,3 +1141,57 @@ prawdziwej integracji bankowej — ta odradzona: wymagałaby licencji PISP,
 zupełnie nieadekwatnej do jednoosobowej działalności płacącej własne koszty).
 
 **Kolejny czat zaczyna od `07-brief-audyt-apki.md`.**
+
+## Faza 11½ — audyt apki (2026-07-20)
+
+Wykonany wg `07-brief-audyt-apki.md`. Pełny wynik: **`08-wynik-audytu-apki.md`**.
+
+**Fundament oceniony jako dobry** — Faza 11 (macOS) może na nim stanąć bez
+przebudowy. Zero martwych metod `AppStore` (powtarzalny błąd tego projektu
+tym razem się nie powtórzył), 13 z 22 par reguł panel↔apka zgodnych co do
+joty, wszystkie 12 furtek DEBUG działa, żadna flaga ładowania nie może zawisnąć.
+
+**`AppStore.swift` NIE dzielimy** — 22 sekcje `// MARK:` są uczciwie
+poukładane, rozmiar nie przeszkadza. Co przeszkadza, to 64 kopie `catch
+APIError.nieautoryzowany` i 59 kopii budowania komunikatu błędu. Zalecony
+najpierw helper `wykonaj<T>(_:)` (~-400 linii), dopiero potem ewentualne
+cięcie na `extension` — **nie** na osobne klasy (Pulpit czyta trzy moduły naraz).
+
+### Naprawione w tej samej sesji (11 pozycji, build zielony)
+
+Rozjazdy reguł: `Stoper.format` zaokrągla jak panel (90 s = „2 min", nie
+„1 min" — to czas, z którego wystawia się faktury); rabat pokazywany na
+pozycji faktury (wcześniej pozycje nie sumowały się do kwoty); etykiety
+kategorii i statusów poczty; KSeF (etykiety + cyan zamiast złotego —
+złoty w panelu znaczy „wymaga uwagi"); warunek VIP.
+
+Błędy: zatruty bufor kalendarza (padnięcie drugiego z dwóch żądań blokowało
+miesiąc na stałe); wyścig przy przełączaniu folderów poczty i filtru rejestru;
+gubiona fraza wyszukiwania; potwierdzenie przy usuwaniu wydarzenia.
+
+Wydajność: zimny start z 7 żądań szeregowo → `async let` + usunięte 2
+duplikaty; `waitsForConnectivity` + rozróżnienie braku internetu od timeoutu.
+
+### Świadomie NIE naprawione (czekają)
+
+- **A1 — jedno pole `bladLeadow` dla 12 modułów.** Błędy 11 z nich nikną bez
+  śladu, a błąd Poczty wyskakuje na Leadach jako rzekoma awaria sieci.
+  Największy pojedynczy dług apki; wymaga własnej paczki.
+- A8 (brak odświeżania po powrocie z tła), A9 (usuwanie wpłaty), A13
+  (drobiazgi: dwaj konsumenci `LEGGERA_DEV_TAB`, brak edycji pól klienta,
+  pola dekodowane i nieużywane).
+
+### Trzy nowe funkcje zatwierdzone przez właściciela → osobne czaty
+
+- `09-brief-dynamic-island-stoper.md` — Live Activity stopera + liczba spraw
+  z Pulpitu drugą linią w rozwiniętej Wyspie. **Osobny target zbędny, płatne
+  konto Apple niepotrzebne.** Stała Live Activity dla Pulpitu odrzucona
+  (iOS ubija ją po ~8 h; tę rolę pełni istniejący widżet). 1 sesja.
+- `10-brief-qr-platnosci-kosztow.md` — QR standardu ZBP na profilu kosztu.
+  **Po stronie panelu i bazy nie trzeba nic dokładać** — `dostawca_konto`
+  już jest i API je zwraca. Pół sesji.
+- `11-brief-umowy-w-apce.md` — dziś apka blokuje zmianę statusu projektu z
+  powodu braku umowy i nie daje tej umowy wysłać. 1 sesja.
+
+**Punkt 6 `docs/AUDYTY-KONCOWE.md`** (parytet panel↔apka) jest wykonany
+tutaj — nie robić drugi raz.
