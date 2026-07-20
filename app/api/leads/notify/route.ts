@@ -13,6 +13,7 @@ import {
   ensureContractsSchema,
   logClientEvent,
   getNudgeThreads,
+  ensureBackupSchema,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
@@ -32,6 +33,7 @@ import {
   type CompanySettings,
 } from "@/lib/invoices";
 import { costBrutto, type RecurringCost } from "@/lib/costs";
+import { ocenKopie, type BackupRun } from "@/lib/backup";
 import { isContractStale, contractSilenceDays, CONTRACT_TYP_LABEL, type Contract } from "@/lib/contracts";
 import { sendEmail } from "@/lib/email";
 import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
@@ -471,6 +473,44 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     draftInvoices.length +
     staleContracts.length;
 
+  // Stan kopii zapasowych bazy (2026-07-20). Osobne, tanie zapytanie —
+  // ŚWIADOMIE poza głównym Promise.all i w try/catch: awaria tego odczytu nie
+  // może wywrócić całego dziennego raportu. Raport jest ważniejszy niż jedna
+  // linijka w nim.
+  //
+  // Po co to w mailu, skoro jest na Pulpicie: ostrzeżenie na Pulpicie jest
+  // BIERNE — czeka, aż właściciel zajrzy. Gdyby NAS padł w piątek, a panel
+  // został otwarty we wtorek, cztery dni bez kopii przeszłyby niezauważone.
+  // Mail przychodzi sam, tym kanałem, który i tak jest czytany codziennie.
+  let backupLinia = "";
+  let backupZepsute = false;
+  try {
+    await ensureBackupSchema();
+    const backupRuns = (await sql`
+      SELECT id, ok, host, powod, tabel, rozmiar_bajtow, trwalo_sekund, created_at
+      FROM backup_runs ORDER BY created_at DESC LIMIT 20;
+    `) as unknown as BackupRun[];
+    const stanKopii = ocenKopie(backupRuns);
+    if (stanKopii.stan === "ok") {
+      // Przy sprawnych kopiach jedna spokojna linijka. W mailu — inaczej niż
+      // na Pulpicie — potwierdzenie ma wartość: buduje zaufanie, że mechanizm
+      // żyje, zamiast zostawiać ciszę nie do odróżnienia od awarii.
+      const t = stanKopii.ostatniaUdana.tabel;
+      backupLinia = `Kopia zapasowa bazy: OK — ${stanKopii.opis}${t ? ` Tabel: ${t}.` : ""}`;
+    } else if (stanKopii.stan === "blad") {
+      backupZepsute = true;
+      backupLinia = `UWAGA: ostatnia kopia zapasowa bazy SIĘ NIE UDAŁA. ${stanKopii.powod}`;
+    } else if (stanKopii.stan === "przestarzale") {
+      backupZepsute = true;
+      backupLinia = `UWAGA: kopie zapasowe bazy są nieaktualne. ${stanKopii.opis}`;
+    } else {
+      backupZepsute = true;
+      backupLinia = "UWAGA: kopie zapasowe bazy nie są uruchomione (patrz scripts/kopia-zapasowa/README.md).";
+    }
+  } catch (e) {
+    console.error("[cron] nie udało się odczytać stanu kopii zapasowych", e);
+  }
+
   const mailLines = pendingMails.length
     ? pendingMails
         .map((m) => `  • ${m.client_nazwa || m.lead_nazwa || m.from_name || m.from_addr} — ${m.subject || "(bez tematu)"}`)
@@ -536,14 +576,25 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
       : `Nowe wiadomości pobrane dziś: ${mail.fetched}` + (mail.matched ? ` (w tym ${mail.matched} dopasowanych do klienta/leada)` : ""),
     mail.purged > 0 ? `Usunięto starych wiadomości (retencja ${MAIL_RETENTION_MONTHS} mies.): ${mail.purged}` : "",
     "",
+    backupLinia,
+    "",
     `Łącznie: ${leads.length} leadów, ${projects.length} projektów.`,
     "",
     "— automatyczny raport z /admin",
   ].join("\n");
 
   const totalActionableWithReminders = totalActionable;
-  const subject =
-    totalActionableWithReminders > 0
+  // Zepsute kopie MUSZĄ być widoczne w temacie, nie tylko w treści.
+  //
+  // Bez tego w spokojny dzień (nic nie wymaga działania) mail przychodziłby
+  // z tematem „wszystko ogarnięte", podczas gdy od trzech dni nie ma kopii
+  // zapasowej. Temat, który uspokaja wbrew treści, jest gorszy niż brak
+  // tematu — a właśnie po temacie decyduje się, czy w ogóle otworzyć maila.
+  const subject = backupZepsute
+    ? `[Panel] UWAGA: kopie zapasowe nie działają${
+        totalActionableWithReminders > 0 ? ` · ${totalActionableWithReminders} spraw na dziś` : ""
+      }`
+    : totalActionableWithReminders > 0
       ? `[Panel] ${totalActionableWithReminders} ${totalActionableWithReminders === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania`
       : "[Panel] Dzienny raport — wszystko ogarnięte";
 
