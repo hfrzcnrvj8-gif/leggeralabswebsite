@@ -226,7 +226,29 @@ złe hasło do bazy, brak konfiguracji kontenera, konto bez uprawnień do tabel
 oraz powrót do stanu normalnego (pas ostrzegawczy znika). Odrzucanie
 meldunków bez sekretu i ze złym sekretem — również sprawdzone.
 
-**NIE sprawdzone, bo wymaga Twojego udziału:** połączenie z prawdziwym
-Neonem (adres bazy jest tylko w Vercelu, nie mam do niego dostępu),
-uruchomienie w UGOS Pro na Twoim NAS-ie i pierwsze realne odtworzenie.
-Krok 5 i sekcja o odtwarzaniu istnieją właśnie po to, żebyś to domknął.
+**URUCHOMIONE I ZWERYFIKOWANE NA PRODUKCJI 2026-07-20**, na NAS-ie
+DXP4800PLUS-611E: kopia 956 KB / **44 z 44 tabel**, odtworzona na czystą bazę
+z kompletem danych (38 leadów, 96 wiadomości, 10 faktur, 4 projekty).
+
+Pięć rzeczy wyszło dopiero na prawdziwym sprzęcie i prawdziwych danych —
+warto je znać, bo każda dawała fałszywe poczucie bezpieczeństwa:
+
+1. **`pg_dump` próbował zrzucić schemat `neon_auth`** (wbudowane logowanie
+   Neona, włączane domyślnie przez integrację z Vercelem), do którego
+   `kopia_ro` nie ma praw — cała kopia padała. Panel z niego nie korzysta,
+   więc zrzucamy `--schema=public`.
+2. **`hostname` w kontenerze zwraca jego identyfikator**, nie nazwę NAS-a —
+   co przekreślało kontrolę „czy to chodzi we właściwym miejscu".
+3. **Odtwarzanie nie działało**: zrzut zawiera `CREATE SCHEMA public`, który
+   każda nowa baza już ma. Kopia była poprawna, tylko nie dało się jej wgrać.
+   **Wyszło wyłącznie dlatego, że spróbowaliśmy odtworzyć naprawdę.**
+4. **`umask` nie działa na udziałach UGOS** (własne listy dostępu) — plik
+   `.env` z sekretami powstał jako czytelny dla wszystkich. Uprawnienia
+   ustawiamy teraz jawnie (`chmod 600`).
+5. **Ścieżka katalogu wpisana w `docker-compose.yml`** została nadpisana przy
+   aktualizacji pliku z repozytorium i kopie zaczęły cicho lądować gdzie
+   indziej. Ścieżka mieszka teraz w `.env` (`KATALOG_NA_NASIE`).
+
+**Co zostało po Twojej stronie:** nic obowiązkowego. Warto raz na jakiś czas
+samemu przejechać odtworzenie (sekcja wyżej) — nie dlatego, że coś podejrzewam,
+tylko dlatego, że to jedyny sposób, żeby wiedzieć na pewno.

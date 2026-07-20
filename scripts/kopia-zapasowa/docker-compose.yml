@@ -35,6 +35,10 @@ services:
       DNI_DZIENNYCH: "7"
       TYGODNI: "4"
       KATALOG_KOPII: "/kopie"
+      # Kto ma być właścicielem plików kopii (UID:GID Twojego konta na NAS-ie
+      # — sprawdzisz poleceniem `id`). Bez tego pliki należą do konta
+      # kontenera i nie da się ich odczytać ze zwykłego konta.
+      UID_WLASCICIELA: "${UID_WLASCICIELA:-1000:10}"
       TZ: "Europe/Warsaw"
       # Meldunek do panelu po każdym przebiegu — dzięki temu Pulpit wie,
       # czy kopie się robią, a gdy nie, POKAZUJE POWÓD. Bez tych dwóch

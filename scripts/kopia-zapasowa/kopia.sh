@@ -166,6 +166,21 @@ wykonaj_kopie() {
   fi
 
   mv "$ROBOCZY" "$CEL"
+  # Uprawnienia ustawiamy JAWNIE, nie licząc na umask. Na NAS-ie (UGOS)
+  # udziały mają własne listy dostępu, które umask nadpisują — sprawdzone
+  # 2026-07-20: mimo `umask 077` pliki powstawały jako rwxrwxrwx, czyli
+  # czytelne dla każdego użytkownika NAS-a.
+  #
+  # Kopie są zaszyfrowane, więc to nie jest wyciek sam w sobie, ale nie ma
+  # powodu rozdawać komukolwiek zaszyfrowanego zrzutu bazy do offline'owego
+  # łamania hasła.
+  chmod 600 "$CEL" 2>/dev/null || true
+  # Właścicielem pliku robimy KONTO WŁAŚCICIELA NAS-a, nie konto kontenera.
+  # Bez tego kopie należą do administratora systemu i właściciel nie może ich
+  # nawet skopiować na pendrive — a kopia zapasowa, do której nie masz dostępu
+  # bez obchodzenia zabezpieczeń, jest kopią tylko z nazwy.
+  # UID_WLASCICIELA ustawiane w docker-compose.yml.
+  [ -n "${UID_WLASCICIELA:-}" ] && chown "$UID_WLASCICIELA" "$CEL" 2>/dev/null || true
   ROZMIAR=$(du -h "$CEL" | cut -f1)
   log "Kopia gotowa: $(basename "$CEL") ($ROZMIAR, tabel: $TABEL)"
 
@@ -174,6 +189,8 @@ wykonaj_kopie() {
   # i zauważyłem dopiero teraz".
   if [ "$(date '+%u')" = "1" ]; then
     cp "$CEL" "$KATALOG/tygodniowe/leggera-$ZNACZNIK.sql.gz.enc"
+    chmod 600 "$KATALOG/tygodniowe/leggera-$ZNACZNIK.sql.gz.enc" 2>/dev/null || true
+    [ -n "${UID_WLASCICIELA:-}" ] && chown "$UID_WLASCICIELA" "$KATALOG/tygodniowe/leggera-$ZNACZNIK.sql.gz.enc" 2>/dev/null || true
     log "Odłożono kopię tygodniową."
   fi
 
