@@ -149,8 +149,8 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **7** ✅ | **Natywne bajery**: Face ID, Siri, widżet „co dziś", Share Extension — patrz `04-brief-natywne-bajery.md` | |
 | **8** ✅ | **Załączniki + skrzynka**: załączniki przychodzące (panel + apka), wyciszenie wątku, ekran „Subskrypcje", wysyłka odłożona — wykonane 2026-07-20, patrz „Faza 8" niżej | oba repo |
 | **9** | iPad (`NavigationSplitView` z tego samego kodu) — **przeskoczona**, wybór właściciela 2026-07-20 | |
-| **10** ← NASTĘPNA | Faktury i oferty w apce (podgląd, „opłacona", przypomnienie, wysyłka oferty) — patrz `06-brief-faktury-oferty.md` | |
-| **11** | macOS z tego samego rdzenia | |
+| **10** ✅ | **Faktury i oferty w apce** (podgląd, „opłacona", przypomnienie, wysyłka oferty) — wykonane 2026-07-20, patrz „Faza 10" niżej | `leggera-hub-ios` + dev-seed panelu |
+| **11** ← NASTĘPNA | macOS z tego samego rdzenia | |
 | **po wszystkim** | **Audyty końcowe** — bezpieczeństwo, RODO, niezawodność, logi, wydajność, kod. Patrz `docs/AUDYTY-KONCOWE.md` | oba repo |
 
 **Kolejność faz 7–9 zmieniona 2026-07-19 przez właściciela**, pytanego wprost,
@@ -985,3 +985,111 @@ z potwierdzeniem, kolejka „Zaplanowane" z anulowaniem.
 
 `LEGGERA_DEV_MAIL_SHEET=subskrypcje|zaplanowane` (obok istniejących
 `nowa|szablony`).
+
+## Faza 10 — Faktury i oferty (2026-07-20)
+
+Wykonane wg `06-brief-faktury-oferty.md`. Poziom 2: podgląd i lekkie akcje.
+Wystawianie faktur, edycja pozycji/korekty, KSeF, tworzenie i akceptacja
+ofert zostają przy biurku — apka ich świadomie nie woła.
+
+### Odkrycie, które zmieniło brief PRZED napisaniem kodu
+
+Brief zakładał „podgląd PDF przez QuickLook" na wzór załączników z Fazy 8.
+**Sprawdzone w kodzie panelu przed pisaniem: PDF nie istnieje.** Panel ma
+wyłącznie strony print-owalne w przeglądarce (`/admin/invoices/[id]/print`
+itp., do ręcznego „Zapisz jako PDF" przez właściciela) i publiczne strony dla
+klienta (`/pl/faktura/<token>`, `/pl/oferta/<token>`) — żadnego wygenerowanego
+pliku po stronie serwera. Wymyślanie nieistniejącego endpointu byłoby
+dokładnie tym błędem, przed którym ostrzega ten dokument („sprawdzaj, czy coś
+WOŁA kod, nie czy kod istnieje" — tu na odwrót: nie zakładaj, że kod istnieje,
+zanim go nie zobaczysz). Zamiast tego „podgląd" w apce otwiera `Link`-iem
+dokładnie tę samą publiczną stronę, którą klient dostaje w mailu — działa
+identycznie, bez pisania jednej linijki backendu.
+
+### Co powstało
+
+- **Faktury**: lista z filtrem (nieopłacone / po terminie / wszystkie),
+  sortowanie „po terminie na górę"; profil z kwotami, pozycjami tylko do
+  odczytu, wpłatami i historią windykacji; **„Oznacz jako opłaconą"** —
+  jeden tap rejestruje wpłatę na CAŁĄ pozostałą kwotę (nie formularz ręcznej
+  wpłaty częściowej — ten zostaje w panelu); ręczne przypomnienie o
+  płatności; stan KSeF POKAZYWANY, nigdy niezmieniany.
+- **Oferty**: lista + profil z pozycjami (bez VAT, jak w panelu), wysyłka
+  istniejącej oferty do klienta, informacja o akceptacji (kto/kiedy, albo
+  „oznaczono ręcznie w panelu" gdy `accepted_by_name` puste).
+- Gating przycisków „Oznacz jako opłaconą"/„Wyślij przypomnienie" przepisany
+  **1:1 z `InvoiceEditor.tsx`** (nie wymyślony): płatności działają dla
+  każdej wystawionej faktury z resztą > 1 grosz; windykacja pokazuje się
+  TYLKO gdy `!isDraft && (overdue || reminders.length > 0)` — dokładnie
+  warunek z panelu, żeby nie proponować przypomnienia fakturze, która nie ma
+  szans być zaległa.
+
+### Kwoty NIE są liczone w apce — świadoma decyzja architektoniczna
+
+Brief ostrzegał: „kwoty to nie `Double`". Panel liczy `netto/vat/brutto` z
+zaokrągleniem PER POZYCJA (`lib/invoices.ts`) — odtworzenie tej matematyki
+w Swifcie groziłoby rozjazdem o grosz, dokładnie tym błędem, przed którym
+ostrzega ten dokument. Rozwiązanie: `Faktura` w rdzeniu dekoduje
+`netto/vat/brutto/zaplacono` WYŁĄCZNIE z `GET /api/invoices` (listy, gdzie
+panel już je policzył), a profil pojedynczej faktury (`GET /api/invoices/[id]`)
+świadomie NIE dekoduje własnego `invoice` — ekran szczegółów bierze kwoty
+z już wczytanej listy w `AppStore.faktury`. To ten sam wzorzec co
+`taskTotal`/`taskDone` w `Projekt` (liczniki tylko na liście, profil dokłada
+resztę). Jedyna liczba, którą apka SAMA liczy, to `pozostaloDoZaplaty`
+(odejmowanie dwóch gotowych `Double`) — i tę zaokrągla do groszy PRZED
+wysyłką (`(x*100).rounded()/100`), bo różnica dwóch serwerowych `Double`
+potrafi wyjść jako `1234.9999999998`.
+
+Oferty nie mają tego problemu (suma bez VAT, bez rabatów per pozycja) —
+`OfertaSzczegoly.sumaPozycji` liczy sumę lokalnie jako zapas, gdyby profil
+otworzył się zanim lista zdążyła wczytać `kwota` z serwera.
+
+### Weryfikacja: dev-seed dołożony do panelu, nie tylko do apki
+
+Dev-baza (`lib/dev-db.ts`) nie miała ŻADNYCH faktur ani ofert — apka
+pokazywałaby wyłącznie puste ekrany, bez możliwości obejrzenia filtrów,
+pozycji czy stanu wpłat. Dołożone do `ensureSeeded()`: trzy faktury (po
+terminie bez wpłaty, częściowo opłacona, w całości opłacona) i dwie oferty
+(otwarta, po terminie ważności) — dokładnie te kombinacje, które testują
+gating przycisków i kolorowanie.
+
+**Efekt uboczny, o którym trzeba wiedzieć**: edycja `lib/dev-db.ts` podczas
+gdy inna sesja miała już uruchomiony `npm run dev` na porcie 3000 sprawiła,
+że Turbopack przeładował moduł i **zresetował jej dane deweloperskie do
+świeżego stanu** (nowe leady/projekty/itd. z tego samego seeda). To dane
+testowe, jednorazowe z założenia — ale warto to wiedzieć, jeśli równoległa
+sesja zapyta, dlaczego jej dev-baza nagle wygląda inaczej.
+
+### Co zweryfikowano, a czego nie
+
+**Curlem, bezpośrednio przez `GET /api/invoices`/`GET /api/offers`** (ten sam
+JSON, który czyta apka): poprawność SQL-a seeda, poprawność wyliczeń
+netto/vat/brutto (5000 netto → 6150 brutto przy 23% VAT, itd.), zaplacono
+liczone z `invoice_payments`.
+
+**W symulatorze iPhone 17, na zrzutach** (furtki `LEGGERA_DEV_WIECEJ=faktury
+|oferty` + nowe `LEGGERA_DEV_OPEN_INVOICE`/`LEGGERA_DEV_OPEN_OFFER`): lista
+faktur z filtrem i kolorowaniem „po terminie"; profil faktury nieopłaconej
+po terminie (kwoty, pozostało na złoto, początek przycisku „Oznacz jako
+opłaconą" widoczny u dołu ekranu); profil faktury w całości opłaconej
+(pozostało 0,00 zł na zielono); lista ofert z odznaką „po terminie ważności";
+pełny profil oferty wysłanej — nagłówek, kwota, pozycje, przycisk „Wyślij
+ofertę do klienta".
+
+**NIE zweryfikowano dotykiem** (Claude nie steruje dotykiem symulatora):
+faktyczne tapnięcie „Oznacz jako opłaconą"/„Wyślij przypomnienie"/„Wyślij
+ofertę" — celowo pominięte, bo to prawdziwe efekty uboczne (rejestracja
+wpłaty, realny mail); apka nie ma na razie żadnej gałęzi kodu odpowiedzialnej
+za te akcje, której dowód wymagałby dotyku, poza samym wysłaniem żądania.
+Filtr segmentowy „Po terminie"/„Wszystkie" (Picker) i przełącznik „pokaż
+zamknięte" w Ofertach nie zostały przełączone dotykiem — logika filtrowania
+jest prostym `filter`/`sorted` bez efektów ubocznych, sprawdzonym czytaniem
+kodu. Publiczny link podglądu nie został otwarty (żadna z faktur/ofert
+w seedzie nie ma `share_token` — trasa generuje go dopiero przy pierwszej
+wysyłce/wystawieniu na produkcji).
+
+### Nowe furtki DEBUG
+
+`LEGGERA_DEV_OPEN_INVOICE` / `LEGGERA_DEV_OPEN_OFFER` — `1` (pierwszy rekord)
+albo konkretne id; otwierają profil z pominięciem listy, dwoma segmentami
+`NavigationPath` naraz (`Cel.faktury` + `SzczegolyCel.faktura(id)`).
