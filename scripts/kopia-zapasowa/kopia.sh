@@ -61,7 +61,7 @@ melduj() {
   if ! curl -fsS -m 20 -X POST "$PANEL_URL/api/backup/ping" \
       -H "Authorization: Bearer $BACKUP_PING_SECRET" \
       -H "Content-Type: application/json" \
-      -d "{\"ok\":$_ok,\"host\":\"$(hostname)\",\"powod\":\"$_powod_json\",\"tabel\":$_tabel,\"rozmiarBajtow\":$_rozmiar,\"trwaloSekund\":$_trwalo}" \
+      -d "{\"ok\":$_ok,\"host\":\"$(cat /etc/hostname_host 2>/dev/null || hostname)\",\"powod\":\"$_powod_json\",\"tabel\":$_tabel,\"rozmiarBajtow\":$_rozmiar,\"trwaloSekund\":$_trwalo}" \
       >/dev/null 2>&1
   then
     log "UWAGA: nie udało się zameldować do panelu (kopia i tak jest zrobiona)."
@@ -94,7 +94,10 @@ wykonaj_kopie() {
   # Nazwa maszyny w KAŻDYM przebiegu — jedyny sposób, żeby po miesiącach
   # jednym spojrzeniem stwierdzić, czy kopie robi NAS, czy przypadkiem Mac
   # (Docker jest na obu, a na Macu kopie powstają tylko gdy nie śpi).
-  log "Maszyna: $(hostname) | katalog: $KATALOG"
+  # Wewnątrz kontenera `hostname` zwraca jego IDENTYFIKATOR (np. 1b1e63fa6732),
+  # co nic nie mówi i przekreśla sens kontroli „czy to chodzi na NAS-ie, czy
+  # przypadkiem na Macu". Dlatego czytamy nazwę hosta podmontowaną z zewnątrz.
+  log "Maszyna: $(cat /etc/hostname_host 2>/dev/null || hostname) | katalog: $KATALOG"
   log "Zrzucam bazę…"
 
   # Jeden potok: pg_dump → gzip → szyfrowanie. Dane NIGDY nie lądują na dysku
@@ -109,7 +112,20 @@ wykonaj_kopie() {
   # a nie ogólnik. To jest różnica między „coś nie działa" a „wiem, co
   # naprawić" — czyli cały sens tego meldunku.
   BLAD_PG="$KATALOG/.blad-$ZNACZNIK.txt"
+  # `--schema=public` — zrzucamy WYŁĄCZNIE to, co należy do panelu.
+  #
+  # Bez tego pg_dump próbuje zrzucić wszystkie schematy, w tym `neon_auth`
+  # (wbudowane logowanie Neona, włączane domyślnie przez integrację
+  # z Vercelem). Konto kopia_ro nie ma tam praw, więc CAŁA kopia padała na
+  # `permission denied for schema neon_auth` — złapane przy pierwszym
+  # uruchomieniu na produkcji 2026-07-20.
+  #
+  # Sprawdzone gretem: panel NIE korzysta z neon_auth ani razu — ma własne
+  # uwierzytelnianie (ADMIN_PASSWORD + tabela device_tokens w `public`).
+  # Gdyby to się kiedyś zmieniło, ten przełącznik trzeba będzie zmienić,
+  # inaczej kopia po cichu pominie dane logowania.
   if ! pg_dump "$DATABASE_URL_RO" \
+        --schema=public \
         --no-owner --no-privileges --format=plain 2>"$BLAD_PG" \
       | gzip -9 \
       | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \

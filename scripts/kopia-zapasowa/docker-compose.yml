@@ -45,8 +45,16 @@ services:
     volumes:
       - ./kopia.sh:/kopia.sh:ro
       - ./odtworz.sh:/odtworz.sh:ro
-      # ZMIEŃ lewą stronę na realną ścieżkę udziału na Twoim NAS-ie.
-      - /volume1/kopie/leggera:/kopie
+      # Nazwa maszyny gospodarza — wewnątrz kontenera `hostname` zwraca jego
+      # identyfikator, przez co log i meldunek nie mówiły, GDZIE kopia
+      # faktycznie się wykonała.
+      - /etc/hostname:/etc/hostname_host:ro
+      # Ścieżka na NAS-ie pochodzi z pliku .env (KATALOG_NA_NASIE), a NIE jest
+      # wpisana tutaj na stałe. Powód jest praktyczny: ten plik bywa
+      # aktualizowany z repozytorium, a wpisana tu ścieżka była już raz
+      # nadpisana wartością domyślną (2026-07-20) — kopie zaczęły cicho
+      # lądować w zupełnie innym katalogu niż wybrany.
+      - ${KATALOG_NA_NASIE:-/volume1/kopie/leggera}:/kopie
 
     entrypoint: ["/bin/bash", "/kopia.sh", "--petla"]
 

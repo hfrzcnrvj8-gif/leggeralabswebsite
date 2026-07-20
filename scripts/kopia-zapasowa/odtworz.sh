@@ -49,8 +49,21 @@ case "$CEL" in
 esac
 
 echo "Odszyfrowuję i odtwarzam…"
+
+# `CREATE SCHEMA public` wycinamy ze strumienia, bo KAŻDA nowa baza Postgresa
+# ma ten schemat od początku — odtwarzanie wywalało się na pierwszej linii
+# komunikatem `schema "public" already exists`.
+#
+# Wyszło dopiero przy pierwszej próbie odtworzenia prawdziwej kopii
+# (2026-07-20). Sam zrzut był poprawny; nie dało się go tylko wgrać. To jest
+# dokładnie powód, dla którego kopii trzeba PRÓBOWAĆ odtwarzać, a nie tylko
+# sprawdzać, czy plik powstał.
+#
+# ON_ERROR_STOP=1 ZOSTAJE — chcemy wiedzieć o każdym innym błędzie. Wyciszenie
+# wszystkich błędów „żeby przeszło" zamieniłoby odtwarzanie w loterię.
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:HASLO_KOPII -in "$PLIK" \
   | gzip -dc \
+  | sed -e '/^CREATE SCHEMA public;$/d' \
   | psql "$CEL" -v ON_ERROR_STOP=1 --quiet
 
 echo "Gotowe. Sprawdź, czy dane są kompletne:"
