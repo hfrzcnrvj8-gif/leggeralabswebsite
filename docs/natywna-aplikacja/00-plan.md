@@ -148,8 +148,8 @@ Pełna specyfikacja: `inwentarz/00-uwierzytelnianie.md`.
 | **6** ✅ | **Rejestr wiadomości i rozmów** + Kalendarz — wykonane 2026-07-19, patrz „Faza 6" niżej | `leggera-hub-ios` + panel |
 | **7** ✅ | **Natywne bajery**: Face ID, Siri, widżet „co dziś", Share Extension — patrz `04-brief-natywne-bajery.md` | |
 | **8** ✅ | **Załączniki + skrzynka**: załączniki przychodzące (panel + apka), wyciszenie wątku, ekran „Subskrypcje", wysyłka odłożona — wykonane 2026-07-20, patrz „Faza 8" niżej | oba repo |
-| **9** | iPad (`NavigationSplitView` z tego samego kodu) | |
-| **10** | Reszta poziomu 2 (faktury, oferty — podgląd) | |
+| **9** | iPad (`NavigationSplitView` z tego samego kodu) — **przeskoczona**, wybór właściciela 2026-07-20 | |
+| **10** ← NASTĘPNA | Faktury i oferty w apce (podgląd, „opłacona", przypomnienie, wysyłka oferty) — patrz `06-brief-faktury-oferty.md` | |
 | **11** | macOS z tego samego rdzenia | |
 
 **Kolejność faz 7–9 zmieniona 2026-07-19 przez właściciela**, pytanego wprost,
