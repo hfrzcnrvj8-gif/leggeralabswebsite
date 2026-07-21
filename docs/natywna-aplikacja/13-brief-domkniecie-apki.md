@@ -218,6 +218,12 @@ Czego **nie** robić: stałej Wyspy Pulpitu — została odrzucona w audycie Faz
 
 ## Faza 13.4 — audyt na koniec
 
+**Ma własny brief: `16-brief-audyt-koncowy-apki.md`** (spisany 2026-07-21,
+osobny czat). Zawiera zmierzony stan wyjściowy, sprawdzenie, co z audytu
+Fazy 11½ faktycznie domknięto (A2 i A3 tak, **A1 nie — urosło z 59 do 65
+miejsc**), oraz listę rzeczy nieobejrzanych dotykiem, do jednej sesji
+z telefonem w ręku.
+
 Dopiero PO powyższych: optymalizacja, błędy, niespójne funkcje i grafiki.
 Zamówione przez właściciela wprost. Wchodzi w to lista „świadomie nie
 naprawione" z audytu Fazy 11½ — z **A1 (wspólne pole błędu)** jako największym
