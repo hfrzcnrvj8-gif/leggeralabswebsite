@@ -199,9 +199,16 @@ Kandydaci, od najsensowniejszego:
    żądanie skończyło się przy apce zepchniętej w tło (darmowe konto, bez push).
    Szczegóły, dowód i to, czego NIE dało się obejrzeć bez dotyku (rozwinięta
    Wyspa, ekran blokady), w README apki, sekcja „Odczyt zdjęcia w tle".
-2. **Wysyłka maila z kolejki** — `outbox` ma odłożoną wysyłkę, a cron Vercela
-   chodzi **raz dziennie** (patrz `apka-zalaczniki-skrzynka-faza8`). „Wyśle się
-   o 8:00" pokazane na Wyspie zamienia niewidoczne oczekiwanie w widoczny stan.
+2. ✅ **Wysyłka maila z kolejki** — ZBUDOWANE 2026-07-21. Wyspa zapala się na
+   4 h przed terminem (iOS ubija aktywność po ~8 h, więc „na jutro" nie ma jak
+   dożyć swojej godziny), a odświeżenie przy wejściu w apkę **realnie wysyła**:
+   woła `GET /api/mail/outbox/run`, tę samą trasę co cron. Brief mylił się co
+   do jednej rzeczy: to nie cron jest tu głównym mechanizmem — `GET /api/mail`
+   w panelu woła `runDueOutbox()` przy każdym wejściu w Pocztę, więc pocztę od
+   zawsze wysyłało otwarcie panelu, tylko nikt tego nie mówił na głos.
+   Odliczanie do terminu zostało wycofane po dowodzie: `isStale` nie
+   przerysowuje Wyspy, więc licznik wisiał na „0:00" i sugerował wysyłkę, która
+   nie nastąpiła. Szczegóły w README apki, sekcja „Kolejka wysyłki na Wyspie".
 3. **Rozmowa z leadem w toku** → po rozłączeniu „Zaloguj rozmowę" jednym
    stuknięciem. Spina się z punktem 2 Fazy 13.2 i z regułą „wszystko trafia do
    historii konta".

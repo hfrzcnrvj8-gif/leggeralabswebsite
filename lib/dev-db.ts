@@ -812,6 +812,37 @@ async function ensureSeeded(): Promise<void> {
 
       await raw(`UPDATE mail_state SET last_seen_uid = 112 WHERE id = 'default'`, []);
 
+      // — Kolejka wysyłki odłożonej (Faza 8 panelu / Faza 13.3 apki) —
+      // Ta sama lekcja co przy kontakcie nurture wyżej: wiersz w `mail_outbox`
+      // powstaje WYŁĄCZNIE przez „wyślij później" w edytorze, a lokalnie nikt
+      // maila nie odkłada — więc ekran „Zaplanowane" i Wyspa kolejki w apce
+      // były nie do obejrzenia w żadnym środowisku deweloperskim.
+      //
+      // `mail_outbox` ma własny schemat, nieciągnięty przez `ensureMailSchema`.
+      // Termin za 45 minut, bo apka zapala Wyspę dopiero, gdy do wysyłki
+      // zostało mniej niż 4 h — wiersz „na jutro" wyglądałby jak niedziałająca
+      // funkcja. Drugi wiersz jest wysłany: kolejka ma pokazywać także to, co
+      // już poszło, inaczej „zniknęło" jest nie do odróżnienia od „nie
+      // zadziałało".
+      const { ensureMailOutboxSchema } = await import("./db");
+      await ensureMailOutboxSchema();
+      await raw(
+        `INSERT INTO mail_outbox (id, to_addr, subject, body_text, jezyk, send_at, status) VALUES
+           ($1,$2,$3,$4,'pl', now() + interval '45 minutes','queued')`,
+        [
+          randomUUID(), "biuro@kowalski.pl", "Podsumowanie rozmowy i następne kroki",
+          "Dzień dobry, w załączeniu podsumowanie naszej rozmowy i propozycja terminów.",
+        ]
+      );
+      await raw(
+        `INSERT INTO mail_outbox (id, to_addr, subject, body_text, jezyk, send_at, status, sent_at) VALUES
+           ($1,$2,$3,$4,'pl', now() - interval '1 day','sent', now() - interval '1 day')`,
+        [
+          randomUUID(), "kontakt@zlotyklos.pl", "Oferta — automatyzacja zamówień",
+          "Dzień dobry, przesyłam ofertę zgodnie z ustaleniami.",
+        ]
+      );
+
       // Centrum powiadomień (Moduł 24) — kilka zdarzeń w kronice, żeby dzwonek
       // w sidebarze dało się w ogóle obejrzeć lokalnie. W prawdziwym panelu
       // wpisy powstają z hooków (formularz, sync poczty, cron), a tych w dev
