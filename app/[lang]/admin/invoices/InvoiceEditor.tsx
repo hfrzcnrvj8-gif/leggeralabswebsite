@@ -526,9 +526,16 @@ export function InvoiceEditor({
   const deletePayment = useCallback(
     async (paymentId: string) => {
       setPayments((prev) => prev.filter((p) => p.id !== paymentId));
-      await fetch(`/api/invoices/${id}/payments/${paymentId}`, { method: "DELETE" });
+      const res = await fetch(`/api/invoices/${id}/payments/${paymentId}`, { method: "DELETE" });
+      if (res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { status?: Invoice["status"] };
+        if (data.status) {
+          setInvoice((prev) => (prev && prev.status !== data.status ? { ...prev, status: data.status as Invoice["status"] } : prev));
+          onChange?.();
+        }
+      }
     },
-    [id]
+    [id, onChange]
   );
 
   const loadZaliczkowe = useCallback(async () => {
