@@ -190,9 +190,15 @@ ubija aktywność po ~8 h.
 
 Kandydaci, od najsensowniejszego:
 
-1. **Przetwarzanie paragonu / wizytówki** — OCR lokalnym modelem trwa
-   zauważalnie, a dziś nie widać, że cokolwiek się dzieje. Krótka aktywność
-   z postępem i wynikiem to podręcznikowe użycie Wyspy.
+1. ✅ **Przetwarzanie paragonu / wizytówki** — ZBUDOWANE 2026-07-21
+   (`15-brief-faza13-3-wyspa-ocr.md`). Odczyt przeniesiony na **sesję w tle**
+   (`URLSessionConfiguration.background`), bo bez tego Wyspa zamarzłaby razem
+   z uśpioną apką; wynik potrafi wrócić do apki obudzonej przez system, a gdy
+   iOS ją ubił — czeka na dysku i otwiera gotowy formularz. **Wykonalność
+   rozstrzygnięta eksperymentem na telefonie, nie założeniem**: 61-sekundowe
+   żądanie skończyło się przy apce zepchniętej w tło (darmowe konto, bez push).
+   Szczegóły, dowód i to, czego NIE dało się obejrzeć bez dotyku (rozwinięta
+   Wyspa, ekran blokady), w README apki, sekcja „Odczyt zdjęcia w tle".
 2. **Wysyłka maila z kolejki** — `outbox` ma odłożoną wysyłkę, a cron Vercela
    chodzi **raz dziennie** (patrz `apka-zalaczniki-skrzynka-faza8`). „Wyśle się
    o 8:00" pokazane na Wyspie zamienia niewidoczne oczekiwanie w widoczny stan.
