@@ -164,41 +164,64 @@ zrzut po ~45–95 s (N1: limit zasobu 45 s + czas własnej nawigacji furtki).
 Panel lokalny (`npm run dev`) żywy przez cały czas, niepotrzebny do tego testu
 (blackhole nigdy nie dochodzi do panelu).
 
-**14 z 16 ekranów obejrzano BEZPOŚREDNIO w stanie awarii, zrzutem ekranu**:
+**15 z 16 ekranów obejrzano BEZPOŚREDNIO w stanie awarii, zrzutem ekranu**:
 Leady, Poczta, Projekty, Pulpit, Klienci (przez Więcej), Rejestr, Notatnik,
 Koszty, Powiadomienia, Faktury, Oferty, Statystyki, Subskrypcje, Szablony,
-Zaplanowane — każdy pokazuje „Nie udało się wczytać" / „Panel nie odpowiedział
-na czas. Spróbuj jeszcze raz." zamiast starego, kłamiącego pustego stanu.
-(To piętnaście nazw, bo Poczta doliczona raz mimo trzech osobnych miejsc w
-kodzie.)
+Zaplanowane, Szukaj — każdy pokazuje „Nie udało się wczytać"/„wyszukać" /
+„Panel nie odpowiedział na czas. Spróbuj jeszcze raz." zamiast starego,
+kłamiącego pustego stanu. (Szesnaście nazw, bo Poczta doliczona raz mimo
+trzech osobnych miejsc w kodzie.)
 
-Dodatkowo zweryfikowano `PasekKomunikatow` (kolejka w chrome) — sam mechanizm
-się kompiluje i renderuje (sprawdzone budową + przeglądem kodu, identyczny
-wzorzec co sprawdzony `odmowaBramki`), ale **nie złapano go na żywo zrzutem**:
-jedyna furtka do wywołania akcji offline bez dotyku (`LEGGERA_DEV_STOPER=1`)
-wymaga realnych danych projektu z zaplecza, których blackhole z definicji nie
-dostarcza, więc furtka nic nie robi w tym scenariuszu — a baner znika sam po
-4 s, więc trafienie w okno zrzutem bez dotyku jest kwestią szczęścia, nie
-projektu. To jest luka w narzędziach weryfikacji, nie w kodzie.
+### Dwie nowe furtki DEBUG, dopisane żeby domknąć resztę weryfikacji
+
+- **`LEGGERA_DEV_SEARCH=<fraza>`** (`SzukajView.swift`) — wpisuje frazę do
+  `fraza` w `onAppear`, co uruchamia istniejący `.onChange` (debounce +
+  `store.szukaj`) tą samą drogą co prawdziwe pisanie. Zweryfikowane: fraza
+  „kowalski" → „Nie udało się wyszukać" / „Panel nie odpowiedział na czas."
+- **`LEGGERA_DEV_KOMUNIKAT_TEST=1`** (`GlownaBelka.swift`) — woła
+  `store.zglos(_:)` wprost, tą samą metodą, którą `wykonaj` (i osiem ręcznych
+  miejsc) wywołuje przy prawdziwej odmowie akcji. Nie testuje SIECI (to już
+  sprawdzone przeglądem: `wykonaj`/`zglos` to jedna, prosta ścieżka), tylko
+  RENDEROWANIE baneru i jego auto-znikanie — czego żadna furtka offline nie
+  mogła dotąd sprawdzić, bo prawdziwe akcje `.akcja` w większości wymagają
+  rekordu z zaplecza (patrz `LEGGERA_DEV_STOPER`, niedziałająca offline).
+
+**Fałszywy alarm po drodze, wart zapisania.** Pierwsze cztery próby zrzutu
+banera (`LEGGERA_DEV_STOPER=1` bez danych, potem `KOMUNIKAT_TEST` przy
+`sleep 2`/`sleep 3`/sekwencja `sleep 1..7`) nie pokazały niczego — wyglądało
+to na martwy kod. Dorzucone tymczasowo `print()` z `Date().timeIntervalSince1970`
+w `zglos`/`odrzucKomunikat`/`body` (usunięte po weryfikacji) pokazały coś
+innego: baner pojawiał się i znikał DOKŁADNIE zgodnie z projektem — cykl
+dodanie→4,0–4,2 s→zniknięcie, co do setnej sekundy. Winne były MOJE osobne
+wywołania narzędzi: `xcrun simctl launch` w jednym poleceniu Bash i
+`sleep N; screenshot` w NASTĘPNYM osobnym poleceniu zostawiają między sobą
+nieprzewidywalną, kilkusekundową przerwę (czas obsługi wywołania), która
+sama w sobie już przekraczała 4-sekundowe okno banera — więc `sleep 2`
+w drugim poleceniu w rzeczywistości odpalał się dobrze PO zniknięciu banera.
+Naprawa: `launch` + `sleep 1,5` + `screenshot` w JEDNYM poleceniu Bash, bez
+przerwy międzyoperacyjnej. Zrzut: czerwony trójkąt + „Testowy komunikat —
+panel nie odpowiedział na czas." w glass-banerze u góry ekranu, dokładnie
+jak zaprojektowano. **Lekcja: krótkotrwały (kilkusekundowy) efekt UI trzeba
+łapać w JEDNYM atomowym poleceniu powłoki, nie w dwóch osobnych wywołaniach
+narzędzia z nieznaną przerwą między nimi — inaczej brak zrzutu wygląda jak
+martwy kod, a jest artefaktem sposobu weryfikacji.**
 
 ## Czego NIE zweryfikowano zrzutem (i dlaczego)
 
-- **SzukajView** — trzeci wariant wymaga wpisanej frazy (`fraza.count >= 2`),
-  a żadna furtka `LEGGERA_DEV_*` nie wstrzykuje tekstu do pola wyszukiwania
-  (Claude nie pisze na klawiaturze symulatora). Kod jest tym samym wzorcem co
-  reszta i przeszedł build — ale ekran w stanie błędu nie został obejrzany.
 - **Historia/Logi w LeadDetailView i KlientDetailView** — trzeci wariant jest
-  pod zakładką segmentowanego pickera (Wizytówka/Historia/Akcje/Logi), a
-  otwarcie PROFILU idzie furtką (`LEGGERA_DEV_OPEN_LEAD`), ale przełączenie
-  zakładki wewnątrz już wymaga dotyku. Kod przeszedł build i jest tym samym
-  wzorcem.
-- **Kolejka w chrome (`PasekKomunikatow`) w stanie z komunikatem** — patrz
-  wyżej.
+  pod zakładką segmentowanego pickera (Wizytówka/Historia/Akcje/Logi).
+  Otwarcie PROFILU idzie furtką (`LEGGERA_DEV_OPEN_LEAD=1`), ale ta furtka
+  sama zależy od `store.leady` (wybiera „pierwszy z listy" po
+  `.onChange(of: store.leady.count)`) — na blackhole `store.leady` nigdy nie
+  przestaje być puste, więc furtka nie ma czego otworzyć. Naprawa wymagałaby
+  furtki otwierającej profil na SYNTETYCZNYM, niepobranym rekordzie (obejście
+  zależności od listy) — świadomie tego nie dodałem: to nowa powierzchnia
+  kodu produkcyjnego wyłącznie pod test, a ryzyko samej poprawki (identyczny
+  wzorzec `blad:` co w 14 already-verified ekranach, ten sam `store.blad(...)`)
+  jest już bardzo niskie. Kod przeszedł build.
 
-Cztery pozycje, wszystkie z tego samego powodu: brak furtki tekstowej/dotykowej
-tam, gdzie trzeci wariant siedzi za interakcją, nie za samym wejściem na
-ekran. Warto rozważyć furtkę `LEGGERA_DEV_SEARCH=<fraza>` przy następnej
-okazji, jeśli SzukajView znowu będzie trzeba zweryfikować offline.
+Jedna pozycja została z pierwotnych czterech — z tego samego powodu co zawsze:
+furtka wymaga danych z zaplecza, których blackhole nie dostarczy.
 
 ## Czego świadomie NIE ruszono
 
