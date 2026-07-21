@@ -3,10 +3,19 @@ import { getSql, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { DOC_LANGS } from "@/lib/documents";
+import { CONTRACT_CLAUSES, NDA_CLAUSES } from "@/lib/contracts";
 
 export const runtime = "nodejs";
 
-/** GET /api/contracts/:id — dokument. Admin-only. */
+/** GET /api/contracts/:id — dokument. Admin-only.
+ *
+ * `clauses` dokłada się tu (nie tylko w `ContractPrint.tsx`) od 2026-07-21 —
+ * apka woła WYŁĄCZNIE ten endpoint (nie ma dostępu do publicznego podglądu
+ * dla szkiców, ten świadomie odrzuca `status = 'Szkic'`, patrz
+ * `app/api/contracts/public/[token]/route.ts`), więc bez tego pola profil
+ * umowy w telefonie pokazywał tylko przycisk „Wyślij", bez żadnej treści do
+ * przejrzenia przed wysyłką. Stałe klauzule płyną z jednego miejsca
+ * (`lib/contracts.ts`) — apka ich nie duplikuje ani nie liczy sama. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -15,7 +24,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const rows = await sql`SELECT * FROM contracts WHERE id = ${id};`;
   const contract = rows[0];
   if (!contract) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ contract: { ...contract, cena: Number(contract.cena) } });
+  const clauses = contract.typ === "nda" ? NDA_CLAUSES : CONTRACT_CLAUSES;
+  return NextResponse.json({ contract: { ...contract, cena: Number(contract.cena) }, clauses });
 }
 
 /** PATCH /api/contracts/:id — aktualizacja pól. */
