@@ -363,6 +363,30 @@ function isOfficialDomain(fromAddr: string): boolean {
 const INVOICE_SUBJECT = /\b(faktura|faktury|fakturę|rachunek|rachunki|invoice|\d*\s*FV[\s/-]|nota\s+ksi[eę]gowa|paragon|duplikat\s+faktury)\b/i;
 
 /**
+ * Czy to raport, który panel wysłał SAM DO SIEBIE.
+ *
+ * Raport dzienny (`/api/leads/notify`) i przypomnienia idą na `NOTIFY_TO`,
+ * czyli na tę samą skrzynkę, którą synchronizujemy — wracają więc jako zwykły
+ * przychodzący mail ze statusem 'nowy'. A `hub/today` liczy każdy taki mail
+ * jako „pocztę do obsługi".
+ *
+ * Skutek, złapany dopiero 2026-07-21 na telefonie właściciela: **licznik spraw
+ * rósł o jeden każdego ranka o 8:00** — za mail, który jest wyłącznie
+ * powiadomieniem o tym liczniku. Na dwie pozycje Pulpitu jedną stanowił jego
+ * własny raport. Audyt tego nie widział, bo dev-baza nie ma skrzynki IMAP.
+ *
+ * Rozpoznajemy po OBU warunkach naraz — sam prefiks nie wystarczy, bo klient
+ * też może napisać „[Panel] nie działa mi logowanie" i taki mail musi zostać
+ * „nowy".
+ */
+export function isSelfReport(fromAddr: string, subject: string, ownAddr: string): boolean {
+  const from = (fromAddr || "").trim().toLowerCase();
+  const own = (ownAddr || "").trim().toLowerCase();
+  if (!own || !from || from !== own) return false;
+  return /^\s*\[panel\]/i.test(subject || "");
+}
+
+/**
  * Do jakiej szufladki trafia wiadomość. Kolejność reguł to hierarchia
  * ważności, nie przypadek:
  *  1. urzędowe — ZUS/US/bank mają pierwszeństwo NAWET nad masówką, bo bank

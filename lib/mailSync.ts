@@ -26,6 +26,7 @@ import {
 import {
   classifyMail,
   isNoiseMail,
+  isSelfReport,
   mailSummaryLine,
   extractEmailAddress,
   normalizeThreadSubject,
@@ -707,7 +708,12 @@ export async function backfillCategories(): Promise<{ updated: number }> {
       hints,
       knownContact: Boolean(r.client_id || r.lead_id),
     });
-    const newStatus = kategoria === "reklama" && r.status === "nowy" ? "zignorowany" : r.status;
+    // Ta sama reguła co przy zapisie nowej wiadomości — patrz `isSelfReport`.
+    // Bez tego raporty panelu, które już leżą w skrzynce, zostałyby na zawsze
+    // „nowe" i dalej podbijały licznik Pulpitu.
+    const wlasnyRaport = isMailboxConfigured() && isSelfReport(r.from_addr, r.subject, mailboxConfig().user);
+    const newStatus =
+      (kategoria === "reklama" || wlasnyRaport) && r.status === "nowy" ? "zignorowany" : r.status;
 
     await sql`
       UPDATE mail_messages
@@ -859,7 +865,13 @@ async function saveIncoming(sql: ReturnType<typeof getSql>, msg: FetchedMessage,
   // Uwaga: NIE używamy tu `noise`, tylko kategorii — bank czy faktura potrafią
   // przyjść z nagłówkami masówki, a te muszą zostać "nowe" (patrz kolejność
   // reguł w classifyMail).
-  const status = kategoria === "reklama" ? "zignorowany" : "nowy";
+  // Raport, który panel wysłał sam do siebie, też wchodzi od razu jako
+  // „zignorowany" — ale kategorię zostawiamy prawdziwą. Wrzucenie go do
+  // „Reklamy" byłoby wygodniejsze (ta ścieżka już istnieje), tylko że
+  // etykieta kłamałaby o tym, czym ten mail jest. Powód, dla którego to
+  // w ogóle robimy, stoi przy `isSelfReport`.
+  const wlasnyRaport = isSelfReport(msg.fromAddr, msg.subject, mailboxConfig().user);
+  const status = kategoria === "reklama" || wlasnyRaport ? "zignorowany" : "nowy";
 
   const threadId = resolveThreadId(
     { message_id: msg.messageId, inReplyTo: msg.inReplyTo, refs: msg.refs, subject: msg.subject, fromAddr: msg.fromAddr, toAddr: msg.toAddr, ccAddr: msg.ccAddr, receivedAt: msg.receivedAt },
