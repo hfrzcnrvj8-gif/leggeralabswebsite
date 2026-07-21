@@ -219,6 +219,68 @@ którego apka dotąd nigdzie nie ustawiała — kolejne „pole jest, nikt go ni
 Właściciel zapytał, czy tak miało być. Tak — to brief 18, świadomie odłożony
 do osobnego czatu (ustalenie z początku tej sesji).
 
+## Runda trzecia — wydania 55 i 56
+
+### „Na dwie raty" — dopiero trzecie podejście trafiło
+
+Dwa pierwsze celowały obok i warto wiedzieć, w co dokładnie:
+
+| Podejście | Co poprawiłem | Dlaczego nie pomogło |
+|---|---|---|
+| 1 (wyd. 52) | przejście pojawiania się treści | treść i tak przychodziła w dwóch momentach |
+| 2 (wyd. 54) | `async let` zamiast `await` po `await` | szybciej, ale **równolegle ≠ jednocześnie** — dwie odpowiedzi nadal wracają osobno |
+| 3 (wyd. 55) | **jeden próg renderowania** | trafione |
+
+Prawdziwa przyczyna była w kształcie widoku, nie w sieci:
+
+```swift
+private var projekt: Projekt? { szczegoly?.projekt ?? store.projekty.first {…} }
+if let projekt { nagłówek; czasPracy; status; klient      // z PAMIĘCI — 0 ms
+    if let szczegoly { zadania; kamienie; zasoby; … }     // dopiero po sieci
+```
+
+Wejście z listy dawało `projekt` natychmiast, więc pół strony stało od razu.
+**Ekran był z założenia dwuetapowy.** Teraz próg jest jeden (`szczegoly`), a lista
+Projektów dostała własny (`komplet`), bo jej wiersze i znacznik stopera to dwie
+różne trasy. Koszt: krótki kręciołek przy pierwszym wejściu; powrót na
+odwiedzony rekord jest natychmiastowy, bo komplet siedzi w pamięci.
+
+**Lekcja:** gdy właściciel mówi „doskakuje etapami", najpierw policz **progi
+renderowania w widoku**, potem `await`-y, a animacje na końcu. Ja zrobiłem
+odwrotnie i kosztowało to dwa wydania.
+
+### Powiadomienia — regresja wprowadzona przez własną poprawkę
+
+Wersja 54 działała (przełączenie zakładki), ale „wstecz" wracało do korzenia
+obcej zakładki — bo **iOS nie ma cofania między zakładkami**. Wersja 55 miała
+to naprawić linkiem kierowanym wartością i **przestała przenosić w ogóle**:
+`navigationDestination(for: SzczegolyCel.self)` istnieje wyłącznie w stosie
+„Więcej", a `DzwonekPaska` otwiera Powiadomienia w tym stosie, w którym akurat
+jesteśmy. Link bez zarejestrowanego celu **nie robi nic — bez błędu i bez śladu**.
+
+Wersja 56: link z zamknięciem (`WidokCelu`), działa w każdym stosie, „wstecz"
+wraca do Powiadomień. Zniknął też `simultaneousGesture`, który zjadał aktywację
+linku w `List` — wpis gaśnie teraz przy otwarciu celu (`.task` na widoku celu).
+
+### Dev-seed kłamał przy weryfikacji
+
+Trzy z czterech powiadomień w `lib/dev-db.ts` miały `entity_id = NULL`, więc apka
+**poprawnie** nie robiła z nich odnośnika — a zrzut wyglądał jak dowód usterki.
+Produkcja podaje `entityId` przy każdym z dziesięciu rodzajów (`notify({...})`).
+Seed poprawiony. To druga odsłona ustalenia N3 z audytu: **dev-seed, który nie
+odwzorowuje produkcji, testuje coś, czego nie ma.**
+
+### Przycisk wyboru zadania — trzy przyczyny, jedna moja
+
+Renderowanie naprawiła stała geometria (wyd. 55), ale rezerwacja miejsca na
+plakietkę **tylko po prawej** zsunęła ikonę z osi — zgłoszone zrzutem
+(„popraw, żeby było symetrycznie"). Wersja 56: plakietka jest **nakładką**, nie
+elementem rzędu; kapsuła to koło z ikoną na środku.
+
+Zmierzone na zrzucie z symulatora, nie ocenione okiem: kapsuła **155 × 155 px**,
+środek ikony w osi X = **93,5** = środek kapsuły. W pionie 2,5 px różnicy —
+to własny środek ciężkości symbolu „warstw", nie układ.
+
 ## Czego ta faza NIE zrobiła
 
 - **Nie przeczesano wszystkich 53 widoków** pod kątem „treść doskakuje przy
