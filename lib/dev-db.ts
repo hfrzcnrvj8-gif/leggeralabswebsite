@@ -189,6 +189,14 @@ async function ensureSeeded(): Promise<void> {
       // żeby trend miał więcej niż jeden punkt. `ended_at` niepuste = pomiar
       // zakończony (stats pomija działający stoper).
       {
+        // `time_entries` ma WŁASNY schemat (`ensureTimeSchema`), nieciągnięty
+        // przez `ensureHubSchema` — dokładnie jak umowy, faktury i koszty
+        // niżej. Bez tej linii seeder padał na nieistniejącej tabeli, a że
+        // `seedPromise` jest cache'owany, WSZYSTKIE `/api/*` zwracały 500 i
+        // panel lokalny wyglądał na całkowicie zepsuty. Wpis czasu doszedł
+        // 2026-07-20 razem ze statystykami, `ensureTimeSchema()` — nie.
+        const { ensureTimeSchema } = await import("./db");
+        await ensureTimeSchema();
         const czasWpisy: [number, number][] = [
           [-2, 95], [-6, 140], [-9, 60],   // bieżący miesiąc
           [-38, 120], [-45, 80],           // poprzedni miesiąc

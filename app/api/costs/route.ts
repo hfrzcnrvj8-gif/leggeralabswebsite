@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureCostsSchema } from "@/lib/db";
+import { getSql, ensureCostsSchema, ensureLinksSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { costBrutto, COST_CATEGORIES, VAT_RATES } from "@/lib/costs";
 
@@ -10,6 +10,12 @@ export const runtime = "nodejs";
 export async function GET() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureCostsSchema();
+  // `costs.client_id` / `costs.lead_id` zakłada `ensureLinksSchema()`, nie
+  // `ensureCostsSchema()` — a niżej je SELECT-ujemy. Bez tej linii lista
+  // kosztów zwraca 500 (42703) na każdej bazie, na której migracja „links"
+  // jeszcze nie poszła. Sąsiedni `[id]/route.ts` robił to poprawnie od
+  // początku; ta trasa została pominięta (złapane audytem Fazy 13.4).
+  await ensureLinksSchema();
   const sql = getSql();
   const rows = await sql`
     SELECT c.id, c.dostawca_nazwa, c.dostawca_nip, c.kategoria, c.opis, c.data_wydatku,
