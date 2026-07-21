@@ -864,9 +864,23 @@ async function ensureSeeded(): Promise<void> {
       await raw(
         `INSERT INTO notifications (id, kind, title, body, entity, entity_id, dedupe_key, read_at, created_at) VALUES
            ($1,'lead_new','Nowe zgłoszenie ze strony — Piekarnia Złoty Kłos','Jan Kowalski · jan@zlotyklos.pl','lead',$2,'dev:lead_new',NULL, now() - interval '35 minutes'),
-           ($3,'invoice_paid','Faktura 3/2026 w pełni opłacona','Wpłata 4 920,00 PLN domknęła należność.','invoice',NULL,'dev:invoice_paid',NULL, now() - interval '5 hours'),
-           ($4,'mail_nudge','Brak odpowiedzi od Nordwind Studio','Oferta na wdrożenie automatyzacji — 8 dni ciszy od Twojej wiadomości.','mail',NULL,'dev:mail_nudge', now() - interval '1 day', now() - interval '2 days'),
-           ($5,'recurring_cost','Wygenerowano koszt cykliczny — Hosting az.pl','az.pl · 49,20 zł brutto · sprawdź kwotę przed opłaceniem.','cost',NULL,'dev:recurring_cost', now() - interval '3 days', now() - interval '4 days')`,
+           ($3,'invoice_paid','Faktura FV 2/2026 w pełni opłacona','Wpłata domknęła należność.','invoice',
+             (SELECT id FROM invoices WHERE numer = 'FV 2/2026' LIMIT 1),'dev:invoice_paid',NULL, now() - interval '5 hours'),
+           ($4,'mail_nudge','Brak odpowiedzi na ofertę','Oferta na wdrożenie automatyzacji — 8 dni ciszy od Twojej wiadomości.','mail',
+             (SELECT id FROM mail_messages WHERE subject = 'Oferta na wdrożenie automatyzacji' ORDER BY received_at LIMIT 1),'dev:mail_nudge', now() - interval '1 day', now() - interval '2 days'),
+           ($5,'recurring_cost','Wygenerowano koszt cykliczny','Serwery sp. z o.o. — sprawdź kwotę przed opłaceniem.','cost',
+             (SELECT id FROM costs WHERE dostawca_nazwa = 'Serwery sp. z o.o.' LIMIT 1),'dev:recurring_cost', now() - interval '3 days', now() - interval '4 days')`,
+        // **`entity_id` musi być PRAWDZIWE.** Do 2026-07-21 trzy z czterech
+        // wpisów miały tu `NULL` i seed cicho kłamał: apka poprawnie nie robi
+        // odnośnika z powiadomienia bez identyfikatora, więc weryfikacja
+        // „kliknięcie prowadzi do rekordu" wychodziła NEGATYWNIE na danych,
+        // a nie na kodzie. Produkcja podaje `entityId` przy każdym z dziesięciu
+        // rodzajów (`notify({...})`) — seed ma to odwzorowywać, inaczej testuje
+        // coś, czego w prawdziwym panelu nie ma.
+        //
+        // Podzapytania zamiast zmiennych, bo identyfikatory faktury i kosztu
+        // powstają w głębszych blokach i nie są tu w zasięgu.
+        //
         // `leadB` = Piekarnia Złoty Kłos, jedyny seedowy lead ze źródłem
         // „Formularz na stronie" — czyli dokładnie ten, o którym hook w
         // POST /api/leads faktycznie by zadzwonił. Kliknięcie w to
