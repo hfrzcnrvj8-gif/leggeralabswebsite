@@ -183,6 +183,29 @@ async function ensureSeeded(): Promise<void> {
         }
       }
 
+      // — Wpisy czasu pracy (dla Statystyk / paczka 3) —
+      // Bez nich KPI „Godziny pracy" jest 0, a sparkline pusty — nie dałoby się
+      // obejrzeć ani wskaźnika, ani wykresu trendu. Rozłożone na DWA miesiące,
+      // żeby trend miał więcej niż jeden punkt. `ended_at` niepuste = pomiar
+      // zakończony (stats pomija działający stoper).
+      {
+        const czasWpisy: [number, number][] = [
+          [-2, 95], [-6, 140], [-9, 60],   // bieżący miesiąc
+          [-38, 120], [-45, 80],           // poprzedni miesiąc
+        ];
+        for (const [dni, minut] of czasWpisy) {
+          // Jawne rzutowania: ten sam `$3` trafia i do DATE (`entry_date`),
+          // i do TIMESTAMPTZ (`started_at`/`ended_at`) — bez castów Postgres
+          // nie wydedukuje jednego typu dla parametru i wywala 42P08, co zatruwa
+          // cały seeder (pułapka z CLAUDE.md: błąd w seedzie = 500 na wszystkim).
+          await raw(
+            `INSERT INTO time_entries (id, project_id, source, entry_date, started_at, ended_at, minutes, note)
+             VALUES ($1,$2,'manual',$3::date,$3::timestamptz,$3::timestamptz,$4,'dev seed')`,
+            [randomUUID(), projectIds[0], iso(dni), minut]
+          );
+        }
+      }
+
       // — Umowa wisząca bez podpisu (Moduł 31) —
       // Bez tego sekcji „Umowy czekające na podpis" na Pulpicie i w dziennym
       // mailu NIE DA SIĘ zobaczyć lokalnie: seed nie miał ani jednej umowy, a
