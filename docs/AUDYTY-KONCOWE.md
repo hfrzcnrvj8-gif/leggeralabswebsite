@@ -7,6 +7,14 @@
 
 ## Kiedy to uruchamiamy
 
+> ### ✅ BRAMKA OTWARTA — 2026-07-22
+>
+> Warunek został spełniony. Moduły panelu domknięte (otwarty został tylko
+> Moduł 16 „wsparcie posprzedażowe", świadomie odłożony do realnej potrzeby),
+> fazy aplikacji natywnej domknięte, Moduły 37 i 38 zamknięte tego samego dnia.
+> **Audyty ruszają w kolejności wg ryzyka — zaczyna Audyt 4.**
+> Brief wykonawczy: `docs/plany-modulow/39-audyt-obserwowalnosc.md`.
+
 Po domknięciu **obu** rzeczy naraz:
 
 - wszystkie moduły panelu (`docs/plany-modulow/`),
@@ -33,7 +41,7 @@ To są **dwa różne cele** i trzeba je rozdzielić, bo wymagają czego innego:
    procedury odtworzenia.
 
 Drugi jest dziś **wyraźnie słabszy** i to on wymaga najwięcej pracy. Panel ma
-89 miejsc logujących błędy, ale nie ma niczego, co by je zbierało, przechowywało
+**95** miejsc logujących błędy, ale nie ma niczego, co by je zbierało, przechowywało
 i o nich powiadamiało. Szczegóły w Audycie 4.
 
 ## Zasady prowadzenia (wnioski z trzech poprzednich audytów)
@@ -70,7 +78,8 @@ z tych kluczy wycieknie.
   szczególnie KSeF i skrzynka az.pl.
 - **Rotacja.** Czy da się wymienić każdy sekret bez przestoju? Spisz procedurę
   dla trzech najważniejszych: bazy, skrzynki, hasła administratora.
-- **Powierzchnia ataku tras API.** 137 tras. Sprawdź, czy KAŻDA zaczyna się od
+- **Powierzchnia ataku tras API.** **148 tras / 210 uchwytów** (74 GET, 78 POST,
+  33 DELETE, 25 PATCH), stan 2026-07-22. Sprawdź, czy KAŻDA zaczyna się od
   `isAuthed()` albo świadomie jest publiczna (formularz kontaktowy, podpis
   oferty przez token). Trasy publiczne wypisz jawnie — to najkrótsza lista,
   jaką warto znać na pamięć.
@@ -88,7 +97,7 @@ z tych kluczy wycieknie.
 **Pytanie:** jakie dane trzymamy, jak długo, gdzie się kopiują i czy umiemy je
 usunąć na żądanie.
 
-- **Mapa danych osobowych.** Które z 44 tabel zawierają dane osób? Dokąd te
+- **Mapa danych osobowych.** Które z **49** tabel zawierają dane osób? Dokąd te
   dane wyciekają dalej: kopie na NAS-ie, logi Vercela, maile, KSeF, lokalny
   model AI.
 - **Retencja.** Poczta ma 24 miesiące, kopie 7 dni + 4 tygodnie. A leady,
@@ -135,7 +144,7 @@ Stan na 2026-07-20, sprawdzony, nie założony:
 
 | Co | Stan |
 |---|---|
-| Miejsc logujących błędy w kodzie | 89 (`console.error`) |
+| Miejsc logujących błędy w kodzie | **95** (`console.error`) + 18 (`log`/`warn`) — zmierzone ponownie 2026-07-22 |
 | System zbierający te błędy | **brak** |
 | Powiadomienie, gdy coś padnie | **tylko dla kopii zapasowych** |
 | Retencja logów | logi Vercela na planie Hobby — **liczona w godzinach** |
@@ -181,8 +190,9 @@ Do rozstrzygnięcia w audycie:
 
 # Audyt 6 — Poprawność kodu i dług techniczny
 
-**Największa pojedyncza słabość: 319 plików, 137 tras API i ZERO testów
-automatycznych.**
+**Największa pojedyncza słabość: 342 pliki, 148 tras API i ZERO testów
+automatycznych** (zmierzone ponownie 2026-07-22 — `package.json` nie ma nawet
+skryptu `test`).
 
 Cała weryfikacja w tym projekcie jest ręczna — `curl`, zrzuty ekranu,
 oglądanie. Działa to zaskakująco dobrze (wyłapało wszystkie poważne błędy),
@@ -197,7 +207,7 @@ natknie.
   **Nie testy interfejsu** — tam ręczne oglądanie zrzutów jest skuteczniejsze.
 - **Parytet panel ↔ apka.** Każda reguła istniejąca w dwóch miejscach jest
   kandydatem na rozjazd. Zrób ich listę.
-- **`lib/db.ts` ma 2177 linii.** Rozważ podział — ale tylko jeśli utrudnia
+- **`lib/db.ts` ma 2392 linie.** Rozważ podział — ale tylko jeśli utrudnia
   pracę, nie dla samej liczby.
 - **Zależności.** 18 produkcyjnych. Sprawdź nieaktualne i takie ze znanymi
   podatnościami.
