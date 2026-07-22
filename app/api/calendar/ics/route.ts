@@ -31,11 +31,20 @@ export async function GET(req: NextRequest) {
   const sql = getSql();
   // Okno -30/+365 dni od dziś — wystarczające do subskrypcji bez ładowania
   // całej, potencjalnie wieloletniej historii wydarzeń.
+  //
+  // Serie NIE są tu rozwijane na wystąpienia — schodzą jako jeden VEVENT
+  // z RRULE (patrz `buildICS()`), więc okno dotyczy tylko tego, czy seria
+  // jeszcze trwa, a nie kiedy się zaczęła. Cotygodniowy przegląd założony
+  // dwa lata temu ma dalej wejść do feedu.
   const from = addDaysLocalISO(-30);
   const to = addDaysLocalISO(365);
   const rows = (await sql`
     SELECT * FROM events
-    WHERE data <= ${to}::date AND COALESCE(data_koniec, data) >= ${from}::date
+    WHERE data <= ${to}::date
+      AND (
+        COALESCE(data_koniec, data) >= ${from}::date
+        OR (powtarzanie IS NOT NULL AND (powtarzanie_do IS NULL OR powtarzanie_do >= ${from}::date))
+      )
     ORDER BY data ASC;
   `) as unknown as HubEvent[];
 

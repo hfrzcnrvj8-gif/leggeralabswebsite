@@ -516,6 +516,26 @@ async function createHubSchema(): Promise<void> {
   // pamięta wybór, żeby przetrwał edycję z innego urządzenia.
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS alert_minut_przed INTEGER;`;
 
+  // Powtarzanie (2026-07-22, `docs/natywna-aplikacja/28-...`). Ten sam komplet
+  // trzech kolumn dostają `reminders` — jeden mechanizm dla obu modułów, patrz
+  // `lib/recurrence.ts`.
+  //
+  // W bazie zostaje JEDEN wiersz-wzorzec: `data` to pierwsze wystąpienie,
+  // a kolejne liczy się w locie (`rozwinWystapienia()`). Nie materializujemy
+  // wystąpień jako osobnych wierszy — inaczej „zmień godzinę całej serii"
+  // byłoby UPDATE-em po kilkudziesięciu wierszach, a seria kończyłaby się
+  // tam, gdzie sięgnął generator.
+  //
+  // `powtarzanie` = klucz ze słownika `CYKLE` (NULL = nie powtarza się),
+  // `powtarzanie_do` = ostatni dzień serii włącznie (NULL = bez końca).
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS powtarzanie TEXT;`;
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS powtarzanie_do DATE;`;
+  // Wystąpienia usunięte pojedynczo („usuń tę okazję") — daty po przecinku,
+  // schodzą do `.ics` jako jedna linia EXDATE. Zwykły TEXT, nie TEXT[]:
+  // tablice Postgresa wracają z neon() i z PGlite w różnych kształtach, a
+  // kilka dat nie jest warte tej niezgodności.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS powtarzanie_pominiete TEXT;`;
+
   await markSchemaApplied("hub");
 }
 
@@ -2273,6 +2293,39 @@ async function createRemindersSchema(): Promise<void> {
   await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS lokalizacja_lon DOUBLE PRECISION;`;
   await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS lokalizacja_promien INTEGER;`;
   await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS przy_wyjsciu BOOLEAN NOT NULL DEFAULT false;`;
+
+  // Powtarzanie (2026-07-22) — TEN SAM słownik, co w `events`
+  // (`lib/recurrence.ts`), zgodnie z decyzją „jeden mechanizm dla obu modułów".
+  //
+  // Różnica jest w ZNACZENIU, nie w słowniku, i wynika z tego, czym
+  // przypomnienie różni się od wydarzenia:
+  //
+  // - Wydarzenie ma widok miesiąca, więc jego seria jest ROZWIJANA na
+  //   wystąpienia. Lista przypomnień nie ma zakresu dat — pokazuje „co wisi" —
+  //   więc rozwinięcie zalałoby ją dziesiątkami kopii tego samego zadania.
+  //   Dlatego widoczne jest zawsze JEDNO, najbliższe wystąpienie: `termin`.
+  // - Odhaczenie powtarzalnego przypomnienia zamyka WYSTĄPIENIE, nie serię
+  //   (decyzja właściciela, wzorzec Apple Reminders): `ukonczone` wraca na
+  //   false, a `termin` przeskakuje na kolejny cykl — patrz
+  //   `PATCH /api/reminders/:id`.
+  // - Stąd BRAK odpowiednika `powtarzanie_pominiete`: „pomiń ten raz" to tutaj
+  //   po prostu odhaczenie, które i tak przesuwa termin. Nie ma czego pomijać.
+  //
+  // Seria żyje wyłącznie na pozycji najwyższego poziomu. Kroki (`parent_id`)
+  // cyklu nie dostają: powtarzalne zadanie ma powtarzalne kroki jako całość,
+  // a osobno powtarzający się krok wewnątrz jednorazowego zadania to byt,
+  // którego Apple też nie ma i którego nie da się sensownie odhaczyć.
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS powtarzanie TEXT;`;
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS powtarzanie_do DATE;`;
+  // Kotwica serii — data, od której LICZY SIĘ rytm, w odróżnieniu od `termin`,
+  // który przy każdym odhaczeniu przeskakuje na kolejne wystąpienie.
+  //
+  // Bez niej seria dryfuje i to dokładnie w przypadku, który zawsze boli:
+  // „co miesiąc od 31." po lutym przykleiłoby się do 28. na zawsze, bo kolejny
+  // krok liczyłby się już od przyciętej daty. `events` tego problemu nie mają,
+  // bo tam `data` zostaje pierwszym wystąpieniem, a wystąpienia są liczone
+  // w locie. Ustawia się razem z terminem/cyklem — patrz POST i PATCH.
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS powtarzanie_od DATE;`;
 
   await markSchemaApplied("reminders");
 }

@@ -5,6 +5,7 @@ import { isMailboxConfigured } from "@/lib/mailbox";
 import { sendEventInvite } from "@/lib/eventInviteSend";
 import { icsUID } from "@/lib/eventInvites";
 import { i18n, type Locale } from "@/i18n/config";
+import { rozbierzIdWystapienia } from "@/lib/recurrence";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,7 +30,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  const { id } = await params;
+  // Zaproszenia i uczestnicy dotyczą CAŁEJ serii (w .ics jedzie jako RRULE),
+  // a UI może tu podać syntetyczne id wystąpienia — sprowadzamy je do wzorca.
+  const { idWzorca: id } = rozbierzIdWystapienia((await params).id);
   const formData = await req.formData().catch(() => null);
   if (!formData) return NextResponse.json({ error: "Nieprawidłowe dane formularza." }, { status: 400 });
 

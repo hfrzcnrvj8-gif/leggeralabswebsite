@@ -4,6 +4,7 @@ import { getSql, ensureRemindersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { isPlausibleTimeString, normalizePriority, type Reminder } from "@/lib/reminders";
+import { normalizujCykl } from "@/lib/recurrence";
 
 export const runtime = "nodejs";
 
@@ -114,16 +115,30 @@ export async function POST(req: NextRequest) {
   const lon = liczba(body?.lokalizacja_lon);
   const promien = liczba(body?.lokalizacja_promien);
 
+  // Cykl — ten sam słownik, co w Kalendarzu (`lib/recurrence.ts`). Bez terminu
+  // nie zapisuje się wcale: powtarzanie odmierza się OD terminu, więc
+  // „co tydzień, począwszy od nigdy" nie znaczy nic — dokładnie ta sama
+  // zasada, co przy godzinie bez terminu wyżej. Kroki (`parent_id`) też cyklu
+  // nie dostają: powtarza się całe zadanie, nie pojedynczy krok w środku.
+  const powtarzanie = termin && !idOrNull(body?.parent_id) ? normalizujCykl(body?.powtarzanie) : null;
+  const powtarzanieDoRaw = typeof body?.powtarzanie_do === "string" ? body.powtarzanie_do.trim() : "";
+  if (powtarzanieDoRaw && !isPlausibleDateString(powtarzanieDoRaw)) {
+    return NextResponse.json({ error: "invalid powtarzanie_do" }, { status: 400 });
+  }
+  const powtarzanieDo = powtarzanie ? powtarzanieDoRaw || null : null;
+
   await sql`
     INSERT INTO reminders (id, tytul, notatka, termin, godzina, priorytet, lista_id, lead_id, client_id, project_id,
-                           flaga, parent_id, lokalizacja, lokalizacja_lat, lokalizacja_lon, lokalizacja_promien, przy_wyjsciu)
+                           flaga, parent_id, lokalizacja, lokalizacja_lat, lokalizacja_lon, lokalizacja_promien, przy_wyjsciu,
+                           powtarzanie, powtarzanie_do, powtarzanie_od)
     VALUES (${id}, ${tytul.slice(0, 300)}, ${notatka}, ${termin}, ${godzina}, ${priorytet},
             ${idOrNull(body?.lista_id)}, ${idOrNull(body?.lead_id)}, ${idOrNull(body?.client_id)}, ${idOrNull(body?.project_id)},
             ${body?.flaga === true}, ${idOrNull(body?.parent_id)},
             ${typeof body?.lokalizacja === "string" && body.lokalizacja.trim() ? body.lokalizacja.trim().slice(0, 300) : null},
             ${lat}, ${lon},
             ${promien !== null ? Math.max(50, Math.min(10000, Math.round(promien))) : null},
-            ${body?.przy_wyjsciu === true});
+            ${body?.przy_wyjsciu === true},
+            ${powtarzanie}, ${powtarzanieDo}, ${powtarzanie ? termin : null});
   `;
 
   return NextResponse.json({ ok: true, id });

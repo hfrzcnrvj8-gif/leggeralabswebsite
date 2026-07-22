@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureEventAttendeesSchema } from "@/lib/db";
 import type { EventAttendee } from "@/lib/eventInvites";
+import { rozbierzIdWystapienia } from "@/lib/recurrence";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,9 @@ export const runtime = "nodejs";
  * ustalenie, a nikomu niczego nie mówi. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const { id } = await params;
+  // Zaproszenia i uczestnicy dotyczą CAŁEJ serii (w .ics jedzie jako RRULE),
+  // a UI może tu podać syntetyczne id wystąpienia — sprowadzamy je do wzorca.
+  const { idWzorca: id } = rozbierzIdWystapienia((await params).id);
   await ensureEventAttendeesSchema();
   const sql = getSql();
   const rows = (await sql`
@@ -27,7 +30,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
  * przycisk, gdyby właściciel go kiedyś potrzebował. */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const { id } = await params;
+  // Zaproszenia i uczestnicy dotyczą CAŁEJ serii (w .ics jedzie jako RRULE),
+  // a UI może tu podać syntetyczne id wystąpienia — sprowadzamy je do wzorca.
+  const { idWzorca: id } = rozbierzIdWystapienia((await params).id);
   const email = (req.nextUrl.searchParams.get("email") ?? "").trim().toLowerCase();
   if (!email) return NextResponse.json({ error: "brak adresu" }, { status: 400 });
   await ensureEventAttendeesSchema();

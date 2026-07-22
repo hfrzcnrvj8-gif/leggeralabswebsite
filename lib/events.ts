@@ -1,5 +1,13 @@
-import { todayLocalISO, addDaysToISO } from "./dates";
+import { todayLocalISO, addDaysToISO, daysBetweenISO } from "./dates";
 import { icsUID } from "./eventInvites";
+import {
+  idWystapienia,
+  normalizujCykl,
+  numerWystapienia,
+  pominieteZTekstu,
+  rozwinWystapienia,
+  rrule,
+} from "./recurrence";
 
 /** Tryb zaproszenia dla `buildICS()` — obecny WYŁĄCZNIE przy wysyłce maila do
  * uczestnika (`POST /api/events/:id/invite`). Feed subskrypcji własnego
@@ -37,6 +45,26 @@ export type HubEvent = {
    * NULL = brak alertu. Serwer nic nie wysyła — to tylko trwały wybór. */
   alert_minut_przed: number | null;
   created_at: string;
+
+  /* ── Powtarzanie (2026-07-22) ─────────────────────────────────────────── */
+
+  /** Klucz ze słownika `CYKLE` (`lib/recurrence.ts`) albo null = wydarzenie
+   * jednorazowe. W bazie siedzi JEDEN wiersz-wzorzec; `data` to pierwsze
+   * wystąpienie, kolejne liczy `rozwinSerieWydarzen()`. */
+  powtarzanie: string | null;
+  /** Ostatni dzień serii włącznie; null = bez końca. */
+  powtarzanie_do: string | null;
+  /** Daty wystąpień usuniętych pojedynczo, po przecinku (kolumna TEXT). */
+  powtarzanie_pominiete: string | null;
+
+  /** Pola POCHODNE rozwiniętego wystąpienia — dokleja `rozwinSerieWydarzen()`,
+   * NIE ma ich w bazie. `id` takiego wystąpienia jest syntetyczne
+   * (`<id-wzorca>~<data>`), żeby cztery wystąpienia w jednym miesiącu nie
+   * zjadły się nawzajem po kluczu. */
+  seria_id?: string;
+  /** Które to wystąpienie w serii, licząc od 1 — dla plakietki „3. z serii". */
+  seria_numer?: number;
+
   /** Zaproszeni i ci z nich, którzy potwierdzili (2026-07-22). Doliczane
    * w `GET /api/events`, więc OPCJONALNE: te same wydarzenia czyta ICS, apka
    * i pulpit, a tam liczniki nie mają po co jechać. */
@@ -65,6 +93,53 @@ export function expandEventDays(event: Pick<HubEvent, "data" | "data_koniec">): 
     cursor = addDaysToISO(cursor, 1);
   }
   return days;
+}
+
+/** Rozwija wiersze-wzorce na WYSTĄPIENIA w zakresie [odISO, doISO] włącznie.
+ *
+ * To jest ta jedna funkcja, którą wołają wszyscy czytelnicy `events`
+ * pokazujący konkretne dni (kalendarz, Pulpit, dzienny mail). Wydarzenia bez
+ * `powtarzanie` przechodzą przez nią NIETKNIĘTE — łącznie z zachowaniem
+ * własnego `id` — więc wpięcie jej nie zmienia niczego dla dotychczasowych
+ * danych.
+ *
+ * Świadomie NIE wołają jej: feed `.ics` i zaproszenia (tam seria jedzie jako
+ * RRULE — o to chodziło w decyzji 1) ani wyszukiwarka (szuka po tytule, więc
+ * seria ma się pokazać raz, a nie czterdzieści razy).
+ *
+ * Wielodniowe wydarzenie (`data_koniec`) zachowuje swoją długość w każdym
+ * wystąpieniu — trzydniowy wyjazd co miesiąc pozostaje trzydniowy. */
+export function rozwinSerieWydarzen<T extends HubEvent>(events: T[], odISO: string, doISO: string): T[] {
+  const wynik: T[] = [];
+  for (const e of events) {
+    const cykl = normalizujCykl(e.powtarzanie);
+    if (!cykl) {
+      wynik.push(e);
+      continue;
+    }
+    const dlugoscDni = e.data_koniec && e.data_koniec > e.data ? daysBetweenISO(e.data, e.data_koniec) : 0;
+    const seria = {
+      start: e.data,
+      cykl,
+      doISO: e.powtarzanie_do,
+      pominiete: pominieteZTekstu(e.powtarzanie_pominiete),
+    };
+    // Zakres cofnięty o długość wydarzenia — inaczej trzydniowy wyjazd
+    // zaczynający się 30. czerwca zniknąłby z lipca, w którym realnie trwa.
+    const odSzukania = dlugoscDni > 0 ? addDaysToISO(odISO, -dlugoscDni) : odISO;
+    const daty = rozwinWystapienia(seria, odSzukania, doISO);
+    for (const data of daty) {
+      wynik.push({
+        ...e,
+        id: idWystapienia(e.id, data),
+        seria_id: e.id,
+        seria_numer: numerWystapienia(e.data, cykl, data),
+        data,
+        data_koniec: dlugoscDni > 0 ? addDaysToISO(data, dlugoscDni) : e.data_koniec,
+      });
+    }
+  }
+  return wynik.sort((a, b) => (a.data === b.data ? (a.godzina ?? "").localeCompare(b.godzina ?? "") : a.data < b.data ? -1 : 1));
 }
 
 /** "HH:MM" → minuty od północy; nieparsowalne wejście = 0. */
@@ -272,6 +347,29 @@ export function buildICS(events: HubEvent[], invite?: InviteOptions): string {
       const endInclusive = e.data_koniec && e.data_koniec > e.data ? e.data_koniec : e.data;
       const endExclusive = addDaysToISO(endInclusive, 1); // DTEND w ICS jest wyłączny
       lines.push(`DTSTART;VALUE=DATE:${toBasic(e.data)}`, `DTEND;VALUE=DATE:${toBasic(endExclusive)}`);
+    }
+    // Seria jedzie JAKO SERIA — jedna reguła, nie setka osobnych wydarzeń.
+    // To jest sedno decyzji „własne pola w bazie, RRULE na wyjściu"
+    // (2026-07-22): kalendarz właściciela dostaje jeden powtarzalny wpis, a
+    // zaproszenie METHOD:REQUEST niesie klientowi całe spotkanie cykliczne
+    // zamiast maila na każde wystąpienie.
+    //
+    // EXDATE = wystąpienia usunięte pojedynczo. Musi mieć ten sam typ wartości
+    // co DTSTART, inaczej kalendarze po drugiej stronie po cichu je zignorują
+    // i odwołany termin zostanie u klienta.
+    const cykl = normalizujCykl(e.powtarzanie);
+    if (cykl) {
+      lines.push(`RRULE:${rrule(cykl, e.powtarzanie_do)}`);
+      const pominiete = pominieteZTekstu(e.powtarzanie_pominiete);
+      if (pominiete.length) {
+        lines.push(
+          e.godzina
+            ? `EXDATE:${pominiete
+                .map((d) => `${toBasic(d)}T${minutesToTime(timeToMinutes(e.godzina!)).replace(":", "")}00`)
+                .join(",")}`
+            : `EXDATE;VALUE=DATE:${pominiete.map(toBasic).join(",")}`
+        );
+      }
     }
     lines.push(`SUMMARY:${escapeICS(e.tytul)}`);
     if (e.opis) lines.push(`DESCRIPTION:${escapeICS(e.opis)}`);

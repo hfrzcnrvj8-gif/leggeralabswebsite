@@ -8,6 +8,13 @@ type ToastItem = { id: string; message: string; type: "success" | "error" };
 type ConfirmState = { message: string; danger?: boolean; resolve: (v: boolean) => void } | null;
 type PromptState = { message: string; placeholder?: string; resolve: (v: string | null) => void } | null;
 
+/** Opcja pytania z WIĘCEJ niż dwoma wyjściami (`choose()`). Potrzebne, odkąd
+ * wydarzenia i przypomnienia mogą być serią: „Usunąć?" ma wtedy trzy
+ * odpowiedzi — tę okazję, całą serię, albo wcale — a `confirm()` z natury
+ * unosi tylko dwie. */
+export type ChoiceOption = { value: string; label: string; danger?: boolean };
+type ChooseState = { message: string; options: ChoiceOption[]; resolve: (v: string | null) => void } | null;
+
 export type Action = { id: string; label: string; hint?: string; run: () => void };
 
 /** Czy zdarzenie klawiatury przyszło z pola tekstowego — używane przez
@@ -23,6 +30,8 @@ type UIContextType = {
   toast: (message: string, type?: "success" | "error") => void;
   confirm: (message: string, opts?: { danger?: boolean }) => Promise<boolean>;
   prompt: (message: string, opts?: { placeholder?: string }) => Promise<string | null>;
+  /** Pytanie z kilkoma wyjściami; `null` = użytkownik anulował. */
+  choose: (message: string, options: ChoiceOption[]) => Promise<string | null>;
   contextActions: Action[];
   setContextActions: (actions: Action[]) => void;
 };
@@ -84,6 +93,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [promptState, setPromptState] = useState<PromptState>(null);
   const [promptValue, setPromptValue] = useState("");
+  const [chooseState, setChooseState] = useState<ChooseState>(null);
   const [contextActions, setContextActions] = useState<Action[]>([]);
   const promptInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,6 +118,12 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const choose = useCallback((message: string, options: ChoiceOption[]) => {
+    return new Promise<string | null>((resolve) => {
+      setChooseState({ message, options, resolve });
+    });
+  }, []);
+
   useEffect(() => {
     if (promptState) {
       const t = window.setTimeout(() => promptInputRef.current?.focus(), 30);
@@ -123,9 +139,13 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
     promptState?.resolve(value);
     setPromptState(null);
   };
+  const closeChoose = (value: string | null) => {
+    chooseState?.resolve(value);
+    setChooseState(null);
+  };
 
   return (
-    <UIContext.Provider value={{ toast, confirm, prompt, contextActions, setContextActions }}>
+    <UIContext.Provider value={{ toast, confirm, prompt, choose, contextActions, setContextActions }}>
       {children}
 
       {/* Toasty */}
@@ -195,6 +215,62 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
                   }
                 >
                   Potwierdź
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Choose modal — pytanie z więcej niż dwoma wyjściami (np. „ta okazja
+          czy cała seria?"). Opcje idą w KOLUMNIE, nie w rzędzie jak przy
+          confirmie: przy trzech wyjściach rząd zmusza do czytania przycisków
+          bokiem, a to jest dokładnie ten moment, w którym nie wolno się
+          pomylić. Brak Entera jako skrótu — przy kilku równorzędnych
+          odpowiedziach nie ma „tej domyślnej". */}
+      <AnimatePresence>
+        {chooseState && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+            onClick={() => closeChoose(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={SPRING}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeChoose(null);
+              }}
+              className="card-paper w-full max-w-sm rounded-2xl p-5"
+              role="alertdialog"
+              aria-modal="true"
+            >
+              <p className="whitespace-pre-line text-sm leading-relaxed">{chooseState.message}</p>
+              <div className="mt-4 flex flex-col gap-2">
+                {chooseState.options.map((o) => (
+                  <button
+                    key={o.value}
+                    onClick={() => closeChoose(o.value)}
+                    className={
+                      o.danger
+                        ? "rounded-full bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
+                        : "rounded-full border hairline px-3 py-1.5 text-xs hover:bg-[var(--bg-soft)]"
+                    }
+                  >
+                    {o.label}
+                  </button>
+                ))}
+                <button
+                  autoFocus
+                  onClick={() => closeChoose(null)}
+                  className="mt-1 rounded-full px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)]"
+                >
+                  Anuluj
                 </button>
               </div>
             </motion.div>

@@ -4,6 +4,7 @@ import { Modal } from "../Modal";
 import { DateField } from "../DatePicker";
 import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { EditableText, EditableTextarea } from "../components";
+import { CyklPicker } from "../CyklPicker";
 import { PRIORITY_LABEL, KropkaListy, type Reminder, type ReminderList } from "./shared";
 
 /** Profil przypomnienia jako WYŚRODKOWANY MODAL — obowiązujący wzorzec profilu
@@ -81,6 +82,29 @@ export function ReminderDetail({
             </p>
           )}
         </Pole>
+
+        {/* Powtarzanie tylko przy terminie i tylko na pozycji najwyższego
+            poziomu — cykl odmierza się OD terminu, a powtarza się całe
+            zadanie, nie krok w jego środku (patrz `lib/db.ts`, migracja
+            przypomnień). Serwer pilnuje tego samego warunku; tu chodzi o to,
+            żeby pole nie kusiło tam, gdzie i tak nic nie zapisze. */}
+        {r.termin && !r.parent_id && (
+          <Pole etykieta="Powtarzanie">
+            <CyklPicker
+              cykl={r.powtarzanie}
+              doDnia={r.powtarzanie_do ?? ""}
+              odDnia={r.termin}
+              onChange={(next) =>
+                onPatch(r.id, { powtarzanie: next.cykl, powtarzanie_do: next.doDnia || null })
+              }
+            />
+            {r.powtarzanie && (
+              <p className="mt-1 text-[11.5px] text-muted">
+                Odhaczenie zamyka to wystąpienie — termin przeskoczy na kolejny cykl, zadanie zostanie na liście.
+              </p>
+            )}
+          </Pole>
+        )}
 
         <Pole etykieta="Priorytet">
           <div className="flex gap-1">

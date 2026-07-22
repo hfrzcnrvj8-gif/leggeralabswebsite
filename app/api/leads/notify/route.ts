@@ -19,7 +19,7 @@ import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
 import { isClientOverdue, clientOverdueReason, type Client } from "@/lib/clients";
-import type { HubEvent } from "@/lib/events";
+import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import {
   isInvoiceOverdue,
   daysOverdue,
@@ -358,7 +358,17 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
         )
       ORDER BY m.termin ASC;
     ` as unknown as Promise<{ nazwa: string; termin: string; projekt: string }[]>,
-    sql`SELECT * FROM events WHERE data = ${today} ORDER BY godzina ASC NULLS LAST;` as unknown as Promise<HubEvent[]>,
+    // Serie wchodzą jako wiersze-wzorce (patrz identyczny warunek w
+    // `app/api/hub/today`) i są rozwijane na dzisiejszy dzień niżej — inaczej
+    // powtarzalne spotkanie trafiłoby do dziennego maila tylko za pierwszym
+    // razem.
+    sql`
+      SELECT * FROM events
+      WHERE data = ${today}
+         OR (powtarzanie IS NOT NULL AND data <= ${today}::date
+             AND (powtarzanie_do IS NULL OR powtarzanie_do >= ${today}::date))
+      ORDER BY godzina ASC NULLS LAST;
+    ` as unknown as Promise<HubEvent[]>,
     // Faktury-szkice czekające na wystawienie (z treścią, nie utworzone dziś) —
     // ta sama reguła co na pulpicie (patrz app/api/hub/today). Liczą się tylko
     // właściwe faktury, nie proformy/zaliczkowe.
@@ -443,8 +453,12 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     ? overdueMilestones.map((m) => `- ${m.nazwa} (${m.projekt}) — termin ${m.termin}`).join("\n")
     : "Brak kamieni po terminie.";
 
-  const eventLines = todayEvents.length
-    ? todayEvents.map((e) => `- ${e.godzina ? `${e.godzina} ` : ""}${e.tytul}`).join("\n")
+  // Wzorce serii → konkretne dzisiejsze wystąpienia (patrz komentarz przy
+  // zapytaniu wyżej). Wydarzenia jednorazowe przechodzą nietknięte.
+  const dzisiejszeWydarzenia = rozwinSerieWydarzen(todayEvents, today, today);
+
+  const eventLines = dzisiejszeWydarzenia.length
+    ? dzisiejszeWydarzenia.map((e) => `- ${e.godzina ? `${e.godzina} ` : ""}${e.tytul}`).join("\n")
     : "Brak wydarzeń w kalendarzu na dziś.";
 
   // Moduł 31 — umowy wysłane i niepodpisane od tygodnia. Do tego modułu raport
@@ -554,7 +568,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Faktury-szkice czekające na wystawienie: ${draftInvoices.length}`,
     "",
-    `Dziś w kalendarzu (${todayEvents.length}):`,
+    `Dziś w kalendarzu (${dzisiejszeWydarzenia.length}):`,
     eventLines,
     "",
     "Podsumowanie leadów wg statusu:",

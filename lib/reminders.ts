@@ -53,6 +53,22 @@ export type Reminder = {
   /** `false` = alarm przy wejściu w obszar, `true` = przy wyjściu. */
   przy_wyjsciu: boolean;
 
+  /* ── Powtarzanie (2026-07-22) ─────────────────────────────────────────── */
+
+  /** Klucz ze słownika `CYKLE` (`lib/recurrence.ts` — TEN SAM, co w
+   * Kalendarzu) albo null. Widoczne jest zawsze JEDNO wystąpienie: `termin`.
+   * Odhaczenie zamyka wystąpienie, nie serię — `ukonczone` wraca na false,
+   * a `termin` przeskakuje na kolejny cykl (wzorzec Apple Reminders, decyzja
+   * właściciela z 2026-07-22). Gdy seria się kończy (`powtarzanie_do`),
+   * odhaczenie działa normalnie: zadanie zostaje ukończone na dobre. */
+  powtarzanie: string | null;
+  /** Ostatni dzień serii włącznie; null = bez końca. */
+  powtarzanie_do: string | null;
+  /** Kotwica rytmu — data, od której liczą się kolejne wystąpienia. Osobno od
+   * `termin`, który przy każdym odhaczeniu skacze do przodu; bez tego seria
+   * „co miesiąc od 31." przykleiłaby się do 28. po pierwszym lutym. */
+  powtarzanie_od: string | null;
+
   /** Pole POCHODNE — podzadania doklejane w GET, nie kolumna. */
   podzadania?: Reminder[];
 

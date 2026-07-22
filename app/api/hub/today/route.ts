@@ -7,7 +7,7 @@ import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettin
 import { isOfferExpired, weightedOfferValue, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
 import { isContractStale, contractSilenceDays, signedContractRate, type Contract } from "@/lib/contracts";
 import { isClientOverdue, type Client } from "@/lib/clients";
-import type { HubEvent } from "@/lib/events";
+import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { todayLocalISO } from "@/lib/dates";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
@@ -69,7 +69,18 @@ export async function GET() {
         )
       ORDER BY m.termin ASC;
     ` as unknown as Promise<{ id: string; nazwa: string; termin: string; project_id: string; projekt: string }[]>,
-    sql`SELECT * FROM events WHERE data = ${today} ORDER BY godzina ASC NULLS LAST;` as unknown as Promise<HubEvent[]>,
+    // Wydarzenia na dziś — plus wiersze-wzorce serii, które MOGĄ mieć dziś
+    // wystąpienie. Sama równość na `data` wpuszczałaby tylko pierwsze
+    // wystąpienie, więc cotygodniowy przegląd pokazałby się na Pulpicie raz
+    // w życiu. Rozwinięcie na konkretny dzień robi `rozwinSerieWydarzen()`
+    // niżej — tu zawężamy tylko to, co w ogóle warto pobrać.
+    sql`
+      SELECT * FROM events
+      WHERE data = ${today}
+         OR (powtarzanie IS NOT NULL AND data <= ${today}::date
+             AND (powtarzanie_do IS NULL OR powtarzanie_do >= ${today}::date))
+      ORDER BY godzina ASC NULLS LAST;
+    ` as unknown as Promise<HubEvent[]>,
     sql`SELECT * FROM notes ORDER BY updated_at DESC LIMIT 5;` as unknown as Promise<Note[]>,
     sql`
       SELECT i.*,
@@ -243,7 +254,7 @@ export async function GET() {
     staleContracts,
     dueFollowups,
     pendingMails,
-    todayEvents,
+    todayEvents: rozwinSerieWydarzen(todayEvents, today, today),
     recentNotes,
     kpi: {
       revenueThisMonth: Array.from(revenueThisMonth.entries()),

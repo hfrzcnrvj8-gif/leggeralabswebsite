@@ -28,6 +28,7 @@ import { Modal } from "../Modal";
 import { EventInvitePanel } from "./EventInvitePanel";
 import { Popover } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
+import { CyklPicker, SeriaTag } from "../CyklPicker";
 
 type KindStyle = { border: string; bg: string; text: string; dot: string; label: string };
 
@@ -197,7 +198,10 @@ type AddEventFn = (
   projectId: string,
   clientId: string,
   dayEnd: string,
-  durationMin: number | null
+  durationMin: number | null,
+  /** Cykl powtarzania — jeden obiekt zamiast dwóch kolejnych pozycji, bo tę
+   * listę argumentów i tak czyta się już tylko po kolejności. */
+  powtarzanie?: { cykl: string | null; doDnia: string }
 ) => Promise<boolean>;
 
 /** Slide+fade kierunkowy dla przełączania miesiąca/tygodnia/dnia — `custom`
@@ -210,7 +214,7 @@ const periodSlideVariants = {
 };
 
 export function CalendarView({ lang }: { lang: string }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, choose } = useUI();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [monthIdx, setMonthIdx] = useState(now.getMonth());
@@ -501,7 +505,7 @@ export function CalendarView({ lang }: { lang: string }) {
     setViewMode(v);
   };
 
-  const addEvent: AddEventFn = async (day, title, time, leadId, projectId, clientId, dayEnd, durationMin) => {
+  const addEvent: AddEventFn = async (day, title, time, leadId, projectId, clientId, dayEnd, durationMin, powtarzanie) => {
     if (!title.trim()) return false;
     const res = await fetch("/api/events", {
       method: "POST",
@@ -515,6 +519,8 @@ export function CalendarView({ lang }: { lang: string }) {
         client_id: clientId || null,
         data_koniec: dayEnd && dayEnd > day ? dayEnd : null,
         czas_trwania_min: time ? durationMin ?? 60 : null,
+        powtarzanie: powtarzanie?.cykl ?? null,
+        powtarzanie_do: powtarzanie?.doDnia || null,
       }),
     });
     if (res.ok) {
@@ -534,23 +540,48 @@ export function CalendarView({ lang }: { lang: string }) {
     // różnica między „nie ma tego u mnie" a „nie ma tego nigdzie" jest
     // dokładnie tym rodzajem błędu, który wychodzi dopiero wtedy, gdy klient
     // przyjeżdża na odwołane spotkanie — więc mówimy o niej wprost.
-    const zaproszeni = (events?.find((e) => e.id === id)?.uczestnicy_total ?? 0) > 0;
-    const ok = await confirm(
-      zaproszeni
-        ? "Usunąć to wydarzenie? Zaproszeni MAJĄ je nadal w swoich kalendarzach — żeby zniknęło również u nich, najpierw wyślij odwołanie (koperta → „Odwołaj spotkanie”)."
-        : "Usunąć to wydarzenie?",
-      { danger: true }
-    );
-    if (!ok) return;
-    const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
+    const wydarzenie = allEvents.find((e) => e.id === id);
+    const zaproszeni = (wydarzenie?.uczestnicy_total ?? 0) > 0;
+    const ostrzezenieOZaproszonych = zaproszeni
+      ? "\n\nUwaga: zaproszeni MAJĄ to spotkanie nadal w swoich kalendarzach — żeby zniknęło również u nich, najpierw wyślij odwołanie (koperta → „Odwołaj spotkanie”)."
+      : "";
+
+    // Wydarzenie z serii ma TRZY wyjścia, nie dwa — stąd `choose()`, nie
+    // `confirm()`. „Ta okazja" dopisuje datę do pominiętych (w .ics zejdzie
+    // jako EXDATE), „cała seria" kasuje wiersz-wzorzec.
+    let url = `/api/events/${id}`;
+    let usunietaSeria: string | null = null;
+    if (wydarzenie?.seria_id) {
+      const wybor = await choose(
+        `To wydarzenie powtarza się. Co usunąć?${ostrzezenieOZaproszonych}`,
+        [
+          { value: "okazja", label: `Tylko tę okazję (${wydarzenie.data})` },
+          { value: "seria", label: "Całą serię", danger: true },
+        ]
+      );
+      if (!wybor) return;
+      url = `/api/events/${id}?zakres=${wybor}`;
+      if (wybor === "seria") usunietaSeria = wydarzenie.seria_id;
+    } else {
+      const ok = await confirm(`Usunąć to wydarzenie?${ostrzezenieOZaproszonych}`, { danger: true });
+      if (!ok) return;
+    }
+
+    const res = await fetch(url, { method: "DELETE" });
     if (!res.ok) {
       toast("Nie udało się usunąć.", "error");
       return;
     }
-    setEvents((prev) => prev?.filter((e) => e.id !== id) ?? prev);
+    // Przy kasowaniu całej serii znika WIĘCEJ niż klikniete wystąpienie —
+    // wszystkie z tym samym `seria_id`. Filtrowanie po samym `id` zostawiłoby
+    // pozostałe wystąpienia na ekranie aż do przeładowania, czyli pokazałoby
+    // stan, którego już nie ma.
+    const zniknelo = (e: HubEvent) =>
+      usunietaSeria ? e.seria_id === usunietaSeria || e.id === id : e.id === id;
+    setEvents((prev) => prev?.filter((e) => !zniknelo(e)) ?? prev);
     setExtraEvents((prev) => {
       const next: Record<string, HubEvent[]> = {};
-      Object.entries(prev).forEach(([k, v]) => { next[k] = v.filter((e) => e.id !== id); });
+      Object.entries(prev).forEach(([k, v]) => { next[k] = v.filter((e) => !zniknelo(e)); });
       return next;
     });
     loadUpcoming();
@@ -574,9 +605,20 @@ export function CalendarView({ lang }: { lang: string }) {
 
   /** Przeciągnięcie chipu wydarzenia na inny dzień (miesiąc/tydzień/pasek
    * "cały dzień") — zachowuje długość zakresu dla wydarzeń wielodniowych. */
+  /** Przeniesienie wystąpienia serii przesunęłoby CAŁĄ serię — edycja dotyczy
+   * wzorca, a wyjątki są w tej wersji tylko przy kasowaniu (decyzja
+   * właściciela z 2026-07-22). Przeciągnięcie wygląda na „przesuwam ten jeden
+   * termin", więc nie wolno mu po cichu zrobić czegoś innego. */
+  const seriaNieDoPrzeciagniecia = (event: HubEvent | undefined): boolean => {
+    if (!event?.seria_id) return false;
+    toast("To wystąpienie serii — przeciąganie przesunęłoby cały cykl. Usuń tę okazję i dodaj osobne wydarzenie.", "error");
+    return true;
+  };
+
   const moveEvent = async (id: string, newStart: string) => {
     const event = allEvents.find((e) => e.id === id);
     if (!event || event.data === newStart) return;
+    if (seriaNieDoPrzeciagniecia(event)) return;
     const span = eventSpanDays(event);
     const fields: Record<string, unknown> = { data: newStart };
     if (event.data_koniec) fields.data_koniec = addDaysToISO(newStart, span - 1);
@@ -589,6 +631,7 @@ export function CalendarView({ lang }: { lang: string }) {
   const moveEventToTime = async (id: string, newDay: string, newTime: string) => {
     const event = allEvents.find((e) => e.id === id);
     if (!event) return;
+    if (seriaNieDoPrzeciagniecia(event)) return;
     const span = eventSpanDays(event);
     const fields: Record<string, unknown> = { data: newDay, godzina: newTime };
     if (event.data_koniec) fields.data_koniec = addDaysToISO(newDay, span - 1);
@@ -1143,6 +1186,7 @@ function DayAgendaList({
                   {e.data_koniec && e.data_koniec > e.data && (
                     <span className="ml-1.5 text-[11px] text-muted">({e.data} → {e.data_koniec})</span>
                   )}
+                  <SeriaTag cykl={e.powtarzanie} numer={e.seria_numer} className="ml-1.5 align-[1px]" />
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {(e.uczestnicy_total ?? 0) > 0 && (
@@ -1707,6 +1751,8 @@ function AddEventForm({
   const [projectId, setProjectId] = useState("");
   const [clientId, setClientId] = useState("");
   const [showRange, setShowRange] = useState(false);
+  const [cykl, setCykl] = useState<string | null>(null);
+  const [cyklDo, setCyklDo] = useState("");
 
   useEffect(() => {
     if (prefillTime) setTime(prefillTime);
@@ -1723,7 +1769,8 @@ function AddEventForm({
       projectId,
       clientId,
       dayEnd,
-      finalTime ? duration : null
+      finalTime ? duration : null,
+      { cykl, doDnia: cyklDo }
     );
     if (ok) {
       setTitle("");
@@ -1734,6 +1781,8 @@ function AddEventForm({
       setProjectId("");
       setClientId("");
       setShowRange(false);
+      setCykl(null);
+      setCyklDo("");
     }
   };
 
@@ -1785,6 +1834,15 @@ function AddEventForm({
           Dodaj
         </button>
       </div>
+      <CyklPicker
+        cykl={cykl}
+        doDnia={cyklDo}
+        odDnia={day}
+        onChange={(next) => {
+          setCykl(next.cykl);
+          setCyklDo(next.doDnia);
+        }}
+      />
       {showRange && (
         <div className="flex items-center gap-2 text-[11px] text-muted">
           <span>Do dnia (włącznie):</span>

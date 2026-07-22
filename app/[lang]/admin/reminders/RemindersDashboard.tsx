@@ -7,6 +7,7 @@ import { todayLocalISO } from "@/lib/dates";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { useUI, useRegisterActions } from "../ui";
 import { ReminderDetail } from "./ReminderDetail";
+import { SeriaTag } from "../CyklPicker";
 import {
   REMINDER_LIST_COLORS,
   DEFAULT_LIST_COLOR,
@@ -293,6 +294,10 @@ function WierszPrzypomnienia({
             {r.tytul}
           </span>
           <TerminPrzypomnienia r={r} dzisISO={dzisISO} />
+          {/* Bez tej pigułki odhaczenie wygląda jak błąd: zadanie „znika"
+              i natychmiast wraca z inną datą. Z nią widać, że taka jest
+              umowa. */}
+          <SeriaTag cykl={r.powtarzanie} />
           {/* Miejsce pokazujemy TYLKO wtedy, gdy da się z niego zrobić
               geofence. Sama nazwa bez współrzędnych wygląda jak obietnica
               powiadomienia, której nikt nie dotrzyma. */}

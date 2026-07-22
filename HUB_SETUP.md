@@ -6049,3 +6049,120 @@ dostanie inny mail spod biurka niż z telefonu.
   plików. Kto chce wysłać ofertę, wysyła ją z Poczty.
 - **Obsługi CUDZYCH zaproszeń** (`METHOD:REQUEST` przychodzące) — panel jest
   organizatorem, nie uczestnikiem cudzych spotkań. Od tego jest Apple Mail.
+
+## Powtarzanie wydarzeń i przypomnień (2026-07-22)
+
+Stałe punkty jednoosobowej firmy — miesięczne rozliczenie z księgową,
+cotygodniowy przegląd, roczne odnowienie domeny — wpisywało się dotąd ręcznie
+za każdym razem. Brief: `docs/natywna-aplikacja/28-brief-powtarzanie-wydarzen-i-przypomnien.md`.
+
+**Jeden mechanizm dla wydarzeń I przypomnień** (decyzja właściciela): ta sama
+reguła w dwóch implementacjach rozjechałaby się tak, jak rozjechały się mapy
+kolorów statusu. Słownik i cała arytmetyka: `lib/recurrence.ts`, bliźniak
+w apce `LeggeraHubCore/Models/Powtarzanie.swift`.
+
+Cykle: `codziennie`, `co_tydzien`, `co_2_tygodnie`, `co_miesiac`, `co_kwartal`,
+`co_rok`. Do tego `powtarzanie_do` (ostatni dzień włącznie; `NULL` = bez końca).
+
+### Trzy decyzje właściciela, na których stoi ten moduł
+
+1. **Własny słownik w bazie, RRULE dopiero na wyjściu.** Panel i apka pracują
+   na słowniku (żadnego parsera RRULE w dwóch językach), ale `buildICS()`
+   emituje prawdziwe `RRULE:` — więc feed subskrypcji i zaproszenie
+   `METHOD:REQUEST` niosą serię JAKO SERIĘ, a nie setkę osobnych wydarzeń.
+   Każda pozycja słownika ma dokładny odpowiednik RRULE (`CYKL_RRULE`).
+2. **Wyjątek tylko jeden: „usuń to jedno wystąpienie".** Data ląduje
+   w `events.powtarzanie_pominiete` (TEXT, daty po przecinku) i schodzi do
+   `.ics` jako `EXDATE`. Pytanie „ta okazja czy cała seria?" pada więc
+   WYŁĄCZNIE przy kasowaniu — edycja zawsze dotyczy całej serii. Przenoszenie
+   pojedynczego wystąpienia (`RECURRENCE-ID`) świadomie odłożone: podwajało
+   moduł i dokładało to pytanie do każdego formularza.
+3. **Jeden wiersz-wzorzec, wystąpienia liczone w locie.** W bazie zostaje jedno
+   wydarzenie; `rozwinSerieWydarzen()` (`lib/events.ts`) rozwija je na
+   wystąpienia dla podanego zakresu dat. Kalendarz panelu nadal robi JEDNO
+   zapytanie na miesiąc.
+
+### Co musiał zobaczyć każdy czytelnik `events`
+
+Wiersz-wzorzec ma `data` z PIERWSZEGO wystąpienia, więc warunek „nakłada się na
+miesiąc" musi go przepuszczać inaczej niż wydarzenie jednorazowe — inaczej
+cotygodniowy przegląd założony w styczniu znika z lipca. Poprawione w:
+`app/api/events` (miesiąc), `app/api/hub/today` (Pulpit),
+`app/api/leads/notify` (dzienny mail), `app/api/calendar/ics` (feed).
+
+Rozwinięte wystąpienie dostaje **syntetyczne `id`**: `<id-wzorca>~<data>`.
+Bez tego cztery wystąpienia w jednym miesiącu miałyby ten sam klucz i zjadłyby
+się nawzajem (klucze Reacta, `layoutTimedEvents`, identyfikator lokalnego
+powiadomienia w apce). Trasy `PATCH`/`DELETE`/zaproszenia sprowadzają je
+z powrotem do wzorca przez `rozbierzIdWystapienia()`.
+
+Wyszukiwarka (`/api/search`) **nie** rozwija serii — szuka po tytule, więc seria
+ma się pokazać raz, nie czterdzieści razy.
+
+### Przypomnienia: odhaczenie zamyka WYSTĄPIENIE, nie serię
+
+Wzorzec Apple Reminders, wybrany przez właściciela wprost. „Rozliczenie zrobione
+na lipiec" ≠ „nigdy więcej się nie rozliczam": `PATCH ukonczone:true` na
+powtarzalnym przypomnieniu przesuwa `termin` na kolejny cykl i zostawia je
+nieukończone. Decyduje o tym SERWER (jak przy `ukonczone_at`) — panel i apka
+odhaczają tym samym żądaniem co dotąd i obie dostają to samo zachowanie.
+
+Ostatnie wystąpienie serii (`powtarzanie_do` minęło) ukończy się normalnie —
+inaczej zadanie z datą końca nigdy nie zniknęłoby z listy.
+
+Lista przypomnień **nie rozwija** serii: pokazuje jedno, najbliższe wystąpienie
+(`termin`). Rozwinięcie zalałoby ją kopiami tego samego zadania, bo — inaczej
+niż kalendarz — nie ma zakresu dat.
+
+Stąd też osobna kolumna `reminders.powtarzanie_od` — **kotwica rytmu**. `termin`
+przy każdym odhaczeniu skacze do przodu, więc bez kotwicy „co miesiąc od 31."
+przykleiłoby się do 28. na zawsze po pierwszym lutym.
+
+### Pułapka, która wyszła na żywo: dryf serii miesięcznej
+
+Pierwsza wersja liczyła wystąpienia krok po kroku od poprzedniego. Efekt
+zmierzony 2026-07-22 na lokalnym panelu: seria od **31 stycznia** pokazywała
+w lipcu **28.**, bo luty przyciął datę i cała reszta roku liczyła się już od 28.
+
+Poprawka: KAŻDE wystąpienie liczone od startu (`wystapienieNr(start, cykl, n)`),
+nigdy od poprzedniego. Po niej: 31.01 → 28.02 → **31.03** → … → **30.11**.
+To samo obowiązuje w apce — port bez tej poprawki odtworzyłby błąd.
+
+Drugi bezpiecznik w tej samej funkcji: numer pierwszego wystąpienia w zakresie
+liczy się WPROST (`pierwszyNumerOd`), a nie przez przewijanie serii od
+początku. Bez tego codzienna seria sprzed pięciu lat wyczerpałaby limit kroków,
+zanim doszłaby do oglądanego miesiąca — i widok pokazałby PUSTO zamiast błędu.
+
+### Apka: limit 64 powiadomień, z dowodem
+
+iOS trzyma najwyżej **64 oczekujące powiadomienia na apkę** i przekroczenie
+limitu jest CICHE — system nie zgłasza błędu, po prostu nie dostarcza nadmiaru.
+Jedna seria bez końca potrafiłaby zająć ten budżet sama.
+
+`WydarzenieAlerty.przeplanuj(_:)` (wołane po każdym wczytaniu kalendarza)
+kasuje całą przestrzeń `wydarzenie-alert-`, układa kandydatów w kolejności
+czasu i bierze `budzet = 48` najbliższych (reszta slotów zostaje dla stopera
+i przypomnień). Per seria dodatkowo `limitNaSerie = 8`, żeby jedna seria nie
+wypchnęła wszystkich innych wydarzeń.
+
+Zmierzone w symulatorze na lokalnym panelu (13 serii z alertami):
+
+```
+[wydarzenie-alert] kandydatów: 92, zaplanowano: 48, oczekujących w systemie: 48 (limit iOS: 64)
+```
+
+Pierwszy pomiar dał „kandydatów: 32, w systemie: 8" i to był realny błąd:
+serwer przysyła serię JUŻ ROZWINIĘTĄ na wystąpienia miesiąca, więc każde z nich
+rozwijało tę samą serię ponownie. System scalał duplikaty po kluczu, więc efekt
+był poprawny, ale liczby kłamały — a przy większej liczbie serii budżet obcinałby
+duplikaty zamiast prawdziwych alertów. Stąd grupowanie po `seriaID` przed
+rozwinięciem.
+
+### Czego świadomie nie ma
+
+- **Przenoszenia pojedynczego wystąpienia** (patrz decyzja 2). W panelu
+  przeciąganie wystąpienia serii jest zablokowane z komunikatem — przeciągnięcie
+  wygląda na „przesuwam ten jeden termin", a przesunęłoby cały cykl.
+- **Cyklu na kroku przypomnienia** (`parent_id`): powtarza się całe zadanie,
+  nie krok w jego środku. Odwrotność nie da się sensownie odhaczyć.
+- **Zaproszeń wysyłanych osobno na każde wystąpienie** — od tego jest RRULE.
