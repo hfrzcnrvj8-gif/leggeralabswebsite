@@ -547,13 +547,29 @@
    dokoła. NIE dawaj tu ::before z maską (to była właśnie ta obwódka). */
 .admin-nav-active {
   position: relative;
+  /* Gradient marki fiolet→złoto (nie sam fiolet — decyzja właściciela
+     2026-07-23). Złoto realnie widoczne w środku, potem wygaszenie do zera
+     z prawej, żeby podświetlenie zostało otwarte i wtapiało się w pasek. */
   background-image: linear-gradient(
     90deg,
-    rgba(124, 58, 237, 0.26) 0%,
-    rgba(224, 169, 59, 0.1) 42%,
+    rgba(124, 58, 237, 0.28) 0%,
+    rgba(224, 169, 59, 0.2) 55%,
     transparent 100%
   );
-  box-shadow: inset 2px 0 0 0 rgba(124, 58, 237, 0.85);
+}
+/* Lewy akcent „tu jesteś" — pionowy pasek w gradiencie marki fiolet→złoto,
+   nie jednolity fiolet. Lekko wcięty od góry i dołu, żeby nie kolidował z
+   zaokrągleniem rogów pozycji. */
+.admin-nav-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 2.5px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #7c3aed, #e0a93b);
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
