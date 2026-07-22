@@ -17,7 +17,18 @@ Sprawdzone gretem 2026-07-22, nie z pamięci:
   od sprawdzenia env, nie od kodu.
 - **Wyszukiwarka obejmuje wydarzenia** (`app/api/search/route.ts:64`).
 
-## 1. Powtarzanie (cykliczne wydarzenia) — największa luka, największy zakres
+## 1. Powtarzanie — WSPÓLNE dla wydarzeń I przypomnień (decyzja właściciela)
+
+> **Rozstrzygnięte 2026-07-22:** właściciel wybrał jeden mechanizm dla obu,
+> zamiast osobnego dla przypomnień. Powód: to ta sama reguła, a dwie
+> implementacje rozjechałyby się tak, jak rozjechały się mapy kolorów statusu
+> (patrz `slownik-koloru-audyt`). **Nie buduj powtarzania tylko dla jednego
+> modułu**, nawet gdy prośba dotyczy jednego.
+>
+> Zakres obejmuje więc: `events` ORAZ `reminders`, panel ORAZ apkę.
+> Przypomnienia mają już `parent_id` (kroki) — uważaj, żeby seria i kroki nie
+> zaczęły się gryźć: krok powtarzalnego zadania to co innego niż powtarzalny krok.
+
 
 Potwierdzone: w schemacie `events` (`lib/db.ts`) NIE MA żadnej kolumny
 cykliczności. Kolumny to `id, tytul, opis, data, godzina, lead_id, project_id,
