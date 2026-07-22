@@ -138,6 +138,22 @@ umiemy z tego wrócić.
 
 # Audyt 4 — Obserwowalność: logi i wykrywanie problemów
 
+> ### ✅ WYKONANY — 2026-07-22
+>
+> Wyniki: **`docs/AUDYT-4-WYNIKI.md`**. Opis wdrożenia: `HUB_SETUP.md`
+> → „Audyt 4 — obserwowalność".
+>
+> W skrócie: z 95 miejsc logujących błędy na alarm zasługiwało ~25 — reszta
+> była albo już widoczna (41 tras zwraca 500 z powodem), albo szumem.
+> Powstały `error_log`, `automation_runs` i alarm mailowy z wyciszaniem;
+> nadzór wychodzi także z pingu NAS-a, żeby przeżył śmierć crona.
+>
+> Awarie interfejsu też są już łapane (`instrumentation.ts`, `error.tsx`,
+> `global-error.tsx`) — dla panelu, nie dla strony publicznej.
+>
+> **Następny wg ryzyka: Audyt 1 (bezpieczeństwo)** — zaczyna od braku
+> ograniczenia prób logowania, opisanego w briefie 39.
+
 **To jest najsłabszy obszar i najbliższy temu, o co właściciel prosił wprost.**
 
 Stan na 2026-07-20, sprawdzony, nie założony:

@@ -11,6 +11,7 @@ import { getSql, ensureMailSchema, ensureMailFoldersSchema, ensureEventAttendees
 import { findContactsByEmail } from "./contactLookup";
 import { eventIdFromUID, ATTENDEE_STATUS_LABEL } from "./eventInvites";
 import { notify } from "./notificationLog";
+import { zapiszWyjatek } from "./errorLog";
 import {
   fetchMessagesInFolder,
   fetchHintsByUids,
@@ -433,6 +434,14 @@ async function syncOneFolder(
     const msg = e instanceof Error ? e.message : String(e);
     await sql`UPDATE mail_folders SET last_error = ${msg.slice(0, 500)}, last_sync_at = now() WHERE id = ${folder.id};`;
     console.error(`[mailSync] fetch folderu ${folder.role} (${folder.imap_path}) nie powiódł się`, e);
+    // Audyt 4 (2026-07-22): `last_error` powyżej było zapisywane od Modułu 4
+    // i NIGDY przez nikogo nieczytane — ani w panelu, ani w apce (grep po
+    // całym repo dawał wyłącznie ten zapis i CREATE TABLE). Skutek: folder
+    // inny niż INBOX mógł nie synchronizować się miesiącami, a powód leżał
+    // w bazie, nie pokazywany nigdzie. Piąty raz w tym projekcie, gdy pole
+    // istnieje i nikt go nie woła — dlatego błąd idzie teraz tam, gdzie ktoś
+    // patrzy.
+    await zapiszWyjatek("sync-poczty", `Nie udało się pobrać folderu ${folder.role}`, e);
     if (folder.role === "inbox") throw e; // INBOX to nadal główna, oczekiwana ścieżka — jej błąd ma wypłynąć do UI jak dotąd.
     return empty;
   }

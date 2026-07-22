@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureBackupSchema } from "@/lib/db";
+import { wyslijAlarmy } from "@/lib/errorLog";
 
 export const runtime = "nodejs";
 
@@ -66,5 +67,22 @@ export async function POST(req: NextRequest) {
     WHERE id NOT IN (SELECT id FROM backup_runs ORDER BY created_at DESC LIMIT 60);
   `;
 
-  return NextResponse.json({ ok: true });
+  // **Tu jest sedno nadzoru z Audytu 4 (2026-07-22).**
+  //
+  // Ping przychodzi Z ZEWNĄTRZ — ze skryptu na NAS-ie, po własnym harmonogramie,
+  // niezależnie od tego, czy crony Vercela w ogóle jeszcze chodzą. To jedyne
+  // miejsce w całym systemie, które działa, gdy padnie dzienny raport.
+  //
+  // Bez tego nadzór byłby zapętlony: cron miałby pilnować automatów, a jego
+  // własną śmierć nie pilnowałby nikt. Alarm o martwym cronie musi wyjść inną
+  // drogą niż ta, która właśnie umarła.
+  //
+  // Świadomie po zapisie meldunku i bez `await`-blokującego wyniku: kopia
+  // zapasowa ma zostać odnotowana nawet wtedy, gdy wysyłka alarmu padnie.
+  const alarmy = await wyslijAlarmy().catch((e) => {
+    console.error("[POST /api/backup/ping] nadzór automatów nie powiódł się", e);
+    return 0;
+  });
+
+  return NextResponse.json({ ok: true, alarmy });
 }

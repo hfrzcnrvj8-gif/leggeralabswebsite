@@ -6386,3 +6386,48 @@ i licznik widżetu (34). Tak samo mówił audyt 2026-07-20 — nie „naprawiaj"
 `xcodebuild` zgłasza „cannot find X in scope" przy całkowicie poprawnym
 kodzie, bo pliku nie ma w wygenerowanym projekcie (w repo trzyma się
 `project.yml`, nie `.xcodeproj`).
+
+## Audyt 4 — obserwowalność: nadzór nad automatami (2026-07-22)
+
+Pierwszy z siedmiu audytów końcowych (`docs/AUDYTY-KONCOWE.md`), brief:
+`docs/plany-modulow/39-audyt-obserwowalnosc.md`, pełne wyniki:
+`docs/AUDYT-4-WYNIKI.md`.
+
+**Problem, który to zamyka:** panel miał 95 miejsc logujących błędy i zero
+rzeczy, która by je zbierała. Awaria o 3:00 była do rana niewidoczna.
+
+### Trzy decyzje właściciela (2026-07-22)
+
+1. **Własna tabela, nie Sentry** — zero nowych usług, dane zostają u niego.
+   Świadomie przyjęta wada: gdy padnie baza, `error_log` nie zapisze nic.
+2. **Osobny mail tylko przy awarii** — nie linijka w dziennym raporcie.
+3. **Prawie zero hałasu** — alarmujemy wyłącznie o rzeczach, które nie
+   naprawią się same (~25 z 95 miejsc).
+
+### Co powstało
+
+- `lib/observability.ts` — czysta logika: rejestr `AUTOMATY` (nazwa, skutek
+  po ludzku, próg godzin), `ocenAutomat()`, `oczyscTekst()`.
+- `lib/errorLog.ts` — baza: `zapiszBlad()`/`zapiszWyjatek()`,
+  `odnotujPrzebieg()` (bicie serca), `wyslijAlarmy()` (z wyciszaniem 24 h).
+- `lib/db.ts` → `ensureObservabilitySchema()`: `error_log`, `automation_runs`,
+  `alarm_state`. Z bramką migracji, jak każdy schemat.
+- Sekcja „Automaty (kiedy ostatnio zadziałały)" w dziennym mailu — wypisuje
+  WSZYSTKIE, także zdrowe, bo cisza w tej sekcji byłaby nie do odróżnienia od
+  sekcji, która sama przestała działać.
+- Pas na Pulpicie (`DashboardHome.tsx`), bliźniak pasa kopii zapasowych.
+
+### Trzy rzeczy, których nie wolno tu „uprościć"
+
+1. **Alarm wychodzi także z `/api/backup/ping`** — czyli ze skryptu na
+   NAS-ie, spoza Vercela. To JEDYNA droga, która działa, gdy padnie dzienny
+   cron. Nadzór wyłącznie w cronie byłby zapętlony: strażnik bez strażnika.
+2. **Ręczne „Wyślij raport teraz" (POST) NIE zapisuje bicia serca.** Gdyby
+   zapisywało, jedno kliknięcie właściciela wyciszałoby alarm o martwym
+   cronie — dokładnie wtedy, gdy sprawdza, czemu maile nie przychodzą.
+   Z tego samego powodu wejście w Pocztę nie liczy się jako przebieg
+   kolejki wysyłki.
+3. **Kolejność podstawień w `oczyscTekst()`** — numer konta MUSI iść przed
+   telefonem i NIP-em, bo tamte wzorce pasują do jego fragmentów. Przy
+   odwrotnej kolejności z IBAN-a zostawało `PL611090101400000[telefon]`,
+   czyli 17 cyfr wyciekało mimo „oczyszczenia". Złapane testem, nie okiem.

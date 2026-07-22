@@ -593,6 +593,88 @@ export async function ensureBackupSchema(): Promise<void> {
   await backupSchemaReady;
 }
 
+let observabilitySchemaReady: Promise<void> | null = null;
+
+/** Obserwowalność (Audyt 4, 2026-07-22) — trzy tabele, jeden cel: żeby awaria
+ * o 3:00 nie była do rana niewidoczna.
+ *
+ * **Dlaczego własna tabela, a nie Sentry:** decyzja właściciela z 2026-07-22.
+ * Zero nowych usług, zero kosztów, dane zostają u niego. Świadomie przyjęta
+ * wada: gdy padnie sama baza, `error_log` nie zapisze się nigdzie. Częściowo
+ * łata to `automation_runs` — brak meldunku jest sam w sobie sygnałem, więc
+ * cisza po padniętej bazie zostaje wykryta przy najbliższym pingu z NAS-a.
+ *
+ * **Wzorzec przeniesiony z kopii zapasowych 1:1** (`backup_runs` powyżej):
+ * historia zamiast ostatniego stanu, powód wprost dla nie-programisty,
+ * wykrywanie CISZY, nie tylko zgłoszonej porażki. */
+async function createObservabilitySchema(): Promise<void> {
+  if (await schemaUpToDate("observability")) return;
+
+  const sql = getSql();
+
+  /* Błędy warte zapamiętania. NIE wszystkie 95 miejsc z `console.error` —
+     tylko te, które nikomu się nie pokazują same (patrz lib/observability.ts,
+     „co trafia do logu"). Trasa zwracająca 500 pokazuje właścicielowi powód
+     w toaście od razu; jej duplikat tutaj byłby szumem. */
+  await sql`
+    CREATE TABLE IF NOT EXISTS error_log (
+      id TEXT PRIMARY KEY,
+      /* Skąd: "cron", "mailSync", "mailOutbox" — nie nazwa pliku, tylko
+         proces, który właściciel rozpozna. */
+      zakres TEXT NOT NULL,
+      waga TEXT NOT NULL DEFAULT 'blad',
+      /* Komunikat PO OCZYSZCZENIU z danych osobowych — patrz oczyscTekst().
+         Log jest zbiorem danych osobowych (Audyt 2), więc adresy, NIP-y
+         i telefony nie mają tu czego szukać. */
+      komunikat TEXT NOT NULL,
+      szczegoly TEXT NOT NULL DEFAULT '',
+      /* Identyfikator pozwalający powiązać zdarzenia jednego przebiegu —
+         bez niego trzy błędy z jednego crona wyglądają jak trzy awarie. */
+      przebieg_id TEXT,
+      /* Klucz zwijania powtórek: ten sam błąd 40 razy to jeden wiersz
+         z licznikiem, nie 40 wierszy. Wprost pod „prawie zero hałasu". */
+      klucz TEXT NOT NULL,
+      ile INTEGER NOT NULL DEFAULT 1,
+      pierwszy_raz TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS error_log_klucz_idx ON error_log(klucz);`;
+  await sql`CREATE INDEX IF NOT EXISTS error_log_created_idx ON error_log(created_at DESC);`;
+
+  /* Bicie serca automatów. Do 2026-07-22 miały je WYŁĄCZNIE kopie zapasowe —
+     przez co śmierć crona dziennego (jedynego kanału alarmowego w systemie)
+     nie dawała żadnego objawu poza tym, że maile przestawały przychodzić. */
+  await sql`
+    CREATE TABLE IF NOT EXISTS automation_runs (
+      id TEXT PRIMARY KEY,
+      klucz TEXT NOT NULL,
+      ok BOOLEAN NOT NULL,
+      powod TEXT NOT NULL DEFAULT '',
+      trwalo_ms INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS automation_runs_klucz_idx ON automation_runs(klucz, created_at DESC);`;
+
+  /* Kiedy ostatnio wyszedł KTÓRY alarm. Bez tego padnięta skrzynka wysyła
+     maila przy każdym przebiegu — a alarm, który przychodzi codziennie,
+     przestaje być alarmem. */
+  await sql`
+    CREATE TABLE IF NOT EXISTS alarm_state (
+      klucz TEXT PRIMARY KEY,
+      ostatnio_wyslany TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  await markSchemaApplied("observability");
+}
+
+export async function ensureObservabilitySchema(): Promise<void> {
+  if (!observabilitySchemaReady) observabilitySchemaReady = createObservabilitySchema();
+  await observabilitySchemaReady;
+}
+
 let invoicesSchemaReady: Promise<void> | null = null;
 
 async function createInvoicesSchema(): Promise<void> {

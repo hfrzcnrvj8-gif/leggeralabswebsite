@@ -42,6 +42,8 @@ import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO, daysSinceISO } from "@/lib/dates";
 import { notify, purgeOldNotifications } from "@/lib/notificationLog";
+import { odnotujPrzebieg, stanAutomatow, wczytajBledy, wyslijAlarmy, zapiszWyjatek } from "@/lib/errorLog";
+import { opisBledu, wymagaUwagi } from "@/lib/observability";
 
 export const runtime = "nodejs";
 // Podniesione z 30 s przy Module 4: do raportu doszło pobranie poczty przez
@@ -286,12 +288,16 @@ async function syncMailAndPurge(): Promise<{ fetched: number; matched: number; p
   let fetched = 0;
   let matched = 0;
   let failed = false;
+  const start = Date.now();
   try {
     const r = await syncMailbox();
     fetched = r.saved;
     matched = r.matched;
+    await odnotujPrzebieg("sync-poczty", true, "", Date.now() - start);
   } catch (e) {
     console.error("[cron] sync poczty nie powiódł się", e);
+    await odnotujPrzebieg("sync-poczty", false, opisBledu(e), Date.now() - start);
+    await zapiszWyjatek("sync-poczty", "Nie udało się pobrać poczty ze skrzynki", e);
     failed = true;
   }
 
@@ -302,6 +308,10 @@ async function syncMailAndPurge(): Promise<{ fetched: number; matched: number; p
     purged = (await purgeOldMail()).purged;
   } catch (e) {
     console.error("[cron] czyszczenie starych maili nie powiodło się", e);
+    // Zapisujemy, bo to obowiązek RODO, a nie wygoda: nieudane czyszczenie
+    // znaczy, że stare wiadomości zostają w bazie dłużej, niż deklaruje
+    // polityka retencji. Nikt by tego nie zauważył — retencja nie ma UI.
+    await zapiszWyjatek("retencja", "Nie udało się usunąć starych wiadomości (retencja RODO)", e);
   }
 
   return { fetched, matched, purged, failed };
@@ -400,6 +410,17 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     generateDueRecurringCosts(),
   ]);
 
+  // Bicie serca generatora cyklicznych. Liczby porażek były dotąd widoczne
+  // WYŁĄCZNIE jako „(N nieudanych)" w treści maila — czyli znikały razem
+  // z nim. Teraz zostaje ślad, który przeżywa nieprzeczytany raport.
+  await odnotujPrzebieg(
+    "faktury-cykliczne",
+    recurring.failed === 0 && recurringCosts.failed === 0,
+    recurring.failed || recurringCosts.failed
+      ? `Nieudane: ${recurring.failed} faktur, ${recurringCosts.failed} kosztów.`
+      : ""
+  );
+
   // Centrum powiadomień (Moduł 24) — cisza w wątku. Klucz to sam wątek, więc
   // o milczącym wątku dzwonek mówi RAZ, mimo że cron widzi tę ciszę codziennie
   // aż do odpowiedzi. Bez tego jeden nieodpisany mail generowałby wpis co rano
@@ -417,8 +438,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   }
 
   // Retencja kroniki (30 dni) — jedziemy tym samym cronem co retencja poczty.
-  const purgedNotifications = await purgeOldNotifications().catch((e) => {
+  const purgedNotifications = await purgeOldNotifications().catch(async (e) => {
     console.error("[cron] czyszczenie starych powiadomień nie powiodło się", e);
+    await zapiszWyjatek("retencja", "Nie udało się wyczyścić starej kroniki powiadomień", e);
     return { purged: 0 };
   });
   if (purgedNotifications.purged > 0) {
@@ -523,6 +545,57 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     }
   } catch (e) {
     console.error("[cron] nie udało się odczytać stanu kopii zapasowych", e);
+    // Cichy błąd TUTAJ jest groźniejszy niż gdzie indziej: gdy odczyt padnie,
+    // `backupLinia` zostaje pusta i mail wygląda dokładnie tak, jakby z
+    // kopiami było wszystko w porządku. Awaria nadzoru udawałaby zdrowie.
+    await zapiszWyjatek("kopie", "Nie udało się odczytać stanu kopii zapasowych", e);
+    backupZepsute = true;
+    backupLinia = "UWAGA: nie udało się sprawdzić stanu kopii zapasowych — traktuj to jak brak potwierdzenia, że kopie działają.";
+  }
+
+  // Zdrowie automatów (Audyt 4). Ten sam try/catch co przy kopiach i z tego
+  // samego powodu: nadzór nie może wywrócić tego, co nadzoruje.
+  //
+  // UWAGA na kolejność — czytamy stan PRZED odnotowaniem własnego przebiegu
+  // (ten leci dopiero w przebiegRaportu(), po wysłaniu maila). Dzięki temu
+  // linijka o dziennym raporcie mówi o POPRZEDNIM przebiegu, a nie o tym,
+  // który właśnie trwa. Inaczej raport zawsze meldowałby „przed chwilą" —
+  // także wtedy, gdyby poprzednie trzy dni wypadły.
+  // Ostatnie błędy z error_log.
+  //
+  // **To NIE jest ozdoba — bez tej sekcji `error_log` byłby tabelą tylko do
+  // zapisu.** Dokładnie ten antywzorzec, który ten sam audyt wytknął przy
+  // `mail_folders.last_error` (zapisywane od Modułu 4, nigdy nieczytane).
+  // Zbieranie błędów, których nikt nigdy nie ogląda, to koszt bez pożytku.
+  //
+  // Tylko `waga='blad'` i tylko 5 najświeższych: raport ma być czytany
+  // codziennie, więc nie może puchnąć. Powtórki są zwinięte licznikiem, co
+  // z pięciu wierszy robi realny przegląd, a nie wycinek.
+  let bledyLinie = "";
+  try {
+    const bledy = (await wczytajBledy(20)).filter((b) => b.waga === "blad").slice(0, 5);
+    if (bledy.length > 0) {
+      bledyLinie = [
+        "",
+        "Ostatnie błędy zapisane przez panel:",
+        ...bledy.map((b) => `  • [${b.zakres}] ${b.komunikat}${b.ile > 1 ? ` (${b.ile}×)` : ""}`),
+      ].join("\n");
+    }
+  } catch (e) {
+    console.error("[cron] nie udało się odczytać ostatnich błędów", e);
+  }
+
+  let automatyLinie = "  (nie udało się odczytać)";
+  let automatZepsuty = false;
+  try {
+    const stany = await stanAutomatow();
+    automatZepsuty = stany.some(wymagaUwagi);
+    automatyLinie = stany
+      .map((s) => `  ${wymagaUwagi(s) ? "UWAGA" : "•"} ${s.opis}${s.stan === "blad" ? ` Powód: ${s.powod}` : ""}`)
+      .join("\n");
+  } catch (e) {
+    console.error("[cron] nie udało się odczytać stanu automatów", e);
+    await zapiszWyjatek("nadzor", "Nie udało się odczytać stanu automatów", e);
   }
 
   const mailLines = pendingMails.length
@@ -592,6 +665,13 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     backupLinia,
     "",
+    // Zdrowie automatów jednym rzutem oka (Audyt 4). Wypisujemy WSZYSTKIE,
+    // także zdrowe — inaczej cisza w tej sekcji byłaby nie do odróżnienia od
+    // sekcji, która sama przestała działać.
+    "Automaty (kiedy ostatnio zadziałały):",
+    automatyLinie,
+    bledyLinie,
+    "",
     `Łącznie: ${leads.length} leadów, ${projects.length} projektów.`,
     "",
     "— automatyczny raport z /admin",
@@ -608,7 +688,13 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     ? `[Panel] UWAGA: kopie zapasowe nie działają${
         totalActionableWithReminders > 0 ? ` · ${totalActionableWithReminders} spraw na dziś` : ""
       }`
-    : totalActionableWithReminders > 0
+    : // Ta sama zasada rozciągnięta na automaty (Audyt 4): temat nie może
+      // mówić „wszystko ogarnięte", gdy poczta nie pobiera się od dwóch dni.
+      automatZepsuty
+      ? `[Panel] UWAGA: automat nie działa${
+          totalActionableWithReminders > 0 ? ` · ${totalActionableWithReminders} spraw na dziś` : ""
+        }`
+      : totalActionableWithReminders > 0
       ? `[Panel] ${totalActionableWithReminders} ${totalActionableWithReminders === 1 ? "sprawa wymaga" : "spraw wymaga"} dziś działania`
       : "[Panel] Dzienny raport — wszystko ogarnięte";
 
@@ -642,11 +728,40 @@ export async function GET(req: NextRequest) {
   if (auth !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  return await przebiegRaportu();
+}
+
+/**
+ * Jeden przebieg dziennego raportu — z meldunkiem o tym, że się odbył.
+ *
+ * **Do Audytu 4 (2026-07-22) ten `catch` nie logował NICZEGO** i zwracał samo
+ * 500. Skutek był poważniejszy, niż wygląda: `sendEmail()` rzuca wyjątkiem
+ * przy błędzie Resend, więc padnięta wysyłka kończyła cały przebieg po cichu.
+ * A dzienny raport jest jedynym kanałem, którym docierają ostrzeżenia o
+ * kopiach zapasowych — jego cicha śmierć wyciszała również tamten alarm.
+ * Strażnik nie miał strażnika.
+ *
+ * Teraz każdy przebieg zostawia ślad w `automation_runs`, więc brak meldunku
+ * jest sam w sobie wykrywalny — nawet wtedy, gdy cron w ogóle nie wystartował
+ * i nie miał jak zgłosić błędu.
+ */
+async function przebiegRaportu() {
+  const start = Date.now();
   try {
     const result = await buildAndSendDigest();
+    await odnotujPrzebieg("raport-dzienny", true, "", Date.now() - start);
+    // Alarm o INNYCH automatach leci przy okazji — raport chodzi codziennie,
+    // więc jest najtańszym momentem na sprawdzenie, czy reszta żyje.
+    await wyslijAlarmy();
     return NextResponse.json({ ok: true, sent: true, ...result });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    const powod = opisBledu(e);
+    await odnotujPrzebieg("raport-dzienny", false, powod, Date.now() - start);
+    await zapiszWyjatek("cron", "Dzienny raport nie wykonał się do końca", e);
+    // Alarm MUSI polecieć także tutaj: skoro raport nie wyszedł, wiadomość
+    // schowana w jego treści nigdy by nie dojechała.
+    await wyslijAlarmy();
+    return NextResponse.json({ error: powod }, { status: 500 });
   }
 }
 
@@ -660,6 +775,12 @@ export async function POST() {
     const result = await buildAndSendDigest();
     return NextResponse.json({ ok: true, sent: true, ...result });
   } catch (e) {
+    // ŚWIADOMIE bez odnotujPrzebieg(): to jest kliknięcie właściciela, nie
+    // przebieg automatu. Gdyby ręczna wysyłka odświeżała bicie serca,
+    // jedno kliknięcie „Wyślij raport teraz" wyciszałoby alarm o martwym
+    // cronie — czyli dokładnie w chwili, gdy właściciel sprawdza, czemu
+    // maile nie przychodzą, system przestawałby mu o tym mówić.
+    await zapiszWyjatek("panel", "Ręczne wysłanie raportu nie powiodło się", e);
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

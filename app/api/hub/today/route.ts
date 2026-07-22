@@ -11,6 +11,8 @@ import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { todayLocalISO } from "@/lib/dates";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
+import { stanAutomatow } from "@/lib/errorLog";
+import { wymagaUwagi, type StanAutomatu } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
@@ -242,8 +244,20 @@ export async function GET() {
     console.error("[GET /api/hub/today] nie udało się odczytać stanu kopii zapasowych", e);
   }
 
+  // Stan automatów (Audyt 4, 2026-07-22) — ta sama ostrożność co przy kopiach:
+  // osobne, tanie zapytanie w try/catch, bo nadzór nie może wywrócić Pulpitu.
+  // Wysyłamy TYLKO to, co wymaga uwagi: Pulpit jest ekranem „co dziś zrobić",
+  // a nie tablicą kontrolną. Pełną listę, także zdrową, pokazuje dzienny mail.
+  let automaty: StanAutomatu[] = [];
+  try {
+    automaty = (await stanAutomatow()).filter(wymagaUwagi);
+  } catch (e) {
+    console.error("[GET /api/hub/today] nie udało się odczytać stanu automatów", e);
+  }
+
   return NextResponse.json({
     backup,
+    automaty,
     overdueLeads,
     overdueClients,
     dueProjects,

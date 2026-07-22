@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
 import { runDueOutbox } from "@/lib/mailOutbox";
+import { odnotujPrzebieg, zapiszWyjatek } from "@/lib/errorLog";
+import { opisBledu } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,6 +37,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const wynik = await runDueOutbox();
-  return NextResponse.json({ ok: true, ...wynik });
+  // Bicie serca (Audyt 4) — TYLKO dla wywołań z crona. Wejście z panelu rusza
+  // tę samą kolejkę, ale nie jest dowodem, że automat żyje: gdyby liczyło się
+  // jako przebieg, codzienne otwieranie Poczty maskowałoby martwy cron.
+  const start = Date.now();
+  try {
+    const wynik = await runDueOutbox();
+    if (zCrona) await odnotujPrzebieg("kolejka-wysylki", true, "", Date.now() - start);
+    return NextResponse.json({ ok: true, ...wynik });
+  } catch (e) {
+    // Do Audytu 4 ta trasa nie miała `catch` w ogóle — wyjątek leciał jako
+    // nieobsłużone 500 i nie zostawiał śladu nigdzie poza logami Vercela,
+    // które na planie Hobby żyją godziny.
+    if (zCrona) await odnotujPrzebieg("kolejka-wysylki", false, opisBledu(e), Date.now() - start);
+    await zapiszWyjatek("kolejka-wysylki", "Nie udało się rozesłać kolejki wysyłki odłożonej", e);
+    return NextResponse.json({ error: opisBledu(e) }, { status: 500 });
+  }
 }

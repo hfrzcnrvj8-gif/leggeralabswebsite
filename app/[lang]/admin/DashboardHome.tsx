@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { IconRepeat, IconDatabaseExclamation } from "@tabler/icons-react";
+import { IconRepeat, IconDatabaseExclamation, IconAlertTriangle } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Lead } from "@/lib/leads";
 import { type Project, formatPlDate } from "@/lib/projects";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { kopieWymagajaUwagi, type BackupStan } from "@/lib/backup";
+import type { StanAutomatu } from "@/lib/observability";
 import { overdueReason } from "@/lib/leads";
 import { type Invoice, formatMoney } from "@/lib/invoices";
 import type { Offer } from "@/lib/offers";
@@ -82,6 +83,8 @@ type TodayData = {
   /** Stan kopii zapasowych bazy (2026-07-20). `null`, gdy nie udało się go
    * odczytać — Pulpit milczy zamiast straszyć fałszywym alarmem. */
   backup: BackupStan | null;
+  /** Audyt 4 — TYLKO automaty wymagające uwagi; serwer filtruje. */
+  automaty?: StanAutomatu[];
 };
 
 /** Sumy w różnych walutach nie da się zmergować w jedną liczbę — każda
@@ -358,6 +361,38 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   Instrukcja: <code>scripts/kopia-zapasowa/README.md</code>
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Automaty, które stanęły (Audyt 4, 2026-07-22). Ten sam pas i ta sama
+          zasada co przy kopiach: gdy wszystko działa, Pulpit MILCZY. Serwer
+          przysyła wyłącznie to, co wymaga uwagi, więc tu nie ma co filtrować.
+
+          Zdanie „co to znaczy" jest tu ważniejsze od nazwy automatu:
+          „kolejka-wysylki nie działa" nic właścicielowi nie mówi, „maile
+          zaplanowane na później nie wychodzą do klientów" mówi wszystko. */}
+      {(data.automaty ?? []).length > 0 && (
+        <div className="mx-4 mt-4 rounded-xl border hairline bg-brand-gold/10 p-3 sm:mx-6">
+          <div className="flex items-start gap-2">
+            <IconAlertTriangle size={16} className="mt-0.5 shrink-0 text-brand-gold" />
+            <div className="min-w-0 space-y-2">
+              {(data.automaty ?? []).map((a) => (
+                <div key={a.automat.klucz}>
+                  <p className="text-[13px] font-medium">
+                    {a.stan === "blad"
+                      ? `${a.automat.nazwa}: ostatni przebieg się nie udał`
+                      : `${a.automat.nazwa}: automat przestał chodzić`}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-muted">{a.automat.skutek}</p>
+                  {a.stan === "blad" && (
+                    <p className="mt-1 rounded-lg bg-[var(--hairline)]/60 px-2 py-1 font-mono text-[11px] text-muted">
+                      {a.powod}
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
