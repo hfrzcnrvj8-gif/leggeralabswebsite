@@ -517,7 +517,6 @@
    obwódkę rysuje ::before. Klasy GLOBALNE (nie pod .admin-linear), bo
    date-picker renderuje „Gotowe" w portalu do <body> — poza scope'em panelu.
    Używane tylko w panelu, więc globalny zasięg jest bezpieczny. */
-.admin-nav-active,
 .admin-grad-border {
   position: relative;
   background-image: linear-gradient(
@@ -526,7 +525,6 @@
     rgba(224, 169, 59, 0.12)
   );
 }
-.admin-nav-active::before,
 .admin-grad-border::before {
   content: "";
   position: absolute;
@@ -539,6 +537,23 @@
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
+}
+
+/* Aktywna pozycja nawigacji — świadomie BEZ zamkniętej obwódki (decyzja
+   właściciela 2026-07-23: „nie chcę, żeby wyglądało jak komórka tabeli").
+   Sam gradient marki w tle, mocniejszy przy lewej krawędzi i WYGASZONY do
+   zera z prawej — podświetlenie wtapia się w pasek, nie zamyka go pudełkiem.
+   Cienki gradientowy akcent po lewej zaznacza „tu jesteś" bez rysowania ramki
+   dokoła. NIE dawaj tu ::before z maską (to była właśnie ta obwódka). */
+.admin-nav-active {
+  position: relative;
+  background-image: linear-gradient(
+    90deg,
+    rgba(124, 58, 237, 0.26) 0%,
+    rgba(224, 169, 59, 0.1) 42%,
+    transparent 100%
+  );
+  box-shadow: inset 2px 0 0 0 rgba(124, 58, 237, 0.85);
 }
 
 @media (prefers-reduced-motion: reduce) {
