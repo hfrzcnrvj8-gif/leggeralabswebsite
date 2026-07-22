@@ -35,13 +35,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (projectId) {
     const projectRows = await sql`
-      SELECT tytul, jezyk, review_token, review_submitted_at FROM projects WHERE id = ${projectId};
+      SELECT tytul, jezyk, review_token, review_revoked_at, review_submitted_at FROM projects WHERE id = ${projectId};
     `;
     const project = projectRows[0];
     if (project?.tytul) tytul = String(project.tytul);
     if (project?.jezyk && KNOWN_LANGS.includes(project.jezyk)) lang = project.jezyk as DocLang;
 
-    if (days === 14) {
+    // Link do opinii pomijamy, jeśli właściciel go unieważnił (Moduł 40) —
+    // szkic z martwym linkiem byłby gorszy niż szkic bez linku, a
+    // ensureProjectReviewToken() i tak oddałby ten sam, martwy token.
+    if (days === 14 && !project?.review_revoked_at) {
       const token = await ensureProjectReviewToken(
         sql,
         projectId,

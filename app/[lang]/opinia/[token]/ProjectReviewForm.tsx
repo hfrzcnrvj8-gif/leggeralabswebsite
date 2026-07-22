@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
 import type { DocLang } from "@/lib/documents";
+import { LinkRevokedNotice } from "../../admin/LinkRevokedNotice";
 
 const DOC_GRADIENT = "linear-gradient(120deg, #7C3AED 0%, #E0A93B 100%)";
 
@@ -126,6 +127,8 @@ function StarRating({ value, onChange, label }: { value: number; onChange: (v: n
 export function ProjectReviewForm({ token }: { token: string }) {
   const [project, setProject] = useState<PublicProject | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // 410 = link unieważniony (Moduł 40) — inny ekran niż "nie znaleziono".
+  const [revoked, setRevoked] = useState(false);
   const [jakosc, setJakosc] = useState(0);
   const [terminowosc, setTerminowosc] = useState(0);
   const [komunikacja, setKomunikacja] = useState(0);
@@ -138,14 +141,25 @@ export function ProjectReviewForm({ token }: { token: string }) {
 
   useEffect(() => {
     fetch(`/api/projects/review/public/${token}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setProject(d.project))
+      .then(async (r) => {
+        if (r.status === 410) {
+          setRevoked(true);
+          return null;
+        }
+        if (!r.ok) {
+          setNotFound(true);
+          return null;
+        }
+        return r.json();
+      })
+      .then((d) => d && setProject(d.project))
       .catch(() => setNotFound(true));
   }, [token]);
 
   const lang: DocLang = project && isDocLang(project.jezyk) ? project.jezyk : "pl";
   const t = DICT[lang];
 
+  if (revoked) return <LinkRevokedNotice dokument="Formularz opinii" />;
   if (notFound) return <div className="p-10 text-center text-neutral-600">{DICT.pl.notFound}</div>;
   if (!project) return <div className="p-10 text-center text-neutral-400">{DICT.pl.loading}</div>;
 

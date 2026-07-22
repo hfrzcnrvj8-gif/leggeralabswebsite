@@ -184,6 +184,9 @@ export type Invoice = {
   odbiorca_kraj: string;
   klient_email: string;
   share_token: string | null;
+  /** Moduł 40 — ręczne unieważnienie publicznego linku do faktury. Token
+   * ZOSTAJE w wierszu (patrz lib/shareLinks.ts). */
+  share_revoked_at: string | null;
   last_reminder_at: string | null;
   /** Poziom eskalacji windykacji już wysłany (0 = żaden, 1-3 wg
    * REMINDER_LEVELS) — pilnuje, żeby ten sam poziom nie poszedł dwa razy. */
@@ -194,6 +197,8 @@ export type Invoice = {
   /** Token publicznego podglądu wezwania (`/wezwanie/[token]`) — osobny od
    * `share_token` faktury, bo to inny dokument. */
   wezwanie_share_token: string | null;
+  /** Unieważnienie linku do wezwania — osobne od faktury, tak jak sam token. */
+  wezwanie_share_revoked_at: string | null;
   typ_dokumentu: InvoiceDocType;
   /** Ustawione, gdy TA faktura jest korektą innej — pozycje tej faktury to
    * stan PO korekcie, oryginał (koryguje_id) zostaje nienaruszony. */

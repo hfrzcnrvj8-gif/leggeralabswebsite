@@ -6468,3 +6468,127 @@ więc była to najkrótsza droga do wszystkich danych klientów naraz.
 Drugi limit, **globalny** (30 prób logowania / 15 min ze wszystkich adresów
 naraz), istnieje dlatego, że botnet z tysiąca adresów obchodzi limit per-IP,
 a właściciel loguje się z jednego lub dwóch miejsc.
+
+## Moduł 40 — unieważnianie publicznych linków + białe listy pól (2026-07-22)
+
+Domknięcie **Audytu 1** (ustalenia 5, 6 i 8). Dwie części zrobione razem, bo
+dotykają tych samych pięciu tras.
+
+### Część A — „Unieważnij link"
+
+Pięć rodzajów tokenów w linkach wysyłanych mailem (oferta, umowa/NDA, faktura,
+wezwanie do zapłaty, formularz opinii) było **wieczne i nieodwoływalne**: mail
+przesłany dalej przez klienta = trwały dostęp do dokumentu.
+
+**Tokeny nadal nie wygasają same** — to świadoma decyzja właściciela (faktura
+sprzed dwóch lat ma się dalej otwierać, a link umierający sam generowałby
+telefony „nie działa mi Pana link"). Zamiast tego doszedł **ręczny przycisk**
+w panelu, obok „Wyślij mailem": *Unieważnij link* → stan „Link unieważniony
+<data>" → *Wygeneruj nowy link*.
+
+Gdzie co mieszka:
+
+- `lib/shareLinks.ts` — `revokeShareLink()` / `regenerateShareLink()`, po jednym
+  rozpisanym zapytaniu na rodzaj (nazwy tabel i kolumn nie przechodzą przez
+  parametry, więc nie ma tu sklejania SQL-a ze stringów).
+- `POST /api/share-links/[kind]/[id]` — jedna trasa na pięć rodzajów, zamiast
+  dziesięciu bliźniaczych. Powód jest w `CLAUDE.md`: cała ochrona panelu to
+  powtórzone `isAuthed()` w każdym uchwycie, więc im mniej miejsc, tym mniejsza
+  szansa, że kiedyś zabraknie jednej linijki.
+- `app/[lang]/admin/ShareLinkControl.tsx` — kontrolka panelu (korzeń `admin/`,
+  jak `icons.tsx`: dzieli ją pięć modułów, żaden nie jest właścicielem).
+- `app/[lang]/admin/LinkRevokedNotice.tsx` — ekran dla drugiej strony.
+- Kolumny: `invoices.share_revoked_at`, `invoices.wezwanie_share_revoked_at`,
+  `offers.share_revoked_at`, `contracts.share_revoked_at`,
+  `projects.review_revoked_at` (bramka migracji jak wszędzie).
+
+### Cztery rzeczy, których nie wolno tu „uprościć"
+
+1. **Warunek jest w SZEŚCIU zapytaniach, nie w czterech.** Trzy z tych tras
+   ZAPISUJĄ (`offers/…/accept`, `contracts/…/accept`, `projects/review/…/submit`).
+   Blokada samego podglądu byłaby połowiczna dokładnie tam, gdzie boli
+   najbardziej: ktoś ze starym linkiem mógłby dalej **podpisać umowę**.
+2. **Unieważnienie NIE kasuje tokenu.** Pusty `share_token` jest
+   nieodróżnialny od „nigdy nie wysłany", a kolejne „Wyślij mailem"
+   wygenerowałoby nowy przez `ensure*ShareToken()` i **cicho przywróciło
+   dostęp**. Od tego jest osobna kolumna.
+3. **„Wygeneruj nowy" nie może iść przez `ensure*ShareToken()`.** Te zaczynają
+   się od `if (existingToken) return existingToken;`, więc oddałyby ten sam,
+   martwy token — przycisk wyglądałby na działający i nie robiłby nic.
+4. **Odpowiedź to 410 Gone, nie 404.** Druga strona ma wiedzieć, że dokument
+   istnieje, tylko dostęp odebrano — inaczej szuka literówki w adresie albo
+   pisze „Państwa link nie działa".
+
+**Faktura i wezwanie mają OSOBNE unieważnienie**, tak jak mają osobne tokeny
+(Moduł 13). Unieważnienie faktury nie rusza wezwania i odwrotnie.
+
+### Czego brief nie przewidział, a bez czego moduł byłby pozorny
+
+Zablokowanie sześciu tras nie wystarczało: zostawało **siedem dróg, którymi
+panel sam wysłałby martwy link**, bo `ensure*ShareToken()` jest idempotentne
+i po unieważnieniu oddaje ten sam adres. Wszystkie odmawiają albo pomijają:
+`offers/[id]/send`, `contracts/[id]/send`, `invoices/[id]/send`,
+`invoices/[id]/remind`, `projects/[id]/request-review` (409 z czytelnym
+komunikatem), cron `leads/notify` (pomija fakturę i loguje ostrzeżenie) oraz
+szkic wiadomości retencyjnej (`client-followups/[id]/draft` — nie wkleja
+linku). Regeneracja linku w profilu projektu przebudowuje też szkic
+wiadomości, bo zawierał **wpisany** stary URL.
+
+Świadomie **nie** regenerujemy tokenu automatycznie przy „Wyślij mailem":
+nowy link ma być osobną, jawną decyzją, a nie skutkiem ubocznym.
+
+### Część B — białe listy pól
+
+Cztery trasy dokumentowe robiły `SELECT *` i ukrywały czarną listą kilka
+kolumn, czyli **każda nowa kolumna stawała się publiczna sama z siebie**. Tak
+wyciekły `accepted_ip`/`accepted_user_agent` podpisującego, `client_id`
+(dodany Modułem 30 po napisaniu trasy) i `wezwanie_share_token` — drugi,
+*celowo osobny* token.
+
+Białe listy: **`lib/publicFields.ts`**. Kluczowa zasada:
+
+> **Biała lista = dokładnie te pola, które czyta komponent wydruku** —
+> wyprowadzona z `InvoicePrint` / `DunningPrint` / `OfferPrint` /
+> `ContractPrint`, **nie** z typu w `lib/`.
+
+Bierze się to stąd, że strony publiczne **re-używają komponentów wydruku
+z `/admin`**: ten sam komponent bierze w panelu pełny wiersz z
+`/api/<moduł>/[id]`, a publicznie okrojony z `…/public/[token]`.
+**Dokładając pole do wydruku, dopisz je do białej listy** — pominięte nie
+wywali błędu, tylko pokaże pustą rubrykę u klienta.
+
+`accepted_by_name` **zostaje publiczne** (decyzja właściciela 2026-07-22): to
+podpis drukowany pod umową i ofertą, jak na papierze. Wypadły natomiast
+prywatne stawki rezerw podatkowych (`rezerwa_vat/pit/zus_procent`) i domyślne
+ustawienia edytora, których wydruk nie używa.
+
+### Jak to zweryfikowano (nie „skompilowało się")
+
+Na serwerze dev, z bazą PGlite: publiczny link **przed** unieważnieniem (200,
+pełny wydruk), **po** (410 + ekran „Ten link został unieważniony"), po
+**„Wygeneruj nowy"** (nowy 200, **stary dalej martwy** — i token faktycznie
+inny). Próba podpisu umowy i wysłania opinii unieważnionym linkiem: **410**,
+dokument w bazie nietknięty (`status` bez zmian, `accepted_by_name` puste).
+Wszystkie cztery wydruki obejrzane na żywo po zmianie białych list — żadna
+rubryka nie zniknęła. Klucze publicznych odpowiedzi wypisane i porównane
+z listą.
+
+### Czego świadomie nie ma
+
+- **Unieważniania z telefonu.** Apka (osobne repozytorium `leggera-hub-ios`)
+  wyłącznie POKAZUJE stan: plakietka „Link unieważniony <data>" na fakturze,
+  ofercie i umowie, a przycisk „Otwórz podgląd jak u klienta" znika, bo
+  prowadziłby do ekranu 410. Ruch jest rzadki i nieodwracalny, a na telefonie
+  łatwiej go stuknąć przez przypadek (decyzja właściciela).
+
+  **Pułapka złapana przy tej okazji, warta zapamiętania:** `var shareRevokedAt:
+  String?` w modelu `Faktura` kompilował się bez zarzutu, mimo że custom
+  `init(from decoder:)` nigdy go nie przypisywał — Swift daje opcjonalnym
+  `var`-om domyślne `nil`, więc pole było **zawsze puste**, plakietka nigdy
+  się nie pokazywała, a kompilator milczał. Wyszło dopiero na ekranie
+  symulatora. Dokładając pole do modelu, sprawdź, czy custom `init` je czyta.
+- **Historii unieważnionych tokenów.** Po „Wygeneruj nowy" stary adres zwraca
+  404 („nie znaleziono"), a nie 410 — bo takiego tokenu już nigdzie nie ma.
+  Trzymanie cmentarza starych tokenów tylko po to, żeby ładniej odpowiedzieć,
+  nie było tego warte.
+- **Automatycznego wygasania** — rozważone i odrzucone, patrz wyżej.

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
+import { pickFields, DUNNING_PUBLIC_FIELDS, COMPANY_SETTINGS_PUBLIC_FIELDS } from "@/lib/publicFields";
+import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 
 export const runtime = "nodejs";
 
@@ -24,10 +26,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   `;
   const invoice = rows[0];
   if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const { lead_id, client_id, project_id, ...publicInvoice } = invoice;
-  void lead_id;
-  void client_id;
-  void project_id;
+  // 410 Gone, nie 404 (Moduł 40). Znacznik unieważnienia jest WŁASNY dla
+  // wezwania — unieważnienie linku do faktury nie rusza wezwania i odwrotnie,
+  // tak jak same tokeny są celowo osobne.
+  if (invoice.wezwanie_share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
-  return NextResponse.json({ invoice: publicInvoice, settings: settings[0] ?? null });
+  return NextResponse.json({
+    invoice: pickFields(invoice, DUNNING_PUBLIC_FIELDS),
+    settings: settings[0] ? pickFields(settings[0], COMPANY_SETTINGS_PUBLIC_FIELDS) : null,
+  });
 }

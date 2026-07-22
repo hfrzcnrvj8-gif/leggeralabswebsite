@@ -56,6 +56,9 @@ export type Offer = {
   klient_kraj: string;
   klient_email: string;
   share_token: string | null;
+  /** Moduł 40 — ręczne unieważnienie publicznego linku. Token ZOSTAJE
+   * w wierszu (patrz lib/shareLinks.ts); to pole decyduje o dostępie. */
+  share_revoked_at: string | null;
   wazna_do: string | null;
   status: OfferStatus;
   jezyk: OfferLang;

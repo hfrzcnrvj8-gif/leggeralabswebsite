@@ -5,6 +5,7 @@ import { type Offer, type OfferItem, type OfferLang, offerTotal, itemKwota, clie
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
+import { LinkRevokedNotice } from "../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../DocumentScale";
 
 /** Podgląd/wydruk oferty — ten sam premium, stonowany styl co faktura
@@ -168,6 +169,9 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   const [items, setItems] = useState<OfferItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // 410 z trasy publicznej = link unieważniony (Moduł 40) — inny ekran niż
+  // "nie znaleziono", bo dokument istnieje, tylko dostęp odebrano.
+  const [revoked, setRevoked] = useState(false);
   const [signName, setSignName] = useState("");
   const [signConfirm, setSignConfirm] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -176,8 +180,19 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   useEffect(() => {
     if (token) {
       fetch(`/api/offers/public/${token}`)
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then(async (r) => {
+          if (r.status === 410) {
+            setRevoked(true);
+            return null;
+          }
+          if (!r.ok) {
+            setNotFound(true);
+            return null;
+          }
+          return r.json();
+        })
         .then((d) => {
+          if (!d) return;
           setOffer(d.offer);
           setItems(d.items);
           setSettings(d.settings);
@@ -200,6 +215,7 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   const lang: OfferLang = offer?.jezyk ?? "pl";
   const t = DICT[lang];
 
+  if (revoked) return <LinkRevokedNotice dokument="Oferta" />;
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!offer) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 

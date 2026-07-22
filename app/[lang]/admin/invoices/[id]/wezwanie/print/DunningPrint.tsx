@@ -16,6 +16,7 @@ import {
 } from "@/lib/invoices";
 import { docDate, DOC_GRADIENT } from "@/lib/documents";
 import { DocLogoMark } from "../../../../DocLogoMark";
+import { LinkRevokedNotice } from "../../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../../DocumentScale";
 
 type DunningInvoice = Invoice & { brutto: number };
@@ -30,12 +31,26 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
   const [invoice, setInvoice] = useState<DunningInvoice | null>(null);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // 410 z trasy publicznej = link unieważniony (Moduł 40) — inny ekran niż
+  // "nie znaleziono", bo dokument istnieje, tylko dostęp odebrano.
+  const [revoked, setRevoked] = useState(false);
 
   useEffect(() => {
     if (token) {
       fetch(`/api/invoices/wezwanie/public/${token}`)
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then(async (r) => {
+          if (r.status === 410) {
+            setRevoked(true);
+            return null;
+          }
+          if (!r.ok) {
+            setNotFound(true);
+            return null;
+          }
+          return r.json();
+        })
         .then((d) => {
+          if (!d) return;
           setInvoice({ ...d.invoice, brutto: Number(d.invoice.brutto) });
           setSettings(d.settings);
         })
@@ -58,6 +73,7 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
       .catch(() => setNotFound(true));
   }, [id, token]);
 
+  if (revoked) return <LinkRevokedNotice dokument="Wezwanie do zapłaty" />;
   if (notFound) return <div className="p-10 text-center text-gray-600">Nie znaleziono wezwania.</div>;
   if (!invoice) return <div className="p-10 text-center text-gray-400">Wczytywanie…</div>;
 

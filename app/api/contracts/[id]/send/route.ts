@@ -17,6 +17,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const rows = await sql`SELECT * FROM contracts WHERE id = ${id};`;
     const contract = rows[0];
     if (!contract) return NextResponse.json({ error: "not found" }, { status: 404 });
+    // Moduł 40 — wysyłka nie może iść unieważnionym linkiem. Świadomie NIE
+    // regenerujemy tokenu po cichu: nowy link to osobna, jawna decyzja.
+    if (contract.share_revoked_at) return NextResponse.json({ error: "Link do tego dokumentu jest unieważniony — wygeneruj nowy przed wysyłką." }, { status: 409 });
     if (!contract.klient_email) return NextResponse.json({ error: "Brak adresu e-mail — uzupełnij go w edytorze." }, { status: 400 });
 
     const typ = contract.typ as ContractTyp;
@@ -56,7 +59,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
     await logClientEvent(sql, clientId, "contract_sent", `Wysłano ${label.toLowerCase()} mailem`, null, id);
 
-    return NextResponse.json({ ok: true, status });
+    // Patrz analogiczna adnotacja w app/api/offers/[id]/send.
+    return NextResponse.json({ ok: true, status, shareToken: token });
   } catch (err) {
     console.error("[POST /api/contracts/:id/send] failed", err);
     const message = err instanceof Error ? err.message : String(err);

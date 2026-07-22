@@ -11,6 +11,7 @@ import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
+import { ShareLinkControl } from "../ShareLinkControl";
 import { invalidateLinkTargets } from "../LinkPicker";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 import type { Client } from "@/lib/clients";
@@ -300,9 +301,19 @@ export function OfferEditor({
     const res = await fetch(`/api/offers/${id}/send`, { method: "POST" });
     setSending(false);
     if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { status?: string };
+      const data = (await res.json().catch(() => ({}))) as { status?: string; shareToken?: string };
       toast("Oferta wysłana mailem.");
-      if (data.status) setOffer((p) => (p ? { ...p, status: data.status as Offer["status"] } : p));
+      setOffer((p) =>
+        p
+          ? {
+              ...p,
+              ...(data.status ? { status: data.status as Offer["status"] } : {}),
+              // Token dopiero co powstał (albo już był) — bez tego przycisk
+              // „Unieważnij link" pojawiłby się dopiero po przeładowaniu.
+              share_token: data.shareToken ?? p.share_token,
+            }
+          : p
+      );
       onChange?.();
     } else {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -672,6 +683,15 @@ export function OfferEditor({
             {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
             Wyślij mailem
           </button>
+
+          <ShareLinkControl
+            kind="offer"
+            id={id}
+            hasToken={!!offer.share_token}
+            revokedAt={offer.share_revoked_at}
+            etykieta="tej oferty"
+            onChanged={(revokedAt) => setOffer((p) => (p ? { ...p, share_revoked_at: revokedAt } : p))}
+          />
 
           <button
             onClick={duplicateOffer}

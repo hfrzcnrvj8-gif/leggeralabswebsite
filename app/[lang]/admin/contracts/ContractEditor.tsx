@@ -17,6 +17,7 @@ import { DateField } from "../DatePicker";
 import { ClientLinkChip } from "../components";
 import { PropertyMenu } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
+import { ShareLinkControl } from "../ShareLinkControl";
 
 export function ContractEditor({
   id,
@@ -80,9 +81,19 @@ export function ContractEditor({
     const res = await fetch(`/api/contracts/${id}/send`, { method: "POST" });
     setSending(false);
     if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { status?: string };
+      const data = (await res.json().catch(() => ({}))) as { status?: string; shareToken?: string };
       toast("Wysłano mailem.");
-      if (data.status) setContract((p) => (p ? { ...p, status: data.status as Contract["status"] } : p));
+      // share_token dopisujemy od razu, żeby „Unieważnij link" (Moduł 40)
+      // pojawił się bez przeładowania edytora.
+      setContract((p) =>
+        p
+          ? {
+              ...p,
+              ...(data.status ? { status: data.status as Contract["status"] } : {}),
+              share_token: data.shareToken ?? p.share_token,
+            }
+          : p
+      );
       onChange?.();
     } else {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -356,6 +367,15 @@ export function ContractEditor({
             {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
             Wyślij mailem
           </button>
+
+          <ShareLinkControl
+            kind="contract"
+            id={id}
+            hasToken={!!contract.share_token}
+            revokedAt={contract.share_revoked_at}
+            etykieta={contract.typ === "nda" ? "tego NDA" : "tej umowy"}
+            onChanged={(revokedAt) => setContract((p) => (p ? { ...p, share_revoked_at: revokedAt } : p))}
+          />
 
           <button onClick={remove} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
             Usuń dokument

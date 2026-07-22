@@ -16,6 +16,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const rows = await sql`SELECT * FROM offers WHERE id = ${id};`;
     const offer = rows[0];
     if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
+    // Moduł 40 — wysyłka nie może iść unieważnionym linkiem. Świadomie NIE
+    // regenerujemy tokenu po cichu: nowy link to osobna, jawna decyzja.
+    if (offer.share_revoked_at) return NextResponse.json({ error: "Link do tej oferty jest unieważniony — wygeneruj nowy przed wysyłką." }, { status: 409 });
     if (!offer.klient_email) return NextResponse.json({ error: "Brak adresu e-mail klienta — uzupełnij go w edytorze." }, { status: 400 });
 
     const token = await ensureOfferShareToken(sql, id, typeof offer.share_token === "string" ? offer.share_token : null);
@@ -50,7 +53,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const clientId = typeof offer.client_id === "string" ? offer.client_id : null;
     await logClientEvent(sql, clientId, "offer_sent", `Wysłano ofertę „${tytul}” mailem`, null, id);
 
-    return NextResponse.json({ ok: true, status });
+    // shareToken wraca do panelu, żeby przycisk „Unieważnij link" (Moduł 40)
+    // pojawił się od razu po wysyłce, bez przeładowania edytora.
+    return NextResponse.json({ ok: true, status, shareToken: token });
   } catch (err) {
     console.error("[POST /api/offers/:id/send] failed", err);
     const message = err instanceof Error ? err.message : String(err);

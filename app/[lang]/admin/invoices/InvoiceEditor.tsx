@@ -58,6 +58,7 @@ import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { invalidateLinkTargets } from "../LinkPicker";
+import { ShareLinkControl } from "../ShareLinkControl";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 
 export function InvoiceEditor({
@@ -451,7 +452,11 @@ export function InvoiceEditor({
     const res = await fetch(`/api/invoices/${id}/send`, { method: "POST" });
     setSending(false);
     if (res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { shareToken?: string };
       toast("Wysłano e-mail z linkiem do faktury.");
+      // share_token dopisujemy od razu, żeby „Unieważnij link" (Moduł 40)
+      // pojawił się bez przeładowania edytora.
+      setInvoice((p) => (p ? { ...p, share_token: data.shareToken ?? p.share_token } : p));
     } else {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       toast(data.error ?? "Nie udało się wysłać maila.", "error");
@@ -1312,6 +1317,19 @@ export function InvoiceEditor({
                   <IconExternalLink size={13} /> Podgląd wezwania do zapłaty
                 </a>
               )}
+              {/* Wezwanie ma WŁASNY token, osobny od faktury (Moduł 13) —
+                  więc i własne unieważnienie. Unieważnienie faktury go nie
+                  rusza i odwrotnie. */}
+              <div className="mt-1.5">
+                <ShareLinkControl
+                  kind="wezwanie"
+                  id={id}
+                  hasToken={!!invoice.wezwanie_share_token}
+                  revokedAt={invoice.wezwanie_share_revoked_at}
+                  etykieta="tego wezwania do zapłaty"
+                  onChanged={(revokedAt) => setInvoice((p) => (p ? { ...p, wezwanie_share_revoked_at: revokedAt } : p))}
+                />
+              </div>
             </div>
           )}
 
@@ -1395,6 +1413,14 @@ export function InvoiceEditor({
                 {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
                 Wyślij mailem
               </button>
+              <ShareLinkControl
+                kind="invoice"
+                id={id}
+                hasToken={!!invoice.share_token}
+                revokedAt={invoice.share_revoked_at}
+                etykieta="tej faktury"
+                onChanged={(revokedAt) => setInvoice((p) => (p ? { ...p, share_revoked_at: revokedAt } : p))}
+              />
               {overdue && (
                 <button
                   onClick={sendReminder}

@@ -32,6 +32,9 @@ export type Project = {
   /** Zamknięcie projektu i opinia (Moduł 15) — patrz buildProjectClosingSummary,
    * PROJECT_REVIEW_CONSENT_TEXT i app/api/projects/review/public/[token]. */
   review_token: string | null;
+  /** Moduł 40 — ręczne unieważnienie linku do formularza opinii. Blokuje
+   * i formularz, i wysłanie opinii (patrz lib/shareLinks.ts). */
+  review_revoked_at: string | null;
   review_requested_at: string | null;
   review_rating_jakosc: number | null;
   review_rating_terminowosc: number | null;

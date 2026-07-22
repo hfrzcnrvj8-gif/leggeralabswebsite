@@ -54,3 +54,15 @@ byłaby zmiana `ADMIN_PASSWORD`… która **nie wyłącza TOTP**. Przewidź jawn
 wyłącznik: zmienna środowiskowa (np. `TOTP_DISABLED=1`) ustawiana w panelu
 Vercela, która wyłącza drugi krok. Właściciel ma dostęp do Vercela zawsze —
 to jest jego klucz zapasowy ostatniej instancji.
+
+## Uwaga z Modułu 40 (2026-07-22) — jak to w ogóle sprawdzić lokalnie
+
+Dev-login (`DEV_ADMIN_BYPASS=1`) **omija całe logowanie**, więc drugiego
+składnika nie da się sprawdzić „przez wejście do panelu" — panel wpuści zawsze.
+Zaplanuj ścieżkę weryfikacji od razu (wywołanie trasy logowania wprost,
+z tymczasowo wyłączonym bypassem), a nie na końcu, gdy kod już stoi.
+
+Druga rzecz, na której Moduł 40 stracił rundę: dokładając pole do modelu
+Swift w apce (`leggera-hub-ios`), dopisz je w **trzech** miejscach —
+właściwość, `CodingKeys` **i** ręczny `init(from decoder:)`. Opcjonalny `var`
+bez przypisania kompiluje się bez ostrzeżenia i jest zawsze `nil`.

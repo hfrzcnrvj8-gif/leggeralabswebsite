@@ -69,6 +69,9 @@ export type Contract = {
   termin_realizacji: string | null;
   uwagi: string;
   share_token: string | null;
+  /** Moduł 40 — ręczne unieważnienie publicznego linku. Blokuje i podgląd,
+   * i złożenie e-podpisu (patrz lib/shareLinks.ts). */
+  share_revoked_at: string | null;
   /** Kiedy dokument ostatnio poszedł mailem do podpisu (Moduł 31). Osobno od
    * `updated_at`, które skacze przy każdej edycji — na tym stoi licznik dni
    * ciszy na Pulpicie (patrz contractSilenceDays). Null = nigdy nie wysłany

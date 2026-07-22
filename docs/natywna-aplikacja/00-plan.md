@@ -1265,3 +1265,47 @@ wszystkie trzy targety, darmowe konto). Czego Claude nie mógł zrobić sam:
   na ekranie blokady — to nie błąd).
 
 **Kolejny czat: `10-brief-qr-platnosci-kosztow.md`.**
+
+## Podgląd unieważnionych linków (Moduł 40 panelu, 2026-07-22)
+
+Panel dostał ręczne unieważnianie publicznych linków do dokumentów (patrz
+`HUB_SETUP.md` → „Moduł 40"). Apka **wyłącznie pokazuje** ten stan:
+
+- `Faktura`, `Oferta`, `Umowa` mają nowe pole `shareRevokedAt`
+  (`share_revoked_at` z list `/api/invoices`, `/api/offers`, `/api/contracts`);
+- `maPublicznyPodglad` zwraca teraz `false` dla unieważnionego linku, więc
+  przycisk „Otwórz podgląd jak u klienta" **znika** — prowadziłby do ekranu
+  410 „Ten link został unieważniony";
+- w jego miejsce wchodzi `OdznakaLinkUniewazniony` (`Marka.swift`): złota
+  plakietka „Link unieważniony 22 lip 2026". Złoto, nie czerwień — to nie
+  awaria, tylko świadoma decyzja właściciela (ta sama barwa co wygasła oferta).
+
+**Unieważnianie i generowanie nowego linku zostaje w panelu** — ruch jest
+rzadki i nieodwracalny, a na telefonie łatwiej go stuknąć przez przypadek.
+
+Wysyłka z apki jest zabezpieczona po stronie serwera: „Wyślij ofertę do
+klienta" na unieważnionym linku wraca z 409 i czytelnym komunikatem
+(sprawdzone na symulatorze, ekran alertu: *„Link do tej oferty jest
+unieważniony — wygeneruj nowy przed wysyłką"*).
+
+### Pułapka: opcjonalne pole modelu, którego nikt nie wczytuje
+
+`var shareRevokedAt: String?` skompilował się **bez żadnego ostrzeżenia**,
+mimo że custom `init(from decoder:)` w `Faktura` nigdy go nie przypisywał —
+Swift nadaje opcjonalnym `var`-om domyślne `nil`. Skutek: pole zawsze puste,
+plakietka nigdy się nie pokazuje, `tsc`-owy odpowiednik (kompilator) milczy.
+Wyszło dopiero na ekranie symulatora, przy porównaniu z panelem, który tę
+samą fakturę oznaczał jako unieważnioną.
+
+**Dokładając pole do modelu z ręcznym `init(from:)` — sprawdź, czy ten `init`
+je czyta.** To ta sama rodzina błędu co „pole istnieje, ale nikt go nie woła"
+z Modułów 30 i 31.
+
+### Jak to zweryfikowano
+
+Symulator iPhone 17, apka wskazana na lokalny panel
+(`SIMCTL_CHILD_LEGGERA_DEV_BACKEND=lokalny` + `LEGGERA_DEV_TOKEN`, furtki
+DEBUG opisane w README apki). Faktura FV 2/2026 i oferta z unieważnionym
+linkiem: plakietka widoczna, przycisk podglądu zniknął. Po „Wygeneruj nowy"
+w panelu i odświeżeniu listy — plakietka znika, przycisk wraca. Próba wysyłki
+oferty unieważnionym linkiem: alert z komunikatem serwera.

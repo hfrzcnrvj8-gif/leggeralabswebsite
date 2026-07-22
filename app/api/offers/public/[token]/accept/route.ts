@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { acceptOffer } from "@/lib/offerAccept";
 import { notify } from "@/lib/notificationLog";
+import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 import type { Offer } from "@/lib/offers";
 
 export const runtime = "nodejs";
@@ -24,6 +25,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const rows = await sql`SELECT * FROM offers WHERE share_token = ${token} AND status != 'Szkic';`;
   const offer = rows[0] as Offer | undefined;
   if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // Moduł 40: unieważnienie musi wejść też TUTAJ. Blokada samego podglądu
+  // byłaby połowiczna dokładnie tam, gdzie boli najbardziej — ktoś ze starym
+  // linkiem mógłby dalej zaakceptować ofertę e-podpisem.
+  if (offer.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
 
   const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
 

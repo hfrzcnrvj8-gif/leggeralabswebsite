@@ -90,6 +90,14 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
     const dni = daysOverdue(inv);
     const targetLevel = reminderLevelForDays(dni);
     if (targetLevel === 0 || targetLevel <= inv.reminder_level) continue;
+    // Moduł 40 — nie wysyłamy automatu linkiem, który właściciel unieważnił.
+    // ensure*ShareToken() jest idempotentne, więc bez tego warunku poszedłby
+    // mailem adres zwracający 410, a właściciel nie miałby o tym pojęcia.
+    const revokedFor = targetLevel === 3 ? inv.wezwanie_share_revoked_at : inv.share_revoked_at;
+    if (revokedFor) {
+      console.warn(`[notify] pomijam przypomnienie dla faktury ${inv.numer ?? inv.id} — link unieważniony`);
+      continue;
+    }
     try {
       if (targetLevel === 3) {
         const token = await ensureInvoiceWezwanieShareToken(sql, inv.id, inv.wezwanie_share_token);

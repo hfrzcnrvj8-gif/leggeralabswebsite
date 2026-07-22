@@ -20,6 +20,7 @@ import {
 } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT, buildEpcQrPayload, buildPolishQrPayload } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
+import { LinkRevokedNotice } from "../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../DocumentScale";
 
 /** Podgląd/wydruk faktury — samodzielny biały dokument (niezależny od motywu
@@ -296,6 +297,9 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // 410 z trasy publicznej = link unieważniony (Moduł 40) — inny ekran niż
+  // "nie znaleziono", bo dokument istnieje, tylko dostęp odebrano.
+  const [revoked, setRevoked] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [ksefQrUrl, setKsefQrUrl] = useState<string | null>(null);
   const [original, setOriginal] = useState<{ invoice: Invoice; items: InvoiceItem[] } | null>(null);
@@ -304,8 +308,19 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
   useEffect(() => {
     const url = token ? `/api/invoices/public/${token}` : `/api/invoices/${id}`;
     fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(async (r) => {
+        if (r.status === 410) {
+          setRevoked(true);
+          return null;
+        }
+        if (!r.ok) {
+          setNotFound(true);
+          return null;
+        }
+        return r.json();
+      })
       .then((d) => {
+        if (!d) return;
         setInvoice(d.invoice);
         setItems(d.items);
         setSettings(d.settings);
@@ -414,6 +429,7 @@ export function InvoicePrint({ id, token }: { id?: string; token?: string }) {
     };
   }, [invoice?.ksef_qr]);
 
+  if (revoked) return <LinkRevokedNotice dokument="Faktura" />;
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!invoice || !settings) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 

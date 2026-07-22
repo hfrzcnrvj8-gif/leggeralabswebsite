@@ -36,6 +36,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const dni = daysOverdue({ termin_platnosci: inv.termin_platnosci as string | null });
     const level = Math.max(1, reminderLevelForDays(dni)) as 1 | 2 | 3;
+    // Moduł 40 — poziom 3 idzie linkiem do wezwania, niższe linkiem do
+    // faktury; unieważniony jest ten, którego akurat użyjemy.
+    if (level === 3 ? inv.wezwanie_share_revoked_at : inv.share_revoked_at) {
+      return NextResponse.json(
+        {
+          error:
+            level === 3
+              ? "Link do wezwania jest unieważniony — wygeneruj nowy przed wysyłką."
+              : "Link do tej faktury jest unieważniony — wygeneruj nowy przed wysyłką.",
+        },
+        { status: 409 }
+      );
+    }
     const brutto = Number(inv.brutto);
     const waluta = String(inv.waluta || "PLN");
     const terminPlatnosci = inv.termin_platnosci ? String(inv.termin_platnosci) : null;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
 import { notify } from "@/lib/notificationLog";
+import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 import type { DocLang } from "@/lib/documents";
 
 export const runtime = "nodejs";
@@ -49,6 +50,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const rows = await sql`SELECT * FROM projects WHERE review_token = ${token};`;
   const project = rows[0];
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // Moduł 40 — unieważnienie musi blokować także ZAPIS opinii, nie tylko
+  // wczytanie formularza.
+  if (project.review_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
   const lang = ((project.jezyk as string) in ERRORS ? project.jezyk : "pl") as DocLang;
   const t = ERRORS[lang];
 

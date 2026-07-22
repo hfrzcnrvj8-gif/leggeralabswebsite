@@ -36,6 +36,7 @@ import { formatMoney } from "@/lib/invoices";
 import { type TimeEntry, formatDuration, sumMinutes, effectiveHourlyRate } from "@/lib/time-tracking";
 import { todayLocalISO } from "@/lib/dates";
 import { TIMER_CHANGED_EVENT } from "../AppShell";
+import { ShareLinkControl } from "../ShareLinkControl";
 
 /** Rdzeń widoku szczegółów projektu, w stylu Linear: treść + kamienie
  * milowe + log aktywności po lewej, metadane (zdrowie/status/terminy/
@@ -1016,11 +1017,38 @@ export function ProjectDetailPanel({
                     />
                     <button
                       onClick={requestReview}
-                      disabled={!reviewDraft.trim() || requestingReview || !reviewUrl}
+                      // Po unieważnieniu linku wysyłka jest zablokowana:
+                      // szkic nadal zawiera stary adres, który zwraca 410, a
+                      // wysłanie go klientowi wyglądałoby jak działająca prośba
+                      // o opinię (Moduł 40).
+                      disabled={!reviewDraft.trim() || requestingReview || !reviewUrl || !!project.review_revoked_at}
+                      title={project.review_revoked_at ? "Link do formularza jest unieważniony — wygeneruj nowy, żeby wysłać prośbę." : undefined}
                       className="btn-primary mt-2 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {requestingReview ? "Wysyłanie…" : project.review_requested_at ? "Wyślij ponownie mailem" : "Wyślij mailem"}
                     </button>
+                    {/* Moduł 40 — link do formularza opinii można unieważnić
+                        tak samo jak link do dokumentu. */}
+                    <div className="mt-2">
+                      <ShareLinkControl
+                        kind="project"
+                        id={id}
+                        hasToken={!!reviewUrl || !!project.review_revoked_at}
+                        revokedAt={project.review_revoked_at}
+                        etykieta="formularza opinii"
+                        onChanged={(revokedAt, url) => {
+                          setProject((p) => (p ? { ...p, review_revoked_at: revokedAt } : p));
+                          if (url) {
+                            setReviewUrl(url);
+                            // Szkic wiadomości zawiera WPISANY adres — po
+                            // wygenerowaniu nowego linku trzeba go przebudować,
+                            // inaczej właściciel wysłałby stary, martwy URL.
+                            reviewDraftInitialized.current = false;
+                            load();
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
 
                   <div className="mt-3 border-t hairline pt-3">

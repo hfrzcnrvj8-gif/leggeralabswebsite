@@ -366,6 +366,9 @@ async function createHubSchema(): Promise<void> {
   // (imię, IP, user-agent), tym samym wzorcem co e-podpis oferty/umowy.
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_token TEXT;`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS projects_review_token_idx ON projects(review_token);`;
+  // Moduł 40 — ręczne unieważnienie linku (patrz komentarz przy
+  // invoices.share_revoked_at). Blokuje i formularz, i wysłanie opinii.
+  await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_revoked_at TIMESTAMPTZ;`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_requested_at TIMESTAMPTZ;`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_rating_jakosc SMALLINT;`;
   await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS review_rating_terminowosc SMALLINT;`;
@@ -814,6 +817,12 @@ async function createInvoicesSchema(): Promise<void> {
   // SQL — bez zależności od rozszerzenia pgcrypto (niedostępnego w PGlite).
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS share_token TEXT;`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS invoices_share_token_idx ON invoices(share_token);`;
+  // Moduł 40 — ręczne unieważnienie linku. Token ZOSTAJE w wierszu (patrz
+  // revokeShareToken): pusty share_token byłby nieodróżnialny od "nigdy nie
+  // wysłany", a kolejne "Wyślij mailem" wygenerowałoby nowy i cicho
+  // przywróciło dostęp. Tokeny świadomie nie wygasają same — decyzja
+  // właściciela z 2026-07-22 (faktura sprzed dwóch lat ma się dalej otwierać).
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS share_revoked_at TIMESTAMPTZ;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;`;
   // Moduł 13 — eskalacja windykacji: reminder_level pilnuje, żeby ten sam
   // poziom (0 = żaden, 1-3 wg REMINDER_LEVELS w lib/invoices.ts) nie poszedł
@@ -824,6 +833,10 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS wezwanie_wystawiono_at TIMESTAMPTZ;`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS wezwanie_share_token TEXT;`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS invoices_wezwanie_share_token_idx ON invoices(wezwanie_share_token);`;
+  // Osobny znacznik unieważnienia dla wezwania — tak samo jak sam token.
+  // Unieważnienie faktury NIE unieważnia wezwania i odwrotnie: to dwa różne
+  // dokumenty, celowo rozdzielone (Moduł 13).
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS wezwanie_share_revoked_at TIMESTAMPTZ;`;
   // Typ dokumentu — zwykła faktura / proforma (niefiskalna, własna numeracja,
   // nie wchodzi do KPI) / zaliczkowa (na poczet przyszłej faktury końcowej).
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS typ_dokumentu TEXT NOT NULL DEFAULT 'faktura';`;
@@ -1024,6 +1037,9 @@ async function createOffersSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS klient_email TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS share_token TEXT;`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS offers_share_token_idx ON offers(share_token);`;
+  // Moduł 40 — ręczne unieważnienie linku (patrz komentarz przy
+  // invoices.share_revoked_at). Blokuje i podgląd, i akceptację e-podpisem.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS share_revoked_at TIMESTAMPTZ;`;
   // E-podpis akceptacji (Faza I) — dowód, że KLIENT (nie właściciel z
   // panelu) samodzielnie zaakceptował ofertę przez publiczny link.
   // accepted_by_name puste = zaakceptowano ręcznie w panelu (dotychczasowy
@@ -1203,6 +1219,9 @@ async function createContractsSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS contracts_project_id_idx ON contracts(project_id);`;
   await sql`CREATE INDEX IF NOT EXISTS contracts_lead_id_idx ON contracts(lead_id);`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS contracts_share_token_idx ON contracts(share_token);`;
+  // Moduł 40 — ręczne unieważnienie linku (patrz komentarz przy
+  // invoices.share_revoked_at). Blokuje i podgląd, i złożenie e-podpisu.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS share_revoked_at TIMESTAMPTZ;`;
   // Język wydruku (pl/en/de) — dla Umów dziedziczony z języka oferty przy
   // generowaniu (app/api/contracts), dla NDA zawsze 'pl'. Dotyczy tylko
   // "chrome" wydruku — treść klauzul zostaje świadomie tylko po polsku,

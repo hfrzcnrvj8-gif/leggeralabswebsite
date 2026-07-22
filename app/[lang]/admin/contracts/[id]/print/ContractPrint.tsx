@@ -14,6 +14,7 @@ import {
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT, type DocLang } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
+import { LinkRevokedNotice } from "../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../DocumentScale";
 
 /** Podgląd/wydruk/podpis Umowy lub NDA — ten sam premium styl co
@@ -127,6 +128,9 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
   const [contract, setContract] = useState<Contract | null>(null);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // 410 z trasy publicznej = link unieważniony (Moduł 40) — inny ekran niż
+  // "nie znaleziono", bo dokument istnieje, tylko dostęp odebrano.
+  const [revoked, setRevoked] = useState(false);
   const [signName, setSignName] = useState("");
   const [signConfirm, setSignConfirm] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -135,8 +139,19 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
   useEffect(() => {
     if (token) {
       fetch(`/api/contracts/public/${token}`)
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then(async (r) => {
+          if (r.status === 410) {
+            setRevoked(true);
+            return null;
+          }
+          if (!r.ok) {
+            setNotFound(true);
+            return null;
+          }
+          return r.json();
+        })
         .then((d) => {
+          if (!d) return;
           setContract(d.contract);
           setSettings(d.settings);
         })
@@ -157,6 +172,7 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
   const lang: DocLang = contract?.jezyk ?? "pl";
   const t = DICT[lang];
 
+  if (revoked) return <LinkRevokedNotice dokument="Dokument" />;
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!contract) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 

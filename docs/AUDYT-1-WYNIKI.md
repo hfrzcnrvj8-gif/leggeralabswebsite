@@ -107,7 +107,7 @@ to `randomUUID()` bez myślników: 32 znaki hex, **122 bity losowości
 z generatora kryptograficznego**, każdy z unikalnym indeksem w bazie.
 Zgadywanie jest niewykonalne. **Nie wygasają** — patrz ustalenie 8.
 
-### 5. Publiczna umowa wydaje adres IP osoby, która ją podpisała ⚠️ DO NAPRAWY
+### 5. Publiczna umowa wydaje adres IP osoby, która ją podpisała ✅ NAPRAWIONE
 
 `app/api/contracts/public/[token]/route.ts:15` robi `SELECT *` i ukrywa cztery
 kolumny (`lead_id`, `client_id`, `project_id`, `offer_id`). W odpowiedzi
@@ -122,7 +122,12 @@ który Audyt 2 (RODO) będzie musiał zinwentaryzować.
 Te trzy pola istnieją po to, żeby **właściciel** miał dowód złożenia
 oświadczenia woli. Druga strona nie ma powodu ich widzieć.
 
-### 6. Publiczna faktura wydaje drugi, osobny token ⚠️ DO NAPRAWY
+**Zrobione 2026-07-22 (Moduł 40).** `accepted_ip` i `accepted_user_agent`
+wypadły z publicznej odpowiedzi. `accepted_by_name` **zostaje świadomie** —
+to podpis widoczny na samym dokumencie, jak na papierowej umowie; szczegóły
+przy ustaleniu 6.
+
+### 6. Publiczna faktura wydaje drugi, osobny token ✅ NAPRAWIONE
 
 `app/api/invoices/public/[token]/route.ts:24` ukrywa `lead_id`, `project_id`
 i `last_reminder_at`. W odpowiedzi zostają:
@@ -144,6 +149,17 @@ trasy (`contracts/public`, `wezwanie/public`) go ukrywają.
 Poprawka to zamiana czarnej listy na białą (wypisać wprost pola, które wydruk
 faktycznie zużywa) w czterech trasach `*/public/[token]`.
 
+**Zrobione 2026-07-22 (Moduł 40, część B).** Białe listy mieszkają w
+`lib/publicFields.ts`, wyprowadzone **pole po polu z komponentów wydruku**
+(`InvoicePrint`, `DunningPrint`, `OfferPrint`, `ContractPrint`), nie z typów
+w `lib/` — bo to wydruk decyduje, co jest treścią dokumentu. Sprawdzone na
+żywo: publiczne odpowiedzi nie zawierają już `wezwanie_share_token`,
+`client_id`, `accepted_ip`, `accepted_user_agent`, `share_token`,
+`reminder_level`, `ksef_upo/blad` ani trzech prywatnych stawek rezerw
+podatkowych. **`accepted_by_name` zostaje** — to podpis drukowany pod umową
+i ofertą; usunięcie zostawiłoby pustą rubrykę (decyzja właściciela).
+Wszystkie cztery wydruki obejrzane po zmianie, żadna rubryka nie zniknęła.
+
 ### 7. Sekrety wędrujące w adresie URL ⚠️ DO WIEDZY
 
 `GET /api/calendar/ics?token=…` i `POST /api/telefonia/webhook?token=…`
@@ -163,7 +179,7 @@ jest odporne na atak czasowy (inaczej niż hasło administratora). Realne
 ryzyko jest znikome (sekret jest losowy, a sieć zaszumia pomiar), ale gdyby
 kiedyś ujednolicać — `safeEqual` z `lib/auth.ts` jest już napisane.
 
-### 8. Linki publiczne są wieczne i nieodwoływalne 📋 DECYZJA WŁAŚCICIELA
+### 8. Linki publiczne są wieczne i nieodwoływalne ✅ ZAMKNIĘTE (Moduł 40)
 
 Żaden z pięciu rodzajów tokenów nie ma daty ważności ani sposobu
 unieważnienia — sprawdzone w schemacie (`lib/db.ts`: kolumny `share_token`,
@@ -175,6 +191,27 @@ przez klienta = **trwały dostęp do dokumentu**, którego nie da się cofnąć.
 dwóch lat ma się dalej otwierać — ale ma dojść **ręczne unieważnienie**
 (przycisk „Unieważnij link" w panelu). Brief:
 `docs/plany-modulow/40-uniewaznianie-linkow.md`.
+
+**Zrobione 2026-07-22 (Moduł 40, część A).** Pięć kolumn `*_revoked_at`
+(faktura i wezwanie mają osobne, tak jak osobne są ich tokeny), warunek
+w **sześciu** zapytaniach — w tym w trzech ZAPISUJĄCYCH, więc unieważnionym
+linkiem nie da się już podpisać umowy, zaakceptować oferty ani wysłać opinii.
+Odpowiedź to **410 Gone** z polskim komunikatem, a strony publiczne pokazują
+osobny ekran „Ten link został unieważniony", nie „nie znaleziono".
+
+Dwie rzeczy, które łatwo tu zepsuć przy późniejszych zmianach:
+
+- **token NIE jest kasowany** — pusty `share_token` byłby nieodróżnialny od
+  „nigdy nie wysłany", a kolejne „Wyślij mailem" wygenerowałoby nowy i cicho
+  przywróciło dostęp;
+- **„Wygeneruj nowy" nie idzie przez `ensure*ShareToken()`** — te zaczynają
+  się od `if (existingToken) return existingToken;`, więc oddałyby ten sam,
+  martwy token. Nowy wpisuje `regenerateShareLink()` wprost `UPDATE`-em.
+
+Z tego samego powodu **wszystkie drogi wysyłki odmawiają** na unieważnionym
+linku (`offers/send`, `contracts/send`, `invoices/send`, `invoices/remind`,
+`projects/request-review`), cron `leads/notify` pomija taką fakturę, a szkic
+wiadomości retencyjnej nie wkleja martwego adresu.
 
 ### 9. Zmiana hasła NIE odbiera dostępu aplikacji na telefonie ⚠️ DO WIEDZY
 
@@ -469,10 +506,12 @@ To też jest wynik audytu.
 
 ## Co zostaje otwarte (z decyzjami z tej sesji)
 
-- **Białe listy pól w czterech trasach `*/public/[token]`** (ustalenia 5 i 6) —
-  do zrobienia, wąskie i mechaniczne. Nie robiłem tego w tej sesji, żeby nie
-  mieszać naprawy hamulca z przebudową odpowiedzi publicznych.
-- **Unieważnianie linków** — brief `docs/plany-modulow/40-uniewaznianie-linkow.md`.
+- ~~**Białe listy pól w czterech trasach `*/public/[token]`** (ustalenia 5 i 6)~~
+  — ✅ **zrobione 2026-07-22**, Moduł 40 część B (patrz ustalenie 6).
+- ~~**Unieważnianie linków**~~ — ✅ **zrobione 2026-07-22**, Moduł 40 część A
+  (patrz ustalenie 8). Aplikacja na iPhone **pokazuje** ten stan (plakietka
+  „Link unieważniony <data>", przycisk podglądu znika) — samo unieważnianie
+  zostaje wyłącznie w panelu, zgodnie z decyzją właściciela.
 - **Drugi składnik logowania (TOTP)** — właściciel wybrał „chcę 2FA".
   Brief `docs/plany-modulow/41-drugi-skladnik-totp.md`. To osobny moduł,
   świadomie nie mieści się w audycie.

@@ -32,6 +32,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const rows = await sql`SELECT * FROM projects WHERE id = ${id};`;
     const project = rows[0];
     if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+    // Moduł 40 — nie wysyłamy prośby o opinię linkiem, który sami
+    // unieważniliśmy (przycisk w panelu też jest wtedy wyłączony, ale to
+    // ochrona po stronie interfejsu, a nie zasada).
+    if (project.review_revoked_at) {
+      return NextResponse.json(
+        { error: "Link do formularza opinii jest unieważniony — wygeneruj nowy przed wysyłką." },
+        { status: 409 }
+      );
+    }
 
     const clientId = typeof project.client_id === "string" ? project.client_id : null;
     if (!clientId) return NextResponse.json({ error: "Projekt nie ma podpiętego klienta." }, { status: 400 });

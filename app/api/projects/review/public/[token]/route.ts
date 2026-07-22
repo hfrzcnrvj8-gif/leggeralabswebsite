@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema, ensureClientsSchema } from "@/lib/db";
+import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   const rows = await sql`SELECT * FROM projects WHERE review_token = ${token};`;
   const project = rows[0];
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // 410 Gone, nie 404 (Moduł 40) — formularz istnieje, dostęp odebrany.
+  if (project.review_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
 
   let clientNazwa: string | null = null;
   if (typeof project.client_id === "string") {

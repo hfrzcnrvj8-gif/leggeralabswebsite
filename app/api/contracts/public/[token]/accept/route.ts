@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { notify } from "@/lib/notificationLog";
+import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const rows = await sql`SELECT * FROM contracts WHERE share_token = ${token} AND status != 'Szkic';`;
   const contract = rows[0];
   if (!contract) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // Moduł 40: to najważniejsze z sześciu miejsc. Bez tego warunku ktoś ze
+  // starym linkiem mógłby PODPISAĆ umowę mimo unieważnienia.
+  if (contract.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = req.headers.get("user-agent") ?? null;
