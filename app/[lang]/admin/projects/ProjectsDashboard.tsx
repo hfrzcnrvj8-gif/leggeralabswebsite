@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled } from "@tabler/icons-react";
+import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled, IconFileExport } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
 import { PROJECT_TEMPLATES } from "@/lib/projects";
@@ -367,6 +367,9 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             się czas — nie ma osobnego modułu „Czas", w którym mógłby stanąć.
             Jedna linia = jedna sesja stopera, sumy per projekt na dole pliku. */}
         <ExportCsvButton endpoint="/api/time/export" title="Czas pracy" zakresWg="wg daty wpisu" />
+        {/* Rejestr projektów — bez zakresu dat, bo `start` i `termin` są
+            opcjonalne i filtrowanie po nich gubiłoby projekty bez daty. */}
+        <ExpandingIconButton label="Eksport CSV" icon={<IconFileExport size={15} />} href="/api/projects/export" />
         <Popover
           align="right"
           width={248}

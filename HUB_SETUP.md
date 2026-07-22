@@ -6258,3 +6258,86 @@ Ziarno deweloperskie ma **trzynaście stand-upów dziennie** i chowa wszystko
 pod „+9 więcej" — przypomnienia w siatce miesiąca po prostu nie zobaczysz.
 Załóż przypomnienie testowe na pusty dzień (1–5 lipca w ziarnie są puste),
 sprawdź, skasuj. Nie wnioskuj z tego, że „nie działa".
+
+## Eksporty CSV — komplet (2026-07-22)
+
+Pięć tras, wszystkie w tym samym kształcie: `isAuthed()` → `ensure*Schema()`
+→ (opcjonalnie `isPlausibleDateString` na `from`/`to`) → `toCsv` →
+`Content-Disposition`. Wspólna logika w `lib/export.ts`.
+
+| Trasa | Zakres | Przycisk |
+|---|---|---|
+| `/api/leads/export` | cały rejestr, `?ids=` zawęża | Leady |
+| `/api/clients/export` | cały rejestr | Klienci |
+| `/api/projects/export` | cały rejestr | Projekty |
+| `/api/invoices/export?from&to` | bieżący miesiąc, bez szkiców | Faktury |
+| `/api/costs/export?from&to` | bieżący miesiąc, wg daty wydatku | Koszty |
+| `/api/time/export?from&to` | bieżący miesiąc, wg daty wpisu | Projekty |
+
+**Format jest celowo pod polski Excel** i nic w nim nie wymaga zmiany na XLSX:
+BOM UTF-8, średnik jako separator kolumn, przecinek dziesiętny. Sprawdzone —
+polskie znaki, daty i kwoty otwierają się dwuklikiem, bez kreatora importu.
+
+### Kto ma zakres dat, a kto nie — i dlaczego
+
+Faktury, koszty i czas pracy **mają** zakres: to zdarzenia z okresu, a księgowa
+rozlicza miesiąc. Leady, klienci i projekty **nie mają**: to żywe rejestry,
+których się nie rozlicza, tylko przegląda.
+
+Przy projektach jest dodatkowy, mocniejszy powód: `projects.start` **oraz**
+`projects.termin` są opcjonalne (obie doszły późniejszą migracją, więc nie ma
+ich w `CREATE TABLE`), więc filtrowanie po którejkolwiek **po cichu wycięłoby
+projekty bez daty**. `created_at` nie jest odpowiedzią — nikt nie szuka
+„projektów założonych w marcu". Eksport, który bez ostrzeżenia gubi wiersze,
+jest gorszy niż brak eksportu, bo się mu ufa.
+
+### Wiersz podsumowania
+
+`csvSummaryRow()` — etykieta w pierwszej kolumnie, sumy w kolumnach wskazanych
+indeksem, szerokość brana z nagłówka (wiersz krótszy od nagłówka rozjeżdża
+tabelę w Excelu przy pierwszym sortowaniu).
+
+**Rejestr sprzedaży sumuje się PER WALUTA** (`groupByCurrency`), nigdy jednym
+wierszem. Faktury walutowe i VAT-UE są w panelu obsłużone i przetestowane na
+KSeF, a zsumowanie złotówek z euro dałoby liczbę, która nic nie znaczy —
+w dokumencie idącym do księgowej. Przy jednej walucie w pliku wychodzi z tego
+po prostu jeden wiersz. Rejestr zakupów sumuje się jednym wierszem, bo tabela
+`costs` **nie ma kolumny waluty**.
+
+Sumy liczone są z tych samych liczb, które trafiają do wierszy — nigdy drugim
+zapytaniem SQL. Drugie zapytanie to drugie źródło prawdy i ciche rozjazdy przy
+najbliższej zmianie reguły rabatów.
+
+### Czas pracy — jedna linia = jedna sesja
+
+Decyzja właściciela 2026-07-22, po zadanym wprost pytaniu „per projekt czy per
+klient?": **ani jedno, ani drugie — linie, a klient i projekt jako dwie osobne
+kolumny.** Z linii zrobi się w Excelu sumę w dowolnym przekroju; z sumy nie da
+się odzyskać szczegółu, a to szczegół („za co konkretnie te 14 godzin?") jest
+tym, o co pyta klient przy fakturze. Sumy per projekt i tak są na dole pliku.
+Godziny idą osobną kolumną (minuty ÷ 60, dwa miejsca po przecinku), bo w tych
+jednostkach się fakturuje.
+
+Dwie reguły, obie zweryfikowane na żywo, nie założone:
+
+1. **Chodzący stoper wypada z eksportu** (`ended_at IS NULL`). Nie da się
+   wystawić rachunku za czas, który jeszcze trwa. To ta sama reguła, którą
+   stosuje suma czasu na profilu projektu w apce — gdyby się rozjechały,
+   faktura nie zgadzałaby się z tym, co właściciel widzi na telefonie.
+2. **Projekt bez klienta (wewnętrzny) zostaje w rejestrze** z pustą kolumną
+   „Klient" — `LEFT JOIN`, nie `JOIN`. Cicho gubiony wiersz jest gorszy niż
+   wiersz z pustym polem.
+
+### Pułapka, na którą warto uważać
+
+`tsc` **nie sprawdza SQL-a.** Przy pisaniu `time/export` zapytanie sięgało po
+`project_tasks.tytul` — kolumna nazywa się `text`. `tsc` przeszedł czysto,
+a trasa wywaliłaby się dopiero przy pierwszym pobraniu pliku. Po napisaniu
+nowej trasy eksportu **zawsze pobierz plik curlem**, zanim uznasz ją za gotową.
+
+### Czego świadomie nie ma
+
+- **Eksportu w apce** — decyzja właściciela: to praca przy biurku, a na iOS
+  oddanie pliku wymaga arkusza udostępniania, czyli osobnej roboty bez zysku.
+- **XLSX** — CSV w tym formacie niczego nie psuje, więc nie ma powodu.
+- **Importu** — inny zakres, nie był zamawiany.

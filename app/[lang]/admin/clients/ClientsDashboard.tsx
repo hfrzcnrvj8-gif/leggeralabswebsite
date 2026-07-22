@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPlus, IconFilter, IconX } from "@tabler/icons-react";
+import { IconPlus, IconFilter, IconX, IconFileExport } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
@@ -335,6 +335,9 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
+        {/* Cały rejestr, bez zakresu dat — patrz komentarz w trasie.
+            Zwykły `href`, jak w Leadach: nie ma czego wybierać w dymku. */}
+        <ExpandingIconButton label="Eksport CSV" icon={<IconFileExport size={15} />} href="/api/clients/export" />
         <ExpandingIconButton label="Dodaj klienta" icon={<IconPlus size={16} />} onClick={addClient} />
       </div>
 

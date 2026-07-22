@@ -36,7 +36,19 @@ z apką + przypomnienia" oraz pamięć `kalendarz-slownik-koloru-parytet`.
 wpisu kolorem, apka zwija osiem „terminów" w jedną złotą kropkę. Decyzja
 właściciela — duży ekran unosi dziesięć kolorów, telefon nie.
 
-## Część A — eksporty (główny zakres tego czatu)
+## Część A — eksporty ✅ WYKONANE 2026-07-22
+
+Wszystkie trzy zamówione eksporty stoją i są zweryfikowane pobraniem pliku.
+Pełny opis: `HUB_SETUP.md` → „Eksporty CSV — komplet". **Nie rób tego drugi
+raz** — poniższa sekcja zostaje jako zapis decyzji, nie jako zadanie.
+
+Zrobione: wiersz podsumowania (sprzedaż per waluta, zakupy jednym wierszem),
+`/api/time/export` (linia = sesja, sumy per projekt, chodzący stoper wypada),
+`/api/clients/export` i `/api/projects/export` (całe rejestry, bez zakresu dat).
+
+**Zostaje otwarta tylko Część B.**
+
+### Kontekst decyzji (zapis, nie zadanie)
 
 ### Co właściciel rozstrzygnął 2026-07-22
 
@@ -49,63 +61,22 @@ Pytany po obejrzeniu realnych plików z trzech istniejących tras:
 | CSV czy XLSX? | Zostaje **CSV**. Sprawdzone: format jest już zrobiony pod polski Excel (BOM UTF-8, średnik, przecinek dziesiętny) i nic się nie psuje. XLSX nie ma dziś uzasadnienia |
 | Import? | nie pytane, nie robimy |
 
-### Co istnieje dzisiaj
+### Jak zostało rozstrzygnięte (dla kontekstu)
 
-Trzy trasy + `lib/export.ts` (`toCsv`, `csvMoney`, `currentMonthRange`,
-`exportFilename`) i wspólny `ExportCsvButton` w `app/[lang]/admin/components.tsx`
-(pigułka z ikoną + Popover z zakresem dat, pobieranie zwykłym `<a href>`).
+- **Czas pracy: ani per projekt, ani per klient.** Linie (jedna sesja = jeden
+  wiersz), klient i projekt jako dwie osobne kolumny, sumy per projekt na dole.
+  Z linii zrobi się sumę w dowolnym przekroju; z sumy nie odzyska się szczegółu.
+- **Podsumowanie sprzedaży: per waluta.** `costs` nie ma kolumny waluty, więc
+  zakupy sumują się jednym wierszem.
+- **Klienci i projekty: bez zakresu dat.** `projects.start` ORAZ
+  `projects.termin` są opcjonalne, więc filtr po dacie gubiłby wiersze po cichu.
 
-| Trasa | Zakres | Przycisk |
-|---|---|---|
-| `GET /api/leads/export` | cały rejestr, `?ids=` zawęża | `LeadsDashboard.tsx` |
-| `GET /api/invoices/export?from&to` | bieżący miesiąc, pomija szkice | `InvoicesDashboard.tsx` |
-| `GET /api/costs/export?from&to` | wg daty wydatku | `CostsDashboard.tsx` |
+Dwie rzeczy, na których brief się mylił, a które zweryfikowano w kodzie:
+tabela czasu nazywa się `time_entries` (nie `work_sessions`), a `projects`
+**ma** kolumnę `start` — doszła późniejszą migracją, więc nie widać jej
+w `CREATE TABLE`.
 
-**Nowe trasy pisz w tym samym kształcie** — `isAuthed()` → `ensure*Schema()` →
-`isPlausibleDateString()` na `from`/`to` → `toCsv` → `Content-Disposition`.
-
-### A1. Eksport czasu pracy
-
-**Tabela nazywa się `time_entries`, NIE `work_sessions`** — brief 37 podawał
-złą nazwę. Schemat w `lib/db.ts` → `ensureTimeSchema()`:
-`id, project_id, task_id, source, entry_date, started_at, ended_at,
-minutes NUMERIC, note, created_at`.
-
-Trzy rzeczy, które trzeba wiedzieć, zanim napiszesz SQL:
-
-1. **`ended_at IS NULL` = stoper CHODZI.** Musi być odfiltrowany, tak samo jak
-   robi to suma na profilu projektu w apce. Wliczenie działającego stopera
-   dałoby fakturę na czas, który jeszcze trwa.
-2. **`minutes` jest `NUMERIC`, nie `INTEGER`** — sesje poniżej minuty zapisują
-   się z realnym ułamkiem. Do rozliczenia z klientem prawie na pewno chcesz
-   drugą kolumnę „godziny" (`minutes / 60`), sformatowaną przez `csvMoney`.
-3. **Klienta nie ma w `time_entries`** — idzie się do niego przez
-   `projects.client_id`. Zapytaj właściciela, czy eksport ma być
-   **per projekt** czy **per klient** (przy kilku projektach jednego klienta
-   to dwa różne pliki i dwa różne rachunki).
-
-Zakres dat: po `entry_date`, domyślnie bieżący miesiąc — jak Faktury i Koszty.
-
-### A2. Wiersz podsumowania
-
-Do rejestru **sprzedaży** i **zakupów**. Suma netto / VAT / brutto.
-
-Pułapka: rejestr sprzedaży może mieć **kilka walut** (`invoices.waluta`).
-Jeden wiersz „razem" zsumowałby złotówki z euro i byłby po prostu
-nieprawdziwy. Albo sumuj per waluta (po wierszu na walutę), albo sumuj tylko
-gdy w pliku jest jedna waluta — **zapytaj właściciela, nie zgaduj**.
-W rejestrze zakupów tego problemu nie ma: **sprawdzone 2026-07-22 —
-tabela `costs` nie ma kolumny waluty**, więc jest jednowalutowa i jeden
-wiersz „razem" jest tam bezpieczny.
-
-### A3. Eksport klientów i projektów
-
-Dwie nowe trasy. Klienci to żywy rejestr bez naturalnego zakresu dat —
-weź wzorzec z `leads/export` (wszystko na raz), nie z `invoices/export`.
-Projekty mają daty, więc zakres ma sens; ustal z właścicielem, po której
-dacie (start? termin? utworzenie?).
-
-## Część B — reszta spójności (mniejszy zakres, można po eksportach)
+## Część B — reszta spójności ⏭️ JEDYNE, CO ZOSTAŁO
 
 ### Co jest realnie otwarte — zweryfikowane gretem 2026-07-22
 
@@ -181,16 +152,12 @@ sam numer; tam dopiero zrzut miał rację.
 Przeczytaj docs/plany-modulow/38-eksporty-i-reszta-spojnosci.md, potem
 CLAUDE.md i docs/natywna-aplikacja/00-plan.md.
 
-Zrób eksporty, na które się zgodziłem: czas pracy ze stopera, wiersz
-podsumowania w rejestrze sprzedaży i zakupów, oraz eksport klientów
-i projektów. Wszystko w panelu, w apce nie. Zanim napiszesz SQL, zadaj mi
-pytania, które brief każe zadać (per projekt czy per klient, waluty
-w podsumowaniu, po której dacie zakres projektów).
+Część A (eksporty) jest zrobiona — nie ruszaj jej. Weź się za Część B:
+wspólne klocki w apce, czyli Odznaka(tekst:), nazwana stała promienia karty
+i tokeny czcionek zamiast .font(.system(size:)). Rób paczkami, po każdej
+build i zrzut z symulatora.
 
-Potem, jeśli zostanie czas, weź się za wspólne klocki w apce — odznakę,
-stałą promienia i tokeny czcionek.
-
-Sprawdzaj w kodzie, czy pozycje z briefu nadal są otwarte, i czytaj
-komentarze nad kodem, zanim uznasz coś za dług. Poprzedni czat zgłosił
-pięć rzeczy, z czego cztery okazały się świadomymi decyzjami.
+Czytaj komentarze nad kodem, zanim uznasz coś za dług — brief ma listę pięciu
+rzeczy, które poprzedni czat zgłosił jako odstępstwa, a cztery z nich okazały
+się świadomymi decyzjami.
 ```
