@@ -545,10 +545,15 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
             </Link>
           )}
 
-          <div className={`mt-2 flex items-center ${collapsed ? "flex-col" : ""}`}>
+          {/* Pion, nie poziom: trzy pozycje z podpisami (Urządzenia,
+              Dwuskładnikowe, Wyloguj) nie mieszczą się obok siebie w szerokości
+              paska — poziomy rząd rozjeżdżał układ. Ułożone jak pozycje
+              nawigacji wyżej: pełna szerokość, ikona + podpis, a po zwinięciu
+              same ikony wyśrodkowane. */}
+          <div className="mt-2 flex flex-col gap-0.5">
             <button
               onClick={() => setDevicesOpen(true)}
-              className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)]"
+              className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)] ${collapsed ? "justify-center" : ""}`}
               title="Urządzenia"
             >
               <IconDevices size={15} />
@@ -556,7 +561,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
             </button>
             <button
               onClick={() => setDwuskladnikOpen(true)}
-              className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)]"
+              className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)] ${collapsed ? "justify-center" : ""}`}
               title="Logowanie dwuskładnikowe"
             >
               <IconShieldLock size={15} />
@@ -567,7 +572,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
                 await fetch("/api/admin/logout", { method: "POST" });
                 window.location.reload();
               }}
-              className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)]"
+              className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)] ${collapsed ? "justify-center" : ""}`}
               title="Wyloguj"
             >
               <IconLogout size={15} />
