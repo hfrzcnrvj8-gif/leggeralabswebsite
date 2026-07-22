@@ -6592,3 +6592,92 @@ z listą.
   Trzymanie cmentarza starych tokenów tylko po to, żeby ładniej odpowiedzieć,
   nie było tego warte.
 - **Automatycznego wygasania** — rozważone i odrzucone, patrz wyżej.
+
+## Moduł 41 — drugi składnik logowania, TOTP (2026-07-22)
+
+Domknięcie **Audytu 1**. Hamulec prób z tamtego audytu (`lib/rateLimit.ts`)
+zamknął *zgadywanie* hasła; nie zamyka jego *wycieku*. Hasło wpisane na
+podrobionej stronie albo wyjęte z menedżera haseł działa za pierwszym razem,
+więc żaden licznik prób go nie zatrzyma. Właściciel poprosił wprost o 2FA.
+
+**To znosi zapis „panel ma jedno hasło" z `CLAUDE.md`** — od tego modułu
+jednoosobowość panelu nie oznacza już jednoskładnikowości.
+
+### Jak to działa
+
+- **Sekret** — 20 losowych bajtów w base32, jeden wiersz w `two_factor`
+  (bramka migracji jak wszędzie). Leży **jawnie**, i to jest świadome: TOTP
+  potrzebuje go do policzenia kodu, więc hash byłby tu teatrem. Kody zapasowe
+  leżą jako SHA-256, wzorem `device_tokens`.
+- **Włączenie** (panel → *Dwuskładnikowe*, obok *Urządzenia*): kod QR + sekret
+  tekstem obok → **wymuszone potwierdzenie jednym poprawnym kodem** → dopiero
+  wtedy 8 kodów zapasowych, z przyciskami **Drukuj** i **Kopiuj**.
+- **Logowanie**: hasło → 6 cyfr (albo kod zapasowy). Tolerancja **±1 okno**
+  (90 s) na rozjazd zegara, porównanie `timingSafeEqual`, **zużyty kod
+  zapamiętany na 5 min** — podsłuchany kod nie wejdzie drugi raz w tym samym
+  oknie. Drugi krok ma **własny licznik hamulca** (`login-totp`, 5/15 min):
+  sześć cyfr to tylko milion kombinacji, a hasło atakujący na tym etapie zna.
+- **Wyłączenie i nowe kody zapasowe** w panelu **wymagają aktualnego kodu**
+  (decyzja właściciela 2026-07-22) — inaczej przejęta otwarta sesja
+  w przeglądarce zdejmuje całą ochronę jednym kliknięciem.
+- **Aplikacja iOS**: `POST /api/admin/login` zwraca przy braku kodu 401
+  z polem **`kod_wymagany: true`** — to jedyny sygnał, po którym apka wie, że
+  ma pokazać drugi ekran zamiast komunikatu „nieprawidłowe hasło". Drugi
+  składnik dotyczy **wydania** tokenu urządzenia, nie każdego żądania.
+
+### Drogi powrotu — decyzja właściciela, obie mają istnieć
+
+Panel jest jednoosobowy, więc **nie ma drugiej strony, która potwierdziłaby
+tożsamość** — „zostanę administratorem" nie tworzy drogi powrotu, tylko
+etykietę. Liczy się niezależność składnika:
+
+1. **Papierowe kody zapasowe** — jedyna droga niezależna od prądu, sieci,
+   Apple i Vercela. Dlatego ekran **musi** dawać wydruk, a nie „przepisz
+   ręcznie osiem dziesięciocyfrowych liczb".
+2. **Ten sam sekret na DWÓCH urządzeniach** (telefon + menedżer haseł na Macu)
+   — dlatego kod QR **nie znika po zeskanowaniu**, a obok niego stoi sekret
+   tekstem: menedżer haseł na Macu często nie zeskanuje kodu z ekranu tego
+   samego komputera.
+3. **`TOTP_DISABLED=1` w Vercelu** — **trzecia**, nie główna. Prowadzi przez
+   łańcuch Vercel → GitHub → Apple → skrzynka, który wg ustalenia 12 Audytu 1
+   **był zerwany przez pół roku bez żadnego objawu**. Zdejmuje pytanie o kod,
+   ale **nie kasuje sekretu** — po skasowaniu zmiennej ochrona wraca sama.
+
+**Zmiana `ADMIN_PASSWORD` NIE wyłącza drugiego składnika** (unieważnia tylko
+sesje w przeglądarce, ustalenie 9 Audytu 1). To nigdy nie jest wyjście.
+
+Świadomie **bez** SMS-a i maila (ta sama skrzynka, którą panel obsługuje),
+**bez** kluczy sprzętowych, **bez** „zapamiętaj to urządzenie na 30 dni"
+(tokeny urządzeń już to robią) i **bez** drugiego konta administratora
+(osobny, duży moduł — dotknąłby wszystkich 195 powtórzeń `isAuthed()`).
+
+### Jak to zweryfikowano (nie „skompilowało się")
+
+`tsc` nie udowodniłby tu niczego, a dev-login (`DEV_ADMIN_BYPASS=1`) omija
+całe logowanie — więc weryfikacja szła **osobnym serwerem na porcie 3100**,
+z kopii repozytorium, z wyłączonym omijaniem i własnym hasłem testowym.
+
+- Silnik TOTP zgodny z **wszystkimi sześcioma wektorami z RFC 6238**; ±1 okno
+  przechodzi, ±2 odrzucone.
+- **Dwa urządzenia**: niezależna implementacja w Pythonie i panel policzyły
+  z tego samego sekretu **ten sam kod w tej samej sekundzie**.
+- Zły kod przy włączaniu → **odmowa zapisu**, stan dalej nieaktywny, QR na
+  ekranie. Poprawny → aktywne + osiem kodów.
+- Logowanie: samo hasło → 401 `kod_wymagany`; hasło + kod → 200; **ten sam
+  kod drugi raz w tym samym oknie → 401**; kod zapasowy → wpuszcza raz,
+  drugi raz nie; po wygenerowaniu nowej ósemki stare kody → 401.
+- Hamulec: 5 błędnych kodów → 429 na 15 min (także dla kodu poprawnego).
+- `TOTP_DISABLED=1`: sekret aktywny w bazie, a samo hasło wpuszcza — plus
+  plakietka w panelu, że wyłącznik stoi.
+- **Wydruk obejrzany jako kartka** (reguła `@media print` chwilowo przełączona
+  na ekran): czarne na białym, nagłówek z instrukcją i datą, osiem kodów,
+  reszta panelu znika.
+
+### Pułapka złapana przy weryfikacji
+
+`navigator.clipboard.writeText` **potrafi odmówić** (brak uprawnienia, starsze
+Safari, brak HTTPS), a bez `catch` przycisk *Kopiuj* wtedy **milczy** —
+właściciel widzi brak reakcji i uznaje, że ma kody w schowku. Przy głównej
+drodze powrotu to jest dokładnie ta cicha porażka, którą ten moduł ma
+likwidować. Oba przyciski kopiujące mają teraz `catch` i komunikat
+odsyłający do *Drukuj*.

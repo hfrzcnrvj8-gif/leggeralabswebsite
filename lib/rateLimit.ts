@@ -45,6 +45,25 @@ export const HAMULEC_LOGOWANIE: Hamulec = {
   oknoMinut: 15,
 };
 
+/** Drugi krok logowania — kod z aplikacji uwierzytelniającej (Moduł 41,
+ * 2026-07-22). **Osobna akcja, świadomie**: gdyby dzieliła licznik z hasłem,
+ * pięć pomyłek w przepisywaniu sześciu cyfr blokowałoby też wpisanie hasła,
+ * a to dwie różne czynności i dwa różne rodzaje pomyłki.
+ *
+ * Dlaczego hamulec jest tu jeszcze ważniejszy niż przy haśle: kod ma tylko
+ * **milion** kombinacji i żyje 90 s. Bez limitu wystarczyłoby kilkaset tysięcy
+ * strzałów w oknie, żeby trafić — a hasło atakujący, który doszedł do tego
+ * kroku, już zna. Próg 5/15 min zostawia mu ~10 strzałów na godzinę.
+ *
+ * Próg i okno takie same jak przy haśle — jedna liczba do zapamiętania
+ * i jedna do zmiany. */
+export const HAMULEC_KOD: Hamulec = {
+  akcja: "login-totp",
+  prog: 5,
+  progGlobalny: 30,
+  oknoMinut: 15,
+};
+
 /** Publiczny formularz kontaktowy (`POST /api/leads`). Luźniej niż przy
  * logowaniu, bo stawka jest inna: tu nie chodzi o dostęp do danych, tylko
  * o to, żeby obcy nie zalał bazy leadami i nie rozdzwonił powiadomień

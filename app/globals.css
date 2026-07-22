@@ -552,3 +552,40 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ── Wydruk kodów zapasowych do drugiego składnika (Moduł 41, 2026-07-22) ──
+ *
+ * Właściciel wybrał PAPIER jako główną drogę powrotu przy zgubionym telefonie
+ * (decyzja 2026-07-22), więc „przepisz osiem kodów z ekranu ręcznie" nie jest
+ * wystarczające — musi istnieć jedno kliknięcie, po którym kody są na kartce.
+ *
+ * `visibility`, nie `display`: kody żyją w modalu, a modal w portalu nad całą
+ * aplikacją. Chowanie przodków przez `display:none` schowałoby razem z nimi
+ * potomka, którego chcemy pokazać; `visibility` daje się odwrócić w dół drzewa.
+ *
+ * Kolory wymuszone na czarno-białe, bo panel jest jednomotywowy — ciemny
+ * (CLAUDE.md), a wydruk ciemnego tła to zużyty toner i nieczytelna kartka. */
+@media print {
+  body.drukuj-kody-2fa * {
+    visibility: hidden !important;
+  }
+  body.drukuj-kody-2fa .kody-do-druku,
+  body.drukuj-kody-2fa .kody-do-druku * {
+    visibility: visible !important;
+    color: #000 !important;
+    background: transparent !important;
+    border-color: #999 !important;
+  }
+  body.drukuj-kody-2fa .kody-do-druku {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 28px;
+    background: #fff !important;
+    overflow: visible;
+  }
+  /* Sam ekran ma to ukryte — na kartce ma być widać, czego dotyczą cyfry. */
+  body.drukuj-kody-2fa .tylko-na-wydruku {
+    display: block !important;
+  }
+}

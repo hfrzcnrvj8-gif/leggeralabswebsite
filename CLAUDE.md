@@ -30,11 +30,18 @@ poprawiał kodu — jeśli coś wymaga decyzji nietechnicznej, zapytaj wprost.
   token SHA-256. Każdy admin API route zaczyna się od
   `if (!(await isAuthed())) return 401`.
 - Panel jest jednoosobowy — brak ról i wielu użytkowników. To świadome
-  ograniczenie zakresu. **Ale „jedno hasło" przestało być decyzją**:
-  2026-07-22 (Audyt 1) właściciel poprosił o drugi składnik TOTP —
-  `docs/plany-modulow/41-drugi-skladnik-totp.md`. Do czasu jego wdrożenia
-  jedynym zabezpieczeniem przed zgadywaniem jest hamulec
-  (`lib/rateLimit.ts`, 5 prób / 15 min) — patrz `docs/AUDYT-1-WYNIKI.md`.
+  ograniczenie zakresu. **Ale jednoosobowość ≠ jeden składnik**: od Modułu 41
+  (2026-07-23) panel ma **drugi składnik TOTP** — `lib/totp.ts` (czysta
+  arytmetyka), `lib/twoFactor.ts` (baza), włączany w panelu (*Dwuskładnikowe*,
+  obok *Urządzenia*), egzekwowany w `POST /api/admin/login`. Gdy jest włączony,
+  hasło bez kodu dostaje 401 z `kod_wymagany: true` (kontrakt z apką iOS).
+  Drugi krok ma własny hamulec (`HAMULEC_KOD`, akcja `login-totp`). **Nie**
+  opieraj się na „wyłączniku w Vercelu" (`TOTP_DISABLED`) jako drodze powrotu
+  — to trzecia droga przez zerwany łańcuch (ustalenie 12 Audytu 1); główne to
+  papierowe kody zapasowe i ten sam sekret na dwóch urządzeniach. Zmiana
+  `ADMIN_PASSWORD` **nie** wyłącza TOTP. Hamulec logowania hasłem
+  (`lib/rateLimit.ts`, 5/15 min) dalej obowiązuje. Szczegóły:
+  `docs/AUDYT-1-WYNIKI.md`, `HUB_SETUP.md` → „Moduł 41".
 - **Każda nowa trasa w `app/api` jest domyślnie OTWARTA.** `proxy.ts`
   (odpowiednik `middleware.ts` w Next 16) jawnie wyłącza `/api` ze swojego
   zakresu, więc nie ma żadnej warstwy chroniącej z góry — cała ochrona to

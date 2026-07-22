@@ -24,6 +24,7 @@ import {
   IconChevronRight,
   IconLogout,
   IconDevices,
+  IconShieldLock,
   IconPlayerStop,
   IconLayoutGrid,
   IconX,
@@ -34,6 +35,7 @@ import type { Locale } from "@/i18n/config";
 import { AdminUIProvider, useUI, isTypingTarget, type Action } from "./ui";
 import { CommandPalette } from "./CommandPalette";
 import { DevicesPanel } from "./DevicesPanel";
+import { TwoFactorPanel } from "./TwoFactorPanel";
 import { NotificationBell } from "./NotificationBell";
 import { LogoMark } from "@/components/Logo";
 import type { Lead } from "@/lib/leads";
@@ -142,6 +144,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
   // Moduł 5 — arkusz „Więcej" (mobilna nawigacja). Tylko na telefonie.
   const [moreOpen, setMoreOpen] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(false);
+  const [dwuskladnikOpen, setDwuskladnikOpen] = useState(false);
   // Przeciąganie arkusza startuje WYŁĄCZNIE z uchwytu (patrz Modal.tsx) —
   // inaczej gest konkurowałby z przewijaniem siatki modułów w środku.
   const moreDragControls = useDragControls();
@@ -527,6 +530,14 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               {!collapsed && <span>Urządzenia</span>}
             </button>
             <button
+              onClick={() => setDwuskladnikOpen(true)}
+              className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12.5px] text-muted hover:bg-[var(--hairline)]"
+              title="Logowanie dwuskładnikowe"
+            >
+              <IconShieldLock size={15} />
+              {!collapsed && <span>Dwuskładnikowe</span>}
+            </button>
+            <button
               onClick={async () => {
                 await fetch("/api/admin/logout", { method: "POST" });
                 window.location.reload();
@@ -770,6 +781,17 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
               </button>
 
               <button
+                onClick={() => {
+                  setMoreOpen(false);
+                  setDwuskladnikOpen(true);
+                }}
+                className="mt-1.5 flex w-full items-center gap-2.5 rounded-xl border hairline px-3 py-3 text-[13px] text-muted hover:bg-[var(--hairline)]"
+              >
+                <IconShieldLock size={19} />
+                <span>Dwuskładnikowe</span>
+              </button>
+
+              <button
                 onClick={async () => {
                   await fetch("/api/admin/logout", { method: "POST" });
                   window.location.reload();
@@ -795,6 +817,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       />
 
       <DevicesPanel open={devicesOpen} onClose={() => setDevicesOpen(false)} />
+      <TwoFactorPanel open={dwuskladnikOpen} onClose={() => setDwuskladnikOpen(false)} />
     </div>
   );
 }

@@ -512,16 +512,23 @@ To też jest wynik audytu.
   (patrz ustalenie 8). Aplikacja na iPhone **pokazuje** ten stan (plakietka
   „Link unieważniony <data>", przycisk podglądu znika) — samo unieważnianie
   zostaje wyłącznie w panelu, zgodnie z decyzją właściciela.
-- **Drugi składnik logowania (TOTP)** — właściciel wybrał „chcę 2FA".
-  Brief `docs/plany-modulow/41-drugi-skladnik-totp.md`, prompt `PROMPT-41.md`.
-  To osobny moduł, świadomie nie mieści się w audycie.
-  **Drogi powrotu ustalone 2026-07-22** (pytanie właściciela: „a co gdybym
-  ja został administratorem?"): papierowe kody zapasowe **oraz** ten sam
-  sekret TOTP na dwóch urządzeniach. Drugie konto administratora z rolami —
-  odrzucone jako osobny, większy moduł. Wyłącznik `TOTP_DISABLED` w Vercelu
-  zostaje jako **trzecia** droga, nie główna: prowadzi przez ten sam łańcuch
-  Vercel → GitHub → Apple → skrzynka, który wg ustalenia 12 był zerwany przez
-  pół roku bez żadnego objawu.
+- ~~**Drugi składnik logowania (TOTP)**~~ — ✅ **zrobione 2026-07-23**,
+  **Moduł 41** (`docs/plany-modulow/41-drugi-skladnik-totp.md`). Panel + apka
+  iOS, zweryfikowane end-to-end na osobnym serwerze z wyłączonym dev-loginem
+  (bo `DEV_ADMIN_BYPASS` omija całe logowanie): silnik TOTP zgodny z sześcioma
+  wektorami RFC 6238, ten sam sekret na dwóch urządzeniach daje ten sam kod
+  w tej samej sekundzie, zużyty kod nie wchodzi drugi raz, hamulec `login-totp`
+  (5/15 min) łapie zgadywanie kodu, wyłącznik `TOTP_DISABLED` wpuszcza samym
+  hasłem nie kasując sekretu. **Domyka to główne ryzyko Audytu 1** — od tego
+  modułu wyciek hasła nie daje już natychmiastowego dostępu do danych klientów.
+  **Drogi powrotu (decyzja 2026-07-22):** papierowe kody zapasowe (wydruk
+  + kopiowanie) **oraz** ten sam sekret na dwóch urządzeniach (QR nie znika,
+  sekret też pokazany tekstem). Wyłączenie i nowa ósemka kodów w panelu żądają
+  aktualnego kodu. Drugie konto administratora z rolami — świadomie odrzucone
+  jako osobny, większy moduł. Wyłącznik `TOTP_DISABLED` jest **trzecią** drogą,
+  nie główną: prowadzi przez łańcuch Vercel → GitHub → Apple → skrzynka, który
+  wg ustalenia 12 był zerwany przez pół roku bez objawu. Zmiana `ADMIN_PASSWORD`
+  **nie** wyłącza TOTP.
 - **Rotacja nigdy nie była ćwiczona** — procedury spisane, nieprzetestowane.
 
 ## Czego ten audyt NIE obejmował

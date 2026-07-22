@@ -1459,6 +1459,66 @@ export async function ensureDeviceTokensSchema(): Promise<void> {
   await deviceTokensSchemaReady;
 }
 
+let twoFactorSchemaReady: Promise<void> | null = null;
+
+/** Drugi składnik logowania — TOTP (Moduł 41, 2026-07-22, domknięcie Audytu 1).
+ *
+ * Trzy tabele, bo trzy różne cykle życia:
+ *  - `two_factor` — JEDEN wiersz (panel jest jednoosobowy), sekret na stałe;
+ *  - `two_factor_backup_codes` — osiem wierszy, każdy do jednorazowego użycia;
+ *  - `two_factor_used` — wiersze żyjące półtorej minuty, wyłącznie po to, żeby
+ *    kod podejrzany przez ramię nie wszedł drugi raz w tym samym oknie.
+ *
+ * Sekret leży **jawnie**, i to jest świadome: TOTP wymaga go do policzenia
+ * kodu, więc odwracalność jest wpisana w algorytm — hash byłby tu teatrem.
+ * Kody zapasowe leżą jako SHA-256 (wzorem `device_tokens`), bo ich serwer nie
+ * musi odtwarzać, tylko porównać. */
+async function createTwoFactorSchema(): Promise<void> {
+  // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
+  // komentarz przy SCHEMA_VERSION). W dev zawsze false → migracje lecą.
+  if (await schemaUpToDate("two_factor")) return;
+
+  const sql = getSql();
+  await sql`
+    CREATE TABLE IF NOT EXISTS two_factor (
+      /* Zawsze 'admin' — wymuszone przez PRIMARY KEY, żeby dwa równoległe
+         włączenia nie zostawiły dwóch sekretów, z których działa losowy. */
+      id TEXT PRIMARY KEY,
+      secret TEXT NOT NULL,
+      /* NULL = sekret czeka na potwierdzenie kodem i NIE chroni jeszcze
+         logowania. To pole jest całą różnicą między „włączone" a „ktoś
+         zaczął włączać i zamknął kartę". */
+      confirmed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS two_factor_backup_codes (
+      id TEXT PRIMARY KEY,
+      /* SHA-256 samych cyfr kodu — wyciek bazy nie wycieka kodów. */
+      code_hash TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      used_at TIMESTAMPTZ
+    );
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS two_factor_used (
+      /* SHA-256(numer okna + kod) — klucz główny, więc drugie użycie tego
+         samego kodu w tym samym oknie odbija się o bazę, a nie o warunek
+         w kodzie, który dwa równoległe żądania mogłyby ominąć. */
+      id TEXT PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  await markSchemaApplied("two_factor");
+}
+
+export async function ensureTwoFactorSchema(): Promise<void> {
+  if (!twoFactorSchemaReady) twoFactorSchemaReady = createTwoFactorSchema();
+  await twoFactorSchemaReady;
+}
+
 let costsSchemaReady: Promise<void> | null = null;
 
 /** Moduł Koszty (Faza G) — ewidencja faktur PRZYCHODZĄCYCH od dostawców, w
