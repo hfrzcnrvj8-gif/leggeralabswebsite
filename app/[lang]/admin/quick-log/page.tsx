@@ -25,7 +25,7 @@ export default async function QuickLogPage({
   const authed = await isAuthed();
 
   return (
-    <AppShell lang={lang as Locale}>
+    <AppShell lang={lang as Locale} authed={authed}>
       {authed ? <QuickLogView lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );

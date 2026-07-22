@@ -125,7 +125,32 @@ const GO_CHORDS: Record<string, string> = {
 /** Wspólna rama dla całego panelu /admin — lewy sidebar (styl Linear),
  * globalna paleta poleceń (Cmd+K) z wyszukiwaniem po wszystkich modułach,
  * i płynne przejście między stronami. */
-export function AppShell({ lang, children }: { lang: Locale; children: React.ReactNode }) {
+export function AppShell({
+  lang,
+  children,
+  authed = true,
+}: {
+  lang: Locale;
+  children: React.ReactNode;
+  /** Czy sesja jest zalogowana. Gdy `false`, NIE renderujemy panelu (sidebar,
+   *  górna belka, paleta poleceń, dzwonek) — tylko `children`, czyli
+   *  `LoginForm`, na czystym pełnoekranowym tle. Wcześniej panel rysował się
+   *  zawsze, więc po wylogowaniu pasek boczny wisiał obok formularza, a klik
+   *  w niego wołał trasy zwracające 401. Domyślnie `true`, żeby pominięcie
+   *  propsa nie ukryło zawartości zalogowanemu użytkownikowi. */
+  authed?: boolean;
+}) {
+  // Ekran logowania: bez chrome i bez żadnych zapytań do API. Klasa
+  // `admin-linear` obowiązkowa — niesie ciemną paletę panelu (patrz error.tsx,
+  // ten sam wzorzec). Bez `AdminUIProvider`, bo LoginForm nie używa useUI().
+  if (!authed) {
+    return (
+      <div className="admin-linear flex min-h-screen flex-col bg-[var(--bg)] px-6 font-sans text-[var(--fg)]">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <AdminUIProvider>
       <ShellBody lang={lang}>{children}</ShellBody>

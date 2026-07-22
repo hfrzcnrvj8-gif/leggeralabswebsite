@@ -15,7 +15,7 @@ export default async function AdminContractsPage({ params }: { params: Promise<{
   const authed = await isAuthed();
 
   return (
-    <AppShell lang={lang as Locale}>
+    <AppShell lang={lang as Locale} authed={authed}>
       {authed ? <ContractsDashboard lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );

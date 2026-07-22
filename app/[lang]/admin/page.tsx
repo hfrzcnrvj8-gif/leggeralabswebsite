@@ -19,7 +19,7 @@ export default async function AdminHomePage({
   const authed = await isAuthed();
 
   return (
-    <AppShell lang={lang as Locale}>
+    <AppShell lang={lang as Locale} authed={authed}>
       {authed ? <DashboardHome lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );

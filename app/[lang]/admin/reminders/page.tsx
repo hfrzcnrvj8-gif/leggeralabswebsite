@@ -19,7 +19,7 @@ export default async function AdminRemindersPage({
   const authed = await isAuthed();
 
   return (
-    <AppShell lang={lang as Locale}>
+    <AppShell lang={lang as Locale} authed={authed}>
       {authed ? <RemindersDashboard lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );

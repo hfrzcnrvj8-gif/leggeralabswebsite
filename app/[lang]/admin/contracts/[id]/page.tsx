@@ -19,7 +19,7 @@ export default async function ContractDetailPage({
   const authed = await isAuthed();
 
   return (
-    <AppShell lang={lang as Locale}>
+    <AppShell lang={lang as Locale} authed={authed}>
       {authed ? <ContractDetail id={id} lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );

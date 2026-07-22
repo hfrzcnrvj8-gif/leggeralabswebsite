@@ -19,7 +19,7 @@ export default async function AdminNotesPage({
   const authed = await isAuthed();
 
   return (
-    <AppShell lang={lang as Locale}>
+    <AppShell lang={lang as Locale} authed={authed}>
       {authed ? <NotesDashboard lang={lang as Locale} /> : <LoginForm />}
     </AppShell>
   );
