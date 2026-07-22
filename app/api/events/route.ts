@@ -68,10 +68,11 @@ export async function POST(req: NextRequest) {
     typeof durationRaw === "number" && Number.isFinite(durationRaw) && durationRaw > 0 && durationRaw <= 1440
       ? Math.round(durationRaw)
       : null;
+  const lokalizacja = typeof body?.lokalizacja === "string" && body.lokalizacja.trim() ? body.lokalizacja.trim().slice(0, 300) : null;
 
   await sql`
-    INSERT INTO events (id, tytul, opis, data, godzina, lead_id, project_id, client_id, data_koniec, czas_trwania_min)
-    VALUES (${id}, ${tytul.slice(0, 300)}, ${opis}, ${data}, ${godzina}, ${leadId}, ${projectId}, ${clientId}, ${dataKoniec}, ${czasTrwaniaMin});
+    INSERT INTO events (id, tytul, opis, data, godzina, lead_id, project_id, client_id, data_koniec, czas_trwania_min, lokalizacja)
+    VALUES (${id}, ${tytul.slice(0, 300)}, ${opis}, ${data}, ${godzina}, ${leadId}, ${projectId}, ${clientId}, ${dataKoniec}, ${czasTrwaniaMin}, ${lokalizacja});
   `;
 
   return NextResponse.json({ ok: true, id });

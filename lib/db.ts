@@ -504,6 +504,12 @@ async function createHubSchema(): Promise<void> {
   // notatkę (da się zaplanować ponownie), nie zabrać jej ze sobą.
   await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS event_id TEXT REFERENCES events(id) ON DELETE SET NULL;`;
 
+  // Lokalizacja wydarzenia (Faza 14, apka) — tylko tekst adresu/miejsca, apka
+  // otwiera go w Mapach do nawigacji. Świadomie zwykły TEXT, nie współrzędne:
+  // właściciel wpisuje nazwę miejsca ("Kawiarnia X, ul. Y"), a geokodowanie
+  // robi Apple Maps po drugiej stronie linku, nie apka.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS lokalizacja TEXT;`;
+
   await markSchemaApplied("hub");
 }
 

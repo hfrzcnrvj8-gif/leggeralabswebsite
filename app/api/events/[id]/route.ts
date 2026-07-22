@@ -70,6 +70,11 @@ export async function PATCH(
     const value = typeof raw === "number" && Number.isFinite(raw) && raw > 0 && raw <= 1440 ? Math.round(raw) : null;
     await sql`UPDATE events SET czas_trwania_min = ${value} WHERE id = ${id};`;
   }
+  if ("lokalizacja" in body) {
+    const raw = body.lokalizacja;
+    const value = typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 300) : null;
+    await sql`UPDATE events SET lokalizacja = ${value} WHERE id = ${id};`;
+  }
 
   return NextResponse.json({ ok: true });
 }

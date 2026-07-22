@@ -16,6 +16,9 @@ export type HubEvent = {
   /** Czas trwania w minutach — tylko ma sens, gdy `godzina` ustawiona; null =
    * nieznany (siatka godzinowa pokazuje wtedy domyślną 60-minutową belkę). */
   czas_trwania_min: number | null;
+  /** Adres/nazwa miejsca — czysty tekst, nie współrzędne. Apka otwiera go
+   * w Mapach do nawigacji; geokodowanie robi Apple Maps, nie apka. */
+  lokalizacja: string | null;
   created_at: string;
 };
 
