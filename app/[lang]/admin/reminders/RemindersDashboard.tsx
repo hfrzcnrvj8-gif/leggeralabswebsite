@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck, IconPlus, IconTrash, IconPencil } from "@tabler/icons-react";
+import { IconCheck, IconPlus, IconTrash, IconPencil, IconFlag, IconFlagFilled } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { todayLocalISO } from "@/lib/dates";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
@@ -140,7 +140,10 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
     [lists, bezListy]
   );
 
-  const otwarty = reminders?.find((r) => r.id === otwarte) ?? null;
+  // Szukamy TAKŻE w podzadaniach — inaczej kliknięcie w podzadanie otwierałoby
+  // pusty modal, bo lista najwyższego poziomu go nie zawiera.
+  const wszystkie = reminders?.flatMap((r) => [r, ...(r.podzadania ?? [])]) ?? [];
+  const otwarty = wszystkie.find((r) => r.id === otwarte) ?? null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
@@ -186,7 +189,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
 
       <div className="mt-3 flex items-center justify-between">
         <span className="text-[12px] text-muted">
-          {reminders === null ? "Wczytuję…" : `${reminders.filter((r) => !r.ukonczone).length} do zrobienia`}
+          {reminders === null ? "Wczytuję…" : `${wszystkie.filter((r) => !r.ukonczone).length} do zrobienia`}
         </span>
         <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-muted">
           <input
@@ -201,43 +204,34 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
 
       <ul className="mt-2 divide-y divide-[var(--hairline)]">
         {reminders?.map((r) => (
-          <li key={r.id} className="group flex items-start gap-3 py-2.5">
-            <button
-              onClick={() => patch(r.id, { ukonczone: !r.ukonczone })}
-              aria-label={r.ukonczone ? "Cofnij odhaczenie" : "Odhacz"}
-              className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors ${
-                r.ukonczone
-                  ? "border-brand-purple bg-brand-purple text-white"
-                  : "border-[var(--hairline)] hover:border-brand-purple"
-              }`}
-            >
-              {r.ukonczone && <IconCheck size={12} stroke={3} />}
-            </button>
-
-            <button onClick={() => setOtwarte(r.id)} className="min-w-0 flex-1 text-left">
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <ZnakPriorytetu priorytet={r.priorytet} />
-                <span className={`text-[13.5px] ${r.ukonczone ? "text-muted line-through" : "text-[var(--fg)]"}`}>
-                  {r.tytul}
-                </span>
-                <TerminPrzypomnienia r={r} dzisISO={dzisISO} />
-                {r.lista_nazwa && wybranaLista === WSZYSTKIE && (
-                  <span className="flex items-center gap-1 text-[11.5px] text-muted">
-                    <KropkaListy kolor={r.lista_kolor} />
-                    {r.lista_nazwa}
-                  </span>
-                )}
-              </span>
-              {r.notatka && <span className="mt-0.5 block truncate text-[12px] text-muted">{r.notatka}</span>}
-            </button>
-
-            <button
-              onClick={() => usun(r)}
-              aria-label="Usuń"
-              className="mt-0.5 shrink-0 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
-            >
-              <IconTrash size={15} />
-            </button>
+          <li key={r.id} className="py-1">
+            <WierszPrzypomnienia
+              r={r}
+              dzisISO={dzisISO}
+              pokazListe={wybranaLista === WSZYSTKIE}
+              onOtworz={() => setOtwarte(r.id)}
+              onPatch={patch}
+              onUsun={usun}
+            />
+            {/* Podzadania z wcięciem — zagnieżdżenie robi API (`podzadania`),
+                panel je tylko rysuje. Płaska lista pokazywałaby „Kupić farbę"
+                obok „Remont" bez żadnego związku. */}
+            {r.podzadania?.length ? (
+              <ul className="ml-8 mt-1 space-y-1 border-l border-[var(--hairline)] pl-3">
+                {r.podzadania.map((s) => (
+                  <li key={s.id}>
+                    <WierszPrzypomnienia
+                      r={s}
+                      dzisISO={dzisISO}
+                      pokazListe={false}
+                      onOtworz={() => setOtwarte(s.id)}
+                      onPatch={patch}
+                      onUsun={usun}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -256,6 +250,85 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
         onClose={() => setOtwarte(null)}
         onPatch={patch}
       />
+    </div>
+  );
+}
+
+/** Jeden wiersz — używany i dla pozycji najwyższego poziomu, i dla podzadań.
+ * Ten sam komponent, żeby podzadanie nie zaczęło się z czasem zachowywać
+ * inaczej niż zadanie (u Apple'a to dokładnie ta sama rzecz, tylko z wcięciem). */
+function WierszPrzypomnienia({
+  r,
+  dzisISO,
+  pokazListe,
+  onOtworz,
+  onPatch,
+  onUsun,
+}: {
+  r: Reminder;
+  dzisISO: string;
+  pokazListe: boolean;
+  onOtworz: () => void;
+  onPatch: (id: string, pola: Record<string, unknown>) => void;
+  onUsun: (r: Reminder) => void;
+}) {
+  return (
+    <div className="group flex items-start gap-3 py-1.5">
+      <button
+        onClick={() => onPatch(r.id, { ukonczone: !r.ukonczone })}
+        aria-label={r.ukonczone ? "Cofnij odhaczenie" : "Odhacz"}
+        className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+          r.ukonczone
+            ? "border-brand-purple bg-brand-purple text-white"
+            : "border-[var(--hairline)] hover:border-brand-purple"
+        }`}
+      >
+        {r.ukonczone && <IconCheck size={12} stroke={3} />}
+      </button>
+
+      <button onClick={onOtworz} className="min-w-0 flex-1 text-left">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <ZnakPriorytetu priorytet={r.priorytet} />
+          <span className={`text-[13.5px] ${r.ukonczone ? "text-muted line-through" : "text-[var(--fg)]"}`}>
+            {r.tytul}
+          </span>
+          <TerminPrzypomnienia r={r} dzisISO={dzisISO} />
+          {/* Miejsce pokazujemy TYLKO wtedy, gdy da się z niego zrobić
+              geofence. Sama nazwa bez współrzędnych wygląda jak obietnica
+              powiadomienia, której nikt nie dotrzyma. */}
+          {r.lokalizacja && r.lokalizacja_lat != null && (
+            <span className="text-[11.5px] text-brand-cyan">
+              {r.przy_wyjsciu ? "przy wyjściu: " : "na miejscu: "}
+              {r.lokalizacja}
+            </span>
+          )}
+          {pokazListe && r.lista_nazwa && (
+            <span className="flex items-center gap-1 text-[11.5px] text-muted">
+              <KropkaListy kolor={r.lista_kolor} />
+              {r.lista_nazwa}
+            </span>
+          )}
+        </span>
+        {r.notatka && <span className="mt-0.5 block truncate text-[12px] text-muted">{r.notatka}</span>}
+      </button>
+
+      <button
+        onClick={() => onPatch(r.id, { flaga: !r.flaga })}
+        aria-label={r.flaga ? "Zdejmij flagę" : "Oznacz flagą"}
+        className={`mt-0.5 shrink-0 transition-opacity ${
+          r.flaga ? "text-brand-gold opacity-100" : "text-muted opacity-0 hover:text-brand-gold focus:opacity-100 group-hover:opacity-100"
+        }`}
+      >
+        {r.flaga ? <IconFlagFilled size={15} /> : <IconFlag size={15} />}
+      </button>
+
+      <button
+        onClick={() => onUsun(r)}
+        aria-label="Usuń"
+        className="mt-0.5 shrink-0 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
+      >
+        <IconTrash size={15} />
+      </button>
     </div>
   );
 }

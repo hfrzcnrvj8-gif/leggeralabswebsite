@@ -36,6 +36,26 @@ export type Reminder = {
   project_id: string | null;
   created_at: string;
 
+  /* ── Dokładka „jak w Apple Reminders" (2026-07-22) ────────────────────── */
+
+  /** Oś NIEZALEŻNA od priorytetu: „wróć do tego". Apple trzyma je osobno
+   * i słusznie — „pilne" i „oznaczone" to nie to samo pytanie. */
+  flaga: boolean;
+  /** Zadanie podrzędne: id rodzica. `null` = pozycja najwyższego poziomu. */
+  parent_id: string | null;
+  /** Nazwa miejsca do CZYTANIA. Bez `lat`+`lon` geofence nie ruszy — wtedy to
+   * tylko notatka „gdzie", a nie obietnica powiadomienia. */
+  lokalizacja: string | null;
+  lokalizacja_lat: number | null;
+  lokalizacja_lon: number | null;
+  /** Metry. `null` = apka bierze swój domyślny (100 m). */
+  lokalizacja_promien: number | null;
+  /** `false` = alarm przy wejściu w obszar, `true` = przy wyjściu. */
+  przy_wyjsciu: boolean;
+
+  /** Pole POCHODNE — podzadania doklejane w GET, nie kolumna. */
+  podzadania?: Reminder[];
+
   /* Pola POCHODNE — z JOIN-a w GET /api/reminders. Nie odsyłaj ich PATCH-em. */
   lista_nazwa?: string | null;
   lista_kolor?: string | null;
@@ -116,6 +136,18 @@ export function priorityMark(priorytet: number): string {
 export function normalizePriority(v: unknown): number {
   if (typeof v !== "number" || !Number.isFinite(v)) return 0;
   return Math.min(3, Math.max(0, Math.round(v)));
+}
+
+/** Domyślny promień geofence w metrach. 100 m to kompromis Apple'a: mniej
+ * gubi wejścia przy słabym GPS-ie w mieście, więcej alarmuje, zanim realnie
+ * dojdziesz na miejsce. */
+export const DOMYSLNY_PROMIEN_M = 100;
+
+/** Czy da się z tego zrobić geofence. Sama nazwa miejsca NIE wystarczy —
+ * bez współrzędnych apka nie ma czego pilnować i nie wolno jej obiecywać
+ * powiadomienia. */
+export function maGeofence(r: Pick<Reminder, "lokalizacja_lat" | "lokalizacja_lon">): boolean {
+  return typeof r.lokalizacja_lat === "number" && typeof r.lokalizacja_lon === "number";
 }
 
 /** `HH:MM` — ten sam kształt, co `events.godzina`. */

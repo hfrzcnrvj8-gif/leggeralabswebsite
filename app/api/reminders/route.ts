@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureRemindersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
-import { isPlausibleTimeString, normalizePriority } from "@/lib/reminders";
+import { isPlausibleTimeString, normalizePriority, type Reminder } from "@/lib/reminders";
 
 export const runtime = "nodejs";
 
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   // Jedno zapytanie z warunkami „parametr pusty = brak filtra" zamiast
   // sklejania SQL-a stringami — neon() nie ma buildera, a sklejanie to
   // wektor na wstrzyknięcie.
-  const rows = await sql`
+  const rows = (await sql`
     SELECT r.*, l.nazwa AS lista_nazwa, l.kolor AS lista_kolor
     FROM reminders r
     LEFT JOIN reminder_lists l ON l.id = r.lista_id
@@ -46,11 +46,30 @@ export async function GET(req: NextRequest) {
       AND (${monthPrefix}::text IS NULL OR to_char(r.termin, 'YYYY-MM') = ${monthPrefix})
       AND (${dzienISO}::text IS NULL OR r.termin = ${dzienISO}::date)
     ORDER BY r.ukonczone ASC,
+             r.flaga DESC,
              r.termin ASC NULLS LAST,
              r.priorytet DESC,
              r.created_at ASC;
-  `;
-  return NextResponse.json({ reminders: rows });
+  `) as unknown as Reminder[];
+
+  // Podzadania wracają ZAGNIEŻDŻONE w rodzicu, nie jako osobne wiersze listy.
+  // Płaska lista pokazywałaby „Kupić farbę" obok „Remont" bez żadnego związku,
+  // a filtr po liście/terminie i tak dotyczy rodzica.
+  //
+  // Podzadanie, którego rodzic nie przeszedł filtra (np. rodzic ukończony,
+  // a filtr pomija ukończone), NIE jest gubione — ląduje na najwyższym
+  // poziomie. Ciche zniknięcie zadania jest gorsze niż zadanie bez wcięcia.
+  const wgID = new Map(rows.map((r) => [r.id, r]));
+  const najwyzsze: Reminder[] = [];
+  for (const r of rows) {
+    const rodzic = r.parent_id ? wgID.get(r.parent_id) : null;
+    if (rodzic) {
+      (rodzic.podzadania ??= []).push(r);
+    } else {
+      najwyzsze.push(r);
+    }
+  }
+  return NextResponse.json({ reminders: najwyzsze });
 }
 
 /** POST /api/reminders — nowe przypomnienie. Admin-only. */
@@ -88,10 +107,23 @@ export async function POST(req: NextRequest) {
   const priorytet = normalizePriority(body?.priorytet);
   const idOrNull = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
 
+  // Geofence tylko z KOMPLETEM współrzędnych. Sama nazwa miejsca zapisuje się
+  // jako notatka „gdzie", ale nie obiecuje powiadomienia — patrz `maGeofence()`.
+  const liczba = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const lat = liczba(body?.lokalizacja_lat);
+  const lon = liczba(body?.lokalizacja_lon);
+  const promien = liczba(body?.lokalizacja_promien);
+
   await sql`
-    INSERT INTO reminders (id, tytul, notatka, termin, godzina, priorytet, lista_id, lead_id, client_id, project_id)
+    INSERT INTO reminders (id, tytul, notatka, termin, godzina, priorytet, lista_id, lead_id, client_id, project_id,
+                           flaga, parent_id, lokalizacja, lokalizacja_lat, lokalizacja_lon, lokalizacja_promien, przy_wyjsciu)
     VALUES (${id}, ${tytul.slice(0, 300)}, ${notatka}, ${termin}, ${godzina}, ${priorytet},
-            ${idOrNull(body?.lista_id)}, ${idOrNull(body?.lead_id)}, ${idOrNull(body?.client_id)}, ${idOrNull(body?.project_id)});
+            ${idOrNull(body?.lista_id)}, ${idOrNull(body?.lead_id)}, ${idOrNull(body?.client_id)}, ${idOrNull(body?.project_id)},
+            ${body?.flaga === true}, ${idOrNull(body?.parent_id)},
+            ${typeof body?.lokalizacja === "string" && body.lokalizacja.trim() ? body.lokalizacja.trim().slice(0, 300) : null},
+            ${lat}, ${lon},
+            ${promien !== null ? Math.max(50, Math.min(10000, Math.round(promien))) : null},
+            ${body?.przy_wyjsciu === true});
   `;
 
   return NextResponse.json({ ok: true, id });

@@ -2241,6 +2241,39 @@ async function createRemindersSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS reminders_termin_idx ON reminders(termin) WHERE ukonczone = false;`;
   await sql`CREATE INDEX IF NOT EXISTS reminders_lista_idx ON reminders(lista_id);`;
 
+  // ── Dokładka 2026-07-22, po teście właściciela („zainspiruj się Apple
+  // Reminders") ──────────────────────────────────────────────────────────
+
+  // Flaga — u Apple'a to oś NIEZALEŻNA od priorytetu i listy: „wróć do tego",
+  // niezależnie od tego, jak pilne i gdzie leży. Dlatego osobna kolumna, a nie
+  // czwarty stopień priorytetu.
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS flaga BOOLEAN NOT NULL DEFAULT false;`;
+
+  // Zadania podrzędne — samo-referencja. `ON DELETE CASCADE`, nie SET NULL:
+  // podzadanie bez rodzica traci sens (inaczej niż przypomnienie bez listy,
+  // które dalej jest zadaniem). To ta sama decyzja, co u Apple'a: kasując
+  // pozycję, kasujesz jej kroki.
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS parent_id TEXT REFERENCES reminders(id) ON DELETE CASCADE;`;
+  await sql`CREATE INDEX IF NOT EXISTS reminders_parent_idx ON reminders(parent_id);`;
+
+  // Przypomnienie MIEJSCEM (geofencing). Nazwa miejsca jest osobno od
+  // współrzędnych, bo służy do CZYTANIA („Poczta, ul. Główna"), a monitorowanie
+  // potrzebuje liczb. Bez kompletu lat+lon geofence się nie da uruchomić —
+  // apka wtedy pokazuje samą nazwę i nie obiecuje powiadomienia.
+  //
+  // `przy_wyjsciu = false` → alarm przy WEJŚCIU w obszar (najczęstszy
+  // przypadek: „jak będę w sklepie"). `true` → przy wyjściu („jak wyjdę
+  // z biura").
+  //
+  // Samo pilnowanie obszaru robi TELEFON (`CLLocationManager`), tak samo jak
+  // alerty czasowe wydarzeń są lokalne — serwer nie ma kanału push do apki
+  // (darmowe konto Apple), więc tu trzyma wyłącznie dane.
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS lokalizacja TEXT;`;
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS lokalizacja_lat DOUBLE PRECISION;`;
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS lokalizacja_lon DOUBLE PRECISION;`;
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS lokalizacja_promien INTEGER;`;
+  await sql`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS przy_wyjsciu BOOLEAN NOT NULL DEFAULT false;`;
+
   await markSchemaApplied("reminders");
 }
 

@@ -74,6 +74,43 @@ export async function PATCH(
       WHERE id = ${id};
     `;
   }
+  if ("flaga" in body) {
+    await sql`UPDATE reminders SET flaga = ${body.flaga === true} WHERE id = ${id};`;
+  }
+  if ("przy_wyjsciu" in body) {
+    await sql`UPDATE reminders SET przy_wyjsciu = ${body.przy_wyjsciu === true} WHERE id = ${id};`;
+  }
+  if ("parent_id" in body) {
+    const raw = body.parent_id;
+    const wartosc = typeof raw === "string" && raw.trim() ? raw : null;
+    // Zadanie nie może być swoim własnym rodzicem — jeden warunek chroni przed
+    // cyklem, którego reszta kodu (zagnieżdżanie w GET) by nie przeżyła.
+    if (wartosc === id) {
+      return NextResponse.json({ error: "reminder cannot be its own parent" }, { status: 400 });
+    }
+    await sql`UPDATE reminders SET parent_id = ${wartosc} WHERE id = ${id};`;
+  }
+  if ("lokalizacja" in body || "lokalizacja_lat" in body) {
+    // Miejsce zapisuje się w KOMPLECIE albo wcale: nazwa bez współrzędnych to
+    // notatka, a współrzędne bez nazwy to liczby, których nikt nie przeczyta.
+    // Ustawianie ich osobnymi PATCH-ami dawałoby stany pośrednie, w których
+    // apka nie wie, czy ma pilnować obszaru.
+    const nazwa = typeof body.lokalizacja === "string" && body.lokalizacja.trim()
+      ? body.lokalizacja.trim().slice(0, 300)
+      : null;
+    const liczba = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const lat = liczba(body.lokalizacja_lat);
+    const lon = liczba(body.lokalizacja_lon);
+    const promien = liczba(body.lokalizacja_promien);
+    await sql`
+      UPDATE reminders
+      SET lokalizacja = ${nazwa},
+          lokalizacja_lat = ${nazwa ? lat : null},
+          lokalizacja_lon = ${nazwa ? lon : null},
+          lokalizacja_promien = ${nazwa && promien !== null ? Math.max(50, Math.min(10000, Math.round(promien))) : null}
+      WHERE id = ${id};
+    `;
+  }
   for (const kolumna of ["lista_id", "lead_id", "client_id", "project_id"] as const) {
     if (kolumna in body) {
       const raw = body[kolumna];
