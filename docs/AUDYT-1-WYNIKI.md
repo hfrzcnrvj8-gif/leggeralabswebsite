@@ -237,7 +237,46 @@ z Funnela po nagłówku `Tailscale-Funnel-Request`, który Tailscale dokleja do
 każdego żądania z internetu i który nie występuje w ruchu lokalnym.
 **Z Funnela token obowiązkowy, lokalnie po staremu.**
 
-### 12. `.env.example` zna 12 z 24 zmiennych ⚠️ DROBIAZG
+### 12. Konto GitHub nie miało żadnej sprawnej drogi odzyskiwania ✅ ODBLOKOWANE
+
+Najpoważniejsze znalezisko całego audytu, a **nie było w jego zakresie** —
+wyszło przy próbie wykonania zalecenia „zmień adres e-mail konta Vercel".
+
+Łańcuch, ustalony 2026-07-22:
+
+1. Vercel loguje się przez **GitHuba** → konto GitHub jest kluczem do całego
+   wdrożenia (kod, deploy, zmienne środowiskowe).
+2. To konto GitHub **nie ma ani hasła, ani 2FA** — powstało przez „Zaloguj
+   się przez Apple". Jedynym dowodem tożsamości jest e-mail (zrzut ekranu
+   „Confirm access" oferuje wyłącznie *Verify via email*).
+3. Adresem tym jest pośrednik `…@privaterelay.appleid.com`, który przekazywał
+   na `kontakt@patrykpiecyk.pl`.
+4. **Ta domena nie ma serwera poczty.** Jej rekord MX wskazuje na samą siebie,
+   a `A` prowadzi do `76.76.21.21` — czyli do **Vercela** (potwierdzone
+   nagłówkiem `server: Vercel`), hostingu stron WWW. Port 587 zamknięty.
+
+Efekt: **każdy mail wysłany na ten adres od stycznia 2026 przepadał**, a konto
+było zablokowane w pętli — żeby dodać działający adres, GitHub żądał kodu na
+adres niedziałający. Nie było też jak ustawić hasła ani włączyć 2FA, bo obie
+te operacje przechodzą przez tę samą bramkę.
+
+Rozwiązane zmianą celu przekazywania (Apple ID → Zaloguj się przez Apple →
+GitHub → „Przesyłaj dalej do") na `kontakt@leggeralabs.pl`, czyli skrzynkę,
+która realnie działa (MX → `hosting2656695.online.pro`, porty 993 i 587
+otwarte — sprawdzone).
+
+**Zapis z 2026-07-20 był błędny w przyczynie**, choć trafny we wniosku:
+mówił, że pośrednik Apple „nie przyjmuje poczty od innych nadawców".
+Pośrednik działał bez zarzutu — martwy był jego cel. Poprawione w
+`AUDYTY-KONCOWE.md` i `PO_REJESTRACJI.md`.
+
+**Lekcja szersza niż ten przypadek:** zabezpieczenie sprawdza się dopiero
+wtedy, gdy się go **użyje**. Kanał odzyskiwania konta nie był nigdy testowany,
+bo nigdy nie był potrzebny — i przez pół roku nie działał, nie dając żadnego
+objawu. To ta sama klasa problemu co „kopia nieodtworzona od pół roku jest
+z powrotem tylko nadzieją" z Audytu 3.
+
+### 13. `.env.example` zna 12 z 24 zmiennych ⚠️ DROBIAZG
 
 Zakres audytu mówi wprost: „Dziś nie ma takiej listy w jednym miejscu".
 `.env.example` mógłby nią być, ale zatrzymał się na Module 4 — nie ma w nim
@@ -402,21 +441,27 @@ To też jest wynik audytu.
    nietknięte), z nagłówkiem Funnela bez tokenu **401**, z nagłówkiem Funnela
    i poprawnym tokenem **200**, ze zgadywanym tokenem **401**. Kopia pliku
    sprzed zmiany: `~/ollama-proxy.js.bak-2026-07-22`.
-8. `npx tsc --noEmit` — czysto. (Zgodnie z zasadą projektu: to nie jest dowód,
+8. **Martwa skrzynka GitHuba — udowodniona DNS-em, nie domysłem**
+   (ustalenie 12). `dig MX patrykpiecyk.pl` → wskazuje na samą siebie,
+   `dig A` → `76.76.21.21`, `curl -I` → `server: Vercel`, port 587 zamknięty.
+   Kontrola na działającej skrzynce: `leggeralabs.pl` → MX
+   `hosting2656695.online.pro`, porty 993 i 587 otwarte. Portu 25 **nie
+   udało się sprawdzić** — operator go blokuje, pokazał się jako zamknięty
+   także dla serwera, o którym wiemy, że działa. Zapisane, żeby nikt nie
+   wyciągnął z tamtego pomiaru fałszywego wniosku.
+9. `npx tsc --noEmit` — czysto. (Zgodnie z zasadą projektu: to nie jest dowód,
    tylko warunek konieczny. Dowodem są punkty 2–5.)
 
 ---
 
 ## Pytania do właściciela — stan po tej sesji
 
-1. **Adres e-mail konta Vercel.** ⏳ **OTWARTE.** Zakres audytu nazywa go
-   „do wymiany" — dziś to pośrednik Apple. Tym kanałem przyjdzie ostrzeżenie
-   o przejęciu konta i o problemie z płatnością. Wyszło przy tym coś
-   poważniejszego, niż zakładał zakres: **logowanie do Vercela idzie przez
-   GitHuba**, więc to konto GitHub jest kluczem do całego wdrożenia — i to
-   ono ma adres-pośrednik. Kolejność: najpierw prawdziwy adres jako primary
-   na GitHubie (+ 2FA), potem adres konta w Vercelu. Zostaje
-   w `PO_REJESTRACJI.md` pkt 13.
+1. **Adres e-mail konta Vercel.** ⏳ **CZĘŚCIOWO ZAMKNIĘTE — patrz
+   ustalenie 12.** Okazało się poważniejsze, niż zakładał zakres audytu:
+   logowanie do Vercela idzie przez GitHuba, więc kluczem do całego
+   wdrożenia jest konto GitHub — a jego kanał odzyskiwania **nie działał
+   w ogóle**. Kolejność: prawdziwy adres jako primary na GitHubie (+ hasło,
+   2FA, kody zapasowe), potem adres konta w Vercelu. `PO_REJESTRACJI.md` pkt 13.
 2. **Typ klucza Resend.** ✅ **ZAMKNIĘTE 2026-07-22** — `Sending access`,
    czyli najwęższe możliwe uprawnienie. Nic do zmiany.
 3. **Ollama na Macu Studio.** ✅ **ZAMKNIĘTE 2026-07-22** — sprawdzone

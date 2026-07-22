@@ -180,9 +180,19 @@ i staje się prawna (retencja, prawo do usunięcia danych, mapa przepływów).
 
 Dwa obszary dotykają wprost tej listy: **Audyt 2 (RODO)** dokłada pozycje do
 polityki prywatności i do `docs/DO-PRAWNIKA-I-TLUMACZA.md`, a **Audyt 1
-(bezpieczeństwo)** wskazuje adres e-mail konta Vercel do wymiany — dziś jest
-to pośrednik Apple, który nie przyjmuje poczty od innych nadawców, więc
-ostrzeżenia o płatnościach i próbach przejęcia konta nie mają jak dojść.
+(bezpieczeństwo)** wskazuje adres e-mail konta Vercel do wymiany — to
+pośrednik Apple konta GitHub, przez które loguje się do Vercela.
+
+**Stan na 2026-07-22:** dostarczanie poczty naprawione. Pośrednik przekazywał
+na `kontakt@patrykpiecyk.pl` — adres, którego rekord MX wskazuje na Vercela,
+czyli hosting stron **bez serwera poczty**; nic tam nie docierało od stycznia.
+Skutkiem był zator nie do przejścia: żeby dodać działający adres, GitHub żądał
+kodu na adres niedziałający, a konto nie miało ani hasła, ani 2FA. Po zmianie
+celu przekazywania na `kontakt@leggeralabs.pl` zator puścił.
+
+**Do zrobienia mimo to:** prawdziwy adres jako primary na GitHubie, 2FA
+z zapisanymi kodami zapasowymi, drugi zweryfikowany adres i ten sam adres na
+koncie Vercela (osobno adres do faktur przy przejściu na Pro).
 
 ---
 _Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`.

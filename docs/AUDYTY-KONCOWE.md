@@ -110,9 +110,13 @@ z tych kluczy wycieknie.
   zapytany 2026-07-22 właściciel **poprosił o drugi składnik (TOTP)**.
   Zapis „jedno hasło" w `CLAUDE.md` przestaje obowiązywać; brief:
   `docs/plany-modulow/41-drugi-skladnik-totp.md`.
-- **Adres e-mail konta Vercel** — dziś to pośrednik Apple, który nie przyjmuje
-  poczty od innych nadawców (odkryte 2026-07-20). Tym kanałem przyjdzie
-  ostrzeżenie o przejęciu konta albo problemie z płatnością. **Do wymiany.**
+- **Adres e-mail konta Vercel** — pośrednik Apple. **Przyczyna ustalona
+  2026-07-22 i inna, niż zapisano 07-20** (tamten opis — „nie przyjmuje
+  poczty od innych nadawców" — był błędny): pośrednik działał poprawnie,
+  ale przekazywał na `kontakt@patrykpiecyk.pl`, czyli adres, którego rekord
+  MX wskazuje na **Vercela** — hosting stron bez serwera poczty. Poczta nie
+  ginęła w spamie, tylko nie miała gdzie dojść. Naprawione tego samego dnia.
+  Szczegóły i sposób weryfikacji: `docs/AUDYT-1-WYNIKI.md`.
 
 # Audyt 2 — Dane osobowe i RODO
 
