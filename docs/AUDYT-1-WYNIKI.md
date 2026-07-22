@@ -513,8 +513,15 @@ To też jest wynik audytu.
   „Link unieważniony <data>", przycisk podglądu znika) — samo unieważnianie
   zostaje wyłącznie w panelu, zgodnie z decyzją właściciela.
 - **Drugi składnik logowania (TOTP)** — właściciel wybrał „chcę 2FA".
-  Brief `docs/plany-modulow/41-drugi-skladnik-totp.md`. To osobny moduł,
-  świadomie nie mieści się w audycie.
+  Brief `docs/plany-modulow/41-drugi-skladnik-totp.md`, prompt `PROMPT-41.md`.
+  To osobny moduł, świadomie nie mieści się w audycie.
+  **Drogi powrotu ustalone 2026-07-22** (pytanie właściciela: „a co gdybym
+  ja został administratorem?"): papierowe kody zapasowe **oraz** ten sam
+  sekret TOTP na dwóch urządzeniach. Drugie konto administratora z rolami —
+  odrzucone jako osobny, większy moduł. Wyłącznik `TOTP_DISABLED` w Vercelu
+  zostaje jako **trzecia** droga, nie główna: prowadzi przez ten sam łańcuch
+  Vercel → GitHub → Apple → skrzynka, który wg ustalenia 12 był zerwany przez
+  pół roku bez żadnego objawu.
 - **Rotacja nigdy nie była ćwiczona** — procedury spisane, nieprzetestowane.
 
 ## Czego ten audyt NIE obejmował
