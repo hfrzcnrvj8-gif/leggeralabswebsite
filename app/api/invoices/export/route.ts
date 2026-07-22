@@ -3,7 +3,7 @@ import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
-import { toCsv, csvMoney, currentMonthRange, exportFilename } from "@/lib/export";
+import { toCsv, csvMoney, csvSummaryRow, groupByCurrency, currentMonthRange, exportFilename } from "@/lib/export";
 
 export const runtime = "nodejs";
 
@@ -75,7 +75,19 @@ export async function GET(req: NextRequest) {
     String(r.rozlicza_zaliczke_numer ?? ""),
   ]);
 
-  const csv = toCsv([header, ...body]);
+  // Sumy per waluta — patrz `groupByCurrency`. Liczone z tych samych wartości,
+  // które trafiają do wierszy, więc plik zawsze sam się zgadza; policzenie ich
+  // drugim zapytaniem SQL dałoby dwa źródła prawdy i ciche rozjazdy przy
+  // zmianie reguły rabatów.
+  const podsumowania = groupByCurrency(rows, (r) => String(r.waluta ?? "")).map(({ waluta, wiersze }) =>
+    csvSummaryRow(header.length, `RAZEM ${waluta}`, {
+      8: wiersze.reduce((s, r) => s + Number(r.netto), 0),
+      9: wiersze.reduce((s, r) => s + Number(r.vat), 0),
+      10: wiersze.reduce((s, r) => s + Number(r.brutto), 0),
+    })
+  );
+
+  const csv = toCsv([header, ...body, ...podsumowania]);
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

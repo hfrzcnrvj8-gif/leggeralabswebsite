@@ -525,7 +525,15 @@ export function ClientLinkPicker({
  * zakres: bieżący miesiąc. Pobieranie przez zwykły link `<a>` (GET z ciasteczkiem
  * sesji, przeglądarka sama obsłuży `Content-Disposition: attachment`) — bez
  * fetch+blob, bo to zbędna komplikacja dla prostego pobrania pliku. */
-export function ExportCsvButton({ endpoint, title = "Eksport CSV" }: { endpoint: string; title?: string }) {
+export function ExportCsvButton({
+  endpoint,
+  title = "Eksport CSV",
+  // Po JAKIEJ dacie filtruje zakres — różne rejestry mierzą czas czym innym
+  // (faktura datą wystawienia, koszt datą wydatku, czas pracy datą wpisu).
+  // Domyślna wartość jest prawdziwa dla Faktur i Kosztów, czyli dla dwóch
+  // miejsc, w których ten przycisk stał, zanim doszedł trzeci.
+  zakresWg = "wg daty wystawienia/wydatku",
+}: { endpoint: string; title?: string; zakresWg?: string }) {
   const defaults = currentMonthRange(todayLocalISO());
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
@@ -547,7 +555,7 @@ export function ExportCsvButton({ endpoint, title = "Eksport CSV" }: { endpoint:
     >
       {(close) => (
         <div className="space-y-2.5 p-3">
-          <p className="text-[11px] text-muted">Zakres dat (wg daty wystawienia/wydatku)</p>
+          <p className="text-[11px] text-muted">Zakres dat ({zakresWg})</p>
           <div className="flex items-center gap-1.5">
             <DateField value={from} onChange={setFrom} placeholder="Od" />
             <span className="text-[11px] text-muted">–</span>

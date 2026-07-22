@@ -3,7 +3,7 @@ import { getSql, ensureCostsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
-import { toCsv, csvMoney, currentMonthRange, exportFilename } from "@/lib/export";
+import { toCsv, csvMoney, csvSummaryRow, currentMonthRange, exportFilename } from "@/lib/export";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod, vatDoOdliczenia } from "@/lib/costs";
 
 export const runtime = "nodejs";
@@ -64,7 +64,24 @@ export async function GET(req: NextRequest) {
     ];
   });
 
-  const csv = toCsv([header, ...body]);
+  // Jeden wiersz sumy, bez podziału na waluty — `costs` nie ma kolumny waluty,
+  // więc rejestr zakupów jest z definicji jednowalutowy (inaczej niż sprzedaż).
+  // Sumy liczone z tych samych liczb, które poszły do wierszy, żeby plik sam
+  // się zgadzał.
+  const netto = rows.reduce((s, r) => s + Number(r.kwota_netto), 0);
+  const brutto = rows.reduce((s, r) => s + Number(r.kwota_brutto), 0);
+  const vatOdliczenie = rows.reduce(
+    (s, r) => s + vatDoOdliczenia(Number(r.kwota_netto), String(r.vat_stawka ?? ""), Number(r.vat_odliczenie_procent ?? 100)),
+    0
+  );
+  const podsumowanie = csvSummaryRow(header.length, "RAZEM", {
+    7: netto,
+    9: brutto - netto,
+    10: vatOdliczenie,
+    11: brutto,
+  });
+
+  const csv = toCsv([header, ...body, podsumowanie]);
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

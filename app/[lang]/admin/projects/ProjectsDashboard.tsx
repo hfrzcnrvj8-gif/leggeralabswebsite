@@ -5,7 +5,7 @@ import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled } fro
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
 import { PROJECT_TEMPLATES } from "@/lib/projects";
-import { SavedViews } from "../components";
+import { SavedViews, ExportCsvButton } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
 import { ProjectTimeline } from "./ProjectTimeline";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
@@ -363,6 +363,10 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             </>
           )}
         </Popover>
+        {/* Eksport czasu pracy mieszka w Projektach, bo przy projekcie loguje
+            się czas — nie ma osobnego modułu „Czas", w którym mógłby stanąć.
+            Jedna linia = jedna sesja stopera, sumy per projekt na dole pliku. */}
+        <ExportCsvButton endpoint="/api/time/export" title="Czas pracy" zakresWg="wg daty wpisu" />
         <Popover
           align="right"
           width={248}
