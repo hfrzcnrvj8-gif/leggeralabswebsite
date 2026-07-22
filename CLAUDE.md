@@ -29,8 +29,19 @@ poprawiał kodu — jeśli coś wymaga decyzji nietechnicznej, zapytaj wprost.
 - Custom auth na cookie (`lib/auth.ts`): `isAuthed()`, `checkPassword()`,
   token SHA-256. Każdy admin API route zaczyna się od
   `if (!(await isAuthed())) return 401`.
-- Panel jest jednoosobowy — jedno hasło administratora, brak ról/wielu
-  użytkowników. To świadome ograniczenie zakresu, nie luka do naprawienia.
+- Panel jest jednoosobowy — brak ról i wielu użytkowników. To świadome
+  ograniczenie zakresu. **Ale „jedno hasło" przestało być decyzją**:
+  2026-07-22 (Audyt 1) właściciel poprosił o drugi składnik TOTP —
+  `docs/plany-modulow/41-drugi-skladnik-totp.md`. Do czasu jego wdrożenia
+  jedynym zabezpieczeniem przed zgadywaniem jest hamulec
+  (`lib/rateLimit.ts`, 5 prób / 15 min) — patrz `docs/AUDYT-1-WYNIKI.md`.
+- **Każda nowa trasa w `app/api` jest domyślnie OTWARTA.** `proxy.ts`
+  (odpowiednik `middleware.ts` w Next 16) jawnie wyłącza `/api` ze swojego
+  zakresu, więc nie ma żadnej warstwy chroniącej z góry — cała ochrona to
+  195 powtórzeń `if (!(await isAuthed()))` w 149 plikach. Zapomnienie jednej
+  linijki daje otwartą trasę bez żadnego objawu: build przechodzi, panel
+  działa. Sprawdzaj **per uchwyt HTTP**, nie per plik — grep po pliku kłamie,
+  bo pięć tras wspomina `isAuthed()` w komentarzu uzasadniającym jego brak.
 - Schemat bazy tworzy się sam przy pierwszym użyciu (idempotentne migracje
   w `lib/db.ts`: `ensureLeadsSchema()`, `ensureHubSchema()`, każda z własnym
   cache'owanym promise). Nowe kolumny/tabele dodawaj przez

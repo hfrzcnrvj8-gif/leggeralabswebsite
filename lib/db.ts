@@ -675,6 +675,50 @@ export async function ensureObservabilitySchema(): Promise<void> {
   await observabilitySchemaReady;
 }
 
+let rateLimitSchemaReady: Promise<void> | null = null;
+
+/** Hamulec liczby prób (Audyt 1, 2026-07-22) — jedna tabela obsługująca
+ * WSZYSTKIE publiczne trasy, które da się „strzelać" bez końca: logowanie
+ * administratora i formularz kontaktowy.
+ *
+ * **Dlaczego tabela, a nie pamięć procesu:** na Vercelu każde żądanie może
+ * trafić w inną instancję funkcji. Licznik w zmiennej modułu liczyłby więc
+ * osobno dla każdej z nich i przy kilkunastu instancjach nie zatrzymałby
+ * niczego — wyglądając w kodzie na działający hamulec. Wspólna pamięć jest
+ * tu jedyną, która cokolwiek wie.
+ *
+ * **Odcisk zamiast adresu IP:** przechowujemy SHA-256 z adresu i sekretu
+ * sesji, nie sam adres. Adres IP jest daną osobową (Audyt 2) i tabela
+ * pełna adresów byłaby nieudokumentowanym zbiorem, objętym prawem do
+ * usunięcia. Do liczenia „ile prób z tego samego miejsca" odcisk wystarcza
+ * w 100%, bo pytamy o równość, nigdy o to, czyj to adres. */
+async function createRateLimitSchema(): Promise<void> {
+  if (await schemaUpToDate("rate_limit")) return;
+
+  const sql = getSql();
+  await sql`
+    CREATE TABLE IF NOT EXISTS rate_limit_hits (
+      id TEXT PRIMARY KEY,
+      /* "login" albo "lead-form" — patrz HAMULCE w lib/rateLimit.ts. */
+      akcja TEXT NOT NULL,
+      /* SHA-256(adres IP + ADMIN_SESSION_SECRET), nie adres. */
+      odcisk TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  /* Zapytanie hamulca brzmi zawsze „ile wierszy tej akcji od chwili T" —
+     i dopiero w drugiej kolejności rozbija to na odcisk. Stąd taka
+     kolejność kolumn w indeksie. */
+  await sql`CREATE INDEX IF NOT EXISTS rate_limit_hits_akcja_idx ON rate_limit_hits(akcja, created_at DESC);`;
+
+  await markSchemaApplied("rate_limit");
+}
+
+export async function ensureRateLimitSchema(): Promise<void> {
+  if (!rateLimitSchemaReady) rateLimitSchemaReady = createRateLimitSchema();
+  await rateLimitSchemaReady;
+}
+
 let invoicesSchemaReady: Promise<void> | null = null;
 
 async function createInvoicesSchema(): Promise<void> {

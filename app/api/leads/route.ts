@@ -4,6 +4,7 @@ import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { notify } from "@/lib/notificationLog";
+import { HAMULEC_FORMULARZ, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,29 @@ export async function GET() {
  * form, so the lack of auth here is a deliberate, low-risk trade-off.
  */
 export async function POST(req: NextRequest) {
+  // ── Hamulec (Audyt 1, 2026-07-22) ────────────────────────────────────────
+  // Ta sama trasa obsługuje publiczny formularz i „+ Dodaj lead" z panelu,
+  // więc limit NIE MOŻE dotyczyć właściciela — sześć leadów wpisanych ręcznie
+  // w godzinę to normalna praca, a nie atak. Stąd wyjątek dla zalogowanych,
+  // sprawdzany PRZED liczeniem (dla ciasteczka nie kosztuje ani jednego
+  // zapytania do bazy).
+  //
+  // Liczymy KAŻDE zgłoszenie z zewnątrz, nie tylko odrzucone: stawką jest
+  // objętość (zalanie bazy i rozdzwonienie powiadomień), nie zgadywanie.
+  const zPanelu = await isAuthed();
+  if (!zPanelu) {
+    const odcisk = odciskZadania(req.headers);
+    const limit = await sprawdzHamulec(HAMULEC_FORMULARZ, odcisk);
+    if (!limit.dozwolone) {
+      await zglosPrzekroczenie(HAMULEC_FORMULARZ, limit.globalny);
+      return NextResponse.json(
+        { error: `Zbyt wiele zgłoszeń. Spróbuj ponownie za ${limit.zaMinut} min.` },
+        { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+      );
+    }
+    await odnotujProbe(HAMULEC_FORMULARZ, odcisk);
+  }
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const firma = typeof body?.firma === "string" ? body.firma.trim() : "";
   if (!firma) {

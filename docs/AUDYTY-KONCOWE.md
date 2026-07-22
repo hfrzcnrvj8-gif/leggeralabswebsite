@@ -67,6 +67,27 @@ i drogi klienta (Moduł 29, 2026-07-17). Czego nauczyły:
 
 # Audyt 1 — Bezpieczeństwo i dostęp
 
+> ### ✅ WYKONANY — 2026-07-22
+>
+> Wyniki: **`docs/AUDYT-1-WYNIKI.md`**.
+>
+> W skrócie: brak hamulca na `POST /api/admin/login` (zmierzone: 30 prób →
+> 30× 401, zero 429) **naprawiony** — 5 prób / 15 min, licznik w bazie,
+> odcisk zamiast adresu IP, alarm w dziennym mailu. Ten sam hamulec objął
+> publiczny formularz kontaktowy (5/60 min).
+>
+> Lista „9 tras bez `isAuthed()`" okazała się nieprawdziwa: jest ich **14
+> plików / 16 uchwytów** — poprzednia powstała gretem po pliku, a pięć tras
+> wspomina `isAuthed()` w komentarzu. Wszystkie 16 przejrzane pojedynczo,
+> każda ma uzasadnienie i własną ochronę.
+>
+> Otwarte: publiczna umowa wydaje adres IP podpisującego, publiczna faktura
+> wydaje drugi token (`SELECT *` z czarną listą pól). Nowe briefy: **40**
+> (unieważnianie linków) i **41** (drugi składnik TOTP — właściciel poprosił
+> o 2FA, znosząc zapis „jedno hasło" z `CLAUDE.md`).
+>
+> **Następny wg ryzyka: Audyt 3 (niezawodność, kopie, powrót po awarii).**
+
 **Pytanie:** kto i czym może się dostać do danych, i co się stanie, gdy jeden
 z tych kluczy wycieknie.
 
@@ -85,9 +106,10 @@ z tych kluczy wycieknie.
   jaką warto znać na pamięć.
 - **Tokeny w linkach.** Oferty, umowy i wezwania chodzą po linkach z tokenem.
   Sprawdź długość, losowość i to, czy wygasają.
-- **Uwierzytelnianie jednym hasłem.** To świadome ograniczenie zakresu
-  (`CLAUDE.md`), nie luka — ale przy firmie z klientami warto zapytać
-  właściciela ponownie, czy nadal mu to wystarcza.
+- **Uwierzytelnianie jednym hasłem.** ~~To świadome ograniczenie zakresu~~ —
+  zapytany 2026-07-22 właściciel **poprosił o drugi składnik (TOTP)**.
+  Zapis „jedno hasło" w `CLAUDE.md` przestaje obowiązywać; brief:
+  `docs/plany-modulow/41-drugi-skladnik-totp.md`.
 - **Adres e-mail konta Vercel** — dziś to pośrednik Apple, który nie przyjmuje
   poczty od innych nadawców (odkryte 2026-07-20). Tym kanałem przyjdzie
   ostrzeżenie o przejęciu konta albo problemie z płatnością. **Do wymiany.**

@@ -6431,3 +6431,40 @@ rzeczy, która by je zbierała. Awaria o 3:00 była do rana niewidoczna.
    telefonem i NIP-em, bo tamte wzorce pasują do jego fragmentów. Przy
    odwrotnej kolejności z IBAN-a zostawało `PL611090101400000[telefon]`,
    czyli 17 cyfr wyciekało mimo „oczyszczenia". Złapane testem, nie okiem.
+
+## Audyt 1 — hamulec liczby prób (2026-07-22)
+
+Wyniki całego audytu: `docs/AUDYT-1-WYNIKI.md`. Tutaj to, co doszło do kodu.
+
+Do 2026-07-22 `POST /api/admin/login` przyjmował **nieograniczoną liczbę
+zgadywań hasła** — zmierzone: 30 żądań pod rząd dało 30× HTTP 401 i ani
+jednego 429, a 50 równolegle wykonało się w 0,28 s. Panel ma jedno hasło,
+więc była to najkrótsza droga do wszystkich danych klientów naraz.
+
+- `lib/rateLimit.ts` — jeden moduł dla wszystkich hamulców. Progi (`HAMULEC_*`)
+  siedzą **tam**, nie w trasach: rozjechane progi w dwóch plikach to dokładnie
+  ten dług, który ten projekt już raz zebrał.
+- Tabela `rate_limit_hits` (`lib/db.ts`, z bramką migracji).
+- Logowanie: **5 nieudanych prób z adresu / 15 min**. Formularz kontaktowy
+  (`POST /api/leads`): **5 zgłoszeń / 60 min**, z wyjątkiem dla zalogowanego
+  (ta sama trasa obsługuje „+ Dodaj lead" z panelu).
+- Przekroczenie progu → `error_log` (Audyt 4) → linia w dziennym mailu.
+
+### Cztery rzeczy, których nie wolno tu „uprościć"
+
+1. **Licznik musi być w bazie, nie w pamięci procesu.** Na Vercelu każde
+   żądanie może trafić w inną instancję funkcji. Licznik w zmiennej modułu
+   liczyłby osobno dla każdej z nich i przy kilkunastu instancjach nie
+   zatrzymałby niczego — *wyglądając w kodzie na działający hamulec*.
+2. **Sprawdzenie idzie PRZED porównaniem hasła.** Po nim chroniłoby tylko
+   zapis sesji, a samo zgadywanie działałoby dalej.
+3. **Fail-closed.** Gdy zapytanie o licznik padnie, logowanie nie przechodzi.
+   Odwrotny wybór zamieniłby awarię bazy w wyłącznik hamulca.
+4. **W bazie leży odcisk, nie adres IP** — `SHA-256(adres + sekret sesji)`.
+   Adres IP jest daną osobową (Audyt 2); tabela adresów byłaby nowym zbiorem
+   objętym prawem do usunięcia. Do pytania „ile prób z tego samego miejsca"
+   odcisk wystarcza w 100%.
+
+Drugi limit, **globalny** (30 prób logowania / 15 min ze wszystkich adresów
+naraz), istnieje dlatego, że botnet z tysiąca adresów obchodzi limit per-IP,
+a właściciel loguje się z jednego lub dwóch miejsc.
