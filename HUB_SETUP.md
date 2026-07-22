@@ -1475,8 +1475,9 @@ Notion (kolor, zakres godzin, klikalne powiązania).
 
 - **Sidebar** (`Sidebar` w `CalendarView.tsx`, ~200px, wzorem lewej kolumny
   Notion Calendar) — zastępuje dawną statyczną legendę na dole siatki:
-  - `MiniMonthCalendar` — klikalny mini-kalendarz miesiąca (dziś na
-    czerwono, wybrany dzień podświetlony), strzałki ‹/› do zmiany miesiąca
+  - `MiniMonthCalendar` — klikalny mini-kalendarz miesiąca (dziś na biało —
+    do 2026-07-22 na czerwono, patrz „Kalendarz: jeden słownik koloru"
+    niżej; wybrany dzień podświetlony), strzałki ‹/› do zmiany miesiąca
     niezależnie od aktywnego widoku Miesiąc/Tydzień/Dzień — szybki skok do
     dowolnego dnia, jak w Notion.
   - **"Kalendarze"** — lista rodzajów wpisów (Wydarzenia + wszystkie
@@ -6166,3 +6167,94 @@ rozwinięciem.
 - **Cyklu na kroku przypomnienia** (`parent_id`): powtarza się całe zadanie,
   nie krok w jego środku. Odwrotność nie da się sensownie odhaczyć.
 - **Zaproszeń wysyłanych osobno na każde wystąpienie** — od tego jest RRULE.
+
+## Kalendarz: jeden słownik koloru z apką + przypomnienia (2026-07-22)
+
+Powstało z pytania właściciela „czy desktop i apka mają takie same kolory?".
+Odpowiedź brzmiała „nie" i część różnic była przypadkowa.
+
+### Co było nie tak
+
+- **To samo wydarzenie miało dwa kolory.** Panel malował ręczne wydarzenie
+  zahardkodowanym `#4ea7fc` (niebieski), apka turkusem marki. „Urlop" był
+  niebieski przy biurku i turkusowy na telefonie.
+- **„Dziś" miało w panelu TRZY wyglądy**, w tym dwa na surowej `bg-red-500`
+  (mini-kalendarz, nagłówek tygodnia) wobec białego w siatce miesiąca.
+  Czerwień jest w tym systemie zakazana („czerwień znika", `Marka.swift`).
+- **Cztery rodzaje wpisu miały kolory spoza palety marki** — `orange-500`
+  (Lead), `red-500` (Nieodebrane), `indigo-500` (Email), `#4ea7fc`.
+- **Panel w ogóle nie pokazywał Przypomnień w kalendarzu.** `DeadlineKind`
+  znał osiem rodzajów; modułu Przypomnień (2026-07-22) wśród nich nie było,
+  mimo że apka rysuje je jako trzeci strumień. Przypomnienie zaplanowane
+  na telefonie **znikało przy biurku**.
+
+### Decyzja właściciela
+
+Pytany o trzy warianty (panel schodzi do palety / apka uczy się dziewięciu
+kolorów panelu / panel spłaszcza się do trzech jak apka) wybrał **pierwszy**:
+panel zostaje przy pełnym rozróżnieniu, ale wyłącznie w rodzinach marki.
+
+**Świadoma różnica, która ZOSTAJE:** panel rozróżnia dziesięć rodzajów
+kolorem, apka zwija osiem „terminów" w jedną złotą kropkę. Duży ekran unosi
+dziesięć kolorów, telefon nie — to różna gęstość, nie niespójność do
+naprawienia. Nie „ujednolicaj" tego bez pytania.
+
+### Słownik koloru (`DEADLINE_STYLE` w `CalendarView.tsx`)
+
+Rodzina niesie znaczenie, odcień rozróżnia w rodzinie:
+
+| Rodzaj | Kolor | Rodzina |
+|---|---|---|
+| Wydarzenie | `brand-cyan` | turkus = ludzie i spotkania |
+| Klient | `brand-cyan-deep` | ” |
+| Połączenie | `brand-cyan-soft` | ” |
+| Płatność | `brand-gold` | złoto = pieniądze i terminy |
+| Lead | `brand-gold-deep` | ” |
+| Projekt | `brand-purple` | fiolet = praca |
+| Kamień milowy | `brand-purple-soft` | ” (kamień NALEŻY do projektu) |
+| Przypomnienie | `brand-pink` | róż — **ten sam, co kropka w apce** |
+| Nieodebrane | `brand-red` (#8B272F) | ciemna czerwień = poszło źle |
+| Email | `var(--fg-muted)` | neutralny, świadomie bez akcentu |
+
+Trzy rzeczy, które trzeba wiedzieć przed zmianą:
+
+1. **`brand-red` MUSI mieć wariant `red-soft` do tekstu.** #8B272F na czarnym
+   tle daje kontrast ~1,75:1, czyli tekst nie do odczytania. Stary kod robił
+   ten sam podział (`border-red-500` + `text-red-400`).
+2. **Email jest jedynym rodzajem bez akcentu** i to celowo: to zapis tego, co
+   się już wydarzyło, a nie coś, co wymaga ruchu. Neutralna szarość ≠ „poza
+   paletą" — akcenty biorą się z marki, chrome może być szare.
+3. **Czerwona linia „teraz" w widoku dnia ZOSTAJE.** To inne znaczenie
+   (godzina, nie dzień) i uniwersalna konwencja kalendarzy.
+
+### Przypomnienia w kalendarzu
+
+Dziesiąty `DeadlineKind`. Tylko **nieukończone** i tylko **z terminem** —
+termin jest w tym module opcjonalny (to cała różnica wobec wydarzenia),
+a pozycja bez daty nie ma gdzie w kalendarzu stanąć. Tytuł bez przedrostka
+„Przypomnienie — ": pisze go właściciel i zwykle sam jest zdaniem, a rodzaj
+niesie kolor.
+
+**Odhaczanie wprost z kalendarza** (kółko w liście dnia) — jedyny wyjątek od
+zasady „terminy są tylko do odczytu". Uzasadnienie: domknięcie przypomnienia
+to jeden ruch, a wymaganie za nie skoku do innej zakładki byłoby karą za
+korzystanie z kalendarza. Reszta terminów kółka NIE dostaje — faktury się
+nie „odhacza", tylko opłaca.
+
+Kolejność w `tickReminder` jest istotna: pozycja znika **od razu** (stan
+lokalny), a dopiero potem dociągamy terminy — bo serwer przy przypomnieniu
+powtarzalnym nie gasi go, tylko **przesuwa na kolejne wystąpienie**
+(`przesunSerie` w `app/api/reminders/[id]/route.ts`). Bez dociągnięcia
+kalendarz nie pokazałby nowej daty; bez optymistycznego zniknięcia
+odhaczenie wyglądałoby na nieskuteczne przez czas okrążenia sieci.
+
+**Zaległa seria wraca na najbliższy PRZYSZŁY punkt rytmu**, nie na kolejny
+przeterminowany dzień. Zweryfikowane na żywo: „co tydzień" z 3 lipca,
+odhaczone 22 lipca, przeszło na 24 lipca (nie na 10).
+
+### Jak to weryfikować
+
+Ziarno deweloperskie ma **trzynaście stand-upów dziennie** i chowa wszystko
+pod „+9 więcej" — przypomnienia w siatce miesiąca po prostu nie zobaczysz.
+Załóż przypomnienie testowe na pusty dzień (1–5 lipca w ziarnie są puste),
+sprawdź, skasuj. Nie wnioskuj z tego, że „nie działa".

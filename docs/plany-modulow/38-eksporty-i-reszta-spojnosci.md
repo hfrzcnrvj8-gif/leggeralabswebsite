@@ -17,13 +17,24 @@ Nie zaczynaj od tego, to jest zamknięte:
   marki (znikły `orange-500`, `red-500`, `indigo-500`, `#4ea7fc`); trzy
   znaczniki „dziś", z czego dwa na surowej czerwieni, ujednolicone na biały;
   `brand.red` + `brand.red-soft` w `tailwind.config.ts`.
+- **Panel**: **Przypomnienia weszły do kalendarza** jako dziesiąty
+  `DeadlineKind` (wcześniej ich tam NIE BYŁO — przypomnienie zaplanowane na
+  telefonie znikało przy biurku), z **odhaczaniem wprost z listy dnia**.
+  Kamień milowy przeszedł z różu do rodziny fioletu, email zszedł na
+  neutralną szarość, róż jest teraz przypomnieniem — tak jak w apce.
 - **Apka**: `KolorWydarzenia` — jedna recepta rysowania wydarzenia na
   wszystkich czterech poziomach kalendarza; ucięty podpis „08:00";
   wyrównanie miesięcy w widoku roku; nagłówek tygodnia „lipiec · tydz. 30";
   `PlakietkaSerii` przestała narzucać jasność; licznik „N do zrobienia"
-  w Przypomnieniach.
+  w Przypomnieniach; formularz wydarzenia przestał obiecywać kolor
+  po powiązaniu, którego apka nie rysuje (zdanie przyszło z panelu).
 
-Szczegóły i uzasadnienia: pamięć `kalendarz-slownik-koloru-parytet`.
+Szczegóły i uzasadnienia: `HUB_SETUP.md` → „Kalendarz: jeden słownik koloru
+z apką + przypomnienia" oraz pamięć `kalendarz-slownik-koloru-parytet`.
+
+**Świadoma różnica, której NIE naprawiaj:** panel rozróżnia dziesięć rodzajów
+wpisu kolorem, apka zwija osiem „terminów" w jedną złotą kropkę. Decyzja
+właściciela — duży ekran unosi dziesięć kolorów, telefon nie.
 
 ## Część A — eksporty (główny zakres tego czatu)
 
