@@ -5,6 +5,7 @@ import {
   ensureHubSchema,
   ensureInvoicesSchema,
   ensureClientsSchema,
+  ensureRemindersSchema,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO } from "@/lib/dates";
@@ -17,7 +18,7 @@ export const runtime = "nodejs";
  * telefoniczne (Moduł 3, kanał="telefon") — świadomie tylko telefon, nie
  * cała historia kontaktu, żeby gęste dni nie zagłuszyły ważniejszych
  * terminów (decyzja właściciela 2026-07-14). */
-export type DeadlineKind = "invoice" | "project" | "milestone" | "lead" | "client" | "call" | "call-missed" | "email";
+export type DeadlineKind = "invoice" | "project" | "milestone" | "lead" | "client" | "call" | "call-missed" | "email" | "reminder";
 
 export type Deadline = {
   /** Stabilny, syntetyczny id — kalendarz nie zapisuje ani nie usuwa tych
@@ -50,12 +51,13 @@ export async function GET(req: NextRequest) {
   await ensureHubSchema();
   await ensureInvoicesSchema();
   await ensureClientsSchema();
+  await ensureRemindersSchema();
   const sql = getSql();
 
   const month = req.nextUrl.searchParams.get("month");
   const prefix = month && /^\d{4}-\d{2}$/.test(month) ? month : todayLocalISO().slice(0, 7);
 
-  const [invoices, projects, milestones, leads, clients, leadCalls, clientCalls, leadEmails, clientEmails] = await Promise.all([
+  const [invoices, projects, milestones, leads, clients, leadCalls, clientCalls, leadEmails, clientEmails, reminders] = await Promise.all([
     // Nieopłacone faktury z terminem płatności w tym miesiącu (bez proform,
     // bez szkiców/anulowanych/opłaconych).
     sql`
@@ -130,6 +132,24 @@ export async function GET(req: NextRequest) {
       WHERE a.kanal = 'email' AND to_char(a.created_at, 'YYYY-MM') = ${prefix};
     ` as unknown as Promise<
       { id: string; kierunek: string | null; created_at: string; client_id: string; nazwa: string }[]
+    >,
+    // Przypomnienia z terminem w tym miesiącu (Moduł Przypomnień, 2026-07-22).
+    // Do 2026-07-22 kalendarz PANELU ich nie pokazywał w ogóle, mimo że apka
+    // rysowała je jako trzeci strumień — więc przypomnienie zaplanowane na
+    // telefonie znikało przy biurku. Dołożone, żeby obie powierzchnie mówiły
+    // to samo.
+    //
+    // Tylko nieukończone: odhaczone przypomnienie nie jest już terminem,
+    // a lista własna modułu ma na nie osobny przełącznik. `termin IS NOT NULL`
+    // jest istotne — termin jest w tym module OPCJONALNY (to cała różnica
+    // wobec wydarzenia) i przypomnienie bez daty nie ma gdzie stanąć.
+    sql`
+      SELECT id, tytul, termin, lead_id, client_id, project_id
+      FROM reminders
+      WHERE ukonczone = false AND termin IS NOT NULL
+        AND to_char(termin, 'YYYY-MM') = ${prefix};
+    ` as unknown as Promise<
+      { id: string; tytul: string; termin: string; lead_id: string | null; client_id: string | null; project_id: string | null }[]
     >,
   ]);
 
@@ -233,6 +253,20 @@ export async function GET(req: NextRequest) {
       client_id: a.client_id,
       lead_id: null,
       project_id: null,
+    })),
+    ...reminders.map((r) => ({
+      id: `rem-${r.id}`,
+      data: String(r.termin).slice(0, 10),
+      // Bez przedrostka „Przypomnienie — ": tytuł pisze właściciel i zwykle
+      // sam jest zdaniem („Rozliczenie z księgową"). Rodzaj niesie kolor
+      // i ikona, a dopisywanie go do tytułu dawało wiersze mówiące dwa razy
+      // to samo — ta sama pułapka, którą złapano w apce (Faza 6).
+      tytul: r.tytul,
+      kind: "reminder" as const,
+      href: "/admin/reminders",
+      client_id: r.client_id,
+      lead_id: r.lead_id,
+      project_id: r.project_id,
     })),
   ];
 

@@ -77,12 +77,23 @@ function InviteButton({ event, className = "" }: { event: HubEvent; className?: 
 const DEADLINE_STYLE: Record<DeadlineKind, KindStyle> = {
   invoice: { border: "border-brand-gold", bg: "bg-brand-gold/10", text: "text-brand-gold", dot: "bg-brand-gold", label: "Płatność" },
   project: { border: "border-brand-purple", bg: "bg-brand-purple/10", text: "text-brand-purple", dot: "bg-brand-purple", label: "Projekt" },
-  milestone: { border: "border-brand-pink", bg: "bg-brand-pink/10", text: "text-brand-pink", dot: "bg-brand-pink", label: "Kamień" },
+  // Kamień milowy NALEŻY do projektu, więc dostaje jasny odcień jego fioletu,
+  // a nie własną rodzinę. Do 2026-07-22 był różowy — róż przeszedł na
+  // Przypomnienia, bo tam znaczy to samo, co w apce (patrz niżej).
+  milestone: { border: "border-brand-purple-soft", bg: "bg-brand-purple-soft/10", text: "text-brand-purple-soft", dot: "bg-brand-purple-soft", label: "Kamień" },
   lead: { border: "border-brand-gold-deep", bg: "bg-brand-gold-deep/10", text: "text-brand-gold-deep", dot: "bg-brand-gold-deep", label: "Lead" },
   client: { border: "border-brand-cyan-deep", bg: "bg-brand-cyan-deep/10", text: "text-brand-cyan-deep", dot: "bg-brand-cyan-deep", label: "Klient" },
   call: { border: "border-brand-cyan-soft", bg: "bg-brand-cyan-soft/10", text: "text-brand-cyan-soft", dot: "bg-brand-cyan-soft", label: "Połączenie" },
   "call-missed": { border: "border-brand-red", bg: "bg-brand-red/10", text: "text-brand-red-soft", dot: "bg-brand-red", label: "Nieodebrane" },
-  email: { border: "border-brand-purple-soft", bg: "bg-brand-purple-soft/10", text: "text-brand-purple-soft", dot: "bg-brand-purple-soft", label: "Email" },
+  // Email jako JEDYNY rodzaj świadomie neutralny, nie akcentowy: to zapis
+  // tego, co już się wydarzyło, a nie coś, co wymaga ruchu. Wypchnięty
+  // z rodziny fioletu, żeby zrobić miejsce Kamieniowi. Neutralny ≠ „poza
+  // paletą" — akcenty biorą się z marki, szarość to chrome.
+  email: { border: "border-[var(--fg-muted)]", bg: "bg-[var(--fg-muted)]/10", text: "text-[var(--fg-muted)]", dot: "bg-[var(--fg-muted)]", label: "Email" },
+  // Róż = przypomnienie, DOKŁADNIE jak w apce (`Color.brandPink` w legendzie
+  // `KalendarzView`). To jest cel całej tej zmiany: ten sam kolor ma znaczyć
+  // to samo na telefonie i przy biurku.
+  reminder: { border: "border-brand-pink", bg: "bg-brand-pink/10", text: "text-brand-pink", dot: "bg-brand-pink", label: "Przypomnienie" },
 };
 
 /** Turkus, ten sam co `Znaczenie.wToku` / `Color.brandCyan` w apce — „wydarzenie"
