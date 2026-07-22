@@ -9,6 +9,7 @@ import {
   IconHome,
   IconFolder,
   IconNotes,
+  IconChecklist,
   IconCalendar,
   IconTarget,
   IconUsers,
@@ -80,6 +81,7 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   { href: "/mail", label: "Poczta", icon: IconMail },
   { href: "/calendar", label: "Kalendarz", icon: IconCalendar },
   { href: "/notes", label: "Notatnik", icon: IconNotes },
+  { href: "/reminders", label: "Przypomnienia", icon: IconChecklist },
   // Statystyki (Moduł 18) świadomie na końcu — to nie krok w codziennym
   // lejku pracy, tylko okresowy (raz w miesiącu/kwartale) przegląd, czy
   // cały wzorzec się trzyma (patrz docs/plany-modulow/18-pulpit-wskazniki.md).
