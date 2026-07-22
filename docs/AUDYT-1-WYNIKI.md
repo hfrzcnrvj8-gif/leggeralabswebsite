@@ -207,7 +207,37 @@ warto o niej wiedzieć, dokładając trasę.
 Strony panelu są bramkowane osobno i **wszystkie 26 to robi** (sprawdzone
 gretem po każdym `app/[lang]/admin/**/page.tsx`).
 
-### 11. `.env.example` zna 12 z 24 zmiennych ⚠️ DROBIAZG
+### 11. Lokalny model był publicznie dostępny bez klucza ✅ NAPRAWIONE
+
+Dopisane 2026-07-22 wieczorem, po sprawdzeniu Maca Studio — to była
+pierwotnie „❓ nie sprawdzę stąd" z pytań do właściciela. Odpowiedź brzmi:
+**nie, Mac nie wymagał tokenu.**
+
+Stan zastany, odczytany z `~/ollama-proxy.js` i konfiguracji Tailscale:
+
+- Funnel wystawia publicznie `https://mac-studio-patryk.tail21e7c7.ts.net`
+  → `127.0.0.1:11435` (proxy), potwierdzone w `tailscale serve status --json`;
+- `checkAuth()` działało w „trybie MIĘKKIM" z 2026-07-10: **brak nagłówka
+  `Authorization` → wpuść**. Świadomy wybór dla zgodności wstecznej
+  (~20 workflow n8n + pipeline PY3), zrobiony **zanim** ten sam proxy trafił
+  za publiczny adres.
+
+Skutek był większy niż „darmowy model": proxy przetwarza **jedno żądanie
+naraz** (`isProcessing` + kolejka), a `FORWARD_TIMEOUT` to **30 minut**.
+Dwa żądania z internetu zatrzymywały kolejkę na godzinę — razem ze
+wszystkimi automatyzacjami n8n właściciela.
+
+**Komentarz w kodzie liczył na ochronę, której tam nie ma:** „firewall pf
+i tak ogranicza źródła". Ruch z Funnela wchodzi przez `tailscaled` i puka do
+proxy z `127.0.0.1`, więc **wygląda jak lokalny** i żadne filtrowanie po
+adresie źródłowym go nie widzi.
+
+Naprawa (chirurgiczna, bez łamania istniejących klientów): rozpoznanie ruchu
+z Funnela po nagłówku `Tailscale-Funnel-Request`, który Tailscale dokleja do
+każdego żądania z internetu i który nie występuje w ruchu lokalnym.
+**Z Funnela token obowiązkowy, lokalnie po staremu.**
+
+### 12. `.env.example` zna 12 z 24 zmiennych ⚠️ DROBIAZG
 
 Zakres audytu mówi wprost: „Dziś nie ma takiej listy w jednym miejscu".
 `.env.example` mógłby nią być, ale zatrzymał się na Module 4 — nie ma w nim
@@ -254,8 +284,8 @@ zawiera wyłącznie komentarze i puste przypisania (przeczytany w całości).
 | Kopie zapasowe → baza | osobne konto `kopia_ro`, `GRANT SELECT` + `ALTER DEFAULT PRIVILEGES` (`scripts/kopia-zapasowa/konto-ro.sql`) | ✅ wzorcowo; przeczytany plik, nie tylko nazwa |
 | KSeF | `assertTestOnly()` (`lib/ksef-api.ts:41-48`) **twardo blokuje** tryb produkcyjny; token jest testowy, nadany na środowisko testowe MF | ✅ węziej się nie da przed rejestracją |
 | Skrzynka az.pl | `MAIL_USER`/`MAIL_PASS` = pełne konto pocztowe (IMAP + SMTP) | ⚠️ nie da się zawęzić — poczta nie zna uprawnień cząstkowych. Ryzyko wprost: kto ma to hasło, **pisze jako Ty** |
-| Resend | jeden klucz API | ❓ Resend rozróżnia klucze „tylko wysyłka" i „pełny dostęp". Którego typu jest ten — nie sprawdzę z kodu, patrz pytania |
-| Ollama | `OLLAMA_API_SECRET` jest **opcjonalny** po stronie panelu (`lib/ollama.ts:11-13` — brak sekretu = brak nagłówka `Authorization`) | ❓ czy Mac Studio wymaga tego nagłówka, sprawdzę tylko na tamtej maszynie — patrz pytania |
+| Resend | jeden klucz, uprawnienie **`Sending access`** (sprawdzone przez właściciela w panelu Resend 2026-07-22) | ✅ najwęższe możliwe. „Last used: No activity" okazało się nieodświeżoną kolumną — raporty przychodzą codziennie |
+| Ollama | do 2026-07-22 **żadna** — proxy wpuszczało żądania bez tokenu, także te z publicznego Funnela. Naprawione tego samego dnia (ustalenie 11) | ✅ po naprawie: z internetu token obowiązkowy, lokalnie po staremu |
 | Vercel / Neon | konta osobiste właściciela, pełne uprawnienia | ⚠️ nieuniknione przy jednoosobowej firmie |
 
 ## Procedura rotacji — trzy najważniejsze sekrety
@@ -367,26 +397,30 @@ To też jest wynik audytu.
    sprawdzone na wydruku maila, nie w założeniu.
 6. **Przegląd tras liczony per uchwyt HTTP**, nie per plik — skryptem
    dzielącym każdy `route.ts` na uchwyty. To on wykrył ustalenie 3.
-7. `npx tsc --noEmit` — czysto. (Zgodnie z zasadą projektu: to nie jest dowód,
+7. **Ollama — cztery scenariusze po naprawie**, wystrzelane `curl`-em
+   w przeładowany proxy (ustalenie 11): lokalnie bez tokenu **200** (n8n i PY3
+   nietknięte), z nagłówkiem Funnela bez tokenu **401**, z nagłówkiem Funnela
+   i poprawnym tokenem **200**, ze zgadywanym tokenem **401**. Kopia pliku
+   sprzed zmiany: `~/ollama-proxy.js.bak-2026-07-22`.
+8. `npx tsc --noEmit` — czysto. (Zgodnie z zasadą projektu: to nie jest dowód,
    tylko warunek konieczny. Dowodem są punkty 2–5.)
 
 ---
 
-## Pytania do właściciela (nie rozstrzygam sam)
+## Pytania do właściciela — stan po tej sesji
 
-1. **Adres e-mail konta Vercel.** Zakres audytu nazywa go „do wymiany" —
-   dziś to pośrednik Apple, który nie przyjmuje poczty od innych nadawców.
-   Tym kanałem przyjdzie ostrzeżenie o przejęciu konta i o problemie
-   z płatnością. To zmiana do zrobienia **w panelu Vercela, ręcznie** —
-   ja nie mam tam dostępu. Zostaje w `PO_REJESTRACJI.md` pkt 13.
-2. **Typ klucza Resend.** Resend pozwala wydać klucz „tylko wysyłka" albo
-   pełny (czytanie logów, zarządzanie domenami). Sprawdź w panelu Resend →
-   API Keys, jakie uprawnienia ma obecny; jeśli pełny — wydaj nowy,
-   ograniczony do wysyłki, i podmień w Vercelu.
-3. **Ollama na Macu Studio.** Panel wysyła nagłówek `Authorization` tylko
-   wtedy, gdy `OLLAMA_API_SECRET` jest ustawiony. Czy Tailscale Funnel po
-   stronie Maca **wymaga** tego nagłówka? Jeśli nie, każdy, kto zna adres
-   funnela, ma darmowy dostęp do Twojego modelu. Tego nie sprawdzę stąd.
+1. **Adres e-mail konta Vercel.** ⏳ **OTWARTE.** Zakres audytu nazywa go
+   „do wymiany" — dziś to pośrednik Apple. Tym kanałem przyjdzie ostrzeżenie
+   o przejęciu konta i o problemie z płatnością. Wyszło przy tym coś
+   poważniejszego, niż zakładał zakres: **logowanie do Vercela idzie przez
+   GitHuba**, więc to konto GitHub jest kluczem do całego wdrożenia — i to
+   ono ma adres-pośrednik. Kolejność: najpierw prawdziwy adres jako primary
+   na GitHubie (+ 2FA), potem adres konta w Vercelu. Zostaje
+   w `PO_REJESTRACJI.md` pkt 13.
+2. **Typ klucza Resend.** ✅ **ZAMKNIĘTE 2026-07-22** — `Sending access`,
+   czyli najwęższe możliwe uprawnienie. Nic do zmiany.
+3. **Ollama na Macu Studio.** ✅ **ZAMKNIĘTE 2026-07-22** — sprawdzone
+   i naprawione, patrz ustalenie 11.
 
 ## Co zostaje otwarte (z decyzjami z tej sesji)
 
