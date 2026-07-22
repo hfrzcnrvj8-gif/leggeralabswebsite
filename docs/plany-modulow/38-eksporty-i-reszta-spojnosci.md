@@ -135,13 +135,16 @@ sam numer; tam dopiero zrzut miał rację.
 
 ## Kontekst techniczny, który oszczędzi czasu
 
-- **Wbudowany podgląd symulatora (`mcp__Claude_Code_iOS_Simulator__*`) był
-  2026-07-22 zepsuty** — twierdził, że Xcode nie jest wybrany, mimo
-  poprawnego `xcode-select -p` i wystartowanego iPhone'a 17. Obejście:
-  `xcrun simctl` z terminala (`install` / `launch` / `io screenshot`), czyli
-  droga z `00-plan.md`. **Skutek: nie da się stukać w ekran** — wszystko
-  ogląda się przez furtki `LEGGERA_DEV_*` (spis w README apki).
-  Spróbuj podglądu na starcie; jeśli działa, masz dotyk i jest łatwiej.
+- **Podgląd symulatora (`mcp__Claude_Code_iOS_Simulator__*`) DZIAŁA**, razem
+  z dotykiem — naprawione 2026-07-22. Przyczyna, gdyby wróciło: brakowało
+  `/var/db/xcode_select_link`, czyli **zapisanego** wyboru Xcode.
+  `xcode-select -p` odpowiadał poprawną ścieżką **z domyślki**, więc wyglądało
+  na fałszywy alarm — nim nie było. Lekarstwo to dokładnie komenda
+  z komunikatu błędu (`sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`),
+  wymaga hasła właściciela. **Nie odrzucaj tego błędu jako fałszywego na
+  podstawie samego `xcode-select -p`** — sprawdź, czy ten plik istnieje.
+- Furtki `LEGGERA_DEV_*` (spis w README apki) nadal są najszybszą drogą do
+  konkretnego ekranu, nawet gdy dotyk działa.
 - **Build apki ma bramkę stempla wersji.** Po każdej zmianie plików uruchom
   `Skrypty/stempel-wersji.sh`, inaczej `xcodebuild` kończy się błędem
   „Stempel mówi: niezapisane zmiany = NO, a realnie jest YES".
