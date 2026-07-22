@@ -5895,3 +5895,59 @@ z czasem trwania, odebrane z notatką, dwa nieodebrane), kanały nietelefoniczne
 (z godziną i czasem trwania, całodniowe, wielodniowe). Do tej pory seed miał
 wyłącznie wpisy kanału `email` dopięte do maili, więc ani rejestru, ani
 rozwijania zakresów wielodniowych nie dało się obejrzeć lokalnie.
+
+## Moduł Przypomnień (2026-07-22)
+
+Osobny moduł od Kalendarza — **różnica jest w modelu, nie w wyglądzie**:
+przypomnienie MOŻE nie mieć terminu (`reminders.termin DATE` jest nullowalne),
+podczas gdy wydarzenie bez daty nie ma sensu. „Kiedyś przejrzeć backupy" to
+pełnoprawny stan, a nie brak danych.
+
+### Baza (`lib/db.ts` → `ensureRemindersSchema()`)
+
+Dwie tabele, bramka migracji jak wszędzie:
+
+- `reminder_lists` — listy **zakładane przez właściciela** (decyzja 2026-07-22,
+  nie zamknięty słownik): `nazwa`, `kolor` (NAZWA koloru z palety, nie hex —
+  panel i apka dobierają wygląd same), `kolejnosc`.
+- `reminders` — `tytul`, `notatka`, `termin` (opcjonalny), `godzina`,
+  `priorytet` 0–3, `ukonczone` + `ukonczone_at`, `lista_id`, `lead_id`,
+  `client_id`, `project_id`.
+
+`lista_id` ma `ON DELETE SET NULL`: **skasowanie listy osierocą przypomnienia,
+nie zabiera ich ze sobą.** Pomyłkowe usunięcie listy nie może kosztować treści,
+a UI mówi wprost, ile pozycji trafi do „Bez listy".
+
+### API
+
+- `GET /api/reminders` — filtry `lista` (`brak` = poza listami), `month`,
+  `dzien`, `ukonczone=1`. Bez ostatniego serwer oddaje TYLKO nieukończone.
+- `POST /api/reminders`, `PATCH|DELETE /api/reminders/[id]`
+- `GET|POST /api/reminders/lists`, `PATCH|DELETE /api/reminders/lists/[id]`
+
+Dwie reguły pilnowane po stronie serwera: **godzina bez terminu jest wycinana**
+(inaczej powstaje „14:00 nigdy"), a `ukonczone_at` stawia SERWER, nie klient —
+data odhaczenia ma być faktem z jednego zegara.
+
+### Panel
+
+`/admin/reminders`, pozycja w menu za Notatnikiem. Dodawanie jednym polem
+(Enter), pigułki list z licznikami, profil jako wyśrodkowany modal. Nowe
+przypomnienie dziedziczy AKTUALNIE oglądaną listę.
+
+### Apka
+
+Ekran w „Więcej" (licznik = ile wisi) plus **trzeci strumień w Kalendarzu**:
+różowa kropka w siatce (złoto = termin z innego modułu, cyan = wydarzenie),
+osobna sekcja na liście dnia i na pasku rozpiski godzinowej, odhaczanie wprost
+z kalendarza. Przypomnienia z godziną świadomie NIE trafiają na oś godzin —
+są zadaniem „koło" tej pory, nie blokiem zajmującym czas.
+
+Długie przytrzymanie dnia pyta „wydarzenie czy przypomnienie?" przez
+`confirmationDialog` — **nie `.contextMenu`**, który w tej gęstej siatce
+udowodnienie łapał dzień z innej komórki (Faza 14).
+
+### Czego świadomie nie ma
+
+Powtarzania (cyklicznych przypomnień) — to ten sam brak, co w wydarzeniach,
+i ten sam, większy temat: patrz `docs/natywna-aplikacja/27-brief-kalendarz-dalsze-uzytecznosci.md`.
