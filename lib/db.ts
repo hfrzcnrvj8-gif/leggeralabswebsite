@@ -2187,3 +2187,65 @@ export async function ensureNotificationsSchema(): Promise<void> {
   if (!notificationsSchemaReady) notificationsSchemaReady = createNotificationsSchema();
   await notificationsSchemaReady;
 }
+
+let remindersSchemaReady: Promise<void> | null = null;
+
+/** Przypomnienia (2026-07-22) — odpowiednik Apple Reminders, osobny byt niż
+ * `events`. Kalendarz odpowiada na „kiedy mam gdzieś być", przypomnienia na
+ * „co mam zrobić" — i dlatego `termin` jest tu OPCJONALNY, w odróżnieniu od
+ * `events.data`.
+ *
+ * Listy są ZAKŁADANE PRZEZ WŁAŚCICIELA (decyzja 2026-07-22), więc własna
+ * tabela, nie kolumna z zamkniętym słownikiem. `ON DELETE SET NULL` przy
+ * `lista_id`: skasowanie listy ma osierocić przypomnienia, nie skasować je
+ * razem z nią — pomyłkowe usunięcie listy nie może kosztować treści. */
+async function createRemindersSchema(): Promise<void> {
+  if (await schemaUpToDate("reminders")) return;
+
+  // Powiązania z leadem/projektem (FK) — te tabele muszą już istnieć.
+  await ensureHubSchema();
+  await ensureClientsSchema();
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reminder_lists (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL,
+      kolor TEXT NOT NULL DEFAULT 'purple',
+      kolejnosc INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS reminders (
+      id TEXT PRIMARY KEY,
+      tytul TEXT NOT NULL,
+      notatka TEXT NOT NULL DEFAULT '',
+      termin DATE,
+      godzina TEXT,
+      priorytet INTEGER NOT NULL DEFAULT 0,
+      ukonczone BOOLEAN NOT NULL DEFAULT false,
+      ukonczone_at TIMESTAMPTZ,
+      lista_id TEXT REFERENCES reminder_lists(id) ON DELETE SET NULL,
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      client_id TEXT REFERENCES clients(id) ON DELETE SET NULL,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  // Dwa zapytania, jakie realnie robi UI: „co na dany dzień/miesiąc"
+  // (Kalendarz, trzeci strumień) i „co na tej liście".
+  await sql`CREATE INDEX IF NOT EXISTS reminders_termin_idx ON reminders(termin) WHERE ukonczone = false;`;
+  await sql`CREATE INDEX IF NOT EXISTS reminders_lista_idx ON reminders(lista_id);`;
+
+  await markSchemaApplied("reminders");
+}
+
+/** Lazily tworzy tabele Przypomnień (listy + pozycje). */
+export async function ensureRemindersSchema(): Promise<void> {
+  if (!remindersSchemaReady) remindersSchemaReady = createRemindersSchema();
+  await remindersSchemaReady;
+}
