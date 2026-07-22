@@ -345,7 +345,17 @@ export function CalendarView({ lang }: { lang: string }) {
   }, [monthKey]);
 
   // Wyliczone terminy z innych modułów (płatności, projekty, kamienie,
-  // przypomnienia) — tylko do odczytu, ładowane osobno od ręcznych wydarzeń.
+  // przypomnienia) — co do zasady tylko do odczytu, ładowane osobno od
+  // ręcznych wydarzeń. Jedyny wyjątek to odhaczanie przypomnień, patrz
+  // `tickReminder` niżej.
+  const loadDeadlines = useCallback(async () => {
+    const res = await fetch(`/api/events/deadlines?month=${monthKey}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    setDeadlines(d.deadlines as Deadline[]);
+    setDeadlinesReadyKey(monthKey);
+  }, [monthKey]);
+
   useEffect(() => {
     let alive = true;
     const key = monthKey;
@@ -360,6 +370,33 @@ export function CalendarView({ lang }: { lang: string }) {
       alive = false;
     };
   }, [monthKey]);
+
+  /** Odhacz przypomnienie wprost z kalendarza — jedyna pozycja „wyliczona",
+   * którą da się tu zmienić. Reszta terminów (faktura, kamień, lead) to
+   * odbicie czegoś, co ma własny, dłuższy proces w swoim module; odhaczenie
+   * przypomnienia jest jednym ruchem i wymaganie za nie skoku do innej
+   * zakładki byłoby karą za korzystanie z kalendarza. W apce działa to
+   * dokładnie tak samo (`WierszPrzypomnieniaWKalendarzu`).
+   *
+   * Znikamy pozycję OD RAZU, a dopiero potem dociągamy terminy — bo serwer
+   * przy przypomnieniu powtarzalnym nie gasi go, tylko przesuwa na kolejne
+   * wystąpienie (`przesunSerie`). Bez dociągnięcia kalendarz nie pokazałby
+   * nowej daty, a przy samym dociągnięciu bez optymistycznego zniknięcia
+   * odhaczenie wyglądałoby na nieskuteczne przez czas okrążenia sieci. */
+  const tickReminder = useCallback(
+    async (deadlineId: string) => {
+      const id = deadlineId.replace(/^rem-/, "");
+      setDeadlines((prev) => prev.filter((d) => d.id !== deadlineId));
+      const res = await fetch(`/api/reminders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ukonczone: true }),
+      });
+      if (!res.ok) toast("Nie udało się odhaczyć przypomnienia.", "error");
+      await loadDeadlines();
+    },
+    [loadDeadlines, toast]
+  );
 
   useEffect(() => {
     load();
@@ -879,6 +916,7 @@ export function CalendarView({ lang }: { lang: string }) {
                           projectName={projectName}
                           clientName={clientName}
                           onDelete={deleteEvent}
+                          onTickReminder={tickReminder}
                           onAdd={addEvent}
                           leads={leads}
                           projects={projects}
@@ -904,6 +942,7 @@ export function CalendarView({ lang }: { lang: string }) {
               projectName={projectName}
               clientName={clientName}
               onDelete={deleteEvent}
+              onTickReminder={tickReminder}
               onAdd={addEvent}
               leads={leads}
               projects={projects}
@@ -926,6 +965,7 @@ export function CalendarView({ lang }: { lang: string }) {
                 projectName={projectName}
                 clientName={clientName}
                 onDelete={deleteEvent}
+                onTickReminder={tickReminder}
                 onMoveToTime={moveEventToTime}
                 onSlotClick={(time) => {
                   setDayPrefillTime(time);
@@ -1139,6 +1179,7 @@ function DayAgendaList({
   projectName,
   clientName,
   onDelete,
+  onTickReminder,
   compact = false,
 }: {
   lang: string;
@@ -1148,6 +1189,7 @@ function DayAgendaList({
   projectName: (id: string | null) => string | null | undefined;
   clientName: (id: string | null) => string | null | undefined;
   onDelete: (id: string) => void;
+  onTickReminder: (deadlineId: string) => void;
   compact?: boolean;
 }) {
   if (events.length === 0 && dls.length === 0) {
@@ -1168,9 +1210,23 @@ function DayAgendaList({
               transition={{ duration: 0.15, ease: EASE_LIQUID }}
               className={`overflow-hidden rounded-lg border-l-[3px] ${style.border} ${style.bg} px-2.5 py-1.5 text-sm`}
             >
-              <Link href={`/${lang}${d.href}`} className="block truncate hover:underline" title={d.tytul}>
-                {d.tytul}
-              </Link>
+              <div className="flex items-center gap-2">
+                {/* Kółko TYLKO przy przypomnieniu — reszta terminów to odbicie
+                    procesu, którego nie da się domknąć jednym kliknięciem
+                    (faktury nie „odhacza się", tylko opłaca). Dawanie im
+                    takiego samego kółka obiecywałoby akcję, której nie ma. */}
+                {d.kind === "reminder" && (
+                  <button
+                    onClick={() => onTickReminder(d.id)}
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${style.border} transition-colors hover:bg-brand-pink/30`}
+                    aria-label="Odhacz przypomnienie"
+                    title="Odhacz przypomnienie"
+                  />
+                )}
+                <Link href={`/${lang}${d.href}`} className="block flex-1 truncate hover:underline" title={d.tytul}>
+                  {d.tytul}
+                </Link>
+              </div>
             </motion.li>
           );
         })}
@@ -1264,6 +1320,7 @@ function DayPeekContent({
   projectName,
   clientName,
   onDelete,
+  onTickReminder,
   onAdd,
   leads,
   projects,
@@ -1279,6 +1336,7 @@ function DayPeekContent({
   projectName: (id: string | null) => string | null | undefined;
   clientName: (id: string | null) => string | null | undefined;
   onDelete: (id: string) => void;
+  onTickReminder: (deadlineId: string) => void;
   onAdd: AddEventFn;
   leads: Lead[] | null;
   projects: Project[] | null;
@@ -1320,6 +1378,7 @@ function DayPeekContent({
         projectName={projectName}
         clientName={clientName}
         onDelete={onDelete}
+        onTickReminder={onTickReminder}
       />
       <AddEventForm
         day={day}
@@ -1349,6 +1408,7 @@ function DayTimeline({
   projectName,
   clientName,
   onDelete,
+  onTickReminder,
   onMoveToTime,
   onSlotClick,
 }: {
@@ -1361,6 +1421,7 @@ function DayTimeline({
   projectName: (id: string | null) => string | null | undefined;
   clientName: (id: string | null) => string | null | undefined;
   onDelete: (id: string) => void;
+  onTickReminder: (deadlineId: string) => void;
   onMoveToTime: (id: string, day: string, time: string) => void;
   onSlotClick?: (time: string) => void;
 }) {
@@ -1379,6 +1440,7 @@ function DayTimeline({
         projectName={projectName}
         clientName={clientName}
         onDelete={onDelete}
+        onTickReminder={onTickReminder}
       />
       {/* Etykiety godzin i siatka siedzą w JEDNYM kontenerze przewijania —
           pełna doba to 1152 px, więc dwa osobne scrolle rozjechałyby się. */}
@@ -1414,6 +1476,7 @@ function WeekTimeline({
   projectName,
   clientName,
   onDelete,
+  onTickReminder,
   onAdd,
   leads,
   projects,
@@ -1430,6 +1493,7 @@ function WeekTimeline({
   projectName: (id: string | null) => string | null | undefined;
   clientName: (id: string | null) => string | null | undefined;
   onDelete: (id: string) => void;
+  onTickReminder: (deadlineId: string) => void;
   onAdd: AddEventFn;
   leads: Lead[] | null;
   projects: Project[] | null;
@@ -1508,6 +1572,7 @@ function WeekTimeline({
                       projectName={projectName}
                       clientName={clientName}
                       onDelete={onDelete}
+                      onTickReminder={onTickReminder}
                       compact
                     />
                   )}
@@ -1534,6 +1599,7 @@ function WeekTimeline({
                 projectName={projectName}
                 clientName={clientName}
                 onDelete={onDelete}
+                onTickReminder={onTickReminder}
                 onAdd={onAdd}
                 leads={leads}
                 projects={projects}
