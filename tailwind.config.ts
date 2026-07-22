@@ -24,6 +24,25 @@ const config: Config = {
           pink: "#E85D9E",
           gold: "#E0A93B",
           cyan: "#22D3EE",
+          // Odcienie pochodne — WYŁĄCZNIE dla kalendarza, który musi odróżnić
+          // dziewięć rodzajów wpisu, a rodzin marki są cztery (decyzja
+          // właściciela 2026-07-22: "panel schodzi do palety marki").
+          // Zamiast dobierać obce kolory (było: orange-500, red-500,
+          // indigo-500, #4ea7fc), każdy rodzaj dostaje odcień swojej rodziny,
+          // więc kolor niesie DWIE informacje naraz: rodzina mówi "o co
+          // chodzi", odcień — "co dokładnie".
+          "cyan-deep": "#0E9DB8", // Klient
+          "cyan-soft": "#7DE4F5", // Połączenie
+          "gold-deep": "#B87A1F", // Lead
+          "purple-soft": "#A78BFA", // Email
+          // Ta sama stonowana czerwień, co `Color.ciemnaCzerwien` w apce —
+          // systemowa czerwień jest w tym systemie zakazana ("czerwień znika").
+          red: "#8B272F", // Nieodebrane — obwódka, kropka, tło
+          // Jedyny odcień, który MUSI mieć wariant tekstowy: #8B272F na
+          // czarnym tle daje kontrast ~1,75:1, czyli tekst nie do odczytania.
+          // Stary kod robił dokładnie ten sam podział (border-red-500 +
+          // text-red-400) i to była jego jedyna słuszna decyzja.
+          "red-soft": "#CE6A70", // Nieodebrane — sam tekst
         },
       },
       letterSpacing: {

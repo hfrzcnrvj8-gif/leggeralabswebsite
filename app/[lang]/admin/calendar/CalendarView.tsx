@@ -62,21 +62,32 @@ function InviteButton({ event, className = "" }: { event: HubEvent; className?: 
 }
 
 /** Styl "kalendarza" per rodzaj wpisu — lewy kolorowy pasek + podbarwione tło
- * (wzorem Notion Calendar), zamiast cienkich plakietek. Paleta marki tam,
- * gdzie ma to sens (klient/projekt), reszta zachowuje rozróżnialne kolory
- * pomocnicze (lead/nieodebrane/email). */
+ * (wzorem Notion Calendar), zamiast cienkich plakietek.
+ *
+ * **Wyłącznie paleta marki i jej odcienie** (decyzja właściciela 2026-07-22).
+ * Do tej daty cztery rodzaje miały kolory spoza palety — `orange-500` (Lead),
+ * `red-500` (Nieodebrane), `indigo-500` (Email) i zahardkodowany `#4ea7fc`
+ * (Wydarzenie) — a `CLAUDE.md` mówi wprost, żeby nowe akcenty brać z marki.
+ * Ten ostatni był najgorszy, bo to samo wydarzenie wychodziło NIEBIESKIE
+ * w panelu i TURKUSOWE w apce; teraz oba są turkusowe.
+ *
+ * Rodziny niosą znaczenie, odcienie rozróżniają w rodzinie:
+ * turkus = ludzie i spotkania, złoto = pieniądze i terminy,
+ * fiolet = praca, róż = kamień milowy, ciemna czerwień = poszło źle. */
 const DEADLINE_STYLE: Record<DeadlineKind, KindStyle> = {
   invoice: { border: "border-brand-gold", bg: "bg-brand-gold/10", text: "text-brand-gold", dot: "bg-brand-gold", label: "Płatność" },
   project: { border: "border-brand-purple", bg: "bg-brand-purple/10", text: "text-brand-purple", dot: "bg-brand-purple", label: "Projekt" },
   milestone: { border: "border-brand-pink", bg: "bg-brand-pink/10", text: "text-brand-pink", dot: "bg-brand-pink", label: "Kamień" },
-  lead: { border: "border-orange-500", bg: "bg-orange-500/10", text: "text-orange-400", dot: "bg-orange-500", label: "Lead" },
-  client: { border: "border-brand-cyan", bg: "bg-brand-cyan/10", text: "text-brand-cyan", dot: "bg-brand-cyan", label: "Klient" },
-  call: { border: "border-brand-cyan", bg: "bg-brand-cyan/10", text: "text-brand-cyan", dot: "bg-brand-cyan", label: "Połączenie" },
-  "call-missed": { border: "border-red-500", bg: "bg-red-500/10", text: "text-red-400", dot: "bg-red-500", label: "Nieodebrane" },
-  email: { border: "border-indigo-500", bg: "bg-indigo-500/10", text: "text-indigo-400", dot: "bg-indigo-500", label: "Email" },
+  lead: { border: "border-brand-gold-deep", bg: "bg-brand-gold-deep/10", text: "text-brand-gold-deep", dot: "bg-brand-gold-deep", label: "Lead" },
+  client: { border: "border-brand-cyan-deep", bg: "bg-brand-cyan-deep/10", text: "text-brand-cyan-deep", dot: "bg-brand-cyan-deep", label: "Klient" },
+  call: { border: "border-brand-cyan-soft", bg: "bg-brand-cyan-soft/10", text: "text-brand-cyan-soft", dot: "bg-brand-cyan-soft", label: "Połączenie" },
+  "call-missed": { border: "border-brand-red", bg: "bg-brand-red/10", text: "text-brand-red-soft", dot: "bg-brand-red", label: "Nieodebrane" },
+  email: { border: "border-brand-purple-soft", bg: "bg-brand-purple-soft/10", text: "text-brand-purple-soft", dot: "bg-brand-purple-soft", label: "Email" },
 };
 
-const EVENT_DEFAULT_STYLE: KindStyle = { border: "border-[#4ea7fc]", bg: "bg-[#4ea7fc]/10", text: "text-[#4ea7fc]", dot: "bg-[#4ea7fc]", label: "Wydarzenie" };
+/** Turkus, ten sam co `Znaczenie.wToku` / `Color.brandCyan` w apce — „wydarzenie"
+ * ma znaczyć to samo na obu powierzchniach. */
+const EVENT_DEFAULT_STYLE: KindStyle = { border: "border-brand-cyan", bg: "bg-brand-cyan/10", text: "text-brand-cyan", dot: "bg-brand-cyan", label: "Wydarzenie" };
 
 /** Kolor ręcznego wydarzenia wyliczony z powiązania — sam kolor komunikuje,
  * z którym modułem wydarzenie jest związane (klient → cyan, lead → gold,
@@ -1090,7 +1101,7 @@ function MiniMonthCalendar({
               !day
                 ? ""
                 : day === today
-                ? "bg-red-500 font-medium text-white"
+                ? "bg-[var(--fg)] font-medium text-[var(--bg)]"
                 : day === selectedDay
                 ? "bg-[var(--hairline)] font-medium text-[var(--fg)]"
                 : "text-muted hover:bg-[var(--hairline)]"
@@ -1210,7 +1221,7 @@ function DayAgendaList({
                     </Link>
                   )}
                   {e.lead_id && (
-                    <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-orange-400 hover:underline">
+                    <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-brand-gold-deep hover:underline">
                       <IconTarget size={12} className="mr-1 inline align-[-2px]" />{leadName(e.lead_id)}
                     </Link>
                   )}
@@ -1461,7 +1472,7 @@ function WeekTimeline({
                 <div style={{ height: WEEK_HEADER_H }} className="sticky top-0 z-10 flex items-center justify-between bg-[var(--bg-soft)] px-1">
                   <span className={`flex items-center gap-1 text-[12px] font-medium ${day === today ? "text-[var(--fg)]" : "text-muted"}`}>
                     {weekdayShort(day)}
-                    <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${day === today ? "bg-red-500 text-white" : ""}`}>
+                    <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${day === today ? "bg-[var(--fg)] text-[var(--bg)]" : ""}`}>
                       {Number(day.slice(-2))}
                     </span>
                   </span>
