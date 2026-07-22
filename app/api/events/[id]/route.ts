@@ -75,6 +75,12 @@ export async function PATCH(
     const value = typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 300) : null;
     await sql`UPDATE events SET lokalizacja = ${value} WHERE id = ${id};`;
   }
+  if ("alert_minut_przed" in body) {
+    const raw = body.alert_minut_przed;
+    const value =
+      typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= 43200 ? Math.round(raw) : null;
+    await sql`UPDATE events SET alert_minut_przed = ${value} WHERE id = ${id};`;
+  }
 
   return NextResponse.json({ ok: true });
 }

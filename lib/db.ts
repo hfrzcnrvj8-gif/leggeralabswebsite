@@ -510,6 +510,12 @@ async function createHubSchema(): Promise<void> {
   // robi Apple Maps po drugiej stronie linku, nie apka.
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS lokalizacja TEXT;`;
 
+  // Prosty alert przed wydarzeniem (Faza 14, apka) — minuty przed startem,
+  // NULL = brak. Apka planuje z tego lokalne powiadomienie
+  // (`UNUserNotificationCenter`, nie push) — serwer nic nie wysyła, tylko
+  // pamięta wybór, żeby przetrwał edycję z innego urządzenia.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS alert_minut_przed INTEGER;`;
+
   await markSchemaApplied("hub");
 }
 

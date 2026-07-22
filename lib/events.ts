@@ -19,6 +19,9 @@ export type HubEvent = {
   /** Adres/nazwa miejsca — czysty tekst, nie współrzędne. Apka otwiera go
    * w Mapach do nawigacji; geokodowanie robi Apple Maps, nie apka. */
   lokalizacja: string | null;
+  /** Minuty przed startem, kiedy apka ma zaplanować lokalne powiadomienie.
+   * NULL = brak alertu. Serwer nic nie wysyła — to tylko trwały wybór. */
+  alert_minut_przed: number | null;
   created_at: string;
 };
 
