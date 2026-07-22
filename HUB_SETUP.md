@@ -6341,3 +6341,48 @@ nowej trasy eksportu **zawsze pobierz plik curlem**, zanim uznasz ją za gotową
   oddanie pliku wymaga arkusza udostępniania, czyli osobnej roboty bez zysku.
 - **XLSX** — CSV w tym formacie niczego nie psuje, więc nie ma powodu.
 - **Importu** — inny zakres, nie był zamawiany.
+
+## Wspólne klocki apki — Moduł 38, Część B (2026-07-22)
+
+> Dotyczy repo apki (`leggera-hub-ios`), nie panelu. Zapisane tutaj, bo
+> `HUB_SETUP.md` jest jedyną dokumentacją, którą czyta każdy nowy czat.
+
+Domknięcie długu z audytu 2026-07-20. Powstały: `Promien.blok/element/karta`,
+`RozmiarIkony.znacznik/drobna/wiersza/akcji` (oba w `Theme.swift`),
+`Odznaka(tekst:)` (`Marka.swift`) i `WierszeProfilu.swift`.
+
+### Najważniejsze: brief mylił się co do NATURY trzech długów
+
+Liczby z audytu były bliskie prawdy, ale **nazwa problemu prowadziłaby do złej
+roboty**. Warto o tym pamiętać przy następnym audycie:
+
+1. **„26 × `.font(.system(size:))` łamie Dynamic Type."** Czternaście
+   z szesnastu to `Image(systemName:)` — rozmiary IKON, nie tekstu. Ikony
+   celowo nie skalują się z Dynamic Type (rosnąca ikona w gęstym wierszu
+   rozpycha układ bardziej, niż pomaga). Prawdziwy dług: dziesięć magicznych
+   liczb dla czterech ról w siedmiu plikach.
+2. **„34 × `Capsule()` do ujednolicenia."** Większość to KONTROLKI — pigułki
+   szkła, przyciski paska, filtry — mające już wspólny język przez
+   `.szklo(Capsule(), dotyk: true)`. Realna grupa „odznaka od zera" to
+   siedem miejsc.
+3. **„Log aktywności w dwóch wariantach: `LogWiersz` vs `ListaZmian`."**
+   Nieprawda — `ListaZmian` pokazuje zmiany pól (stara → nowa wartość), zupełnie
+   inne dane. **Prawdziwa niespójność była poważniejsza od kosmetyki:** profil
+   klienta rysował samą nazwę kanału i gubił `kierunek` oraz `wynik`, które
+   `ClientFeedItem` niesie od zawsze. Skutek: **nieodebrane połączenie było
+   czerwone w profilu leada i nierozróżnialne w profilu klienta.** To ta sama
+   rodzina co Moduły 30/31 i WhatsApp: pole istnieje, nikt go nie woła.
+
+**Wniosek: licznik z audytu mówi, GDZIE patrzeć, nie CO naprawić.**
+
+### Co zostaje jako uzasadniony wyjątek
+
+Dwa `.font(.system(size:))` z literalną liczbą: licznik-bohater Pulpitu (46)
+i licznik widżetu (34). Tak samo mówił audyt 2026-07-20 — nie „naprawiaj" ich.
+
+### Pułapka przy dokładaniu plików
+
+**Nowy plik `.swift` wymaga `xcodegen generate`** przed budowaniem. Bez tego
+`xcodebuild` zgłasza „cannot find X in scope" przy całkowicie poprawnym
+kodzie, bo pliku nie ma w wygenerowanym projekcie (w repo trzyma się
+`project.yml`, nie `.xcodeproj`).

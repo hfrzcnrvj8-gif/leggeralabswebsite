@@ -76,7 +76,16 @@ tabela czasu nazywa się `time_entries` (nie `work_sessions`), a `projects`
 **ma** kolumnę `start` — doszła późniejszą migracją, więc nie widać jej
 w `CREATE TABLE`.
 
-## Część B — reszta spójności ⏭️ JEDYNE, CO ZOSTAŁO
+## Część B — wspólne klocki ✅ WYKONANE 2026-07-22
+
+Zrobione w trzech paczkach (`406c71b`, `0b8652f`, `f2b6aa6`): `Promien`,
+`RozmiarIkony`, `Odznaka(tekst:)`, `WierszeProfilu.swift`. Opis i lekcje:
+`HUB_SETUP.md` → „Wspólne klocki apki".
+
+**Moduł 38 jest zamknięty w całości.** Poniższe zostaje jako zapis stanu
+sprzed wykonania — nie jako lista zadań.
+
+### Stan sprzed wykonania (archiwum)
 
 ### Co jest realnie otwarte — zweryfikowane gretem 2026-07-22
 
