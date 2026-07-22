@@ -13,6 +13,7 @@ import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { extractEmailAddress, parseUnsubscribeUrl, safeAttachmentFilename, type MailHeaderHints } from "./mail";
+import { parseCalendarReply, type CalendarReply } from "./eventInvites";
 import { SIGNATURE_IMAGES } from "./mailSignature";
 import { siteUrl } from "./site";
 
@@ -37,6 +38,13 @@ export type FetchedMessage = {
   /** Załączniki — SAM OPIS, bez bajtów (Faza 8). Treść ściągamy z IMAP
    * dopiero na żądanie, patrz downloadAttachmentPart() niżej. */
   attachments: ParsedAttachmentMeta[];
+  /** Odpowiedź na nasze zaproszenie („Przyjmuję/Odrzucam" kliknięte przez
+   * klienta), jeśli ten mail ją niesie. Wyjątek od reguły „bez bajtów" wyżej
+   * i to świadomy: część `text/calendar` waży setki bajtów, a jej treść jest
+   * CAŁYM sensem takiej wiadomości — odkładanie odczytu „na żądanie"
+   * znaczyłoby, że status uczestnika nie zmienia się, dopóki właściciel sam
+   * nie otworzy maila. Do bazy trafia sam wynik, nie plik. */
+  calendarReply: CalendarReply | null;
 };
 
 /** Opis jednego załącznika odczytany z BODYSTRUCTURE. */
@@ -246,6 +254,34 @@ type BodyNode = {
  * „mail z 14 załącznikami". Odrzucamy je po `disposition: inline` + obecności
  * `id`. Odrzucamy też części bez nazwy pliku — to sama treść wiadomości.
  */
+/**
+ * Szuka w sparsowanej wiadomości odpowiedzi na zaproszenie. mailparser wkłada
+ * każdą część inną niż text/plain i text/html do `attachments` — a odpowiedź
+ * kalendarzowa to właśnie taka część (`text/calendar; method=REPLY`), zwykle
+ * pod nazwą `invite.ics`. Sprawdzamy TYP, nie nazwę pliku: Outlook nazywa ją
+ * `meeting.ics`, Apple Mail nie nazywa jej wcale.
+ *
+ * Zwraca `null` przy każdej wątpliwości — to ścieżka syncu, która ma milczeć
+ * i przepuścić maila dalej, a nie wywalić całe pobieranie poczty przez jeden
+ * dziwny załącznik.
+ */
+function extractCalendarReply(
+  attachments: { contentType?: string; content?: unknown }[] | undefined
+): CalendarReply | null {
+  for (const a of attachments ?? []) {
+    if (!(a.contentType || "").toLowerCase().startsWith("text/calendar")) continue;
+    const content = a.content;
+    if (!Buffer.isBuffer(content)) continue;
+    try {
+      const reply = parseCalendarReply(content.toString("utf8"));
+      if (reply) return reply;
+    } catch (e) {
+      console.error("[mailbox] nie udało się odczytać odpowiedzi na zaproszenie", e);
+    }
+  }
+  return null;
+}
+
 export function extractAttachmentMeta(root: BodyNode | undefined): ParsedAttachmentMeta[] {
   const out: ParsedAttachmentMeta[] = [];
   if (!root) return out;
@@ -433,6 +469,7 @@ export async function fetchMessagesInFolder(
           receivedAt: parsed.date || new Date(),
           hints,
           attachments: extractAttachmentMeta(item.bodyStructure),
+          calendarReply: extractCalendarReply(parsed.attachments),
         });
       }
 
@@ -575,6 +612,13 @@ export async function sendMail(params: {
    * Modułu 4b) — TYLKO w pamięci, nigdy nie trafiają do Postgresa (patrz
    * MAIL_ATTACHMENT_* w lib/mail.ts). */
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
+  /** Zaproszenie na spotkanie (2026-07-22). Świadomie NIE zwykły załącznik:
+   * `icalEvent` każe MailComposerowi wstawić treść jako część
+   * `text/calendar; method=REQUEST` obok tekstu i HTML-a — i dopiero to
+   * sprawia, że Gmail/Outlook/Apple Mail rysują przyciski „Przyjmuję /
+   * Może / Odrzucam". Ten sam plik doczepiony jako `attachments` byłby dla
+   * nich zwykłym plikiem do pobrania. */
+  icalEvent?: { method: "REQUEST" | "CANCEL"; filename: string; content: string };
   inReplyTo?: string | null;
   references?: string | null;
 }): Promise<{ messageId: string; raw: string }> {
@@ -615,6 +659,15 @@ export async function sendMail(params: {
       // blokadzie zdalnych obrazków. Prawdziwe załączniki mają
       // `contentDisposition: "attachment"` — jedna tablica, dwa rodzaje.
       ...(allAttachments.length > 0 ? { attachments: allAttachments } : {}),
+      ...(params.icalEvent
+        ? {
+            icalEvent: {
+              method: params.icalEvent.method,
+              filename: params.icalEvent.filename,
+              content: params.icalEvent.content,
+            },
+          }
+        : {}),
       messageId,
       ...(params.inReplyTo ? { inReplyTo: params.inReplyTo } : {}),
       ...(params.references ? { references: params.references } : {}),

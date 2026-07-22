@@ -1,4 +1,18 @@
 import { todayLocalISO, addDaysToISO } from "./dates";
+import { icsUID } from "./eventInvites";
+
+/** Tryb zaproszenia dla `buildICS()` — obecny WYŁĄCZNIE przy wysyłce maila do
+ * uczestnika (`POST /api/events/:id/invite`). Feed subskrypcji własnego
+ * kalendarza woła `buildICS()` bez tego argumentu i wygląda dokładnie tak jak
+ * przed 2026-07-22. */
+export type InviteOptions = {
+  /** REQUEST = zaproszenie/aktualizacja, CANCEL = odwołanie spotkania. */
+  method: "REQUEST" | "CANCEL";
+  organizerEmail: string;
+  organizerName: string;
+  attendees: { email: string; nazwa: string }[];
+  sequence: number;
+};
 
 // Nazwane HubEvent, żeby nie kolidować z wbudowanym DOM-owym typem Event.
 export type HubEvent = {
@@ -23,6 +37,11 @@ export type HubEvent = {
    * NULL = brak alertu. Serwer nic nie wysyła — to tylko trwały wybór. */
   alert_minut_przed: number | null;
   created_at: string;
+  /** Zaproszeni i ci z nich, którzy potwierdzili (2026-07-22). Doliczane
+   * w `GET /api/events`, więc OPCJONALNE: te same wydarzenia czyta ICS, apka
+   * i pulpit, a tam liczniki nie mają po co jechać. */
+  uczestnicy_total?: number;
+  uczestnicy_tak?: number;
 };
 
 export function todayISO(): string {
@@ -231,12 +250,16 @@ function escapeICS(s: string): string {
  * lokalny urządzenia, co dla jednoosobowej firmy w jednej strefie czasowej
  * jest wystarczające bez dokładania pełnego bloku VTIMEZONE. Wydarzenie bez
  * godziny (całodniowe/wielodniowe) → DATE, jak dotychczas. */
-export function buildICS(events: HubEvent[]): string {
+export function buildICS(events: HubEvent[], invite?: InviteOptions): string {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   const toBasic = (iso: string) => iso.replace(/-/g, "");
   const lines: string[] = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Leggera Labs//Kalendarz//PL", "CALSCALE:GREGORIAN"];
+  // METHOD tylko w zaproszeniu. Feed subskrypcji zostaje BEZ tej linii —
+  // kalendarz ma go traktować jak zwykłą publikację, a nie jak zaproszenie
+  // wymagające odpowiedzi od właściciela na jego własne spotkania.
+  if (invite) lines.push(`METHOD:${invite.method}`);
   events.forEach((e) => {
-    lines.push("BEGIN:VEVENT", `UID:${e.id}@leggeralabs.pl`, `DTSTAMP:${stamp}`);
+    lines.push("BEGIN:VEVENT", `UID:${icsUID(e.id)}`, `DTSTAMP:${stamp}`);
     if (e.godzina) {
       const startMin = timeToMinutes(e.godzina);
       const endMin = startMin + (e.czas_trwania_min ?? DEFAULT_DURATION_MIN);
@@ -252,6 +275,31 @@ export function buildICS(events: HubEvent[]): string {
     }
     lines.push(`SUMMARY:${escapeICS(e.tytul)}`);
     if (e.opis) lines.push(`DESCRIPTION:${escapeICS(e.opis)}`);
+    if (e.lokalizacja) lines.push(`LOCATION:${escapeICS(e.lokalizacja)}`);
+    if (invite) {
+      // SEQUENCE rośnie z każdą wysyłką (patrz `events.ics_sequence`) —
+      // bez tego kalendarz klienta uzna kolejne zaproszenie za duplikat już
+      // obsłużonego i po cichu je zignoruje, więc przeniesienie spotkania
+      // nie dotarłoby do nikogo.
+      lines.push(`SEQUENCE:${invite.sequence}`);
+      lines.push(
+        `ORGANIZER;CN=${escapeICS(invite.organizerName)}:mailto:${invite.organizerEmail}`,
+        // RSVP=TRUE to właśnie ta flaga, która każe klientowi poczty pokazać
+        // przyciski „Przyjmuję / Może / Odrzucam". PARTSTAT wysyłamy zawsze
+        // jako NEEDS-ACTION: to, co uczestnik już kiedyś odpowiedział, jest
+        // stanem u NAS, a nie treścią nowego zaproszenia.
+        //
+        // Przy CANCEL bez RSVP: nie ma na co odpowiadać, a prośba o odpowiedź
+        // pod odwołanym spotkaniem to zaproszenie do nieporozumienia.
+        ...invite.attendees.map(
+          (a) =>
+            `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION` +
+            `${invite.method === "CANCEL" ? "" : ";RSVP=TRUE"}` +
+            `${a.nazwa ? `;CN=${escapeICS(a.nazwa)}` : ""}:mailto:${a.email}`
+        )
+      );
+      lines.push(invite.method === "CANCEL" ? "STATUS:CANCELLED" : "STATUS:CONFIRMED");
+    }
     lines.push("END:VEVENT");
   });
   lines.push("END:VCALENDAR");

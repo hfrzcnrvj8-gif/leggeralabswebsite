@@ -36,6 +36,7 @@ import {
   IconBrandWhatsapp,
   IconBuildingBank,
   IconCalendar,
+  IconCalendarCheck,
   IconCash,
   IconCheck,
   IconClock,
@@ -184,6 +185,7 @@ const NOTIFICATION: Record<NotificationKind, TablerIcon> = {
   offer_accepted: IconHeartHandshake,
   contract_signed: IconWriting,
   review_collected: IconStar,
+  invite_response: IconCalendarCheck,
 };
 
 export function NotificationIcon({

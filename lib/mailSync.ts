@@ -7,8 +7,9 @@
 // Zero AI: komu przypisać maila wynika z równości adresu (findContactsByEmail),
 // a czy jest "do obsłużenia" — ze statusu. Treść nie jest przez nic czytana.
 import { randomUUID } from "node:crypto";
-import { getSql, ensureMailSchema, ensureMailFoldersSchema } from "./db";
+import { getSql, ensureMailSchema, ensureMailFoldersSchema, ensureEventAttendeesSchema } from "./db";
 import { findContactsByEmail } from "./contactLookup";
+import { eventIdFromUID, ATTENDEE_STATUS_LABEL } from "./eventInvites";
 import { notify } from "./notificationLog";
 import {
   fetchMessagesInFolder,
@@ -460,6 +461,10 @@ async function syncOneFolder(
   for (const msg of batch.messages) {
     try {
       if (folder.role === "inbox") {
+        // Odpowiedź na zaproszenie ZANIM zapadnie decyzja o zapisie samej
+        // wiadomości: „Przyjmuję" bywa mailem bez treści, który klasyfikator
+        // ma prawo uznać za szum, a status uczestnika ma się zmienić i tak.
+        await applyCalendarReply(sql, msg);
         const outcome = await saveIncoming(sql, msg, threadCtx);
         if (outcome === "duplicate") continue;
         saved++;
@@ -499,6 +504,59 @@ async function syncOneFolder(
     `[mailSync:timing] ${folder.role} GOTOWE, t=${Date.now() - t0}ms, fetched=${batch.messages.length} saved=${saved} matched=${matched} unassigned=${unassigned} ignored=${ignored}`
   );
   return { fetched: batch.messages.length, saved, matched, unassigned, ignored };
+}
+
+/**
+ * Odnotowuje odpowiedź klienta na zaproszenie („Przyjmuję / Może / Odrzucam"
+ * kliknięte w JEGO kliencie poczty). Kanał zwrotny to zwykły mail z częścią
+ * `text/calendar; method=REPLY` — patrz lib/eventInvites.ts.
+ *
+ * Dopasowanie po UID wydarzenia ORAZ adresie: uczestnik może odpowiedzieć
+ * z aliasu, którego nie zapraszaliśmy, i wtedy świadomie nic nie robimy —
+ * wpisanie statusu „nie wiadomo komu" byłoby gorsze niż brak statusu.
+ *
+ * Status `odwolane` jest NIETYKALNY: spotkanie odwołaliśmy, więc spóźnione
+ * „przyjmuję" (klient kliknął stare zaproszenie w skrzynce) nie może go
+ * wskrzesić i pokazać w panelu, że ktoś przyjdzie na coś, czego nie ma.
+ *
+ * Błąd tutaj nie może wywrócić syncu poczty: status uczestnika jest dodatkiem
+ * do wiadomości, a nie odwrotnie. Ta sama zasada, co przy `notify()`.
+ */
+async function applyCalendarReply(sql: ReturnType<typeof getSql>, msg: FetchedMessage): Promise<void> {
+  const reply = msg.calendarReply;
+  if (!reply) return;
+  const eventId = eventIdFromUID(reply.uid);
+  if (!eventId) return;
+
+  try {
+    await ensureEventAttendeesSchema();
+    const updated = (await sql`
+      UPDATE event_attendees
+      SET status = ${reply.status}, odpowiedz_at = now()
+      WHERE event_id = ${eventId} AND email = ${reply.email} AND status <> 'odwolane'
+      RETURNING id, nazwa;
+    `) as unknown as { id: string; nazwa: string }[];
+    if (updated.length === 0) return;
+
+    const events = (await sql`SELECT tytul, data FROM events WHERE id = ${eventId};`) as unknown as {
+      tytul: string;
+      data: string;
+    }[];
+    const tytul = events[0]?.tytul ?? "spotkanie";
+    const kto = updated[0].nazwa || reply.email;
+
+    // Dedupe po dacie odpowiedzi: klient ma prawo zmienić zdanie („może" →
+    // „przyjmuję") i wtedy to NOWE zdarzenie, warte dzwonka. Ten sam adres
+    // klikający dwa razy to samo — nie.
+    await notify({
+      kind: "invite_response",
+      title: `${kto}: ${ATTENDEE_STATUS_LABEL[reply.status].toLowerCase()}`,
+      body: `Odpowiedź na zaproszenie „${tytul}"${events[0]?.data ? ` (${events[0].data})` : ""}.`,
+      dedupeKey: `invite_response:${eventId}:${reply.email}:${reply.status}`,
+    });
+  } catch (e) {
+    console.error("[mailSync] nie udało się odnotować odpowiedzi na zaproszenie", reply.uid, e);
+  }
 }
 
 /** Zapisuje mail widziany w folderze Wysłane. `from_addr` tej wiadomości to

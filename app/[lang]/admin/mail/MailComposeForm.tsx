@@ -43,14 +43,22 @@ export function MailComposeForm({
   mode,
   initialTo = "",
   initialSubject = "",
+  initialText = "",
   hint,
   endpoint,
   onSent,
   onClose,
 }: {
-  mode: "compose" | "forward";
+  /** "invite" (2026-07-22) = to samo okno, ale wysyła zaproszenie na
+   * spotkanie: znika „Załącz plik" i „Wyślij później" (kolejka nie niesie
+   * części kalendarzowej, więc odłożone zaproszenie doszłoby BEZ terminu —
+   * czyli jako mail udający zaproszenie), a treść jest wstępnie napisana.
+   * "cancel" = to samo, ale odwołuje spotkanie u zaproszonych. */
+  mode: "compose" | "forward" | "invite" | "cancel";
   initialTo?: string;
   initialSubject?: string;
+  /** Treść wpisana za właściciela — do dopisania zdania przed wysyłką. */
+  initialText?: string;
   /** Podpowiedź nad treścią (np. przy przekazaniu: co dokładnie zostanie doklejone). */
   hint?: string;
   endpoint: string;
@@ -65,18 +73,30 @@ export function MailComposeForm({
   const [bcc, setBcc] = useState<string[]>([]);
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [subject, setSubject] = useState(initialSubject);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [podpis, setPodpis] = useState<SignatureLang | null>("pl");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [justSent, setJustSent] = useState(false);
   const { countdown, start, cancel, sending, submitting } = useUndoSend();
 
+  /** Zaproszenie i odwołanie zachowują się identycznie wszędzie poza
+   * napisami — różni je wyłącznie wartość METHOD po stronie serwera. */
+  const isCalendar = mode === "invite" || mode === "cancel";
+
   const applyTemplate = (t: MailTemplate) => {
     setText((prev) => (prev.trim() ? `${prev}\n\n${t.tresc}` : t.tresc));
-    if (mode === "compose" && t.temat && !subject.trim()) setSubject(t.temat);
+    if (mode !== "forward" && t.temat && !subject.trim()) setSubject(t.temat);
   };
 
   const addFiles = (files: FileList | File[]) => {
+    // Zaproszenie nie przyjmuje plików także upuszczonych na treść — samo
+    // ukrycie przycisku „Załącz plik" zostawiłoby drogę, którą serwer i tak
+    // zignoruje (POST .../invite nie czyta `attachments`), a cicho ginący
+    // załącznik jest gorszy niż jego brak.
+    if (isCalendar) {
+      toast("Do zaproszenia nie dołączamy plików — wyślij je osobno z Poczty.", "error");
+      return;
+    }
     const incoming = Array.from(files);
     let runningTotal = attachments.reduce((s, a) => s + a.size, 0);
     const next: File[] = [];
@@ -146,7 +166,7 @@ export function MailComposeForm({
       toast("Podaj adres odbiorcy.", "error");
       return;
     }
-    if (!text.trim() && mode === "compose") {
+    if (!text.trim() && mode !== "forward") {
       toast("Treść wiadomości nie może być pusta.", "error");
       return;
     }
@@ -171,7 +191,7 @@ export function MailComposeForm({
         if (Array.isArray(data?.warnings) && data.warnings.length > 0) {
           toast(data.warnings.join(" "), "error");
         } else {
-          toast(mode === "forward" ? "Wiadomość przekazana." : "Wiadomość wysłana.");
+          toast(mode === "forward" ? "Wiadomość przekazana." : mode === "invite" ? "Zaproszenie wysłane." : mode === "cancel" ? "Odwołanie wysłane." : "Wiadomość wysłana.");
         }
         setJustSent(true);
         window.setTimeout(onClose, 900);
@@ -193,7 +213,7 @@ export function MailComposeForm({
       className="card-paper flex h-[80vh] max-h-[80vh] w-full flex-col overflow-hidden rounded-2xl border hairline"
     >
       <div className="flex shrink-0 items-center justify-between border-b hairline px-6 py-4 sm:px-8">
-        <h2 className="text-lg font-medium">{mode === "forward" ? "Przekaż wiadomość" : "Nowa wiadomość"}</h2>
+        <h2 className="text-lg font-medium">{mode === "forward" ? "Przekaż wiadomość" : mode === "invite" ? "Zaproszenie na spotkanie" : mode === "cancel" ? "Odwołanie spotkania" : "Nowa wiadomość"}</h2>
         <button onClick={onClose} className="rounded-full px-2 py-0.5 text-lg leading-none text-muted hover:text-[var(--fg)]" aria-label="Zamknij">
           ×
         </button>
@@ -212,7 +232,7 @@ export function MailComposeForm({
         </div>
         {showCcBcc && <RecipientField label="DW:" value={cc} onChange={setCc} contacts={contacts} placeholder="opcjonalnie" />}
         {showCcBcc && <RecipientField label="UDW:" value={bcc} onChange={setBcc} contacts={contacts} placeholder="opcjonalnie" />}
-        {mode === "compose" && (
+        {mode !== "forward" && (
           <div className="flex items-center gap-1.5 border-b hairline py-2">
             <span className="w-11 shrink-0 text-[12px] text-muted">Temat:</span>
             <input
@@ -258,6 +278,7 @@ export function MailComposeForm({
 
       <div className="shrink-0 border-t hairline px-6 py-4 sm:px-8">
         <div className="mb-3 flex flex-wrap items-center gap-1 text-[12px]">
+          {!isCalendar && (
           <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-muted hover:text-[var(--fg)]">
             <IconPaperclip size={12} />Załącz plik
             <input
@@ -271,6 +292,7 @@ export function MailComposeForm({
               className="hidden"
             />
           </label>
+          )}
           <span className="mx-1 text-muted opacity-70">Podpis:</span>
           {SIGNATURE_LANGS.map((l) => (
             <button
@@ -301,7 +323,7 @@ export function MailComposeForm({
               animate={{ opacity: 1, scale: 1 }}
               className="rounded-full bg-emerald-500/15 px-4 py-1.5 text-[13px] text-emerald-400"
             >
-              <IconCheck size={13} className="mr-1 inline align-[-2px]" />{mode === "forward" ? "Wiadomość przekazana." : "Wiadomość wysłana."}
+              <IconCheck size={13} className="mr-1 inline align-[-2px]" />{mode === "forward" ? "Wiadomość przekazana." : mode === "invite" ? "Zaproszenie wysłane." : mode === "cancel" ? "Odwołanie wysłane." : "Wiadomość wysłana."}
             </motion.span>
           ) : submitting ? (
             <span className="flex items-center gap-2 rounded-full bg-[var(--hairline)] px-4 py-1.5 text-[13px] text-muted">
@@ -318,7 +340,7 @@ export function MailComposeForm({
           ) : (
             <>
               <button onClick={submit} disabled={busy} className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50">
-                {mode === "forward" ? "Przekaż" : "Wyślij"}
+                {mode === "forward" ? "Przekaż" : mode === "invite" ? "Wyślij zaproszenie" : mode === "cancel" ? "Wyślij odwołanie" : "Wyślij"}
               </button>
               {/* Wysyłka odłożona (Faza 8) — TYLKO dla nowej wiadomości i tylko
                   bez załączników. Przekazanie dalej nie wchodzi w grę, bo

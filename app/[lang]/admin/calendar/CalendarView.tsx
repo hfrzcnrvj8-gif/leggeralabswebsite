@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useCallback, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   IconArrowsMaximize,
   IconArrowsMinimize,
   IconCalendar,
+  IconCalendarCheck,
   IconCalendarPlus,
+  IconMailShare,
   IconFolder,
   IconLink,
   IconTarget,
@@ -22,10 +24,41 @@ import type { Client } from "@/lib/clients";
 import type { Deadline, DeadlineKind } from "@/app/api/events/deadlines/route";
 import { todayLocalISO as todayISO, addDaysToISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
+import { Modal } from "../Modal";
+import { EventInvitePanel } from "./EventInvitePanel";
 import { Popover } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
 
 type KindStyle = { border: string; bg: string; text: string; dot: string; label: string };
+
+/** Otwarcie okna zaproszeń (2026-07-22). Kontekst, a nie prop: przycisk siedzi
+ * na pojedynczym wydarzeniu, a od `CalendarView` dzieli go pięć warstw
+ * (`DayPeekContent` → `WeekTimeline` → `DayTimeline` → `DayAgendaList` /
+ * `TimelineGridRow`), z których ŻADNA nie ma nic wspólnego z zapraszaniem.
+ * Przewleczenie propa przez wszystkie tylko po to, żeby go podać dalej, byłoby
+ * szumem w pięciu sygnaturach naraz. */
+const InviteContext = createContext<((e: HubEvent) => void) | null>(null);
+
+/** Przycisk „zaproś klienta" przy wydarzeniu. Zwraca `null`, gdy kontekst nie
+ * jest dostępny — tak, żeby te same komponenty dało się kiedyś użyć poza
+ * kalendarzem, bez wysypywania się na braku providera. */
+function InviteButton({ event, className = "" }: { event: HubEvent; className?: string }) {
+  const openInvite = useContext(InviteContext);
+  if (!openInvite) return null;
+  return (
+    <button
+      onClick={(ev) => {
+        ev.stopPropagation();
+        openInvite(event);
+      }}
+      className={`shrink-0 text-muted hover:text-brand-cyan ${className}`}
+      aria-label="Wyślij zaproszenie"
+      title="Wyślij klientowi zaproszenie na to spotkanie"
+    >
+      <IconMailShare size={14} />
+    </button>
+  );
+}
 
 /** Styl "kalendarza" per rodzaj wpisu — lewy kolorowy pasek + podbarwione tło
  * (wzorem Notion Calendar), zamiast cienkich plakietek. Paleta marki tam,
@@ -195,6 +228,7 @@ export function CalendarView({ lang }: { lang: string }) {
   const [clients, setClients] = useState<Client[] | null>(null);
   const [icsInfo, setIcsInfo] = useState<{ configured: boolean; token: string | null } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [inviteEvent, setInviteEvent] = useState<HubEvent | null>(null);
   // Kierunek ostatniej nawigacji (-1 wstecz, 1 w przód, 0 bez kierunku np.
   // "Dziś"/zmiana widoku) — napędza slide+fade przejścia w stylu Linear
   // przy zmianie miesiąca/tygodnia/dnia (patrz AnimatePresence poniżej).
@@ -495,7 +529,18 @@ export function CalendarView({ lang }: { lang: string }) {
   };
 
   const deleteEvent = async (id: string) => {
-    const ok = await confirm("Usunąć to wydarzenie?", { danger: true });
+    // Skasowanie wydarzenia NIE dociera do kalendarzy zaproszonych — u nich
+    // spotkanie zostaje, dopóki nie pójdzie odwołanie (METHOD:CANCEL). Cicha
+    // różnica między „nie ma tego u mnie" a „nie ma tego nigdzie" jest
+    // dokładnie tym rodzajem błędu, który wychodzi dopiero wtedy, gdy klient
+    // przyjeżdża na odwołane spotkanie — więc mówimy o niej wprost.
+    const zaproszeni = (events?.find((e) => e.id === id)?.uczestnicy_total ?? 0) > 0;
+    const ok = await confirm(
+      zaproszeni
+        ? "Usunąć to wydarzenie? Zaproszeni MAJĄ je nadal w swoich kalendarzach — żeby zniknęło również u nich, najpierw wyślij odwołanie (koperta → „Odwołaj spotkanie”)."
+        : "Usunąć to wydarzenie?",
+      { danger: true }
+    );
     if (!ok) return;
     const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
     if (!res.ok) {
@@ -573,7 +618,23 @@ export function CalendarView({ lang }: { lang: string }) {
       ? formatDayLabel(selectedDay)
       : `${formatDayLabel(weekStart(selectedDay))} – ${formatDayLabel(addDaysToISO(weekStart(selectedDay), 6))}`;
 
+  const clientEmail = (id: string | null) => (id ? clients?.find((c) => c.id === id)?.email : null);
+  const leadEmail = (id: string | null) => (id ? leads?.find((l) => l.id === id)?.email : null);
+
   return (
+    <InviteContext.Provider value={setInviteEvent}>
+    {/* z=205: okno bywa otwierane z podglądu dnia, czyli Z WNĘTRZA popovera
+        (`z-[200]`) — patrz komentarz przy `zClass` w Modal.tsx. */}
+    <Modal open={inviteEvent !== null} onClose={() => setInviteEvent(null)} z={205} card="my-auto w-full max-w-3xl">
+      {inviteEvent && (
+        <EventInvitePanel
+          event={inviteEvent}
+          defaultEmail={clientEmail(inviteEvent.client_id) || leadEmail(inviteEvent.lead_id) || ""}
+          onClose={() => setInviteEvent(null)}
+          onSent={() => void load()}
+        />
+      )}
+    </Modal>
     <div
       ref={rootRef}
       // `flex-1 md:min-h-0` zamiast `min-h-[calc(100vh-140px)]` (Moduł 35):
@@ -822,6 +883,7 @@ export function CalendarView({ lang }: { lang: string }) {
         </div>
       </div>
     </div>
+    </InviteContext.Provider>
   );
 }
 
@@ -1082,7 +1144,19 @@ function DayAgendaList({
                     <span className="ml-1.5 text-[11px] text-muted">({e.data} → {e.data_koniec})</span>
                   )}
                 </span>
-                <button onClick={() => onDelete(e.id)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
+                <span className="flex shrink-0 items-center gap-2">
+                  {(e.uczestnicy_total ?? 0) > 0 && (
+                    <span
+                      className="text-[11px] text-muted"
+                      title={`${e.uczestnicy_tak ?? 0} z ${e.uczestnicy_total} zaproszonych potwierdziło`}
+                    >
+                      <IconCalendarCheck size={12} className="mr-1 inline align-[-2px]" />
+                      {e.uczestnicy_tak ?? 0}/{e.uczestnicy_total}
+                    </span>
+                  )}
+                  <InviteButton event={e} />
+                  <button onClick={() => onDelete(e.id)} className="text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
+                </span>
               </div>
               {hasLinks && (
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
@@ -1537,6 +1611,7 @@ function TimelineGridRow({
           >
             <div className="flex items-center justify-between gap-1">
               <span className="truncate">{e.godzina} {e.tytul}</span>
+              <InviteButton event={e} className={`${style.text} opacity-70 hover:opacity-100`} />
               <button
                 onClick={(ev) => { ev.stopPropagation(); onDelete(e.id); }}
                 className={`shrink-0 ${style.text} opacity-70 hover:text-red-400 hover:opacity-100`}

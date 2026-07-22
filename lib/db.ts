@@ -2282,3 +2282,58 @@ export async function ensureRemindersSchema(): Promise<void> {
   if (!remindersSchemaReady) remindersSchemaReady = createRemindersSchema();
   await remindersSchemaReady;
 }
+
+let eventAttendeesSchemaReady: Promise<void> | null = null;
+
+/** Uczestnicy spotkań i ich odpowiedzi (2026-07-22, zaproszenia .ics).
+ *
+ * Osobna tabela, nie kolumna z listą adresów na `events`: pojedynczy uczestnik
+ * ma WŁASNY stan (kiedy dostał zaproszenie, co odpowiedział i kiedy), a to
+ * jest dokładnie ten kształt, którego lista w jednym polu nie unosi.
+ *
+ * Osobny schemat (własna bramka migracji), nie dokładka do `ensureHubSchema` —
+ * kalendarz, pulpit i apka czytają `events` na każdym kroku i nie mają po co
+ * płacić za tabelę, której nie dotykają. Woła ją tylko API zaproszeń, profil
+ * wydarzenia i sync poczty. */
+async function createEventAttendeesSchema(): Promise<void> {
+  if (await schemaUpToDate("event_attendees")) return;
+
+  await ensureHubSchema(); // FK do events
+
+  const sql = getSql();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS event_attendees (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      nazwa TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'oczekuje',
+      wyslane_at TIMESTAMPTZ,
+      odpowiedz_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+
+  // Jeden adres = jeden uczestnik tego spotkania. Bez tego dwie wysyłki pod
+  // ten sam adres zrobiłyby dwa wiersze, a odpowiedź trafiłaby w jeden z nich
+  // — panel pokazywałby „czeka na odpowiedź" obok „przyjmuje", dla tej samej
+  // osoby. Adresy trzymamy małymi literami (normalizacja przy zapisie).
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS event_attendees_unique_idx ON event_attendees(event_id, email);`;
+
+  // Sync poczty szuka uczestnika po samym adresie + UID wydarzenia.
+  await sql`CREATE INDEX IF NOT EXISTS event_attendees_email_idx ON event_attendees(email);`;
+
+  // Licznik wersji zaproszenia (SEQUENCE z RFC 5545). Siedzi na `events`, bo
+  // dotyczy CAŁEGO spotkania, nie pojedynczego uczestnika: przy przeniesieniu
+  // terminu wszyscy dostają tę samą, wyższą wersję.
+  await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS ics_sequence INTEGER NOT NULL DEFAULT 0;`;
+
+  await markSchemaApplied("event_attendees");
+}
+
+/** Lazily tworzy tabelę uczestników spotkań. */
+export async function ensureEventAttendeesSchema(): Promise<void> {
+  if (!eventAttendeesSchemaReady) eventAttendeesSchemaReady = createEventAttendeesSchema();
+  await eventAttendeesSchemaReady;
+}

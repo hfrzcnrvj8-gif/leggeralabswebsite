@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureHubSchema } from "@/lib/db";
+import { getSql, ensureHubSchema, ensureEventAttendeesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO } from "@/lib/dates";
 import { isPlausibleDateString } from "@/lib/projects";
@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   await ensureHubSchema();
+  await ensureEventAttendeesSchema();
   const sql = getSql();
 
   const month = req.nextUrl.searchParams.get("month");
@@ -22,11 +23,20 @@ export async function GET(req: NextRequest) {
   // Zakres nakładania się z miesiącem, nie dopasowanie samej `data` — inaczej
   // wielodniowe wydarzenie (data_koniec) rozpoczęte w poprzednim miesiącu
   // zniknęłoby z widoku miesiąca, w którym realnie trwa.
+  // Liczniki zaproszeń doliczane w TYM SAMYM zapytaniu (2026-07-22): kalendarz
+  // ma pokazywać „2/3 potwierdziło" przy wydarzeniu, a osobna runda do bazy per
+  // miesiąc kosztowałaby drugie żądanie HTTP (neon() = jedno na zapytanie).
+  // Zero uczestników → 0/0, czyli plakietka się nie rysuje.
   const rows = await sql`
-    SELECT * FROM events
-    WHERE data <= (date_trunc('month', ${monthStart}::date) + interval '1 month' - interval '1 day')::date
-      AND COALESCE(data_koniec, data) >= ${monthStart}::date
-    ORDER BY data ASC, godzina ASC NULLS LAST;
+    SELECT e.*,
+           COUNT(a.id)::int AS uczestnicy_total,
+           COUNT(a.id) FILTER (WHERE a.status = 'przyjete')::int AS uczestnicy_tak
+    FROM events e
+    LEFT JOIN event_attendees a ON a.event_id = e.id
+    WHERE e.data <= (date_trunc('month', ${monthStart}::date) + interval '1 month' - interval '1 day')::date
+      AND COALESCE(e.data_koniec, e.data) >= ${monthStart}::date
+    GROUP BY e.id
+    ORDER BY e.data ASC, e.godzina ASC NULLS LAST;
   `;
   return NextResponse.json({ events: rows });
 }

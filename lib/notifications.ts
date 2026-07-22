@@ -30,7 +30,12 @@ export type NotificationKind =
   // 2026-07-17.
   | "offer_accepted"
   | "contract_signed"
-  | "review_collected";
+  | "review_collected"
+  // 2026-07-22 — klient odpowiedział na zaproszenie na spotkanie. Kronika,
+  // nie zadanie: to zdarzenie z zewnątrz, w punkcie w czasie, nie do
+  // odhaczenia. Bez encji — wydarzenie nie ma własnej podstrony, więc
+  // kliknięcie prowadzi donikąd i lepiej nie obiecywać, że prowadzi.
+  | "invite_response";
 
 /** Encja, do której prowadzi kliknięcie. Tekst, nie enum — patrz `lib/db.ts`. */
 export type NotificationEntity = "lead" | "mail" | "invoice" | "cost" | "client" | "offer" | "contract" | "project";

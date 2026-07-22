@@ -19,6 +19,10 @@ Sprawdzone gretem 2026-07-22, nie z pamięci:
 
 ## 1. Powtarzanie — WSPÓLNE dla wydarzeń I przypomnień (decyzja właściciela)
 
+> **Rozwinięte w osobnym pliku: `28-brief-powtarzanie-wydarzen-i-przypomnien.md`**
+> (2026-07-22) — tam pełny inwentarz czytelników, pułapki i definicja
+> gotowości. Zacznij od tamtego pliku.
+
 > **Rozstrzygnięte 2026-07-22:** właściciel wybrał jeden mechanizm dla obu,
 > zamiast osobnego dla przypomnień. Powód: to ta sama reguła, a dwie
 > implementacje rozjechałyby się tak, jak rozjechały się mapy kolorów statusu
@@ -59,7 +63,12 @@ Pułapka: `WydarzenieAlerty.swift` w apce planuje lokalne powiadomienia per
 wydarzenie. Seria bez ograniczenia horyzontu potrafi wysypać limit 64
 oczekujących powiadomień iOS-a.
 
-## 2. Zaproszenie dla klienta mailem — najlepszy stosunek wartości do pracy
+## 2. Zaproszenie dla klienta mailem — ✅ ZROBIONE 2026-07-22
+
+> Właściciel wybrał **pełne `METHOD:REQUEST` z odpowiedziami** i wysyłkę
+> **przez kompozytor**. Zbudowane w panelu I w apce, razem z odwołaniem
+> spotkania (`METHOD:CANCEL`). Opis: `HUB_SETUP.md` → „Zaproszenia na
+> spotkania" oraz `README.md` apki. Poniżej treść briefu sprzed wykonania.
 
 Dziś `.ics` służy WYŁĄCZNIE właścicielowi (subskrypcja własnego kalendarza).
 Nie da się wysłać klientowi maila, po którym spotkanie wskoczy do JEGO

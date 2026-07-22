@@ -44,8 +44,9 @@ export function Modal({
    *  zablokować zamknięcie (np. Koszty w trakcie odczytu AI). */
   onClose: () => void | false;
   children: ReactNode;
-  /** Warstwa — 90 dla profilu rekordu, 95 dla modala nad modalem. */
-  z?: 90 | 95;
+  /** Warstwa — 90 dla profilu rekordu, 95 dla modala nad modalem, 205 dla
+   *  okna otwieranego z popovera/menu (te żyją na `z-[200]`). */
+  z?: 90 | 95 | 205;
   /** Klasy KARTY. Domyślnie sam kontener bez tła — Leady/Klienci rysują
    *  `.card-paper` wewnątrz własnego `*DetailPanel.tsx`. Moduły z węższym
    *  modalem podają tu np. `card-paper … max-w-3xl …`. */
@@ -57,7 +58,11 @@ export function Modal({
   // własny `overflow-y-auto`) i każda próba scrollowania zamykałaby okno.
   const dragControls = useDragControls();
 
-  const zClass = z === 95 ? "z-[95]" : "z-[90]";
+  // 205 = NAD popoverami/menu (te siedzą na `z-[200]`, patrz Menu.tsx). Wprost
+  // dla okien otwieranych Z WNĘTRZA popovera — np. zaproszenie na spotkanie
+  // wołane z podglądu dnia w Kalendarzu (2026-07-22). Bez tego modal ląduje
+  // POD popoverem, który go otworzył, i wygląda jak zawieszony panel.
+  const zClass = z === 205 ? "z-[205]" : z === 95 ? "z-[95]" : "z-[90]";
 
   return (
     <AnimatePresence>

@@ -5951,3 +5951,101 @@ udowodnienie łapał dzień z innej komórki (Faza 14).
 
 Powtarzania (cyklicznych przypomnień) — to ten sam brak, co w wydarzeniach,
 i ten sam, większy temat: patrz `docs/natywna-aplikacja/27-brief-kalendarz-dalsze-uzytecznosci.md`.
+
+---
+
+## Zaproszenia na spotkania (2026-07-22)
+
+Brief `docs/natywna-aplikacja/27-brief-kalendarz-dalsze-uzytecznosci.md`,
+punkt 2. **Nie mylić z subskrypcją ICS** (`/api/calendar/ics`), która istnieje
+od Modułu 10 i służy WŁAŚCICIELOWI do oglądania własnego kalendarza w telefonie.
+To jest ruch w drugą stronę: mail do KLIENTA, po którym spotkanie wskakuje do
+jego kalendarza, a jego odpowiedź wraca do panelu.
+
+Decyzja właściciela 2026-07-22: **pełne `METHOD:REQUEST` z odpowiedziami**, nie
+sam załącznik `.ics`, i **wysyłka przez kompozytor** (żeby dało się dopisać
+zdanie przed wysłaniem), nie jednym kliknięciem.
+
+### Jak to jedzie w obie strony
+
+1. `POST /api/events/:id/invite` (bliźniak `/api/mail/compose` — ten sam
+   FormData, bo to ten sam formularz) wysyła maila z częścią
+   `text/calendar; method=REQUEST`. To dopiero ta część — nie zwykły
+   załącznik — sprawia, że Gmail/Outlook/Apple Mail rysują przyciski
+   „Przyjmuję / Może / Odrzucam". Niesie ją `icalEvent` w `sendMail()`.
+2. Klient klika. Jego program pocztowy odsyła zwykłego maila z częścią
+   `text/calendar; method=REPLY`.
+3. Sync IMAP (`lib/mailSync.ts` → `applyCalendarReply`) wyłuskuje z niej
+   `PARTSTAT` i adres, ustawia status uczestnika i dzwoni w kronikę
+   (`invite_response`). Żadnego webhooka — kanałem zwrotnym jest skrzynka
+   az.pl, którą panel i tak czyta.
+
+### Baza
+
+`event_attendees` (własna bramka migracji, świadomie NIE w `ensureHubSchema` —
+`events` czyta pół panelu i apka, a liczniki uczestników są im niepotrzebne):
+`email` + `status` (`oczekuje`/`przyjete`/`wstepnie`/`odrzucone`) + `wyslane_at`
++ `odpowiedz_at`, unikat po `(event_id, email)`. Do tego `events.ics_sequence`.
+
+Dwie rzeczy, które łatwo zepsuć:
+
+- **`SEQUENCE` musi rosnąć z każdą wysyłką.** Bez tego kalendarz klienta uzna
+  drugie zaproszenie (po przeniesieniu terminu) za duplikat już obsłużonego
+  i po cichu je zignoruje — przeniesienie spotkania nie dotrze do nikogo.
+- **Ponowna wysyłka zeruje statusy do `oczekuje`.** Nowy termin unieważnia
+  poprzednie „będę". Zostawienie starego „przyjmuje" po przeniesieniu byłoby
+  najgorszym rodzajem błędu: takim, który wygląda na wiedzę.
+
+### Panel
+
+Koperta przy wydarzeniu (lista dnia, podgląd dnia, blok w siatce godzin) →
+okno `EventInvitePanel`: kto już wie i co odpowiedział, plus kompozytor
+z gotową treścią (termin, miejsce) i adresem klienta wpisanym z powiązania.
+Na wierszu wydarzenia plakietka `2/3` — ilu z zaproszonych potwierdziło
+(doliczane w tym samym zapytaniu `GET /api/events`, bez drugiej rundy do bazy).
+
+Okno idzie na `z=205`, bo bywa otwierane Z WNĘTRZA popovera podglądu dnia
+(`z-[200]`) — inaczej ląduje pod nim i wygląda na zawieszone.
+
+### Odwołanie spotkania
+
+`POST /api/events/:id/cancel-invite` — bliźniak `/invite`, ta sama funkcja
+`sendEventInvite()`, inna wartość `METHOD`. Przy `CANCEL` kalendarz klienta
+USUWA wpis u siebie (`STATUS:CANCELLED`, wyższy `SEQUENCE`, ten sam `UID`),
+zamiast prosić o kolejną odpowiedź — dlatego przy odwołaniu nie wysyłamy
+`RSVP=TRUE`. Uczestnicy dostają status `odwolane`, który jest **nietykalny**:
+spóźnione „przyjmuję" (klient kliknął stare zaproszenie w skrzynce) go nie
+nadpisze, żeby panel nie pokazywał, że ktoś przyjdzie na coś, czego nie ma.
+
+Trzy rozróżnienia, które łatwo skleić w jedno, a to trzy różne intencje:
+
+| Akcja | Co robi u klienta | Co robi w panelu |
+|---|---|---|
+| **Odwołaj spotkanie** | znika z kalendarza | wydarzenie zostaje, uczestnicy `odwolane` |
+| **Usuń uczestnika** (kosz) | NIC | znika z listy zaproszonych |
+| **Usuń wydarzenie** (✕) | NIC | znika wszystko |
+
+Dlatego kasowanie wydarzenia, które ma zaproszonych, mówi wprost: „zaproszeni
+MAJĄ je nadal w swoich kalendarzach — najpierw wyślij odwołanie". Cicha różnica
+między „nie ma tego u mnie" a „nie ma tego nigdzie" wychodzi dopiero wtedy, gdy
+klient przyjeżdża na odwołane spotkanie.
+
+### Apka (2026-07-22, ten sam dzień)
+
+Apka dostała **komplet**, nie podgląd: wydarzenie → „Zaproszeni" (lista
+z odpowiedziami, wysyłka, odwołanie), plakietka „1/2" na wierszu, to samo
+ostrzeżenie przy kasowaniu wydarzenia z zaproszonymi. Powód: właściciel umawia
+spotkania PRZY KLIENCIE, a nie przy biurku. Szczegóły i pułapki SwiftUI —
+`README.md` w repo apki, sekcja „Zaproszenia na spotkanie".
+
+Treści maili są **portem** z `EventInvitePanel.tsx` do `TrescSpotkania`
+(`Models/Kalendarz.swift`) — czwarty bliźniak na liście „reguły żyją w dwóch
+miejscach". Zmiana tekstu po jednej stronie musi iść po drugiej, inaczej klient
+dostanie inny mail spod biurka niż z telefonu.
+
+### Czego świadomie nie ma
+
+- **Załączników przy zaproszeniu** — zaproszenie niesie termin, nie paczkę
+  plików. Kto chce wysłać ofertę, wysyła ją z Poczty.
+- **Obsługi CUDZYCH zaproszeń** (`METHOD:REQUEST` przychodzące) — panel jest
+  organizatorem, nie uczestnikiem cudzych spotkań. Od tego jest Apple Mail.

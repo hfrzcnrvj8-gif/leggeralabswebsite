@@ -378,6 +378,7 @@ async function ensureSeeded(): Promise<void> {
       // i czasem trwania, całodniowe (`godzina` NULL) oraz wielodniowe
       // (`data_koniec` — musi być widoczne w każdym dniu zakresu, także gdy
       // zaczyna się w poprzednim miesiącu).
+      const eventCall = randomUUID();
       await raw(
         `INSERT INTO events (id, tytul, opis, data, godzina, data_koniec, czas_trwania_min) VALUES
            ($1,$2,$3,$4,'10:00',NULL,45),
@@ -385,11 +386,25 @@ async function ensureSeeded(): Promise<void> {
            ($9,$10,$11,$12,NULL,NULL,NULL),
            ($13,$14,$15,$16,NULL,$17,NULL)`,
         [
-          randomUUID(), "Call z klientem", "Omówienie zakresu pilotażu.", iso(0),
+          eventCall, "Call z klientem", "Omówienie zakresu pilotażu.", iso(0),
           randomUUID(), "Demo produktu", "", iso(3),
           randomUUID(), "Deadline: wysłać ofertę", "Całodniowe — bez godziny.", iso(1),
           randomUUID(), "Urlop", "Wielodniowe — sprawdza rozwijanie zakresu.", iso(-2), iso(2),
         ]
+      );
+
+      // Zaproszeni na spotkanie (2026-07-22) — bez nich okno zaproszeń
+      // pokazuje lokalnie WYŁĄCZNIE kompozytor, więc ani lista odpowiedzi, ani
+      // przycisk „Odwołaj spotkanie" nie dają się obejrzeć przed wysłaniem
+      // czegokolwiek do prawdziwego człowieka. Dwa różne statusy, bo to one
+      // niosą kolor. Własny schemat, nieciągnięty przez ensureHubSchema.
+      const { ensureEventAttendeesSchema } = await import("./db");
+      await ensureEventAttendeesSchema();
+      await raw(
+        `INSERT INTO event_attendees (id, event_id, email, nazwa, status, wyslane_at, odpowiedz_at) VALUES
+           ($1,$2,'biuro@kowalski.pl','Marek Kowalski','przyjete', now() - interval '2 days', now() - interval '1 day'),
+           ($3,$4,'kontakt@zlotyklos.pl','','oczekuje', now() - interval '2 days', NULL)`,
+        [randomUUID(), eventCall, randomUUID(), eventCall]
       );
 
       // — Klient (Moduł 4: bez klienta nie da się lokalnie sprawdzić
