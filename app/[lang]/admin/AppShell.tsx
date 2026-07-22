@@ -431,7 +431,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       {/* Sidebar — pionowy panel Linear, TYLKO od md w górę. Na telefonie
           zastępuje go górny pasek + dolna belka nawigacji. */}
       <aside
-        className={`hidden shrink-0 bg-[var(--bg-soft)] hairline md:sticky md:top-0 md:flex md:h-screen md:border-r ${
+        className={`hidden shrink-0 bg-[var(--bg-soft)] md:sticky md:top-0 md:flex md:h-screen ${
           collapsed ? "md:w-16" : "md:w-56"
         } transition-[width] duration-200`}
       >
