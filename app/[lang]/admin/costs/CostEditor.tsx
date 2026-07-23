@@ -13,6 +13,7 @@ import {
   IconCopy,
   IconSearch,
   IconAlertTriangleFilled,
+  IconSparkles,
 } from "@tabler/icons-react";
 import {
   type Cost,
@@ -71,6 +72,9 @@ export function CostEditor({
   const [hints, setHints] = useState<{
     duplicate: { id: string; dostawca_nazwa: string; kwota_brutto: number; data_wydatku: string } | null;
     suggestion: { kategoria: string; project_id: string | null; project_tytul: string | null } | null;
+    /** N8 (audyt apki) — klienci z kartoteki, których NIP zgadza się z NIP-em
+     * dostawcy. Zero/jeden/wielu — patrz komentarz w api/costs/hints/route.ts. */
+    clientMatches: { id: string; nazwa: string }[];
   } | null>(null);
   /** Numer konta własnej firmy (ustawienia sprzedawcy) — do ostrzeżenia,
    * gdy ktoś przez pomyłkę wpisze własne konto jako konto dostawcy. `null`
@@ -365,6 +369,53 @@ export function CostEditor({
           >
             Zastosuj
           </button>
+        </div>
+      )}
+      {/* N8 (audyt apki 2026-07-23) — dostawca bywa jednocześnie klientem
+          (podwykonawstwo, barter). Widoczne tylko, gdy koszt jeszcze nie ma
+          powiązania — to sama podpowiedź, nie nadpisywanie świadomego wyboru.
+          Przy jednym trafieniu NIP-u proponujemy gotowe powiązanie; przy
+          dwóch i więcej (kartoteka ma duplikat firmy) NIE zgadujemy który —
+          apka do tej pory zgadywała losowo, to była naprawiana niespójność. */}
+      {hints?.clientMatches && hints.clientMatches.length > 0 && !cost.client_id && !cost.lead_id && (
+        <div className="mb-3 flex items-start gap-2 rounded-md bg-brand-purple/10 px-2.5 py-2 text-[11.5px] text-brand-purple">
+          <IconSparkles size={14} className="mt-0.5 shrink-0" />
+          {hints.clientMatches.length === 1 ? (
+            <>
+              <span className="flex-1">
+                Ten sam NIP co dostawca — to chyba klient „{hints.clientMatches[0].nazwa}”.
+              </span>
+              <button
+                onClick={() => {
+                  patch({ client_id: hints.clientMatches[0].id });
+                  setHints((h) => (h ? { ...h, clientMatches: [] } : h));
+                }}
+                className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand-purple hover:bg-brand-purple/15"
+              >
+                Powiąż
+              </button>
+            </>
+          ) : (
+            <div className="flex-1">
+              <p className="mb-1">
+                Ten sam NIP co dostawca pasuje do {hints.clientMatches.length} klientów w kartotece — wybierz który to:
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {hints.clientMatches.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      patch({ client_id: m.id });
+                      setHints((h) => (h ? { ...h, clientMatches: [] } : h));
+                    }}
+                    className="rounded-md border border-brand-purple/30 px-1.5 py-0.5 text-[11px] font-medium hover:bg-brand-purple/15"
+                  >
+                    {m.nazwa}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
