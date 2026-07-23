@@ -6774,26 +6774,40 @@ edytorze oferty (edycja pozycji jest ograniczona) — więc rozszerzenie
 bez zmian). Gdyby katalog miał wejść do apki, kategorie + widełki dotkną obu
 front-endów — wtedy krótki audyt drugiej platformy (zasada z Audytu 6/7).
 
-### Startowy katalog — 38 komponentów, 3 Tiery (2026-07-23)
+### Startowy katalog — 63 pozycje, 3 Tiery + software (2026-07-23)
 
 Katalog nie startuje pusty. `lib/catalogStarter.ts` (`STARTER_CATALOG`) to
-„warsztatowa" biblioteka **41 pozycji** rozpisana na **3 Tiery × 13 komponentów**
-(GPU, CPU, płyta, RAM, dysk NVMe, zasilacz, obudowa+chłodzenie, UPS, NAS, dyski
-HDD OSOBNO, sieć, robocizna, serwis) + 2 alternatywy Mac. **KONKRETNE modele**
-(producent + model + pojemność + spec + „lub odpowiednik"), np. RTX 5090 /
-RTX 6000 Ada / RTX PRO 6000 96 GB, UGREEN NASync DXP2800/4800/6800, IronWolf Pro,
-ASUS Pro WS WRX90E-SAGE + Threadripper PRO. Rozpisane **per komponent**, bo
-właściciel kupuje CZĘŚCI, nie gotowce — gotowcem jest dopiero to, co dostaje
-klient. Prefiks `T1/T2/T3 ·` w nazwie (katalog grupuje po kategorii, nie ma osi
-Tier — prefiks trzyma poziomy razem i pozwala je czytać wzrokiem).
+„warsztatowa" biblioteka rozpisana na **3 Tiery × 13 komponentów** (GPU, CPU,
+płyta, RAM, dysk NVMe, zasilacz, obudowa+chłodzenie, UPS, NAS, dyski HDD
+OSOBNO, sieć, robocizna, serwis) + 6 pozycji sieciowych cross-tier + 3 ProArt +
+3 UniFi + 3 alternatywy Mac + **8 pozycji software/licencje**. **KONKRETNE
+modele** (producent + model + pojemność + spec + „lub odpowiednik"), np. RTX
+5090 / RTX 6000 Ada / RTX PRO 6000 96 GB, UGREEN NASync DXP2800/4800/6800,
+IronWolf Pro, ASUS Pro WS WRX90E-SAGE + Threadripper PRO. Rozpisane **per
+komponent**, bo właściciel kupuje CZĘŚCI, nie gotowce — gotowcem jest dopiero
+to, co dostaje klient. Prefiks `T1/T2/T3 ·` w nazwie (katalog grupuje po
+kategorii, nie ma osi Tier — prefiks trzyma poziomy razem i pozwala je czytać
+wzrokiem).
 
-**Wsiewane RAZ** — `seedStarterCatalog()` w `createInvoicesSchema()` (`lib/db.ts`),
-za **bramką TREŚCI** (znacznik `catalog_starter` w `schema_state`), a nie bramką
-wersji: kolejne deploye go nie powtarzają i **nie wskrzeszają pozycji skasowanych
-przez właściciela**. Każdy INSERT dodatkowo pomija duplikat po nazwie. Ta sama
-funkcja działa w dev (PGlite) i prod — w dev sama tworzy `schema_state`
-(IF NOT EXISTS), bo bramka migracji jest tam wyłączona. INSERT-y są nie-DDL →
-owinięte w `inMigration()`.
+**Software/licencje** (dopisane 2026-07-23) świadomie NIE licencjonuje
+Ollamy/RAG/orkiestracji — to open source. Fakturowalne jest to, gdzie
+producent faktycznie każe płacić (Windows Server, wsparcie NVIDIA AI
+Enterprise, Veeam, odnowienie FortiGate) oraz PRACA wdrożenia (platforma RAG,
+integracja API, panel czatu, monitoring) — zgodnie z klinem sprzedaży
+prywatność/koszt/własność, nie chmura.
+
+**Wsiewane wersjonowanym zasiewem, nie „raz na zawsze"** —
+`seedStarterCatalog()` w `createInvoicesSchema()` (`lib/db.ts`), za **bramką
+TREŚCI** (`schema_state.catalog_starter`, wartość = `CATALOG_STARTER_VERSION`
+w kodzie — NIE `SCHEMA_VERSION`/SHA deploya): odpala się, gdy znacznik w
+bazie jest starszy niż stała w kodzie, więc dopisanie nowych pozycji do
+`STARTER_CATALOG` wymaga **bumpnięcia `CATALOG_STARTER_VERSION`**, inaczej
+nowe wiersze nigdy nie wjadą na już zasianą produkcję. Każdy INSERT dodatkowo
+pomija duplikat po nazwie, więc ponowny przebieg całej (starej + nowej) listy
+jest bezpieczny i **nie wskrzesza pozycji skasowanych przez właściciela** — to
+wymagałoby identycznej nazwy. Ta sama funkcja działa w dev (PGlite) i prod —
+w dev sama tworzy `schema_state` (IF NOT EXISTS), bo bramka migracji jest tam
+wyłączona. INSERT-y są nie-DDL → owinięte w `inMigration()`.
 
 **Ceny to WIDEŁKI do weryfikacji**, nie prawda: stan lipiec 2026, rynek GPU
 rozchwiany niedoborem GDDR7/DRAM (RTX 5090 ~18 tys., RTX 6000 Ada ~31 tys.,

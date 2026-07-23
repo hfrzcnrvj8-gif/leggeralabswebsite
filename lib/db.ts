@@ -1004,20 +1004,29 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS opis TEXT NOT NULL DEFAULT '';`;
   await sql`CREATE INDEX IF NOT EXISTS service_catalog_kategoria_idx ON service_catalog(kategoria);`;
 
-  // Startowy katalog komponentów (Moduł 47) — wsiewany RAZ. Bramka TREŚCI, nie
-  // wersji: znacznik `catalog_starter` w schema_state gwarantuje jednorazowość
-  // niezależnie od SCHEMA_VERSION, więc kolejne deploye go nie powtarzają i nie
-  // wskrzeszają pozycji skasowanych przez właściciela. Każdy INSERT dodatkowo
-  // pomija duplikat po nazwie (gdyby właściciel dodał coś o tej samej nazwie).
+  // Startowy katalog komponentów (Moduł 47) — bramka TREŚCI, nie wersji:
+  // znacznik `catalog_starter` w schema_state (wartość = CATALOG_STARTER_VERSION,
+  // NIE SCHEMA_VERSION) pilnuje, że każda pozycja wjeżdża dokładnie raz,
+  // niezależnie od tego, ile razy odpali się ten deploy. Dopisanie nowych
+  // pozycji do STARTER_CATALOG wymaga bumpnięcia CATALOG_STARTER_VERSION.
   await seedStarterCatalog(sql);
 
   await markSchemaApplied("invoices");
 }
 
-/** Jednorazowy zasiew biblioteki komponentów. Wywoływany z migracji faktur —
- * w prod odpala się przy pierwszym deployu z tą funkcją, w dev przy każdym
- * starcie (bramka po nazwie i tak chroni przed duplikatami). Dane: `lib/
- * catalogStarter.ts`. INSERT-y są nie-DDL → owinięte w `inMigration()`. */
+// Wersja TREŚCI startowego katalogu — niezależna od SCHEMA_VERSION (SHA).
+// Bump przy KAŻDYM dopisaniu nowych pozycji do STARTER_CATALOG, inaczej
+// nowe wiersze nigdy nie wjadą na produkcję (znacznik już siedzi w bazie).
+const CATALOG_STARTER_VERSION = "v2";
+
+/** Zasiew biblioteki komponentów, wersjonowany treściowo (nie po SHA deploya).
+ * Wywoływany z migracji faktur — w prod odpala się, gdy znacznik w bazie jest
+ * starszy niż `CATALOG_STARTER_VERSION` (w dev przy każdym starcie — bramka
+ * po nazwie i tak chroni przed duplikatami). Każdy INSERT osobno pomija
+ * duplikat po nazwie, więc ponowny przebieg całej listy (stare + nowe pozycje)
+ * jest bezpieczny i nie wskrzesza niczego skasowanego przez właściciela — to
+ * wymagałoby identycznej nazwy. Dane: `lib/catalogStarter.ts`. INSERT-y są
+ * nie-DDL → owinięte w `inMigration()`. */
 async function seedStarterCatalog(sql: Sql): Promise<void> {
   // W dev bramka migracji jest wyłączona (brak SHA), więc `schema_state` nie
   // powstaje przez loadAppliedVersions — tworzymy ją tu (IF NOT EXISTS, ta sama
@@ -1030,9 +1039,9 @@ async function seedStarterCatalog(sql: Sql): Promise<void> {
     );
   `;
   const juz = (await inMigration(
-    () => sql`SELECT 1 AS x FROM schema_state WHERE name = 'catalog_starter' LIMIT 1;`
-  )) as unknown as { x: number }[];
-  if (juz[0]) return;
+    () => sql`SELECT version FROM schema_state WHERE name = 'catalog_starter' LIMIT 1;`
+  )) as unknown as { version: string }[];
+  if (juz[0]?.version === CATALOG_STARTER_VERSION) return;
 
   for (const c of STARTER_CATALOG) {
     const jednostka = c.jednostka ?? "szt.";
@@ -1045,7 +1054,10 @@ async function seedStarterCatalog(sql: Sql): Promise<void> {
     );
   }
   await inMigration(
-    () => sql`INSERT INTO schema_state (name, version) VALUES ('catalog_starter', 'v1') ON CONFLICT (name) DO NOTHING;`
+    () => sql`
+      INSERT INTO schema_state (name, version) VALUES ('catalog_starter', ${CATALOG_STARTER_VERSION})
+      ON CONFLICT (name) DO UPDATE SET version = EXCLUDED.version, applied_at = now();
+    `
   );
 }
 

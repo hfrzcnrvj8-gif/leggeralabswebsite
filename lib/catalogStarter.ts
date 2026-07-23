@@ -153,4 +153,26 @@ export const STARTER_CATALOG: StarterComponent[] = [
     opis: "Gotowiec (nie składasz z części) dla T1/T2: cichy, mały, 64 GB pamięci zunifikowanej (do ~32B). Uwaga: Apple wycofał 256/512 GB w 2026 (niedobór DRAM)." },
   { nazwa: "Alt · Mac Studio M3 Ultra 96 GB", kategoria: "compute", cena_netto: 21000, cena_min: 19000, cena_max: 24000,
     opis: "Gotowiec pod 70B (Q8) w cichym boxie — najmocniejszy desktop Apple. Alternatywa dla serwera GPU tam, gdzie liczy się cisza/miejsce. (M4 Ultra nie powstał.)" },
+
+  // ── Software / licencje — warstwa nad sprzętem, wciąż lokalna/samohostowana
+  // (klin sprzedaży: prywatność/koszt/własność, nie chmura — patrz kierunek
+  // sprzedaży). Ollama, RAG i orkiestracja są open source (bez pozycji tutaj);
+  // to co realnie się fakturuje to PRACA wdrożenia i licencje tam, gdzie
+  // producent faktycznie każe płacić (Windows, wsparcie NVIDIA, backup, UTM).
+  { nazwa: "Software · System operacyjny — Windows Server 2025 Standard (licencja OEM)", kategoria: "software", cena_netto: 3500, cena_min: 3000, cena_max: 5500,
+    opis: "Tylko gdy klient wymaga znanego środowiska/integracji z AD. Domyślnie: Ubuntu Server LTS — bezpłatny, brak pozycji w katalogu." },
+  { nazwa: "Software · Wsparcie GPU — NVIDIA AI Enterprise (subskrypcja roczna)", kategoria: "software", cena_netto: 4500, cena_min: 3500, cena_max: 7000, jednostka: "rok",
+    opis: "Certyfikowane sterowniki LTS, wsparcie producenta i optymalizacje pod karty pro (RTX 6000 Ada / PRO 6000 Blackwell). Sens przy Tier 2/3 z SLA; RTX 5090 (konsument) tej ścieżki nie ma." },
+  { nazwa: "Software · Platforma RAG — wdrożenie bazy wektorowej (Qdrant/Weaviate self-hosted)", kategoria: "software", cena_netto: 4000, cena_min: 2500, cena_max: 8000, jednostka: "usł.",
+    opis: "Konfiguracja bazy wektorowej, pipeline indeksowania dokumentów klienta, strojenie chunking/retrieval. Silnik open source (bez opłat licencyjnych) — pozycja to praca wdrożeniowa, osobna od ogólnego montażu w Robociźnie." },
+  { nazwa: "Software · Integracja API — konektor do systemu klienta (CRM/ERP/poczta)", kategoria: "software", cena_netto: 3000, cena_min: 1500, cena_max: 8000, jednostka: "usł.",
+    opis: "Spięcie lokalnego modelu z istniejącym systemem klienta przez REST/webhook (np. CRM, ERP, skrzynka mailowa). Zakres i cena mocno zależne od złożoności API po stronie klienta." },
+  { nazwa: "Software · Panel czatu dla zespołu — Open WebUI (wdrożenie + użytkownicy)", kategoria: "software", cena_netto: 2500, cena_min: 1500, cena_max: 5000, jednostka: "usł.",
+    opis: "Samoobsługowy interfejs czatu nad Ollamą: logowanie, historia rozmów, kontrola dostępu per pracownik. Bez integracji z zewnętrznym systemem (to osobna pozycja — Integracja API)." },
+  { nazwa: "Software · Monitoring — Grafana + Prometheus (wdrożenie)", kategoria: "software", cena_netto: 2000, cena_min: 1200, cena_max: 4000, jednostka: "usł.",
+    opis: "Pulpit metryk GPU/CPU/dysku i alerty (przegrzanie, brak miejsca, padnięty serwis) — self-hosted, bez chmury. Uzupełnia Serwis/SLA — to on reaguje na alert." },
+  { nazwa: "Software · Kopie zapasowe — Veeam Backup & Replication (licencja)", kategoria: "software", cena_netto: 2500, cena_min: 1800, cena_max: 4000, jednostka: "rok",
+    opis: "Automatyczne, szyfrowane kopie serwera/danych na NAS lub off-site. Licencja odnawiana rocznie. Odpowiednik: Veeam Backup Essentials (mniejsze wdrożenia)." },
+  { nazwa: "Software · UTM — odnowienie licencji FortiGate (FortiCare + filtrowanie)", kategoria: "software", cena_netto: 1500, cena_min: 1000, cena_max: 3000, jednostka: "rok",
+    opis: "Coroczne odnowienie subskrypcji do zapory FortiGate z kategorii Sieć (IPS, filtrowanie treści, aktualne sygnatury). Bez odnowienia urządzenie traci aktualność zabezpieczeń." },
 ];
