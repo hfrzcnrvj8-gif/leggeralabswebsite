@@ -45,6 +45,34 @@ export async function destroySession(): Promise<void> {
 }
 
 /**
+ * Specyfikacja ciasteczka sesji do ustawienia BEZPOŚREDNIO na odpowiedzi
+ * (`res.cookies.set(...)`) — używa jej trasa `/api/admin/wejscie`, która
+ * uwierzytelnia aplikację iPada tokenem urządzenia i wpuszcza ją do panelu
+ * webowego (WKWebView) z ustawionym ciasteczkiem. `createSession()` robi to
+ * samo przez `next/headers`, ale przy przekierowaniu pewniej jest ustawić
+ * ciasteczko wprost na obiekcie odpowiedzi. `null`, gdy brak konfiguracji.
+ */
+export function sessionCookie(): {
+  name: string;
+  value: string;
+  options: {
+    httpOnly: boolean;
+    secure: boolean;
+    sameSite: "lax";
+    path: string;
+    maxAge: number;
+  };
+} | null {
+  const token = sessionToken();
+  if (!token) return null;
+  return {
+    name: COOKIE_NAME,
+    value: token,
+    options: { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: MAX_AGE_SECONDS },
+  };
+}
+
+/**
  * ── Tokeny per-urządzenie (Faza 1 aplikacji natywnej, 2026-07-19) ──────────
  *
  * Aplikacja iOS nie ma ciasteczek przeglądarki, więc dostaje własny kanał:
