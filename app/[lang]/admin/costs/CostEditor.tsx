@@ -217,6 +217,7 @@ export function CostEditor({
           data_wydatku: string;
           data_platnosci: string;
           opis: string;
+          kategoria: string | null;
         };
         error?: string;
       };
@@ -237,6 +238,10 @@ export function CostEditor({
       if (s.data_wydatku) patchBody.data_wydatku = s.data_wydatku;
       if (s.data_platnosci) patchBody.data_platnosci = s.data_platnosci;
       if (s.opis) patchBody.opis = s.opis;
+      // Tylko gdy kategoria jest dziś nieustawiona ("Inne") — nie nadpisuj
+      // cicho świadomego wyboru właściciela z wcześniejszego zapisu (ta sama
+      // zasada widoczności co podpowiedź z historii NIP-u niżej).
+      if (s.kategoria && cost?.kategoria === "Inne") patchBody.kategoria = s.kategoria;
       if (Object.keys(patchBody).length === 0) {
         toast("Model nie rozpoznał żadnych pól — wpisz dane ręcznie.", "error");
         return;

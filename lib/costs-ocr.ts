@@ -4,7 +4,7 @@
 // CLAUDE.md — jedyny dopuszczony wyjątek od "zero AI w logice panelu").
 
 import { isPlausibleDateString } from "./projects";
-import { VAT_RATES, type VatRate } from "./costs";
+import { VAT_RATES, type VatRate, COST_CATEGORIES, type CostCategory } from "./costs";
 import { vatFraction, round2 } from "./invoices";
 
 /** Domyślny model wizyjny — najmniejszy/najszybszy z dostępnych na Macu
@@ -14,7 +14,7 @@ export const OCR_MODEL = "qwen3-vl:8b";
 
 export const OCR_SYSTEM = `Jesteś asystentem odczytującym polskie paragony i faktury zakupowe ze zdjęcia/skanu.
 Zwróć WYŁĄCZNIE czysty JSON (bez markdown, bez komentarzy, bez dodatkowego tekstu) o dokładnie takim kształcie:
-{"dostawca": string, "nip": string, "numer_faktury": string, "numer_konta": string, "kwota_netto": number, "kwota_brutto": number, "vat_stawka": string, "data": string, "termin_platnosci": string, "opis": string}
+{"dostawca": string, "nip": string, "numer_faktury": string, "numer_konta": string, "kwota_netto": number, "kwota_brutto": number, "vat_stawka": string, "data": string, "termin_platnosci": string, "opis": string, "kategoria": string}
 
 Zasady:
 - "dostawca": nazwa sprzedawcy/firmy wystawiającej dokument.
@@ -27,7 +27,8 @@ Zasady:
 - "data": data wystawienia/sprzedaży w formacie YYYY-MM-DD.
 - "termin_platnosci": termin/data płatności w formacie YYYY-MM-DD, jeśli podana na dokumencie (często osobna od daty wystawienia).
 - "opis": krótki opis zakupu (np. nazwa towaru/usługi z dokumentu).
-- Jeśli nie jesteś pewien wartości danego pola, zwróć dla niego pusty string "" — NIGDY nie zgaduj.`;
+- "kategoria": DOKŁADNIE jedna z tych wartości (przepisz jedną z listy bez zmian): ${COST_CATEGORIES.join(", ")}. Wybierz tę, która najlepiej pasuje do towaru/usługi z dokumentu. Jeśli żadna wyraźnie nie pasuje, zwróć "Inne".
+- Jeśli nie jesteś pewien wartości danego pola (poza "kategoria", która zawsze musi być jedną z podanych wartości), zwróć dla niego pusty string "" — NIGDY nie zgaduj.`;
 
 export const OCR_PROMPT = "Odczytaj dane z załączonego paragonu/faktury i zwróć JSON zgodnie z instrukcją.";
 
@@ -41,6 +42,7 @@ export type OcrSuggestion = {
   data_wydatku: string;
   data_platnosci: string;
   opis: string;
+  kategoria: CostCategory | null;
 };
 
 /** Zwraca liczbę z pola modelu (liczba albo string z przecinkiem/kropką),
@@ -83,6 +85,7 @@ export function parseOcrResponse(raw: string): OcrSuggestion {
     data_wydatku: "",
     data_platnosci: "",
     opis: "",
+    kategoria: null,
   };
 
   const match = raw.match(/\{[\s\S]*\}/);
@@ -128,5 +131,8 @@ export function parseOcrResponse(raw: string): OcrSuggestion {
 
   const opis = typeof obj.opis === "string" ? obj.opis.trim().slice(0, 500) : "";
 
-  return { dostawca_nazwa: dostawca, dostawca_nip, numer_faktury, dostawca_konto, kwota_netto, vat_stawka, data_wydatku, data_platnosci, opis };
+  const kategoriaRaw = typeof obj.kategoria === "string" ? obj.kategoria.trim() : "";
+  const kategoria = (COST_CATEGORIES as readonly string[]).includes(kategoriaRaw) ? (kategoriaRaw as CostCategory) : null;
+
+  return { dostawca_nazwa: dostawca, dostawca_nip, numer_faktury, dostawca_konto, kwota_netto, vat_stawka, data_wydatku, data_platnosci, opis, kategoria };
 }
