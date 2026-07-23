@@ -175,9 +175,16 @@ czekaj na Vercel → zgaduj"):
   **Wyjątek od 2026-07-14** (patrz `docs/plany-modulow/06-08-ai-*.md`):
   punktowe, jawnie klikane użycia **lokalnego** modelu (Ollama na własnym
   Mac Studio właściciela, NIGDY chmurowe API) do generowania treści-do-
-  zatwierdzenia (szkic maila, odczyt paragonu) — model zawsze proponuje,
-  właściciel zawsze zatwierdza; nigdy nie decyduje/wysyła/zapisuje sam.
-  Nie rozszerzaj tego wyjątku na inne miejsca bez wyraźnej prośby.
+  zatwierdzenia — model zawsze proponuje, właściciel zawsze zatwierdza;
+  nigdy nie decyduje/wysyła/zapisuje sam. **Rozszerzony 2026-07-23** (Audyt 7,
+  `docs/AUDYT-7-WYNIKI.md`) o trzy kolejne punkty tego samego kształtu —
+  decyzja właściciela zapadła, budowa jeszcze nie: **zbudowane** — szkic
+  maila (Moduł 7), odczyt paragonu (Moduł 8); **zdecydowane, do zbudowania**
+  — propozycja kategorii kosztu (brief `docs/plany-modulow/48-ai-kategoria-kosztu.md`),
+  podsumowanie wątku poczty (`49-ai-podsumowanie-watku.md`), szkic notatki z
+  maila (`50-ai-szkic-notatki.md`, zakres zawężony do źródła „mail" — patrz
+  brief). Każdy nowy punkt poza tą listą dalej wymaga wyraźnej prośby
+  właściciela, nie zakładaj kolejnych z rozpędu.
 - "Zdrowie" projektu (Na dobrej drodze/Zagrożony/Zerwany) jest ręczne i
   niezależne od statusu na tablicy — dwie osobne osie, tak jak w Linear.
 - "Cykle" w Osi czasu (`ProjectTimeline.tsx`) są WYŁĄCZNIE wizualnym
