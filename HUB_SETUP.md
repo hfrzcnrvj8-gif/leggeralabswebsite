@@ -830,6 +830,28 @@ od "zero AI w logice panelu").
   `tsc` czysty, `parseOcrResponse` przetestowany na przykładzie z realną
   fakturą (z i bez `kwota_brutto`).
 
+  **Moduł 48 — propozycja kategorii kosztu (2026-07-23)**, pierwszy z
+  trzech punktów AI z Audytu 7 (`docs/plany-modulow/48-ai-kategoria-kosztu.md`).
+  `OCR_SYSTEM` dostał kolejne pole `"kategoria"`, z jawnie wypisaną listą
+  dozwolonych wartości (`COST_CATEGORIES.join(", ")`) w instrukcji — model
+  musi wybrać jedną z nich, nie wymyślać własną. `OcrSuggestion.kategoria:
+  CostCategory | null`, walidacja w `parseOcrResponse()` przez
+  `COST_CATEGORIES.includes(...)` (dokładnie ten sam wzorzec co `vat_stawka`)
+  — spoza listy albo brak → `null`. **Nadpisuje pole tylko gdy dzisiejsza
+  kategoria to „Inne"** (`CostEditor.tsx`, `readWithOcr()`) — inaczej nie
+  nadpisywałoby świadomego wyboru właściciela z poprzedniego zapisu; to samo
+  kryterium widoczności co istniejąca, deterministyczna podpowiedź po
+  historii NIP-u (`GET /api/costs/hints`), więc obie się nie gryzą wizualnie
+  — pierwsza wygrywa tam, gdzie druga milczy (nowy dostawca bez historii).
+  Zero nowych endpointów — kategoria „jedzie" w tym samym JSON-ie co reszta
+  pól OCR, jedno wywołanie modelu. Zweryfikowane lokalnie: `tsc` czysty,
+  `npm test` 55/55, ścieżka niedostępności modelu (brak `OLLAMA_API_URL`
+  w dev) daje kontrolowany toast „Model AI niedostępny. Wpisz dane ręcznie."
+  bez błędów w konsoli, kategoria zostaje niezmieniona. Happy path (model
+  faktycznie proponujący trafną kategorię) do potwierdzenia na produkcji
+  z realnym paragonem — lokalnie Ollama jest świadomie wyłączona (patrz
+  wyżej, „Infrastruktura AI").
+
 ## Moduł 9 — Koszty jako branżowy standard (2026-07-14, w toku)
 
 Ambicja właściciela po przetestowaniu Modułu 8 (OCR) na prawdziwej fakturze:

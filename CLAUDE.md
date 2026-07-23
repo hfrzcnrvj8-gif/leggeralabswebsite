@@ -178,13 +178,13 @@ czekaj na Vercel → zgaduj"):
   zatwierdzenia — model zawsze proponuje, właściciel zawsze zatwierdza;
   nigdy nie decyduje/wysyła/zapisuje sam. **Rozszerzony 2026-07-23** (Audyt 7,
   `docs/AUDYT-7-WYNIKI.md`) o trzy kolejne punkty tego samego kształtu —
-  decyzja właściciela zapadła, budowa jeszcze nie: **zbudowane** — szkic
-  maila (Moduł 7), odczyt paragonu (Moduł 8); **zdecydowane, do zbudowania**
-  — propozycja kategorii kosztu (brief `docs/plany-modulow/48-ai-kategoria-kosztu.md`),
-  podsumowanie wątku poczty (`49-ai-podsumowanie-watku.md`), szkic notatki z
-  maila (`50-ai-szkic-notatki.md`, zakres zawężony do źródła „mail" — patrz
-  brief). Każdy nowy punkt poza tą listą dalej wymaga wyraźnej prośby
-  właściciela, nie zakładaj kolejnych z rozpędu.
+  decyzja właściciela zapadła: **zbudowane** — szkic maila (Moduł 7), odczyt
+  paragonu (Moduł 8), propozycja kategorii kosztu (Moduł 48,
+  `docs/plany-modulow/48-ai-kategoria-kosztu.md`); **zdecydowane, do
+  zbudowania** — podsumowanie wątku poczty (`49-ai-podsumowanie-watku.md`),
+  szkic notatki z maila (`50-ai-szkic-notatki.md`, zakres zawężony do źródła
+  „mail" — patrz brief). Każdy nowy punkt poza tą listą dalej wymaga
+  wyraźnej prośby właściciela, nie zakładaj kolejnych z rozpędu.
 - "Zdrowie" projektu (Na dobrej drodze/Zagrożony/Zerwany) jest ręczne i
   niezależne od statusu na tablicy — dwie osobne osie, tak jak w Linear.
 - "Cykle" w Osi czasu (`ProjectTimeline.tsx`) są WYŁĄCZNIE wizualnym
