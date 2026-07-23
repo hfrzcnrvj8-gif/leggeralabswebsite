@@ -620,3 +620,18 @@
     display: block !important;
   }
 }
+
+/* Wydruk kalkulatora doboru (styl oferty) — jak kody 2FA (patrz wyżej): na
+   ekranie `.wydruk-doboru` jest ukryty, przy druku chowamy resztę i pokazujemy
+   tylko jego na białej kartce. Kolor wymuszony (gradient/złoto mają wyjść). */
+.wydruk-doboru { display: none; }
+@media print {
+  body.drukuj-dobor * { visibility: hidden !important; }
+  body.drukuj-dobor .wydruk-doboru { display: block !important; }
+  body.drukuj-dobor .wydruk-doboru,
+  body.drukuj-dobor .wydruk-doboru * { visibility: visible !important; }
+  body.drukuj-dobor .wydruk-doboru {
+    position: fixed; inset: 0; margin: 0; background: #fff !important; overflow: visible;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+}

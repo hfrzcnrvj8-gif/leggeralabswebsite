@@ -94,6 +94,17 @@ function wagiGB(p: number, q: "Q4" | "Q8"): number {
   return p * (q === "Q8" ? 1.05 : 0.55);
 }
 
+/** Zwięzły opis odpowiedzi klienta — do nagłówka wydruku/PDF. */
+export function opisKlienta(w: Wejscie): string {
+  const prio = { koszt: "koszt/szybkość", zrownowazony: "zrównoważony", jakosc: "jakość" }[w.priorytet];
+  const ktx = { krotki: "krótki", sredni: "średni", dlugi: "długi" }[w.kontekst];
+  const tryb = { biuro: "biurowy 8/5", wazna: "ważny", krytyczna: "krytyczny 24/7" }[w.uptime];
+  const zad = (["chat", "kod", "rag", "dlugie", "tlumaczenia"] as Zadanie[])
+    .filter((z) => w.zadania.includes(z))
+    .map((z) => ZADANIE_KROTKA[z]);
+  return `${w.uzytkownicy} użytkowników (${w.szczyt} równoczesnych) · zadania: ${zad.length ? zad.join(", ") : "ogólne"} · priorytet: ${prio} · kontekst: ${ktx} · dane RAG: ${Math.round(w.ragGB)} GB · tryb: ${tryb}`;
+}
+
 export function dobierz(w: Wejscie): Rekomendacja {
   const uzytk = Math.max(1, w.uzytkownicy || 1);
   const szczyt = Math.max(1, Math.min(w.szczyt || 1, uzytk));

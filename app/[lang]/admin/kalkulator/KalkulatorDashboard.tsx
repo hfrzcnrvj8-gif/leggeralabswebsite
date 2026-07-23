@@ -1,10 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { IconFileText } from "@tabler/icons-react";
 import {
   dobierz,
+  opisKlienta,
   DOMYSLNE_WEJSCIE,
   type Wejscie,
+  type Rekomendacja,
   type Zadanie,
   type Priorytet,
   type Kontekst,
@@ -12,6 +15,7 @@ import {
   type Uptime,
   type NotatkaTyp,
 } from "@/lib/dobor";
+import { DOC_GRADIENT } from "@/lib/documents";
 
 const ZADANIA: { id: Zadanie; label: string }[] = [
   { id: "chat", label: "Czat / asystent" },
@@ -71,6 +75,19 @@ export function KalkulatorDashboard() {
   const set = <K extends keyof Wejscie>(k: K, v: Wejscie[K]) => setW((p) => ({ ...p, [k]: v }));
   const toggleZadanie = (z: Zadanie) =>
     setW((p) => ({ ...p, zadania: p.zadania.includes(z) ? p.zadania.filter((x) => x !== z) : [...p.zadania, z] }));
+
+  // Panel nie generuje PDF serwerowo (jak faktury/oferty) — drukujemy przez
+  // przeglądarkę: klasa na <body> odsłania tylko `.wydruk-doboru` (globals.css),
+  // a użytkownik zapisuje jako PDF. Klasę zdejmujemy po wydruku.
+  const drukuj = () => {
+    document.body.classList.add("drukuj-dobor");
+    const sprzataj = () => {
+      document.body.classList.remove("drukuj-dobor");
+      window.removeEventListener("afterprint", sprzataj);
+    };
+    window.addEventListener("afterprint", sprzataj);
+    window.print();
+  };
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
@@ -243,7 +260,104 @@ export function KalkulatorDashboard() {
               testem modelu na danych klienta.
             </p>
           </div>
+          <button
+            onClick={drukuj}
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-gold/40 bg-brand-gold/15 px-3 py-2 text-sm font-semibold text-brand-gold transition-colors hover:bg-brand-gold/25"
+          >
+            <IconFileText size={16} /> Eksportuj PDF (styl oferty)
+          </button>
         </aside>
+      </div>
+
+      <WydrukSpecyfikacji rek={rek} w={w} />
+    </div>
+  );
+}
+
+/** Jednostronicowy dokument w stylu oferty — jasny, z gradientem marki. Na
+ * ekranie ukryty (globals.css `.wydruk-doboru`), widoczny tylko przy druku.
+ * Style inline (jawne kolory), bo panel jest ciemny, a kartka ma być biała. */
+function WydrukSpecyfikacji({ rek, w }: { rek: Rekomendacja; w: Wejscie }) {
+  const atrament = "#1a1626";
+  const szary = "#6b6580";
+  const dot: Record<NotatkaTyp, string> = { info: "#0e8ba8", ostrzezenie: "#b26a00", dobre: "#2f8f52" };
+  const specy: [string, string, string?][] = [
+    ["GPU / VRAM", `${rek.liczbaGpu > 1 ? `${rek.liczbaGpu}× ` : ""}${rek.kartaNazwa}`, `${rek.vramPotrzebne} GB potrzebne z zapasem · ${rek.vramMasz} GB dostępne`],
+    ["RAM", `${rek.ram} GB DDR5${rek.ram >= 256 ? " ECC RDIMM" : ""}`],
+    ["Dysk NVMe", `${rek.ssdTB} TB`, "system + modele + baza RAG"],
+    ["NAS + dyski", rek.nas],
+    ["UPS", rek.ups],
+    ["Sieć", rek.siec],
+  ];
+  return (
+    <div className="wydruk-doboru" style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: atrament, background: "#fff" }}>
+      <div style={{ height: 6, background: DOC_GRADIENT }} />
+      <div style={{ padding: "34px 44px", maxWidth: 760, margin: "0 auto" }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: szary }}>LEGGERA LABS</div>
+          <div style={{ fontSize: 25, fontWeight: 800, marginTop: 2 }}>Rekomendacja sprzętu — lokalny LLM</div>
+          <div style={{ fontSize: 11, color: szary, marginTop: 3 }}>
+            Wygenerowano {new Date().toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" })}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: szary }}>DLA KLIENTA</div>
+          <div style={{ fontSize: 12, marginTop: 2 }}>{opisKlienta(w)}</div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#fff", padding: "4px 12px", borderRadius: 999, background: DOC_GRADIENT }}>
+            Tier {rek.tier}
+          </span>
+          <span style={{ fontSize: 17, fontWeight: 600 }}>Model {rek.params}B · {rek.quant}</span>
+          {rek.liczbaGpu > 1 && <span style={{ fontSize: 13, color: szary }}>{rek.liczbaGpu}× GPU</span>}
+        </div>
+
+        <div style={{ borderTop: "1px solid #e6e2ee" }}>
+          {specy.map(([k, v, pod]) => (
+            <div key={k} style={{ display: "flex", gap: 14, padding: "8px 0", borderBottom: "1px solid #e6e2ee" }}>
+              <span style={{ width: 100, flex: "none", fontSize: 11, color: szary }}>{k}</span>
+              <span style={{ fontSize: 12.5 }}>
+                <b style={{ fontWeight: 600 }}>{v}</b>
+                {pod && <span style={{ display: "block", color: szary, fontSize: 11 }}>{pod}</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 16, padding: 14, borderRadius: 10, background: "#fbf3e0", border: "1px solid #e6c98a" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.5, color: "#8a6414" }}>ORIENTACYJNY KOSZT — SPRZĘT + WDROŻENIE</div>
+          <div style={{ fontSize: 21, fontWeight: 800, marginTop: 2 }}>
+            {Math.round(rek.kosztMin / 1000)}–{Math.round(rek.kosztMax / 1000)} tys. zł{" "}
+            <span style={{ fontSize: 13, fontWeight: 500, color: szary }}>netto</span>
+          </div>
+          <div style={{ fontSize: 12, color: szary, marginTop: 2 }}>
+            + serwis {rek.serwisMin.toLocaleString("pl-PL")}–{rek.serwisMax.toLocaleString("pl-PL")} zł/mies
+          </div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.5, color: szary, marginBottom: 5 }}>DLACZEGO TAKI DOBÓR</div>
+          <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+            Dobór policzony z bezpiecznym zapasem: VRAM = wagi modelu × narzut na długość kontekstu i równoległość ×
+            1,15; kartę dobrano jako najmniejszą mieszczącą wynik. RAM ≥ 2× VRAM. Dyski i pojemność NAS zaokrąglone
+            w górę, z zapasem na wzrost i kopie. UPS ≥ 1,4× poboru mocy.
+          </div>
+          <div style={{ marginTop: 8 }}>
+            {rek.notatki.map((n, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 5 }}>
+                <span style={{ marginTop: 6, width: 5, height: 5, flex: "none", borderRadius: 999, background: dot[n.typ] }} />
+                <span style={{ fontSize: 11.5, color: "#333" }}>{n.tekst}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 22, fontSize: 9.5, color: szary, lineHeight: 1.45 }}>
+          Wynik orientacyjny — punkt wyjścia do wyceny, nie wiążąca specyfikacja. Ceny netto, widełki na lipiec 2026,
+          do weryfikacji u dostawcy. Ostateczny dobór potwierdzany testem modelu na danych klienta.
+        </div>
       </div>
     </div>
   );
