@@ -128,6 +128,38 @@ widoczne ostrzeżenie, że to szkic — ale ostrzeżenie nie zastępuje weryfika
   kasowanie maila = ręczna operacja na bazie) jest wystarczający wobec prawa
   do usunięcia danych. Jeśli nie — trzeba dobudować (mały zakres).
 
+### 2.1a. ⚠️ Ustalenia Audytu 2 (RODO) — do polityki prywatności (2026-07-23)
+
+Pełne uzasadnienie: `docs/AUDYT-2-WYNIKI.md`. Polityka dziś **nie wymienia**
+poniższych, a panel je realizuje — dopisać **jednym ruchem z prawnikiem** przy
+uzupełnianiu administratora danych:
+
+- **Retencja — liczby MUSZĄ zgadzać się z kodem** (jak `MAIL_RETENTION_MONTHS`):
+  - **Leady bez konwersji: 24 miesiące** od ostatniego kontaktu, potem
+    automatyczne usunięcie (`LEADS_RETENTION_MONTHS` w `lib/leads.ts`,
+    egzekwuje `purgeStaleLeads` w dziennym cronie). Decyzja właściciela
+    2026-07-23. **Zmienisz jedno — zmień drugie.**
+  - **Korespondencja e-mail: 24 miesiące** (już w kodzie — patrz 2.1 wyżej).
+  - **Klienci + faktury/umowy: bez auto-usuwania** — dane trzymane przez okres
+    obowiązku podatkowego (**5 lat**) i przedawnienia roszczeń. Do potwierdzenia
+    z prawnikiem/księgową, czy 5 lat + zapas to właściwy okres i od kiedy liczyć.
+- **Podprocesorzy do wymienienia:** Neon (baza), Vercel (hosting), **az.pl**
+  (poczta — potwierdzić, czy wymaga wpisu), **Resend** (wysyłka maili, USA —
+  przekazanie poza EOG), MF/KSeF (faktury, po przejściu na produkcję).
+- **Off-site kopii (Audyt 3)** — zaszyfrowany drugi dysk poza domem to **nowe
+  miejsce z danymi osobowymi**; wymienić przy przekazywaniu poza EOG/kopiach.
+- **Zgoda na case study utrwalana z IP i przeglądarką** (`review_consent_*`
+  w `projects`) — trwały dowód zgody; opisać podstawę i okres przechowywania
+  (patrz też 1.4).
+- **Prawo do usunięcia — jak to działa dziś** (do opisania w polityce prostym
+  językiem): usunięcie leada/klienta kasuje kartotekę, logi kontaktu i historię
+  zmian; **migawki na fakturach/umowach zostają** (obowiązek podatkowy); dane
+  w kopiach zapasowych **wygasają same w ≤4 tygodnie** (rotacja 7 dni + 4 tyg.).
+- **Lokalne AI (Ollama) jako przewaga** — jeśli polityka wspomina o
+  automatyzacjach AI, warto zaznaczyć, że model działa **lokalnie na sprzęcie
+  administratora**, dane nie trafiają do chmury dostawcy LLM (art. o
+  minimalizacji i braku przekazania poza EOG działa tu na naszą korzyść).
+
 ### 2.2. Nota prawna / Impressum
 - **Gdzie:** `app/[lang]/impressum/page.tsx`
 - **Status:** treść i podstawa prawna są **poprawne** (polskie: art. 5 UŚUDE +

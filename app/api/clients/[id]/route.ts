@@ -4,7 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
-import { logFieldChanges } from "@/lib/auditLog";
+import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
 
 export const runtime = "nodejs";
 
@@ -222,12 +222,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 /** DELETE /api/clients/:id — usuwa klienta. Powiązane leady/oferty/faktury/
  * projekty NIE są usuwane, tylko odpinane (client_id -> NULL, ON DELETE SET
- * NULL) — to już osobne, samodzielne byty, jak przy usuwaniu leada z oferty. */
+ * NULL) — to już osobne, samodzielne byty, jak przy usuwaniu leada z oferty.
+ * Faktury/umowy zostają z migawką danych (obowiązek podatkowy 5 lat).
+ * Audyt zmian kasujemy jawnie — nie ma FK, więc kaskada bazy by go nie ruszyła
+ * i zostałyby surowe stare/nowe e-maile klienta (RODO, Audyt 2). */
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   await ensureClientsSchema();
   const sql = getSql();
   await sql`DELETE FROM clients WHERE id = ${id};`;
+  await deleteFieldChanges("client", id);
   return NextResponse.json({ ok: true });
 }

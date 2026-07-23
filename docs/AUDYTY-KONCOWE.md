@@ -120,6 +120,33 @@ z tych kluczy wycieknie.
 
 # Audyt 2 — Dane osobowe i RODO
 
+> ### ✅ WYKONANY — 2026-07-23
+>
+> Wyniki: **`docs/AUDYT-2-WYNIKI.md`**.
+>
+> W skrócie: mapa oparta na **schemacie** — 51 tabel, ~22 z danymi osób, plus
+> dokąd wychodzą (kopie NAS + off-site = cała baza AES-256, logi Vercela,
+> `error_log`, az.pl, KSeF-test, Resend, publiczne linki, lokalny Ollama).
+> Najostrzejszy brak — **`field_changes`** trzymał surowe stare/nowe e-maile
+> i telefony, bez retencji, bez FK, i **przeżywał usunięcie osoby** (zmierzone
+> uruchomieniem) — **naprawione** (kasowane jawnie z osobą).
+>
+> Retencja: brief mylił się co do dwóch „luk" — `error_log` i `rate_limit_hits`
+> **już** mają retencję (500 wpisów + `oczyscTekst()`; 24 h + odcisk). Realne
+> luki były trzy: leady, klienci, `field_changes`. **Leady bez konwersji →
+> 24 mies. od kontaktu, automatycznie** (`purgeStaleLeads`, wykluczenia chronią
+> faktury/umowy/klienta/projekt; zweryfikowane uruchomieniem: stary usunięty,
+> świeży i „z fakturą" zostają). **Klienci → bez auto** (faktury 5 lat).
+> Logi **nie** wypuszczają danych osobowych (sprawdzone gretem po użyciu).
+>
+> Prawo do usunięcia: kaskady sprawdzone uruchomieniem; **kopie rozwiązują się
+> same w ≤4 tyg.** (retencja). Procedura ręczna, bez przycisku „na zapas".
+> Lokalne AI (Ollama) udokumentowane jako **przewaga prywatności**. Treść
+> prawna → `docs/DO-PRAWNIKA-I-TLUMACZA.md`; pozycje porejestracyjne →
+> `PO_REJESTRACJI.md`.
+>
+> **Następny wg ryzyka: Audyt 6 (poprawność kodu / dług techniczny).**
+
 **Pytanie:** jakie dane trzymamy, jak długo, gdzie się kopiują i czy umiemy je
 usunąć na żądanie.
 

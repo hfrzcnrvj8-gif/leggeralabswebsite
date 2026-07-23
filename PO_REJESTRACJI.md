@@ -216,6 +216,44 @@ klientów — jej retencja i podstawa prawna muszą trafić do polityki prywatno
 (zakres Audytu 2 / `docs/DO-PRAWNIKA-I-TLUMACZA.md`), co ma sens dopiero, gdy
 w bazie są prawdziwi klienci.
 
+# Pozycje dopisane w Audycie 2 — RODO (2026-07-23)
+
+## 16. Polityka prywatności — administrator + retencja + podprocesorzy
+
+Audyt 2 (`docs/AUDYT-2-WYNIKI.md`) zrobił mapę danych osobowych i domknął
+retencję w kodzie (leady 24 mies., `field_changes` znika z osobą). **Co czeka
+na rejestrację i/lub prawnika** (szczegóły w `docs/DO-PRAWNIKA-I-TLUMACZA.md`
+pkt 2.1a):
+
+- Formalne dane **administratora danych** (nazwa, adres, NIP) w polityce
+  i nocie prawnej — wymaga rejestracji (pkt 1–2 wyżej to obejmują).
+- **Rejestr czynności przetwarzania** (art. 30 RODO) — spisać po rejestracji;
+  mapa danych z Audytu 2 to gotowy szkielet (kategorie osób, cele, retencja,
+  odbiorcy).
+- Liczby retencji w polityce **muszą zgadzać się z kodem**: leady 24 mies.,
+  poczta 24 mies., faktury 5 lat, kopie 7 dni + 4 tyg.
+- Wymienić **podprocesorów**: Neon, Vercel, az.pl, Resend, MF/KSeF; ująć
+  **off-site kopii** jako miejsce z danymi (przekazanie poza EOG — Resend/USA).
+
+## 17. Anonimizacja migawek faktur po okresie podatkowym — rozważyć
+
+Faktury i umowy trzymają migawkę danych nabywcy (nazwa/NIP/adres/e-mail) —
+świadomie, bo dokument podatkowy musi przeżyć usunięcie kartoteki (obowiązek
+**5 lat**). Po upływie tego okresu dane nabywcy na starych fakturach można
+**anonimizować, zostawiając kwoty**. To domknęłoby prawo do usunięcia także
+dla dokumentów. **Nie ma sensu przed pierwszym klientem** — odłożone; wpisać do
+istniejącego dziennego cronu, gdy pojawią się realne faktury z 2031+.
+
+## 18. Prawo do usunięcia — „usuń wiadomość" i ew. przycisk zbiorczy
+
+- Dziś kasowanie pojedynczego maila to ręczna operacja na bazie (brak przycisku
+  w panelu). Czy wystarcza wobec prawa do usunięcia — **decyzja prawnika**
+  (pkt 2 wyżej / `DO-PRAWNIKA` 2.1). Jeśli nie — mały zakres do dobudowania.
+- Przycisk „Usuń wszystkie dane osoby" w panelu — świadomie **niebudowany**
+  (procedura ręczna wystarcza dla jednej osoby, Audyt 2 ust. 3). Do rewizji,
+  gdyby żądań usunięcia było dużo.
+
 ---
 _Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`.
-Uzupełnienie pozycji 6–12: audyt Modułu 29, `docs/plany-modulow/29-audyt-koncowy.md`._
+Uzupełnienie pozycji 6–12: audyt Modułu 29, `docs/plany-modulow/29-audyt-koncowy.md`.
+Pozycje 16–18: Audyt 2 (RODO), `docs/AUDYT-2-WYNIKI.md`._

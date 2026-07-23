@@ -70,6 +70,19 @@ export type SeedLead = Pick<
   "firma" | "branza" | "telefon" | "email" | "www" | "zrodlo" | "status" | "notatki"
 >;
 
+/**
+ * Retencja leadów (RODO, Audyt 2, decyzja właściciela 2026-07-23). Lead, który
+ * NIGDY nie stał się klientem (bez powiązanego klienta, faktury, oferty, umowy
+ * ani projektu) i przez tyle miesięcy nie miał kontaktu, jest usuwany
+ * automatycznie w dziennym cronie — nie trzymamy danych osobowych „na wszelki
+ * wypadek". Liczba spójna z retencją poczty (MAIL_RETENTION_MONTHS).
+ *
+ * Ta wartość MUSI zgadzać się z polityką prywatności — jeśli zmienisz jedno,
+ * zmień drugie (patrz docs/DO-PRAWNIKA-I-TLUMACZA.md → korespondencja/leady).
+ * Egzekwuje ją purgeStaleLeads() w lib/leadRetention.ts.
+ */
+export const LEADS_RETENTION_MONTHS = 24;
+
 export const STATUSES = [
   "Nowe zgłoszenie ze strony",
   "Do kontaktu",

@@ -3,7 +3,7 @@ import { getSql, ensureLeadsSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { rematchUnassigned } from "@/lib/mailSync";
-import { logFieldChanges } from "@/lib/auditLog";
+import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
 
 export const runtime = "nodejs";
 
@@ -181,5 +181,8 @@ export async function DELETE(
   await ensureLeadsSchema();
   const sql = getSql();
   await sql`DELETE FROM leads WHERE id = ${id};`;
+  // Audyt zmian nie ma FK do leada — kasujemy jawnie, inaczej zostałyby surowe
+  // stare/nowe e-maile i telefony usuniętej osoby (RODO, Audyt 2).
+  await deleteFieldChanges("lead", id);
   return NextResponse.json({ ok: true });
 }

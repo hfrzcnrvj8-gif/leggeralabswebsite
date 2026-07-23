@@ -82,6 +82,21 @@ export async function logFieldChanges(
   }
 }
 
+/**
+ * Kasuje CAŁĄ historię zmian jednego rekordu (RODO, Audyt 2). `field_changes`
+ * nie ma klucza obcego do leada/klienta (świadomie — audytuje też byty bez
+ * własnej tabeli), więc usunięcie osoby NIE zabiera jej wpisów z tego logu:
+ * zostawałyby tu surowe stare/nowe adresy e-mail i telefony usuniętej osoby,
+ * bezterminowo. Dlatego każda ścieżka usuwająca leada/klienta woła to jawnie
+ * (DELETE w route'ach + purgeStaleLeads). Sprawdzone uruchomieniem:
+ * przed naprawą wiersz `email: … → …` przeżywał skasowanie klienta.
+ */
+export async function deleteFieldChanges(entity: AuditEntity, entityId: string): Promise<void> {
+  await ensureAuditSchema();
+  const sql = getSql();
+  await sql`DELETE FROM field_changes WHERE entity = ${entity} AND entity_id = ${entityId};`;
+}
+
 /** Log zmian jednego rekordu, od najnowszej. Limit odcina historię starszą
  * niż kilkaset zmian — profil i tak jej nie pokaże, a zapytanie ma zostać
  * tanie. */

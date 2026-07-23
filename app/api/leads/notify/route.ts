@@ -16,7 +16,7 @@ import {
   ensureBackupSchema,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { isOverdue, overdueReason, STATUSES, type Lead } from "@/lib/leads";
+import { isOverdue, overdueReason, STATUSES, LEADS_RETENTION_MONTHS, type Lead } from "@/lib/leads";
 import { isProjectOverdue, type Project } from "@/lib/projects";
 import { isClientOverdue, clientOverdueReason, type Client } from "@/lib/clients";
 import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
@@ -39,6 +39,7 @@ import { sendEmail } from "@/lib/email";
 import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
 import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
+import { purgeStaleLeads } from "@/lib/leadRetention";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO, daysSinceISO } from "@/lib/dates";
 import { notify, purgeOldNotifications } from "@/lib/notificationLog";
@@ -455,6 +456,19 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     console.log(`[cron] usunięto ${purgedNotifications.purged} powiadomień starszych niż 30 dni`);
   }
 
+  // Retencja leadów (RODO, Audyt 2, 24 mies.) — martwe leady bez faktury/umowy/
+  // klienta/projektu. Ten sam cron, ten sam obowiązek co retencja poczty:
+  // nieudane czyszczenie zostawia dane osobowe dłużej, niż deklaruje polityka,
+  // a nikt by tego bez alarmu nie zauważył (retencja nie ma UI).
+  const purgedLeads = await purgeStaleLeads().catch(async (e) => {
+    console.error("[cron] czyszczenie starych leadów nie powiodło się", e);
+    await zapiszWyjatek("retencja", "Nie udało się usunąć starych leadów (retencja RODO)", e);
+    return { purged: 0 };
+  });
+  if (purgedLeads.purged > 0) {
+    console.log(`[cron] usunięto ${purgedLeads.purged} leadów starszych niż ${LEADS_RETENTION_MONTHS} mies. bez konwersji`);
+  }
+
   const overdueLeads = leads.filter(isOverdue);
   const dueProjects = projects.filter(isProjectOverdue);
   const overdueClients = clients.filter(isClientOverdue);
@@ -670,6 +684,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
       ? "UWAGA: nie udało się dziś pobrać poczty ze skrzynki — sprawdź dane dostępowe az.pl w zmiennych środowiskowych Vercela."
       : `Nowe wiadomości pobrane dziś: ${mail.fetched}` + (mail.matched ? ` (w tym ${mail.matched} dopasowanych do klienta/leada)` : ""),
     mail.purged > 0 ? `Usunięto starych wiadomości (retencja ${MAIL_RETENTION_MONTHS} mies.): ${mail.purged}` : "",
+    purgedLeads.purged > 0 ? `Usunięto martwych leadów (retencja ${LEADS_RETENTION_MONTHS} mies., bez konwersji): ${purgedLeads.purged}` : "",
     "",
     backupLinia,
     "",
