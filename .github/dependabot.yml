@@ -1,0 +1,34 @@
+# Dependabot — automatyczny strażnik zależności (Audyt 6, 2026-07-23).
+#
+# GitHub sam pilnuje paczek z package.json i OTWIERA zgłoszenie (Pull Request),
+# gdy pojawi się aktualizacja — w szczególności ŁATKA BEZPIECZEŃSTWA (np.
+# załatana wersja Next 16, gdy wyjdzie). Zero utrzymania, darmowe.
+#
+# Jak to czytać jako właściciel: raz na tydzień w zakładce „Pull requests" na
+# GitHubie mogą pojawić się propozycje „bump X from a to b". Przy okazji pracy
+# z Claude poproś o przejrzenie — Claude sprawdzi, czy to bezpieczny patch
+# (`npm test` zielony), i doradzi, czy scalić.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # Majory (Next, React, Tailwind, TypeScript) osobno — to większy ruch, nie
+    # „drobna łatka" (ustalenie Audytu 6). Patche/minory grupujemy w jeden PR.
+    groups:
+      patche-i-minory:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "zaleznosci"
+
+  # Same akcje GitHuba (te automaty niżej) też trzymamy aktualne.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "zaleznosci"

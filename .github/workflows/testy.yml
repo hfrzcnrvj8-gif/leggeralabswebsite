@@ -1,0 +1,26 @@
+# Testy reguł biznesowych przy każdym zapisie (Audyt 6, 2026-07-23).
+#
+# Przy każdym pushu i każdym Pull Requeście GitHub uruchamia `npm test`. Jeśli
+# zmiana zepsuje którąś regułę biznesową (liczenie dni „wymaga działania",
+# terminy snooze, matematyka faktury, silnik 2FA, czyszczenie danych z logów…),
+# zobaczysz CZERWONY znaczek przy commicie i dostaniesz maila z GitHuba —
+# ZANIM to trafi na produkcję. Darmowe.
+name: testy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  testy-regul:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm test

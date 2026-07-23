@@ -283,6 +283,31 @@ Do rozstrzygnięcia w audycie:
 
 # Audyt 6 — Poprawność kodu i dług techniczny
 
+> ### ✅ WYKONANY — 2026-07-23
+>
+> Wyniki: **`docs/AUDYT-6-WYNIKI.md`**. Brief: `docs/plany-modulow/44-audyt-6-kod.md`.
+>
+> W skrócie: wprowadzono **pierwsze testy automatyczne** (32, `node --test` +
+> `tsx` — jedyna nowa zależność), **wyłącznie dla czystych reguł biznesowych**
+> dublowanych z apką; udowodnione, że **biją na regresji** (red-first). Parytet
+> panel↔apka sprawdzony **arytmetyką** (repo `leggera-hub-ios` otwarte): telefon,
+> snooze/wysyłka i `parseQuickAdd` **zgodne**; złapano **jeden realny rozjazd** —
+> reguła „wymaga działania dziś" (`isOverdue`) liczyła dni przez floor z północy
+> UTC, apka kalendarzowo → tuż po północy panel i telefon mówiły o leadzie dwie
+> różne rzeczy. **Naprawione po stronie panelu** (`daysBetweenISO`, zrównane z
+> apką i własnym helperem).
+>
+> Martwy kod: **9 potwierdzonych martwych eksportów** (grep po użyciu),
+> udokumentowane, nieusunięte (bywają rusztowaniem — `list_unsubscribe_url`
+> z briefu **ożył**, ma dziś 23 użycia). `lib/db.ts` (2597 linii) — **zostaje**
+> (regularny schemat, nie plątanina). Zależności: **6 CVE Next.js + sharp**
+> flagowane high, ale **realna ekspozycja niska** (apka nie używa `next/image`/
+> rewrites/Edge/Server Actions); **brak załatanego Next 16** (jedyna „naprawa"
+> npm = downgrade do 14 — odrzucone), patch 16.2.11 zastosowany, pełna
+> aktualizacja odłożona jako decyzja właściciela.
+>
+> **Następny wg ryzyka: Audyt 5 (wydajność i koszty).**
+
 **Największa pojedyncza słabość: 342 pliki, 148 tras API i ZERO testów
 automatycznych** (zmierzone ponownie 2026-07-22 — `package.json` nie ma nawet
 skryptu `test`).

@@ -1,0 +1,67 @@
+# Miesięczny przegląd zdrowia kodu (Audyt 6, 2026-07-23).
+#
+# Raz w miesiącu GitHub sam robi mechaniczną część audytu 6: podatności,
+# nieaktualne paczki i testy reguł. Wynik ląduje w czytelnym podsumowaniu
+# przebiegu, a jeśli są PODATNOŚCI albo test PADŁ — przebieg świeci na czerwono
+# i GitHub wysyła Ci maila. To „regularnie, automatycznie, z meldunkiem", o które
+# prosiłeś — na pewnych szynach (bez osobnego agenta do pilnowania).
+#
+# Można też uruchomić ręcznie: zakładka Actions → „przeglad-miesieczny" → Run.
+#
+# CZEGO TO NIE ROBI: nie stosuje łatek samo i nie ocenia, czy podatność jest
+# realnie groźna (to zrobił człowiek+Claude w Audycie 6 — ekspozycja bywa niska
+# mimo etykiety „high"). To sygnał „przyjrzyj się", nie decyzja.
+name: przeglad-miesieczny
+
+on:
+  schedule:
+    - cron: "0 6 1 * *" # 1. dnia miesiąca, 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  przeglad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+
+      - name: Testy reguł biznesowych
+        run: |
+          echo "## Testy reguł biznesowych" >> "$GITHUB_STEP_SUMMARY"
+          if npm test >> "$GITHUB_STEP_SUMMARY" 2>&1; then
+            echo "✅ wszystkie testy zielone" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ TESTY PADŁY — patrz wyżej" >> "$GITHUB_STEP_SUMMARY"
+            echo "TESTY_PADLY=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Nieaktualne paczki (informacyjnie)
+        run: |
+          echo "## Nieaktualne paczki" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm outdated >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Podatności bezpieczeństwa
+        run: |
+          echo "## Podatności (npm audit)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm audit >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # Czerwień (i mail) tylko przy poziomie high/critical — próg jak w
+          # Audycie 4: alarm, który kłamie, uczy ignorowania alarmów.
+          if ! npm audit --audit-level=high; then
+            echo "PODATNOSCI_HIGH=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Werdykt
+        run: |
+          if [ "${TESTY_PADLY:-0}" = "1" ] || [ "${PODATNOSCI_HIGH:-0}" = "1" ]; then
+            echo "Przegląd wymaga uwagi (testy padły lub są podatności high). Poproś Claude o przejrzenie."
+            exit 1
+          fi
+          echo "Przegląd czysty."

@@ -9,7 +9,7 @@
 // albo ręcznie (przycisk "Utwórz klienta" na leadzie, gdy rozmowa już trwa,
 // zanim jest oferta). Patrz lib/db.ts ensureClientsSchema.
 
-import { todayLocalISO } from "./dates";
+import { todayLocalISO, daysBetweenISO } from "./dates";
 import { type DocLang } from "./documents";
 
 export type Client = {
@@ -299,9 +299,11 @@ Pozdrawiam,
 
 function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
-  const now = new Date();
-  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  // Dni KALENDARZOWE — ten sam powód co w lib/leads.ts (kolumna DATE parsowana
+  // jako północ UTC dawała wynik o 1 za mały tuż po lokalnej północy). Tu tylko
+  // do wyświetlenia „N dni" w tabeli/Kanbanie klientów, ale spójność liczenia
+  // z leadami i apką jest warta jednej linii. Audyt 6, 2026-07-23.
+  return daysBetweenISO(dateStr.slice(0, 10), todayLocalISO());
 }
 
 const CLOSED_CLIENT_STATUSES = new Set<ClientStatus>(["Stracony"]);

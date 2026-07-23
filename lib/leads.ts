@@ -4,7 +4,7 @@
 // (app/api/leads/notify/route.ts). Trzymana osobno, żeby route handler mógł
 // ją zaimportować bez ciągnięcia za sobą granicy klienckiej.
 
-import { todayLocalISO } from "./dates";
+import { todayLocalISO, daysBetweenISO } from "./dates";
 
 export type Lead = {
   id: string;
@@ -258,9 +258,15 @@ export const SEED: SeedLead[] = [
 
 export function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
-  const now = new Date();
-  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  // Dni KALENDARZOWE, nie floor z godzin. `ostatni_kontakt` to kolumna DATE
+  // ("YYYY-MM-DD"): dawne `new Date(dateStr)` parsowało ją jako północ UTC,
+  // a `new Date()` (teraz) jest lokalne — więc między lokalną północą a
+  // przesunięciem strefy (latem +2 h) wynik wychodził o 1 za mały. To jedyne
+  // źródło reguły „wymaga działania dziś" (isOverdue), a apka
+  // (LeadRules.wymagaDzialania, repo leggera-hub-ios) liczy dni kalendarzowo —
+  // panel i telefon mówiły o tym samym leadzie dwie różne rzeczy tuż po
+  // północy. Zrównane z daysBetweenISO (i z apką). Audyt 6, 2026-07-23.
+  return daysBetweenISO(dateStr.slice(0, 10), todayLocalISO());
 }
 
 const CLOSED_STATUSES = new Set(["Zamknięte - sukces", "Odrzucone / brak zainteresowania"]);
