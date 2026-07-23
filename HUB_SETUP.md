@@ -653,6 +653,74 @@ tylko gdy `thread.length > 0` (dokładnie ten sam warunek co pasek wątku).
   wątku do potwierdzenia na produkcji (lokalnie Ollama świadomie
   wyłączona).
 
+## Moduł 50 — AI: szkic notatki z maila (2026-07-23)
+
+Trzeci i ostatni z trzech punktów AI z Audytu 7
+(`docs/plany-modulow/50-ai-szkic-notatki.md`) — jedyny z trójki, który
+wymagał NOWEJ decyzji produktowej, nie tylko rozszerzenia gotowego
+przepływu. Właściciel potwierdził na starcie tego modułu: **v1 obsługuje
+wyłącznie źródło „mail"** — rozmowa telefoniczna zostaje świadomie poza
+zakresem, bo quick-log dziś zapisuje tekst wpisany RĘCZNIE (nie transkrypcję
+nagrania), więc „szkic notatki z rozmowy" byłby w praktyce inną, mniejszą
+funkcją („rozwiń mój wpis"), nie „streść mi rozmowę". Ręczne dodawanie
+notatek z rozmów w quick-logu zostaje **bez żadnej zmiany**.
+
+- **`notes.source_mail_id`** (nowa kolumna, `createLinksSchema()` w
+  `lib/db.ts`) — `TEXT REFERENCES mail_messages(id) ON DELETE SET NULL`.
+  Właściciel potwierdził wprost: warto dać się wrócić do maila-źródła jednym
+  kliknięciem. `ON DELETE SET NULL` (ten sam wzorzec co `notes.event_id`):
+  skasowanie maila odblokowuje notatkę, nie zabiera jej ze sobą.
+- **`lib/note-draft.ts`** (nowy, wzorem `lib/mail-draft.ts`/`lib/mail-
+  summary.ts`) — `NOTE_DRAFT_MODEL` (`qwen3.6:27b`, ten sam model co szkic
+  odpowiedzi i podsumowanie wątku), `NOTE_DRAFT_SYSTEM` (instrukcja: krótka,
+  rzeczowa notatka do CRM — ISTOTA rozmowy, nie treść maila przepisana),
+  `buildNoteDraftPrompt()` reużywający `MailDraftClientContext` z `lib/mail-
+  draft.ts` (import typu, nie duplikat), `cleanNoteDraftText()` (własna
+  kopia sprzątania odpowiedzi modelu — ten sam wzorzec co w `mail-draft.ts`/
+  `mail-summary.ts`, świadomie nieshareowany między plikami).
+- **`POST /api/mail/:id/draft-note`** (admin-only, `runtime = "nodejs"`,
+  `maxDuration = 60`) — dokładnie ten sam kształt zapytania co `draft-reply`
+  (mail + LEFT JOIN `clients`/`leads` + ostatnia notatka z osi kontaktu),
+  woła `ollamaGenerate()`, zwraca `{ draft }` albo `503` („Model AI chwilowo
+  niedostępny — dodaj notatkę ręcznie."). Nigdy nic nie zapisuje.
+- **UI (`MailDetailPanel.tsx`):** przycisk „Szkic notatki" (`IconNotes`) w
+  głównym pasku akcji, obok „Przekaż" — widoczny niezależnie od kierunku
+  wiadomości (notatkę warto zrobić i z maila wysłanego, i odebranego,
+  inaczej niż „Odpisz"). Klik → szkic w małym modalu (`Modal` z `../Modal.tsx`,
+  `card="max-w-lg"`, decyzja właściciela: modal przy mailu, nie przeskok do
+  Notatnika) — edytowalny, z jawnym komunikatem, że to tylko propozycja.
+  „Zapisz notatkę" → **istniejący** `POST /api/notes`, bez zmian API poza
+  nowym opcjonalnym polem: pierwsza linijka szkicu → `tytul`, reszta →
+  `tresc` (ten sam podział co ręczne dodawanie w `NotesDashboard.tsx`),
+  `client_id`/`lead_id` z powiązania maila (puste dla maila bez powiązania —
+  notatka zostaje bez powiązania, jak ręczne dodawanie dziś),
+  `source_mail_id` = bieżący mail. Zapis następuje WYŁĄCZNIE po tym
+  kliknięciu — model nigdy nie tworzy notatki sam.
+- **Plakietka „z maila"** (`NoteBadges`, `notes/shared.tsx`) — wzorem
+  plakietek „przekuto w projekt"/„do kalendarza": widoczna tylko gdy
+  `source_mail_id` jest ustawione, link do `/admin/mail/:id`. Świadomie BEZ
+  dodatkowego oznaczenia „z AI" na samej notatce (decyzja właściciela:
+  zero-AI dotąd nie rozróżniało notatek pochodzeniem, to zbędna złożoność) —
+  notatka po zapisaniu jest zwykłą notatką, nieodróżnialną od ręcznej poza
+  plakietką linku do maila.
+- **Zweryfikowane lokalnie:** `tsc` czysty. Na żywo (`preview_start`):
+  przycisk widoczny zarówno w kolumnie podglądu (`MailDashboard.tsx`), jak
+  i na samodzielnej podstronie `[id]/page.tsx`; brak `OLLAMA_API_URL`
+  lokalnie → `503` na `POST .../draft-note` (potwierdzone w Network) +
+  kontrolowany toast, bez zawieszenia UI. `POST /api/notes` z
+  `source_mail_id` zweryfikowany bezpośrednio na dwóch przypadkach: mail
+  dopięty do klienta (Nordwind Studio) → notatka zapisana z `client_id` +
+  `source_mail_id`, plakietka „z maila" w Notatniku poprawnie linkuje z
+  powrotem do tego samego maila; mail BEZ powiązania → notatka zapisana bez
+  `client_id`/`lead_id`, jak ręczne dodawanie dziś. Jakość samej treści
+  szkicu (polska proza modelu na realnej korespondencji) do potwierdzenia na
+  produkcji — lokalnie Ollama świadomie wyłączona (patrz „Infrastruktura
+  AI" przy Module 7).
+
+Po tym module wszystkie trzy punkty AI z Audytu 7 (kategoria kosztu →
+podsumowanie wątku → szkic notatki) są zbudowane — patrz `CLAUDE.md` →
+„Świadome decyzje produktowe".
+
 ## Moduł 8 — OCR paragonów/faktur zakupowych w Kosztach (2026-07-14)
 
 Przy dodawaniu kosztu: po wgraniu załącznika (skan/PDF) pojawia się przycisk

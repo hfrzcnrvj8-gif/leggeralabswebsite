@@ -20,10 +20,11 @@ export async function GET(
   await ensureLinksSchema();
   const sql = getSql();
   const rows = await sql`
-    SELECT n.*, p.tytul AS project_tytul, e.data AS event_data
+    SELECT n.*, p.tytul AS project_tytul, e.data AS event_data, m.subject AS source_mail_subject
     FROM notes n
     LEFT JOIN projects p ON p.id = n.project_id
     LEFT JOIN events e ON e.id = n.event_id
+    LEFT JOIN mail_messages m ON m.id = n.source_mail_id
     WHERE n.id = ${id};
   `;
   if (!rows[0]) {

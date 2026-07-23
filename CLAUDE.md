@@ -181,9 +181,10 @@ czekaj na Vercel → zgaduj"):
   decyzja właściciela zapadła: **zbudowane** — szkic maila (Moduł 7), odczyt
   paragonu (Moduł 8), propozycja kategorii kosztu (Moduł 48,
   `docs/plany-modulow/48-ai-kategoria-kosztu.md`), podsumowanie wątku poczty
-  (Moduł 49, `49-ai-podsumowanie-watku.md`); **zdecydowane, do zbudowania** —
-  szkic notatki z maila (`50-ai-szkic-notatki.md`, zakres zawężony do źródła
-  „mail" — patrz brief, `PROMPT-50.md` gotowy do nowego czatu). Każdy nowy
+  (Moduł 49, `49-ai-podsumowanie-watku.md`), szkic notatki z maila (Moduł 50,
+  `50-ai-szkic-notatki.md`, zakres świadomie zawężony do źródła „mail" —
+  rozmowa telefoniczna zostaje poza zakresem, quick-log dalej bez zmian, patrz
+  brief). Tym samym wszystkie trzy punkty z Audytu 7 są zbudowane. Każdy nowy
   punkt poza tą listą dalej wymaga wyraźnej prośby właściciela, nie zakładaj
   kolejnych z rozpędu.
 - "Zdrowie" projektu (Na dobrej drodze/Zagrożony/Zerwany) jest ręczne i

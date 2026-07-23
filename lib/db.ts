@@ -2339,6 +2339,14 @@ async function createLinksSchema(): Promise<void> {
   await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;`;
 
+  // Moduł 50 — ślad pochodzenia dla notatek powstałych ze „Szkicu notatki"
+  // przy mailu (właściciel potwierdził: warto dać się wrócić do źródła
+  // jednym kliknięciem). ON DELETE SET NULL: skasowanie maila ma odblokować
+  // notatkę, nie zabrać jej ze sobą — ten sam wzorzec co notes.event_id
+  // wyżej. `mail_messages` jest już zapewnione przez ensureMailSchema() na
+  // górze tej funkcji.
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS source_mail_id TEXT REFERENCES mail_messages(id) ON DELETE SET NULL;`;
+
   // Aliasy adresów e-mail (decyzja właściciela 2026-07-16).
   //
   // Auto-dopasowanie poczty umie tylko równość adresu z tym zapisanym w

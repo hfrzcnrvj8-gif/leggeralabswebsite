@@ -24,10 +24,12 @@ import {
   IconDownload,
   IconBellOff,
   IconBell,
+  IconNotes,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { useUI } from "../ui";
 import { Popover, PropertyMenu, MenuRow } from "../Menu";
+import { Modal } from "../Modal";
 import { LinkPicker, type LinkTarget, type LinkValue } from "../LinkPicker";
 import {
   MailStatusTag,
@@ -147,6 +149,10 @@ export function MailDetailPanel({
   // Moduł 49 — podsumowanie wątku: tylko do odczytu, nigdy nie wysyła/zapisuje.
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
+  const [noteDraftLoading, setNoteDraftLoading] = useState(false);
+  const [noteDraftOpen, setNoteDraftOpen] = useState(false);
+  const [noteDraftText, setNoteDraftText] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
   const [projects, setProjects] = useState<Project[] | null>(null);
   const templates = useMailTemplates();
   // "Cofnij wysyłkę" (Etap 1 Modułu 4b) — dotyczy WSZYSTKICH ścieżek wysyłki,
@@ -509,6 +515,63 @@ export function MailDetailPanel({
     }
   }, [mailId, toast]);
 
+  /** Szkic notatki (Moduł 50) — model tylko PROPONUJE treść, otwiera mały
+   * modal do edycji. Zapis do Notatnika następuje wyłącznie po ręcznym
+   * kliknięciu „Zapisz notatkę" (saveNoteDraft niżej) — model nigdy nie
+   * zapisuje sam. Świadomie tylko źródło „mail" (docs/plany-modulow/
+   * 50-ai-szkic-notatki.md) — rozmowy telefoniczne nie mają dziś transkrypcji. */
+  const requestNoteDraft = useCallback(async () => {
+    setNoteDraftLoading(true);
+    try {
+      const res = await fetch(`/api/mail/${mailId}/draft-note`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast(data?.error || "Model AI chwilowo niedostępny — dodaj notatkę ręcznie.", "error");
+        return;
+      }
+      setNoteDraftText(data.draft || "");
+      setNoteDraftOpen(true);
+    } finally {
+      setNoteDraftLoading(false);
+    }
+  }, [mailId, toast]);
+
+  /** Zapis notatki ze szkicu — istniejący POST /api/notes, bez zmian API.
+   * Pierwsza linijka staje się tytułem, reszta treścią — ten sam podział co
+   * ręczne dodawanie w NotesDashboard.tsx (addNote()), więc notatka ze
+   * szkicu nie różni się kształtem od dodanej ręcznie. Powiązanie i
+   * source_mail_id idą razem, żeby dało się wrócić do maila jednym
+   * kliknięciem (NoteBadges w notes/shared.tsx). */
+  const saveNoteDraft = useCallback(async () => {
+    if (!mail) return;
+    const text = noteDraftText.trim();
+    if (!text) return;
+    const [firstLine, ...rest] = text.split("\n");
+    setNoteSaving(true);
+    try {
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tytul: firstLine.slice(0, 120),
+          tresc: rest.join("\n") || firstLine,
+          client_id: mail.client_id,
+          lead_id: mail.lead_id,
+          source_mail_id: mailId,
+        }),
+      });
+      if (!res.ok) {
+        toast("Nie udało się zapisać notatki.", "error");
+        return;
+      }
+      setNoteDraftOpen(false);
+      setNoteDraftText("");
+      toast("Notatka zapisana w Notatniku.");
+    } finally {
+      setNoteSaving(false);
+    }
+  }, [mail, mailId, noteDraftText, toast]);
+
   /** Wspólne dla "Utwórz leada" i "Utwórz klienta" — te same kroki, inny
    * endpoint. Właściciel decyduje kliknięciem, czy piszący to dopiero lead do
    * przepchnięcia przez lejek, czy od razu realna relacja (prośba
@@ -590,6 +653,7 @@ export function MailDetailPanel({
   const unassigned = !mail.client_id && !mail.lead_id && mail.kierunek === "in" && mail.kategoria !== "reklama";
 
   return (
+    <>
     <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -820,6 +884,19 @@ export function MailDetailPanel({
             className="rounded-full border hairline px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
           >
             <IconCornerUpRight size={13} className="mr-1 inline align-[-2px]" />Przekaż
+          </button>
+          {/* Szkic notatki (Moduł 50) — model proponuje treść notatki do CRM
+              na podstawie tego maila, właściciel edytuje i zatwierdza w
+              modalu niżej. Świadomie niezależne od kierunku wiadomości —
+              notatkę warto zrobić i z maila wysłanego, i odebranego. */}
+          <button
+            onClick={() => void requestNoteDraft()}
+            disabled={noteDraftLoading}
+            title="Model AI zaproponuje treść notatki do Notatnika na podstawie tego maila — do edycji przed zapisaniem"
+            className="rounded-full border hairline px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            <IconNotes size={13} className="mr-1 inline align-[-2px]" />
+            {noteDraftLoading ? "Generuję…" : "Szkic notatki"}
           </button>
           {mail.kierunek === "in" && (
             <Popover
@@ -1161,5 +1238,45 @@ export function MailDetailPanel({
         </div>
       )}
     </div>
+
+    {/* Modal szkicu notatki (Moduł 50) — mały modal, nie pełny przeskok do
+        Notatnika (decyzja właściciela): szkic wylądował przy mailu, tam gdzie
+        powstał. Zapis idzie przez zwykły POST /api/notes, więc notatka po
+        zapisaniu jest zwykłą notatką — bez dodatkowego oznaczenia „z AI"
+        (też decyzja właściciela: zero-AI dotąd nie rozróżniało pochodzenia). */}
+    <Modal open={noteDraftOpen} onClose={() => (noteSaving ? false : setNoteDraftOpen(false))} card="card-paper max-w-lg w-full rounded-2xl p-6">
+      <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+        <IconNotes size={12} />
+        Szkic notatki (AI)
+      </p>
+      <p className="mb-3 text-[12px] text-muted">
+        Propozycja do przeczytania i poprawienia — zapisuje się dopiero po kliknięciu „Zapisz notatkę".
+      </p>
+      <textarea
+        value={noteDraftText}
+        onChange={(e) => setNoteDraftText(e.target.value)}
+        rows={8}
+        autoFocus
+        placeholder="Treść notatki…"
+        className="w-full rounded-xl border hairline bg-transparent p-3 text-[13px] outline-none focus:border-brand-purple/50"
+      />
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          onClick={() => void saveNoteDraft()}
+          disabled={noteSaving || !noteDraftText.trim()}
+          className="btn-primary rounded-full px-4 py-1.5 text-[13px] disabled:opacity-50"
+        >
+          {noteSaving ? "Zapisuję…" : "Zapisz notatkę"}
+        </button>
+        <button
+          onClick={() => setNoteDraftOpen(false)}
+          disabled={noteSaving}
+          className="rounded-full px-3 py-1.5 text-[13px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+        >
+          Anuluj
+        </button>
+      </div>
+    </Modal>
+    </>
   );
 }

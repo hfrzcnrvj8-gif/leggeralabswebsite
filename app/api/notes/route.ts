@@ -26,11 +26,12 @@ export async function GET() {
   // Sklejamy w bazie, a nie N-toma żądaniami z karty — log i tak wisi przy
   // notatce, a to jedno podzapytanie na całą listę.
   const rows = await sql`
-    SELECT n.*, p.tytul AS project_tytul, e.data AS event_data,
+    SELECT n.*, p.tytul AS project_tytul, e.data AS event_data, m.subject AS source_mail_subject,
       COALESCE((SELECT string_agg(a.text, ' ') FROM notes_activity a WHERE a.note_id = n.id), '') AS log_text
     FROM notes n
     LEFT JOIN projects p ON p.id = n.project_id
     LEFT JOIN events e ON e.id = n.event_id
+    LEFT JOIN mail_messages m ON m.id = n.source_mail_id
     ORDER BY n.pinned DESC, n.updated_at DESC;
   `;
   return NextResponse.json({ notes: rows });
@@ -56,10 +57,13 @@ export async function POST(req: NextRequest) {
   const tagi = str(body?.tagi, 500);
   const clientId = typeof body?.client_id === "string" && body.client_id.trim() ? body.client_id : null;
   const leadId = typeof body?.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;
+  // Moduł 50 — ślad pochodzenia dla notatek zapisanych ze „Szkicu notatki"
+  // przy mailu. Puste dla notatek dodanych ręcznie, jak dziś.
+  const sourceMailId = typeof body?.source_mail_id === "string" && body.source_mail_id.trim() ? body.source_mail_id : null;
 
   await sql`
-    INSERT INTO notes (id, tytul, tresc, tagi, client_id, lead_id)
-    VALUES (${id}, ${tytul.slice(0, 300)}, ${tresc.slice(0, 8000)}, ${tagi}, ${clientId}, ${leadId});
+    INSERT INTO notes (id, tytul, tresc, tagi, client_id, lead_id, source_mail_id)
+    VALUES (${id}, ${tytul.slice(0, 300)}, ${tresc.slice(0, 8000)}, ${tagi}, ${clientId}, ${leadId}, ${sourceMailId});
   `;
 
   return NextResponse.json({ ok: true, id });

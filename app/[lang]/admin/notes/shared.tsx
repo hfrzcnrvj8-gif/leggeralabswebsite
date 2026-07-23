@@ -10,7 +10,7 @@
 // które z czasem się rozjadą.
 
 import Link from "next/link";
-import { IconCalendar, IconCalendarPlus, IconFolder } from "@tabler/icons-react";
+import { IconCalendar, IconCalendarPlus, IconFolder, IconMail } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { Locale } from "@/i18n/config";
@@ -120,10 +120,11 @@ export function useNoteActions(onChanged: () => void) {
   return { patch, togglePin, setArchived, remove, promote, schedule };
 }
 
-/** Plakietki „przekuto w…" — klikalny ślad po projekcie i wydarzeniu.
- * Widoczne tylko, gdy coś powstało; dla świeżej notatki nie ma tu nic. */
+/** Plakietki „przekuto w…" — klikalny ślad po projekcie i wydarzeniu, oraz
+ * (Moduł 50) po mailu, z którego powstał szkic tej notatki. Widoczne tylko,
+ * gdy coś powstało; dla świeżej/ręcznej notatki nie ma tu nic. */
 export function NoteBadges({ note, lang }: { note: Note; lang: Locale }) {
-  if (!note.project_id && !note.event_id) return null;
+  if (!note.project_id && !note.event_id && !note.source_mail_id) return null;
   const cls =
     "inline-flex items-center gap-1 rounded-full border hairline px-2 py-0.5 text-[10.5px] text-muted transition-colors hover:text-[var(--fg)]";
   return (
@@ -136,6 +137,11 @@ export function NoteBadges({ note, lang }: { note: Note; lang: Locale }) {
       {note.event_id && (
         <Link href={`/${lang}/admin/calendar`} className={cls}>
           <IconCalendar size={12} /> {note.event_data ? formatPlDate(note.event_data) : "W kalendarzu"}
+        </Link>
+      )}
+      {note.source_mail_id && (
+        <Link href={`/${lang}/admin/mail/${note.source_mail_id}`} className={cls} title="Wróć do maila, z którego powstał szkic">
+          <IconMail size={12} /> <span className="max-w-[16ch] truncate">{note.source_mail_subject || "Z maila"}</span>
         </Link>
       )}
     </div>

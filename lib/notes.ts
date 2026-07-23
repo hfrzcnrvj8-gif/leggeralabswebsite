@@ -20,6 +20,10 @@ export type Note = {
   project_id: string | null;
   /** To samo co project_id, ale dla „Do kalendarza". */
   event_id: string | null;
+  /** Mail, z którego powstał szkic tej notatki (Moduł 50, „Szkic notatki").
+   * NULL dla notatek dodanych ręcznie — to jedyne dziś źródło szkicu, więc
+   * pole nie rozróżnia SKĄD (zawsze mail), tylko CZY w ogóle. */
+  source_mail_id: string | null;
   /** Przypięte lądują na górze listy, przed sortowaniem po updated_at. */
   pinned: boolean;
   /** Niepuste = notatka w archiwum. Archiwum jest domyślnym „usuwaniem"
@@ -32,6 +36,9 @@ export type Note = {
    * powiedzieć KTÓRY i NA KIEDY. Nie wysyłaj ich z powrotem PATCH-em. */
   project_tytul?: string | null;
   event_data?: string | null;
+  /** Temat maila wskazanego przez source_mail_id — do plakietki „z maila".
+   * Doklejane JOIN-em wzorem project_tytul/event_data, nie kolumna `notes`. */
+  source_mail_subject?: string | null;
   /** Wpisy z logu sklejone w jeden string — TYLKO na potrzeby wyszukiwarki.
    * Do wyświetlania służy GET /api/notes/:id/activity (pełne rekordy z datą). */
   log_text?: string | null;
