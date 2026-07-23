@@ -12,7 +12,16 @@
 # żeby nie dało się przypadkiem odtworzyć kopii na produkcję jednym
 # strzałem myszy. Domyślnie odtwarzaj do PUSTEJ bazy testowej i dopiero
 # tam sprawdzaj, czy dane są kompletne.
-set -eu
+#
+# `pipefail` jest tu WARUNKIEM POPRAWNOŚCI, dokładnie tak jak w kopia.sh (tam
+# jest komentarz, dlaczego). W potoku `openssl | gzip | sed | psql` bez niego
+# liczy się wynik OSTATNIEGO polecenia — a przy złym haśle openssl pada („bad
+# decrypt"), gzip nie dostaje danych, do psql trafia PUSTE wejście i psql
+# kończy się sukcesem. Skutek: skrypt wypisywał „Gotowe" i kod 0, mimo że nie
+# odtworzył ANI JEDNEJ tabeli. Złapane testem ze złym hasłem w Audycie 3
+# (2026-07-23). Z `pipefail` błąd któregokolwiek ogniwa wywraca cały skrypt,
+# więc zły klucz albo uszkodzony plik dają twardy błąd, nie ciche „Gotowe".
+set -euo pipefail
 
 PLIK="${1:-}"
 CEL="${2:-}"
@@ -61,10 +70,18 @@ echo "Odszyfrowuję i odtwarzam…"
 #
 # ON_ERROR_STOP=1 ZOSTAJE — chcemy wiedzieć o każdym innym błędzie. Wyciszenie
 # wszystkich błędów „żeby przeszło" zamieniłoby odtwarzanie w loterię.
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:HASLO_KOPII -in "$PLIK" \
+if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:HASLO_KOPII -in "$PLIK" \
   | gzip -dc \
   | sed -e '/^CREATE SCHEMA public;$/d' \
   | psql "$CEL" -v ON_ERROR_STOP=1 --quiet
+then
+  echo
+  echo "BŁĄD: odtworzenie NIE powiodło się. NIC nie zostało wgrane w komplecie."
+  echo "Najczęstsza przyczyna: złe hasło kopii (HASLO_KOPII) — wtedy widać wyżej"
+  echo "'bad decrypt' i 'not in gzip format'. Inne: uszkodzony plik kopii albo"
+  echo "baza docelowa, która NIE jest pusta (błędy o istniejących tabelach)."
+  exit 1
+fi
 
 echo "Gotowe. Sprawdź, czy dane są kompletne:"
 echo "  psql \"$CEL\" -c '\\dt'"

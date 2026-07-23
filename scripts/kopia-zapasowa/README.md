@@ -168,6 +168,53 @@ Skrypt odtwarzający **celowo pyta o potwierdzenie**, jeśli adres docelowy
 wygląda na produkcyjnego Neona — żeby nie dało się nadpisać żywej bazy jednym
 nieuważnym poleceniem.
 
+> ### ⏱️ Zmierz, ile trwa odtworzenie (Audyt 3, 2026-07-23)
+>
+> To jest brakująca liczba planu awaryjnego: **ile realnie trwa powrót**.
+> Gdy będziesz robił ćwiczebne odtworzenie, **włącz stoper na całości** — od
+> „zaczynam szukać pliku kopii" do „`\dt` pokazuje komplet tabel". Nie chodzi
+> o sam skrypt (ten trwa sekundy — sprawdzone w Audycie 3), tylko o kroki
+> ludzkie: znalezienie pliku, postawienie bazy docelowej, wklejenie adresów.
+> Zapisz tę liczbę tutaj: **czas pełnego odtworzenia = ____ min** (data ____).
+> Dopóki jej nie masz, „panel wróci w niecałą dobę" jest założeniem, nie faktem.
+>
+> Audyt 3 złapał przy okazji **cichy błąd w `odtworz.sh`**: przy złym haśle
+> szyfrującym skrypt kończył się słowem „Gotowe", choć nie wgrał ani jednej
+> tabeli (brakowało `pipefail`). Naprawione — teraz zły klucz daje twardy błąd
+> z komunikatem po polsku, nie ciche „Gotowe". Dlatego właśnie kopie trzeba
+> PRÓBOWAĆ odtwarzać, a nie tylko sprawdzać, czy plik powstał.
+
+---
+
+## Kopia poza domem (off-site) — drugi dysk
+
+**Po co.** Wszystkie kopie stoją na NAS-ie w domu. Pożar, kradzież albo awaria
+dysku NAS-a zabiera **oryginał i wszystkie kopie naraz**. Off-site to druga
+kopia trzymana w **innym miejscu** (praca, u rodziny) — ratunek na katastrofę
+fizyczną. Pliki są zaszyfrowane, więc drugi dysk nie wystawia danych, nawet gdy
+ktoś go znajdzie.
+
+**Wybrana metoda (decyzja właściciela, Audyt 3):** drugi dysk uzupełniany
+**ręcznie**. Bez automatu w chmurze — świadomie, żeby nie mnożyć rzeczy do
+pilnowania. Off-site jest wtedy tak świeży, jak ostatnie ręczne skopiowanie.
+
+**Jak to robisz (co jakiś czas, np. raz w tygodniu):**
+
+1. Podłącz dysk off-site do NAS-a albo do Maca (gdziekolwiek widzisz katalog
+   z kopiami).
+2. Skopiuj na niego **najnowszy** plik z `dzienne/` (albo cały katalog kopii —
+   pliki są małe, ~1 MB każdy).
+3. Odłóż dysk z powrotem do drugiego miejsca.
+
+To wszystko. Pliki są już zaszyfrowane tym samym `HASLO_KOPII`, więc odtwarza
+się je dokładnie tak samo jak z NAS-a (sekcja „Jak odtworzyć kopię" wyżej) —
+byle mieć to hasło w menedżerze haseł.
+
+> **Uwaga:** off-site jest wart tyle, ile Twoja regularność. Jeśli skopiujesz
+> raz i zapomnisz na pół roku, w razie katastrofy wrócisz do stanu sprzed pół
+> roku. Automatyczna kopia off-site w chmurze (bez Twojego udziału) jest
+> odłożona **do rozważenia po rejestracji firmy** — patrz `PO_REJESTRACJI.md`.
+
 ---
 
 ## Skąd wiesz, że kopie działają

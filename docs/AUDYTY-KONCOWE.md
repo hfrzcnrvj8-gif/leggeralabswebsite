@@ -142,6 +142,30 @@ usunąć na żądanie.
 
 # Audyt 3 — Niezawodność, kopie i powrót po awarii
 
+> ### ✅ WYKONANY — 2026-07-23
+>
+> Wyniki: **`docs/AUDYT-3-WYNIKI.md`**.
+>
+> W skrócie: skrypt odtwarzający kopię (`odtworz.sh`) miał **cichy błąd** —
+> przy złym haśle szyfrującym kończył się słowem „Gotowe" i kodem 0, nie wgrawszy
+> ani jednej tabeli (brak `pipefail`, tak jak w `kopia.sh`). Złapane
+> **uruchomieniem w Dockerze**, nie lekturą; naprawione (zły klucz → twardy błąd
+> po polsku). Odtworzenie na syntetycznej bazie przejechane end-to-end — dane
+> wracają co do znaku.
+>
+> Pięć punktów awarii dostało procedurę powrotu (Neon, Vercel, NAS, az.pl,
+> Ollama). **Ollama i az.pl potwierdzone gretem po użyciu jako izolowane** —
+> ich awaria degraduje tylko swój moduł, nie wywraca panelu. Kod stoi w GitHubie
+> **i** lokalnie na Macu — nie ginie z Vercelem.
+>
+> Decyzje właściciela: off-site = **drugi dysk ręcznie** (bez automatu w chmurze,
+> do rozważenia po rejestracji); RPO **do 24 h** (kopia raz na dobę zostaje);
+> RTO **do ~1 dnia** (procedura ręczna); **brak drugiej osoby** → runbook „dla
+> przyszłego Ciebie". Otwarte: właściciel ma **zmierzyć czas prawdziwego
+> odtworzenia** z NAS-a (Claude nie ma tam dostępu).
+>
+> **Następny wg ryzyka: Audyt 2 (dane osobowe i RODO).**
+
 **Pytanie:** co się stanie, gdy padnie każdy pojedynczy element — i czy
 umiemy z tego wrócić.
 

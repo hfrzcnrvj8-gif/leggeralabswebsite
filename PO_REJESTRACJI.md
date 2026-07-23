@@ -194,6 +194,28 @@ celu przekazywania na `kontakt@leggeralabs.pl` zator puścił.
 z zapisanymi kodami zapasowymi, drugi zweryfikowany adres i ten sam adres na
 koncie Vercela (osobno adres do faktur przy przejściu na Pro).
 
+# Pozycja dopisana w Audycie 3 (2026-07-23)
+
+## 15. Automatyczna kopia off-site w chmurze — rozważyć
+
+Audyt 3 ustalił, że wszystkie kopie bazy stoją w jednym miejscu (NAS w domu) —
+pożar/kradzież/awaria dysku zabiera oryginał i kopie naraz. Na teraz właściciel
+wybrał **ręczny drugi dysk** off-site (`scripts/kopia-zapasowa/README.md` →
+„Kopia poza domem") — świadomie, żeby nie mnożyć automatów przed pierwszym
+klientem.
+
+**Po rejestracji** warto rozważyć **automatyczny** off-site: skrypt na NAS-ie
+po zrobieniu kopii wysyła zaszyfrowany plik także do taniego magazynu w chmurze
+(np. Backblaze B2, Hetzner Storage Box — rząd 5–15 zł/mies). Zaleta: off-site
+przestaje zależeć od dyscypliny właściciela. Plik jest już zaszyfrowany
+(AES-256), więc chmura nie widzi danych. Nadzór podłączyć pod istniejący
+mechanizm z Audytu 4 (`/api/backup/ping`), **nie** budować nowego automatu.
+
+Powód odłożenia: kopia off-site w chmurze to nowe miejsce z danymi osobowymi
+klientów — jej retencja i podstawa prawna muszą trafić do polityki prywatności
+(zakres Audytu 2 / `docs/DO-PRAWNIKA-I-TLUMACZA.md`), co ma sens dopiero, gdy
+w bazie są prawdziwi klienci.
+
 ---
 _Kontekst i historia decyzji: pamięć Claude `comprehensive-audit-plan`.
 Uzupełnienie pozycji 6–12: audyt Modułu 29, `docs/plany-modulow/29-audyt-koncowy.md`._
