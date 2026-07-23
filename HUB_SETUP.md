@@ -6773,3 +6773,30 @@ edytorze oferty (edycja pozycji jest ograniczona) — więc rozszerzenie
 `service_catalog` jej nie psuje (dodatkowe kolumny są opcjonalne, stare pola
 bez zmian). Gdyby katalog miał wejść do apki, kategorie + widełki dotkną obu
 front-endów — wtedy krótki audyt drugiej platformy (zasada z Audytu 6/7).
+
+### Startowy katalog — 38 komponentów, 3 Tiery (2026-07-23)
+
+Katalog nie startuje pusty. `lib/catalogStarter.ts` (`STARTER_CATALOG`) to
+„warsztatowa" biblioteka **41 pozycji** rozpisana na **3 Tiery × 13 komponentów**
+(GPU, CPU, płyta, RAM, dysk NVMe, zasilacz, obudowa+chłodzenie, UPS, NAS, dyski
+HDD OSOBNO, sieć, robocizna, serwis) + 2 alternatywy Mac. **KONKRETNE modele**
+(producent + model + pojemność + spec + „lub odpowiednik"), np. RTX 5090 /
+RTX 6000 Ada / RTX PRO 6000 96 GB, UGREEN NASync DXP2800/4800/6800, IronWolf Pro,
+ASUS Pro WS WRX90E-SAGE + Threadripper PRO. Rozpisane **per komponent**, bo
+właściciel kupuje CZĘŚCI, nie gotowce — gotowcem jest dopiero to, co dostaje
+klient. Prefiks `T1/T2/T3 ·` w nazwie (katalog grupuje po kategorii, nie ma osi
+Tier — prefiks trzyma poziomy razem i pozwala je czytać wzrokiem).
+
+**Wsiewane RAZ** — `seedStarterCatalog()` w `createInvoicesSchema()` (`lib/db.ts`),
+za **bramką TREŚCI** (znacznik `catalog_starter` w `schema_state`), a nie bramką
+wersji: kolejne deploye go nie powtarzają i **nie wskrzeszają pozycji skasowanych
+przez właściciela**. Każdy INSERT dodatkowo pomija duplikat po nazwie. Ta sama
+funkcja działa w dev (PGlite) i prod — w dev sama tworzy `schema_state`
+(IF NOT EXISTS), bo bramka migracji jest tam wyłączona. INSERT-y są nie-DDL →
+owinięte w `inMigration()`.
+
+**Ceny to WIDEŁKI do weryfikacji**, nie prawda: stan lipiec 2026, rynek GPU
+rozchwiany niedoborem GDDR7/DRAM (RTX 5090 ~18 tys., RTX 6000 Ada ~31 tys.,
+RTX PRO 6000 96 GB ~56 tys. netto). `koszt_zakupu` celowo pusty — właściciel
+wpisuje realny koszt przy wycenie u dostawcy. Reset startera (gdyby chciał od
+nowa): skasuj wiersz `catalog_starter` z `schema_state` i przeładuj.

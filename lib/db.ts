@@ -2,6 +2,7 @@ import { neon, Pool, type NeonQueryFunction } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 import { inMigration } from "./migration-ctx";
 import { MAIL_NUDGE_DAYS, type NudgeThread } from "./mail";
+import { STARTER_CATALOG } from "./catalogStarter";
 
 export type Sql = NeonQueryFunction<false, false>;
 
@@ -1003,7 +1004,49 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS opis TEXT NOT NULL DEFAULT '';`;
   await sql`CREATE INDEX IF NOT EXISTS service_catalog_kategoria_idx ON service_catalog(kategoria);`;
 
+  // Startowy katalog komponentów (Moduł 47) — wsiewany RAZ. Bramka TREŚCI, nie
+  // wersji: znacznik `catalog_starter` w schema_state gwarantuje jednorazowość
+  // niezależnie od SCHEMA_VERSION, więc kolejne deploye go nie powtarzają i nie
+  // wskrzeszają pozycji skasowanych przez właściciela. Każdy INSERT dodatkowo
+  // pomija duplikat po nazwie (gdyby właściciel dodał coś o tej samej nazwie).
+  await seedStarterCatalog(sql);
+
   await markSchemaApplied("invoices");
+}
+
+/** Jednorazowy zasiew biblioteki komponentów. Wywoływany z migracji faktur —
+ * w prod odpala się przy pierwszym deployu z tą funkcją, w dev przy każdym
+ * starcie (bramka po nazwie i tak chroni przed duplikatami). Dane: `lib/
+ * catalogStarter.ts`. INSERT-y są nie-DDL → owinięte w `inMigration()`. */
+async function seedStarterCatalog(sql: Sql): Promise<void> {
+  // W dev bramka migracji jest wyłączona (brak SHA), więc `schema_state` nie
+  // powstaje przez loadAppliedVersions — tworzymy ją tu (IF NOT EXISTS, ta sama
+  // definicja), inaczej znacznik treści nie miałby gdzie usiąść.
+  await sql`
+    CREATE TABLE IF NOT EXISTS schema_state (
+      name TEXT PRIMARY KEY,
+      version TEXT NOT NULL,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  const juz = (await inMigration(
+    () => sql`SELECT 1 AS x FROM schema_state WHERE name = 'catalog_starter' LIMIT 1;`
+  )) as unknown as { x: number }[];
+  if (juz[0]) return;
+
+  for (const c of STARTER_CATALOG) {
+    const jednostka = c.jednostka ?? "szt.";
+    await inMigration(
+      () => sql`
+        INSERT INTO service_catalog (id, nazwa, cena_netto, vat_stawka, jednostka, kategoria, cena_min, cena_max, opis)
+        SELECT ${randomUUID()}, ${c.nazwa}, ${c.cena_netto}, '23', ${jednostka}, ${c.kategoria}, ${c.cena_min}, ${c.cena_max}, ${c.opis}
+        WHERE NOT EXISTS (SELECT 1 FROM service_catalog WHERE nazwa = ${c.nazwa});
+      `
+    );
+  }
+  await inMigration(
+    () => sql`INSERT INTO schema_state (name, version) VALUES ('catalog_starter', 'v1') ON CONFLICT (name) DO NOTHING;`
+  );
 }
 
 /** Lazily tworzy tabele modułu Faktur (ustawienia firmy, faktury, pozycje). */
