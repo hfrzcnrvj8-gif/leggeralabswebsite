@@ -18,6 +18,8 @@ import {
   IconBookmark,
   IconBookmarkPlus,
 } from "@tabler/icons-react";
+import { CatalogCategoryIcon } from "../icons";
+import { hasPriceRange } from "@/lib/catalog";
 import type { Locale } from "@/i18n/config";
 import {
   type Invoice,
@@ -1513,17 +1515,24 @@ function CatalogPicker({
       )}
       {catalog.length === 0 ? (
         <p className="px-3 py-4 text-center text-[12px] text-muted">
-          Katalog jest pusty. Zapisz pozycję ikoną zakładki <IconBookmarkPlus size={12} className="inline" /> obok wiersza faktury, żeby móc ją stąd szybko wstawiać.
+          Katalog jest pusty. Dodaj komponenty w zakładce <span className="text-[var(--fg)]">Katalog</span> albo zapisz
+          pozycję ikoną zakładki <IconBookmarkPlus size={12} className="inline" /> obok wiersza faktury.
         </p>
       ) : filtered.length === 0 ? (
         <p className="px-3 py-3 text-center text-[12px] text-muted">Brak dopasowań.</p>
       ) : (
         filtered.map((c) => (
           <div key={c.id} className="group flex items-center gap-2 px-2.5 py-1.5 hover:bg-[var(--hairline)]">
-            <button onClick={() => onPick(c)} className="min-w-0 flex-1 text-left">
-              <span className="block truncate text-[13px] text-[var(--fg)]">{c.nazwa}</span>
-              <span className="block text-[11px] text-muted">
-                {formatMoney(c.cena_netto)} / {c.jednostka} · VAT {c.vat_stawka === "zw" || c.vat_stawka === "np" ? c.vat_stawka : `${c.vat_stawka}%`}
+            <button onClick={() => onPick(c)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
+              <CatalogCategoryIcon kind={c.kategoria} size={14} className="mt-0.5 shrink-0 text-muted" />
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] text-[var(--fg)]">{c.nazwa}</span>
+                <span className="block text-[11px] text-muted">
+                  {formatMoney(c.cena_netto)} / {c.jednostka} · VAT {c.vat_stawka === "zw" || c.vat_stawka === "np" ? c.vat_stawka : `${c.vat_stawka}%`}
+                  {hasPriceRange(c.cena_min, c.cena_max) && (
+                    <span className="text-brand-cyan"> · {formatMoney(c.cena_min as number)}–{formatMoney(c.cena_max as number)}</span>
+                  )}
+                </span>
               </span>
             </button>
             <button

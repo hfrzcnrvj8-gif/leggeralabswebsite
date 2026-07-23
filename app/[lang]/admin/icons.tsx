@@ -69,12 +69,22 @@ import {
   IconUsers,
   IconVolumeOff,
   IconWriting,
+  IconServer,
+  IconCpu,
+  IconDatabase,
+  IconRouter,
+  IconPlug,
+  IconLicense,
+  IconTool,
+  IconLifebuoy,
+  IconBox,
 } from "@tabler/icons-react";
 import type { ContactChannel, CallOutcome } from "@/lib/contact";
 import type { MailFolder, MailCategory } from "@/lib/mail";
 import type { LinkKind } from "@/lib/links";
 import type { NotificationKind } from "@/lib/notifications";
 import type { PaymentMethod } from "@/lib/costs";
+import type { CatalogCategory } from "@/lib/catalog";
 
 /** Typ komponentu ikony Tablera — tyle, ile potrzebujemy z jego API.
  * `ComponentType`, bo Tabler oddaje `ForwardRefExoticComponent`, nie zwykłą
@@ -126,6 +136,34 @@ export function CallOutcomeIcon({
   className?: string;
 }) {
   const Icon = CALL_OUTCOME[kind as CallOutcome] ?? IconPhoneCall;
+  return <Icon size={size} className={className} />;
+}
+
+/** Kategoria komponentu katalogu (Moduł 47 — „wirtualny magazyn"). Klucze =
+ * CATALOG_CATEGORIES z lib/catalog.ts. Ikona bierze kolor przez currentColor;
+ * znaczenie niesie kategoria, nie barwa. */
+const CATALOG_CATEGORY: Record<CatalogCategory, TablerIcon> = {
+  compute: IconServer,
+  gpu: IconCpu,
+  storage: IconDatabase,
+  siec: IconRouter,
+  zasilanie: IconPlug,
+  software: IconLicense,
+  robocizna: IconTool,
+  serwis: IconLifebuoy,
+  inne: IconBox,
+};
+
+export function CatalogCategoryIcon({
+  kind,
+  size = DEFAULT_SIZE,
+  className,
+}: {
+  kind: CatalogCategory | string;
+  size?: number;
+  className?: string;
+}) {
+  const Icon = CATALOG_CATEGORY[kind as CatalogCategory] ?? IconBox;
   return <Icon size={size} className={className} />;
 }
 

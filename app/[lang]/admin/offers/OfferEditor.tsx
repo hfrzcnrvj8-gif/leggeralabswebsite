@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy, IconSearch, IconLayoutGrid } from "@tabler/icons-react";
+import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, type OfferItem, OFFER_LANGS, OFFER_LANG_LABEL, offerTotal, itemKwota } from "@/lib/offers";
 import { type OfferTemplate, templateTotal } from "@/lib/offerTemplates";
-import { formatMoney } from "@/lib/invoices";
+import { formatMoney, type CatalogItem } from "@/lib/invoices";
+import { hasPriceRange } from "@/lib/catalog";
+import { CatalogCategoryIcon } from "../icons";
 import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -178,6 +180,41 @@ export function OfferEditor({
       onChange?.();
     }
   }, [id, onChange]);
+
+  // Katalog komponentów (Moduł 47) — wczytany raz, do składania oferty z
+  // klocków. Cena bazowa (`cena_netto`) i jednostka wpadają na pozycję; koszt
+  // zakupu/marża z katalogu tu NIE wchodzą (pozycja to niezależna kopia).
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  useEffect(() => {
+    let anulowane = false;
+    fetch("/api/catalog")
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => {
+        if (!anulowane) setCatalog((d as { items: CatalogItem[] }).items ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      anulowane = true;
+    };
+  }, []);
+
+  const addFromCatalog = useCallback(
+    async (c: CatalogItem) => {
+      const res = await fetch(`/api/offers/${id}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nazwa: c.nazwa, cena: c.cena_netto, jednostka: c.jednostka }),
+      });
+      if (!res.ok) {
+        toast("Nie udało się wstawić z katalogu.", "error");
+        return;
+      }
+      const data = (await res.json()) as { items: OfferItem[] };
+      setItems(data.items);
+      onChange?.();
+    },
+    [id, onChange, toast]
+  );
 
   const applyTemplate = useCallback(
     async (templateId: string) => {
@@ -501,6 +538,30 @@ export function OfferEditor({
                     )}
                   </Popover>
                 )}
+                {catalog.length > 0 && (
+                  <Popover
+                    align="right"
+                    width={300}
+                    trigger={(open) => (
+                      <button
+                        onClick={open}
+                        className="flex items-center gap-1 rounded-full border hairline px-3 py-1 text-xs text-muted hover:text-[var(--fg)]"
+                      >
+                        <IconBox size={13} /> Z katalogu
+                      </button>
+                    )}
+                  >
+                    {(close) => (
+                      <OfferCatalogPickerBody
+                        catalog={catalog}
+                        onPick={(c) => {
+                          close();
+                          addFromCatalog(c);
+                        }}
+                      />
+                    )}
+                  </Popover>
+                )}
                 <button onClick={addItem} className="rounded-full border hairline px-3 py-1 text-xs">
                   + Pozycja
                 </button>
@@ -737,5 +798,53 @@ function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {
         </>
       )}
     </span>
+  );
+}
+
+/** Wyszukiwarka komponentów katalogu w popoverze „Z katalogu" oferty. Pokazuje
+ * cenę bazową (tę wstawi na pozycję) + ewentualne widełki. Koszt zakupu/marża
+ * NIE są tu widoczne — to picker do składania oferty dla klienta, nie ekran
+ * zarządzania katalogiem. */
+function OfferCatalogPickerBody({ catalog, onPick }: { catalog: CatalogItem[]; onPick: (c: CatalogItem) => void }) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const filtered = needle ? catalog.filter((c) => c.nazwa.toLowerCase().includes(needle)) : catalog;
+  return (
+    <div className="max-h-80 overflow-y-auto">
+      <div className="p-1.5">
+        <div className="flex items-center gap-1.5 rounded-md border hairline px-2 py-1">
+          <IconSearch size={13} className="shrink-0 text-muted" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Szukaj komponentu…"
+            autoFocus
+            className="w-full bg-transparent text-[12.5px] text-[var(--fg)] placeholder:text-muted focus:outline-none"
+          />
+        </div>
+      </div>
+      {filtered.length === 0 ? (
+        <p className="px-3 py-3 text-center text-[12px] text-muted">Brak dopasowań.</p>
+      ) : (
+        filtered.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => onPick(c)}
+            className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]"
+          >
+            <CatalogCategoryIcon kind={c.kategoria} size={14} className="mt-0.5 shrink-0 text-muted" />
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] text-[var(--fg)]">{c.nazwa}</span>
+              <span className="block text-[11px] text-muted">
+                {formatMoney(c.cena_netto)} / {c.jednostka}
+                {hasPriceRange(c.cena_min, c.cena_max) && (
+                  <span className="text-brand-cyan"> · {formatMoney(c.cena_min as number)}–{formatMoney(c.cena_max as number)}</span>
+                )}
+              </span>
+            </span>
+          </button>
+        ))
+      )}
+    </div>
   );
 }

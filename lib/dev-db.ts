@@ -240,6 +240,30 @@ async function ensureSeeded(): Promise<void> {
         await ensureInvoicesSchema();
         await ensureOffersSchema();
 
+        // — Katalog komponentów (Moduł 47, „wirtualny magazyn") —
+        // Bez tego ekran „Katalog" jest pusty i nie widać ani grupowania po
+        // kategorii, ani widełek, ani marży, ani składania oferty z klocków.
+        // Rozpięte na kilku kategoriach + różne stany: z widełkami i bez,
+        // z kosztem zakupu (marża) i bez, sprzęt / software / robocizna / serwis.
+        const komponenty: [string, string, number, number | null, number | null, string, number | null, string, string][] = [
+          // [nazwa, kategoria, cena_netto, cena_min, cena_max, jednostka, koszt_zakupu, dostawca, opis]
+          ["Stacja Tier 1 — 1× RTX 4090, 128 GB RAM", "compute", 18000, 15000, 22000, "szt.", 13500, "Komputronik", "Pod lokalny model 7–14B, RAG dla 1–5 osób."],
+          ["Serwer Tier 3 — 2× RTX 6000 Ada, rack", "compute", 62000, 55000, 80000, "szt.", 48000, "x-kom Biznes", "Wielu użytkowników, model 70B+."],
+          ["Karta RTX 4090 24 GB", "gpu", 9000, 8200, 10500, "szt.", 7600, "Proline", "Dokładka GPU do istniejącej stacji."],
+          ["NAS 4-dyskowy + 2× 8 TB", "storage", 5200, 4500, 6500, "szt.", 4100, "Ugreen", "Kopie zapasowe i magazyn dokumentów pod RAG."],
+          ["UPS 1500 VA line-interactive", "zasilanie", 1400, 1200, 1800, "szt.", 1050, "Eaton", "Podtrzymanie stacji na czas zaniku prądu."],
+          ["Wdrożenie RAG + integracja", "robocizna", 8000, 6000, 14000, "usł.", null, "", "Instalacja, indeksacja danych klienta, testy."],
+          ["Licencja platformy (self-host)", "software", 0, null, null, "lic.", null, "", "Open-source — koszt tylko wdrożenia."],
+          ["Serwis i utrzymanie", "serwis", 1200, 800, 2500, "mies.", null, "", "Aktualizacje, monitoring, wsparcie — miesięcznie."],
+        ];
+        for (const [nazwa, kat, cena, cmin, cmax, jm, koszt, dost, opis] of komponenty) {
+          await raw(
+            `INSERT INTO service_catalog (id, nazwa, cena_netto, vat_stawka, jednostka, kategoria, cena_min, cena_max, koszt_zakupu, dostawca, opis)
+             VALUES ($1,$2,$3,'23',$4,$5,$6,$7,$8,$9,$10)`,
+            [randomUUID(), nazwa, cena, jm, kat, cmin, cmax, koszt, dost, opis]
+          );
+        }
+
         // Wystawiona, po terminie, bez wpłaty — trafia do filtrów
         // „Nieopłacone" I „Po terminie" naraz.
         const invPoTerminie = randomUUID();

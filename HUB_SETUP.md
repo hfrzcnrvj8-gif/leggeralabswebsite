@@ -6681,3 +6681,95 @@ właściciel widzi brak reakcji i uznaje, że ma kody w schowku. Przy głównej
 drodze powrotu to jest dokładnie ta cicha porażka, którą ten moduł ma
 likwidować. Oba przyciski kopiujące mają teraz `catch` i komunikat
 odsyłający do *Drukuj*.
+
+## Moduł 47 — Katalog komponentów („wirtualny magazyn") (2026-07-23)
+
+Biblioteka klocków, z których właściciel składa **ofertę wdrożenia lokalnego
+LLM per klient**: sprzęt (serwer/GPU/dyski/UPS/sieć), software, robocizna,
+serwis. Zasada, która ukształtowała zakres: **personalizacja = kompozycja,
+szablon = biblioteka komponentów** — nie robimy jednej sztywnej oferty, robimy
+cennik-klocki z widełkami, wstawiane w pozycję jednym kliknięciem.
+
+**To NIE magazyn ze stanami** (brak ilości na półce, zamówień, dostaw) i **NIE
+auto-dobór AI** — ręczne składanie z klocków. Jeśli właściciel poprosi o stany
+magazynowe albo podpowiedź konfiguracji modelem — to osobny, większy zakres.
+
+### Rozszerzył istniejący `service_catalog`, nie zbudował drugiej tabeli
+
+Płaski katalog usług (nazwa + jedna cena + VAT + jednostka) dostał kolumny
+(`lib/db.ts` → `createInvoicesSchema`, przez `ALTER TABLE … ADD COLUMN IF NOT
+EXISTS`, bramka migracji sama je dowiezie na produkcję przy najbliższym
+deployu — SHA commita = nowa wersja schematu):
+
+- `kategoria` — klucz z `CATALOG_CATEGORIES` (`lib/catalog.ts`); 9 wartości:
+  `compute`/`gpu`/`storage`/`siec`/`zasilanie`/`software`/`robocizna`/`serwis`/
+  `inne`. Domyślnie `inne` (dotychczasowe wpisy usługowe tam lądują).
+- `cena_min` / `cena_max` — **widełki** (od–do). `cena_netto` **zostaje ceną
+  bazową** — to ona wpada na pozycję Oferty/Faktury; widełki są podpowiedzią
+  zakresu przy składaniu. NULL = brak widełek.
+- `koszt_zakupu` — **dane wrażliwe (marża)**. Żyje **wyłącznie** w katalogu.
+- `dostawca`, `opis`.
+
+### Sześć decyzji właściciela (2026-07-23, przez pytania przed budową)
+
+1. **Widełki `cena_min`–`cena_max`**, nie jedna cena + narzut.
+2. **Kategorie** — proponowana lista 9 pozycji przyjęta bez zmian.
+3. **Bez gotowych zestawów Tier 1/2/3** — składanie zawsze ręczne z klocków
+   (prosty katalog, nie katalog + szablony zestawów).
+4. **Serwis/robocizna = zwykła pozycja** katalogu w swojej kategorii (jednostka
+   „mies." dla powtarzalnego serwisu).
+5. **Jeden katalog, jeden picker** — rozszerzenie istniejącego, nie
+   `component_catalog` obok.
+6. **Koszt zakupu + marża widoczne właścicielowi** — z twardym warunkiem, że
+   nie wyciekną do klienta (patrz niżej).
+
+### Dlaczego marża nie wycieka (bez zmian w `publicFields.ts`)
+
+Koszt zakupu i marża są **tylko w `service_catalog`**. Pozycje Ofert
+(`offer_items`) i Faktur (`invoice_items`) to **niezależne kopie** —
+przy wstawianiu picker kopiuje wyłącznie `nazwa` / cenę bazową / `jednostka`
+(+ VAT dla faktur), **nigdy** `koszt_zakupu`. Ekran katalogu jest za
+`isAuthed()`, a publiczne wydruki i tak jadą przez białą listę pól
+(`lib/publicFields.ts`, Moduł 40), która nie zna kolumn katalogu. Dlatego
+`publicFields.ts` **nie wymagał** zmian — ale gdyby ktoś kiedyś zaczął
+kopiować koszt na pozycję dokumentu, to jest miejsce, które trzeba by
+dopisać/wyciąć. **Nie kopiuj `koszt_zakupu` na `*_items`.**
+
+### Co powstało
+
+- `lib/catalog.ts` — czysta domena: słownik kategorii + etykiety PL,
+  `normalizeCategory`, `catalogMargin`/`catalogMarginPercent` (marża liczona OD
+  ceny sprzedaży, jak w handlu), `hasPriceRange`. Ikony kategorii **osobno** w
+  `admin/icons.tsx` (`CatalogCategoryIcon`) — reguła „ikony renderują JSX, więc
+  nie w `lib/`" z Modułu 33.
+- API `/api/catalog` — GET/POST rozszerzone o nowe pola, **nowy `PATCH`**
+  (edycja; wcześniej był tylko DELETE). Każdy uchwyt zaczyna od `isAuthed()`.
+- Ekran `/admin/catalog` (`CatalogDashboard.tsx`) — grupy wg kategorii z
+  nagłówkami, `FilterPills` z licznikami (tylko kategorie, które mają wpisy),
+  modal dodaj/edytuj (wyśrodkowany, `Modal.tsx`), blok kosztu/marży wizualnie
+  oddzielony z adnotacją „Tylko dla Ciebie". Wpis w nawigacji (`AppShell` NAV,
+  `IconBox`) + akcja `add` w palecie poleceń.
+- Picker „Z katalogu" — w `InvoiceEditor` (istniejący `CatalogPicker`,
+  rozszerzony o ikonę kategorii i widełki) **oraz** nowy w `OfferEditor`
+  (`Popover` + `OfferCatalogPickerBody`); trasa `POST /api/offers/[id]/items`
+  przyjmuje teraz `cena` i `jednostka` (ręczne „+ Pozycja" dalej daje puste
+  domyślne).
+- Dev-seed (`lib/dev-db.ts`) — 8 przykładowych komponentów rozpiętych na
+  kategoriach (z widełkami i bez, z kosztem/marżą i bez), inaczej ekran byłby
+  pusty i nie dałoby się obejrzeć kompozycji.
+
+### Jak zweryfikowano (nie „skompilowało się")
+
+`tsc` czysty, `npm test` 55/55. Na żywo (`preview_start`): ekran katalogu
+renderuje grupy + widełki (cyan) + marżę, modal dodawania pokazuje wszystkie
+pola i blok wrażliwy; w edytorze oferty picker „Z katalogu" wstawił „Stacja
+Tier 1" jako pozycję z ceną bazową 18 000 zł → suma oferty przeliczona na
+24 000 zł. Zero błędów w konsoli.
+
+### Parytet apki iOS (osobne repo `leggera-hub-ios`)
+
+Apka **nie ma** dziś ekranu zarządzania katalogiem ani pickera „Z katalogu" w
+edytorze oferty (edycja pozycji jest ograniczona) — więc rozszerzenie
+`service_catalog` jej nie psuje (dodatkowe kolumny są opcjonalne, stare pola
+bez zmian). Gdyby katalog miał wejść do apki, kategorie + widełki dotkną obu
+front-endów — wtedy krótki audyt drugiej platformy (zasada z Audytu 6/7).

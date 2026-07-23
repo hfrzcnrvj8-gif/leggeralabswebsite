@@ -20,9 +20,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const pos = Number(posRows[0]?.pos ?? 0);
   const itemId = randomUUID();
   const nazwa = typeof body.nazwa === "string" ? body.nazwa.slice(0, 500) : "";
+  // Wstawienie z katalogu (Moduł 47) podaje jednostkę i cenę bazową; ręczne
+  // „+ Pozycja" ich nie podaje → zostają domyślne (szt., 0). Koszt zakupu z
+  // katalogu tu NIE trafia — pozycja oferty to niezależna kopia bez marży.
+  const jednostka = typeof body.jednostka === "string" && body.jednostka.trim() ? body.jednostka.slice(0, 20) : "szt.";
+  const cenaRaw = Number(body.cena);
+  const cena = Number.isFinite(cenaRaw) && cenaRaw >= 0 ? cenaRaw : 0;
   await sql`
     INSERT INTO offer_items (id, offer_id, nazwa, ilosc, jednostka, cena, position)
-    VALUES (${itemId}, ${id}, ${nazwa}, 1, 'szt.', 0, ${pos});
+    VALUES (${itemId}, ${id}, ${nazwa}, 1, ${jednostka}, ${cena}, ${pos});
   `;
   const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
   return NextResponse.json({ ok: true, items: items.map((r) => ({ ...r, ilosc: Number(r.ilosc), cena: Number(r.cena) })) });

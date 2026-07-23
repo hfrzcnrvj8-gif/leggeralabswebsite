@@ -249,13 +249,23 @@ export type Invoice = {
 };
 
 /** Zapisana pozycja katalogu usług/produktów — do szybkiego wstawiania na
- * fakturę bez przepisywania. */
+ * fakturę/ofertę bez przepisywania. Od Modułu 47 katalog to też „wirtualny
+ * magazyn" komponentów: `kategoria` + widełki cenowe + koszt zakupu (marża).
+ * `cena_netto` zostaje ceną BAZOWĄ kopiowaną na pozycję; `koszt_zakupu` jest
+ * WRAŻLIWY i żyje wyłącznie w katalogu — nie kopiuj go na pozycję. Domena
+ * kategorii/marży: lib/catalog.ts. */
 export type CatalogItem = {
   id: string;
   nazwa: string;
   cena_netto: number;
   vat_stawka: string;
   jednostka: string;
+  kategoria: string;
+  cena_min: number | null;
+  cena_max: number | null;
+  koszt_zakupu: number | null;
+  dostawca: string;
+  opis: string;
   created_at: string;
 };
 

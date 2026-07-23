@@ -983,6 +983,25 @@ async function createInvoicesSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+  // Moduł 47 — „wirtualny magazyn" (biblioteka komponentów do składania ofert
+  // sprzętowych/wdrożeniowych per klient). Rozszerzenie płaskiego katalogu
+  // usług, NIE druga tabela (jeden picker, decyzja właściciela 2026-07-23).
+  //   kategoria     — klucz z CATALOG_CATEGORIES (lib/catalog.ts); 'inne' dla
+  //                   dotychczasowych wpisów usługowych i jako kosz-catch-all.
+  //   cena_min/max  — WIDEŁKI (od–do). `cena_netto` zostaje ceną bazową (tę
+  //                   kopiuje picker na pozycję oferty/faktury); widełki są
+  //                   podpowiedzią zakresu przy składaniu. NULL = brak widełek.
+  //   koszt_zakupu  — DANE WRAŻLIWE (marża właściciela). Żyje WYŁĄCZNIE tutaj —
+  //                   pozycje ofert/faktur to niezależne kopie bez tego pola,
+  //                   więc nie może wyciec na publiczny wydruk. Nie kopiować go
+  //                   do offer_items/invoice_items. NULL = nie podano.
+  await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS kategoria TEXT NOT NULL DEFAULT 'inne';`;
+  await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS cena_min NUMERIC;`;
+  await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS cena_max NUMERIC;`;
+  await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS koszt_zakupu NUMERIC;`;
+  await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS dostawca TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS opis TEXT NOT NULL DEFAULT '';`;
+  await sql`CREATE INDEX IF NOT EXISTS service_catalog_kategoria_idx ON service_catalog(kategoria);`;
 
   await markSchemaApplied("invoices");
 }
