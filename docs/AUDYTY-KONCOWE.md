@@ -269,6 +269,36 @@ Do rozstrzygnięcia w audycie:
 
 # Audyt 5 — Wydajność i koszty
 
+> ### ✅ WYKONANY — 2026-07-23
+>
+> Wyniki: **`docs/AUDYT-5-WYNIKI.md`**. Brief: `docs/plany-modulow/45-audyt-5-wydajnosc.md`.
+>
+> W skrócie: przy jednym użytkowniku i zerze klientów **nic nie jest wolne ani
+> drogie**, a **żaden z trzech tropów briefu nie okazał się realnym problemem** —
+> dwa opierały się na nieaktualnych limitach Vercela. **Zero zmian w kodzie** —
+> poprawny wynik to „znaj progi, nie optymalizuj na zapas".
+>
+> **`maxDuration` 120/90 s a Hobby:** trop NIEAKTUALNY. Z fluid compute
+> (domyślne) Hobby daje dziś **300 s** (nie 60 s — to era sprzed fluid compute),
+> więc wszystkie deklaracje mieszczą się z zapasem; przekroczenie i tak dałoby
+> widoczny **504**, nie ciche. **Bramka migracji NIE odrosła** (zmierzone
+> uruchomieniem): Pulpit **14 zapytań danych** na ciepło, bramka ścina 242
+> migracje → **2** na zimny start, pokrycie **24/24** schematów. **„2 crony
+> wyczerpane" — nieaktualne:** Hobby daje 100 cronów, ścianą jest
+> **częstotliwość** (raz/dobę); Pro kupuje cron co-minutę. **Apka nie odpytuje
+> w tle** (brak `BGTaskScheduler`/timerów) — koszt baterii/transferu skaluje się
+> z użyciem.
+>
+> **Rachunek:** pewne przyszłe koszty = **~20 USD/mies. Vercel Pro** (bo Hobby
+> zabrania użytku komercyjnego — to wyzwalacz, nie cron/czas) **+ 99 USD/rok
+> Apple Developer** (właściciel założy przy rejestracji). Neon i Resend zostają
+> darmowe do realnego ruchu klientów. **Odczyty paneli 2026-07-23 domknięte:**
+> fluid compute **włączone** (limit 300 s realny), wszystkie darmowe plany
+> głęboko w zielonym (max — Vercel Active CPU 13 %), przy czym liczby są z fazy
+> testów apki, nie realnego użytku.
+>
+> **Następny i OSTATNI wg ryzyka: Audyt 7 (czy to nadal jest ten produkt).**
+
 - **Zapytania do bazy.** `neon()` to jedno żądanie HTTP na zapytanie —
   bramka migracji (2026-07-15) powstała, bo panel robił ich 156 na zimny
   start. Sprawdź, czy nie odrosło. Podejrzani: Pulpit, lista Poczty.

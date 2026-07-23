@@ -157,14 +157,31 @@ z dnia na dzień).
 
 Koszt: **Pro ok. 20 USD/mies.** za użytkownika.
 
-Co jeszcze rozwiązuje przejście na Pro (rzeczy, które JUŻ uwierają):
-- **Limit crona.** Hobby daje maksymalnie 2 zadania cron i wyłącznie
-  raz na dobę. Po Fazie 8 mamy dokładnie 2 z 2 — kolejna funkcja
-  wymagająca harmonogramu nie ma już miejsca. Wysyłka odłożona musiała
-  z tego powodu dostać obejście (kolejkę rusza też wejście w Pocztę,
-  patrz `app/api/mail/outbox/run/route.ts`).
-- **Czas funkcji.** Synchronizacja IMAP i pobieranie załączników potrafią
-  trwać kilkadziesiąt sekund; na Pro jest wyraźnie więcej zapasu.
+**Prawdziwym i JEDYNYM twardym wyzwalaczem Pro jest użytek komercyjny** —
+Hobby jest wprost „personal, non-commercial use" (cennik Vercela). Rejestracja
+firmy czyni Hobby nie do obrony. Poniższe dwa punkty **przeceniono** we
+wcześniejszych zapisach — Audyt 5 (2026-07-23) skorygował je z aktualnej
+dokumentacji Vercela:
+
+- **Limit crona — KOREKTA.** Nieaktualne było „Hobby daje maksymalnie 2 crony,
+  2 z 2 wyczerpane". Aktualnie (dok. Vercela `2026-06-16`) Hobby daje **100
+  cronów** — liczba NIE jest ścianą. Ścianą jest **częstotliwość: każdy cron
+  najwyżej raz na dobę** (częstsze failują przy deployu). To ona wymusiła
+  obejście kolejki wysyłki (`app/api/mail/outbox/run`). **Co realnie kupuje
+  Pro: cron co minutę** — prawdziwa kolejka wysyłki bez obejścia, częstszy sync
+  poczty, osobny częsty nadzór.
+- **Czas funkcji — KOREKTA.** Nieaktualne było „Hobby tnie do 60 s". Z **fluid
+  compute** (domyślne dla nowych projektów) Hobby daje dziś **300 s** — wszystkie
+  `maxDuration` w kodzie (120/90/60 s) mieszczą się z zapasem. Do potwierdzenia
+  jednorazowo: Vercel → Settings → Functions → czy Fluid Compute włączone.
+
+**Rachunek całości (Audyt 5, ceny 2026-07-23):** po rejretracji **~20 USD/mies.
+Vercel Pro** to jedyny pewny koszt. **Neon** (baza) i **Resend** (mail) zostają
+**darmowe** do czasu realnego ruchu klientów — progi Free: Neon 0,5 GB storage /
+100 CU-godzin / 5 GB egress; Resend 3 000 maili/mies. i 100/dobę. **Apple
+Developer 99 USD/rok** — tylko jeśli apka ma trafić do App Store/TestFlight
+(dziś podpisywana darmowym kontem, działa na telefonie właściciela). Bieżące
+zużycie planów sprawdzić w panelach — Audyt 5 oczekuje „głęboko w zielonym".
 
 **Nie ma powodu uciekać z Vercela** — decyzja o nim była dobra i przy
 jednoosobowej firmie bez administratora serwera dalej jest najlepsza.
