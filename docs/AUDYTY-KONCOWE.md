@@ -366,6 +366,24 @@ natknie.
 
 # Audyt 7 — Czy to nadal jest ten produkt
 
+> ### ✅ WYKONANY — 2026-07-23 — OSTATNI, SERIA DOMKNIĘTA
+>
+> Wyniki: **`docs/AUDYT-7-WYNIKI.md`**. Brief: `docs/plany-modulow/46-audyt-7-produkt.md`.
+>
+> W skrócie: rozmowa produktowa, nie kod — **zero zmian w kodzie**, i to
+> poprawny wynik. Trzy rozstrzygnięcia właściciela: **(1) AI** — reguła „zero
+> AI" (otwarta 07-19) rozszerzona: kształt „model proponuje → właściciel
+> zatwierdza" wchodzi na **trzy nowe punkty** (kategoria kosztu → podsumowanie
+> wątku poczty → szkic notatki z rozmowy), zawsze lokalny Ollama, nigdy chmura,
+> jako **decyzja i osobne briefy**, nie kod tej sesji; twarda granica bez zmian.
+> **(2) Żywotność modułów** — **nic nie odstawiamy**: wszystko wdrożone po
+> wspólnej konsultacji, część jeszcze niewykorzystana → „uśpione świadomie",
+> przegląd po pierwszych klientach („zero klientów" ≠ „martwe"). **(3) Dwa
+> front-endy** — **oba zostają**, plan macOS/iPadOS aktualny; koszt parytetu
+> pod kontrolą (testy + krótki audyt drugiej platformy). Brak nowych pozycji
+> prawnych. **Wszystkie siedem audytów domknięte** — umowa z 2026-07-20
+> spełniona; następny kamień to rejestracja działalności (`PO_REJESTRACJI.md`).
+
 Audyt techniczny odpowiada „czy działa". Ten pyta **„czy to jest jeszcze to,
 czego potrzebujesz"** — i jest ważniejszy, niż się wydaje, bo panel rósł rok
 i część decyzji zapadła w innych okolicznościach.
