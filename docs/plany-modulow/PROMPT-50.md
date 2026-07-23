@@ -11,11 +11,16 @@
 Zbuduj Moduł 50 opisany w `docs/plany-modulow/50-ai-szkic-notatki.md`.
 Najpierw przeczytaj ten brief **w całości** (jest bardziej otwarty niż
 zwykle — więcej pytań do właściciela niż gotowej decyzji), plus
-`docs/plany-modulow/26-notatnik.md`, `07-ai-szkice-mailowe.md` i
-`49-ai-podsumowanie-watku.md` (wzorce techniczne), oraz `docs/AUDYT-7-WYNIKI.md`
-(punkt „b"). **Zacznij od pytań właściciela z sekcji „Otwarte decyzje" —
-zwłaszcza #1 (potwierdzenie, że v1 obsługuje wyłącznie źródło „mail", nie
-„rozmowa telefoniczna")** — dopiero potem plan i kod.
+`docs/plany-modulow/26-notatnik.md` i `docs/AUDYT-7-WYNIKI.md` (punkt „b").
+**Moduły 48 (kategoria kosztu) i 49 (podsumowanie wątku) są już zbudowane**
+(2026-07-23) — traktuj `lib/costs-ocr.ts`+`CostEditor.tsx` i
+`lib/mail-summary.ts`+`app/api/mail/[id]/summarize-thread/route.ts`+
+`MailDetailPanel.tsx` jako ŻYWE wzorce do naśladowania (dokładniejsze niż
+sam tekst briefów 07/49, bo to już działający, zweryfikowany kod w tym
+repo) — nie zaczynaj wzorca od zera. **Zacznij od pytań właściciela z
+sekcji „Otwarte decyzje" — zwłaszcza #1 (potwierdzenie, że v1 obsługuje
+wyłącznie źródło „mail", nie „rozmowa telefoniczna")** — dopiero potem plan
+i kod.
 
 Uwagi, które oszczędzą Ci czasu:
 

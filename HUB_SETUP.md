@@ -614,6 +614,45 @@ dopuszczony wyjątek od "zero AI w logice panelu", ten sam co Moduł 8).
   prawdziwym Mac Studio właściciela — jeśli jakość zawiedzie, `DRAFT_MODEL`
   to jedna stała do zmiany.
 
+## Moduł 49 — AI: podsumowanie wątku poczty (2026-07-23)
+
+Drugi z trzech punktów AI z Audytu 7 (`docs/plany-modulow/49-ai-podsumowanie-watku.md`).
+Przycisk „Podsumuj wątek" w pasku wątku (`MailDetailPanel.tsx`, ten sam
+rządek co pigułki wiadomości-sióstr, Moduł 4b) — **tylko czytanie**, nie
+wypełnia pola odpowiedzi, niczego nie wysyła ani nie zapisuje. Widoczny
+tylko gdy `thread.length > 0` (dokładnie ten sam warunek co pasek wątku).
+
+- **Model:** `qwen3.6:27b` (`SUMMARY_MODEL`, `lib/mail-summary.ts`) — ten
+  sam co szkice odpowiedzi (Moduł 7), z tego samego uzasadnienia (jakość
+  polskiej prozy, funkcja klikana pojedynczo).
+- **`POST /api/mail/:id/summarize-thread`** (admin-only, `runtime =
+  "nodejs"`, `maxDuration = 90` — wyżej niż Moduł 7, bo wątek to więcej
+  tekstu niż pojedynczy mail): własne zapytanie po `thread_id` dociągające
+  **`body_text` wszystkich wiadomości wątku** (macierzysta + siostry,
+  `ORDER BY received_at ASC`) — `GET /api/mail/:id` tego nie robi (zwraca
+  tylko metadane siostrzanych wiadomości, patrz Moduł 4b), więc endpoint
+  MUSI mieć własne, pełniejsze zapytanie. `SUMMARY_TIMEOUT_MS = 75s`. Wątek
+  z jedną wiadomością → `422` („nie ma czego streszczać"), wiadomość bez
+  `thread_id` → `422`. Model niedostępny → `503` z komunikatem „Model AI
+  chwilowo niedostępny — przeczytaj wątek ręcznie."
+- **System prompt** (`SUMMARY_SYSTEM`) każe skupić się na AKTUALNYM STANIE
+  rozmowy (co ustalone, co otwarte), nie relacjonować wiadomość po
+  wiadomości — te same guardraile co szkic maila (zakaz zmyślania faktów,
+  PROPOZYCJA do przeczytania).
+- **UI:** wynik w osobnym, wyraźnie odróżnionym readonly bloku pod paskiem
+  wątku (ikona `IconFileText`, nagłówek „Podsumowanie wątku (AI)"),
+  **resetowany przy zmianie maila** (`setSummary(null)` w `load()`) — inaczej
+  stare podsumowanie zostałoby widoczne przy otwarciu innej wiadomości i
+  mylnie sugerowało, że dotyczy nowego wątku.
+- **Zweryfikowane lokalnie:** `tsc` czysty, `npm test` 55/55. Warunek
+  `thread.length > 0` potwierdzony na mailu BEZ wątku — pasek i przycisk
+  poprawnie nie renderują się. Ścieżka niedostępności modelu współdzielona
+  1:1 z `ollamaGenerate()` z Modułu 7/49 — ten sam kontrakt `null → 503`
+  zweryfikowany na żywo tego samego dnia przy Module 48 (identyczny
+  mechanizm, inny endpoint). Jakość streszczenia na realnym, wieloetapowym
+  wątku do potwierdzenia na produkcji (lokalnie Ollama świadomie
+  wyłączona).
+
 ## Moduł 8 — OCR paragonów/faktur zakupowych w Kosztach (2026-07-14)
 
 Przy dodawaniu kosztu: po wgraniu załącznika (skan/PDF) pojawia się przycisk

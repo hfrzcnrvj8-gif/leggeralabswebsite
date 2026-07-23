@@ -9,6 +9,7 @@ import {
   IconStar,
   IconStarFilled,
   IconSparkles,
+  IconFileText,
   IconArchive,
   IconTrash,
   IconUser,
@@ -143,6 +144,9 @@ export function MailDetailPanel({
   const [podpis, setPodpis] = useState<SignatureLang | null>("pl");
   const [busy, setBusy] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
+  // Moduł 49 — podsumowanie wątku: tylko do odczytu, nigdy nie wysyła/zapisuje.
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[] | null>(null);
   const templates = useMailTemplates();
   // "Cofnij wysyłkę" (Etap 1 Modułu 4b) — dotyczy WSZYSTKICH ścieżek wysyłki,
@@ -161,6 +165,7 @@ export function MailDetailPanel({
     setHtml(data.html || "");
     setBlockedImages(Boolean(data.blockedImages));
     setThread(Array.isArray(data.thread) ? data.thread : []);
+    setSummary(null); // inna wiadomość/wątek — stare podsumowanie by mylnie sugerowało, że dotyczy tego wątku
     setAttachments(Array.isArray(data.attachments) ? data.attachments : []);
     setMuted(Boolean(data.muted));
     setSameAddress(typeof data.unassignedSameAddress === "number" ? data.unassignedSameAddress : 0);
@@ -487,6 +492,23 @@ export function MailDetailPanel({
     }
   }, [mailId, toast]);
 
+  /** Podsumowanie wątku (Moduł 49) — TYLKO do przeczytania, nigdy nie
+   * wypełnia pola odpowiedzi i niczego nie wysyła/zapisuje. */
+  const requestThreadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const res = await fetch(`/api/mail/${mailId}/summarize-thread`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast(data?.error || "Model AI chwilowo niedostępny — przeczytaj wątek ręcznie.", "error");
+        return;
+      }
+      setSummary(data.summary || "");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [mailId, toast]);
+
   /** Wspólne dla "Utwórz leada" i "Utwórz klienta" — te same kroki, inny
    * endpoint. Właściciel decyduje kliknięciem, czy piszący to dopiero lead do
    * przepchnięcia przez lejek, czy od razu realna relacja (prośba
@@ -643,6 +665,28 @@ export function MailDetailPanel({
               <span className="opacity-70">{formatThreadWhen(s.received_at)}</span>
             </button>
           ))}
+          <button
+            onClick={() => void requestThreadSummary()}
+            disabled={summaryLoading}
+            title="Model AI streści ten wątek — tylko do przeczytania, nic nie wysyła ani nie zapisuje"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            <IconFileText size={13} />
+            {summaryLoading ? "Streszczam…" : "Podsumuj wątek"}
+          </button>
+        </div>
+      )}
+
+      {/* Podsumowanie wątku (Moduł 49) — readonly, tylko do przeczytania.
+          Świadomie NIE w polu odpowiedzi (replyText): to streszczenie do
+          zorientowania się w rozmowie, nie treść do wysłania. */}
+      {summary != null && (
+        <div className="mb-4 rounded-xl border hairline bg-[var(--hairline)]/20 p-3 text-[13px] leading-relaxed">
+          <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+            <IconFileText size={12} />
+            Podsumowanie wątku (AI)
+          </p>
+          {summary ? <p className="whitespace-pre-wrap">{summary}</p> : <p className="text-muted">Model nie zwrócił streszczenia.</p>}
         </div>
       )}
 

@@ -180,11 +180,12 @@ czekaj na Vercel → zgaduj"):
   `docs/AUDYT-7-WYNIKI.md`) o trzy kolejne punkty tego samego kształtu —
   decyzja właściciela zapadła: **zbudowane** — szkic maila (Moduł 7), odczyt
   paragonu (Moduł 8), propozycja kategorii kosztu (Moduł 48,
-  `docs/plany-modulow/48-ai-kategoria-kosztu.md`); **zdecydowane, do
-  zbudowania** — podsumowanie wątku poczty (`49-ai-podsumowanie-watku.md`),
+  `docs/plany-modulow/48-ai-kategoria-kosztu.md`), podsumowanie wątku poczty
+  (Moduł 49, `49-ai-podsumowanie-watku.md`); **zdecydowane, do zbudowania** —
   szkic notatki z maila (`50-ai-szkic-notatki.md`, zakres zawężony do źródła
-  „mail" — patrz brief). Każdy nowy punkt poza tą listą dalej wymaga
-  wyraźnej prośby właściciela, nie zakładaj kolejnych z rozpędu.
+  „mail" — patrz brief, `PROMPT-50.md` gotowy do nowego czatu). Każdy nowy
+  punkt poza tą listą dalej wymaga wyraźnej prośby właściciela, nie zakładaj
+  kolejnych z rozpędu.
 - "Zdrowie" projektu (Na dobrej drodze/Zagrożony/Zerwany) jest ręczne i
   niezależne od statusu na tablicy — dwie osobne osie, tak jak w Linear.
 - "Cykle" w Osi czasu (`ProjectTimeline.tsx`) są WYŁĄCZNIE wizualnym
