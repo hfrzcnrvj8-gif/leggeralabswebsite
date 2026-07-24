@@ -268,6 +268,25 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     setData((prev) => (prev ? { ...prev, todayEvents: prev.todayEvents.filter((e) => e.id !== id) } : prev));
   };
 
+  /** Oferta, której minęła ważność, a status wciąż jest otwarty (Wysłana/
+   * Szkic) — zamyka ją jako "Wygasła", tak samo jak markProjectDone zamyka
+   * projekt. Do 2026-07-24 `expiredOffers` było liczone do totalActionable,
+   * ale nie renderowane nigdzie — licznik na górze ekranu mógł pokazywać
+   * więcej spraw niż dawało się zobaczyć (zgłoszenie właściciela). */
+  const markOfferExpired = async (id: string) => {
+    const res = await fetch(`/api/offers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "Wygasła" }),
+    });
+    if (!res.ok) {
+      toast("Nie udało się zapisać zmiany.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, expiredOffers: prev.expiredOffers.filter((o) => o.id !== id) } : prev));
+    toast("Oferta oznaczona jako wygasła.");
+  };
+
   const remindInvoice = async (id: string, numer: string | null) => {
     const res = await fetch(`/api/invoices/${id}/remind`, { method: "POST" });
     const body = await res.json().catch(() => ({}));
@@ -763,6 +782,43 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   >
                     Wystaw
                   </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Do 2026-07-24 `expiredOffers` było liczone do totalActionable, ale
+            nigdzie nie renderowane — licznik u góry ekranu mógł pokazywać
+            więcej spraw niż dawało się zobaczyć (zgłoszenie właściciela). */}
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Wygasłe oferty</h2>
+            <Link href={`/${lang}/admin/offers`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {data.expiredOffers.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — żadna oferta nie wygasła.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.expiredOffers.slice(0, 6).map((o) => (
+                <li key={o.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <Link href={`/${lang}/admin/offers/${o.id}`} className="font-medium hover:underline">
+                      {o.klient_nazwa || "(bez klienta)"}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — {formatMoney(o.kwota)} — ważna do {formatPlDate(o.wazna_do)}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => markOfferExpired(o.id)}
+                    className="shrink-0 rounded-full border border-orange-500/40 px-2 py-0.5 text-[11px] text-orange-400"
+                  >
+                    Oznacz jako wygasłą
+                  </button>
                 </li>
               ))}
             </ul>
