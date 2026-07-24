@@ -17,6 +17,7 @@ import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from "@tabler/ico
 import type { Locale } from "@/i18n/config";
 import { EditableText, EditableTextarea } from "../components";
 import { LinkPicker } from "../LinkPicker";
+import { useUI } from "../ui";
 import { formatPlDate } from "@/lib/projects";
 import { noteLinkValue, type Note, NoteBadges, NoteScheduleForm, useNoteActions } from "./shared";
 import { NoteActivityLog } from "./NoteActivityLog";
@@ -36,6 +37,7 @@ export function NoteDetailPanel({
 }) {
   const [note, setNote] = useState<Note | null>(null);
   const [missing, setMissing] = useState(false);
+  const { confirm } = useUI();
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/notes/${id}`);
@@ -106,6 +108,31 @@ export function NoteDetailPanel({
       <div className="mt-3 text-sm">
         <EditableTextarea value={note.tresc} onSave={(v) => patch(note.id, { tresc: v })} />
       </div>
+
+      {/* Odręczny rysunek z Apple Pencil (apka iPad) — bez tego byłby
+          widoczny tylko na urządzeniu, na którym powstał. Właściciel na
+          desktopie ma go tylko oglądać/usuwać, nie edytować — rysowanie
+          zostaje wyłącznie tam, gdzie jest Pencil. */}
+      {note.has_attachment && (
+        <div className="mt-3">
+          <img
+            src={`/api/notes/${note.id}/attachment`}
+            alt="Odręczny rysunek"
+            className="max-h-96 rounded-xl border hairline object-contain"
+          />
+          <button
+            onClick={async () => {
+              const ok = await confirm("Usunąć rysunek z tej notatki?", { danger: true });
+              if (!ok) return;
+              await fetch(`/api/notes/${note.id}/attachment`, { method: "DELETE" });
+              refresh();
+            }}
+            className="mt-1.5 text-[11px] text-muted hover:text-red-400"
+          >
+            Usuń rysunek
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div>

@@ -42,7 +42,17 @@ export type Note = {
   /** Wpisy z logu sklejone w jeden string — TYLKO na potrzeby wyszukiwarki.
    * Do wyświetlania służy GET /api/notes/:id/activity (pełne rekordy z datą). */
   log_text?: string | null;
+  /** Czy notatka ma dołączony odręczny rysunek (Apple Pencil, apka iPad).
+   * Sama treść leży w `note_attachments`, nie tutaj — patrz
+   * `GET /api/notes/:id/attachment`. */
+  has_attachment: boolean;
 };
+
+/** Rysunek z Apple Pencil — tylko obrazki, nie skan/PDF jak przy kosztach
+ * (`ATTACHMENT_MIME_TYPES` w lib/costs.ts). 5 MB starcza z zapasem na PNG
+ * z PKCanvasView — to odręczny szkic, nie zdjęcie z aparatu. */
+export const NOTE_ATTACHMENT_MIME_TYPES = ["image/png", "image/jpeg"] as const;
+export const NOTE_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
 
 export type NoteActivity = {
   id: string;

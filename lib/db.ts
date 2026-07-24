@@ -466,6 +466,26 @@ async function createHubSchema(): Promise<void> {
   await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT false;`;
   await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;`;
 
+  // Rysunek Apple Pencil (apka iPad, 2026-07-24) — jeden odręczny szkic na
+  // notatkę, zapisany jako base64 we WŁASNEJ tabeli, nie w kolumnie `notes`
+  // wprost (jak przy kosztach): `GET /api/notes` robi `SELECT n.*` na całą
+  // listę, więc blob wprost w `notes` leciałby przy KAŻDYM odczycie listy,
+  // nie tylko przy otwarciu jednej notatki. `UNIQUE(note_id)` — świadomie
+  // jeden rysunek, nie galeria; POST nadpisuje (ON CONFLICT), tak jak
+  // załącznik kosztu. `has_attachment` na `notes` to denormalizacja pod
+  // plakietkę na liście, wzorem `mail_messages.has_attachments`.
+  await sql`
+    CREATE TABLE IF NOT EXISTS note_attachments (
+      id TEXT PRIMARY KEY,
+      note_id TEXT NOT NULL UNIQUE REFERENCES notes(id) ON DELETE CASCADE,
+      nazwa TEXT NOT NULL DEFAULT '',
+      typ TEXT NOT NULL DEFAULT 'image/png',
+      dane TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`ALTER TABLE notes ADD COLUMN IF NOT EXISTS has_attachment BOOLEAN NOT NULL DEFAULT false;`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS notes_activity (
       id TEXT PRIMARY KEY,
