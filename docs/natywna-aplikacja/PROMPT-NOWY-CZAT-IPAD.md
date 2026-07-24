@@ -4,39 +4,43 @@ Kontynuujemy dopracowanie aplikacji natywnej Leggera Hub na **iPada** (repo apki
 `/Volumes/OWC_SN850X/projekty_ai/leggera-hub-ios`, panel: bieżące repo strony).
 
 **ZANIM ZACZNIESZ — przeczytaj:**
-- `docs/natywna-aplikacja/31-wynik-skroty-i-notatnik-naprawy.md` (najnowszy
-  stan: partia 1 skrótów + naprawy Notatnika/Pencila, pułapki złapane, mapa
-  plików — czytaj TEN, nie 30),
-- `docs/natywna-aplikacja/30-wynik-poczta-apple-mail-i-apple-pencil.md`
-  (Poczta jak Apple Mail + fundament modułu Pencil, sprzed poprzedniej sesji),
+- `docs/natywna-aplikacja/33-brief-drag-and-drop.md` (brief tej sesji —
+  cztery kandydaci na „drag & drop", stan zmierzony w kodzie, ostrzeżenie
+  techniczne o ryzyku crasha — przeczytaj PRZED kodowaniem),
+- `docs/natywna-aplikacja/32-wynik-siatka-kpi-i-naprawa-crasha-splitu.md`
+  (partia 2: siatka KPI + złapany i naprawiony crash `LazyVGrid` w `List`
+  przy przeciąganiu paska bocznego — ta sama rodzina ryzyka co drag & drop),
+- `docs/natywna-aplikacja/31-wynik-skroty-i-notatnik-naprawy.md` (partia 1:
+  skróty klawiaturowe + naprawy Notatnika/Pencila),
 - `docs/natywna-aplikacja/22-ipad-hybryda-i-adaptacyjny.md` (fundament:
   hybryda, adaptacyjny układ, sedno techniczne),
 - pamięć: `apka-ipad-pelny-desktop-hybryda`, `apka-ipad-szkielet-adaptacyjny`,
-  `apka-ipad-partie-1-3`, `ipad-devicectl-trust-friction`,
-  `rownolegle-sesje-git-kolizja` (patrz niżej — WAŻNE tej sesji).
+  `apka-ipad-partie-1-3`, `ipad-lazygrid-w-liscie-crash-splitu` (WAŻNE —
+  drag & drop to ta sama rodzina crasha co siatka KPI), `ipad-devicectl-trust-friction`,
+  `rownolegle-sesje-git-kolizja` (patrz niżej — sprawdzaj zawsze na starcie).
 
-**Stan:** iPad ma działać jak pełny komputer w terenie. Partia 1 (skróty
-klawiaturowe: ⌘1–5 nawigacja, ⌘F szukaj, ⌘N nowy element, ⌘K szukaj wszędzie,
-dyskretna legenda w sidebarze przy podłączonej klawiaturze) jest **zrobiona,
-zweryfikowana na obu fizycznych urządzeniach i scommitowana**. Przy okazji
-domknięty (po serii zgłoszeń właściciela) moduł Apple Pencil w Notatniku:
-nawigacja na iPadzie, podgląd rysunku z pinch-zoom, prawdziwe Cofnij/Ponów,
-kontynuacja rysunku, pastylka „Powiąż/Nowa notatka/Nowy rysunek" zamiast
-rozwijanego menu. Szczegóły, uzasadnienia i świadomie odłożone rzeczy (zoom
-w samym edytorze rysowania, surowe dane PencilKit zamiast PNG) w
-`31-wynik-*.md`.
+**Stan:** iPad ma działać jak pełny komputer w terenie. Zrobione i
+scommitowane: partia 1 (skróty klawiaturowe ⌘1–5/⌘F/⌘N/⌘K + moduł Apple
+Pencil w Notatniku), partia 2 (siatka kart KPI na Pulpicie/Statystykach na
+szerokim iPadzie, ≥760pt/2 kolumny). Partia 2 złapała po drodze crash
+niezwiązany z pierwotnym planem: `LazyVGrid` wewnątrz wiersza `List` na
+iPadzie wywalał apkę przy interaktywnym przeciąganiu paska bocznego
+(`NavigationSplitView`) — naprawione przez ręczny `HStack`/`VStack` ZE
+STAŁĄ liczbą wierszy `List` niezależnie od szerokości. Pełny opis i
+diagnoza (jak ściągnąć i czytać crash log z `devicectl`) w `32-wynik-*.md`
+i pamięci `ipad-lazygrid-w-liscie-crash-splitu`.
 
-**Ważna lekcja tej sesji — równoległe sesje.** Właściciel czasem ma
-uruchomioną drugą sesję (albo świeżo zamkniętą, ale niescommitowaną) nad
-TYM SAMYM tematem. Jeśli `git status`/`git diff` pokazuje zmiany w plikach,
-których Ty nie dotknąłeś, ZAPYTAJ właściciela, czy to równoległa sesja,
-ZANIM zaczniesz to poprawiać, nadpisywać albo commitować — patrz
+**Ważna lekcja — równoległe sesje.** Właściciel czasem ma uruchomioną
+drugą sesję (albo świeżo zamkniętą, ale niescommitowaną) nad TYM SAMYM
+tematem. Jeśli `git status`/`git diff` pokazuje zmiany w plikach, których
+Ty nie dotknąłeś, ZAPYTAJ właściciela, czy to równoległa sesja, ZANIM
+zaczniesz to poprawiać, nadpisywać albo commitować — patrz
 `rownolegle-sesje-git-kolizja` w pamięci. Nie zakładaj domyślnie, że
 niescommitowane zmiany to Twoja własna, zapomniana robota.
 
-**Zasady krytyczne (z `22-*.md`, `30-*.md` i `31-*.md`):** na iPada buduj
-RELEASE; nie zagnieżdżaj `NavigationSplitView`; wgrywanie CLI przez
-`devicectl` (iPad `3CCA9321-4215-5229-A506-C204CB802F37`, iPhone
+**Zasady krytyczne:** na iPada buduj RELEASE; nie zagnieżdżaj
+`NavigationSplitView`; wgrywanie CLI przez `devicectl` (iPad
+`3CCA9321-4215-5229-A506-C204CB802F37`, iPhone
 `1F379FD8-EFA4-55F7-BDB6-7E9CC8B5BEBD`); wariant `project-telefon.yml`;
 iPhone NIE regresuj (ta sama apka, adaptuje układ). **Nowy plik w apce
 wymaga `xcodegen generate` PRZED buildem** — sam plik na dysku nie
@@ -53,32 +57,32 @@ danej osi łapczywie zajmuje całą zaproponowaną przestrzeń — zawsze dawaj
 jawny wymiar albo `.fixedSize(horizontal:vertical:)`. Każdy nowy ekran
 „Więcej" (`WiecejView.Cel`) musi mieć JAWNIE ustalone, czy sam niesie
 `NavigationStack`, czy polega na zewnętrznym (`wymagaZewnetrznegoStosu`
-w `PanelBoczny.swift`) — domyślne założenie „to `*View`, więc na pewno ma
-własny stos" jest fałszywe (Notatnik/Rejestr nie miały, stąd martwa
-nawigacja na iPadzie, naprawione tej sesji). Zapisany PNG w skali
-`UIScreen.main.scale` trzeba wczytywać z TĄ SAMĄ jawną skalą
-(`UIImage(data:scale:)`), nigdy przez `UIImage(contentsOfFile:)` (daje
-`scale = 1`, rozmiar wychodzi 2× za duży).
+w `PanelBoczny.swift`). Zapisany PNG w skali `UIScreen.main.scale` trzeba
+wczytywać z TĄ SAMĄ jawną skalą (`UIImage(data:scale:)`), nigdy przez
+`UIImage(contentsOfFile:)` (daje `scale = 1`, rozmiar wychodzi 2× za duży).
+**Jakikolwiek widok, który reaguje na żywą geometrię/szerokość wewnątrz
+`List` na iPadzie (siatki, drag & drop), trzymaj ZE STAŁĄ liczbą wierszy
+`List`** — patrz `32-wynik-*.md` i `ipad-lazygrid-w-liscie-crash-splitu`,
+to konkretna, powtarzalna pułapka, nie jednorazowy przypadek.
 
 **Symulator bywał niestabilny w poprzednich sesjach** (logowanie gubiło stan
-pola hasła, tapy przestawały trafiać) — właściciel zlecił w tle osobną
-sesję ustabilizowania logowania w symulatorze dev (`task_2228eff0`); jeśli
-nie masz potwierdzenia, że to naprawione, nie ufaj zrzutom z symulatora bez
-zastrzeżeń. Backend zawsze da się zweryfikować deterministycznie przez
-`curl`; UI ostatecznie weryfikuj na fizycznym urządzeniu (`devicectl`),
-tak jak w tej i poprzednich sesjach.
+pola hasła, tapy przestawały trafiać) — jeśli nie masz potwierdzenia, że to
+naprawione, nie ufaj zrzutom z symulatora bez zastrzeżeń. Backend zawsze da
+się zweryfikować deterministycznie przez `curl`; UI ostatecznie weryfikuj na
+fizycznym urządzeniu (`devicectl`). Mirroring w QuickTime (`Nowe nagranie
+filmowe` → źródło „Ekran: iPad (Patryk)") pokazuje ekran żywo, ale NIE
+przyjmuje dotyku — to tylko podgląd, nawigację robi właściciel ręcznie.
 
-**Bierzemy partię 2 — siatki wielokolumnowe.** Dziś Pulpit/Statystyki to
-jedna rozciągnięta kolumna na całej szerokości iPada, mimo dużo miejsca
-w poziomie (te same widoki co iPhone, bez adaptacji do szerokiego ekranu).
-Zakres do ustalenia z właścicielem na starcie — m.in.: które sekcje
-Pulpitu/Statystyk dostają siatkę (karty KPI? sekcje z listami?), ile
-kolumn i przy jakiej szerokości się przełącza (por. próg 760pt już użyty
-w `LeadyPanelIpad`/`ProjektyPanelIpad`/`KlienciPanelIpad` dla układu
-dwupanelowego), czy to ma być `LazyVGrid` czy coś bardziej złożonego.
+**Bierzemy partię 3 — Drag & drop.** Pierwotny zapis w roadmapie
+(`22-*.md`) to jedno zdanie bez opisu — brief `33-brief-drag-and-drop.md`
+rozbija to na CZTERY różne kandydatury (reorder kamieni/zadań w projekcie,
+tablica kanban ze zmianą statusu, drag-to-reschedule w Kalendarzu,
+systemowy drag & drop międzyaplikacyjny) z tabelą nakład/ryzyko i
+rekomendacją zacząć od najmniejszego (reorder). **To pierwsze zadanie tego
+czatu**: przejść tę tabelę z właścicielem i ustalić, co realnie bierzemy —
+patrz brief po szczegóły i uzasadnienia.
 
 Reszta kolejki (bez zmian):
-3. Drag & drop.
 4. Drobiazgi: pole szukania w liście za bardzo w prawo; FAB w wąskim
    wariancie iPada jest w pasku (toolbar), nie jako FAB.
 
@@ -86,8 +90,9 @@ Osobno, poza kolejką: tłumaczenie maili (Ollama, lokalny model) — wymaga
 własnego briefu backendowego (nowa trasa panelu), odłożone świadomie jako
 osobny temat.
 
-Zacznij od potwierdzenia zakresu partii 2 z właścicielem (pytania wyżej),
-sprawdź `git status`/`git log` PRZED rozpoczęciem pracy (patrz ostrzeżenie
-o równoległych sesjach), i pracuj metodą tego projektu: mała paczka →
-build → weryfikacja (backend `curl`, UI na fizycznym urządzeniu) →
-wgranie na oba urządzenia → ocena właściciela → commit+push.
+Zacznij od potwierdzenia zakresu partii 3 z właścicielem (tabela w
+`33-brief-drag-and-drop.md`), sprawdź `git status`/`git log` PRZED
+rozpoczęciem pracy (patrz ostrzeżenie o równoległych sesjach), i pracuj
+metodą tego projektu: mała paczka → build → weryfikacja (backend `curl`,
+UI na fizycznym urządzeniu) → wgranie na oba urządzenia → ocena
+właściciela → commit+push.
