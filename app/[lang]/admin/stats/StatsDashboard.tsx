@@ -16,7 +16,13 @@ import { TrendChart } from "./TrendChart";
 type StatsData = {
   months: string[];
   firstResponse: { avgHours: number | null; trend: StatsTrendPoint[] };
-  conversion: { totalLeads: number; convertedLeads: number; pct: number | null; trend: StatsTrendPoint[] };
+  conversion: {
+    totalLeads: number;
+    convertedLeads: number;
+    pct: number | null;
+    trend: StatsTrendPoint[];
+    bySource: { zrodlo: string; totalLeads: number; convertedLeads: number; pct: number | null }[];
+  };
   projectHealth: { counts: Record<string, number>; total: number };
   dso: { avgDays: number | null; oldestOverdueDays: number | null; overdueCount: number; trend: StatsTrendPoint[] };
   reviews: { closedProjectsCount: number; reviewsCollected: number; pct: number | null; avgClientRating: number | null };
@@ -173,6 +179,28 @@ export function StatsDashboard() {
         </ChartCard>
         <ChartCard title="Godziny pracy" sub="suma zalogowanego czasu, wg miesiąca wykonania pracy (wszystkie projekty)">
           <TrendChart points={data.timeTracking.trend} formatValue={(v) => `${v} godz.`} />
+        </ChartCard>
+        {/* Nie tylko "ile leadów wpada" z danego źródła (kafel "Leady z
+            polecenia" wyżej) — które źródło faktycznie ZAMIENIA SIĘ w
+            klienta. Luka odnotowana w mapie drogi klienta, Etap 1. */}
+        <ChartCard title="Konwersja per źródło" sub="które źródło leada faktycznie zamienia się w klienta, nie tylko generuje leady">
+          {data.conversion.bySource.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Brak leadów.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.conversion.bySource.map((s) => (
+                <div key={s.zrodlo} className="flex items-center gap-2 text-[12px]">
+                  <span className="min-w-0 flex-1 truncate">{s.zrodlo}</span>
+                  <span className="tabular-nums text-muted">
+                    {s.convertedLeads}/{s.totalLeads}
+                  </span>
+                  <span className="w-12 shrink-0 text-right tabular-nums font-medium">
+                    {s.pct != null ? `${s.pct}%` : "—"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </ChartCard>
       </div>
     </div>

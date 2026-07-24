@@ -199,6 +199,29 @@ export async function GET() {
     return { month: m, value: b && b.total > 0 ? statsRound1((b.referral / b.total) * 100) : null };
   });
 
+  // --- 6b) Konwersja per źródło leada — nie tylko "ile leadów wpada" z
+  // danego źródła (to już liczy sekcja 6/referral), tylko które źródło
+  // faktycznie ZAMIENIA SIĘ w klienta. Luka odnotowana w mapie drogi
+  // klienta (`00-mapa-drogi-klienta.md`, Etap 1): dane (`client_id`) były
+  // już pobierane w tym samym zapytaniu co sekcja 2, brakowało zestawienia
+  // per źródło zamiast zbiorczego.
+  const conversionBySourceMap = new Map<string, { total: number; converted: number }>();
+  for (const l of leadRows) {
+    const zrodlo = l.zrodlo_kategoria || "—";
+    const bucket = conversionBySourceMap.get(zrodlo) ?? { total: 0, converted: 0 };
+    bucket.total += 1;
+    if (l.client_id) bucket.converted += 1;
+    conversionBySourceMap.set(zrodlo, bucket);
+  }
+  const conversionBySource = Array.from(conversionBySourceMap.entries())
+    .map(([zrodlo, b]) => ({
+      zrodlo,
+      totalLeads: b.total,
+      convertedLeads: b.converted,
+      pct: b.total > 0 ? statsRound1((b.converted / b.total) * 100) : null,
+    }))
+    .sort((a, b) => b.totalLeads - a.totalLeads);
+
   // --- 7) Godziny pracy (Moduł 19) — suma wszystkich projektów ---
   const minutesByMonth = new Map<string, number>();
   let totalMinutesAll = 0;
@@ -221,6 +244,7 @@ export async function GET() {
       convertedLeads: convertedLeadsInWindow,
       pct: totalLeadsInWindow > 0 ? statsRound1((convertedLeadsInWindow / totalLeadsInWindow) * 100) : null,
       trend: conversionTrend,
+      bySource: conversionBySource,
     },
     projectHealth: { counts: healthCounts, total: projectRows.length },
     dso: {

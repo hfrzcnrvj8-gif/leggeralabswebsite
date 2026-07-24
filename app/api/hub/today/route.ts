@@ -222,6 +222,14 @@ export async function GET() {
   // Moduł 15 (zamknięcie i opinie): średnia z ocen zebranych opinii + jaki
   // odsetek zamkniętych projektów w ogóle ma zebraną opinię (patrz "Monitorować"
   // w docs/plany-modulow/15-zamkniecie-i-opinie.md).
+  // % leadów ze źródła "Polecenie" (Moduł 17/18 liczą to już w Statystykach,
+  // ale tylko tam — Pulpit o pętli retencji milczał całkowicie, mimo że dane
+  // były już pobrane w tym samym zapytaniu co `leads` wyżej). Świadomie po
+  // WSZYSTKICH leadach w bazie (nie tylko zaległych) — to wskaźnik zdrowia
+  // lejka, nie sprawa do dzisiejszej obsługi.
+  const referralLeads = leads.filter((l) => l.zrodlo_kategoria === "Polecenie").length;
+  const referralSharePct = leads.length > 0 ? Math.round((referralLeads / leads.length) * 1000) / 10 : null;
+
   const closedProjects = projects.filter((p) => p.status === "Wdrożone");
   const reviewedProjects = projects.filter((p) => p.review_submitted_at);
   const reviewAverages = reviewedProjects.map(projectReviewAverage).filter((v): v is number => v != null);
@@ -283,6 +291,7 @@ export async function GET() {
       signedContracts: signedContractRate(projects, contracts),
       reviewsCollected: reviewedProjects.length,
       closedProjectsCount: closedProjects.length,
+      referralSharePct,
     },
     counts: {
       leads: leads.length,

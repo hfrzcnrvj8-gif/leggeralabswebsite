@@ -63,6 +63,9 @@ type Kpi = {
   signedContracts: { rate: number; withContract: number; total: number } | null;
   reviewsCollected: number;
   closedProjectsCount: number;
+  /** % leadów ze źródła "Polecenie" — czy pętla retencji faktycznie się
+   * kręci. Do 2026-07-24 liczone tylko w Statystykach, na Pulpicie wcale. */
+  referralSharePct: number | null;
 };
 
 type TodayData = {
@@ -487,6 +490,15 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           <div className="mt-0.5 text-[11px] text-muted">
             {data.kpi.reviewsCollected}/{data.kpi.closedProjectsCount} zamkniętych projektów z opinią
           </div>
+        </div>
+        {/* Czy pętla retencji faktycznie się kręci (Etap 10 mapy drogi
+            klienta) — do 2026-07-24 liczone tylko w Statystykach. */}
+        <div className="card-paper rounded-xl border hairline p-4">
+          <div className="text-[11px] text-muted">Leady z polecenia</div>
+          <div className="mt-1 text-lg font-semibold">
+            {data.kpi.referralSharePct != null ? `${data.kpi.referralSharePct}%` : "—"}
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted">% wszystkich leadów w rejestrze</div>
         </div>
         <Link
           href={`/${lang}/admin/stats`}

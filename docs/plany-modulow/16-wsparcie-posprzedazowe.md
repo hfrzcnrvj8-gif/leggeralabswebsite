@@ -1,5 +1,15 @@
 # Moduł 16 — Wsparcie posprzedażowe
 
+> **Potwierdzone aktualne 2026-07-24** (przegląd całej mapy drogi klienta
+> przy okazji ujednolicania kolejności modułów panel↔apka): to wciąż
+> **jedyny niezbudowany etap** z `00-mapa-drogi-klienta.md`. Firma nadal nie
+> ma pierwszego zakończonego projektu z klientem wymagającym wsparcia —
+> ostrzeżenie "nie budować na zapas" niżej dalej obowiązuje. Przeciek
+> opisany w sekcji "⚠️ Dopisane przez audyt Modułu 29" (zadanie z maila do
+> zamkniętego projektu znika bez śladu) **wciąż istnieje w kodzie**
+> (`app/api/mail/[id]/to-task/route.ts` nadal nie filtruje projektów po
+> statusie) — sprawdzone ponownie przy tym przeglądzie.
+
 > Przeczytaj najpierw `docs/plany-modulow/README.md` (zasady wspólne),
 > `CLAUDE.md` i `docs/plany-modulow/00-mapa-drogi-klienta.md` → sekcja
 > "Etap 9 — Wsparcie posprzedażowe".
