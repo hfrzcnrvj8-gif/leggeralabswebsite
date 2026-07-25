@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   IconRadar,
@@ -20,7 +20,7 @@ import { SPRING, EASE_LIQUID } from "@/lib/motion";
 import { POWODY_ODRZUCENIA, POWODY_SITA, type Sygnal } from "@/lib/leadHunter";
 import { Modal } from "../Modal";
 import { Popover, MenuLabel, MenuRow } from "../Menu";
-import { useUI } from "../ui";
+import { useUI, isTypingTarget } from "../ui";
 
 /* ────────────────────────── typy z API ────────────────────────── */
 
@@ -119,14 +119,24 @@ function KartaKandydata({
   onOdrzuc,
   onZaczepka,
   zajety,
+  rozwiniete,
+  onToggle,
+  podKursorem,
+  refKursora,
 }: {
   k: Kandydat;
   onWez: (k: Kandydat) => void;
   onOdrzuc: (k: Kandydat, powod: string) => void;
   onZaczepka: (k: Kandydat) => void;
   zajety: boolean;
+  /** Stan rozwinięcia trzyma RODZIC — inaczej skrót klawiaturowy (Enter) nie
+   * miałby czego przełączyć: nie sięga do stanu pojedynczej karty. */
+  rozwiniete: boolean;
+  onToggle: () => void;
+  /** Karta „pod kursorem" klawiatury (j/k). */
+  podKursorem: boolean;
+  refKursora?: (el: HTMLDivElement | null) => void;
 }) {
-  const [rozwiniete, setRozwiniete] = useState(false);
   const sygnaly = sygnalyZ(k);
   const obsluzony = k.stan !== "nowy";
 
@@ -134,7 +144,10 @@ function KartaKandydata({
     <motion.div
       layout
       transition={SPRING}
-      className={`card-paper rounded-2xl border hairline p-4 ${obsluzony ? "opacity-60" : ""}`}
+      ref={podKursorem ? refKursora : undefined}
+      className={`card-paper rounded-2xl border p-4 ${obsluzony ? "opacity-60" : ""} ${
+        podKursorem ? "border-brand-accent" : "hairline"
+      }`}
     >
       <div className="flex flex-wrap items-start gap-2">
         <OcenaPigulka ocena={k.ocena} punkty={k.punkty} />
@@ -231,7 +244,7 @@ function KartaKandydata({
       {/* „Dlaczego" — bez tego sortowanie jest czarną skrzynką, której nikt
           nie zaufa, a sortowanie, któremu się nie wierzy, jest bezwartościowe. */}
       <button
-        onClick={() => setRozwiniete((v) => !v)}
+        onClick={onToggle}
         className="mt-3 flex items-center gap-1 text-[12px] text-muted hover:text-[var(--fg)]"
       >
         <motion.span animate={{ rotate: rozwiniete ? 90 : 0 }} transition={{ duration: 0.18, ease: EASE_LIQUID }} className="inline-flex">
@@ -276,6 +289,8 @@ export function CandidatesView({
   search,
   onOdswiez,
   onOdswiezLeady,
+  polujSygnal,
+  nowePolowanieSygnal,
 }: {
   dane: DaneLowcy | null;
   polowania: Polowanie[];
@@ -283,8 +298,11 @@ export function CandidatesView({
   search: string;
   onOdswiez: () => Promise<void> | void;
   onOdswiezLeady: () => Promise<void> | void;
+  /** Sygnały z palety poleceń (licznik, nie flaga — patrz LeadsDashboard). */
+  polujSygnal: number;
+  nowePolowanieSygnal: number;
 }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, choose } = useUI();
   const [zajety, setZajety] = useState(false);
   const [polujeSie, setPolujeSie] = useState(false);
   const [pokazC, setPokazC] = useState(false);
@@ -296,6 +314,13 @@ export function CandidatesView({
    * jednym ruchem, i to od razu, a nie przez szukanie na czarnej liście. */
   const [ostatnioOdrzucony, setOstatnioOdrzucony] = useState<{ nazwa: string; blacklistId: string } | null>(null);
   const [edytowane, setEdytowane] = useState<Polowanie | null>(null);
+  /** Który kandydat jest „pod kursorem" klawiatury. Skrzynka to ekran, na
+   * którym robi się SERIĘ decyzji pod rząd — przy dwudziestu kandydatach
+   * sięganie po mysz do każdego „Weź" jest tym, co odróżnia narzędzie od
+   * formularza. Tabela leadów ma `j`/`k` od dawna; tu ich brakowało. */
+  const [kursor, setKursor] = useState(0);
+  const [rozwiniete, setRozwiniete] = useState<Set<string>>(new Set());
+  const kursorRef = useRef<HTMLDivElement | null>(null);
   const [zaczepka, setZaczepka] = useState<{ kandydat: Kandydat; tekst: string; laduje: boolean } | null>(null);
 
   const kandydaci = useMemo(() => {
@@ -513,6 +538,81 @@ export function CandidatesView({
     [onOdswiez]
   );
 
+  /** Odrzucenie z klawiatury musi zapytać o powód tak samo jak myszą — powód
+   * jest jednym z dwóch liczników pętli poprawy sita, więc skrót, który by go
+   * pomijał, po cichu psułby statystykę. */
+  const odrzucZKlawiatury = useCallback(
+    async (k: Kandydat) => {
+      const powod = await choose(`Dlaczego odrzucasz „${k.nazwa}”?`, [
+        ...POWODY_ODRZUCENIA.map((p) => ({ value: p, label: p, danger: true })),
+      ]);
+      if (powod) await odrzuc(k, powod);
+    },
+    [choose, odrzuc]
+  );
+
+  const przelaczRozwiniecie = useCallback((id: string) => {
+    setRozwiniete((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }, []);
+
+  useEffect(() => {
+    const widoczni = [...czolo, ...(pokazC ? ogon : [])];
+    function onKey(e: KeyboardEvent) {
+      // Nie przechwytujemy liter wpisywanych w wyszukiwarkę ani w formularze.
+      if (isTypingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!widoczni.length) return;
+
+      if (e.key === "j" || e.key === "k") {
+        e.preventDefault();
+        setKursor((i) => Math.min(widoczni.length - 1, Math.max(0, i + (e.key === "j" ? 1 : -1))));
+        return;
+      }
+      const k = widoczni[Math.min(kursor, widoczni.length - 1)];
+      if (!k) return;
+      if (e.key === "t") {
+        e.preventDefault();
+        void wez(k);
+      } else if (e.key === "x") {
+        e.preventDefault();
+        void odrzucZKlawiatury(k);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        przelaczRozwiniecie(k.id);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [czolo, ogon, pokazC, kursor, wez, odrzucZKlawiatury, przelaczRozwiniecie]);
+
+  // Kursor poza listą po przyjęciu/odrzuceniu ostatniej pozycji — cofamy go,
+  // żeby `t` nie przestało nagle działać.
+  useEffect(() => {
+    const ile = czolo.length + (pokazC ? ogon.length : 0);
+    if (kursor > 0 && kursor >= ile) setKursor(Math.max(0, ile - 1));
+  }, [czolo.length, ogon.length, pokazC, kursor]);
+
+  useEffect(() => {
+    kursorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [kursor]);
+
+  // Wywołania z palety poleceń. `> 0` pomija pierwsze renderowanie: bez tego
+  // samo wejście w zakładkę odpalałoby polowanie.
+  useEffect(() => {
+    if (polujSygnal > 0) void polujTeraz();
+    // Świadomie bez `polujTeraz` w zależnościach — chcemy reagować na SYGNAŁ,
+    // a nie na każdą zmianę tożsamości funkcji.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polujSygnal]);
+
+  useEffect(() => {
+    if (nowePolowanieSygnal > 0) setNowePolowanie(true);
+  }, [nowePolowanieSygnal]);
+
   if (!dane) {
     return (
       <div className="space-y-3">
@@ -661,8 +761,10 @@ export function CandidatesView({
         </div>
       ) : (
         <div className="space-y-2">
-          {czolo.map((k) => (
-            <KartaKandydata key={k.id} k={k} onWez={wez} onOdrzuc={odrzuc} onZaczepka={generujZaczepke} zajety={zajety} />
+          {czolo.map((k, i) => (
+            <KartaKandydata key={k.id} k={k} onWez={wez} onOdrzuc={odrzuc} onZaczepka={generujZaczepke} zajety={zajety}
+              rozwiniete={rozwiniete.has(k.id)} onToggle={() => przelaczRozwiniecie(k.id)}
+              podKursorem={i === kursor} refKursora={(el) => (kursorRef.current = el)} />
           ))}
         </div>
       )}
@@ -682,8 +784,10 @@ export function CandidatesView({
           </button>
           {pokazC && (
             <div className="mt-2 space-y-2">
-              {ogon.map((k) => (
-                <KartaKandydata key={k.id} k={k} onWez={wez} onOdrzuc={odrzuc} onZaczepka={generujZaczepke} zajety={zajety} />
+              {ogon.map((k, i) => (
+                <KartaKandydata key={k.id} k={k} onWez={wez} onOdrzuc={odrzuc} onZaczepka={generujZaczepke} zajety={zajety}
+                  rozwiniete={rozwiniete.has(k.id)} onToggle={() => przelaczRozwiniecie(k.id)}
+                  podKursorem={czolo.length + i === kursor} refKursora={(el) => (kursorRef.current = el)} />
               ))}
             </div>
           )}
@@ -704,7 +808,8 @@ export function CandidatesView({
           {pokazObsluzone && (
             <div className="mt-2 space-y-2">
               {obsluzeni.map((k) => (
-                <KartaKandydata key={k.id} k={k} onWez={wez} onOdrzuc={odrzuc} onZaczepka={generujZaczepke} zajety={zajety} />
+                <KartaKandydata key={k.id} k={k} onWez={wez} onOdrzuc={odrzuc} onZaczepka={generujZaczepke} zajety={zajety}
+                  rozwiniete={rozwiniete.has(k.id)} onToggle={() => przelaczRozwiniecie(k.id)} podKursorem={false} />
               ))}
             </div>
           )}

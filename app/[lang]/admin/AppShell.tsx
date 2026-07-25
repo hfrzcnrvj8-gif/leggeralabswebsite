@@ -135,6 +135,22 @@ const GO_CHORDS: Record<string, string> = {
 /** Wspólna rama dla całego panelu /admin — lewy sidebar (styl Linear),
  * globalna paleta poleceń (Cmd+K) z wyszukiwaniem po wszystkich modułach,
  * i płynne przejście między stronami. */
+/**
+ * Moduły renderujące GĘSTE, szerokie widoki, którym globalny limit
+ * `max-w-[1800px]` odbiera miejsce zamiast poprawiać czytelność.
+ *
+ * Poczta trafiła tu przy Module 4e (trójkolumnowy dashboard). Leady dołączyły
+ * 2026-07-26 na zgłoszenie właściciela: kanban ma osiem kolumn statusów, a
+ * tabela dwanaście kolumn — na szerokim monitorze limit zostawiał puste pasy
+ * po bokach i ściskał to, co ma być czytelne.
+ *
+ * Reszta panelu (formularze, Statystyki, Pulpit) ZOSTAJE przy limicie: tam
+ * pełna szerokość dałaby linie tekstu ciągnące się przez cały monitor, czyli
+ * dokładnie odwrotny efekt. Dopisuj tu moduł dopiero wtedy, gdy realnie
+ * brakuje mu miejsca — nie „dla spójności".
+ */
+const PELNA_SZEROKOSC = ["mail", "leads"];
+
 export function AppShell({
   lang,
   children,
@@ -593,7 +609,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col md:min-h-0">
-        {/* Poczta ma świadomie odrębny kształt treści od reszty panelu —
+        {/* Moduły, którym limit szerokości szkodzi zamiast pomagać —
             gęsty trójkolumnowy dashboard (foldery + lista + podgląd), gdzie
             globalny limit `max-w-[1800px]` marnował widoczną przestrzeń na
             szerokich monitorach (zgłoszone przez właściciela, Moduł 4e runda
@@ -611,7 +627,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           // (wysokość kapsuły + jej odsunięcie od dołu + safe-area). Od md
           // kapsuły nie ma → zwykłe pb-5.
           className={`mx-auto flex w-full flex-1 flex-col px-4 pt-5 pb-[calc(1.25rem+5.25rem+env(safe-area-inset-bottom))] sm:px-6 md:min-h-0 md:overflow-y-auto md:pb-5 ${
-            pathname.startsWith(`${base}/mail`) ? "max-w-none" : "max-w-[1800px]"
+            PELNA_SZEROKOSC.some((m) => pathname.startsWith(`${base}/${m}`)) ? "max-w-none" : "max-w-[1800px]"
           }`}
         >
           <AnimatePresence mode="wait">

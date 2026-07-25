@@ -29,6 +29,7 @@ import { Tooltip } from "../Tooltip";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
+import { addDaysISO } from "@/lib/invoices";
 
 // Trzecia zakładka to NIE trzeci widok tych samych danych — to inny zbiór.
 // „Kandydaci" pokazują skrzynkę Łowcy leadów (Moduł 52), czyli firmy, które
@@ -37,6 +38,10 @@ import { todayLocalISO } from "@/lib/dates";
 // wartość wpisana „na sztywno" przy tworzeniu leada cicho wykrzywiła dwa
 // wskaźniki lejka — automat sypiący 200 zimnych rekordów zepsułby wszystkie.
 type ViewMode = "kanban" | "table" | "kandydaci";
+
+/** Ile zaległych leadów pokazuje baner, zanim schowa resztę pod „Pokaż
+ * wszystkie". Pięć mieści się nad treścią, nie spychając jej z ekranu. */
+const OVERDUE_SKROT = 5;
 
 export function LeadsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
@@ -56,6 +61,12 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [lowca, setLowca] = useState<DaneLowcy | null>(null);
   const [polowania, setPolowania] = useState<Polowanie[]>([]);
   const [czarnaLista, setCzarnaLista] = useState<WpisCzarnejListy[]>([]);
+  const [overdueRozwiniete, setOverdueRozwiniete] = useState(false);
+  // Licznikowe „sygnały" zamiast flag boolean: paleta poleceń może odpalić tę
+  // samą akcję dwa razy pod rząd, a `true → true` nie jest zmianą i efekt
+  // w dziecku by się nie uruchomił.
+  const [polujSygnal, setPolujSygnal] = useState(0);
+  const [nowePolowanieSygnal, setNowePolowanieSygnal] = useState(0);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -368,6 +379,15 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         }
         return;
       }
+      // 1/2/3 — przeskok między widokami bez sięgania po mysz. Cyfry, nie
+      // litery: litery są już zajęte przez nawigację po liście (j/k) i przez
+      // globalne „n"/„g", a cyfra odpowiada pozycji zakładki, więc nie trzeba
+      // jej pamiętać.
+      if (e.key === "1" || e.key === "2" || e.key === "3") {
+        e.preventDefault();
+        switchView(e.key === "1" ? "kanban" : e.key === "2" ? "table" : "kandydaci");
+        return;
+      }
       if (view === "table" && (e.key === "j" || e.key === "k")) {
         e.preventDefault();
         setSelectedIndex((i) => {
@@ -383,7 +403,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openLeadId, view, filtered, selectedIndex, updateLead]);
+  }, [openLeadId, view, filtered, selectedIndex, updateLead, switchView]);
 
   // Akcje zgłoszone do globalnej palety poleceń (Cmd+K) w AppShell.
   useRegisterActions(
@@ -395,8 +415,13 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       { id: "discover", label: "Znajdź nowe leady", run: () => setDiscoverOpen(true) },
       { id: "report", label: "Wyślij dzienny raport teraz", run: sendReportNow },
       { id: "tidy-sources", label: "Uporządkuj źródła (auto-kategoryzacja)", run: tidySources },
+      // Łowca leadów (Moduł 52) — jego akcje żyły wyłącznie w zakładce
+      // „Kandydaci". Paleta jest jedynym miejscem, w którym da się do nich
+      // dojść z klawiatury z dowolnego widoku modułu.
+      { id: "hunt-now", label: "Łowca: poluj teraz", run: () => { switchView("kandydaci"); setPolujSygnal((n) => n + 1); } },
+      { id: "hunt-new", label: "Łowca: nowe polowanie", run: () => { switchView("kandydaci"); setNowePolowanieSygnal((n) => n + 1); } },
     ],
-    [addLead, switchView, sendReportNow, tidySources]
+    [addLead, switchView, sendReportNow, tidySources, seedInitial]
   );
 
   if (!leads) {
@@ -413,7 +438,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     );
   }
 
-  const overdue = leads.filter(isOverdue);
+  // Najdłużej milczące na górze — przy skróconym banerze to decyduje o tym,
+  // czy pięć pokazanych pozycji to te właściwe.
+  const overdue = leads
+    .filter(isOverdue)
+    .sort((a, b) => (a.ostatni_kontakt ?? a.created_at).localeCompare(b.ostatni_kontakt ?? b.created_at));
   const selectedId = view === "table" ? filtered[selectedIndex]?.id ?? null : null;
   // Zakładka „Kandydaci" ma swój własny zbiór, więc filtry, zaznaczanie i
   // akcje rejestru leadów są tam bez sensu — chowamy je zamiast zostawiać
@@ -616,26 +645,61 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       <DiscoverPanel open={discoverOpen} onOpenChange={setDiscoverOpen} onDiscovered={load} />
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
+      {/* ── Baner „wymaga działania dziś" ──
+          Do 2026-07-26 wypisywał WSZYSTKIE zaległe leady, jeden pod drugim.
+          Przy trzech to była lista; po wprowadzeniu reguły ciszy (14 dni)
+          cały zaległy rejestr zapalił się naraz i baner urósł na trzy ekrany,
+          spychając Tablicę i Tabelę poza widok — zgłoszone przez właściciela
+          zrzutem. Alarm, który zasłania to, do czego się przyszło, przestaje
+          być alarmem.
+          Teraz: nagłówek z liczbą, pięć najpilniejszych i reszta pod
+          rozwinięciem. Sortowanie od najdłużej milczących — bez tego pięć
+          pokazanych byłoby przypadkowe. */}
       {rejestr && overdue.length > 0 && (
         <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
-          <h2 className="mb-1.5 text-[12.5px] font-medium text-orange-400">Wymaga działania dziś</h2>
-          {overdue.map((l) => (
+          <button
+            onClick={() => setOverdueRozwiniete((v) => !v)}
+            className="mb-1.5 flex w-full items-center gap-1.5 text-left text-[12.5px] font-medium text-orange-400"
+            disabled={overdue.length <= OVERDUE_SKROT}
+          >
+            Wymaga działania dziś
+            <span className="rounded-full bg-orange-500/15 px-1.5 text-[11px]">{overdue.length}</span>
+            {overdue.length > OVERDUE_SKROT && (
+              <span className="ml-auto text-[12px] font-normal opacity-80">
+                {overdueRozwiniete ? "Zwiń" : `Pokaż wszystkie (${overdue.length})`}
+              </span>
+            )}
+          </button>
+          {(overdueRozwiniete ? overdue : overdue.slice(0, OVERDUE_SKROT)).map((l) => (
             <div
               key={l.id}
-              className="flex items-center justify-between border-b border-orange-500/10 py-1 text-[13px] last:border-0"
+              className="flex items-center justify-between gap-3 border-b border-orange-500/10 py-1 text-[13px] last:border-0"
             >
-              <span>
-                <b>{l.firma}</b> — {overdueReason(l)}
+              <span className="min-w-0 truncate">
+                <b>{l.firma}</b> <span className="text-muted">— {overdueReason(l)}</span>
               </span>
-              <button
-                onClick={async () => {
-                  await updateLead(l.id, "status", "Przypomnienie wysłane");
-                  await updateLead(l.id, "ostatni_kontakt", todayLocalISO());
-                }}
-                className="rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
-              >
-                Oznacz jako obsłużone
-              </button>
+              {/* Lead, do którego NIGDY się nie odezwaliśmy, nie da się
+                  „oznaczyć jako obsłużony": ustawienie statusu „Przypomnienie
+                  wysłane" i dzisiejszej daty kontaktu byłoby wpisaniem do
+                  rejestru zdarzenia, które nie zaszło. Tam odkładamy termin. */}
+              {l.ostatni_kontakt ? (
+                <button
+                  onClick={async () => {
+                    await updateLead(l.id, "status", "Przypomnienie wysłane");
+                    await updateLead(l.id, "ostatni_kontakt", todayLocalISO());
+                  }}
+                  className="shrink-0 rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
+                >
+                  Oznacz jako obsłużone
+                </button>
+              ) : (
+                <button
+                  onClick={() => updateLead(l.id, "next_followup", addDaysISO(todayLocalISO(), 7))}
+                  className="shrink-0 rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
+                >
+                  Odłóż o tydzień
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -713,6 +777,8 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           search={search}
           onOdswiez={loadLowca}
           onOdswiezLeady={load}
+          polujSygnal={polujSygnal}
+          nowePolowanieSygnal={nowePolowanieSygnal}
         />
       ) : view === "kanban" ? (
         <KanbanBoard

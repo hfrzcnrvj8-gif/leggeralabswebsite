@@ -9,10 +9,18 @@ import { isOverdue, overdueReason, DNI_CISZY_W_OTWARTYM, type Lead } from "../li
 // różne rzeczy. Ten plik pinuje arytmetykę progów po stronie panelu.
 
 const DZIS = new Date();
+/** Data sprzed `n` dni jako „YYYY-MM-DD" — **licząc LOKALNIE, nie w UTC**.
+ *
+ * Pierwsza wersja używała `toISOString().slice(0,10)` i przez to sypała się
+ * między północą a przesunięciem strefy: o 00:10 czasu polskiego UTC pokazuje
+ * jeszcze poprzedni dzień, więc każdy próg wychodził o jeden dzień za daleko
+ * i cztery testy zapalały się na czerwono bez żadnej zmiany w regule.
+ * Dokładnie ta sama pułapka, którą `daysSince()` w `lib/leads.ts` ma opisaną
+ * w komentarzu — tyle że tym razem wpadł w nią test, a nie kod. */
 function dniTemu(n: number): string {
   const d = new Date(DZIS);
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function lead(zmiany: Partial<Lead> = {}): Lead {
