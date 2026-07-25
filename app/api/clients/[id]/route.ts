@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureClientsSchema, ensureContractsSchema } from "@/lib/db";
+import { getSql, ensureClientsSchema, ensureContractsSchema, ensureFollowupsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { CLIENT_STATUSES } from "@/lib/clients";
@@ -40,7 +40,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // klienta sprawdzić, czy papier w ogóle jest podpisany — a to warunek startu
   // jego projektów (bramka w api/projects/[id]).
   await ensureContractsSchema();
-  const [clientActivity, leadActivity, events, offers, invoices, projects, contracts, mail] = await Promise.all([
+  await ensureFollowupsSchema();
+  const [clientActivity, leadActivity, events, offers, invoices, projects, contracts, mail, followups] = await Promise.all([
     sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
     leadId
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
@@ -48,12 +49,26 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     sql`SELECT id, kind, text, amount, related_id, created_at FROM client_events WHERE client_id = ${id};`,
     sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
-    sql`SELECT id, tytul, status, termin, created_at FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    // Pola opinii (Moduł 15) jadą razem z projektem: gwiazdka z listy klientów
+    // mówiła TYLE, że jakaś opinia jest, ale profil klienta milczał o tym, KTÓRY
+    // projekt ją przyniósł i czy klient zgodził się na referencję — a to jedyne
+    // miejsce, gdzie ta zgoda ma sens biznesowy (portfolio nowej firmy).
+    sql`
+      SELECT id, tytul, status, termin, created_at,
+        review_rating_jakosc, review_rating_terminowosc, review_rating_komunikacja,
+        review_comment, review_submitted_at, review_consent_case_study
+      FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;
+    `,
     sql`SELECT id, typ, status, project_id, accepted_at, created_at FROM contracts WHERE client_id = ${id} ORDER BY created_at DESC;`,
     // Kartoteka korespondencji (04d pkt 2) — osobny rejestr obok scalonego
     // feedu, na wyraźną prośbę właściciela (nadpisuje wcześniejszą decyzję z
     // 04-skrzynka-mailowa.md o braku osobnej sekcji).
     sql`SELECT id, subject, kierunek, status, received_at FROM mail_messages WHERE client_id = ${id} ORDER BY received_at DESC LIMIT 100;`,
+    // Kontakty kontrolne (Moduł 17). Do 2026-07-26 widać je było WYŁĄCZNIE na
+    // Pulpicie i tylko w dniu terminu — z karty klienta nie dało się sprawdzić
+    // „kiedy mam do niego wrócić" ani odwołać kontaktu, mimo że to jedyny
+    // mechanizm domykający pętlę retencji.
+    sql`SELECT id, project_id, due_date, powod, done_at, created_at FROM client_followups WHERE client_id = ${id} ORDER BY due_date ASC;`,
   ]);
   // Audyt zmian (Moduł 23) świadomie NIE jest tutaj — ma własny endpoint
   // `/changes`, dociągany dopiero po otwarciu zakładki. Dwa powody: profil nie
@@ -110,7 +125,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail });
+  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail, followups });
 }
 
 /** PATCH /api/clients/:id — aktualizacja pól karty klienta. */
@@ -180,6 +195,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ("www" in body) {
     applied.www = str(body.www, 200);
     await sql`UPDATE clients SET www = ${applied.www}, updated_at = now() WHERE id = ${id};`;
+  }
+  // Osoba kontaktowa — edytowalna od 2026-07-26 (audyt Klientów). Wcześniej
+  // dało się ją wyłącznie odziedziczyć po leadzie: PATCH jej nie znał, karta
+  // klienta jej nie pokazywała, a formularz w apce po cichu ją wyrzucał.
+  // Tymczasem pole realnie pracuje — wita adresata w mailu retencyjnym
+  // (`buildNurtureMessage`), stoi w wierszu listy i wchodzi do wyszukiwarki.
+  if ("osoba_kontaktowa" in body) {
+    applied.osoba_kontaktowa = str(body.osoba_kontaktowa, 200);
+    await sql`UPDATE clients SET osoba_kontaktowa = ${applied.osoba_kontaktowa}, updated_at = now() WHERE id = ${id};`;
   }
   if ("linkedin_url" in body) {
     applied.linkedin_url = str(body.linkedin_url, 300);

@@ -41,7 +41,30 @@ import type { FieldChange } from "@/lib/audit";
 
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
 type LinkedInvoice = { id: string; numer: string | null; status: string; typ_dokumentu: string; created_at: string };
-type LinkedProject = { id: string; tytul: string; status: string; termin: string | null; created_at: string };
+/** Pola opinii (Moduł 15) jadą razem z projektem — patrz komentarz przy
+ * zapytaniu w `app/api/clients/[id]/route.ts`. */
+type LinkedProject = {
+  id: string;
+  tytul: string;
+  status: string;
+  termin: string | null;
+  created_at: string;
+  review_rating_jakosc: number | null;
+  review_rating_terminowosc: number | null;
+  review_rating_komunikacja: number | null;
+  review_comment: string | null;
+  review_submitted_at: string | null;
+  review_consent_case_study: boolean;
+};
+/** Zaplanowany kontakt kontrolny (Moduł 17) — `done_at` puste = do zrobienia. */
+type ClientFollowupItem = {
+  id: string;
+  project_id: string | null;
+  due_date: string;
+  powod: string;
+  done_at: string | null;
+  created_at: string;
+};
 /** Moduł 31 — umowy/NDA klienta. `project_id` jest tu po to, żeby dało się z
  * karty odróżnić umowę odblokowującą start projektu od wolnostojącej. */
 type LinkedContract = {
@@ -113,6 +136,7 @@ export function ClientDetailPanel({
   const [projects, setProjects] = useState<LinkedProject[]>([]);
   const [contracts, setContracts] = useState<LinkedContract[]>([]);
   const [mail, setMail] = useState<ClientMail[]>([]);
+  const [followups, setFollowups] = useState<ClientFollowupItem[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteFollowup, setNoteFollowup] = useState("");
@@ -144,6 +168,7 @@ export function ClientDetailPanel({
       projects: LinkedProject[];
       contracts: LinkedContract[];
       mail: ClientMail[];
+      followups: ClientFollowupItem[];
     };
     setClient(data.client);
     setFeed(data.feed);
@@ -152,6 +177,7 @@ export function ClientDetailPanel({
     setProjects(data.projects);
     setContracts(data.contracts ?? []);
     setMail(data.mail ?? []);
+    setFollowups(data.followups ?? []);
     setNoteFollowup(data.client.next_followup ?? "");
     setNoteAction(data.client.next_action ?? "");
   }, [id]);
@@ -238,6 +264,19 @@ export function ClientDetailPanel({
     }
   };
 
+  /** Ten sam ruch, co „Obsłużone" na Pulpicie (`markFollowupHandled`) — jedna
+   * trasa, dwa wejścia. Z karty klienta ma sens wtedy, gdy kontakt odbył się
+   * inną drogą (spotkanie, telefon) i mail z Pulpitu jest już bezprzedmiotowy. */
+  const markFollowupDone = async (followupId: string) => {
+    const res = await fetch(`/api/client-followups/${followupId}`, { method: "PATCH" });
+    if (!res.ok) {
+      toast("Nie udało się oznaczyć kontaktu.", "error");
+      return;
+    }
+    setFollowups((prev) => prev.map((f) => (f.id === followupId ? { ...f, done_at: new Date().toISOString() } : f)));
+    toast("Kontakt kontrolny oznaczony jako obsłużony.");
+  };
+
   const deleteNote = async (activityId: string) => {
     const ok = await confirm("Usunąć ten wpis z historii kontaktu?", { danger: true });
     if (!ok) return;
@@ -276,6 +315,7 @@ export function ClientDetailPanel({
   }
 
   const linkedCount = offers.length + invoices.length + projects.length + contracts.length;
+  const reviewed = projects.filter((p) => p.review_submitted_at);
 
   const FEED_FILTERS: { value: typeof feedFilter; label: string }[] = [
     { value: "all", label: "Wszystko" },
@@ -339,6 +379,12 @@ export function ClientDetailPanel({
         {tab === "card" && (
           <div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {/* Osoba kontaktowa — do 2026-07-26 karta jej nie pokazywała ani
+                  nie pozwalała poprawić, mimo że to ona wita adresata w mailu
+                  retencyjnym (`buildNurtureMessage`). */}
+              <Field label="Osoba kontaktowa">
+                <EditableText value={client.osoba_kontaktowa} onSave={(v) => updateClient("osoba_kontaktowa", v)} />
+              </Field>
               <Field label="NIP">
                 <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
               </Field>
@@ -380,7 +426,97 @@ export function ClientDetailPanel({
                   <EditableText value={client.next_action} onSave={(v) => updateClient("next_action", v)} />
                 </Field>
               )}
+              {/* Skąd ten klient przyszedł — pole zapisywane przez trzy ścieżki
+                  awansu z leada i do 2026-07-26 nieczytane przez NIC. Świadomie
+                  tylko do odczytu: to migawka pochodzenia z chwili awansu, nie
+                  bieżący stan (ten sam powód, dla którego PATCH go nie zna). */}
+              {(client.zrodlo_kategoria || client.zrodlo) && (
+                <Field label="Skąd przyszedł">
+                  <p className="px-1 py-1.5 text-sm">
+                    {client.zrodlo_kategoria && (
+                      <span className="rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-[var(--fg)]">
+                        {client.zrodlo_kategoria}
+                      </span>
+                    )}
+                    {client.zrodlo && <span className="ml-1.5 text-muted">{client.zrodlo}</span>}
+                  </p>
+                </Field>
+              )}
             </div>
+
+            {followups.length > 0 && (
+              <div className="mt-6 border-t hairline pt-6">
+                <h2 className="mb-1 text-lg font-semibold">Kontakty kontrolne</h2>
+                <p className="mb-4 text-[12px] text-muted opacity-70">
+                  Planowane automatycznie po wdrożeniu projektu (+14 i +90 dni). Szkic wiadomości przygotujesz na
+                  Pulpicie w dniu terminu.
+                </p>
+                <ul className="space-y-1.5 text-sm">
+                  {followups.map((f) => {
+                    const zalegly = !f.done_at && f.due_date.slice(0, 10) <= todayLocalISO();
+                    return (
+                      <li
+                        key={f.id}
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 ${
+                          zalegly ? "border-orange-500/30 bg-orange-500/[0.05]" : "hairline"
+                        }`}
+                      >
+                        <span className={`shrink-0 text-[12px] ${zalegly ? "font-semibold text-orange-400" : "text-muted"}`}>
+                          {formatPlDate(f.due_date)}
+                        </span>
+                        <span className={`min-w-0 flex-1 truncate ${f.done_at ? "text-muted line-through" : ""}`}>
+                          {f.powod}
+                        </span>
+                        {f.done_at ? (
+                          <span className="shrink-0 text-[11px] text-muted">obsłużony</span>
+                        ) : (
+                          <button
+                            onClick={() => markFollowupDone(f.id)}
+                            className="shrink-0 rounded-md px-2 py-0.5 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                          >
+                            Obsłużone
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {reviewed.length > 0 && (
+              <div className="mt-6 border-t hairline pt-6">
+                <h2 className="mb-4 text-lg font-semibold">Opinie</h2>
+                <ul className="space-y-2 text-sm">
+                  {reviewed.map((p) => {
+                    const ocena = projectRating(p);
+                    return (
+                    <li key={p.id} className="rounded-xl border hairline p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Opinia bez gwiazdek jest możliwa (klient wypełnił sam
+                            komentarz) — wtedy nie udajemy oceny. */}
+                        {ocena != null && <span className="font-medium text-brand-gold">★ {ocena.toFixed(1)}</span>}
+                        <Link href={`/${lang}/admin/projects/${p.id}`} className="min-w-0 flex-1 truncate hover:underline">
+                          {p.tytul}
+                        </Link>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${
+                            p.review_consent_case_study
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : "bg-[var(--hairline)] text-muted"
+                          }`}
+                          title="Zgoda na wykorzystanie opinii jako referencji/case study"
+                        >
+                          {p.review_consent_case_study ? "zgoda na referencję" : "bez zgody na referencję"}
+                        </span>
+                      </div>
+                      {p.review_comment && <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-muted">{p.review_comment}</p>}
+                    </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
 
             <div className="mt-4">
               <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
@@ -714,6 +850,17 @@ export function ClientDetailPanel({
       </ViewSwitch>
     </div>
   );
+}
+
+/** Średnia z trzech ocen jednej opinii — ta sama arytmetyka, co w
+ * `GET /api/clients` (podzapytanie `avg_rating`) i w `lib/projects.ts`.
+ * `null`, gdy klient wypełnił samą treść bez gwiazdek. */
+function projectRating(p: Pick<LinkedProject, "review_rating_jakosc" | "review_rating_terminowosc" | "review_rating_komunikacja">): number | null {
+  const vals = [p.review_rating_jakosc, p.review_rating_terminowosc, p.review_rating_komunikacja].filter(
+    (v): v is number => typeof v === "number"
+  );
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 function LinkedGroup({ title, children }: { title: string; children: React.ReactNode }) {

@@ -142,16 +142,22 @@ export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projec
 export const CLIENT_STATUSES = ["Prospekt", "Aktywny", "Uśpiony", "Stracony"] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
 
+/* Kolory statusu wyrównane do apki 2026-07-26 (audyt Klientów): fiolet marki
+ * = relacja żyje, złoto = prospekt, szarość = reszta. Do tego dnia panel mówił
+ * co innego niż telefon (cyan/zieleń) — ta sama oś, dwa słowniki. Wygrała
+ * apka: jej paleta przeszła osobny audyt koloru, a zieleń jest w niej
+ * zarezerwowana dla „zrobione/sukces". Bliźniak: `kolorStatusuKlienta`
+ * w `PulpitView.swift`. */
 export const CLIENT_STATUS_CLASS: Record<ClientStatus, string> = {
-  Prospekt: "bg-brand-cyan/15 text-brand-cyan",
-  Aktywny: "bg-emerald-500/15 text-emerald-400 font-semibold",
+  Prospekt: "bg-brand-gold/15 text-brand-gold",
+  Aktywny: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
   Uśpiony: "bg-[var(--hairline)] text-muted",
   Stracony: "bg-[var(--hairline)] text-muted opacity-70",
 };
 
 export const CLIENT_STATUS_DOT: Record<ClientStatus, string> = {
-  Prospekt: "bg-brand-cyan",
-  Aktywny: "bg-emerald-500",
+  Prospekt: "bg-brand-gold",
+  Aktywny: "bg-brand-purple",
   Uśpiony: "bg-[var(--fg-muted)]",
   Stracony: "bg-[var(--fg-muted)]",
 };

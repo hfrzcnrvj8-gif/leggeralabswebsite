@@ -107,6 +107,54 @@ alternatywa to rejestry publiczne (CEIDG/KRS + REGON: NIP i kod PKD, czyli
 celowanie w branżę i wielkość zamiast w promień) — to osobny, większy moduł.
 Nic z tego NIE zostało zbudowane; brief nie istnieje. Nie zaczynaj bez prośby.
 
+## Stan po module „Klienci" (2026-07-26)
+
+**Zrobione i scommitowane** (szczegóły techniczne: `HUB_SETUP.md` → „Moduł 51
+(audyt UI/UX) — Klienci").
+
+1. **Osoba kontaktowa przestała znikać.** Formularz „Nowy klient" w apce
+   pokazywał to pole i po cichu je WYRZUCAŁ (serwer go nie przyjmował), a
+   poprawić go nie dało się nigdzie: `PATCH /api/clients/[id]` go nie znał, a
+   karta klienta w panelu w ogóle go nie wyświetlała. Pole realnie pracuje —
+   wita adresata w mailu retencyjnym (`buildNurtureMessage`). Teraz przyjmowane
+   przy tworzeniu, edytowalne w obu miejscach.
+2. **`POST /api/clients` przestała gubić dane leada i milczeć na osi.**
+   Przepisywała tylko firmę/branżę/telefon/mail/www — osoba, LinkedIn, adres,
+   źródło i notatki ginęły (Moduł 12 naprawił ten przeciek w `api/offers` i
+   `promote`, tę trasę pomijając). Nie logowała też `client_created`, więc
+   klient dodany ręcznie miał pustą historię.
+3. **Okno „Nowy klient" w panelu zamiast prompta o samą nazwę** — z osobą,
+   telefonem, mailem i **kategorią źródła** (domyślnie „Polecenie"). Ten sam
+   zabieg, co w Leadach przy Module 51. Apka dostała ten sam wybór kategorii.
+4. **`'Inbound'` zniknęło.** Obie trasy „zrób leada/klienta z maila" wpisywały
+   wartość SPOZA `SOURCE_CATEGORIES` — nie do odfiltrowania, nie do poprawienia
+   pickerem, a w „konwersji per źródło" osobny widmowy kubełek. Jest kategoria
+   **„Zapytanie mailem"** (panel + apka).
+5. **Karta klienta pokazuje wreszcie to, co moduły 15 i 17 zbierają:**
+   kontakty kontrolne (z „Obsłużone" i wyróżnieniem zaległych), zebrane opinie
+   z komentarzem i zgodą na referencję, oraz „Skąd przyszedł".
+6. **Apka: klient stał się edytowalny.** Nowy `EdycjaKlientaView` (pełna
+   wizytówka + adres + **przypomnienie**), sekcja „Powiązane"
+   (umowy/projekty/oferty/faktury), podpowiedź statusu, usuwanie klienta i
+   wpisu z historii, swipe „Obsłużone" i filtr statusu w pasku (iPhone i iPad).
+   Do tego dnia `next_followup` — JEDYNA rzecz zapalająca klientowi „wymaga
+   działania dziś" — dała się z telefonu tylko skasować, nigdy ustawić.
+7. **Kolory statusu wyrównane** (decyzja właściciela): wygrała paleta apki
+   (fiolet = relacja żyje, złoto = prospekt), panel się do niej dostosował.
+
+**Znalezione przy okazji, większe niż moduł: `tailwind.config.ts` nie skanował
+`lib/`.** Mapy „status → klasy" (`CLIENT_STATUS_CLASS`, `LEAD_STATUS_CLASS`,
+statusy projektów/faktur/umów) mieszkają właśnie tam, czyli poza zasięgiem
+Tailwinda — klasa stamtąd działała TYLKO wtedy, gdy przypadkiem pojawiała się
+też gdzieś w `app/`. Nowa nie działała wcale i nie dawała żadnego objawu poza
+pigułką bez tła. Złapane pomiarem `getComputedStyle` (zrzut wyglądał
+wiarygodnie), naprawione jedną linią w `content`.
+
+**Świadomie nie ruszone:** retencja/RODO klientów (brak auto-usuwania jest
+decyzją z Audytu 2), rzeczy z `PO_REJESTRACJI.md`, tworzenie oferty/faktury
+wprost z karty klienta (nie istnieje w żadnej wersji — osobny zakres, nie
+regres), `zrodlo`/`zrodlo_kategoria` jako pola tylko do odczytu po utworzeniu.
+
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`

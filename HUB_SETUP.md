@@ -7230,3 +7230,73 @@ ląduje też w notatce leada przy przyjęciu — art. 14 RODO wymaga jej przy
 PIERWSZYM kontakcie, a szablon, którego nikt nie stworzył, niczego nie niesie.
 **Treść klauzuli jest robocza, do potwierdzenia z prawnikiem** (patrz
 `docs/DO-PRAWNIKA-I-TLUMACZA.md` → 2.1b).
+
+## Moduł 51 (audyt UI/UX) — Klienci (2026-07-26)
+
+Trzeci przystanek audytu (po Pulpicie i Leadach). Pełne podsumowanie i lista
+świadomie pominiętych rzeczy: `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md`
+→ „Stan po module Klienci".
+
+### Dane, które znikały bez śladu
+
+**Osoba kontaktowa** była polem-widmem: `POST /api/clients` jej nie przyjmował,
+`PATCH` jej nie znał, karta klienta w panelu jej nie pokazywała — a formularz
+„Nowy klient" w apce miał dla niej pole i po cichu je wyrzucał (komentarz w
+`NowyKlientView` wprost to przyznawał). Wypełnić dało się ją wyłącznie przez
+awans leada. Tymczasem to ona wita adresata w mailu retencyjnym
+(`buildNurtureMessage`) — klient dodany ręcznie dostawał „Cześć,".
+
+`POST /api/clients` **z `lead_id` przepisywało pięć pól z leada zamiast
+czternastu** (ginęły: osoba, LinkedIn, cały adres, źródło, kategoria, notatki).
+Ten sam przeciek Moduł 12 naprawił w `api/offers` i `leads/[id]/promote`, a tę
+trasę pominął. Ta sama trasa jako jedyna z czterech **nie logowała
+`client_created`**, więc oś czasu ręcznie dodanego klienta zaczynała się od
+niczego.
+
+**`'Inbound'`** wpisywane na sztywno w `mail/[id]/create-lead` i
+`create-client` było wartością **spoza `SOURCE_CATEGORIES`**: picker jej nie
+pokazywał (więc nie dało się jej poprawić), filtr nie łapał, a „konwersja per
+źródło" robiła z niej osobny kubełek obok reszty. Zastąpione kategorią
+**„Zapytanie mailem"**, dodaną do listy w `lib/leads.ts` i do
+`KategoriaZrodla` w apce (wyłączoną z `doWyboru` — ustawia ją trasa, nie
+palec).
+
+### Karta klienta pokazuje wreszcie to, co system zbiera
+
+`GET /api/clients/:id` dokłada `followups` (Moduł 17) i pola opinii przy
+projektach (Moduł 15). Profil ma sekcje **Kontakty kontrolne** (z „Obsłużone"
+i wyróżnieniem zaległych), **Opinie** (ocena, komentarz, zgoda na referencję)
+oraz **Skąd przyszedł**. Do tego dnia kontakty kontrolne widać było wyłącznie
+na Pulpicie i tylko w dniu terminu, ocenę — jako gwiazdkę na liście bez
+żadnego kontekstu, a `zrodlo` zapisywały trzy ścieżki i nie czytało **nic**.
+
+### Apka: klient przestał być rekordem tylko do oglądania
+
+Nowy `EdycjaKlientaView` (bliźniak `EdycjaLeadaView`) daje pełną wizytówkę,
+adres i **przypomnienie**. To ostatnie jest sednem: `next_followup` to JEDYNA
+rzecz, która zapala klientowi „wymaga działania dziś" (`isClientOverdue` /
+`Client.wymagaDzialania`), a telefon umiał je dotąd wyłącznie **skasować**
+(przyciskiem na Pulpicie) — ustawić nie umiał wcale. Do tego: sekcja
+„Powiązane" (`pobierzKlienta` bierze wreszcie oferty/faktury/projekty/umowy,
+nie sam feed), podpowiedź statusu (`ClientStatus.podpowiedz`, treść 1:1 z
+`CLIENT_STATUS_HINT`), usuwanie klienta i wpisu z historii, swipe „Obsłużone"
+i filtr statusu w pasku — iPhone i iPad.
+
+Model `Client` dostał `ulica/kod/kraj/linkedin_url/zrodlo/zrodlo_kategoria` —
+trasa zwracała je od zawsze, model gubił, więc adres klienta był w telefonie
+niewidoczny.
+
+### Tailwind nie skanował `lib/` — cicha awaria całej palety statusów
+
+Przy wyrównywaniu kolorów statusu (decyzja właściciela: wygrywa paleta apki —
+fiolet = relacja żyje, złoto = prospekt) nowa klasa `bg-brand-purple/20`
+**nie zadziałała**. Powód okazał się szerszy niż moduł: `content` w
+`tailwind.config.ts` obejmował `app/` i `components/`, ale **nie `lib/`** — a
+tam mieszkają wszystkie mapy „status → klasy" (`CLIENT_STATUS_CLASS`,
+`LEAD_STATUS_CLASS`, statusy projektów, faktur, umów). Klasa zapisana w `lib/`
+działała TYLKO wtedy, gdy przypadkiem występowała też gdzieś w `app/`; nowa nie
+działała wcale i nie dawała żadnego objawu poza pigułką bez tła.
+
+Złapane pomiarem, nie okiem: zrzut ekranu wyglądał wiarygodnie, dopiero
+`getComputedStyle` pokazał `background-color: rgba(0,0,0,0)` przy poprawnej
+liście klas w `className`. Naprawa to jedna linia w `content`.

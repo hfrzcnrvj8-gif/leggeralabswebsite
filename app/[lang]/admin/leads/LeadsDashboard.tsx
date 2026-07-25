@@ -847,7 +847,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
                   (`KategoriaZrodla.doWyboru`). W profilu leada zostaje pełna
                   lista — tam się je POPRAWIA, nie tworzy. */}
               {SOURCE_CATEGORIES.filter(
-                (s) => s !== "Formularz na stronie" && s !== "Automatyczne wyszukiwanie"
+                (s) =>
+                  s !== "Formularz na stronie" &&
+                  s !== "Automatyczne wyszukiwanie" &&
+                  s !== "Wyszukiwanie na mapie" &&
+                  s !== "Zapytanie mailem"
               ).map((s) => (
                 <button
                   key={s}

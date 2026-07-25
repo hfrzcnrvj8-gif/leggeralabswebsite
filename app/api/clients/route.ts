@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureClientsSchema, ensureHubSchema } from "@/lib/db";
+import { getSql, ensureClientsSchema, ensureHubSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
@@ -44,32 +44,78 @@ export async function POST(req: NextRequest) {
   const status = typeof body.status === "string" && (CLIENT_STATUSES as readonly string[]).includes(body.status) ? body.status : "Prospekt";
 
   // Jeśli tworzone z leada — skopiuj jego dane jako punkt startowy.
+  //
+  // Do 2026-07-26 ta trasa przepisywała z leada TYLKO firmę, branżę, telefon,
+  // e-mail i www — a osoba kontaktowa, LinkedIn, adres, źródło i notatki
+  // ginęły. Dokładnie ten przeciek Moduł 12 naprawił w `api/offers` i
+  // `leads/[id]/promote`, tę trasę pomijając. Efekt widać było dopiero
+  // w mailu retencyjnym, który witał „Cześć," zamiast imieniem.
   let nazwa = str(body.nazwa, 300);
   let branza = str(body.branza, 200);
   let telefon = str(body.telefon, 100);
   let email = str(body.email, 200);
   let www = str(body.www, 200);
-  if (leadId && !nazwa) {
-    const lead = await sql`SELECT firma, branza, telefon, email, www FROM leads WHERE id = ${leadId};`;
-    if (lead[0]) {
-      nazwa = String(lead[0].firma ?? "");
-      branza = branza || String(lead[0].branza ?? "");
-      telefon = telefon || String(lead[0].telefon ?? "");
-      email = email || String(lead[0].email ?? "");
-      www = www || String(lead[0].www ?? "");
+  let ulica = str(body.ulica, 300);
+  let kod = str(body.kod, 20);
+  let miasto = str(body.miasto, 200);
+  let kraj = str(body.kraj, 100);
+  // Osoba kontaktowa przyjmowana od 2026-07-26. Wcześniej nie było jak jej
+  // podać ani poprawić — apka miała nawet pole w formularzu „Nowy klient",
+  // które po cichu wyrzucała, bo serwer i tak by jej nie przyjął.
+  let osobaKontaktowa = str(body.osoba_kontaktowa, 200);
+  let linkedin = str(body.linkedin_url, 300);
+  let zrodlo = str(body.zrodlo, 300);
+  let zrodloKategoria = str(body.zrodlo_kategoria, 100);
+  let notatki = str(body.notatki, 4000);
+  if (leadId) {
+    const lead = (await sql`
+      SELECT firma, branza, telefon, email, www, ulica, kod, miasto, kraj,
+        osoba_kontaktowa, linkedin_url, zrodlo, zrodlo_kategoria, notatki
+      FROM leads WHERE id = ${leadId};
+    `)[0];
+    if (lead) {
+      const zLeada = (v: unknown) => (typeof v === "string" ? v : "");
+      if (!nazwa) nazwa = zLeada(lead.firma);
+      branza = branza || zLeada(lead.branza);
+      telefon = telefon || zLeada(lead.telefon);
+      email = email || zLeada(lead.email);
+      www = www || zLeada(lead.www);
+      ulica = ulica || zLeada(lead.ulica);
+      kod = kod || zLeada(lead.kod);
+      miasto = miasto || zLeada(lead.miasto);
+      kraj = kraj || zLeada(lead.kraj);
+      osobaKontaktowa = osobaKontaktowa || zLeada(lead.osoba_kontaktowa);
+      linkedin = linkedin || zLeada(lead.linkedin_url);
+      zrodlo = zrodlo || zLeada(lead.zrodlo);
+      zrodloKategoria = zrodloKategoria || zLeada(lead.zrodlo_kategoria);
+      notatki = notatki || zLeada(lead.notatki);
     }
   }
 
   await sql`
-    INSERT INTO clients (id, nazwa, nip, ulica, kod, miasto, kraj, email, telefon, www, branza, status, lead_id)
+    INSERT INTO clients (
+      id, nazwa, nip, ulica, kod, miasto, kraj, email, telefon, www, branza, status, lead_id,
+      osoba_kontaktowa, linkedin_url, zrodlo, zrodlo_kategoria, notatki
+    )
     VALUES (
-      ${id}, ${nazwa}, ${str(body.nip, 30)}, ${str(body.ulica, 300)}, ${str(body.kod, 20)},
-      ${str(body.miasto, 200)}, ${str(body.kraj, 100)}, ${email}, ${telefon}, ${www}, ${branza}, ${status}, ${leadId}
+      ${id}, ${nazwa}, ${str(body.nip, 30)}, ${ulica}, ${kod},
+      ${miasto}, ${kraj}, ${email}, ${telefon}, ${www}, ${branza}, ${status}, ${leadId},
+      ${osobaKontaktowa}, ${linkedin}, ${zrodlo}, ${zrodloKategoria}, ${notatki}
     );
   `;
   if (leadId) {
     await sql`UPDATE leads SET client_id = ${id}, updated_at = now() WHERE id = ${leadId};`;
   }
+  // Oś czasu klienta zaczyna się od momentu jego powstania — tak samo robią
+  // `leads/[id]/promote`, `api/offers` i „zrób klienta z maila". Ta jedna
+  // trasa tego nie robiła, więc klient dodany ręcznie miał pustą historię
+  // i nie dało się z niej odczytać nawet tego, KIEDY się pojawił.
+  await logClientEvent(
+    sql,
+    id,
+    "client_created",
+    leadId ? "Utworzony z leada" : "Dodany ręcznie do rejestru klientów"
+  );
 
   // Klient dostał adres — dopnij mu od razu korespondencję, która przyszła
   // zanim istniał (04d pkt 1), zamiast czekać na kolejny sync poczty.

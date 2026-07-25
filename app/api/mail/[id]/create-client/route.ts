@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     INSERT INTO clients (id, nazwa, osoba_kontaktowa, email, www, zrodlo_kategoria, zrodlo, ostatni_kontakt, ostatni_kanal, notatki)
     VALUES (
       ${clientId}, ${nazwa.slice(0, 200)}, ${mail.from_name.slice(0, 200)}, ${mail.from_addr.slice(0, 200)},
-      ${domain.slice(0, 200)}, 'Inbound', 'E-mail', ${today}, 'email', ${notatki}
+      ${domain.slice(0, 200)}, 'Zapytanie mailem', 'E-mail', ${today}, 'email', ${notatki}
     );
   `;
 

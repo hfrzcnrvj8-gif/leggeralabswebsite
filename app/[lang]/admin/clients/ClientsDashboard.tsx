@@ -11,6 +11,7 @@ import {
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
 } from "./shared";
+import { SOURCE_CATEGORIES } from "@/lib/leads";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { ClientDetailPanel } from "./ClientDetailPanel";
@@ -26,7 +27,7 @@ import { todayLocalISO } from "@/lib/dates";
 type ViewMode = "kanban" | "table";
 
 export function ClientsDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm, prompt } = useUI();
+  const { toast, confirm } = useUI();
   const [clients, setClients] = useState<Client[] | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   // Moduł 34 — filtr po ostatnim kanale, ustawiany klikiem w odznakę na liście
@@ -37,6 +38,18 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const [view, setView] = useState<ViewMode>("kanban");
   const [openClientId, setOpenClientId] = useState<string | null>(null);
   const [orphansOpen, setOrphansOpen] = useState(false);
+  // Okno „Nowy klient" — pola trzymane tu, bo modal renderuje ten dashboard.
+  // Domyślka „Polecenie": ręcznie dodawany klient (bez leada, bez oferty) to
+  // niemal zawsze kontakt z polecenia — a pusta kategoria to dokładnie ta
+  // dziura, przez którą Statystyki nie widziały ani jednego polecenia.
+  const [addOpen, setAddOpen] = useState(false);
+  const [addNazwa, setAddNazwa] = useState("");
+  const [addOsoba, setAddOsoba] = useState("");
+  const [addTelefon, setAddTelefon] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [addKategoria, setAddKategoria] = useState<string>("Polecenie");
+  const [addSzczegoly, setAddSzczegoly] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -87,21 +100,45 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     setClients((prev) => prev?.map((c) => (c.id === id ? { ...c, [field]: value } : c)) ?? prev);
   }, []);
 
-  const addClient = useCallback(async () => {
-    const nazwa = await prompt("Nazwa nowego klienta:", { placeholder: "np. Kancelaria Kowalski" });
+  /** Okno „Nowy klient" zamiast prompta o samą nazwę (2026-07-26, audyt
+   * Klientów) — dokładnie ten sam zabieg, co w Leadach przy Module 51.
+   * Prompt zakładał rekord bez telefonu, maila i osoby kontaktowej, a
+   * kategoria źródła zostawała pusta, więc klient „z polecenia" niczym nie
+   * różnił się od zimnego kontaktu. Pola są opcjonalne poza nazwą — to nadal
+   * ma być kilka sekund, nie formularz. */
+  const addClient = useCallback(() => setAddOpen(true), []);
+
+  const submitNewClient = useCallback(async () => {
+    const nazwa = addNazwa.trim();
     if (!nazwa) return;
+    setAddBusy(true);
     const res = await fetch("/api/clients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nazwa }),
+      body: JSON.stringify({
+        nazwa,
+        osoba_kontaktowa: addOsoba.trim(),
+        telefon: addTelefon.trim(),
+        email: addEmail.trim(),
+        zrodlo_kategoria: addKategoria,
+        zrodlo: addSzczegoly.trim(),
+      }),
     });
+    setAddBusy(false);
     if (res.ok) {
+      setAddOpen(false);
+      setAddNazwa("");
+      setAddOsoba("");
+      setAddTelefon("");
+      setAddEmail("");
+      setAddSzczegoly("");
+      setAddKategoria("Polecenie");
       toast("Dodano klienta.");
       load();
     } else {
       toast("Nie udało się dodać klienta.", "error");
     }
-  }, [prompt, toast, load]);
+  }, [addNazwa, addOsoba, addTelefon, addEmail, addKategoria, addSzczegoly, toast, load]);
 
   const deleteClient = useCallback(
     async (id: string, nazwa: string) => {
@@ -460,6 +497,102 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
             }}
           />
         )}
+      </Modal>
+
+      {/* Nowy klient — węższe okno (jak „Nowy lead" w Leadach), bo to kilka
+          pól, nie profil. */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} card="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-6">
+        <h2 className="text-lg font-semibold">Nowy klient</h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitNewClient();
+          }}
+          className="mt-4 space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-[11px] text-muted">Nazwa firmy</label>
+            <input
+              autoFocus
+              value={addNazwa}
+              onChange={(e) => setAddNazwa(e.target.value)}
+              placeholder="np. Kancelaria Kowalski"
+              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-[11px] text-muted">Osoba kontaktowa</label>
+              <input
+                value={addOsoba}
+                onChange={(e) => setAddOsoba(e.target.value)}
+                placeholder="np. Anna Kowalska"
+                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-muted">Telefon</label>
+              <input
+                value={addTelefon}
+                onChange={(e) => setAddTelefon(e.target.value)}
+                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] text-muted">E-mail</label>
+            <input
+              value={addEmail}
+              onChange={(e) => setAddEmail(e.target.value)}
+              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] text-muted">Skąd go masz</label>
+            <div className="flex flex-wrap gap-1.5">
+              {/* Ta sama filtrowana lista, co przy „Nowym leadzie": kategorie
+                  ustawiane przez samą ścieżkę wejścia (formularz, Łowca, mapa,
+                  mail) nie mają sensu przy ręcznym dodaniu. */}
+              {SOURCE_CATEGORIES.filter(
+                (s) =>
+                  s !== "Formularz na stronie" &&
+                  s !== "Automatyczne wyszukiwanie" &&
+                  s !== "Wyszukiwanie na mapie" &&
+                  s !== "Zapytanie mailem"
+              ).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setAddKategoria(s)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                    addKategoria === s
+                      ? "border-brand-purple/50 bg-brand-purple/15 text-[var(--fg)]"
+                      : "hairline text-muted hover:text-[var(--fg)]"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] text-muted">Szczegóły źródła (opcjonalnie)</label>
+            <input
+              value={addSzczegoly}
+              onChange={(e) => setAddSzczegoly(e.target.value)}
+              placeholder="np. polecił Kowalski, spotkanie w izbie gospodarczej"
+              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={() => setAddOpen(false)} className="rounded-full border hairline px-4 py-1.5 text-xs text-muted">
+              Anuluj
+            </button>
+            <button type="submit" disabled={addBusy || !addNazwa.trim()} className="btn-primary rounded-full px-4 py-1.5 text-xs disabled:opacity-50">
+              {addBusy ? "Dodaję…" : "Dodaj klienta"}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       <Modal

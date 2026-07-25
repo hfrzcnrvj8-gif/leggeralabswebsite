@@ -6,6 +6,15 @@ const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    // `lib/` dołożone 2026-07-26 (audyt Klientów). Mapy „status → klasy"
+    // (CLIENT_STATUS_CLASS, LEAD_STATUS_CLASS, statusy projektów/faktur/umów)
+    // mieszkają w `lib/*.ts` — czyli POZA tym, co Tailwind skanował. Klasa
+    // stamtąd działała wyłącznie wtedy, gdy przypadkiem pojawiała się też
+    // gdzieś w `app/`; nowa nie działała wcale i nie dawała żadnego objawu
+    // poza pigułką bez tła. Złapane przy zmianie kolorów statusu klienta:
+    // `bg-brand-purple/20` było w kodzie, a `getComputedStyle` pokazywał
+    // przezroczyste tło.
+    "./lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {

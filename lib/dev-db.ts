@@ -422,9 +422,12 @@ async function ensureSeeded(): Promise<void> {
         // (5261234567) — żeby dało się lokalnie zobaczyć AUTO-PODPOWIEDŹ klienta
         // na koszcie (dopasowanie po NIP, `matchClientForOrphan`). Bez pasującego
         // NIP-u banner „To chyba klient…" nigdy by się nie pokazał.
-        `INSERT INTO clients (id, nazwa, nip, osoba_kontaktowa, email, telefon, status, ostatni_kontakt, ostatni_kanal)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [clientA, "Nordwind Studio", "5261234567", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3), "whatsapp"]
+        // `zrodlo_kategoria`/`zrodlo` (audyt Klientów 2026-07-26) — pole
+        // „Skąd przyszedł" na wizytówce jest lokalnie niewidoczne bez nich,
+        // a to jedyne miejsce, w którym widać, czy pętla poleceń działa.
+        `INSERT INTO clients (id, nazwa, nip, osoba_kontaktowa, email, telefon, status, ostatni_kontakt, ostatni_kanal, zrodlo_kategoria, zrodlo)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [clientA, "Nordwind Studio", "5261234567", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3), "whatsapp", "Polecenie", "polecił Marek Kowalski"]
       );
       // Moduł 31 — dopięcie umowy do klienta, dopiero teraz, bo klient
       // powstaje po niej. Dzięki temu sekcja „Umowy i NDA" na karcie klienta
@@ -436,6 +439,19 @@ async function ensureSeeded(): Promise<void> {
       // „Klient →" do czego prowadzić (i nie widać uprzedzenia o bramce umowy,
       // która włącza się dopiero dla projektu z klientem).
       await raw(`UPDATE projects SET client_id = $1 WHERE id = $2`, [clientA, projectIds[0]]);
+
+      // — Zebrana opinia (Moduł 15) —
+      // Sekcja „Opinie" na karcie klienta i gwiazdka na liście były lokalnie
+      // martwe: opinia powstaje wyłącznie przez publiczny formularz
+      // `/opinia/[token]`, więc bez tego wiersza nie da się ich zobaczyć bez
+      // ręcznego przechodzenia całej ścieżki zamknięcia projektu.
+      await raw(
+        `UPDATE projects SET review_rating_jakosc = 5, review_rating_terminowosc = 4,
+           review_rating_komunikacja = 5, review_comment = $1,
+           review_submitted_at = now() - interval '6 days', review_consent_case_study = true
+         WHERE id = $2`,
+        ["Konkret od pierwszej rozmowy, wdrożenie bez niespodzianek. Polecam.", projectIds[0]]
+      );
 
       // — Zaplanowany kontakt nurture (Moduł 2 / Moduł 17) —
       // Bez tego wiersza sekcja „Zaplanowane kontakty" na Pulpicie jest pusta

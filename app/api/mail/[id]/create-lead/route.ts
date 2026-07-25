@@ -74,7 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     INSERT INTO leads (id, firma, osoba_kontaktowa, email, zrodlo_kategoria, zrodlo, status, ostatni_kontakt, ostatni_kanal, notatki)
     VALUES (
       ${leadId}, ${firma.slice(0, 200)}, ${mail.from_name.slice(0, 200)}, ${mail.from_addr.slice(0, 200)},
-      'Inbound', 'E-mail', 'Nowe zgłoszenie ze strony', ${today}, 'email', ${notatki}
+      'Zapytanie mailem', 'E-mail', 'Nowe zgłoszenie ze strony', ${today}, 'email', ${notatki}
     );
   `;
 

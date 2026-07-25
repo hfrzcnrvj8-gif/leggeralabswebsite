@@ -143,6 +143,13 @@ export const SOURCE_CATEGORIES = [
   // Stare leady zostają przy dawnej kategorii (nie przepisujemy historii);
   // rozdział działa od tej daty w przód.
   "Wyszukiwanie na mapie",
+  // Dołożone 2026-07-26 (audyt Klientów). Trasy „zrób leada/klienta z maila"
+  // (`app/api/mail/[id]/create-lead`, `create-client`) wpisywały na sztywno
+  // `'Inbound'` — wartość SPOZA tej listy, więc nie dało się jej odfiltrować
+  // ani poprawić pickerem (picker zna tylko tę tablicę), a w „konwersji per
+  // źródło" robiła widmowy kubełek obok pozostałych. Ta sama klasa błędu, co
+  // kategoria na sztywno z Modułu 51 — tylko schowana w innym module.
+  "Zapytanie mailem",
   "Ręcznie dodane",
   "Inne",
 ] as const;
