@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isOverdue, overdueReason, DNI_CISZY_W_OTWARTYM, type Lead } from "../lib/leads.ts";
+import { todayLocalISO, addDaysToISO } from "../lib/dates.ts";
 
 // `isOverdue` to JEDYNE źródło trzech rzeczy naraz: banera „wymaga działania
 // dziś" w panelu, sekcji w porannym mailu i filtru w apce. Bliźniak w Swifcie
@@ -8,19 +9,22 @@ import { isOverdue, overdueReason, DNI_CISZY_W_OTWARTYM, type Lead } from "../li
 // liczyć to samo, bo inaczej panel i telefon mówią o tym samym leadzie dwie
 // różne rzeczy. Ten plik pinuje arytmetykę progów po stronie panelu.
 
-const DZIS = new Date();
-/** Data sprzed `n` dni jako „YYYY-MM-DD" — **licząc LOKALNIE, nie w UTC**.
+/** Data sprzed `n` dni jako „YYYY-MM-DD" — **tym samym kalendarzem, którego
+ * używa sama reguła**.
  *
- * Pierwsza wersja używała `toISOString().slice(0,10)` i przez to sypała się
- * między północą a przesunięciem strefy: o 00:10 czasu polskiego UTC pokazuje
- * jeszcze poprzedni dzień, więc każdy próg wychodził o jeden dzień za daleko
- * i cztery testy zapalały się na czerwono bez żadnej zmiany w regule.
- * Dokładnie ta sama pułapka, którą `daysSince()` w `lib/leads.ts` ma opisaną
- * w komentarzu — tyle że tym razem wpadł w nią test, a nie kod. */
+ * Dwa podejścia już tu poległy i oba dawały ten sam objaw: cztery testy na
+ * czerwono bez jednej zmiany w kodzie.
+ *   1. `toISOString()` liczyło w UTC — sypało się lokalnie po północy.
+ *   2. Czas maszyny — sypało się na runnerze GitHuba, który stoi w UTC:
+ *      o 22:00 UTC w Warszawie jest już następny dzień, a `todayLocalISO()`
+ *      jest przypięte do `Europe/Warsaw`, nie do strefy maszyny.
+ *
+ * Stąd trzecie i ostatnie: liczymy `todayLocalISO()` + `addDaysToISO()`, czyli
+ * dokładnie tymi funkcjami, którymi liczy `isOverdue`. Test nie ma własnego
+ * pojęcia „dziś" — pyta o nie ten sam kalendarz co reguła.
+ */
 function dniTemu(n: number): string {
-  const d = new Date(DZIS);
-  d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return addDaysToISO(todayLocalISO(), -n);
 }
 
 function lead(zmiany: Partial<Lead> = {}): Lead {
