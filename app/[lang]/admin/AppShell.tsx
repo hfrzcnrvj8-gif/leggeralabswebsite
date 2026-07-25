@@ -21,6 +21,7 @@ import {
   IconAdjustmentsHorizontal,
   IconMail,
   IconChartBar,
+  IconActivityHeartbeat,
   IconSearch,
   IconChevronLeft,
   IconChevronRight,
@@ -92,6 +93,11 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   // lejku pracy, tylko okresowy (raz w miesiącu/kwartale) przegląd, czy
   // cały wzorzec się trzyma (patrz docs/plany-modulow/18-pulpit-wskazniki.md).
   { href: "/stats", label: "Statystyki", icon: IconChartBar },
+  // Zdrowie systemu (2026-07-25) — też nie krok w lejku, ale ŚWIADOMIE w
+  // sidebarze, nie w palecie poleceń. Wchodzisz tu w jednej sytuacji: coś się
+  // zepsuło i szukasz przyczyny. Ekran ratunkowy, którego trzeba szukać po
+  // nazwie w palecie, nie jest ekranem ratunkowym.
+  { href: "/zdrowie", label: "Zdrowie", icon: IconActivityHeartbeat },
 ];
 
 // Ekrany osiągalne WYŁĄCZNIE z palety poleceń (Cmd/Ctrl+K), świadomie poza

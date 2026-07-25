@@ -735,6 +735,11 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     automatyLinie,
     bledyLinie,
     "",
+    // Adres ekranu ratunkowego wprost w mailu (2026-07-25). Mail pokazuje 5
+    // ostatnich błędów i skrócone przyczyny — pełny dziennik, historia kopii i
+    // surowe meldunki automatów są tam. Bez tej linijki trzeba by wiedzieć, że
+    // ten ekran w ogóle istnieje.
+    `Pełny stan systemu i przyczyny błędów: ${SITE_ORIGIN}/pl/admin/zdrowie`,
     `Łącznie: ${leads.length} leadów, ${projects.length} projektów.`,
     "",
     "— automatyczny raport z /admin",

@@ -7151,3 +7151,29 @@ problem, opisany niżej.
 (log, licznik, `last_error`), musi mieć wskazane miejsce, w którym ktoś to
 zobaczy. Inaczej powstaje tabela, która zna odpowiedź, i człowiek, który jej nie
 zna — ten sam antywzorzec, który Audyt 4 wytknął przy `mail_folders.last_error`.
+
+### Ekran „Zdrowie systemu" (2026-07-25)
+
+Dopowiedzenie do naprawy wyżej. `/pl/admin/zdrowie` + `GET /api/observability`
+— jedyny czytelnik `error_log` w systemie, plus historia kopii i surowe
+meldunki automatów. Cztery karty: stan kopii + 7 ostatnich przebiegów, stan
+każdego automatu ze skutkiem awarii, 50 ostatnich błędów z **rozwijaną
+przyczyną** (`szczegoly`), 20 ostatnich meldunków.
+
+Trzy decyzje warte zapamiętania:
+
+- **Ekran świadomie NIE milczy, gdy jest dobrze** — odwrotnie niż Pulpit.
+  Pulpit jest ekranem codziennym i cisza chroni go przed szumem; tutaj
+  wchodzisz dokładnie wtedy, gdy coś nie działa, a wtedy „(pusto)" nie odróżnia
+  się od awarii samego ekranu. „Ostatnia kopia 6 godz. temu" jest odpowiedzią.
+- **W sidebarze, nie w palecie poleceń.** Ekran ratunkowy, którego trzeba
+  szukać po nazwie, nie jest ekranem ratunkowym. Adres idzie też w stopce
+  dziennego maila.
+- **Bursztyn, nie czerwień.** Czerwień w panelu znaczy „akcja nieodwracalna";
+  czerwony pas przy „kopie są o dzień stare" mówiłby o katastrofie tam, gdzie
+  jest usterka.
+
+Zero nowych tabel, zero nowych usług — dane leżały w bazie od Audytu 4.
+Alarmy zostają bez zmian (osobny mail tylko o zatrzymanych automatach, max raz
+na dobę); decyzja właściciela 2026-07-25: **nie** wysyłamy maila przy każdym
+nowym błędzie, bo alarm przychodzący codziennie przestaje być alarmem.
