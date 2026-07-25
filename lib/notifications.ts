@@ -35,7 +35,12 @@ export type NotificationKind =
   // nie zadanie: to zdarzenie z zewnątrz, w punkcie w czasie, nie do
   // odhaczenia. Bez encji — wydarzenie nie ma własnej podstrony, więc
   // kliknięcie prowadzi donikąd i lepiej nie obiecywać, że prowadzi.
-  | "invite_response";
+  | "invite_response"
+  // Moduł 52 — „Łowca leadów" dołożył kandydatów do skrzynki albo przerwał
+  // polowanie. Kronika: zdarzenie w punkcie w czasie, nie zadanie do
+  // odhaczenia. Bez `entity_id` (kandydatów jest kilku, nie jeden), więc
+  // kliknięcie prowadzi do zakładki „Kandydaci" — patrz notificationHref().
+  | "lead_hunt";
 
 /** Encja, do której prowadzi kliknięcie. Tekst, nie enum — patrz `lib/db.ts`. */
 export type NotificationEntity = "lead" | "mail" | "invoice" | "cost" | "client" | "offer" | "contract" | "project";
@@ -73,8 +78,16 @@ export const NOTIFICATIONS_RETENTION_DAYS = 30;
  * Koszty świadomie lądują na liście, nie na podstronie rekordu: `/admin/costs`
  * jako jedyny moduł w panelu nie ma `[id]/page.tsx` (patrz drzewo tras), więc
  * `/costs/<id>` byłoby po prostu 404. Gdy Koszty kiedyś dostaną podstronę, to
- * jest jedyne miejsce do zmiany. */
-export function notificationHref(n: Pick<Notification, "entity" | "entity_id">, base: string): string | null {
+ * jest jedyne miejsce do zmiany.
+ *
+ * Łowca leadów (Moduł 52) rozstrzyga się po RODZAJU, nie po encji: jedno
+ * powiadomienie mówi o kilkunastu kandydatach naraz, więc nie ma jednego
+ * `entity_id`, na który mogłoby wskazać. Prowadzi do skrzynki. */
+export function notificationHref(
+  n: Pick<Notification, "entity" | "entity_id"> & Partial<Pick<Notification, "kind">>,
+  base: string
+): string | null {
+  if (n.kind === "lead_hunt") return `${base}/leads?widok=kandydaci`;
   if (!n.entity) return null;
   if (n.entity === "cost") return `${base}/costs`;
   if (!n.entity_id) return null;

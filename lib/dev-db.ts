@@ -905,6 +905,88 @@ async function ensureSeeded(): Promise<void> {
         // powiadomienie prowadzi więc w dev do prawdziwego rekordu.
         [randomUUID(), leadB, randomUUID(), randomUUID(), randomUUID()]
       );
+
+      // — „Łowca leadów" (Moduł 52): polowanie + skrzynka kandydatów —
+      //
+      // Bez tego seeda zakładka „Kandydaci" byłaby lokalnie ZAWSZE pusta:
+      // wiersze powstają wyłącznie z przebiegu potoku, a ten wymaga tokenu
+      // CEIDG, którego w dev nie ma. Ta sama lekcja co przy kontakcie nurture
+      // i kolejce wysyłki wyżej — funkcja oddana bez wiersza, który by ją
+      // pokazał, jest funkcją nie do obejrzenia.
+      //
+      // **Te dane są ZMYŚLONE** (NIP-y z puli testowej, domeny example.pl) —
+      // dev-baza nie ma prawa udawać, że zna prawdziwe firmy.
+      //
+      // Trzy kandydaci świadomie w trzech ocenach (A/B/C) i dwóch stanach:
+      // ocena maluje kartę innym kolorem, a stan „odrzucony" ma pokazać, że
+      // odrzucenie zostawia ślad, a nie kasuje wiersz.
+      const { ensureLeadHunterSchema } = await import("./db");
+      await ensureLeadHunterSchema();
+      const huntId = randomUUID();
+      await raw(
+        `INSERT INTO lead_hunts (id, nazwa, pkd, wojewodztwo, powiat, aktywne, kursor, ostatni_przebieg, ostatni_wynik, znalezionych, przyjetych)
+         VALUES ($1,$2,$3,$4,$5,true,2, now() - interval '9 hours', $6, 34, 3)`,
+        [huntId, "Biura rachunkowe — Mazowsze", "6920,6910", "MAZOWIECKIE", "", "Dołożono 3 kandydatów (1× A)"]
+      );
+      const kandydaci: [string, string, string, string, string, string, string, number, string, string, string][] = [
+        [
+          "Biuro Rachunkowe Zofia Malinowska", "1132456789", "6920Z", "Radom", "malinowska-ksiegowosc.example.pl",
+          "biuro@malinowska-ksiegowosc.example.pl", "+48 601 234 567", 115, "A", "nowy",
+          `[{"kod":"pkd_rdzen","opis":"Branża docelowa: Biuro rachunkowe / doradztwo podatkowe","punkty":30},
+            {"kod":"vat_czynny","opis":"Czynny podatnik VAT — firma realnie handluje","punkty":15},
+            {"kod":"email","opis":"Publiczny e-mail — da się napisać bez formularza","punkty":15},
+            {"kod":"telefon","opis":"Publiczny telefon","punkty":10},
+            {"kod":"www","opis":"Ma stronę WWW","punkty":10},
+            {"kod":"wiek_slodki","opis":"Na rynku 11 lat — ma nawyki i budżet, nie ma działu IT","punkty":10},
+            {"kod":"formularz","opis":"Formularz kontaktowy — powtarzalne zapytania do obsłużenia","punkty":10},
+            {"kod":"cennik","opis":"Cennik / abonament / pakiety — powtarzalna usługa","punkty":10},
+            {"kod":"wiele_adresow","opis":"2 adresy działalności — jakaś skala","punkty":5},
+            {"kod":"blisko","opis":"Radom — spotkanie na żywo realne","punkty":5}]`,
+        ],
+        [
+          "Kancelaria Radcy Prawnego Piotr Wrona", "9512345670", "6910Z", "Warszawa", "wrona-kancelaria.example.pl",
+          "", "+48 22 123 45 67", 60, "B", "nowy",
+          `[{"kod":"pkd_rdzen","opis":"Branża docelowa: Kancelaria prawna","punkty":30},
+            {"kod":"vat_czynny","opis":"Czynny podatnik VAT — firma realnie handluje","punkty":15},
+            {"kod":"telefon","opis":"Publiczny telefon","punkty":10},
+            {"kod":"www","opis":"Ma stronę WWW","punkty":10},
+            {"kod":"blisko","opis":"Warszawa — spotkanie na żywo realne","punkty":5},
+            {"kod":"tylko_formularz","opis":"Tylko formularz, żadnego adresu e-mail","punkty":-10}]`,
+        ],
+        [
+          "Gabinet Stomatologiczny Ewa Nowak", "7010203040", "8623Z", "Płock", "",
+          "", "+48 500 600 700", 40, "C", "odrzucony",
+          `[{"kod":"pkd_rdzen","opis":"Branża docelowa: Praktyka lekarska / gabinet","punkty":30},
+            {"kod":"telefon","opis":"Publiczny telefon","punkty":10}]`,
+        ],
+      ];
+      for (const [nazwa, nip, pkd, miasto, www, email, telefon, punkty, ocena, stan, sygnaly] of kandydaci) {
+        await raw(
+          `INSERT INTO lead_candidates
+             (id, hunt_id, nazwa, nazwa_norm, nip, pkd_glowny, pkd, branza, miasto, www, email, telefon,
+              data_rozpoczecia, status_ceidg, status_vat, liczba_adresow, punkty, ocena, sygnaly, stan, powod_odrzucenia)
+           VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,'AKTYWNY',$13,$14,$15,$16,$17::jsonb,$18,$19)`,
+          [
+            randomUUID(), huntId, nazwa,
+            nazwa.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
+            nip, pkd,
+            pkd.startsWith("6920") ? "Biuro rachunkowe / doradztwo podatkowe"
+              : pkd.startsWith("6910") ? "Kancelaria prawna" : "Praktyka lekarska / gabinet",
+            miasto, www, email, telefon,
+            iso(-3800), ocena === "C" ? null : "Czynny", ocena === "A" ? 2 : 1,
+            punkty, ocena, sygnaly, stan, stan === "odrzucony" ? "Brak sensownego kontaktu" : "",
+          ]
+        );
+      }
+      await raw(
+        `INSERT INTO lead_blacklist (id, nip, nazwa_norm, powod) VALUES ($1,'5213456780','tania ksiegowosc online','Konkurencja / robi to samo')`,
+        [randomUUID()]
+      );
+      await raw(
+        `INSERT INTO lead_hunt_rejects (dzien, powod, ile) VALUES
+           (CURRENT_DATE,'pkd_poza_lista',18),(CURRENT_DATE,'brak_kontaktu',9),(CURRENT_DATE,'za_mloda',4)`,
+        []
+      );
     })();
   }
   await seedPromise;

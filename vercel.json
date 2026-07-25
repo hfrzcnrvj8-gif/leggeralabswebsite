@@ -7,6 +7,10 @@
     {
       "path": "/api/mail/outbox/run",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/leads/hunt/run",
+      "schedule": "0 4 * * *"
     }
   ]
 }

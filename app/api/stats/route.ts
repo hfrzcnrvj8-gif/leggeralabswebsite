@@ -6,6 +6,7 @@ import {
   ensureInvoicesSchema,
   ensureClientsSchema,
   ensureTimeSchema,
+  ensureLeadHunterSchema,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO, daysBetweenISO } from "@/lib/dates";
@@ -29,6 +30,7 @@ export async function GET() {
   await ensureInvoicesSchema();
   await ensureClientsSchema();
   await ensureTimeSchema();
+  await ensureLeadHunterSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -41,6 +43,8 @@ export async function GET() {
     invoiceRows,
     nurtureAskRows,
     timeEntryRows,
+    hunterRows,
+    hunterRejectRows,
   ] = await Promise.all([
     // Czas do pierwszej odpowiedzi: pierwszy wpis na osi leada zainicjowany
     // PRZEZ NAS ("wychodzacy") po utworzeniu leada — nie ma dedykowanej
@@ -96,6 +100,26 @@ export async function GET() {
       FROM time_entries
       WHERE NOT (ended_at IS NULL AND source = 'timer');
     ` as unknown as Promise<{ entry_date: string; minutes: number }[]>,
+    // Łowca leadów (Moduł 52) — pierwsza połowa pętli poprawy sita: czy „A"
+    // naprawdę znaczy A. Liczymy PRZYJĘTYCH kandydatów, bo tylko oni mają
+    // leada, który mógł zostać klientem. `client_id` jest jedynym dowodem
+    // konwersji — tym samym, co w sekcji 2 wyżej.
+    sql`
+      SELECT c.ocena, COUNT(*)::int AS wzietych,
+             COUNT(l.client_id)::int AS klientow
+      FROM lead_candidates c
+      JOIN leads l ON l.id = c.lead_id
+      WHERE c.stan = 'wziety'
+      GROUP BY c.ocena;
+    ` as unknown as Promise<{ ocena: string; wzietych: number; klientow: number }[]>,
+    // Druga połowa: dlaczego właściciel odrzuca. Powód z zamkniętej listy,
+    // więc daje się policzyć — „30× za mała firma" znaczy, że próg wieku albo
+    // lista PKD są źle ustawione.
+    sql`
+      SELECT powod_odrzucenia AS powod, COUNT(*)::int AS ile
+      FROM lead_candidates WHERE stan = 'odrzucony' AND powod_odrzucenia <> ''
+      GROUP BY powod_odrzucenia ORDER BY ile DESC LIMIT 5;
+    ` as unknown as Promise<{ powod: string; ile: number }[]>,
   ]);
 
   // --- 1) Czas do pierwszej odpowiedzi (godziny) ---
@@ -269,6 +293,19 @@ export async function GET() {
     timeTracking: {
       totalHours: statsRound1(totalMinutesAll / 60),
       trend: timeTrackingTrend,
+    },
+    // Pętla poprawy sita „Łowcy leadów" (Moduł 52). Bez trendu miesięcznego:
+    // przy kilkunastu kandydatach na miesiąc wykres pokazywałby szum, a nie
+    // sygnał. Po kwartale te dwie liczby wystarczą, żeby wiedzieć, które
+    // pokrętło w `lib/leadHunter.ts` przekręcić.
+    hunter: {
+      byGrade: ["A", "B", "C"].map((ocena) => {
+        const r = hunterRows.find((x) => x.ocena === ocena);
+        const wzietych = r?.wzietych ?? 0;
+        const klientow = r?.klientow ?? 0;
+        return { ocena, wzietych, klientow, pct: wzietych > 0 ? statsRound1((klientow / wzietych) * 100) : null };
+      }),
+      topRejections: hunterRejectRows,
     },
   });
 }

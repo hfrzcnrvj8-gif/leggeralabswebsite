@@ -1734,6 +1734,171 @@ export async function ensureCostsSchema(): Promise<void> {
   await costsSchemaReady;
 }
 
+let leadHunterSchemaReady: Promise<void> | null = null;
+
+/**
+ * „Łowca leadów" (Moduł 52) — polowania, skrzynka kandydatów, czarna lista
+ * i licznik żądań do CEIDG.
+ *
+ * **Dlaczego osobny schemat, a nie dopisek do `ensureHubSchema()`** (brief
+ * proponował hub): hub ciągnie za sobą KAŻDY moduł panelu — Pulpit, Notatnik,
+ * Kalendarz, Koszty. Doklejenie tam pięciu tabel, z których korzystają dwie
+ * trasy i jedna zakładka, dołożyłoby ~12 zapytań do pierwszego żądania po
+ * każdym wdrożeniu wszędzie, także tam, gdzie łowca nigdy nie zajrzy (bramka
+ * migracji, `SCHEMA_VERSION` wyżej). Osobna nazwa w `schema_state` = osobna
+ * bramka. Reguła z `CLAUDE.md` (każda `create*Schema()` MUSI mieć
+ * `schemaUpToDate` + `markSchemaApplied`) jest zachowana.
+ *
+ * **`lead_candidates` to NIE są leady.** Automat nigdy nie dopisuje wiersza do
+ * `leads` — odkłada go tutaj, a właściciel bierze albo odrzuca. Powód jest
+ * twardy: przy Module 51 jedna wartość wpisana „na sztywno" przy tworzeniu
+ * leada cicho wykrzywiła dwa wskaźniki lejka. Automat sypiący 200 zimnych
+ * rekordów w rejestr zepsułby wszystkie wskaźniki konwersji, i to bez żadnego
+ * objawu awarii.
+ */
+async function createLeadHunterSchema(): Promise<void> {
+  if (await schemaUpToDate("lead_hunter")) return;
+
+  // `lead_candidates.lead_id` wskazuje na leada utworzonego po przyjęciu.
+  await ensureLeadsSchema();
+
+  const sql = getSql();
+
+  // Definicja polowania — ustawiana raz („biura rachunkowe, Mazowsze") i
+  // chodząca w tle miesiącami. Kody PKD i obszar jako CSV, nie TEXT[]:
+  // tablice Postgresa wracają z neon() i z PGlite w różnych kształtach
+  // (ta sama decyzja co `notes.tagi` i `events.powtarzanie_pominiete`).
+  await sql`
+    CREATE TABLE IF NOT EXISTS lead_hunts (
+      id TEXT PRIMARY KEY,
+      nazwa TEXT NOT NULL,
+      pkd TEXT NOT NULL DEFAULT '',
+      wojewodztwo TEXT NOT NULL DEFAULT '',
+      powiat TEXT NOT NULL DEFAULT '',
+      miasto TEXT NOT NULL DEFAULT '',
+      /* Zakres daty rozpoczęcia działalności przekazywany do CEIDG
+         (datod/datdo) — pusty = bez ograniczenia. */
+      data_od DATE,
+      data_do DATE,
+      aktywne BOOLEAN NOT NULL DEFAULT true,
+      /* Kursor stronicowania CEIDG. Rośnie z każdym przebiegiem; po
+         wyczerpaniu wyników wraca na 0 i polowanie łapie firmy, które
+         doszły do rejestru od ostatniego razu. */
+      kursor INTEGER NOT NULL DEFAULT 0,
+      ostatni_przebieg TIMESTAMPTZ,
+      /* Co ostatni przebieg zrobił — widoczne w panelu, żeby cisza automatu
+         dała się odróżnić od „nic nie znalazł" (lekcja z Audytu 4). */
+      ostatni_wynik TEXT NOT NULL DEFAULT '',
+      znalezionych INTEGER NOT NULL DEFAULT 0,
+      przyjetych INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS lead_hunts_aktywne_idx ON lead_hunts(aktywne);`;
+
+  // Skrzynka. `stan`: 'surowy' (zebrany w E1, czeka na wzbogacenie) →
+  // 'nowy' (przeszedł sito, czeka na właściciela) → 'wziety' / 'odrzucony'.
+  // Kandydat odsiany przez SITO nie ląduje tu wcale — poza jednym wyjątkiem:
+  // powód odsiania trafia do `hunt_stats` (niżej), żeby dało się policzyć,
+  // co najczęściej odpada, bez trzymania danych osobowych odsianych firm.
+  await sql`
+    CREATE TABLE IF NOT EXISTS lead_candidates (
+      id TEXT PRIMARY KEY,
+      hunt_id TEXT REFERENCES lead_hunts(id) ON DELETE SET NULL,
+      nazwa TEXT NOT NULL DEFAULT '',
+      nazwa_norm TEXT NOT NULL DEFAULT '',
+      nip TEXT NOT NULL DEFAULT '',
+      regon TEXT NOT NULL DEFAULT '',
+      pkd_glowny TEXT NOT NULL DEFAULT '',
+      pkd TEXT NOT NULL DEFAULT '',
+      branza TEXT NOT NULL DEFAULT '',
+      ulica TEXT NOT NULL DEFAULT '',
+      kod TEXT NOT NULL DEFAULT '',
+      miasto TEXT NOT NULL DEFAULT '',
+      telefon TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      www TEXT NOT NULL DEFAULT '',
+      data_rozpoczecia DATE,
+      status_ceidg TEXT NOT NULL DEFAULT '',
+      /* Odnośnik do szczegółów wpisu podany przez rejestr w E1 — używany w E2
+         zamiast składania URL-a samodzielnie. Świadomie OSOBNA kolumna, nie
+         upychanie go w kolumnie www: tam siedzi strona firmy, którą pobiera E3
+         i którą widzi właściciel; pomylenie tych dwóch dałoby kandydata
+         z adresem API zamiast adresu firmy. */
+      ceidg_link TEXT NOT NULL DEFAULT '',
+      status_vat TEXT,
+      liczba_adresow INTEGER NOT NULL DEFAULT 1,
+      punkty INTEGER NOT NULL DEFAULT 0,
+      ocena TEXT NOT NULL DEFAULT 'C',
+      /* [{kod, opis, punkty}] — to jest „dlaczego". Bez tego sortowanie jest
+         czarną skrzynką, której właściciel nie zaufa. */
+      sygnaly JSONB NOT NULL DEFAULT '[]'::jsonb,
+      stan TEXT NOT NULL DEFAULT 'surowy',
+      powod_odrzucenia TEXT NOT NULL DEFAULT '',
+      lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS lead_candidates_stan_idx ON lead_candidates(stan, punkty DESC);`;
+  // Dedup w obrębie skrzynki: ten sam NIP nie ma prawa wejść dwa razy.
+  // NULL-e w Postgresie są różne, ale NIP zapisujemy jako '' gdy go brak —
+  // dlatego indeks jest CZĘŚCIOWY, inaczej drugi kandydat bez NIP-u
+  // wywracałby wstawianie.
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS lead_candidates_nip_idx ON lead_candidates(nip) WHERE nip <> '';`;
+
+  // Raz odrzucony nie wraca. MINIMALIZACJA (RODO, Audyt 2): wyłącznie NIP,
+  // znormalizowana nazwa i powód — żadnego adresu, telefonu ani maila.
+  // Nie zamierzamy tym firmom niczego proponować, więc nie trzymamy ich
+  // profilu; tyle wystarcza, żeby ich nie wzbogacać po raz drugi (a każde
+  // wzbogacenie kosztuje limit CEIDG).
+  await sql`
+    CREATE TABLE IF NOT EXISTS lead_blacklist (
+      id TEXT PRIMARY KEY,
+      nip TEXT NOT NULL DEFAULT '',
+      nazwa_norm TEXT NOT NULL DEFAULT '',
+      powod TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS lead_blacklist_nip_idx ON lead_blacklist(nip) WHERE nip <> '';`;
+  await sql`CREATE INDEX IF NOT EXISTS lead_blacklist_nazwa_idx ON lead_blacklist(nazwa_norm);`;
+
+  // Ile czego odsiało SITO — sam licznik per powód i dzień, bez nazw firm.
+  // To drugi wskaźnik pętli poprawy (obok konwersji per ocena): „30× za
+  // młoda" znaczy, że próg wieku jest źle ustawiony.
+  await sql`
+    CREATE TABLE IF NOT EXISTS lead_hunt_rejects (
+      dzien DATE NOT NULL,
+      powod TEXT NOT NULL,
+      ile INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (dzien, powod)
+    );
+  `;
+
+  // Licznik żądań do CEIDG — W BAZIE, nie w pamięci procesu. Vercel ubija
+  // instancję między wywołaniami, więc licznik w RAM-ie jest fikcją: po
+  // zimnym starcie zaczynałby od zera i wchodził prosto w blokadę.
+  // Blokada CEIDG trwa 180 s liczonych OD OSTATNIEGO żądania, więc dobijanie
+  // w jej trakcie przedłuża ją w nieskończoność.
+  await sql`
+    CREATE TABLE IF NOT EXISTS ceidg_requests (
+      id TEXT PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS ceidg_requests_created_idx ON ceidg_requests(created_at);`;
+
+  await markSchemaApplied("lead_hunter");
+}
+
+/** Lazily tworzy tabele „Łowcy leadów" (Moduł 52). */
+export async function ensureLeadHunterSchema(): Promise<void> {
+  if (!leadHunterSchemaReady) leadHunterSchemaReady = createLeadHunterSchema();
+  await leadHunterSchemaReady;
+}
+
 /** Zwraca `share_token` faktury, generując go w locie (randomUUID), jeśli
  * jeszcze go nie ma — dotyczy faktur utworzonych przed wprowadzeniem
  * publicznego podglądu/wysyłki mailem. */

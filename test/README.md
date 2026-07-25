@@ -17,6 +17,14 @@ marca, dopóki się na to nie natknie.
   działania dziś" (`isOverdue`); bliźniak: `LeadRules.dniOd`
 - `ocenKopie` — ocena stanu kopii zapasowych (nie dublowana z apką, ale to
   reguła nadzoru, której cichy błąd byłby kosztowny — patrz Audyt 3/4)
+- `ocenKandydata` i spółka (`lowca.test.ts`) — sito „Łowcy leadów" (Moduł 52):
+  dyskwalifikatory, wagi, progi A/B/C. Nie dublowane z apką (apka tylko
+  wyświetla ocenę policzoną na serwerze), ale to **jedyna** reguła w tym
+  module, która decyduje o czymkolwiek, i **jedyna dająca się sprawdzić bez
+  tokenu CEIDG** — reszta potoku to sieć. Testy złapały tu dwa realne błędy
+  przy pisaniu: wzorzec formy prawnej („sp. z o.o.") puszczony przed
+  usunięciem interpunkcji nie trafiał w nic, a „Szydłowiec" nie pasował do
+  listy miast, bo `normalize("NFD")` nie rozkłada „ł"
 
 **Czego NIE testujemy.** Interfejsu — tam ręczne oglądanie zrzutów jest
 skuteczniejsze (świadoma decyzja, Audyt 6). Bazy, tras HTTP, migracji.

@@ -28,6 +28,12 @@ type StatsData = {
   reviews: { closedProjectsCount: number; reviewsCollected: number; pct: number | null; avgClientRating: number | null };
   referral: { totalLeads: number; referralLeads: number; pct: number | null; nurtureAsksSent: number; trend: StatsTrendPoint[] };
   timeTracking: { totalHours: number; trend: StatsTrendPoint[] };
+  /** Pętla poprawy sita „Łowcy leadów" (Moduł 52) — patrz komentarz przy
+   * kafelku niżej. */
+  hunter: {
+    byGrade: { ocena: string; wzietych: number; klientow: number; pct: number | null }[];
+    topRejections: { powod: string; ile: number }[];
+  };
 };
 
 function formatHours(h: number): string {
@@ -197,6 +203,46 @@ export function StatsDashboard() {
                   <span className="w-12 shrink-0 text-right tabular-nums font-medium">
                     {s.pct != null ? `${s.pct}%` : "—"}
                   </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </ChartCard>
+        {/* Łowca leadów (Moduł 52) — to jest CAŁA jego pętla uczenia się, bez
+            grama AI: dwie liczby, po których widać, które pokrętło sita
+            (`lib/leadHunter.ts`) przekręcić. Jeśli „A" nie konwertuje lepiej
+            niż „B", wagi są źle rozłożone; jeśli jeden powód odrzucenia
+            dominuje, źle stoi próg wieku albo lista PKD. */}
+        <ChartCard
+          title="Łowca leadów — czy ocena coś znaczy"
+          sub="konwersja przyjętych kandydatów na klientów, wg oceny nadanej przez sito"
+        >
+          {data.hunter.byGrade.every((g) => g.wzietych === 0) ? (
+            <p className="text-sm text-muted opacity-60">
+              Żaden kandydat łowcy nie trafił jeszcze do rejestru leadów — nie ma czego porównywać.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.hunter.byGrade.map((g) => (
+                <div key={g.ocena} className="flex items-center gap-2 text-[12px]">
+                  <span className="min-w-0 flex-1">Ocena {g.ocena}</span>
+                  <span className="tabular-nums text-muted">
+                    {g.klientow}/{g.wzietych}
+                  </span>
+                  <span className="w-12 shrink-0 text-right font-medium tabular-nums">
+                    {g.pct != null ? `${g.pct}%` : "—"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {data.hunter.topRejections.length > 0 && (
+            <div className="mt-3 border-t hairline pt-2">
+              <div className="mb-1 text-[11px] text-muted">Najczęstsze powody odrzucenia</div>
+              {data.hunter.topRejections.map((r) => (
+                <div key={r.powod} className="flex items-center gap-2 text-[12px]">
+                  <span className="min-w-0 flex-1 truncate">{r.powod}</span>
+                  <span className="shrink-0 tabular-nums text-muted">{r.ile}×</span>
                 </div>
               ))}
             </div>

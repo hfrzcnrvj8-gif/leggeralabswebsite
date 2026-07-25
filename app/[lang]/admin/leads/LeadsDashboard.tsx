@@ -20,6 +20,7 @@ import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
+import { CandidatesView, type DaneLowcy, type Polowanie } from "./CandidatesView";
 import { SavedViews } from "../components";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
@@ -29,7 +30,13 @@ import { ExpandingIconButton } from "../ExpandingIconButton";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
 
-type ViewMode = "kanban" | "table";
+// Trzecia zakładka to NIE trzeci widok tych samych danych — to inny zbiór.
+// „Kandydaci" pokazują skrzynkę Łowcy leadów (Moduł 52), czyli firmy, które
+// jeszcze NIE są leadami i mogą nimi nigdy nie zostać. Rozdział jest celowy:
+// automat nigdy nie dopisuje wiersza do `leads`, bo przy Module 51 jedna
+// wartość wpisana „na sztywno" przy tworzeniu leada cicho wykrzywiła dwa
+// wskaźniki lejka — automat sypiący 200 zimnych rekordów zepsułby wszystkie.
+type ViewMode = "kanban" | "table" | "kandydaci";
 
 export function LeadsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
@@ -43,6 +50,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [filterMiasto, setFilterMiasto] = useState("");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
+  // Skrzynka Łowcy leadów (Moduł 52). Wczytywana od razu, nie leniwie przy
+  // wejściu w zakładkę — licznik „Kandydaci (N)" jest jej głównym sensem:
+  // ma powiedzieć, że coś czeka, ZANIM właściciel tam zajrzy.
+  const [lowca, setLowca] = useState<DaneLowcy | null>(null);
+  const [polowania, setPolowania] = useState<Polowanie[]>([]);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -72,10 +84,29 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     setLeads(data.leads);
   }, []);
 
+  /** Skrzynka łowcy + definicje polowań. Dwa żądania, bo to dwa różne zbiory
+   * i dwie różne trasy — a `neon()` i tak płaci osobno za każde zapytanie. */
+  const loadLowca = useCallback(async () => {
+    const [kand, hunts] = await Promise.all([
+      fetch("/api/leads/candidates").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch("/api/leads/hunts").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    if (kand) setLowca(kand as DaneLowcy);
+    if (hunts) setPolowania((hunts as { hunts: Polowanie[] }).hunts ?? []);
+  }, []);
+
   useEffect(() => {
     load();
+    loadLowca();
+    // Wejście z powiadomienia „Łowca dołożył N kandydatów" — dzwonek prowadzi
+    // do `?widok=kandydaci`, więc adres ma pierwszeństwo przed zapamiętanym
+    // wyborem. Bez tego kliknięcie w powiadomienie lądowało na Tablicy.
+    if (new URLSearchParams(window.location.search).get("widok") === "kandydaci") {
+      setView("kandydaci");
+      return;
+    }
     const saved = window.localStorage.getItem("leggera_leads_view");
-    if (saved === "table" || saved === "kanban") {
+    if (saved === "table" || saved === "kanban" || saved === "kandydaci") {
       setView(saved);
       return;
     }
@@ -85,7 +116,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     // domyślka — świadomy wybór właściciela (localStorage) ma pierwszeństwo,
     // a przełącznik Tablica/Tabela zostaje dostępny również na telefonie.
     if (window.matchMedia("(max-width: 767px)").matches) setView("table");
-  }, [load]);
+  }, [load, loadLowca]);
 
   const switchView = useCallback((v: ViewMode) => {
     setView(v);
@@ -357,6 +388,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       { id: "add", label: "+ Dodaj leada", hint: "N", run: addLead },
       { id: "kanban", label: "Widok: Tablica", run: () => switchView("kanban") },
       { id: "table", label: "Widok: Tabela", run: () => switchView("table") },
+      { id: "kandydaci", label: "Widok: Kandydaci (Łowca leadów)", run: () => switchView("kandydaci") },
       { id: "discover", label: "Znajdź nowe leady", run: () => setDiscoverOpen(true) },
       { id: "report", label: "Wyślij dzienny raport teraz", run: sendReportNow },
       { id: "tidy-sources", label: "Uporządkuj źródła (auto-kategoryzacja)", run: tidySources },
@@ -380,6 +412,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
 
   const overdue = leads.filter(isOverdue);
   const selectedId = view === "table" ? filtered[selectedIndex]?.id ?? null : null;
+  // Zakładka „Kandydaci" ma swój własny zbiór, więc filtry, zaznaczanie i
+  // akcje rejestru leadów są tam bez sensu — chowamy je zamiast zostawiać
+  // martwe kontrolki, które niczego nie robią.
+  const rejestr = view !== "kandydaci";
+  const nowychKandydatow = (lowca?.candidates ?? []).filter((k) => k.stan === "nowy").length;
 
   return (
     // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazanie wysokości okna
@@ -402,6 +439,10 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           tabs={[
             { id: "kanban", label: "Tablica" },
             { id: "table", label: "Tabela" },
+            // Licznik w etykiecie, nie odznaka obok — to jedyna zakładka,
+            // w której coś CZEKA na decyzję właściciela, i ma się to widzieć
+            // bez wchodzenia w nią.
+            { id: "kandydaci", label: nowychKandydatow > 0 ? `Kandydaci (${nowychKandydatow})` : "Kandydaci" },
           ]}
         />
         <span className="flex-1" />
@@ -412,6 +453,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           placeholder="Szukaj… (/)"
           className="w-24 min-w-0 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted sm:w-32"
         />
+        {rejestr && (
         <Popover
           align="right"
           width={240}
@@ -482,6 +524,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
         </Popover>
+        )}
         {/* Pasek ikon (Moduł 34, runda 2) — po najechaniu ikona ROZSUWA SIĘ w
             podpisaną pigułkę, wzorem Centrum powiadomień macOS („✕" → „Wymaż
             wszystko"), na wyraźne wskazanie właściciela. Świadomie NIE dymek:
@@ -493,7 +536,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             nowe leady", „Wyślij raport" i „Uporządkuj źródła" są zarejestrowane
             w palecie poleceń (lupa w górnym pasku), a eksport/lista startowa to
             zadania biurkowe. Na iPadzie (≥ sm) wszystko wraca. */}
-        <span className="hidden shrink-0 items-center gap-1 sm:flex">
+        <span className={`${rejestr ? "hidden sm:flex" : "hidden"} shrink-0 items-center gap-1`}>
           <ExpandingIconButton
             label="Znajdź nowe leady"
             icon={<IconSparkles size={15} />}
@@ -570,7 +613,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       <DiscoverPanel open={discoverOpen} onOpenChange={setDiscoverOpen} onDiscovered={load} />
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
-      {overdue.length > 0 && (
+      {rejestr && overdue.length > 0 && (
         <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
           <h2 className="mb-1.5 text-[12.5px] font-medium text-orange-400">Wymaga działania dziś</h2>
           {overdue.map((l) => (
@@ -595,6 +638,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
+      {rejestr && (
       <div className="mb-3">
         <SavedViews
           storageKey="leggera_leads_saved_views"
@@ -607,8 +651,9 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           }}
         />
       </div>
+      )}
 
-      {selectedIds.size > 0 && (
+      {rejestr && selectedIds.size > 0 && (
         <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
           <span className="font-semibold">Zaznaczono: {selectedIds.size}</span>
           <Popover
@@ -653,8 +698,19 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         </div>
       )}
 
-      <ViewSwitch viewKey={view} fill>
-      {view === "kanban" ? (
+      {/* `fill` (rozciągnij i przewijaj w środku) dotyczy Tablicy i Tabeli.
+          Skrzynka kandydatów to zwykła, płynąca lista kart — z `fill` jej
+          własne przewijanie biłoby się z przewijaniem strony. */}
+      <ViewSwitch viewKey={view} fill={rejestr}>
+      {view === "kandydaci" ? (
+        <CandidatesView
+          dane={lowca}
+          polowania={polowania}
+          search={search}
+          onOdswiez={loadLowca}
+          onOdswiezLeady={load}
+        />
+      ) : view === "kanban" ? (
         <KanbanBoard
           leads={filtered}
           lang={lang}

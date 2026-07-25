@@ -71,6 +71,23 @@ Domyślny widok to tablica w stylu Trello — kolumna na każdy status, karty pr
 
 Przycisk **„Znajdź nowe leady”** odpytuje OpenStreetMap o wybraną branżę i lokalizację i zwraca dane, jakie są dostępne — nazwę, czasem telefon/stronę www, adres. Wyniki są automatycznie porównywane z tym, co już masz w rejestrze (po nazwie firmy), więc duplikaty są pomijane. Nowe firmy trafiają ze statusem „Do kontaktu”. Nie wymaga żadnej konfiguracji — działa od razu.
 
+## „Łowca leadów" — zakładka Kandydaci (Moduł 52)
+
+Wyszukiwanie z mapy (wyżej) zostaje, ale jest już tylko **uzupełniaczem
+kontaktu**. Główną drogą jest **łowca**: codziennie o 4:00 bierze porcję firm
+z rejestru CEIDG, sprawdza je w Białej liście VAT i na ich stronie, przepuszcza
+przez sito i odkłada garść kandydatów do zakładki **Kandydaci** — z oceną
+A/B/C i wypisanym „dlaczego". Ty tylko decydujesz: **Weź** (robi leada) albo
+**Odrzuć** (z powodem; firma trafia na czarną listę i już nie wróci).
+
+Kandydat **nie jest** leadem — dopóki go nie weźmiesz, nie ma go w rejestrze
+i nie psuje żadnego wskaźnika.
+
+**Co musisz zrobić raz, żeby to ruszyło:** załóż konto na Biznes.gov.pl,
+zarejestruj się na `dane.biznes.gov.pl`, a klucz, który przyjdzie mailem, wpisz
+w Vercelu jako zmienną `CEIDG_TOKEN`. Bez niego zakładka działa, ale nie ma
+skąd brać firm i mówi o tym wprost. Szczegóły: `HUB_SETUP.md` → „Moduł 52".
+
 ## Skróty klawiszowe i paleta poleceń
 
 - `Cmd/Ctrl + K` — paleta poleceń: szybkie akcje (dodaj leada, zmień widok, znajdź leady, wyślij raport, wyloguj) i wyszukiwanie leada po nazwie z klawiatury.

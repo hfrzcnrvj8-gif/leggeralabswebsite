@@ -58,6 +58,7 @@ import {
   IconPhone,
   IconPhoneCall,
   IconPhoneOff,
+  IconRadar,
   IconRepeat,
   IconScale,
   IconSend,
@@ -224,6 +225,7 @@ const NOTIFICATION: Record<NotificationKind, TablerIcon> = {
   contract_signed: IconWriting,
   review_collected: IconStar,
   invite_response: IconCalendarCheck,
+  lead_hunt: IconRadar,
 };
 
 export function NotificationIcon({

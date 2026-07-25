@@ -260,3 +260,51 @@ KRS/paczek REGON; uczenie maszynowe na historii konwersji.
 jako `CEIDG_TOKEN` (i lokalnie do `.env.local`, jeśli chcemy przejechać
 polowanie na dev-bazie). Bez tego etapy E1/E2 nie mają jak zapytać rejestru;
 sito, skrzynka, testy i UI da się zbudować i sprawdzić wcześniej.
+
+---
+
+## WYKONANE 2026-07-25 — co powstało i czego jeszcze nie da się sprawdzić
+
+Pełny opis: `HUB_SETUP.md` → „Moduł 52". Tu tylko to, co dotyczy tego briefu.
+
+**Zbudowane zgodnie z briefem:** trzy tabele + licznik żądań, sito
+`lib/leadHunter.ts` z testami (`npm test`, 21 asercji), klient CEIDG
+`lib/ceidg.ts`, potok E1–E4 `lib/leadHunterRun.ts`, trasy API, zakładka
+„Kandydaci (N)" w panelu, skrzynka w apce (swipe + menu przytrzymania),
+zaczepka z Ollamy po przyjęciu, dwa liczniki pętli poprawy, retencja 30 dni,
+zapisy do `docs/DO-PRAWNIKA-I-TLUMACZA.md` (2.1b), cron `0 4 * * *`.
+
+**Jedno świadome odstępstwo:** tabele poszły do własnego
+`ensureLeadHunterSchema()`, nie do `ensureHubSchema()` — uzasadnienie
+w `HUB_SETUP.md` i w komentarzu przy funkcji.
+
+**Czego NIE dało się sprawdzić i dlaczego.** Właściciel nie ma jeszcze tokenu
+CEIDG (stan na dzień budowy), więc **etapy E1 i E2 nie zostały wykonane ani
+razu na żywym rejestrze**. Sprawdzone jest wszystko poza nimi: sito (testy),
+skrzynka, „Weź"/„Odrzuć", czarna lista, statystyki, cron ze ślepym przebiegiem,
+komunikat o braku tokenu — na sztucznych danych w dev-bazie (PGlite), w
+podglądzie i na symulatorze.
+
+**Co konkretnie zostaje do potwierdzenia po wpisaniu tokenu** (w tej
+kolejności, najlepiej najpierw z `CEIDG_ENV=test`):
+
+1. **Kształt odpowiedzi `/firmy` i `/firma`.** Klient czyta pola defensywnie
+   (`txt`/`obj`/`kodPkd`/`adres` w `lib/ceidg.ts`) i przy niespodziance oddaje
+   pustą wartość zamiast się wywracać — ale to znaczy, że **rozjazd nazw pól
+   objawi się jako kandydaci bez telefonu i bez PKD**, nie jako błąd. Pierwszy
+   przebieg trzeba obejrzeć: czy kandydaci mają NIP, kontakt i branżę.
+2. **Czy `count` z listy pozwala poprawnie przewinąć kursor** (kiedy polowanie
+   uzna się za wyczerpane i wróci na `page=1`).
+3. **Czy odstęp 3,8 s wystarcza** — czy w logu nie pojawia się HTTP 429.
+
+Gdyby (1) się nie zgadzało, poprawka jest punktowa: nazwy pól w helperach
+`pobierzListe`/`pobierzSzczegoly`, bez ruszania sita, skrzynki i UI.
+
+**Arytmetyka porcji dziennej — sprawdzona, decyzja z briefu się broni.**
+Ograniczeniem NIE jest limit rejestru (50/3 min), tylko budżet czasu jednego
+wywołania: przy odstępie 3,8 s w 240 s mieści się ~60 żądań, czyli ~60
+wzbogaconych firm na dobę. Sam odstęp trzyma nas pod limitem krótkiego okna
+(180 s / 3,8 s ≈ 47 żądań < 50), więc do blokady nie dochodzi. Kilkanaście
+kandydatów po sicie dziennie to sensowna porcja do przejrzenia przy kawie —
+gdyby okazała się za mała, zwiększa się ją **dokładając polowania**, nie
+skracając odstęp.

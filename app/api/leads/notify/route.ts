@@ -40,6 +40,7 @@ import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
 import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
 import { purgeStaleLeads } from "@/lib/leadRetention";
+import { purgeStareKandydaty, KANDYDACI_RETENCJA_DNI } from "@/lib/leadHunterRun";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO, daysSinceISO } from "@/lib/dates";
 import { notify, purgeOldNotifications } from "@/lib/notificationLog";
@@ -467,6 +468,20 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   });
   if (purgedLeads.purged > 0) {
     console.log(`[cron] usunięto ${purgedLeads.purged} leadów starszych niż ${LEADS_RETENTION_MONTHS} mies. bez konwersji`);
+  }
+
+  // Retencja kandydatów „Łowcy leadów" (Moduł 52, 30 dni). Osobna od retencji
+  // leadów i KRÓTSZA, bo to inny stan prawny: kandydat nieprzyjęty to firma,
+  // do której właściciel NIE zamierza się odezwać — prawnie uzasadniony
+  // interes kończy się w chwili, gdy zapada ta decyzja. Kandydat przyjęty jest
+  // już leadem i podlega retencji 24 mies. wyżej.
+  const purgedCandidates = await purgeStareKandydaty().catch(async (e) => {
+    console.error("[cron] czyszczenie starych kandydatów nie powiodło się", e);
+    await zapiszWyjatek("retencja", "Nie udało się usunąć starych kandydatów łowcy (retencja RODO)", e);
+    return 0;
+  });
+  if (purgedCandidates > 0) {
+    console.log(`[cron] usunięto ${purgedCandidates} kandydatów starszych niż ${KANDYDACI_RETENCJA_DNI} dni`);
   }
 
   const overdueLeads = leads.filter(isOverdue);

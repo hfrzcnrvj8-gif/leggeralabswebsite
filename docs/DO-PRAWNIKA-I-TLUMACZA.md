@@ -160,6 +160,42 @@ uzupełnianiu administratora danych:
   administratora**, dane nie trafiają do chmury dostawcy LLM (art. o
   minimalizacji i braku przekazania poza EOG działa tu na naszą korzyść).
 
+### 2.1b. ⚠️ Łowca leadów — pozyskiwanie danych z CEIDG (Moduł 52, 2026-07-25)
+
+Panel zaczął **sam pobierać dane firm z rejestru publicznego CEIDG** i odkładać
+je do skrzynki kandydatów (`docs/plany-modulow/52-generator-leadow.md`). To jest
+**nowa kategoria danych i nowe źródło**, którego polityka prywatności dziś nie
+wymienia. Trzy rzeczy do dopisania jednym ruchem z prawnikiem:
+
+- **Kategoria i źródło.** Dane jednoosobowych działalności z CEIDG (imię,
+  nazwisko, adres wykonywania działalności, NIP, REGON, telefon, e-mail, strona
+  — o ile przedsiębiorca sam je opublikował) **są danymi osobowymi**, mimo że
+  dotyczą firmy. Źródło: **rejestr publiczny CEIDG** (art. 14 RODO — dane
+  zebrane NIE od osoby, której dotyczą). Dodatkowo status VAT z **Białej listy
+  podatników MF** i sygnały z **publicznej strony internetowej firmy** (sama
+  strona główna, jedno pobranie, `robots.txt` respektowany).
+- **Podstawa i obowiązek informacyjny.** Podstawa: **prawnie uzasadniony
+  interes** (marketing bezpośredni B2B, motyw 47 RODO). Ponieważ dane nie
+  pochodzą od tej osoby, **obowiązek informacyjny trzeba spełnić przy PIERWSZYM
+  kontakcie** — do przygotowania **jedno zdanie do szablonu pierwszego maila**
+  („Pana/Pani dane pozyskaliśmy z publicznego rejestru CEIDG; administratorem
+  jest…; sprzeciw: …"). To jest treść, której panel dziś **nie ma** i którą musi
+  napisać prawnik.
+- **Retencja — liczba MUSI zgadzać się z kodem.** **Kandydat nieprzyjęty:
+  30 dni** (`KANDYDACI_RETENCJA_DNI` w `lib/leadHunterRun.ts`, egzekwuje
+  `purgeStareKandydaty` w dziennym cronie). Kandydat **przyjęty** staje się
+  leadem i podlega retencji 24 mies. z punktu wyżej. Na **czarnej liście**
+  (`lead_blacklist`) zostaje wyłącznie **NIP + znormalizowana nazwa + powód** —
+  świadoma minimalizacja, żeby nie trzymać profilu osoby, której nie zamierzamy
+  niczego proponować; do potwierdzenia, czy taki minimalny zapis „nie kontaktuj
+  się ponownie" jest w porządku (naszym zdaniem to realizacja sprzeciwu, nie
+  jego obejście).
+- **Czego panel NIE robi** (warto, żeby prawnik o tym wiedział, bo to zmienia
+  ocenę ryzyka): nie wysyła kandydatom **niczego** automatycznie, nie kupuje baz
+  danych, nie scrapuje LinkedIna, nie profiluje modelem AI — sito jest
+  deterministyczne (stałe w `lib/leadHunter.ts`), a każdą decyzję „odzywamy się
+  / nie odzywamy" podejmuje człowiek ręcznie.
+
 ### 2.2. Nota prawna / Impressum
 - **Gdzie:** `app/[lang]/impressum/page.tsx`
 - **Status:** treść i podstawa prawna są **poprawne** (polskie: art. 5 UŚUDE +
