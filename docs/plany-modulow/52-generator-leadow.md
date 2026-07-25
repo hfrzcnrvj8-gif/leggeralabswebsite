@@ -232,17 +232,31 @@ jakakolwiek automatyczna wysyłka do kandydatów (to nie maszyna do cold-maili
 — panel nic nie wysyła sam, i to zostaje); model AI w decyzji sita; spółki z
 KRS/paczek REGON; uczenie maszynowe na historii konwersji.
 
-## Otwarte decyzje (zadaj właścicielowi PRZED budową)
+## Decyzje właściciela — ROZSTRZYGNIĘTE 2026-07-25 (nie pytaj o nie ponownie)
 
-1. **Zakres v1:** tylko CEIDG + biała lista MF (najszybsza droga do
-   działającego sita), czy od razu z analizą stron firm (E3 — więcej sygnałów,
-   ale więcej ruchomych części)?
-2. **Ile automatu:** dzienny cron dokładający kandydatów do skrzynki
-   (rekomendacja — „ma działać samo"), czy tylko przycisk „Poluj teraz"?
-3. **Obszar i branże rdzenia:** Radom + Warszawa, całe Mazowsze, czy cała
-   Polska (wdrożenia i tak są zdalne)? Lista PKD do potwierdzenia — powyżej
-   jest propozycja z pięciu kodów.
-4. **Lokalny model do „zaczepki":** czy po przyjęciu kandydata Ollama ma
-   proponować jedno zdanie „co konkretnie zautomatyzować u tej firmy" na
-   podstawie treści jej strony (do zatwierdzenia, jak Moduły 7/8/48–50), czy
-   v1 zostaje w 100% bez modelu?
+1. **Zakres v1: CEIDG + biała lista MF + strony firm.** Pełne sito od razu,
+   z etapem E3 (jedno pobranie strony głównej, deterministyczne sygnały) — bez
+   niego ocena opierałaby się prawie wyłącznie na branży i wieku.
+2. **Automat: dzienny cron do skrzynki.** Jeden krok każdego aktywnego
+   polowania na dobę, jeden wpis w Centrum powiadomień. Przycisk „Poluj teraz"
+   dokładamy obok (przydaje się przy kalibracji wag), ale cron jest domyślną
+   drogą — „ma działać samo".
+3. **Obszar: Mazowsze.** Warszawa razem z Radomiem/Przysuchą w jednym worku —
+   duży rynek plus zaplecze i realna możliwość spotkania na żywo (punkt za
+   bliskość zostaje w sicie). Cała Polska odpada na starcie właśnie dlatego,
+   że zabijałaby ten punkt. Lista PKD: propozycja pięciu kodów z tabeli wyżej
+   wchodzi jako punkt startowy i jest pokrętłem, nie ustaleniem na zawsze.
+4. **Lokalny model TAK, ale dopiero po przyjęciu kandydata.** Ollama proponuje
+   jedno zdanie „co konkretnie zautomatyzować u tej firmy" na podstawie treści
+   jej strony; zdanie ląduje w notatce leada po zatwierdzeniu przez
+   właściciela, wzorem Modułów 7/8/48–50. **Sito zostaje w 100%
+   deterministyczne** — model nie ma wpływu na to, kto wchodzi do skrzynki, i
+   nie jest wołany dla kandydatów, których właściciel odrzucił.
+
+## Czego NIE zrobi Claude — jedyna rzecz po stronie właściciela
+
+**Token CEIDG.** Konto na Biznes.gov.pl → rejestracja na `dane.biznes.gov.pl`
+→ klucz przychodzi mailem → wrzucenie go do zmiennych środowiskowych Vercela
+jako `CEIDG_TOKEN` (i lokalnie do `.env.local`, jeśli chcemy przejechać
+polowanie na dev-bazie). Bez tego etapy E1/E2 nie mają jak zapytać rejestru;
+sito, skrzynka, testy i UI da się zbudować i sprawdzić wcześniej.
