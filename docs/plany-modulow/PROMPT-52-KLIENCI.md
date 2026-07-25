@@ -1,9 +1,13 @@
-# Prompt do wklejenia w nowym czacie
+# Prompt do wklejenia w nowym czacie — moduł KLIENCI
+
+> Zaktualizowany 2026-07-25, po zbudowaniu Modułu 52 („Łowca leadów").
+> Poprzednia wersja tego pliku powstała przed łowcą i nie znała jego lekcji.
 
 Kontynuujemy audyt UI/UX i kompletności panelu (leggeralabs.pl/admin, repo
 bieżące) i apki natywnej iPhone/iPad (`leggera-hub-ios`, osobne repo:
 `/Volumes/OWC_SN850X/projekty_ai/leggera-hub-ios`), moduł po module, w
-kolejności lejka sprzedaży. Pulpit i Leady są zrobione.
+kolejności lejka sprzedaży. **Pulpit i Leady są zrobione** — Leady domknięte
+Modułem 52, który dołożył im „Łowcę leadów" (skrzynkę kandydatów).
 
 **ZANIM ZACZNIESZ — przeczytaj:**
 - `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md` — pełny kontekst
@@ -11,6 +15,8 @@ kolejności lejka sprzedaży. Pulpit i Leady są zrobione.
   (co już poprawione, jakie pułapki wyszły, co świadomie odłożone).
 - `docs/plany-modulow/00-mapa-drogi-klienta.md` — mapa etapów, żeby wiedzieć
   względem czego oceniać kompletność.
+- `HUB_SETUP.md` → sekcja „Moduł 52" — co dokładnie dostały Leady na koniec
+  i jakie lekcje z tego wyszły (lista niżej).
 - `CLAUDE.md` — zasady projektu.
 
 **Teraz bierzemy moduł: Klienci.**
@@ -28,25 +34,55 @@ ogólnie „co zmienić"):
 3. **Poziom premium** — swipe/long-press na liście klientów (wzorem Leadów:
    `LeadKontekstMenu` + swipe „Obsłużone" z `Znaczenie.zrobione`), klikalność
    wierszy, spójność kolorów statusu, filtr w pasku.
-4. **Rzeczy nauczone przy Leadach, warte sprawdzenia u Klientów:**
-   - Czy któraś ścieżka tworzenia klienta wpisuje coś „na sztywno", co potem
-     zasila wskaźnik (u Leadów tak było z kategorią źródła — dwie metryki
-     pokazywały zero).
-   - Czy akcje tworzące dokumenty (umowa, oferta, faktura z karty klienta) są
-     idempotentne i czy zostawiają widoczny ślad na karcie (u Leadów NDA nie
-     robiło ani jednego, ani drugiego).
-   - Czy apka ma odpowiednik każdej akcji panelu — dowód luki to trasa panelu,
-     której `APIClient.swift` nie woła (grep po `/api/clients`).
+
+## Cztery lekcje z Leadów, warte sprawdzenia u Klientów
+
+Wszystkie cztery to **realne błędy złapane przy Modułach 51 i 52**, nie teoria:
+
+1. **„Na sztywno" w kodzie cicho psuje wskaźniki.** U Leadów kategoria źródła
+   była wpisywana na stałe na WSZYSTKICH ścieżkach tworzenia — dwie metryki
+   lejka pokazywały przez to zero, bez żadnego objawu awarii. Sprawdź, czy
+   któraś ścieżka tworzenia klienta (panel, apka, awans z leada, akceptacja
+   oferty) nie wpisuje czegoś na sztywno w pole, po którym potem coś liczymy.
+2. **Idempotencja i widoczny ślad.** U Leadów „Przygotuj NDA" nie miało ani
+   jednego, ani drugiego: drugie kliknięcie robiło drugi dokument, a karta
+   leada nie wiedziała, że NDA w ogóle istnieje. Każda akcja tworząca dokument
+   z karty klienta (umowa, oferta, faktura, projekt) musi mieć oba.
+3. **Dowód luki w apce to trasa panelu, której `APIClient.swift` nie woła** —
+   grep po `/api/clients`. Odwrotnie NIE działa: „trasa niewołana" nie zawsze
+   znaczy „funkcja niewidoczna" (bywa dostępna inną drogą).
+4. **Kolor niesie znaczenie i łatwo go okłamać.** Przy Module 52 pierwszy
+   komunikat o SUKCESIE w apce wyszedł w czerwonej ramce z trójkątem
+   ostrzegawczym, bo kolejka komunikatów była kolejką awarii. Naprawione
+   (`Komunikat.Rodzaj` = `.awaria` / `.sukces`, domyślnie `.awaria`) — ale
+   **sprawdź, czy Klienci nie mają tego samego problemu**: udana akcja pokazana
+   jak błąd albo dwa różne kolory na to samo znaczenie.
+
+## Czego przy Klientach NIE ruszamy bez pytania
+
+- **Retencja i podstawy RODO** — klienci świadomie NIE mają auto-usuwania
+  (faktury: 5 lat obowiązku podatkowego, Audyt 2). Nie „naprawiaj" tego.
+- **Rzeczy z `PO_REJESTRACJI.md`** — firma nie jest jeszcze zarejestrowana,
+  więc braki prawne z tego pliku są świadomie odłożone, nie są defektem.
 
 **Metoda pracy:** zbadaj kod obu repo → zaproponuj konkretne spostrzeżenia →
 po akceptacji wprowadź zmiany → `npx tsc --noEmit -p tsconfig.json` + `npm test`
-(panel) / `xcodebuild` (apka; przy błędzie stempla uruchom
-`Skrypty/stempel-wersji.sh`) → weryfikacja wizualna (panel:
-`preview_start name:"dev"`; apka: symulator z `SIMCTL_CHILD_LEGGERA_DEV_BACKEND=lokalny`
-+ `SIMCTL_CHILD_LEGGERA_DEV_TOKEN=dev`, plus `SIMCTL_CHILD_LEGGERA_DEV_OPEN_LEAD=1`
+(panel) / `xcodebuild` (apka; **przy błędzie stempla uruchom
+`Skrypty/stempel-wersji.sh`**, a po dodaniu nowego pliku `.swift` — `xcodegen
+generate`) → weryfikacja wizualna (panel: `preview_start name:"dev"`; apka:
+symulator z `SIMCTL_CHILD_LEGGERA_DEV_BACKEND=lokalny` +
+`SIMCTL_CHILD_LEGGERA_DEV_TOKEN=dev`, plus `SIMCTL_CHILD_LEGGERA_DEV_OPEN_LEAD=1`
 / `LEGGERA_DEV_TAB=...` jako furtki bez dotyku) → commit + push obu repo →
 build + `devicectl` na fizyczne iPhone (`1F379FD8-EFA4-55F7-BDB6-7E9CC8B5BEBD`)
 i iPad (`3CCA9321-4215-5229-A506-C204CB802F37`) → ocena właściciela.
 
-Zacznij od `git status`/`git log -5` w OBU repo (moduł Leady zostawił obie
-gałęzie czyste i zsynchronizowane z originem).
+**Dwie uwagi o środowisku, świeże z Modułu 52:**
+- Dev-baza (PGlite) jest **w pamięci** — restart `npm run dev` = świeży seed.
+  Jeśli funkcji nie da się obejrzeć, bo brakuje wiersza, dopisz go do
+  `ensureSeeded()` w `lib/dev-db.ts`, zamiast uznawać ekran za pusty.
+- Zrzuty z podglądu przeglądarki potrafią pokazać **element, którego już nie ma
+  w DOM** (artefakt narzędzia). Gdy zrzut kłóci się z pomiarem — rozstrzyga
+  `getComputedStyle` / `getBoundingClientRect`, nie obrazek.
+
+Zacznij od `git status` / `git log -5` w OBU repo (Moduł 52 zostawił obie
+gałęzie czyste i zsynchronizowane z originem: panel `d12e611`, apka `dcbb6c9`).
