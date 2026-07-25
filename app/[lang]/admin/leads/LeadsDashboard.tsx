@@ -10,6 +10,7 @@ import {
   isOverdue,
   overdueReason,
   leadSourceLabel,
+  SOURCE_CATEGORIES,
   guessSourceCategory,
   findSimilarLead,
   CONTACT_CHANNELS,
@@ -31,7 +32,7 @@ import { todayLocalISO } from "@/lib/dates";
 type ViewMode = "kanban" | "table";
 
 export function LeadsDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm, prompt } = useUI();
+  const { toast, confirm } = useUI();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   // Moduł 34 — filtr po ostatnim kanale kontaktu. Ustawiany klikiem w odznakę
@@ -49,6 +50,12 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [tidyingSources, setTidyingSources] = useState(false);
+  // Okno „nowy lead" (Moduł 51) — nazwa + kategoria źródła + szczegóły.
+  const [addOpen, setAddOpen] = useState(false);
+  const [addFirma, setAddFirma] = useState("");
+  const [addKategoria, setAddKategoria] = useState<string>("Ręcznie dodane");
+  const [addSzczegoly, setAddSzczegoly] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   // Menu pod prawym przyciskiem przy ikonie eksportu (Moduł 34). Do tej pory
   // klik zawsze brał CAŁY rejestr — nawet przy włączonych filtrach albo
@@ -101,8 +108,19 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     setLeads((prev) => prev?.map((l) => (l.id === id ? { ...l, [field]: value } : l)) ?? prev);
   }, []);
 
-  const addLead = useCallback(async () => {
-    const firma = await prompt("Nazwa firmy nowego leada:", { placeholder: "np. Kancelaria Kowalski" });
+  // „+ Dodaj leada" pyta o nazwę ORAZ o kategorię źródła (Moduł 51). Do tej
+  // pory był to `prompt()` o samą nazwę, a kategoria leciała na sztywno jako
+  // „Ręcznie dodane" — czyli lead z polecenia zdobyty w terenie nigdy nie
+  // trafiał do kategorii „Polecenie". A to po niej liczą się DWA wskaźniki:
+  // „% leadów z polecenia" na Pulpicie (api/hub/today) i „konwersja per
+  // źródło" w Statystykach (api/stats). Oba pokazywały zero poleceń nie
+  // dlatego, że ich nie było, ale dlatego, że nie było jak ich oznaczyć.
+  const addLead = useCallback(() => {
+    setAddOpen(true);
+  }, []);
+
+  const submitNewLead = useCallback(async () => {
+    const firma = addFirma.trim();
     if (!firma) return;
 
     // Miękkie ostrzeżenie, nie blokada — auto-wyszukiwanie (OSM) sprawdza
@@ -116,18 +134,29 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       if (!proceed) return;
     }
 
+    setAddBusy(true);
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firma, zrodlo_kategoria: "Ręcznie dodane", status: "Do kontaktu" }),
+      body: JSON.stringify({
+        firma,
+        zrodlo_kategoria: addKategoria,
+        zrodlo: addSzczegoly.trim(),
+        status: "Do kontaktu",
+      }),
     });
+    setAddBusy(false);
     if (res.ok) {
       toast("Dodano leada.");
+      setAddOpen(false);
+      setAddFirma("");
+      setAddSzczegoly("");
+      setAddKategoria("Ręcznie dodane");
       load();
     } else {
       toast("Nie udało się dodać leada.", "error");
     }
-  }, [prompt, toast, load, leads, confirm]);
+  }, [addFirma, addKategoria, addSzczegoly, toast, load, leads, confirm]);
 
   const deleteLead = useCallback(async (id: string, firma: string) => {
     const ok = await confirm(`Usunąć "${firma}" z listy?`, { danger: true });
@@ -659,6 +688,84 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           faktury/oferty) — zastąpił dawny wąski panel wysuwany z prawej,
           który był zbyt ciasny na gęstą treść profilu (dane + adres +
           źródło + log aktywności + mapa procesu). */}
+      {/* Nowy lead — węższe okno (jak edytory faktur/ofert), bo to trzy pola,
+          nie profil. Kategoria źródła jest tu OBOWIĄZKOWA w tym sensie, że ma
+          domyślkę i widać ją od razu — patrz komentarz przy `submitNewLead`. */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} card="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-6">
+        <h2 className="text-lg font-semibold">Nowy lead</h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitNewLead();
+          }}
+          className="mt-4 space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-[11px] text-muted">Nazwa firmy</label>
+            <input
+              autoFocus
+              value={addFirma}
+              onChange={(e) => setAddFirma(e.target.value)}
+              placeholder="np. Kancelaria Kowalski"
+              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] text-muted">Skąd go masz</label>
+            <div className="flex flex-wrap gap-1.5">
+              {/* Bez „Formularz na stronie" i „Automatyczne wyszukiwanie" —
+                  te dwie ustawia sama ścieżka, którą lead wchodzi (formularz
+                  publiczny, auto-wyszukiwanie OSM), a pierwsza dodatkowo
+                  steruje powiadomieniem. Lead wpisywany ręcznie nigdy nie jest
+                  żadną z nich. Apka filtruje je tak samo
+                  (`KategoriaZrodla.doWyboru`). W profilu leada zostaje pełna
+                  lista — tam się je POPRAWIA, nie tworzy. */}
+              {SOURCE_CATEGORIES.filter(
+                (s) => s !== "Formularz na stronie" && s !== "Automatyczne wyszukiwanie"
+              ).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setAddKategoria(s)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                    addKategoria === s
+                      ? "border-brand-purple/50 bg-brand-purple/15 text-[var(--fg)]"
+                      : "hairline text-muted hover:text-[var(--fg)]"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] text-muted">Szczegóły źródła (opcjonalnie)</label>
+            <input
+              value={addSzczegoly}
+              onChange={(e) => setAddSzczegoly(e.target.value)}
+              placeholder="np. polecił Kowalski, spotkanie w izbie gospodarczej"
+              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setAddOpen(false)}
+              className="rounded-full border hairline px-4 py-1.5 text-xs text-muted"
+            >
+              Anuluj
+            </button>
+            <button
+              type="submit"
+              disabled={addBusy || !addFirma.trim()}
+              className="btn-primary rounded-full px-4 py-1.5 text-xs disabled:opacity-50"
+            >
+              {addBusy ? "Dodaję…" : "Dodaj leada"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <Modal open={!!openLeadId} onClose={() => setOpenLeadId(null)}>
         {openLeadId && (
           <LeadDetailPanel

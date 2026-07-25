@@ -6943,3 +6943,42 @@ rozchwiany niedoborem GDDR7/DRAM (RTX 5090 ~18 tys., RTX 6000 Ada ~31 tys.,
 RTX PRO 6000 96 GB ~56 tys. netto). `koszt_zakupu` celowo pusty — właściciel
 wpisuje realny koszt przy wycenie u dostawcy. Reset startera (gdyby chciał od
 nowa): skasuj wiersz `catalog_starter` z `schema_state` i przeładuj.
+
+## Moduł 51 (audyt UI/UX) — Leady: parytet panelu i apki (2026-07-25)
+
+Drugi moduł audytu „moduł po module" (po Pulpicie). Cztery rzeczy, wszystkie
+w panelu **i** w obu apkach:
+
+1. **Kategoria źródła przy dodawaniu leada.** Wcześniej WSZYSTKIE ścieżki
+   tworzenia wpisywały ją na sztywno jako „Ręcznie dodane" — panelowe
+   „+ Dodaj leada" (prompt o samą nazwę), formularz apki, skaner wizytówki
+   i wtyczka Udostępnij. A po `zrodlo_kategoria` liczą się dwa wskaźniki
+   dodane dzień wcześniej: „% leadów z polecenia" na Pulpicie
+   (`api/hub/today`) i „konwersja per źródło" w Statystykach (`api/stats`) —
+   oba porównują dosłownie z „Polecenie", więc lead z polecenia zdobyty w
+   terenie nigdy się w nich nie pojawiał. Teraz: panel ma okno „Nowy lead"
+   (nazwa + pigułki kategorii + szczegóły) zamiast prompta; apka ma wiersz
+   „Kategoria" w formularzu, skanerze i **edycji** (dotąd apka nie umiała
+   poprawić kategorii wcale). Obie strony chowają „Formularz na stronie" i
+   „Automatyczne wyszukiwanie" — te ustawia ścieżka wejścia leada, nie
+   człowiek (`KategoriaZrodla.doWyboru` w rdzeniu apki).
+2. **Podpowiedzi statusu w apce.** `LEAD_STATUS_HINT` (Moduł 1) żył tylko w
+   panelu; teraz `LeadStatus.podpowiedz` w `LeggeraHubCore` (treść 1:1) i
+   widać go nad zakładkami profilu na iPhonie i iPadzie.
+3. **NDA (Moduł 11) bez duplikatów i z widocznym śladem.** `POST /api/contracts`
+   dedupuje NDA po `lead_id` (jak umowę po `offer_id`) — pomijając „Odrzucona",
+   bo tam kolejne podejście to nowy dokument. `GET /api/leads/:id` zwraca
+   `nda: {id, status}`, więc profil leada pokazuje pigułkę „NDA: szkic"
+   zamiast przycisku i wchodzi w moduł Umowy. Przycisk nazywa się
+   „Przygotuj NDA", nie „Wyślij" — wysyłka jest w Umowach. Apka umie to samo
+   (`przygotujNDA`, arkusz z profilem dokumentu; ŚWIADOMIE bez alertu, bo
+   alert i arkusz to dwie prezentacje na jednym widoku i iOS pokazuje jedną).
+4. **Parytet akcji na apce:** swipe od prawej „Obsłużone" + ta sama pozycja w
+   menu przytrzymania (status → „Przypomnienie wysłane" i `ostatni_kontakt` na
+   dziś, jak `markLeadHandled`), „Podepnij istniejącego klienta" (picker
+   klientów zamiast drugiego rekordu tej samej firmy), usuwanie leada i wpisu
+   z logu kontaktu, filtr statusu w pasku, pole LinkedIn w edycji.
+
+Świadomie NIE zrobione: import CSV (nie ma go nigdzie — wejście leadów
+pokrywają OSM, skaner, formularz i ręczne dodanie), pełna edycja adresu na
+telefonie (zostaje „praca przy biurku"), kanban na apce.

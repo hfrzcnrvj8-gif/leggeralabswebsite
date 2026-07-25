@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureClientsSchema, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { rematchUnassigned } from "@/lib/mailSync";
@@ -28,9 +28,21 @@ export async function GET(
     SELECT * FROM lead_activity WHERE lead_id = ${id} ORDER BY created_at DESC;
   `;
 
+  // NDA tego leada (Moduł 51). Bez tego profil leada nie wiedział NIC o
+  // dokumencie, który sam kazał utworzyć — przycisk „Przygotuj NDA" nie
+  // zostawiał na wizytówce żadnego śladu, więc właściciel nie miał jak
+  // sprawdzić, czy NDA już poszło i czy jest podpisane. Tylko trzy kolumny,
+  // nie cały dokument: to pigułka ze statusem i odnośnik, nie podgląd.
+  await ensureContractsSchema();
+  const ndaRows = await sql`
+    SELECT id, status, created_at FROM contracts
+    WHERE lead_id = ${id} AND typ = 'nda'
+    ORDER BY created_at DESC LIMIT 1;
+  `;
+
   // Audyt zmian (Moduł 23) ma własny endpoint `/changes` — patrz komentarz w
   // api/clients/[id]/route.ts.
-  return NextResponse.json({ lead, activity });
+  return NextResponse.json({ lead, activity, nda: ndaRows[0] ?? null });
 }
 
 /** PATCH /api/leads/:id — update one or more fields. Admin-only. */

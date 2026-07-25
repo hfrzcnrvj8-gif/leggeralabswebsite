@@ -84,6 +84,21 @@ export async function POST(req: NextRequest) {
     const leadRows = await sql`SELECT * FROM leads WHERE id = ${leadId};`;
     const lead = leadRows[0] as Lead | undefined;
     if (!lead) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+    // Dedupe jak przy umowie z oferty (wyżej). Do Modułu 51 tej gałęzi nie
+    // miała: „+ Przygotuj NDA" na leadzie było jednorazowym strzałem bez
+    // śladu na wizytówce, więc drugie kliknięcie tydzień później robiło
+    // drugie NDA dla tej samej firmy. Odrzucone świadomie NIE blokuje —
+    // kontrahent odmówił podpisu, więc kolejne podejście to nowy dokument,
+    // nie duplikat.
+    const existingNda = await sql`
+      SELECT id FROM contracts
+      WHERE lead_id = ${leadId} AND typ = 'nda' AND status <> 'Odrzucona'
+      ORDER BY created_at DESC LIMIT 1;
+    `;
+    if (existingNda.length > 0) {
+      return NextResponse.json({ ok: true, id: existingNda[0].id, existing: true });
+    }
     await sql`
       INSERT INTO contracts (
         id, typ, lead_id, client_id,

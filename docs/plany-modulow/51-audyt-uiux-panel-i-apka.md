@@ -66,7 +66,48 @@ Oferty → Umowy → Onboarding → Realizacja → Faktury → Windykacja →
 Zamknięcie/opinia → Retencja) jest **zbudowana i spójna między panelem a
 obiema apkami**. Jedyna świadoma, zaakceptowana luka to Moduł 16.
 
-## Następny moduł w kolejce: Leady
+## Stan po module „Leady" (2026-07-25)
+
+**Zrobione i scommitowane** (szczegóły techniczne: `HUB_SETUP.md` → „Moduł 51
+(audyt UI/UX) — Leady"):
+
+1. **Kategoria źródła leada przy dodawaniu — panel + apka.** Największa
+   znaleziona luka i jedyna, która realnie kłamała w danych: wszystkie cztery
+   ścieżki tworzenia leada wpisywały `zrodlo_kategoria` na sztywno („Ręcznie
+   dodane"), więc „% leadów z polecenia" i „konwersja per źródło" — dodane
+   dzień wcześniej — nie mogły zobaczyć ani jednego polecenia. Panel dostał
+   okno „Nowy lead" zamiast prompta o samą nazwę; apka wiersz „Kategoria" w
+   formularzu, skanerze wizytówek i w edycji (apka nie umiała jej poprawić
+   wcale).
+2. **Podpowiedzi statusu (Moduł 1) w apce** — `LeadStatus.podpowiedz` w
+   rdzeniu, treść 1:1 z `LEAD_STATUS_HINT`, widoczna nad zakładkami profilu.
+3. **NDA (Moduł 11): dedupe po leadzie + widoczny ślad.** Drugie kliknięcie
+   tworzyło drugie NDA, a profil leada nie wiedział o dokumencie nic. Teraz
+   serwer zwraca istniejące (poza „Odrzucona"), profil pokazuje pigułkę
+   „NDA: szkic" z linkiem, przycisk nazywa się „Przygotuj NDA". Apka umie to
+   samo i otwiera profil dokumentu w arkuszu.
+4. **Parytet premium na apce:** swipe „Obsłużone" + ta sama akcja w menu
+   przytrzymania (iPhone i iPad), „Podepnij istniejącego klienta", usuwanie
+   leada i wpisu z logu, filtr statusu w pasku, LinkedIn w edycji.
+
+**Świadomie odłożone / nie w zakresie:** import CSV (nie ma go nigdzie —
+wejście leadów pokrywają auto-wyszukiwanie OSM, skaner wizytówek, formularz
+publiczny i ręczne dodanie; właściciel powiedział, że dziś ma kilka leadów
+testowych), pełna edycja adresu z telefonu, kanban na apce.
+
+**Osobny wątek, który wyszedł przy okazji — generator leadów.** Właściciel
+zapytał, czy warto go ulepszać. Ocena: `POST /api/leads/discover` stoi na
+darmowym OSM (Nominatim + Overpass), więc daje nazwę firmy prawie zawsze, ale
+telefon/mail tylko gdy ktoś je ręcznie wpisał na mapę; brak NIP-u, wielkości
+firmy, decydenta i jakiegokolwiek sygnału potrzeby. Obsługuje 6 branż i jeden
+promień 6 km. To najzimniejszy rodzaj listy. Tanie usprawnienia, gdyby
+właściciel chciał: więcej branż, regulowany promień, filtr „tylko wpisy z
+telefonem albo mailem" (dziś dokłada leady bez żadnej drogi kontaktu). Poważna
+alternatywa to rejestry publiczne (CEIDG/KRS + REGON: NIP i kod PKD, czyli
+celowanie w branżę i wielkość zamiast w promień) — to osobny, większy moduł.
+Nic z tego NIE zostało zbudowane; brief nie istnieje. Nie zaczynaj bez prośby.
+
+## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`
 + `LeadDetailView.swift`, iPad `LeadyPanelIpad.swift`):

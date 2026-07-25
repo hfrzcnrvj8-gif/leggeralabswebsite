@@ -201,7 +201,7 @@ export const LEAD_STATUS_HINT: Record<string, string> = {
   "Do kontaktu": "Zrób pierwszy ruch: telefon lub krótki, spersonalizowany mail. Wspomnij, co konkretnie możesz zautomatyzować w ich branży.",
   "Napisano - czeka na odpowiedź": "Piłka po ich stronie. Jeśli cisza ~4 dni, panel przypomni o follow-upie.",
   "Przypomnienie wysłane": "Drugi kontakt poszedł. Brak odpowiedzi po kolejnym tygodniu? Rozważ zamknięcie albo zmianę kanału (telefon zamiast maila).",
-  "Rozmowa umówiona": "Przygotuj kwalifikację: jaki problem, jaka skala, jaki budżet. Cel rozmowy = zgoda na PoC, nie od razu duży kontrakt. Będziesz omawiał ich wewnętrzne systemy albo dane? Wyślij NDA PRZED rozmową (przycisk niżej), nie po.",
+  "Rozmowa umówiona": "Przygotuj kwalifikację: jaki problem, jaka skala, jaki budżet. Cel rozmowy = zgoda na PoC, nie od razu duży kontrakt. Będziesz omawiał ich wewnętrzne systemy albo dane? Przygotuj i wyślij NDA PRZED rozmową, nie po.",
   "Pilotaż w trakcie": "PoC leci. Umów termin pokazania wyniku — to on domyka sprzedaż. Gdy klient powie „tak”, zrób z leada ofertę.",
   "Zamknięte - sukces": "Wygrane. Klient i projekt już są — pilnuj realizacji. O opinię i referencję panel przypomni sam, gdy przestawisz projekt na „Wdrożone”.",
   "Odrzucone / brak zainteresowania": "Zamknięte. Warto ustawić przypomnienie za parę miesięcy — sytuacja klienta się zmienia.",

@@ -28,6 +28,7 @@ import {
   StatusTag,
 } from "./shared";
 import { ProcessMap, PillPicker } from "../components";
+import { CONTRACT_STATUS_CLASS } from "@/lib/contracts";
 import { LinkPicker } from "../LinkPicker";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -77,6 +78,8 @@ export function LeadDetailPanel({
   const [saving, setSaving] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [sendingNda, setSendingNda] = useState(false);
+  // NDA tego leada (Moduł 51) — status z serwera, nie domysł z kliknięcia.
+  const [nda, setNda] = useState<{ id: string; status: string } | null>(null);
   const [changes, setChanges] = useState<FieldChange[]>([]);
   // Moduł 23 — zakładki, jak u klienta (ClientDetailPanel). Stan tutaj, nie w
   // wrapperach, więc działa i w modalu z listy, i na podstronie [id].
@@ -92,9 +95,14 @@ export function LeadDetailPanel({
       setNotFound(true);
       return;
     }
-    const data = (await res.json()) as { lead: Lead; activity: Activity[] };
+    const data = (await res.json()) as {
+      lead: Lead;
+      activity: Activity[];
+      nda: { id: string; status: string } | null;
+    };
     setLead(data.lead);
     setActivity(data.activity);
+    setNda(data.nda ?? null);
     setNoteFollowup(data.lead.next_followup ?? "");
     setNoteAction(data.lead.next_action ?? "");
   }, [id]);
@@ -195,7 +203,7 @@ export function LeadDetailPanel({
     }
   };
 
-  const sendNda = async () => {
+  const prepareNda = async () => {
     setSendingNda(true);
     const res = await fetch("/api/contracts", {
       method: "POST",
@@ -204,11 +212,18 @@ export function LeadDetailPanel({
     });
     setSendingNda(false);
     if (res.ok) {
-      const data = (await res.json()) as { id: string };
-      toast("Utworzono NDA — dokończ w module Umowy.");
+      // Serwer dedupuje po `lead_id` (Moduł 51) — `existing` znaczy „to jest
+      // ten sam dokument, który już masz", nie „utworzono nowy".
+      const data = (await res.json()) as { id: string; existing?: boolean };
+      setNda((prev) => prev ?? { id: data.id, status: "Szkic" });
+      toast(
+        data.existing
+          ? "To NDA już istnieje — otwieram je zamiast tworzyć drugie."
+          : "Przygotowano NDA — dokończ i wyślij w module Umowy."
+      );
       window.open(`/${lang}/admin/contracts/${data.id}`, "_blank");
     } else {
-      toast("Nie udało się utworzyć NDA.", "error");
+      toast("Nie udało się przygotować NDA.", "error");
     }
   };
 
@@ -317,14 +332,29 @@ export function LeadDetailPanel({
               </button>
             </>
           )}
-          <button
-            onClick={sendNda}
-            disabled={sendingNda}
-            title="Gdy rozmowa dotknie wewnętrznych systemów/danych klienta, zanim cokolwiek podpiszecie — wyślij NDA przed rozmową odkrywczą"
-            className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
-          >
-            {sendingNda ? "Tworzę…" : "+ Wyślij NDA"}
-          </button>
+          {/* NDA: gdy dokument już jest, przycisk ustępuje miejsca pigułce ze
+              statusem — „czy NDA poszło i czy jest podpisane" to informacja,
+              której profil leada wcześniej nie nosił wcale (Moduł 51). Nazwa
+              „Przygotuj", nie „Wyślij", bo to tworzy szkic; wysyłka jest w
+              module Umowy. */}
+          {nda ? (
+            <Link
+              href={`/${lang}/admin/contracts/${nda.id}`}
+              title="Otwórz NDA tego leada w module Umowy"
+              className={`rounded-full px-2.5 py-1 text-[11px] ${CONTRACT_STATUS_CLASS[nda.status] ?? "bg-[var(--hairline)] text-muted"}`}
+            >
+              NDA: {nda.status.toLowerCase()}
+            </Link>
+          ) : (
+            <button
+              onClick={prepareNda}
+              disabled={sendingNda}
+              title="Gdy rozmowa dotknie wewnętrznych systemów/danych klienta, zanim cokolwiek podpiszecie — przygotuj NDA przed rozmową odkrywczą"
+              className="rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+            >
+              {sendingNda ? "Tworzę…" : "+ Przygotuj NDA"}
+            </button>
+          )}
         </div>
         <p className="mt-2 text-[12.5px] text-muted opacity-80">{LEAD_STATUS_HINT[lead.status]}</p>
 
