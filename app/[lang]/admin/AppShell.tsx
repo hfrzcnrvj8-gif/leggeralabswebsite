@@ -22,6 +22,7 @@ import {
   IconMail,
   IconChartBar,
   IconActivityHeartbeat,
+  IconBook,
   IconSearch,
   IconChevronLeft,
   IconChevronRight,
@@ -98,6 +99,12 @@ const NAV: { href: string; label: string; icon: TablerIcon }[] = [
   // zepsuło i szukasz przyczyny. Ekran ratunkowy, którego trzeba szukać po
   // nazwie w palecie, nie jest ekranem ratunkowym.
   { href: "/zdrowie", label: "Zdrowie", icon: IconActivityHeartbeat },
+  // Instrukcje (Moduł 53, 2026-07-26) — na samym końcu, bo to nie jest etap
+  // pracy, tylko miejsce, do którego się zagląda: „jak to było?" albo „pokaż
+  // komuś, jak działa aplikacja". W sidebarze, nie w palecie poleceń, bo
+  // podręcznika, którego trzeba szukać po nazwie, nie znajdzie ktoś, kto
+  // widzi panel pierwszy raz — a to jest jeden z dwóch odbiorców tej treści.
+  { href: "/instrukcje", label: "Instrukcje", icon: IconBook },
 ];
 
 // Ekrany osiągalne WYŁĄCZNIE z palety poleceń (Cmd/Ctrl+K), świadomie poza
