@@ -7105,3 +7105,49 @@ Brief kazał dołożyć tabele do `ensureHubSchema()`. Poszły do **własnego**
 moduł panelu, a te pięć tabel obsługuje dwie trasy i jedną zakładkę — dokładanie
 ich wszędzie kosztowałoby kilkanaście zapytań przy pierwszym żądaniu po każdym
 wdrożeniu, także tam, gdzie łowca nigdy nie zajrzy.
+
+## Nadzór, który sam się psuł — naprawa (2026-07-25)
+
+Objaw zgłoszony przez właściciela: w dziennym mailu naraz „UWAGA: nie udało się
+sprawdzić stanu kopii zapasowych", „Automaty: (nie udało się odczytać)" i dwa
+wpisy w błędach — `[kopie] 3×`, `[nadzor] 2×`. Czyli **nadzór meldował własną
+awarię**, a nie awarię tego, co nadzoruje.
+
+### Czego się dowiedzieliśmy z samego kodu
+
+Odczyt błędów z `error_log` w tym samym przebiegu **zadziałał** (sekcja „Ostatnie
+błędy" była pełna), a leci przez to samo `ensureObservabilitySchema()` co odczyt
+automatów. Baza więc żyła, migracje przeszły, tabele istnieją. Zawiodły dwa
+konkretne zapytania — objaw czkawki (przejściowy błąd HTTP do Neona), nie wady
+schematu. Dokładnej treści błędu **nie dało się odczytać**, i to był drugi
+problem, opisany niżej.
+
+### Cztery zmiany
+
+1. **`razNaInstancje()` w `lib/db.ts`** — wszystkie 25 helperów `ensure*Schema()`
+   przepisane na wspólny memoizator. Poprzedni wzorzec
+   (`if (!ready) ready = create(); await ready;`) zapamiętywał w pamięci procesu
+   także **odrzucony** promise: jeden przejściowy błąd przy pierwszym żądaniu
+   trwale psuł dany moduł na całej ciepłej instancji funkcji, aż do jej
+   wygaszenia. Awaria trwająca sekundę potrafiła tak psuć panel godzinami.
+   Teraz porażka czyści pamięć i następne żądanie próbuje od nowa (migracje są
+   idempotentne, więc powtórka nic nie kosztuje).
+2. **`zPonowieniem()` (`lib/db.ts`)** — druga szansa dla odczytów nadzoru
+   (kopie, automaty, błędy). Tylko ODCZYTY: powtórzenie zapisu mogłoby zdublować
+   dane.
+3. **Powód techniczny widoczny w mailu.** `error_log.szczegoly` był zapisywany
+   od Audytu 4 i **nie czytany przez nic** — panel nie ma widoku błędów, a mail
+   drukował wyłącznie `komunikat`, czyli zdanie wpisane przez nas w kodzie
+   („Nie udało się odczytać…"), zawsze identyczne. Właściciel dostawał
+   ostrzeżenie bez jedynej informacji pozwalającej cokolwiek zrobić. Teraz mail
+   pokazuje `szczegoly` (200 znaków) pod każdym błędem i powód wprost przy
+   nieudanym odczycie kopii/automatów.
+4. **Temat maila nie kłamie przy awarii nadzoru automatów.** `automatZepsuty`
+   zostawał na `false`, gdy odczyt się nie udał — więc przy sprawnych kopiach
+   mail przychodził z tematem „wszystko ogarnięte". Nieczytelny nadzór liczy się
+   teraz jak nadzór zły, tak samo jak przy kopiach.
+
+**Konsekwencja dla przyszłych modułów:** wszystko, co zapisujesz „na potem"
+(log, licznik, `last_error`), musi mieć wskazane miejsce, w którym ktoś to
+zobaczy. Inaczej powstaje tabela, która zna odpowiedź, i człowiek, który jej nie
+zna — ten sam antywzorzec, który Audyt 4 wytknął przy `mail_folders.last_error`.

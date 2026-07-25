@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema, ensureBackupSchema } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema, ensureBackupSchema, zPonowieniem } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
@@ -11,7 +11,7 @@ import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { todayLocalISO } from "@/lib/dates";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
-import { stanAutomatow } from "@/lib/errorLog";
+import { stanAutomatow, zapiszWyjatek } from "@/lib/errorLog";
 import { wymagaUwagi, type StanAutomatu } from "@/lib/observability";
 
 export const runtime = "nodejs";
@@ -242,14 +242,19 @@ export async function GET() {
   // co właściciel ma dziś do zrobienia.
   let backup = null;
   try {
-    await ensureBackupSchema();
-    const runs = (await sql`
-      SELECT id, ok, host, powod, tabel, rozmiar_bajtow, trwalo_sekund, created_at
-      FROM backup_runs ORDER BY created_at DESC LIMIT 20;
-    `) as unknown as BackupRun[];
+    // Druga szansa dla odczytu (2026-07-25) — ta sama poprawka co w dziennym
+    // raporcie: przejściowy błąd bazy nie ma prawa udawać awarii kopii.
+    const runs = await zPonowieniem(async () => {
+      await ensureBackupSchema();
+      return (await sql`
+        SELECT id, ok, host, powod, tabel, rozmiar_bajtow, trwalo_sekund, created_at
+        FROM backup_runs ORDER BY created_at DESC LIMIT 20;
+      `) as unknown as BackupRun[];
+    });
     backup = ocenKopie(runs);
   } catch (e) {
     console.error("[GET /api/hub/today] nie udało się odczytać stanu kopii zapasowych", e);
+    await zapiszWyjatek("kopie", "Nie udało się odczytać stanu kopii zapasowych (Pulpit)", e);
   }
 
   // Stan automatów (Audyt 4, 2026-07-22) — ta sama ostrożność co przy kopiach:
@@ -261,6 +266,7 @@ export async function GET() {
     automaty = (await stanAutomatow()).filter(wymagaUwagi);
   } catch (e) {
     console.error("[GET /api/hub/today] nie udało się odczytać stanu automatów", e);
+    await zapiszWyjatek("nadzor", "Nie udało się odczytać stanu automatów (Pulpit)", e);
   }
 
   return NextResponse.json({

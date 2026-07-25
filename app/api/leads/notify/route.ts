@@ -14,6 +14,7 @@ import {
   logClientEvent,
   getNudgeThreads,
   ensureBackupSchema,
+  zPonowieniem,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, LEADS_RETENTION_MONTHS, type Lead } from "@/lib/leads";
@@ -558,11 +559,16 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   let backupLinia = "";
   let backupZepsute = false;
   try {
-    await ensureBackupSchema();
-    const backupRuns = (await sql`
-      SELECT id, ok, host, powod, tabel, rozmiar_bajtow, trwalo_sekund, created_at
-      FROM backup_runs ORDER BY created_at DESC LIMIT 20;
-    `) as unknown as BackupRun[];
+    // `zPonowieniem` (2026-07-25): jedno nieudane żądanie HTTP do bazy nie może
+    // zamienić się w „UWAGA: nie udało się sprawdzić kopii". Ostrzeżenie, które
+    // zapala się przez czkawkę sieci, uczy ignorowania samego siebie.
+    const backupRuns = await zPonowieniem(async () => {
+      await ensureBackupSchema();
+      return (await sql`
+        SELECT id, ok, host, powod, tabel, rozmiar_bajtow, trwalo_sekund, created_at
+        FROM backup_runs ORDER BY created_at DESC LIMIT 20;
+      `) as unknown as BackupRun[];
+    });
     const stanKopii = ocenKopie(backupRuns);
     if (stanKopii.stan === "ok") {
       // Przy sprawnych kopiach jedna spokojna linijka. W mailu — inaczej niż
@@ -587,7 +593,10 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     // kopiami było wszystko w porządku. Awaria nadzoru udawałaby zdrowie.
     await zapiszWyjatek("kopie", "Nie udało się odczytać stanu kopii zapasowych", e);
     backupZepsute = true;
-    backupLinia = "UWAGA: nie udało się sprawdzić stanu kopii zapasowych — traktuj to jak brak potwierdzenia, że kopie działają.";
+    // Powód WPROST w mailu, nie tylko w bazie. Do 2026-07-25 ta linijka mówiła
+    // wyłącznie „nie udało się" — właściciel dostawał ostrzeżenie bez jednej
+    // informacji, która pozwalała cokolwiek z nim zrobić.
+    backupLinia = `UWAGA: nie udało się sprawdzić stanu kopii zapasowych — traktuj to jak brak potwierdzenia, że kopie działają.\nPowód techniczny: ${opisBledu(e)}`;
   }
 
   // Zdrowie automatów (Audyt 4). Ten sam try/catch co przy kopiach i z tego
@@ -615,7 +624,16 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
       bledyLinie = [
         "",
         "Ostatnie błędy zapisane przez panel:",
-        ...bledy.map((b) => `  • [${b.zakres}] ${b.komunikat}${b.ile > 1 ? ` (${b.ile}×)` : ""}`),
+        // Ze `szczegoly` (2026-07-25). `komunikat` to zdanie wpisane przez nas
+        // w kodzie — zawsze to samo, więc samo z siebie nie mówi NIC ponad
+        // „coś nie wyszło". Przyczyna siedziała w `szczegoly`, których nie
+        // czytało żadne miejsce w systemie: ani panel (nie ma widoku błędów),
+        // ani ten mail. Tabela z odpowiedzią, do której nikt nie zagląda, to
+        // dokładnie ten antywzorzec, który Audyt 4 miał zamknąć.
+        ...bledy.flatMap((b) => [
+          `  • [${b.zakres}] ${b.komunikat}${b.ile > 1 ? ` (${b.ile}×)` : ""}`,
+          ...(b.szczegoly ? [`      ${b.szczegoly.slice(0, 200)}`] : []),
+        ]),
       ].join("\n");
     }
   } catch (e) {
@@ -633,6 +651,13 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   } catch (e) {
     console.error("[cron] nie udało się odczytać stanu automatów", e);
     await zapiszWyjatek("nadzor", "Nie udało się odczytać stanu automatów", e);
+    // Nieczytelny nadzór liczy się jak nadzór ZŁY, nie jak brak problemu
+    // (2026-07-25). Do tej pory ta flaga zostawała na `false`, więc gdy odczyt
+    // padał, a kopie akurat były w porządku, mail przychodził z tematem
+    // „wszystko ogarnięte" — temat uspokajał wbrew treści, czyli robił
+    // dokładnie to, przed czym broni się reguła przy kopiach niżej.
+    automatZepsuty = true;
+    automatyLinie = `  UWAGA: nie udało się odczytać stanu automatów — traktuj to jak brak potwierdzenia, że chodzą.\n  Powód techniczny: ${opisBledu(e)}`;
   }
 
   const mailLines = pendingMails.length

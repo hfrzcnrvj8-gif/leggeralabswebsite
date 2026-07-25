@@ -7,8 +7,6 @@ import { STARTER_CATALOG } from "./catalogStarter";
 export type Sql = NeonQueryFunction<false, false>;
 
 let client: Sql | null = null;
-let schemaReady: Promise<void> | null = null;
-let hubSchemaReady: Promise<void> | null = null;
 
 /**
  * ── Bramka migracji (2026-07-15) ─────────────────────────────────────────
@@ -64,6 +62,52 @@ async function loadAppliedVersions(): Promise<Map<string, string>> {
     const rows = (await sql`SELECT name, version FROM schema_state;`) as unknown as { name: string; version: string }[];
     return new Map(rows.map((r) => [r.name, r.version]));
   });
+}
+
+/**
+ * Pamięta wynik migracji na czas życia instancji — ale **tylko wynik udany**.
+ *
+ * Poprzednia wersja (`if (!ready) ready = create(); await ready;`) zapamiętywała
+ * także PORAŻKĘ: jeden przejściowy błąd bazy przy pierwszym żądaniu zostawiał w
+ * pamięci odrzucony promise, a każde następne żądanie na tej samej ciepłej
+ * instancji dostawało ten sam błąd — bez ponownej próby, aż do wygaszenia
+ * funkcji. Awaria trwająca sekundę potrafiła w ten sposób psuć moduł godzinami.
+ * Złapane 2026-07-25 przy „nie udało się odczytać stanu kopii zapasowych".
+ *
+ * Teraz nieudana próba czyści pamięć, więc kolejne żądanie zaczyna od nowa —
+ * migracje są idempotentne, więc powtórzenie nic nie kosztuje poza czasem.
+ */
+function razNaInstancje(migracja: () => Promise<void>): () => Promise<void> {
+  let gotowe: Promise<void> | null = null;
+  return () => {
+    if (!gotowe) {
+      gotowe = migracja().catch((e) => {
+        gotowe = null;
+        throw e;
+      });
+    }
+    return gotowe;
+  };
+}
+
+/**
+ * Powtarza odczyt, gdy baza odpowie błędem przejściowym.
+ *
+ * `neon()` w trybie HTTP wysyła każde zapytanie jako osobne żądanie sieciowe,
+ * więc pojedyncza czkawka (przebudzenie uśpionej bazy, chwilowy błąd sieci)
+ * wywraca dokładnie jedno zapytanie, a nie całą trasę. Dla odczytów nadzoru
+ * (kopie, automaty) to różnica między „wszystko działa" a fałszywym alarmem
+ * „nie udało się sprawdzić kopii" — dlatego dajemy im drugą szansę.
+ *
+ * Tylko do ODCZYTÓW: powtórzenie zapisu mogłoby zdublować dane.
+ */
+export async function zPonowieniem<T>(odczyt: () => Promise<T>, przerwaMs = 400): Promise<T> {
+  try {
+    return await odczyt();
+  } catch {
+    await new Promise((r) => setTimeout(r, przerwaMs));
+    return await odczyt();
+  }
 }
 
 /** Czy schemat `name` jest już w bazie w wersji odpowiadającej temu kodowi.
@@ -294,10 +338,7 @@ async function createSchema(): Promise<void> {
  * Lazily creates the `leads` table on first use. Idempotent and cheap
  * (CREATE TABLE IF NOT EXISTS), cached per warm serverless instance.
  */
-export async function ensureLeadsSchema(): Promise<void> {
-  if (!schemaReady) schemaReady = createSchema();
-  await schemaReady;
-}
+export const ensureLeadsSchema: () => Promise<void> = razNaInstancje(createSchema);
 
 async function createHubSchema(): Promise<void> {
   // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
@@ -565,12 +606,7 @@ async function createHubSchema(): Promise<void> {
 
 /** Lazily creates projects/notes/events tables (i tabele pomocnicze) na
  * pierwsze użycie — analogicznie do ensureLeadsSchema(). */
-export async function ensureHubSchema(): Promise<void> {
-  if (!hubSchemaReady) hubSchemaReady = createHubSchema();
-  await hubSchemaReady;
-}
-
-let backupSchemaReady: Promise<void> | null = null;
+export const ensureHubSchema: () => Promise<void> = razNaInstancje(createHubSchema);
 
 /** Kopie zapasowe bazy na NAS (2026-07-20) — dziennik przebiegów.
  *
@@ -612,12 +648,7 @@ async function createBackupSchema(): Promise<void> {
   await markSchemaApplied("backup");
 }
 
-export async function ensureBackupSchema(): Promise<void> {
-  if (!backupSchemaReady) backupSchemaReady = createBackupSchema();
-  await backupSchemaReady;
-}
-
-let observabilitySchemaReady: Promise<void> | null = null;
+export const ensureBackupSchema: () => Promise<void> = razNaInstancje(createBackupSchema);
 
 /** Obserwowalność (Audyt 4, 2026-07-22) — trzy tabele, jeden cel: żeby awaria
  * o 3:00 nie była do rana niewidoczna.
@@ -694,12 +725,7 @@ async function createObservabilitySchema(): Promise<void> {
   await markSchemaApplied("observability");
 }
 
-export async function ensureObservabilitySchema(): Promise<void> {
-  if (!observabilitySchemaReady) observabilitySchemaReady = createObservabilitySchema();
-  await observabilitySchemaReady;
-}
-
-let rateLimitSchemaReady: Promise<void> | null = null;
+export const ensureObservabilitySchema: () => Promise<void> = razNaInstancje(createObservabilitySchema);
 
 /** Hamulec liczby prób (Audyt 1, 2026-07-22) — jedna tabela obsługująca
  * WSZYSTKIE publiczne trasy, które da się „strzelać" bez końca: logowanie
@@ -738,12 +764,7 @@ async function createRateLimitSchema(): Promise<void> {
   await markSchemaApplied("rate_limit");
 }
 
-export async function ensureRateLimitSchema(): Promise<void> {
-  if (!rateLimitSchemaReady) rateLimitSchemaReady = createRateLimitSchema();
-  await rateLimitSchemaReady;
-}
-
-let invoicesSchemaReady: Promise<void> | null = null;
+export const ensureRateLimitSchema: () => Promise<void> = razNaInstancje(createRateLimitSchema);
 
 async function createInvoicesSchema(): Promise<void> {
   // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
@@ -1082,12 +1103,7 @@ async function seedStarterCatalog(sql: Sql): Promise<void> {
 }
 
 /** Lazily tworzy tabele modułu Faktur (ustawienia firmy, faktury, pozycje). */
-export async function ensureInvoicesSchema(): Promise<void> {
-  if (!invoicesSchemaReady) invoicesSchemaReady = createInvoicesSchema();
-  await invoicesSchemaReady;
-}
-
-let offersSchemaReady: Promise<void> | null = null;
+export const ensureInvoicesSchema: () => Promise<void> = razNaInstancje(createInvoicesSchema);
 
 async function createOffersSchema(): Promise<void> {
   // Bramka: ten schemat jest już w bazie w tej wersji kodu (patrz
@@ -1160,12 +1176,7 @@ async function createOffersSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabele modułu Ofert (oferty, pozycje). */
-export async function ensureOffersSchema(): Promise<void> {
-  if (!offersSchemaReady) offersSchemaReady = createOffersSchema();
-  await offersSchemaReady;
-}
-
-let offerTemplatesSchemaReady: Promise<void> | null = null;
+export const ensureOffersSchema: () => Promise<void> = razNaInstancje(createOffersSchema);
 
 /** Moduł 20 (szablony ofert) — pozycje jako JSONB "odbitka" (jak
  * recurring_invoices.pozycje), bo tylko kopiowane do nowej oferty przy
@@ -1254,12 +1265,7 @@ async function createOfferTemplatesSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę modułu Szablony ofert. */
-export async function ensureOfferTemplatesSchema(): Promise<void> {
-  if (!offerTemplatesSchemaReady) offerTemplatesSchemaReady = createOfferTemplatesSchema();
-  await offerTemplatesSchemaReady;
-}
-
-let contractsSchemaReady: Promise<void> | null = null;
+export const ensureOfferTemplatesSchema: () => Promise<void> = razNaInstancje(createOfferTemplatesSchema);
 
 /** Moduł Umowy + NDA (Moduł 11, patrz docs/plany-modulow/11-umowy-i-nda.md)
  * — jedna tabela dla obu typów dokumentu (typ: "umowa" | "nda"), bo dzielą
@@ -1338,12 +1344,7 @@ async function createContractsSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabele modułu Umowy + NDA. */
-export async function ensureContractsSchema(): Promise<void> {
-  if (!contractsSchemaReady) contractsSchemaReady = createContractsSchema();
-  await contractsSchemaReady;
-}
-
-let clientsSchemaReady: Promise<void> | null = null;
+export const ensureContractsSchema: () => Promise<void> = razNaInstancje(createContractsSchema);
 
 /** Moduł Klienci — fundament pod resztę CRM (patrz virtual-company-roadmap w
  * pamięci): Klient to fizyczny/prawny kontrahent, z którym realnie zaczęła
@@ -1452,10 +1453,7 @@ async function createClientsSchema(): Promise<void> {
   await markSchemaApplied("clients");
 }
 
-export async function ensureClientsSchema(): Promise<void> {
-  if (!clientsSchemaReady) clientsSchemaReady = createClientsSchema();
-  await clientsSchemaReady;
-}
+export const ensureClientsSchema: () => Promise<void> = razNaInstancje(createClientsSchema);
 
 /** Zapisz zdarzenie systemowe na osi czasu klienta — cichy no-op, gdy
  * `clientId` jest null (dokument bez podpiętego klienta). Wywoływane z
@@ -1478,8 +1476,6 @@ export async function logClientEvent(
     VALUES (${randomUUID()}, ${clientId}, ${kind}, ${text}, ${amount ?? null}, ${relatedId ?? null});
   `;
 }
-
-let followupsSchemaReady: Promise<void> | null = null;
 
 /** Harmonogram automatycznego nurture (Moduł 2, luka ⑥) — gdy projekt
  * przechodzi w "Wdrożone", planujemy klientowi dwa przyszłe kontakty (14 i
@@ -1515,12 +1511,7 @@ async function createFollowupsSchema(): Promise<void> {
   await markSchemaApplied("followups");
 }
 
-export async function ensureFollowupsSchema(): Promise<void> {
-  if (!followupsSchemaReady) followupsSchemaReady = createFollowupsSchema();
-  await followupsSchemaReady;
-}
-
-let deviceTokensSchemaReady: Promise<void> | null = null;
+export const ensureFollowupsSchema: () => Promise<void> = razNaInstancje(createFollowupsSchema);
 
 /** Tokeny per-urządzenie dla klientów natywnych (Faza 1 aplikacji iOS,
  * decyzja właściciela 2026-07-19). Przeglądarka dalej używa deterministycznego
@@ -1548,12 +1539,7 @@ async function createDeviceTokensSchema(): Promise<void> {
   await markSchemaApplied("device_tokens");
 }
 
-export async function ensureDeviceTokensSchema(): Promise<void> {
-  if (!deviceTokensSchemaReady) deviceTokensSchemaReady = createDeviceTokensSchema();
-  await deviceTokensSchemaReady;
-}
-
-let twoFactorSchemaReady: Promise<void> | null = null;
+export const ensureDeviceTokensSchema: () => Promise<void> = razNaInstancje(createDeviceTokensSchema);
 
 /** Drugi składnik logowania — TOTP (Moduł 41, 2026-07-22, domknięcie Audytu 1).
  *
@@ -1608,12 +1594,7 @@ async function createTwoFactorSchema(): Promise<void> {
   await markSchemaApplied("two_factor");
 }
 
-export async function ensureTwoFactorSchema(): Promise<void> {
-  if (!twoFactorSchemaReady) twoFactorSchemaReady = createTwoFactorSchema();
-  await twoFactorSchemaReady;
-}
-
-let costsSchemaReady: Promise<void> | null = null;
+export const ensureTwoFactorSchema: () => Promise<void> = razNaInstancje(createTwoFactorSchema);
 
 /** Moduł Koszty (Faza G) — ewidencja faktur PRZYCHODZĄCYCH od dostawców, w
  * odróżnieniu od `invoices` (wyłącznie WYCHODZĄCE, sprzedażowe). Opcjonalny
@@ -1729,12 +1710,7 @@ async function createCostsSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę modułu Koszty. */
-export async function ensureCostsSchema(): Promise<void> {
-  if (!costsSchemaReady) costsSchemaReady = createCostsSchema();
-  await costsSchemaReady;
-}
-
-let leadHunterSchemaReady: Promise<void> | null = null;
+export const ensureCostsSchema: () => Promise<void> = razNaInstancje(createCostsSchema);
 
 /**
  * „Łowca leadów" (Moduł 52) — polowania, skrzynka kandydatów, czarna lista
@@ -1894,10 +1870,7 @@ async function createLeadHunterSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabele „Łowcy leadów" (Moduł 52). */
-export async function ensureLeadHunterSchema(): Promise<void> {
-  if (!leadHunterSchemaReady) leadHunterSchemaReady = createLeadHunterSchema();
-  await leadHunterSchemaReady;
-}
+export const ensureLeadHunterSchema: () => Promise<void> = razNaInstancje(createLeadHunterSchema);
 
 /** Zwraca `share_token` faktury, generując go w locie (randomUUID), jeśli
  * jeszcze go nie ma — dotyczy faktur utworzonych przed wprowadzeniem
@@ -1939,8 +1912,6 @@ export async function ensureProjectReviewToken(sql: Sql, id: string, existingTok
   await sql`UPDATE projects SET review_token = ${token} WHERE id = ${id};`;
   return token;
 }
-
-let timeSchemaReady: Promise<void> | null = null;
 
 /** Moduł 19 (śledzenie czasu pracy): jeden wpis = albo ręcznie wpisana liczba
  * minut, albo sesja stopera. `task_id` opcjonalny (czas można zalogować
@@ -1985,12 +1956,7 @@ async function createTimeSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę modułu Śledzenie czasu. */
-export async function ensureTimeSchema(): Promise<void> {
-  if (!timeSchemaReady) timeSchemaReady = createTimeSchema();
-  await timeSchemaReady;
-}
-
-let mailSchemaReady: Promise<void> | null = null;
+export const ensureTimeSchema: () => Promise<void> = razNaInstancje(createTimeSchema);
 
 /** Moduł 4 (poczta IMAP/SMTP, docs/plany-modulow/04-skrzynka-mailowa.md).
  *
@@ -2281,10 +2247,7 @@ async function createMailSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabele modułu Poczta. */
-export async function ensureMailSchema(): Promise<void> {
-  if (!mailSchemaReady) mailSchemaReady = createMailSchema();
-  await mailSchemaReady;
-}
+export const ensureMailSchema: () => Promise<void> = razNaInstancje(createMailSchema);
 
 /** Moduł 4f (2026-07-16) — wątki bez odpowiedzi: wysłałeś OSTATNIĄ wiadomość
  * w wątku (kierunek='out', folder='sent') i minęło `days` dni bez ŻADNEJ
@@ -2327,8 +2290,6 @@ export async function getNudgeThreads(sql: Sql, days: number = MAIL_NUDGE_DAYS):
     ORDER BY t.received_at ASC;
   `) as unknown as NudgeThread[];
 }
-
-let mailFoldersSchemaReady: Promise<void> | null = null;
 
 /** Etap 2 Modułu 4b (2026-07-16) — kursory PER FOLDER na serwerze IMAP,
  * zamiast jednego globalnego `last_seen_uid` w `mail_state` (który zakładał,
@@ -2380,12 +2341,7 @@ async function createMailFoldersSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę kursorów per-folder (Etap 2 Modułu 4b). */
-export async function ensureMailFoldersSchema(): Promise<void> {
-  if (!mailFoldersSchemaReady) mailFoldersSchemaReady = createMailFoldersSchema();
-  await mailFoldersSchemaReady;
-}
-
-let mailOutboxSchemaReady: Promise<void> | null = null;
+export const ensureMailFoldersSchema: () => Promise<void> = razNaInstancje(createMailFoldersSchema);
 
 /** Faza 8 (2026-07-20) — kolejka wysyłki odłożonej („wyślij o 8:00").
  *
@@ -2447,12 +2403,7 @@ async function createMailOutboxSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę kolejki wysyłki odłożonej (Faza 8). */
-export async function ensureMailOutboxSchema(): Promise<void> {
-  if (!mailOutboxSchemaReady) mailOutboxSchemaReady = createMailOutboxSchema();
-  await mailOutboxSchemaReady;
-}
-
-let mailTemplatesSchemaReady: Promise<void> | null = null;
+export const ensureMailOutboxSchema: () => Promise<void> = razNaInstancje(createMailOutboxSchema);
 
 /** Moduł 4b, Etap 1 — szablony wiadomości (Superhuman Snippets). Ten sam
  * kształt co `offer_templates`: nazwa + gotowa treść do wstawienia, tu
@@ -2477,14 +2428,9 @@ async function createMailTemplatesSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę szablonów wiadomości. */
-export async function ensureMailTemplatesSchema(): Promise<void> {
-  if (!mailTemplatesSchemaReady) mailTemplatesSchemaReady = createMailTemplatesSchema();
-  await mailTemplatesSchemaReady;
-}
+export const ensureMailTemplatesSchema: () => Promise<void> = razNaInstancje(createMailTemplatesSchema);
 
 /* ------------------------------------------------- Moduł 22 — powiązania --- */
-
-let linksSchemaReady: Promise<void> | null = null;
 
 /** Moduł 22 — domknięcie powiązań z CRM tam, gdzie brakowało kolumny.
  *
@@ -2555,12 +2501,7 @@ async function createLinksSchema(): Promise<void> {
 }
 
 /** Lazily tworzy kolumny powiązań Modułu 22 + tabelę aliasów adresów. */
-export async function ensureLinksSchema(): Promise<void> {
-  if (!linksSchemaReady) linksSchemaReady = createLinksSchema();
-  await linksSchemaReady;
-}
-
-let auditSchemaReady: Promise<void> | null = null;
+export const ensureLinksSchema: () => Promise<void> = razNaInstancje(createLinksSchema);
 
 /**
  * Audyt zmian pól (Moduł 23) — „kiedy i z czego na co".
@@ -2608,12 +2549,7 @@ async function createAuditSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę audytu zmian pól (Moduł 23). */
-export async function ensureAuditSchema(): Promise<void> {
-  if (!auditSchemaReady) auditSchemaReady = createAuditSchema();
-  await auditSchemaReady;
-}
-
-let notificationsSchemaReady: Promise<void> | null = null;
+export const ensureAuditSchema: () => Promise<void> = razNaInstancje(createAuditSchema);
 
 /**
  * Centrum powiadomień (Moduł 24) — kronika zdarzeń „co się wydarzyło, gdy Cię
@@ -2675,12 +2611,7 @@ async function createNotificationsSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę centrum powiadomień (Moduł 24). */
-export async function ensureNotificationsSchema(): Promise<void> {
-  if (!notificationsSchemaReady) notificationsSchemaReady = createNotificationsSchema();
-  await notificationsSchemaReady;
-}
-
-let remindersSchemaReady: Promise<void> | null = null;
+export const ensureNotificationsSchema: () => Promise<void> = razNaInstancje(createNotificationsSchema);
 
 /** Przypomnienia (2026-07-22) — odpowiednik Apple Reminders, osobny byt niż
  * `events`. Kalendarz odpowiada na „kiedy mam gdzieś być", przypomnienia na
@@ -2803,12 +2734,7 @@ async function createRemindersSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabele Przypomnień (listy + pozycje). */
-export async function ensureRemindersSchema(): Promise<void> {
-  if (!remindersSchemaReady) remindersSchemaReady = createRemindersSchema();
-  await remindersSchemaReady;
-}
-
-let eventAttendeesSchemaReady: Promise<void> | null = null;
+export const ensureRemindersSchema: () => Promise<void> = razNaInstancje(createRemindersSchema);
 
 /** Uczestnicy spotkań i ich odpowiedzi (2026-07-22, zaproszenia .ics).
  *
@@ -2858,7 +2784,4 @@ async function createEventAttendeesSchema(): Promise<void> {
 }
 
 /** Lazily tworzy tabelę uczestników spotkań. */
-export async function ensureEventAttendeesSchema(): Promise<void> {
-  if (!eventAttendeesSchemaReady) eventAttendeesSchemaReady = createEventAttendeesSchema();
-  await eventAttendeesSchemaReady;
-}
+export const ensureEventAttendeesSchema: () => Promise<void> = razNaInstancje(createEventAttendeesSchema);

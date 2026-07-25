@@ -10,7 +10,7 @@
 // nikt nie miał jak się poskarżyć.
 
 import { randomUUID } from "node:crypto";
-import { getSql, ensureObservabilitySchema } from "./db";
+import { getSql, ensureObservabilitySchema, zPonowieniem } from "./db";
 import { sendEmail } from "./email";
 import {
   type AutomationRun,
@@ -138,22 +138,30 @@ export async function odnotujPrzebieg(klucz: string, ok: boolean, powod = "", tr
   }
 }
 
+// Odczyty nadzoru idą przez `zPonowieniem` (2026-07-25). Powód jest konkretny:
+// jedna czkawka bazy zamieniała ten odczyt w komunikat „nie udało się odczytać
+// stanu automatów", czyli w fałszywy alarm o nadzorze — a fałszywe alarmy uczą
+// ignorowania dokładnie tego kanału, który ma zadziałać raz na rok.
 export async function wczytajPrzebiegi(): Promise<AutomationRun[]> {
-  await ensureObservabilitySchema();
-  const sql = getSql();
-  return (await sql`
-    SELECT id, klucz, ok, powod, trwalo_ms, created_at
-    FROM automation_runs ORDER BY created_at DESC LIMIT ${LIMIT_PRZEBIEGOW};
-  `) as unknown as AutomationRun[];
+  return zPonowieniem(async () => {
+    await ensureObservabilitySchema();
+    const sql = getSql();
+    return (await sql`
+      SELECT id, klucz, ok, powod, trwalo_ms, created_at
+      FROM automation_runs ORDER BY created_at DESC LIMIT ${LIMIT_PRZEBIEGOW};
+    `) as unknown as AutomationRun[];
+  });
 }
 
 export async function wczytajBledy(limit = 50): Promise<WpisBledu[]> {
-  await ensureObservabilitySchema();
-  const sql = getSql();
-  return (await sql`
-    SELECT id, zakres, waga, komunikat, szczegoly, przebieg_id, klucz, ile, pierwszy_raz, created_at
-    FROM error_log ORDER BY created_at DESC LIMIT ${limit};
-  `) as unknown as WpisBledu[];
+  return zPonowieniem(async () => {
+    await ensureObservabilitySchema();
+    const sql = getSql();
+    return (await sql`
+      SELECT id, zakres, waga, komunikat, szczegoly, przebieg_id, klucz, ile, pierwszy_raz, created_at
+      FROM error_log ORDER BY created_at DESC LIMIT ${limit};
+    `) as unknown as WpisBledu[];
+  });
 }
 
 /** Stan wszystkich automatów — dla Pulpitu, dziennego maila i apki. */
