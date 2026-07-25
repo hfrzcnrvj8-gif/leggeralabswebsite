@@ -48,13 +48,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Bez NIP-u i bez nazwy nie ma czego zapamiętać — taki wiersz byłby pustym
   // rekordem blokującym nic.
   const nazwaNorm = k.nazwa_norm || normalizujNazwe(k.nazwa);
+  // Identyfikator wpisu wraca do UI, żeby dało się zaraz kliknąć „Cofnij".
+  // Bez tego jedyną drogą odwrotu byłoby szukanie firmy na liście — a to jest
+  // akcja robiona machnięciem palca, więc jej odwrócenie też musi być jednym
+  // ruchem, i to od razu.
+  let blacklistId: string | null = null;
   if (k.nip || nazwaNorm) {
-    await sql`
+    const wpis = (await sql`
       INSERT INTO lead_blacklist (id, nip, nazwa_norm, powod)
       VALUES (${randomUUID()}, ${k.nip}, ${nazwaNorm}, ${powod})
-      ON CONFLICT DO NOTHING;
-    `;
+      ON CONFLICT (nip) WHERE nip <> '' DO UPDATE SET powod = EXCLUDED.powod
+      RETURNING id;
+    `) as unknown as { id: string }[];
+    blacklistId = wpis[0]?.id ?? null;
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, blacklistId });
 }

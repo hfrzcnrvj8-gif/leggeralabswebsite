@@ -140,6 +140,21 @@ export const AUTOMATY: Automat[] = [
     skutek: "Szkice faktur cyklicznych przestają się generować — łatwo przeoczyć niewystawioną fakturę.",
     progGodzin: 36,
   },
+  {
+    // Moduł 52. Dopisany 2026-07-25, DZIEŃ po zbudowaniu łowcy — potok od
+    // początku meldował przebiegi przez `odnotujPrzebieg("lowca", …)`, ale ta
+    // lista o nim nie wiedziała, więc `stanAutomatow()` (mapuje po AUTOMATY)
+    // nigdy go nie oceniało. Zapisywaliśmy do tabeli, której w tej sprawie
+    // nikt nie czytał — dokładnie ustalenie 3 z Audytu 4, popełnione ponownie.
+    //
+    // Objaw byłby cichy i mylący: skrzynka kandydatów przestaje rosnąć, a
+    // wygląda to jak „rejestr się wyczerpał", nie jak „automat stanął".
+    klucz: "lowca",
+    nazwa: "Łowca leadów",
+    skutek:
+      "Skrzynka kandydatów przestaje się zapełniać. Wygląda to tak, jakby w rejestrze nie było już firm do znalezienia — a to automat stoi.",
+    progGodzin: 36,
+  },
 ];
 
 export function automat(klucz: string): Automat | null {

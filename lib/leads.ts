@@ -283,6 +283,29 @@ const CLOSED_STATUSES = new Set(["Zamknięte - sukces", "Odrzucone / brak zainte
  * (lib/clients.ts, NURTURE_OFFSETS), więc dublowałoby to przypomnienia. */
 const FOLLOWUP_DESPITE_CLOSED = "Odrzucone / brak zainteresowania";
 
+/**
+ * Po ilu dniach ciszy odzywa się lead stojący w OTWARTYM statusie bez
+ * ustawionego przypomnienia.
+ *
+ * **Po co ta reguła istnieje** (Moduł 52, 2026-07-25). Do tego dnia jedynym
+ * automatycznym sygnałem była cisza po „Napisano" (4 dni). Lead w „Rozmowa
+ * umówiona" albo „Pilotaż w trakcie" mógł stać tygodniami i **nic o nim nie
+ * przypominało** — nie pojawiał się ani na Pulpicie, ani w porannym mailu, ani
+ * w filtrze „wymaga działania" w apce. Przy jednym leadzie na tydzień dawało
+ * się to unieść pamięcią; od kiedy łowca dosypuje kilkanaście firm dziennie,
+ * to jest największy możliwy wyciek konwersji w całym module.
+ *
+ * Dlaczego 14, a nie 4 jak przy „Napisano": tamten próg pilnuje maila, na
+ * który czekamy. Ten pilnuje CZEGOKOLWIEK, co stanęło — a rozmowa umówiona na
+ * przyszły tydzień albo trwający pilotaż nie są opóźnione po czterech dniach.
+ * Dwa tygodnie ciszy przy otwartej sprawie to już jednak zapomnienie.
+ *
+ * **Ręcznie ustawione `next_followup` zawsze wygrywa** (patrz `isOverdue`) —
+ * ta reguła dotyczy wyłącznie leadów, przy których nie zdecydowałeś, kiedy
+ * wrócić.
+ */
+export const DNI_CISZY_W_OTWARTYM = 14;
+
 export function isOverdue(lead: Lead): boolean {
   if (lead.status === "Nowe zgłoszenie ze strony") return true;
 
@@ -295,9 +318,19 @@ export function isOverdue(lead: Lead): boolean {
   }
 
   if (CLOSED_STATUSES.has(lead.status)) return false;
-  if (lead.status !== "Napisano - czeka na odpowiedź") return false;
-  const d = daysSince(lead.ostatni_kontakt);
-  return d !== null && d >= 4;
+
+  if (lead.status === "Napisano - czeka na odpowiedź") {
+    const d = daysSince(lead.ostatni_kontakt);
+    return d !== null && d >= 4;
+  }
+
+  // Każdy inny OTWARTY status: cisza dłuższa niż DNI_CISZY_W_OTWARTYM.
+  // Liczona od ostatniego kontaktu, a gdy go nigdy nie było — od utworzenia
+  // leada. Bez tej drugiej gałęzi lead, do którego nikt się nie odezwał ani
+  // razu, milczałby WIECZNIE: `ostatni_kontakt` jest wtedy pusty, a to jest
+  // dokładnie ten lead, o którym najłatwiej zapomnieć.
+  const cisza = daysSince(lead.ostatni_kontakt ?? lead.created_at);
+  return cisza !== null && cisza >= DNI_CISZY_W_OTWARTYM;
 }
 
 /** Krótki, czytelny opis dlaczego dany lead wymaga dziś działania — używany
@@ -310,6 +343,11 @@ export function overdueReason(lead: Lead): string {
     const action = lead.next_action?.trim();
     return `ustawione przypomnienie na ${lead.next_followup}${action ? ` — ${action}` : ""}`;
   }
-  const d = daysSince(lead.ostatni_kontakt);
-  return `napisano ${d} dni temu, brak odpowiedzi`;
+  if (lead.status === "Napisano - czeka na odpowiedź") {
+    return `napisano ${daysSince(lead.ostatni_kontakt)} dni temu, brak odpowiedzi`;
+  }
+  const cisza = daysSince(lead.ostatni_kontakt ?? lead.created_at);
+  return lead.ostatni_kontakt
+    ? `cisza od ${cisza} dni przy statusie „${lead.status}"`
+    : `${cisza} dni w rejestrze i ani jednego kontaktu`;
 }

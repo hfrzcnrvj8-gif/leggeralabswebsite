@@ -7177,3 +7177,56 @@ Zero nowych tabel, zero nowych usług — dane leżały w bazie od Audytu 4.
 Alarmy zostają bez zmian (osobny mail tylko o zatrzymanych automatach, max raz
 na dobę); decyzja właściciela 2026-07-25: **nie** wysyłamy maila przy każdym
 nowym błędzie, bo alarm przychodzący codziennie przestaje być alarmem.
+
+### Moduł 52 — runda domykająca (2026-07-25, tego samego dnia)
+
+Po pierwszym oddaniu modułu właściciel zapytał wprost, czy Leady są kompletne
+i maksymalnie bezawaryjne. Przegląd pod tym kątem wykazał **pięć rzeczy** —
+w tym jeden defekt wprowadzony godzinę wcześniej.
+
+**1. Przyjęty kandydat nie przypominał o sobie.** `isOverdue()` zapala „wymaga
+działania dziś" dla nowego zgłoszenia, ustawionej daty albo ciszy po
+„Napisano". Lead w „Do kontaktu" bez daty **nie pojawiał się nigdzie** — ani na
+Pulpicie, ani w porannym mailu, ani w filtrze apki. Łowca przesuwałby więc
+problem o krok: zamiast stosu zimnych rekordów robiłby stos cichych. „Weź"
+ustawia teraz `next_followup` na dziś i `next_action` mówiące PO CO.
+
+**2. Lead mógł umrzeć w ciszy w każdym innym otwartym statusie.** Jedyną
+regułą automatyczną była cisza po „Napisano" (4 dni) — „Rozmowa umówiona" czy
+„Pilotaż w trakcie" mogły stać tygodniami bez sygnału. Nowa stała
+`DNI_CISZY_W_OTWARTYM = 14` (`lib/leads.ts`) plus bliźniak
+`LeadRules.dniCiszyWOtwartym` w apce; cisza liczona od ostatniego kontaktu,
+a gdy go NIGDY nie było — od utworzenia leada (inaczej lead bez ani jednego
+kontaktu milczałby wiecznie, a to ten, o którym najłatwiej zapomnieć).
+Testy: `test/leady.test.ts`, progi pinowane co do dnia. **Apka musiała dostać
+pole `Lead.createdAt`** — nowe pole to trzy miejsca: właściwość, `CodingKeys`,
+`init(from:)`.
+
+**3. „Poluj teraz" z telefonu nie mogło zadziałać.** Apka ma 20 s na żądanie
+i 45 s na całość, a przebieg trwa do 240 s — czyli **zawsze** fałszywe „brak
+połączenia z panelem", podczas gdy serwer spokojnie kończył robotę. Trasa
+przyjmuje teraz `budzetSekund` (widełki 20–240), telefon prosi o 60 s i idzie
+przez `sesjaDluga`. Podnoszenie limitów do 250 s byłoby leczeniem objawu —
+telefon na zasięgu komórkowym nie ma trzymać połączenia przez cztery minuty,
+a kursor i tak pamięta, gdzie skończyliśmy.
+
+**4. Cron miał jedną szansę dziennie i nikt jej nie pilnował.** Próg alarmu to
+36 h, więc pojedyncze pominięcie było niewidoczne. Dzienny raport (6:00)
+sprawdza `lowcaChodzilWDobie()` i w razie czego dopala krótką porcję — druga,
+niezależna droga do tego samego celu, wzorem alarmów z Audytu 4.
+
+**5. Cicha zmiana kształtu danych w CEIDG nie zapaliłaby żadnej lampki.**
+Klient czyta pola defensywnie, więc przemianowanie `telefon` dałoby kandydatów
+bez kontaktu, nie błąd. `podejrzanyPrzebieg()` (≥80% bez kontaktu przy próbce
+≥15) wystawia osobne powiadomienie. Świadomie NIE alarm nadzoru: to nie awaria
+automatu, tylko rzecz do obejrzenia okiem. Testy w `test/lowca.test.ts`.
+
+**Przy okazji, z tej samej rundy:** czarna lista dostała podgląd i „Przywróć"
+(odrzucenie było nieodwracalne i niewidoczne), pasek „Cofnij" tuż po odrzuceniu
+w panelu i w apce, edycję i kasowanie polowań w UI (trasy PATCH/DELETE
+istniały, ale nic ich nie wołało), oraz zasiany szablon „Pierwszy kontakt —
+kandydat Łowcy" z klauzulą o źródle danych (`lib/hunterOutreach.ts`). Klauzula
+ląduje też w notatce leada przy przyjęciu — art. 14 RODO wymaga jej przy
+PIERWSZYM kontakcie, a szablon, którego nikt nie stworzył, niczego nie niesie.
+**Treść klauzuli jest robocza, do potwierdzenia z prawnikiem** (patrz
+`docs/DO-PRAWNIKA-I-TLUMACZA.md` → 2.1b).

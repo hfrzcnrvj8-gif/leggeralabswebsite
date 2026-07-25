@@ -25,7 +25,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { getSql, ensureLeadHunterSchema, ensureLeadsSchema, ensureClientsSchema } from "./db";
+import { getSql, ensureLeadHunterSchema, ensureLeadsSchema, ensureClientsSchema, ensureObservabilitySchema } from "./db";
 import {
   ceidgSkonfigurowany,
   pobierzListe,
@@ -51,6 +51,23 @@ import { zapiszBlad } from "./errorLog";
  * zapis kursora i podsumowania — przerwanie przez platformę byłoby jedyną
  * sytuacją, w której licznik żądań CEIDG mógłby się rozjechać z rzeczywistością. */
 export const BUDZET_MS = 240_000;
+
+/**
+ * Budżet dla polowania odpalonego RĘCZNIE z telefonu.
+ *
+ * **Dlaczego krótszy, a nie ten sam.** Apka trzyma połączenie przez cały
+ * przebieg (Vercel nie umie w zadanie w tle — funkcja żyje tak długo, jak
+ * żądanie), a jej limity to 20 s na żądanie i 45 s na całość. Pełne
+ * czterominutowe polowanie z telefonu **zawsze** kończyłoby się fałszywym
+ * „brak połączenia z panelem", podczas gdy serwer spokojnie dokańczał robotę.
+ * Najgorszy rodzaj błędu: wygląda na awarię, choć wszystko działa.
+ *
+ * Podnoszenie limitów w apce do 250 s byłoby leczeniem objawu — telefon na
+ * zasięgu komórkowym nie ma trzymać otwartego połączenia przez cztery minuty.
+ * Kursor i tak zapamiętuje, gdzie skończyliśmy, więc krótka porcja niczego nie
+ * gubi: dokończy ją nocny cron.
+ */
+export const BUDZET_TELEFON_MS = 60_000;
 
 /** Ile firm bierzemy z jednej strony listy CEIDG (maksimum API to 50). */
 export const PORCJA_LISTY = 50;
@@ -82,7 +99,47 @@ export type WynikPrzebiegu = {
   /** Powód zatrzymania, gdy przebieg nie doszedł do końca — trafia do panelu
    * i do Centrum powiadomień. Pusty = doszedł. */
   przerwane: string;
+  /**
+   * Czy przerwanie było AWARIĄ, czy normalnym końcem porcji.
+   *
+   * To rozróżnienie decyduje o tym, czy nadzór (Audyt 4) wyśle alarm.
+   * Wyczerpany budżet czasu i limit rejestru **nie są awarią** — potok
+   * dokładnie po to ma kursor, żeby dokończyć jutro; alarm o tym co rano
+   * nauczyłby właściciela ignorować alarmy, a te mają zadziałać raz na rok.
+   * Awarią jest odrzucony token, cisza sieci albo błąd zapisu.
+   */
+  awaria: boolean;
+  /** Brak `CEIDG_TOKEN` — moduł nie jest jeszcze skonfigurowany. To NIE jest
+   * awaria automatu i nie melduje się go nadzorowi (patrz trasa `hunt/run`). */
+  nieskonfigurowany: boolean;
+  /**
+   * Ile z wzbogaconych firm nie miało PO wzbogaceniu ani telefonu, ani
+   * e-maila, ani strony — czyli ile odpadło na dyskwalifikatorze „brak
+   * kontaktu".
+   *
+   * To jest **detektor cichej zmiany po stronie rejestru**. Klient CEIDG
+   * czyta pola defensywnie (brakujące pole = pusta wartość, nie wyjątek), więc
+   * przemianowanie `telefon` na cokolwiek innego nie dałoby żadnego błędu —
+   * dostawalibyśmy kandydatów bez kontaktu i uznawali to za „taki rocznik".
+   * Kilka procent to norma; osiemdziesiąt to sygnał, że zmienił się kształt
+   * odpowiedzi. Ocenia to `podejrzanyPrzebieg()`.
+   */
+  bezKontaktu: number;
 };
+
+/** Od ilu wzbogaceń w przebiegu w ogóle warto wyciągać wnioski ze statystyki
+ * „bez kontaktu". Przy trzech firmach 100% nic nie znaczy. */
+export const PROG_PROBKI = 15;
+
+/** Powyżej jakiego udziału firm bez kontaktu uznajemy przebieg za podejrzany. */
+export const PROG_BEZ_KONTAKTU = 0.8;
+
+/** Czy przebieg wygląda na skutek zmiany kształtu danych w rejestrze, a nie na
+ * zwykły chudy dzień. Czysta arytmetyka — testowana w `test/lowca.test.ts`. */
+export function podejrzanyPrzebieg(wzbogaconych: number, bezKontaktu: number): boolean {
+  if (wzbogaconych < PROG_PROBKI) return false;
+  return bezKontaktu / wzbogaconych >= PROG_BEZ_KONTAKTU;
+}
 
 /* ────────────────────────── E3: strona firmy ────────────────────────── */
 
@@ -296,7 +353,10 @@ async function etapZbierania(
 
 /** E2+E3+E4 dla jednego surowego kandydata. Zwraca `true`, gdy kandydat
  * przeszedł sito i czeka w skrzynce. */
-async function etapWzbogacania(k: SurowyKandydat, budzetMs: number): Promise<{ przyjety: boolean; ocena: string }> {
+async function etapWzbogacania(
+  k: SurowyKandydat,
+  budzetMs: number
+): Promise<{ przyjety: boolean; ocena: string; kodPowodu: string }> {
   const sql = getSql();
 
   // E2a — szczegóły z CEIDG (telefon, mail, www, PKD, upadłość). Gdy rejestr
@@ -341,7 +401,7 @@ async function etapWzbogacania(k: SurowyKandydat, budzetMs: number): Promise<{ p
     // Zostaje sam licznik powodu — bez nazwy, NIP-u i adresu.
     await sql`DELETE FROM lead_candidates WHERE id = ${k.id};`;
     await odnotujOdsiew(wynik.kodPowodu);
-    return { przyjety: false, ocena: "" };
+    return { przyjety: false, ocena: "", kodPowodu: wynik.kodPowodu };
   }
 
   await sql`
@@ -362,7 +422,7 @@ async function etapWzbogacania(k: SurowyKandydat, budzetMs: number): Promise<{ p
       updated_at = now()
     WHERE id = ${k.id};
   `;
-  return { przyjety: true, ocena: wynik.ocena };
+  return { przyjety: true, ocena: wynik.ocena, kodPowodu: "" };
 }
 
 /**
@@ -374,19 +434,21 @@ async function etapWzbogacania(k: SurowyKandydat, budzetMs: number): Promise<{ p
  * błąd w automacie, o którym nikt się nie dowiaduje, to dokładnie ustalenie 3
  * z Audytu 4.
  */
-export async function przebiegLowcy(teraz = Date.now()): Promise<WynikPrzebiegu> {
+export async function przebiegLowcy(teraz = Date.now(), budzetMs = BUDZET_MS): Promise<WynikPrzebiegu> {
   const wynik: WynikPrzebiegu = {
-    polowan: 0, zebranych: 0, wzbogaconych: 0, nowych: 0, odsianych: 0, ocenA: 0, przerwane: "",
+    polowan: 0, zebranych: 0, wzbogaconych: 0, nowych: 0, odsianych: 0, ocenA: 0,
+    przerwane: "", awaria: false, nieskonfigurowany: false, bezKontaktu: 0,
   };
 
   if (!ceidgSkonfigurowany()) {
     wynik.przerwane = "Brak CEIDG_TOKEN — łowca nie ma jak zapytać rejestru.";
+    wynik.nieskonfigurowany = true;
     return wynik;
   }
 
   await ensureLeadHunterSchema();
   const sql = getSql();
-  const zostalo = () => BUDZET_MS - (Date.now() - teraz);
+  const zostalo = () => budzetMs - (Date.now() - teraz);
 
   const polowania = (await sql`
     SELECT * FROM lead_hunts WHERE aktywne = true ORDER BY COALESCE(ostatni_przebieg, to_timestamp(0)) ASC;
@@ -410,6 +472,8 @@ export async function przebiegLowcy(teraz = Date.now()): Promise<WynikPrzebiegu>
       const opis = e instanceof CeidgError ? opisBleduCeidg(e.info) : e instanceof Error ? e.message : String(e);
       await sql`UPDATE lead_hunts SET ostatni_wynik = ${opis.slice(0, 300)}, ostatni_przebieg = now() WHERE id = ${p.id};`;
       wynik.przerwane = opis;
+      // Limit rejestru mija sam; token i sieć nie miną — patrz `awaria`.
+      if (!(e instanceof CeidgError) || e.info.rodzaj !== "limit") wynik.awaria = true;
       if (e instanceof CeidgError && (e.info.rodzaj === "limit" || e.info.rodzaj === "autoryzacja" || e.info.rodzaj === "brak_tokenu")) {
         // Limit i zły token dotyczą CAŁEGO rejestru, nie tego jednego
         // polowania — dalsze próby tylko przedłużyłyby blokadę.
@@ -441,10 +505,12 @@ export async function przebiegLowcy(teraz = Date.now()): Promise<WynikPrzebiegu>
         if (r.ocena === "A") wynik.ocenA++;
       } else {
         wynik.odsianych++;
+        if (r.kodPowodu === "brak_kontaktu") wynik.bezKontaktu++;
       }
     } catch (e) {
       if (e instanceof CeidgError) {
         wynik.przerwane = opisBleduCeidg(e.info);
+        if (e.info.rodzaj !== "limit") wynik.awaria = true;
         break;
       }
       // Pojedyncza firma może nie odpowiedzieć — to nie powód, żeby przerwać
@@ -474,6 +540,36 @@ async function domknij(w: WynikPrzebiegu): Promise<WynikPrzebiegu> {
     // Ślad jest miły, ale nie jest wynikiem — jego brak nie może wywrócić przebiegu.
   }
   return w;
+}
+
+/**
+ * Czy łowca chodził w ciągu ostatniej doby.
+ *
+ * **Po co druga droga.** Cron Vercela ma na planie Hobby JEDNĄ szansę dziennie
+ * i nikt jej nie ponawia. Gdy przebieg o 4:00 padnie (czkawka platformy,
+ * zimny start, chwilowy brak bazy), dzień przepada po cichu — próg alarmu to
+ * 36 godzin, więc jedno pominięcie jest dla nadzoru NIEWIDOCZNE.
+ *
+ * Dlatego dzienny raport o 6:00 sprawdza to i w razie czego dopala łowcę.
+ * To ta sama zasada, co przy alarmach z Audytu 4: druga, niezależna droga do
+ * tego samego celu, żeby awaria jednej nie kończyła sprawy.
+ */
+export async function lowcaChodzilWDobie(teraz: Date = new Date()): Promise<boolean> {
+  try {
+    await ensureObservabilitySchema();
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT COUNT(*)::int AS n FROM automation_runs
+      WHERE klucz = 'lowca' AND ok = true AND created_at > now() - interval '20 hours';
+    `) as unknown as { n: number }[];
+    return (rows[0]?.n ?? 0) > 0;
+  } catch (e) {
+    // Nie wiemy = zachowaj się, jakby chodził. Odwrotny wybór (dopalaj przy
+    // każdej awarii odczytu) zamieniłby usterkę bazy w podwójne polowanie
+    // i podwójne zużycie limitu CEIDG.
+    console.error("[lowca] nie udało się sprawdzić, czy automat chodził", e);
+    return true;
+  }
 }
 
 /* ────────────────────────── retencja (RODO) ────────────────────────── */

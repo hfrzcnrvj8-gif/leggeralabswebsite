@@ -41,7 +41,14 @@ import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
 import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
 import { purgeStaleLeads } from "@/lib/leadRetention";
-import { purgeStareKandydaty, KANDYDACI_RETENCJA_DNI } from "@/lib/leadHunterRun";
+import {
+  purgeStareKandydaty,
+  KANDYDACI_RETENCJA_DNI,
+  lowcaChodzilWDobie,
+  przebiegLowcy,
+  BUDZET_TELEFON_MS,
+} from "@/lib/leadHunterRun";
+import { ceidgSkonfigurowany } from "@/lib/ceidg";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO, daysSinceISO } from "@/lib/dates";
 import { notify, purgeOldNotifications } from "@/lib/notificationLog";
@@ -483,6 +490,29 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   });
   if (purgedCandidates > 0) {
     console.log(`[cron] usunięto ${purgedCandidates} kandydatów starszych niż ${KANDYDACI_RETENCJA_DNI} dni`);
+  }
+
+  // ── Druga droga uruchomienia łowcy (Moduł 52) ──
+  //
+  // Cron łowcy chodzi o 4:00 i ma na planie Hobby JEDNĄ szansę dziennie —
+  // nikt jej nie ponawia. Gdy tamten przebieg padnie, dzień przepada po cichu:
+  // próg alarmu nadzoru to 36 godzin, więc jedno pominięcie jest niewidoczne.
+  // Ten raport wychodzi dwie godziny później i INNĄ drogą, więc jest naturalnym
+  // miejscem na dopalenie — ta sama zasada, co przy alarmach z Audytu 4:
+  // druga, niezależna droga do tego samego celu.
+  //
+  // Świadomie KRÓTKA porcja (60 s): to jest ratunek, nie pełne polowanie, a ten
+  // raport ma własny limit czasu i inne rzeczy do zrobienia. Kursor pamięta,
+  // gdzie skończyliśmy.
+  if (ceidgSkonfigurowany() && !(await lowcaChodzilWDobie())) {
+    try {
+      const w = await przebiegLowcy(Date.now(), BUDZET_TELEFON_MS);
+      await odnotujPrzebieg("lowca", !w.awaria, w.przerwane || "dopalony z dziennego raportu", undefined);
+      console.log(`[cron] łowca nie chodził od doby — dopalono, dołożył ${w.nowych} kandydatów`);
+    } catch (e) {
+      console.error("[cron] dopalenie łowcy nie powiodło się", e);
+      await zapiszWyjatek("lowca", "Nie udało się dopalić łowcy z dziennego raportu", e);
+    }
   }
 
   const overdueLeads = leads.filter(isOverdue);

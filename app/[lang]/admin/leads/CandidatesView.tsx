@@ -14,6 +14,7 @@ import {
   IconWorld,
   IconPhone,
   IconMail,
+  IconTrash,
 } from "@tabler/icons-react";
 import { SPRING, EASE_LIQUID } from "@/lib/motion";
 import { POWODY_ODRZUCENIA, POWODY_SITA, type Sygnal } from "@/lib/leadHunter";
@@ -58,6 +59,16 @@ export type Polowanie = {
   ostatni_wynik: string;
   znalezionych: number;
   przyjetych: number;
+};
+
+/** Wpis czarnej listy. Świadomie minimalny (NIP + znormalizowana nazwa +
+ * powód) — nie trzymamy profilu firmy, której nie zamierzamy nic proponować. */
+export type WpisCzarnejListy = {
+  id: string;
+  nip: string;
+  nazwa_norm: string;
+  powod: string;
+  created_at: string;
 };
 
 export type DaneLowcy = {
@@ -261,12 +272,14 @@ function KartaKandydata({
 export function CandidatesView({
   dane,
   polowania,
+  czarnaLista,
   search,
   onOdswiez,
   onOdswiezLeady,
 }: {
   dane: DaneLowcy | null;
   polowania: Polowanie[];
+  czarnaLista: WpisCzarnejListy[];
   search: string;
   onOdswiez: () => Promise<void> | void;
   onOdswiezLeady: () => Promise<void> | void;
@@ -277,6 +290,12 @@ export function CandidatesView({
   const [pokazC, setPokazC] = useState(false);
   const [pokazObsluzone, setPokazObsluzone] = useState(false);
   const [nowePolowanie, setNowePolowanie] = useState(false);
+  const [pokazCzarna, setPokazCzarna] = useState(false);
+  /** Ostatnie odrzucenie — dopóki tu siedzi, na górze listy stoi „Cofnij".
+   * Odrzucenie robi się jednym ruchem, więc jego odwrócenie też musi być
+   * jednym ruchem, i to od razu, a nie przez szukanie na czarnej liście. */
+  const [ostatnioOdrzucony, setOstatnioOdrzucony] = useState<{ nazwa: string; blacklistId: string } | null>(null);
+  const [edytowane, setEdytowane] = useState<Polowanie | null>(null);
   const [zaczepka, setZaczepka] = useState<{ kandydat: Kandydat; tekst: string; laduje: boolean } | null>(null);
 
   const kandydaci = useMemo(() => {
@@ -348,17 +367,42 @@ export function CandidatesView({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ powod }),
         });
+        const d = (await res.json().catch(() => ({}))) as { error?: string; blacklistId?: string | null };
         if (!res.ok) {
-          const d = (await res.json().catch(() => ({}))) as { error?: string };
           toast(d.error ?? "Nie udało się odrzucić kandydata.", "error");
           return;
         }
+        if (d.blacklistId) setOstatnioOdrzucony({ nazwa: k.nazwa, blacklistId: d.blacklistId });
         await onOdswiez();
       } finally {
         setZajety(false);
       }
     },
     [confirm, toast, onOdswiez]
+  );
+
+  /** Zdejmuje z czarnej listy i — gdy wiersz kandydata jeszcze żyje — wraca go
+   * do skrzynki. Samo zdjęcie z listy znaczy tylko „łowca ma prawo znaleźć tę
+   * firmę ponownie", co przy retencji 30 dni bywa dopiero za kilka dni. */
+  const przywroc = useCallback(
+    async (blacklistId: string, zKandydatem: boolean) => {
+      const res = await fetch(`/api/leads/blacklist/${blacklistId}${zKandydatem ? "?kandydat=1" : ""}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        toast("Nie udało się zdjąć firmy z czarnej listy.", "error");
+        return;
+      }
+      const d = (await res.json().catch(() => ({}))) as { przywrocony?: boolean };
+      setOstatnioOdrzucony(null);
+      toast(
+        d.przywrocony
+          ? "Kandydat wrócił do skrzynki."
+          : "Firma zdjęta z czarnej listy — łowca może ją znaleźć ponownie."
+      );
+      await onOdswiez();
+    },
+    [toast, onOdswiez]
   );
 
   const generujZaczepke = useCallback(
@@ -416,6 +460,47 @@ export function CandidatesView({
     [toast, onOdswiez]
   );
 
+  /** Zapis zmiany polowania. Serwer przy zmianie kryteriów (PKD/obszar) sam
+   * zeruje kursor — inaczej nowa lista PKD zaczynałaby od strony 7 STAREGO
+   * zapytania i po cichu pomijała pierwsze setki firm. */
+  const zapiszPolowanie = useCallback(
+    async (id: string, pola: Record<string, string>) => {
+      const res = await fetch(`/api/leads/hunts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pola),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        toast(d.error ?? "Nie udało się zapisać polowania.", "error");
+        return;
+      }
+      setEdytowane(null);
+      await onOdswiez();
+    },
+    [toast, onOdswiez]
+  );
+
+  const usunPolowanie = useCallback(
+    async (p: Polowanie) => {
+      // Kandydaci z tego polowania ZOSTAJĄ w skrzynce — to, że przestajemy
+      // szukać, nie znaczy, że znalezione firmy mają zniknąć. Mówimy to
+      // wprost, bo bez tego kasowanie wyglądałoby groźniej, niż jest.
+      const ok = await confirm(
+        `Usunąć polowanie „${p.nazwa}”?\n\nZnalezieni już kandydaci zostają w skrzynce — znika tylko samo szukanie.`,
+        { danger: true }
+      );
+      if (!ok) return;
+      const res = await fetch(`/api/leads/hunts/${p.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        toast("Nie udało się usunąć polowania.", "error");
+        return;
+      }
+      await onOdswiez();
+    },
+    [confirm, toast, onOdswiez]
+  );
+
   const przelaczPolowanie = useCallback(
     async (p: Polowanie) => {
       await fetch(`/api/leads/hunts/${p.id}`, {
@@ -461,6 +546,33 @@ export function CandidatesView({
         </div>
       )}
 
+      {/* Odwrót od nieodwracalnej akcji, w zasięgu ręki. */}
+      <AnimatePresence>
+        {ostatnioOdrzucony && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2, ease: EASE_LIQUID }}
+            className="flex flex-wrap items-center gap-2 rounded-xl border hairline bg-[var(--hairline)]/40 px-3 py-2 text-[12.5px]"
+          >
+            <span className="text-muted">
+              Odrzucono <b className="text-[var(--fg)]">{ostatnioOdrzucony.nazwa}</b> — firma jest na czarnej liście.
+            </span>
+            <span className="flex-1" />
+            <button
+              onClick={() => przywroc(ostatnioOdrzucony.blacklistId, true)}
+              className="rounded-full border hairline px-3 py-1 text-[12px] text-[var(--fg)] hover:bg-[var(--hairline)]"
+            >
+              Cofnij
+            </button>
+            <button onClick={() => setOstatnioOdrzucony(null)} className="rounded-md p-1 text-muted hover:text-[var(--fg)]">
+              <IconX size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Polowania ── */}
       <div className="card-paper rounded-2xl border hairline p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -505,6 +617,22 @@ export function CandidatesView({
                   znalezionych {p.znalezionych} · przyjętych {p.przyjetych}
                 </span>
                 {p.ostatni_wynik && <span className="text-muted opacity-70">· {p.ostatni_wynik}</span>}
+                {/* Kryteria kręci się w pierwszych tygodniach najczęściej —
+                    do 2026-07-25 dało się polowanie tylko utworzyć i wyłączyć
+                    (trasy PATCH/DELETE istniały, ale nic ich nie wołało). */}
+                <button
+                  onClick={() => setEdytowane(p)}
+                  className="rounded-md px-2 py-0.5 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                >
+                  Zmień
+                </button>
+                <button
+                  onClick={() => usunPolowanie(p)}
+                  className="rounded-md p-1 text-muted hover:text-red-400"
+                  aria-label={`Usuń polowanie ${p.nazwa}`}
+                >
+                  <IconTrash size={14} />
+                </button>
               </li>
             ))}
           </ul>
@@ -603,7 +731,48 @@ export function CandidatesView({
         </div>
       )}
 
+      {/* ── Czarna lista ── raz odrzucony nie wraca, ale musi dać się zobaczyć
+          i cofnąć. Nieodwracalna akcja bez podglądu i bez wyjścia to nie
+          „ochrona przed pomyłką", tylko pomyłka na zawsze. */}
+      {czarnaLista.length > 0 && (
+        <div>
+          <button
+            onClick={() => setPokazCzarna((v) => !v)}
+            className="flex items-center gap-1 text-[12.5px] text-muted hover:text-[var(--fg)]"
+          >
+            <motion.span animate={{ rotate: pokazCzarna ? 90 : 0 }} transition={{ duration: 0.18, ease: EASE_LIQUID }} className="inline-flex">
+              <IconChevronRight size={14} />
+            </motion.span>
+            Czarna lista ({czarnaLista.length}) — firmy, których łowca już nie zaproponuje
+          </button>
+          {pokazCzarna && (
+            <div className="card-paper mt-2 rounded-2xl border hairline p-4">
+              <ul className="space-y-1 text-[12.5px]">
+                {czarnaLista.map((w) => (
+                  <li key={w.id} className="flex flex-wrap items-center gap-2 border-b hairline py-1.5 last:border-0">
+                    <span className="min-w-0 flex-1 truncate">{w.nazwa_norm || "(bez nazwy)"}</span>
+                    {w.nip && <span className="font-mono text-[11.5px] text-muted">NIP {w.nip}</span>}
+                    <span className="rounded-full bg-[var(--hairline)] px-2 py-0.5 text-[11px] text-muted">{w.powod}</span>
+                    <button
+                      onClick={() => przywroc(w.id, true)}
+                      className="rounded-md px-2 py-0.5 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                    >
+                      Przywróć
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11.5px] text-muted">
+                Trzymamy tu wyłącznie NIP, nazwę i powód — nie adres, nie kontakt. „Przywróć" pozwala łowcy znaleźć
+                firmę ponownie; jeśli jej karta jeszcze nie wygasła, wraca do skrzynki od razu.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <NowePolowanieModal open={nowePolowanie} onClose={() => setNowePolowanie(false)} onSave={dodajPolowanie} />
+      <EdycjaPolowaniaModal polowanie={edytowane} onClose={() => setEdytowane(null)} onSave={zapiszPolowanie} />
 
       {/* Zaczepka z lokalnego modelu — PROPOZYCJA do poprawienia i ręcznego
           zapisania, wzorem Modułów 7/8/48–50. */}
@@ -642,6 +811,101 @@ export function CandidatesView({
         </div>
       </Modal>
     </div>
+  );
+}
+
+/* ────────────────────────── edycja polowania ────────────────────────── */
+
+/** Zmiana kryteriów istniejącego polowania.
+ *
+ * Stan pól zaczyna od `useState` z wartości polowania, a komponent dostaje
+ * `key={polowanie.id}` — bez tego drugie otwarcie okna dla INNEGO polowania
+ * pokazywałoby dane pierwszego (`useState` czyta wartość początkową raz, przy
+ * montowaniu; `.onAppear`/`useEffect` dosypujący ją później to ta sama pułapka,
+ * co formularz kłamiący datą w apce). */
+function EdycjaPolowaniaModal({
+  polowanie,
+  onClose,
+  onSave,
+}: {
+  polowanie: Polowanie | null;
+  onClose: () => void;
+  onSave: (id: string, pola: Record<string, string>) => Promise<void>;
+}) {
+  return (
+    <Modal open={Boolean(polowanie)} onClose={onClose} card="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-6">
+      {polowanie && <FormularzPolowania key={polowanie.id} polowanie={polowanie} onClose={onClose} onSave={onSave} />}
+    </Modal>
+  );
+}
+
+function FormularzPolowania({
+  polowanie,
+  onClose,
+  onSave,
+}: {
+  polowanie: Polowanie;
+  onClose: () => void;
+  onSave: (id: string, pola: Record<string, string>) => Promise<void>;
+}) {
+  const [nazwa, setNazwa] = useState(polowanie.nazwa);
+  const [pkd, setPkd] = useState(polowanie.pkd);
+  const [wojewodztwo, setWojewodztwo] = useState(polowanie.wojewodztwo);
+  const [powiat, setPowiat] = useState(polowanie.powiat);
+  const [miasto, setMiasto] = useState(polowanie.miasto);
+  const [zapisuje, setZapisuje] = useState(false);
+
+  return (
+    <>
+      <h2 className="text-lg font-semibold">Zmień polowanie</h2>
+      <p className="mt-1 text-[12.5px] text-muted">
+        Zmiana kodów PKD albo obszaru cofa polowanie na początek listy — inaczej szukałoby dalej od miejsca, w którym
+        skończyło poprzednie kryteria, i pominęłoby pierwsze setki firm.
+      </p>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setZapisuje(true);
+          try {
+            await onSave(polowanie.id, { nazwa, pkd, wojewodztwo, powiat, miasto });
+          } finally {
+            setZapisuje(false);
+          }
+        }}
+        className="mt-4 space-y-3 text-[13px]"
+      >
+        <label className="block">
+          <span className="text-[12px] text-muted">Nazwa</span>
+          <input value={nazwa} onChange={(e) => setNazwa(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" autoFocus />
+        </label>
+        <label className="block">
+          <span className="text-[12px] text-muted">Kody PKD (po przecinku)</span>
+          <input value={pkd} onChange={(e) => setPkd(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2 font-mono text-[12.5px]" />
+        </label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="block">
+            <span className="text-[12px] text-muted">Województwo</span>
+            <input value={wojewodztwo} onChange={(e) => setWojewodztwo(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
+          </label>
+          <label className="block">
+            <span className="text-[12px] text-muted">Powiat</span>
+            <input value={powiat} onChange={(e) => setPowiat(e.target.value)} placeholder="dowolny" className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
+          </label>
+          <label className="block">
+            <span className="text-[12px] text-muted">Miasto</span>
+            <input value={miasto} onChange={(e) => setMiasto(e.target.value)} placeholder="dowolne" className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="rounded-full border hairline px-4 py-1.5 text-[12.5px] text-muted">
+            Anuluj
+          </button>
+          <button type="submit" disabled={!nazwa.trim() || zapisuje} className="btn-primary rounded-full px-4 py-1.5 text-[12.5px] disabled:opacity-50">
+            {zapisuje ? "Zapisuję…" : "Zapisz"}
+          </button>
+        </div>
+      </form>
+    </>
   );
 }
 

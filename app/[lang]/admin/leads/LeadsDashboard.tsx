@@ -20,7 +20,7 @@ import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
-import { CandidatesView, type DaneLowcy, type Polowanie } from "./CandidatesView";
+import { CandidatesView, type DaneLowcy, type Polowanie, type WpisCzarnejListy } from "./CandidatesView";
 import { SavedViews } from "../components";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
@@ -55,6 +55,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   // ma powiedzieć, że coś czeka, ZANIM właściciel tam zajrzy.
   const [lowca, setLowca] = useState<DaneLowcy | null>(null);
   const [polowania, setPolowania] = useState<Polowanie[]>([]);
+  const [czarnaLista, setCzarnaLista] = useState<WpisCzarnejListy[]>([]);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -87,12 +88,14 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   /** Skrzynka łowcy + definicje polowań. Dwa żądania, bo to dwa różne zbiory
    * i dwie różne trasy — a `neon()` i tak płaci osobno za każde zapytanie. */
   const loadLowca = useCallback(async () => {
-    const [kand, hunts] = await Promise.all([
+    const [kand, hunts, czarna] = await Promise.all([
       fetch("/api/leads/candidates").then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch("/api/leads/hunts").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch("/api/leads/blacklist").then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     if (kand) setLowca(kand as DaneLowcy);
     if (hunts) setPolowania((hunts as { hunts: Polowanie[] }).hunts ?? []);
+    if (czarna) setCzarnaLista((czarna as { blacklist: WpisCzarnejListy[] }).blacklist ?? []);
   }, []);
 
   useEffect(() => {
@@ -706,6 +709,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         <CandidatesView
           dane={lowca}
           polowania={polowania}
+          czarnaLista={czarnaLista}
           search={search}
           onOdswiez={loadLowca}
           onOdswiezLeady={load}

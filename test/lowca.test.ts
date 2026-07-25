@@ -16,6 +16,7 @@ import {
   MIN_WIEK_MIESIECY,
   type HunterInput,
 } from "../lib/leadHunter.ts";
+import { podejrzanyPrzebieg, PROG_PROBKI } from "../lib/leadHunterRun.ts";
 
 // Sito „Łowcy leadów" (Moduł 52). To JEDYNA reguła biznesowa w tym module,
 // która decyduje, kogo właściciel zobaczy w skrzynce — i jedyna, którą da się
@@ -235,4 +236,30 @@ test("uzasadnienie sortuje od najmocniejszego i pokazuje znak", () => {
   const linie = uzasadnienie(w.sygnaly).split("\n");
   assert.match(linie[0], /^\+30 Branża docelowa/);
   assert.match(linie[linie.length - 1], /^-15 Strona nie odpowiada/);
+});
+
+/* ───────────── detektor cichej zmiany po stronie CEIDG ───────────── */
+
+// Klient CEIDG czyta pola defensywnie: brakujące pole daje pustą wartość, a nie
+// wyjątek. Gdyby rejestr przemianował `telefon`, dostawalibyśmy kandydatów bez
+// kontaktu i uznawali to za chudy dzień — bez jednego błędu w logu. Ta reguła
+// jest jedyną rzeczą, która taką zmianę zauważy.
+
+test("mała próbka nigdy nie jest podejrzana", () => {
+  // Przy trzech firmach 100% „bez kontaktu" nie znaczy nic.
+  assert.equal(podejrzanyPrzebieg(3, 3), false);
+  assert.equal(podejrzanyPrzebieg(PROG_PROBKI - 1, PROG_PROBKI - 1), false);
+});
+
+test("próg 80% liczony co do jednej firmy", () => {
+  // 20 firm: 16 bez kontaktu = dokładnie 80% → alarm; 15 = 75% → cisza.
+  assert.equal(podejrzanyPrzebieg(20, 16), true);
+  assert.equal(podejrzanyPrzebieg(20, 15), false);
+  assert.equal(podejrzanyPrzebieg(PROG_PROBKI, PROG_PROBKI), true, "równo próg próbki, komplet bez kontaktu");
+});
+
+test("normalny przebieg milczy", () => {
+  // Realny rozkład: część JDG faktycznie nie publikuje kontaktu.
+  assert.equal(podejrzanyPrzebieg(60, 12), false);
+  assert.equal(podejrzanyPrzebieg(60, 0), false);
 });

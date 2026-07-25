@@ -3,6 +3,12 @@ import { randomUUID } from "node:crypto";
 import { inMigration } from "./migration-ctx";
 import { MAIL_NUDGE_DAYS, type NudgeThread } from "./mail";
 import { STARTER_CATALOG } from "./catalogStarter";
+import {
+  SZABLON_PIERWSZY_KONTAKT_ID,
+  SZABLON_PIERWSZY_KONTAKT_NAZWA,
+  SZABLON_PIERWSZY_KONTAKT_TEMAT,
+  SZABLON_PIERWSZY_KONTAKT_TRESC,
+} from "./hunterOutreach";
 
 export type Sql = NeonQueryFunction<false, false>;
 
@@ -2424,6 +2430,28 @@ async function createMailTemplatesSchema(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+
+  // Jeden zasiany szablon — „Pierwszy kontakt — kandydat Łowcy" (Moduł 52).
+  // Wyjątek od zasady „bez seeda" opisanej wyżej, i to wyjątek z powodu
+  // PRAWNEGO, nie wygodowego: pierwszy mail do firmy z CEIDG musi nieść
+  // informację o źródle danych (art. 14 RODO), a szablon, którego nikt nie
+  // stworzył, tej informacji nie niesie. `ON CONFLICT DO NOTHING` sprawia, że
+  // migracja nie nadpisze wersji przepisanej przez właściciela.
+  //
+  // `inMigration()` OBOWIĄZKOWO: to nie jest DDL, a bez tego znacznika INSERT
+  // w migracji zakleszcza seeder dev-bazy i wszystkie /api/* wiszą (patrz
+  // lib/migration-ctx.ts).
+  await inMigration(
+    () => sql`
+      INSERT INTO mail_templates (id, nazwa, temat, tresc)
+      VALUES (
+        ${SZABLON_PIERWSZY_KONTAKT_ID}, ${SZABLON_PIERWSZY_KONTAKT_NAZWA},
+        ${SZABLON_PIERWSZY_KONTAKT_TEMAT}, ${SZABLON_PIERWSZY_KONTAKT_TRESC}
+      )
+      ON CONFLICT (id) DO NOTHING;
+    `
+  );
+
   await markSchemaApplied("mail_templates");
 }
 

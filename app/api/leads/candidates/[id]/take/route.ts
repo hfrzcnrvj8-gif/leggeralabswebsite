@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureLeadHunterSchema, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { uzasadnienie, type Sygnal } from "@/lib/leadHunter";
+import { todayLocalISO } from "@/lib/dates";
+import { blokPierwszegoKontaktu } from "@/lib/hunterOutreach";
 
 export const runtime = "nodejs";
 
@@ -77,20 +79,42 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     "",
     "Dlaczego trafił do skrzynki:",
     uzasadnienie(sygnaly),
+    "",
+    // Firma nie podała nam swoich danych — wzięliśmy je z rejestru, więc przy
+    // pierwszym kontakcie mamy obowiązek powiedzieć skąd (art. 14 RODO).
+    // Klauzula ląduje na karcie leada, bo tylko tam właściciel na pewno ją
+    // zobaczy, zanim zacznie pisać — z panelu, z telefonu czy z własnej poczty.
+    blokPierwszegoKontaktu(),
   ]
     .filter((l) => l !== null)
     .join("\n")
     .trim();
 
+  // ── Dlaczego przyjęty kandydat dostaje TERMIN, a nie tylko status ──
+  //
+  // `isOverdue()` (lib/leads.ts) zapala „wymaga działania dziś" tylko dla
+  // statusu „Nowe zgłoszenie ze strony", dla ustawionej daty przypomnienia
+  // albo dla ciszy po „Napisano". Lead w „Do kontaktu" BEZ daty nie pojawia
+  // się więc nigdy: ani na Pulpicie, ani w porannym mailu, ani w filtrze
+  // „wymaga działania" w apce.
+  //
+  // Bez tej daty łowca tylko przesuwałby problem o jeden krok: zamiast stosu
+  // zimnych rekordów w rejestrze robiłby stos cichych rekordów, o których nic
+  // nie przypomina. „Weź" znaczy „zamierzam się odezwać", więc termin to
+  // DZIŚ — a `next_action` mówi PO CO, bo samo „kiedy" bez „po co" gubi
+  // kontekst po tygodniu (to reguła z Modułu 1).
+  const dzis = todayLocalISO();
+  const naCo = `pierwszy kontakt — kandydat łowcy, ocena ${k.ocena}`;
+
   const leadId = randomUUID();
   await sql`
-    INSERT INTO leads (id, firma, branza, telefon, email, www, ulica, kod, miasto, zrodlo_kategoria, zrodlo, status, notatki)
+    INSERT INTO leads (id, firma, branza, telefon, email, www, ulica, kod, miasto, zrodlo_kategoria, zrodlo, status, notatki, next_followup, next_action)
     VALUES (
       ${leadId}, ${k.nazwa.slice(0, 300)}, ${k.branza}, ${k.telefon}, ${k.email}, ${k.www},
       ${k.ulica}, ${k.kod}, ${k.miasto},
       'Automatyczne wyszukiwanie',
       ${`${k.polowanie ?? "Łowca leadów"} · ocena ${k.ocena}`.slice(0, 200)},
-      'Do kontaktu', ${notatka}
+      'Do kontaktu', ${notatka}, ${dzis}, ${naCo}
     );
   `;
 
