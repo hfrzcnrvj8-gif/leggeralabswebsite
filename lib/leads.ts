@@ -131,6 +131,18 @@ export const SOURCE_CATEGORIES = [
   "Zimny telefon",
   "Formularz na stronie",
   "Automatyczne wyszukiwanie",
+  // Dołożone 2026-07-26. Do tego dnia leady z mapy (OSM, `POST
+  // /api/leads/discover`) i kandydaci przyjęci z Łowcy wpadali do JEDNEGO
+  // kubełka „Automatyczne wyszukiwanie" — a „konwersja per źródło"
+  // w Statystykach grupuje właśnie po kategorii. Wskaźnik nie umiał więc
+  // odpowiedzieć na jedyne pytanie, dla którego powstał: czy sito CEIDG
+  // przynosi lepsze leady niż lista firm z mapy. To ta sama klasa błędu, co
+  // kategoria wpisywana „na sztywno" w Module 51 — wskaźnik pokazuje liczbę,
+  // która nie znaczy tego, co się wydaje.
+  //
+  // Stare leady zostają przy dawnej kategorii (nie przepisujemy historii);
+  // rozdział działa od tej daty w przód.
+  "Wyszukiwanie na mapie",
   "Ręcznie dodane",
   "Inne",
 ] as const;

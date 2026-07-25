@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconSparkles } from "@tabler/icons-react";
 
 const BRANZE = [
   "Kancelaria prawna",
@@ -62,19 +61,14 @@ export function DiscoverPanel({
     return () => window.clearTimeout(t);
   }, [message, error]);
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => onOpenChange(true)}
-        // `self-start` (Moduł 35): rodzic jest teraz kolumną flex, a domyślne
-        // `align-items: stretch` rozciągnęło ten przycisk na całą szerokość —
-        // tekst wyśrodkował się i wyglądało to, jakby przeskoczył na środek.
-        className="self-start rounded-full border hairline px-3 py-1.5 text-xs font-medium text-[#4ea7fc]"
-      >
-        <IconSparkles size={14} className="mr-1 inline align-[-2px]" />Znajdź nowe leady
-      </button>
-    );
-  }
+  // Zamknięty panel nie rysuje NICZEGO.
+  //
+  // Do 2026-07-26 rysował tu własną pastylkę „Znajdź nowe leady", wiszącą nad
+  // treścią na każdym widoku — a ta sama akcja siedzi w pasku ikon obok
+  // eksportu i raportu (`ExpandingIconButton`) oraz w palecie poleceń. Dwa
+  // wejścia do jednej funkcji, z czego jedno zajmowało wiersz nad Tablicą.
+  // Zgłoszenie właściciela; wejściem zostaje ikona w pasku.
+  if (!open) return null;
 
   return (
     <div className="card-paper w-full rounded-2xl p-4">

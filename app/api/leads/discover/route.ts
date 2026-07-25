@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureLeadsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -138,13 +139,19 @@ out center ${ile * 3};`;
     const ulica = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ").slice(0, 300);
     const kod = (t["addr:postcode"] || "").slice(0, 20);
     const miasto = (t["addr:city"] || "").slice(0, 200);
-    const zrodloKategoria = "Automatyczne wyszukiwanie";
-    const zrodlo = lokalizacja.slice(0, 200);
+    // Kategoria WŁASNA, nie ta sama co Łowca (2026-07-26) — inaczej
+    // „konwersja per źródło" miesza firmy z mapy z kandydatami po sicie
+    // CEIDG i nie odpowiada na pytanie, które źródło naprawdę działa.
+    const zrodloKategoria = "Wyszukiwanie na mapie";
+    const zrodlo = `OSM · ${lokalizacja}`.slice(0, 200);
     const id = randomUUID();
 
+    // Termin na dziś, tak samo jak przy przyjęciu kandydata Łowcy: lead
+    // w „Do kontaktu" bez daty nie pojawia się ani na Pulpicie, ani w porannym
+    // mailu — a wyszukiwanie z mapy potrafi wsypać kilkanaście firm naraz.
     await sql`
-      INSERT INTO leads (id, firma, branza, telefon, email, www, ulica, kod, miasto, zrodlo_kategoria, zrodlo, status)
-      VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${telefon}, ${email}, ${website}, ${ulica}, ${kod}, ${miasto}, ${zrodloKategoria}, ${zrodlo}, 'Do kontaktu');
+      INSERT INTO leads (id, firma, branza, telefon, email, www, ulica, kod, miasto, zrodlo_kategoria, zrodlo, status, next_followup, next_action)
+      VALUES (${id}, ${firma.slice(0, 300)}, ${branza}, ${telefon}, ${email}, ${website}, ${ulica}, ${kod}, ${miasto}, ${zrodloKategoria}, ${zrodlo}, 'Do kontaktu', ${todayLocalISO()}, 'pierwszy kontakt — firma z mapy');
     `;
     added++;
     insertedLeads.push({ firma });
