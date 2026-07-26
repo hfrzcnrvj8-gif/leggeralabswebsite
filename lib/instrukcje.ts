@@ -56,7 +56,7 @@ export const WSTEP = {
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Na razie opisane są Pulpit i Leady — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
+    "Na razie opisane są Pulpit, Leady i Klienci — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -238,6 +238,121 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "Enter", opis: "W Tabeli otwiera lead. W skrzynce kandydatów rozwija „dlaczego”." },
       { tytul: "t / x (kandydaci)", opis: "„t” bierze kandydata, „x” odrzuca (zapyta o powód)." },
       { tytul: "Telefon: przesunięcie palcem", opis: "Na liście leadów w prawo — zadzwoń, w lewo — oznacz obsłużone. W skrzynce kandydatów w prawo — Weź, w lewo — Odrzuć. To samo jest w menu po przytrzymaniu wiersza." },
+    ],
+  },
+
+  /* ────────────────────────────── KLIENCI ────────────────────────────── */
+  {
+    id: "klienci",
+    nazwa: "Klienci",
+    gdzie: "Panel: trzecia pozycja w menu. Telefon: zakładka „Więcej” → Klienci. iPad: trzecia pozycja w panelu bocznym.",
+    poCoTo:
+      "Kartoteka firm, z którymi rozmowa realnie się zaczęła — jedna, chronologiczna historia kontaktu plus wszystko, co do tej firmy przypięte: oferty, umowy, projekty, faktury, poczta i opinie.",
+    kiedy:
+      "Zanim zadzwonisz albo napiszesz do kogoś, kogo już znasz — żeby w pięć sekund przypomnieć sobie, na czym stanęło. I zaraz po rozmowie, żeby to zapisać.",
+    kroki: [
+      {
+        tytul: "1. Zrozum, czym klient różni się od leada",
+        opis:
+          "Lead to firma, którą dopiero sprawdzasz. Klient to firma, z którą rozmowa już trwa i jest realna szansa coś zrobić — teraz albo za rok. Klient powstaje albo sam (pierwsza oferta zrobiona z leada), albo ręcznie przyciskiem „Utwórz klienta” na leadzie, gdy rozmowa wyprzedziła papiery.",
+      },
+      {
+        tytul: "2. Status relacji to osobna oś niż sprzedaż",
+        opis:
+          "Prospekt / Aktywny / Uśpiony / Stracony opisują RELACJĘ, nie to, czy klient już zapłacił — to widać po ofertach i fakturach obok. Pod statusem stoi zdanie, co się zwykle w nim robi. Kolory znaczą to samo na każdym urządzeniu: fiolet — relacja żyje, złoto — prospekt, szarość — cisza.",
+      },
+      {
+        tytul: "3. Zapisuj każdy kontakt w zakładce „Historia”",
+        opis:
+          "Kanał (telefon, mail, WhatsApp, LinkedIn, spotkanie), kierunek i — przy telefonie — czy odebrali oraz jak długo trwała rozmowa. Nieodebrane od klienta proponuje od razu przypomnienie na jutro. Z telefonu to samo robi „Zaloguj rozmowę”.",
+      },
+      {
+        tytul: "4. Ustaw przypomnienie, jeśli wiesz, kiedy wrócić",
+        opis:
+          "To JEDYNA rzecz, która zapala klientowi „wymaga działania dziś” — inaczej niż u leadów nie ma tu żadnej reguły czasowej, bo tempo kontaktu z klientem jest zbyt różne. Do daty dopisz „po co”: sama data bez powodu nic nie mówi po tygodniu. Ustawisz je i na desktopie, i w apce (Edytuj).",
+      },
+      {
+        tytul: "5. Sprawdź „Powiązane”, zanim zaczniesz pracę",
+        opis:
+          "Oferty, umowy i NDA, projekty, faktury — w jednym miejscu, z klikalnym przejściem. To tutaj odpowiadasz sobie na pytanie, od którego zależy start projektu: czy umowa jest podpisana.",
+      },
+      {
+        tytul: "6. Nowy dokument rób wprost z karty klienta",
+        opis:
+          "„+ Nowa oferta” i „+ Nowa faktura” przy sekcji „Powiązane” zakładają dokument już powiązany z tym klientem i od razu go otwierają. To ważniejsze, niż wygląda: dokument bez powiązania nie trafi na oś czasu klienta ani do kontaktu retencyjnego.",
+      },
+      {
+        tytul: "7. Uzupełnij „Skąd przyszedł”",
+        opis:
+          "Kategoria źródła przenosi się z leada, ale klienta dodanego ręcznie wpisujesz sam. Po tym polu liczy się, które źródło naprawdę zamienia się w klientów — puste zostawia dziurę w Statystykach.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Kontakty kontrolne po wdrożeniu projektu",
+        opis:
+          "Gdy projekt tego klienta dostaje status „Wdrożone”, panel planuje sam dwa kontakty: +14 dni (moment największego zadowolenia — dobra chwila na prośbę o opinię) i +90 dni (kwartał używania — dobra chwila na kolejną propozycję). Widać je na karcie klienta i na Pulpicie w dniu terminu. Panel przygotowuje szkic wiadomości; wysyłkę klikasz Ty.",
+      },
+      {
+        tytul: "Opinie same wracają na kartę",
+        opis:
+          "Ocena wystawiona przez klienta przez publiczny formularz ląduje przy projekcie, a na karcie klienta widać ją razem z komentarzem i — najważniejsze — ze zgodą na wykorzystanie jako referencji. Bez tej zgody opinii nie wolno pokazać na zewnątrz.",
+      },
+      {
+        tytul: "Poczta dopina się po adresie",
+        opis:
+          "Mail od adresu, który jest na karcie klienta, trafia do jego kartoteki korespondencji i na oś kontaktu sam. Gdy dopiszesz albo poprawisz e-mail, panel od razu przeszukuje zaległą pocztę i dopina to, co przyszło, zanim ten adres istniał.",
+      },
+      {
+        tytul: "Historia z czasów leada nie znika",
+        opis:
+          "Rozmowy sprzed awansu na klienta widać dalej, oznaczone „z leada”. Bez tego karta wyglądałaby, jakby klient wziął się znikąd.",
+      },
+      {
+        tytul: "Retencja danych",
+        opis:
+          "Klienci — inaczej niż leady — NIE są usuwani automatycznie. To celowe: faktury trzeba trzymać pięć lat z obowiązku podatkowego, a klient bez danych zostawiłby fakturę bez nabywcy.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Usunięcie klienta nie usuwa jego dokumentów",
+        opis:
+          "Oferty, faktury, projekty i umowy zostają — tylko przestają być z kimkolwiek powiązane. To celowe (faktura musi przeżyć), ale znaczy, że po skasowaniu klienta te dokumenty wypadają z jego osi czasu i z kontaktów retencyjnych. Do naprawiania takich sierot służy „Powiąż wstecz” w palecie poleceń.",
+      },
+      {
+        tytul: "„Obsłużone” nie zmienia statusu relacji",
+        opis:
+          "Przesunięcie palcem po kliencie gasi przypomnienie i wpisuje dzisiejszy kontakt — i tyle. U leadów ten sam gest przestawia status, bo tam status to etap obsługi jednej sprawy; u klienta to długa oś relacji, której jedna rozmowa nie przesuwa.",
+      },
+      {
+        tytul: "Osoba kontaktowa nie jest ozdobą",
+        opis:
+          "To jej imieniem wita się wiadomość retencyjna, którą panel przygotowuje. Puste pole daje „Cześć,” zamiast „Cześć Anno,” — i tego nie widać, dopóki nie przeczytasz gotowego szkicu.",
+      },
+      {
+        tytul: "Dwie oferty dla tego samego klienta to nie pomyłka",
+        opis:
+          "Przycisk „+ Nowa oferta” za każdym razem robi nową — świadomie, bo druga oferta dla stałego klienta jest normalna. Panel pilnuje czego innego: nowy szkic zawsze od razu się otwiera, więc nie zostanie niewidoczny.",
+      },
+      {
+        tytul: "Pełna kartoteka i praca hurtowa zostają przy biurku",
+        opis:
+          "Telefon i iPad mają wszystko, co potrzebne w terenie: profil, edycję, log rozmowy, przypomnienie, powiązane dokumenty i opinie. Tablicy kanban, operacji na wielu klientach naraz i eksportu CSV tam nie ma — to celowe zawężenie, nie brak.",
+      },
+    ],
+    skroty: [
+      { tytul: "1 / 2", opis: "Przełącza widoki: Tablica, Tabela." },
+      { tytul: "/", opis: "Kursor do wyszukiwarki." },
+      { tytul: "j / k", opis: "Ruch po liście w Tabeli." },
+      { tytul: "Enter", opis: "Otwiera kartę zaznaczonego klienta." },
+      { tytul: "1–4 (przy otwartej karcie)", opis: "Ustawia status relacji: Prospekt, Aktywny, Uśpiony, Stracony." },
+      { tytul: "n", opis: "Nowy klient. Na iPadzie ⌘N, a ⌘F ustawia kursor w wyszukiwarce." },
+      {
+        tytul: "Telefon i iPad: przesunięcie palcem",
+        opis:
+          "W prawo — zadzwoń. W lewo — „Obsłużone” (tylko przy kliencie z zaległym przypomnieniem; przy pozostałych nie ma czego gasić). To samo jest w menu po przytrzymaniu wiersza, razem ze zmianą statusu i logowaniem rozmowy.",
+      },
     ],
   },
 ];
