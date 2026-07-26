@@ -291,7 +291,7 @@ export function LeadDetailPanel({
   }
 
   return (
-    <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
+    <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8 lg:flex lg:h-[85vh] lg:max-h-none lg:flex-col lg:overflow-hidden">
       <PanelHeader onClose={onClose} />
 
       {/* Nagłówek zwarty — bliźniak `ClientDetailPanel.tsx`, powody tam.
@@ -404,8 +404,8 @@ export function LeadDetailPanel({
           wysokości), opisuje `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 6";
           nie powielam ich tu, bo dwa opisy tej samej decyzji rozjeżdżają się
           przy pierwszej poprawce. */}
-      <div className="mt-5 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="order-2 min-w-0 lg:sticky lg:top-0 lg:order-1 lg:max-h-[calc(85vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
+      <div className="mt-5 grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="order-2 min-w-0 lg:order-1 lg:h-full lg:overflow-y-auto lg:pr-2">
           {/* Sekcje i ich kolejność 1:1 z profilem klienta (runda czytelności
               2026-07-26) — u leada nie ma tylko „Osób kontaktowych", bo to
               wciąż jedno pole w nagłówku. Powód całego zabiegu: `SekcjaProfilu`
@@ -483,7 +483,7 @@ export function LeadDetailPanel({
           </div>
         </aside>
 
-        <div className="order-1 min-w-0 lg:order-2">
+        <div className="order-1 flex min-w-0 flex-col lg:order-2 lg:h-full lg:overflow-y-auto lg:pr-1">
           {/* Mapa procesu NAD zakładkami — „gdzie jesteśmy z tym leadem" to
               kontekst do wszystkiego, co niżej. */}
           <div className="mb-4">
@@ -515,6 +515,14 @@ export function LeadDetailPanel({
                     wpis osi. */}
                 <SekcjaProfilu tytul="Nowy wpis" wiersze={false} className="2xl:sticky 2xl:top-0 2xl:order-2">
                 <form onSubmit={submitNote} className="space-y-2">
+                    {/* Wysokie pole na szerokim ekranie (zgłoszenie właściciela
+                        2026-07-26: „wygląda, jakby się coś nie wczytało").
+                        W trzeciej kolumnie formularz na trzy wiersze wyglądał
+                        jak niedokończony kawałek strony obok wysokiej osi
+                        czasu — a to jest miejsce, w którym się PISZE, więc
+                        duże pole jest tu użyteczne, nie ozdobne. Poniżej
+                        `2xl` formularz stoi nad osią i trzy wiersze są tam
+                        właściwe: każdy dodatkowy odpycha historię w dół. */}
                   <textarea
                     ref={noteRef}
                     value={noteText}
@@ -527,7 +535,7 @@ export function LeadDetailPanel({
                     }}
                     placeholder="Co się wydarzyło? np. zadzwoniłem, obiecał odpowiedzieć do piątku… (Cmd+Enter, by zapisać)"
                     rows={3}
-                    className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+                    className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted 2xl:min-h-[340px]"
                   />
 
                   <div className="flex flex-wrap items-center gap-2">

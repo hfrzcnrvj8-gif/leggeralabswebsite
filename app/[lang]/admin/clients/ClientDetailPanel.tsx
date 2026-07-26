@@ -432,7 +432,7 @@ export function ClientDetailPanel({
   });
 
   return (
-    <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
+    <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8 lg:flex lg:h-[85vh] lg:max-h-none lg:flex-col lg:overflow-hidden">
       <PanelHeader onClose={onClose} />
 
       {/* Nagłówek rekordu ZWARTY (runda czytelności 2026-07-26): tożsamość,
@@ -494,8 +494,8 @@ export function ClientDetailPanel({
           idzie PIERWSZA (`order`), bo to ona jest treścią; atrybuty lądują pod
           nią, tak samo jak przed tą zmianą lądowały pod nagłówkiem. Pełna
           kartoteka na telefonie to i tak domena apki. */}
-      <div className="mt-5 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="order-2 min-w-0 lg:sticky lg:top-0 lg:order-1 lg:max-h-[calc(85vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
+      <div className="mt-5 grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="order-2 min-w-0 lg:order-1 lg:h-full lg:overflow-y-auto lg:pr-2">
           {/* Atrybuty w NAZWANYCH sekcjach, po jednej płycie na grupę — wprost
               z apki (`Section("Kontakt")`, `Section("Dane")`
               w `KlientDetailView.swift`). Do rundy czytelności 2026-07-26 stała
@@ -656,7 +656,7 @@ export function ClientDetailPanel({
           </div>
         </aside>
 
-        <div className="order-1 min-w-0 lg:order-2">
+        <div className="order-1 flex min-w-0 flex-col lg:order-2 lg:h-full lg:overflow-y-auto lg:pr-1">
           {/* Mapa procesu NAD zakładkami, nie w żadnej z nich — to „gdzie
               jesteśmy z tym klientem", czyli kontekst do wszystkiego, co niżej.
               Do kroku 6 siedziała na dole wizytówki, więc widać ją było tylko
@@ -881,6 +881,14 @@ export function ClientDetailPanel({
                     className="2xl:sticky 2xl:top-0 2xl:order-2"
                   >
                   <form onSubmit={submitNote} className="space-y-2">
+                      {/* Wysokie pole na szerokim ekranie (zgłoszenie właściciela
+                          2026-07-26: „wygląda, jakby się coś nie wczytało").
+                          W trzeciej kolumnie formularz na trzy wiersze wyglądał
+                          jak niedokończony kawałek strony obok wysokiej osi
+                          czasu — a to jest miejsce, w którym się PISZE, więc
+                          duże pole jest tu użyteczne, nie ozdobne. Poniżej
+                          `2xl` formularz stoi nad osią i trzy wiersze są tam
+                          właściwe: każdy dodatkowy odpycha historię w dół. */}
                     <textarea
                       ref={noteRef}
                       value={noteText}
@@ -893,7 +901,7 @@ export function ClientDetailPanel({
                       }}
                       placeholder="Kiedy, jak i w jakiej sprawie się kontaktowałeś? np. rozmowa telefoniczna, umówiliśmy się na demo za 2 tygodnie… (Cmd+Enter, by zapisać)"
                       rows={3}
-                      className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+                      className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted 2xl:min-h-[340px]"
                     />
 
                     <div className="flex flex-wrap items-center gap-2">

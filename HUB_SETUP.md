@@ -7821,6 +7821,32 @@ Poniżej `2xl` podziału NIE ma i formularz wraca nad oś: przy 700 px kolumny
 wyszłyby dwa za wąskie słupki, a formularz jest główną akcją tej zakładki,
 więc nie może wylądować pod historią.
 
+#### Runda piąta — karta na cały ekran, kolumny przewijane osobno
+
+Zgłoszenie: karta leada „zajmuje za mało miejsca, powinna zajmować cały ekran",
+a blok „Nowy wpis" „wygląda, jakby się coś nie wczytało".
+
+**Karta ma teraz stałą wysokość `85vh` od `lg` w górę** (`lg:h-[85vh]
+lg:overflow-hidden lg:flex lg:flex-col`), nagłówek stoi, a obie kolumny mają
+własne przewijanie (`lg:h-full lg:overflow-y-auto`). Poniżej `lg` bez zmian:
+`max-h-[85vh]` i przewija się cała karta.
+
+To **odwrócenie decyzji z rundy pierwszej**, gdzie stała wysokość została
+świadomie odrzucona („profil świeżego klienta bez historii byłby wysokim pustym
+prostokątem"). Właściciel zobaczył skutek uboczny w praktyce — lead z krótką
+historią zajmował jedną trzecią ekranu — i wybrał inaczej. Przy okazji znika
+usterka odnotowana w rundzie pierwszej: przypięta kolumna atrybutów nie ma już
+dołu chowającego się pod krawędź karty, bo nie jest `sticky` — jest po prostu
+kolumną o wysokości wiersza siatki.
+
+**Stany „nie znaleziono" i szkielet ładowania zostają niskie** — pusta karta na
+cały ekran pod jednym zdaniem to absurd.
+
+`textarea` nowego wpisu dostaje `2xl:min-h-[340px]`. Trzy wiersze obok wysokiej
+osi czasu wyglądały jak niedokończony kawałek strony; poniżej `2xl` formularz
+stoi NAD osią i trzy wiersze są tam właściwe, bo każdy dodatkowy odpycha
+historię w dół.
+
 #### Profil leada poszedł za klientem (ta sama runda)
 
 Brief kroku 6 mówił o kliencie i tylko o nim, ale rozjazd zgłoszony od razu:
