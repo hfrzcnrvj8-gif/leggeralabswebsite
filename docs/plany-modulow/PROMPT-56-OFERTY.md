@@ -15,7 +15,12 @@ w kolejności lejka sprzedaży. **Pulpit, Leady i Klienci są zrobione.**
 - `docs/plany-modulow/00-mapa-drogi-klienta.md` — mapa etapów; Oferty to
   Etap 4 (Oferta PoC-first) i wejście do Etapu 5–6 (Negocjacja, Akceptacja).
 - `docs/plany-modulow/20-szablony-ofert.md` — brief szablonów ofert; sprawdź,
-  ile z niego jest zbudowane, zanim cokolwiek zaproponujesz.
+  ile z niego jest zbudowane, zanim cokolwiek zaproponujesz. **To jest
+  najwyżej oceniona pozycja z całego backlogu** (patrz niżej) — jeśli nie jest
+  zbudowana, jest kandydatem numer jeden tego modułu.
+- `docs/plany-modulow/KANDYDACI-FUTURE-PROOF.md` — co dojrzałe CRM-y mają,
+  a my świadomie nie, i dlaczego. Czytaj, zanim zaproponujesz cokolwiek
+  „bo tak robi konkurencja".
 - `HUB_SETUP.md` → sekcje „Moduł 54 — Klienci, krok 6" (wzorzec profilu
   rekordu, obowiązujący od teraz) oraz wszystko o Ofertach.
 - `CLAUDE.md` — zasady projektu.
