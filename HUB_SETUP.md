@@ -7414,3 +7414,68 @@ bo akurat była w pamięci, i ani słowa o ofercie, bo w Ofertach nikt tego dnia
 nie był. `dociagnijDokumentyDoPowiazan()` dociąga puste listy raz na
 uruchomienie. Lista, która milczy o istniejącym dokumencie, jest gorsza niż jej
 brak.
+
+### Moduł 51 — Klienci, rundy 4–6: premium, wzorce i rytm (2026-07-26)
+
+Po zamknięciu parytetu przyszły trzy rundy z pytaniem „czy to już maksimum".
+Odpowiedź brzmiała **nie** i wyszły z niej rzeczy, których żadna wcześniejsza
+runda nie widziała, bo szukały niespójności, a nie braków.
+
+**Sortowanie listy.** Rejestr miał JEDEN porządek zaszyty w kodzie:
+alfabetycznie. Alfabet odpowiada na „gdzie jest firma X", ale nie na to, które
+realnie się zadaje — „kto najdłużej milczy". Trzy porządki
+(`CLIENT_SORTS`/`sortClients`, bliźniak `SortowanieKlientow` w apce), w tym samym
+menu co filtr. Klient bez ani jednego kontaktu liczy się jako milczący
+NAJDŁUŻEJ, nie jako świeży.
+
+**Akcje pod nazwą rekordu, nie w zakładce.** Badanie strony rekordu w
+[Attio](https://attio.com/help/reference/managing-your-data/records/create-and-view-records)
+dało wniosek inny, niż zakładał brief: pasek akcji należy pod nazwę rekordu
+(Attio: „Compose email / New note / New task"), a panel robił tak od dawna —
+tylko apka chowała akcje w trzeciej zakładce. Zakładka „Akcje" niesie teraz to,
+co NIE jest kontaktem: następny krok z pigułkami terminów, dokumenty (nowa
+oferta/faktura — parytet z panelem), status jako pigułki zamiast `Picker` w
+szklanej kapsule, usuwanie przeniesione z zakładki z danymi.
+
+**Jedna oś czasu zamiast dwóch list.** „Historia" miała osobną „Korespondencję"
+i pod nią feed — a feed zawiera wpisy powstałe z tych samych maili, więc ten sam
+mail widniał dwa razy. Scalone wzorem zakładki Activity w Attio; maile, których
+feed nie zna (dopięte po fakcie przez dopasowanie adresu), dochodzą osobno, więc
+scalenie niczego nie gubi. **Nadpisuje decyzję z 2026-07-15** o osobnej
+kartotece korespondencji. Kierunek niesie IKONA (koperta/samolocik, strzałka
+w dół/w górę przy telefonie), nie pigułka z tekstem „Ja → oni" — informacja przy
+elemencie rozpoznawanym wzrokiem nie ma być do czytania.
+
+**Rytm kontaktu — jedyna dziura funkcjonalna, jaka została.** „Wymaga działania
+dziś" zapalało u klienta WYŁĄCZNIE ręcznie ustawione przypomnienie, więc klient
+bez daty mógł milczeć rok i nie pojawić się nigdzie. Sztywny próg (jak
+`DNI_CISZY_W_OTWARTYM` u leadów) był tu wcześniej świadomie odrzucony, bo tempo
+kontaktu z klientem jest zbyt różne. Rozwiązanie wzorem
+[Claya](https://apps.apple.com/cn/app/1463073824): **rytm per relacja**
+(`rytm_kontaktu_mies`, domyślnie NULL = bez pilnowania). Cisza liczona od
+ostatniego kontaktu, a gdy go NIGDY nie było — od utworzenia rekordu.
+Reguła ma testy pinujące progi co do dnia (`test/klienci.test.ts`).
+
+**Szukanie po treści historii.** Wyszukiwarka filtrowała to, co jest w pamięci
+(nazwa, osoba, e-mail) i nie odpowiadała na pytanie zadawane po pół roku — „ten
+klient, z którym gadaliśmy o eksporcie CSV". `GET /api/clients/search` przeszukuje
+cztery źródła historii i zwraca fragment WOKÓŁ trafienia. Wpisy powstałe z maila
+pomijane, żeby jedno trafienie nie wróciło dwa razy.
+
+**Reguła dzwonka, ustalona przy okazji:** iPad → panel boczny (ma stały wiersz
+„Powiadomienia"), iPhone → pasek modułu. Wcześniej było bez reguły: iPhone
+Pulpit+Leady, iPad Leady+Klienci, Projekty nigdzie.
+
+**Trzy pułapki warte zapamiętania z tych rund:**
+
+1. **`tsc` przepuszcza, gdy puścisz go PRZED ostatnią edycją.** Zdarzyło się
+   dwa razy tego samego dnia: raz zgubiony nawias w JSX, raz backtick w
+   komentarzu SQL wewnątrz szablonu (kończy szablon). Oba złapała dopiero
+   konsola przeglądarki. Uruchamiaj `tsc` PO ostatniej zmianie, nie po
+   przedostatniej.
+2. **Podmiana tekstu bez asercji cicho nie robi nic.** Efekt pobierający
+   trafienia nie trafił do pliku, bo kotwica różniła się jednym elementem
+   w tablicy zależności — a typy były zielone i UI po prostu nie działało.
+3. **Ukrycie paska nawigacji zabiera systemowy przycisk zwijania panelu
+   bocznego.** Przy zwiniętym panelu i wybranym rekordzie nie ma już czym go
+   przywrócić. Pasek ma zostać PUSTY, nie zniknąć.

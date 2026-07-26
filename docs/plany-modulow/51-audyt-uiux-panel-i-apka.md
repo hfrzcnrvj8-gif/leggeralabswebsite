@@ -150,6 +150,14 @@ też gdzieś w `app/`. Nowa nie działała wcale i nie dawała żadnego objawu p
 pigułką bez tła. Złapane pomiarem `getComputedStyle` (zrzut wyglądał
 wiarygodnie), naprawione jedną linią w `content`.
 
+**Moduł NIE jest zamknięty — trwa rozbudowa poza audyt.** Po pytaniu „czy da
+się to jeszcze ulepszyć" powstał program pięciu rzeczy wykraczających poza
+parytet (`54-klienci-rozbudowa.md`). Dwie zrobione (rytm kontaktu per klient,
+szukanie po treści historii), trzy przed nami: sufity techniczne, wiele osób
+kontaktowych, pliki na NAS-ie, plus układ boczny profilu na końcu. **Audyt UI/UX
+Klientów jako taki jest domknięty** — kolejne moduły audytu (Oferty, Umowy…)
+mogą ruszyć niezależnie, jeśli właściciel tak zdecyduje.
+
 **Runda domykająca (ten sam dzień, po pytaniu „czy to już maksimum")** —
 szczegóły w `HUB_SETUP.md` → „Moduł 51 — Klienci, runda domykająca": opinie
 i korespondencja w apce (pierwsza runda dała je tylko panelowi), źródło klienta
