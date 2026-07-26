@@ -7374,3 +7374,43 @@ Trzy zmiany, bo samo zdjęcie limitu by nie wystarczyło:
 etykieta–wartość, a nie tabela. Rozciągnięcie jej na 1000+ pt oddala wartość
 od etykiety zamiast cokolwiek zmieścić. To nie jest ta sama sytuacja co na
 desktopie i nie należy tego „ujednolicać".
+
+### Moduł 51 — Klienci, runda trzecia: iPad i menu przytrzymania (2026-07-26)
+
+Trzy zgłoszenia właściciela z fizycznego iPada i iPhone'a.
+
+**1. Nagłówki kolumn nie leżały w jednej linii.** Poprzednia runda dała kolumnie
+listy własny nagłówek (bo systemowy pasek wychodził na sąsiedni panel), ale
+kolumna profilu została przy pasku systemowym — a ten siedzi wyżej. Efekt:
+„jedna sekcja niżej, druga wyżej". Teraz obie kolumny mają ten sam
+`NaglowekKolumnyIpad` (44 pt) i kreskę na tej samej wysokości, a pole szukania
+zeszło POD kreskę, jako pierwszy wiersz treści listy — inaczej kolumna listy
+byłaby o cały wiersz wyższa i kreski znów by się rozjechały.
+
+**Pułapka po drodze:** pierwsza wersja ukrywała pasek profilu przez
+`.toolbar(.hidden, for: .navigationBar)`. Zabrało to razem z paskiem systemowy
+przycisk zwijania panelu bocznego — przy zwiniętym panelu i wybranym kliencie
+nie było już czym go przywrócić. Pasek zostaje PUSTY, ale zostaje.
+
+**2. Dzwonek zniknął z iPada.** Panel boczny ma stały wiersz „Powiadomienia"
+z licznikiem, więc dzwonek w nagłówku modułu był tym samym ekranem w dwóch
+miejscach jednego widoku — ten sam argument, który wcześniej przesądził o
+„Koncie i ustawieniach". Na iPhonie zostaje: tam stałego domu nie ma. Reguła:
+**iPad → panel boczny, iPhone → pasek.**
+
+**3. Menu przytrzymania klienta urosło** z trzech akcji do kompletu: Obsłużone,
+Zadzwoń/WhatsApp/Mail, Zaloguj rozmowę, Zmień status, **Przypomnij za tydzień**
+(`next_followup` to jedyna rzecz zapalająca „wymaga działania dziś", a dotąd
+wymagała wejścia w profil i edycję), **Otwórz powiązane**, **Skopiuj**
+(telefon/e-mail/NIP — panel ma NIP w menu od Modułu 34) i **Usuń klienta**
+z potwierdzeniem.
+
+„Otwórz powiązane" składa listę LOKALNIE z `store.umowy/projekty/oferty/faktury`
+— zero dodatkowych żądań, bo te listy i tak zasilają liczniki. Wymagało to
+dołożenia `clientID` do modeli `Oferta`, `Faktura` i `Umowa` (serwer zwracał tę
+kolumnę od dawna, modele ją gubiły). **I jednej rzeczy więcej:** listy wczytują
+się dopiero przy wejściu w swój moduł, więc menu pokazywało pół prawdy — umowę,
+bo akurat była w pamięci, i ani słowa o ofercie, bo w Ofertach nikt tego dnia
+nie był. `dociagnijDokumentyDoPowiazan()` dociąga puste listy raz na
+uruchomienie. Lista, która milczy o istniejącym dokumencie, jest gorsza niż jej
+brak.
