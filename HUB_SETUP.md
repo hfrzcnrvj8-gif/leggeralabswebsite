@@ -7344,3 +7344,33 @@ regexp literal" — Turbopack tak raportuje zgubiony nawias w JSX). Uruchamiaj
 `tsc` PO ostatniej edycji, nie po przedostatniej; a jeśli strona nagle nie
 renderuje treści przy poprawnym typowaniu, pierwszym miejscem do sprawdzenia
 jest `read_console_messages`, nie kod.
+
+### Moduł 51 — Klienci, szerokość na desktopie (2026-07-26)
+
+Zgłoszenie właściciela: te same puste pasy po bokach, co w Leadach dzień
+wcześniej. Pomiar przy oknie 2560 px: treść kończyła się na 1800 px, zostawiając
+**492 px pustki z lewej i 268 px z prawej**.
+
+Trzy zmiany, bo samo zdjęcie limitu by nie wystarczyło:
+
+1. **`clients` dołącza do `PELNA_SZEROKOSC`** w `AppShell.tsx` (obok `mail`
+   i `leads`). Tabela klientów ma jedenaście kolumn — po zmianie 2286 px
+   zamiast ~1750.
+2. **Kolumny Tablicy rosną do dostępnego miejsca** (`min-w-72 flex-1` zamiast
+   `w-72`). Powód jest arytmetyczny: leady mają OSIEM statusów (8 × 288 px =
+   2304 px, wypełniają monitor same), klienci mają CZTERY — 1152 px, więc samo
+   zdjęcie limitu przeniosłoby pustkę z boków na prawą stronę tablicy.
+   `min-w-72` pilnuje, żeby na telefonie wróciło przewijanie w poziomie
+   (sprawdzone przy 375 px: kolumny 288 px, strona bez przewijania w bok).
+3. **Czwarta kolumna pól w profilu od 2xl** (`2xl:grid-cols-4`). Bez tego
+   szerszy kontener tylko rozciąga: profil na 2288 px przy trzech kolumnach to
+   pole na 750 px, czyli NIP wypisany przez pół ekranu — pustka po bokach
+   zamieniona na pustkę wewnątrz pól. Ta sama linia poszła do
+   `leads/LeadDetailPanel.tsx`, który dostał pełną szerokość dzień wcześniej
+   i miał ten sam skutek uboczny.
+
+**iPad świadomie zostaje przy limicie** (`szerokoscTresci(760)` w
+`UkladIpad.swift`): kolumna szczegółów to pionowa lista wierszy
+etykieta–wartość, a nie tabela. Rozciągnięcie jej na 1000+ pt oddala wartość
+od etykiety zamiast cokolwiek zmieścić. To nie jest ta sama sytuacja co na
+desktopie i nie należy tego „ujednolicać".

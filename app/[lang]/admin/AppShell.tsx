@@ -151,12 +151,18 @@ const GO_CHORDS: Record<string, string> = {
  * tabela dwanaście kolumn — na szerokim monitorze limit zostawiał puste pasy
  * po bokach i ściskał to, co ma być czytelne.
  *
+ * Klienci dołączyli tego samego dnia, z tego samego zgłoszenia i po pomiarze:
+ * przy oknie 2560 px treść kończyła się na 1800 px, zostawiając 492 i 268 px
+ * pustki. Tabela ma jedenaście kolumn. Kanban ma tylko cztery statusy, więc
+ * samo zdjęcie limitu by mu nie wystarczyło — jego kolumny rozciągają się
+ * teraz na dostępną szerokość (patrz clients/KanbanBoard.tsx).
+ *
  * Reszta panelu (formularze, Statystyki, Pulpit) ZOSTAJE przy limicie: tam
  * pełna szerokość dałaby linie tekstu ciągnące się przez cały monitor, czyli
  * dokładnie odwrotny efekt. Dopisuj tu moduł dopiero wtedy, gdy realnie
  * brakuje mu miejsca — nie „dla spójności".
  */
-const PELNA_SZEROKOSC = ["mail", "leads"];
+const PELNA_SZEROKOSC = ["mail", "leads", "clients"];
 
 export function AppShell({
   lang,

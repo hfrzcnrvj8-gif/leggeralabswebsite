@@ -407,7 +407,13 @@ export function ClientDetailPanel({
       <ViewSwitch viewKey={tab}>
         {tab === "card" && (
           <div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {/* Czwarta kolumna od 2xl (≥1536 px) — dołożona 2026-07-26 razem ze
+                zdjęciem limitu szerokości panelu. Sam szerszy kontener bez tego
+                nic nie daje: profil rozciągnięty na 2288 px przy trzech
+                kolumnach to pole na 750 px, czyli NIP wypisany przez pół
+                ekranu. Puste pasy po bokach zamieniłyby się w puste pasy
+                wewnątrz pól. */}
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {/* Osoba kontaktowa — do 2026-07-26 karta jej nie pokazywała ani
                   nie pozwalała poprawić, mimo że to ona wita adresata w mailu
                   retencyjnym (`buildNurtureMessage`). */}

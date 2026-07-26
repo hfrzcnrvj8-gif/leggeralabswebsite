@@ -382,7 +382,10 @@ export function LeadDetailPanel({
       <ViewSwitch viewKey={tab}>
         {tab === "card" && (
           <div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {/* Czwarta kolumna od 2xl — patrz clients/ClientDetailPanel.tsx.
+                Leady dostały pełną szerokość dzień wcześniej i miały ten sam
+                skutek uboczny: pole na 750 px zamiast pustki po bokach. */}
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               <Field label="Branża">
                 <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
               </Field>

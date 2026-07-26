@@ -78,7 +78,16 @@ export function KanbanBoard({
           }}
           // Bez ramki — patrz komentarz w leads/KanbanBoard.tsx (ten sam
           // wzorzec kolumny, ta sama zmiana z audytu 2026-07-16).
-          className={`flex w-72 shrink-0 flex-col rounded-lg p-2 transition-colors ${
+          //
+          // Szerokość ROŚNIE do dostępnego miejsca (`flex-1`), w odróżnieniu od
+          // stałej `w-72` u leadów. Powód jest arytmetyczny, nie estetyczny:
+          // leady mają osiem kolumn (8 × 288 px = 2304 px, czyli wypełniają
+          // szeroki monitor same z siebie), klienci mają cztery statusy —
+          // 1152 px, więc samo zdjęcie limitu szerokości panelu przeniosłoby
+          // tylko pustkę z boków na prawą stronę tablicy. `min-w-72` pilnuje,
+          // żeby na wąskim ekranie kolumny nie ścisnęły się do nieczytelności,
+          // tylko wróciły do przewijania w poziomie jak dotąd.
+          className={`flex min-w-72 flex-1 shrink-0 flex-col rounded-lg p-2 transition-colors ${
             dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.08] ring-1 ring-[#4ea7fc]/40" : ""
           }`}
         >
