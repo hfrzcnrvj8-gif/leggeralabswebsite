@@ -170,6 +170,29 @@ posprzedażowe — jedyny niezbudowany etap mapy, czeka na pierwszego klienta
 z realną potrzebą), tablica kanban i eksport CSV w apce (to samo zawężenie
 „pełna kartoteka to praca przy biurku", co przy Leadach).
 
+### Domknięcie: profil rekordu przebudowany (Leady + Klienci, 2026-07-26)
+
+Ostatni krok Modułu 54 („układ boczny profilu") urósł w **pięć rund**
+prowadzonych zgłoszeniami właściciela — od „wszystko się zlewa" po „karta
+zajmuje za mało miejsca". Objął OBA profile: klienta i leada. Pełny zapis
+z powodami i pomiarami: `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 6".
+
+Skrót tego, co obowiązuje od teraz i czego **nie należy cofać bez pytania**:
+
+- Profil = **kolumna atrybutów po lewej + treść po prawej**, bez zakładki
+  „Wizytówka". Od `2xl` dochodzi trzecia kolumna: formularz nowego wpisu.
+- Karta ma **stałą wysokość `85vh`** od `lg`, kolumny przewijają się osobno.
+- Atrybuty stoją w **nazwanych sekcjach na płytach** (`SekcjaProfilu`,
+  `WierszPola`, klasa `.card-inset`) — zwijanych i zapamiętywanych.
+- **Wiersz atrybutu ma stały rytm 38 px**, etykieta stałą szerokość
+  w pikselach i ikonę; puste pole pokazuje `—`.
+- Oś czasu to **jeden ciąg na pionowej linii**, nie stos kart.
+
+**Metodyczna lekcja z tych rund, warta przeniesienia na Oferty:** trzy
+kolejne zgłoszenia właściciela („zlewa się", „koślawo", „za mało miejsca")
+rozstrzygnął dopiero POMIAR w przeglądarce (wysokości wierszy, pozycje
+krawędzi), nie oglądanie zrzutu. Zrzut wyglądał za każdym razem wiarygodnie.
+
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`

@@ -167,17 +167,22 @@ export const MODULY: ModulInstrukcji[] = [
           "Każdy status ma jedno zdanie „co zwykle dalej” — np. przy „Rozmowa umówiona” przypomni, żeby wysłać NDA PRZED rozmową, jeśli będziecie omawiać ich dane. To nie jest AI, tylko stała podpowiedź, ale oszczędza pomyłek.",
       },
       {
-        tytul: "6. Zapisuj każdy kontakt",
+        tytul: "6. Jak czytać profil leada",
         opis:
-          "W profilu leada masz log: telefon, mail, WhatsApp, LinkedIn. Zalogowana rozmowa aktualizuje datę ostatniego kontaktu, a od niej liczą się przypomnienia. Lead bez zapisanych kontaktów wygląda dla systemu jak zapomniany — i zacznie się o siebie upominać.",
+          "Ten sam układ, co u klienta: po lewej stała kolumna z danymi (zwijana kliknięciem w nagłówek sekcji), po prawej historia kontaktu. Nad zakładkami pasek „Proces sprzedaży” mówi jednym spojrzeniem, na którym z piętnastu kroków jesteś; klikniesz „wszystkie kroki”, żeby zobaczyć całą ścieżkę.",
       },
       {
-        tytul: "7. Ustaw termin, jeśli wiesz kiedy wrócić",
+        tytul: "7. Zapisuj każdy kontakt",
+        opis:
+          "W profilu leada masz log: telefon, mail, WhatsApp, LinkedIn. Zalogowana rozmowa aktualizuje datę ostatniego kontaktu, a od niej liczą się przypomnienia. Lead bez zapisanych kontaktów wygląda dla systemu jak zapomniany — i zacznie się o siebie upominać. Najkrótsza droga: przycisk „Zapisz kontakt” w nagłówku profilu — przenosi do historii i od razu ustawia kursor w polu wpisu.",
+      },
+      {
+        tytul: "8. Ustaw termin, jeśli wiesz kiedy wrócić",
         opis:
           "Pole „następne przypomnienie” plus krótki opis PO CO. Ręcznie ustawiony termin bije wszystkie reguły automatyczne — jeśli powiedziałeś „wracam za miesiąc”, panel nie będzie zawracał głowy wcześniej.",
       },
       {
-        tytul: "8. Gdy lead mówi „tak”",
+        tytul: "9. Gdy lead mówi „tak”",
         opis:
           "Z profilu tworzysz klienta i ofertę. Od tego momentu historia przenosi się do modułu Klienci, a lead zostaje jako ślad, skąd się wzięło.",
       },
@@ -262,27 +267,32 @@ export const MODULY: ModulInstrukcji[] = [
           "Prospekt / Aktywny / Uśpiony / Stracony opisują RELACJĘ, nie to, czy klient już zapłacił — to widać po ofertach i fakturach obok. Pod statusem stoi zdanie, co się zwykle w nim robi. Kolory znaczą to samo na każdym urządzeniu: fiolet — relacja żyje, złoto — prospekt, szarość — cisza.",
       },
       {
-        tytul: "3. Zapisuj każdy kontakt w zakładce „Historia”",
+        tytul: "3. Jak czytać profil klienta",
+        opis:
+          "Po lewej stała kolumna z danymi — kontakt, rytm, osoby, firma, adres, notatka. Nagłówki sekcji można zwinąć kliknięciem i zostają zwinięte także przy następnym kliencie. Po prawej historia i „Powiązane” jako zakładki. Dane nie chowają się już za zakładką: czytasz oś czasu i masz numer telefonu obok, bez przełączania widoku.",
+      },
+      {
+        tytul: "4. Zapisuj każdy kontakt w zakładce „Historia”",
         opis:
           "Kanał (telefon, mail, WhatsApp, LinkedIn, spotkanie), kierunek i — przy telefonie — czy odebrali oraz jak długo trwała rozmowa. Nieodebrane od klienta proponuje od razu przypomnienie na jutro. Z telefonu to samo robi „Zaloguj rozmowę”.",
       },
       {
-        tytul: "4. Ustaw przypomnienie, jeśli wiesz, kiedy wrócić",
+        tytul: "5. Ustaw przypomnienie, jeśli wiesz, kiedy wrócić",
         opis:
           "To JEDYNA rzecz, która zapala klientowi „wymaga działania dziś” — inaczej niż u leadów nie ma tu żadnej reguły czasowej, bo tempo kontaktu z klientem jest zbyt różne. Do daty dopisz „po co”: sama data bez powodu nic nie mówi po tygodniu. Ustawisz je i na desktopie, i w apce (Edytuj).",
       },
       {
-        tytul: "5. Sprawdź „Powiązane”, zanim zaczniesz pracę",
+        tytul: "6. Sprawdź zakładkę „Powiązane”, zanim zaczniesz pracę",
         opis:
           "Oferty, umowy i NDA, projekty, faktury — w jednym miejscu, z klikalnym przejściem. To tutaj odpowiadasz sobie na pytanie, od którego zależy start projektu: czy umowa jest podpisana.",
       },
       {
-        tytul: "6. Nowy dokument rób wprost z karty klienta",
+        tytul: "7. Nowy dokument rób wprost z karty klienta",
         opis:
-          "„+ Nowa oferta” i „+ Nowa faktura” przy sekcji „Powiązane” zakładają dokument już powiązany z tym klientem i od razu go otwierają. To ważniejsze, niż wygląda: dokument bez powiązania nie trafi na oś czasu klienta ani do kontaktu retencyjnego.",
+          "„+ Nowa oferta” i „+ Nowa faktura” w zakładce „Powiązane” zakładają dokument już powiązany z tym klientem i od razu go otwierają. To ważniejsze, niż wygląda: dokument bez powiązania nie trafi na oś czasu klienta ani do kontaktu retencyjnego.",
       },
       {
-        tytul: "7. Uzupełnij „Skąd przyszedł”",
+        tytul: "8. Uzupełnij „Skąd przyszedł”",
         opis:
           "Kategoria źródła przenosi się z leada, ale klienta dodanego ręcznie wpisujesz sam. Po tym polu liczy się, które źródło naprawdę zamienia się w klientów — puste zostawia dziurę w Statystykach.",
       },
