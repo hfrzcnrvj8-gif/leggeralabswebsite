@@ -7691,3 +7691,86 @@ To ten sam błąd, co przy gwiazdce osoby głównej (krok 4) i przy koszu
 w „Usuń klienta". **Reguła: gdziekolwiek kolor ikony ma NIEŚĆ ZNACZENIE,
 `IkonaAkcji` jest złym wyborem** — nadaje się tylko tam, gdzie ikona ma po
 prostu być w barwach marki.
+
+## Moduł 55 — przeprowadzka panelu na własny serwer (2026-07-26)
+
+Właściciel poprosił, żeby trzymać u siebie **tyle danych, ile się da**.
+Pierwsza rzecz, którą trzeba było powiedzieć wprost: krok 5 Modułu 54 dotyczył
+PLIKÓW przy kliencie — czyli jedynej kategorii, której aplikacja w ogóle nie
+przechowuje. Wszystko realne (57 tabel: leady, klienci, faktury, umowy, koszty,
+notatki, kalendarz i **treści maili**) leżało w Neonie. Pytanie brzmiało więc
+„gdzie stoi baza", a nie „gdzie leżą załączniki".
+
+### Wybrany wariant i odrzucone
+
+| | A. Tylko pliki | B. Baza w domu, panel na Vercelu | **C. Cały panel na NAS** |
+|---|---|---|---|
+| Ruch przez internet | plik przy kliknięciu | **każde zapytanie SQL** | żaden |
+| Panel działa, gdy dom padnie | tak | nie | nie |
+
+**Wybrano C.** B odrzucone: płaci się pełną zależność od domowego łącza, nie
+dostając zysku z sąsiedztwa panelu i bazy — a panel przy zimnym starcie robi
+ponad sto zapytań, z których każde stałoby się osobną wyprawą do domu.
+
+**Strona publiczna też musi odejść z Vercela** — to była niespodzianka.
+Formularz kontaktowy zapisuje leada **wprost do bazy** (`app/api/leads/route.ts`),
+więc zostawienie strony w chmurze przy bazie w domu to dokładnie wariant B, tylko
+dla strony. Cała domena idzie na tunel.
+
+**Apka nie wymaga zmiany** — celuje w `www.leggeralabs.pl`; gdy DNS wskaże
+tunel, telefon niczego nie zauważy.
+
+### Kiedy: wyzwalaczem jest REJESTRACJA FIRMY, nie „następne zadanie"
+
+Rewizja z tego samego dnia, na prośbę właściciela („czy to naprawdę ma sens").
+Kierunek został, wybór momentu poprawiony: zysk z suwerenności rośnie razem
+z ilością cudzych danych w bazie, a koszt (panel i telefon gasną, gdy padnie
+prąd, łącze albo NAS) uderza dokładnie wtedy, gdy klienci już są. Szczegóły
+i warunki: `PO_REJESTRACJI.md` → pkt 13a.
+
+Przy okazji odnotowane jako przecenione w pierwszej rekomendacji: argument
+„własny panel to demo dla klientów kupujących prywatność". Prawdziwy, ale
+miękki — żaden klient nie zapyta, gdzie stoi Twój CRM.
+
+### Etap 1 (wykonany) — kod umie stanąć na własnym serwerze
+
+**Jedyną rzeczą naprawdę wiążącą panel z chmurą był sterownik bazy.**
+`@neondatabase/serverless` gada wyłącznie z Neonem: `neon()` uderza w ich
+endpoint HTTP, a `Pool` z tego samego pakietu idzie po WebSocket przez ich
+proxy. Żaden nie połączy się z Postgresem, który Neonem nie jest.
+
+Doszedł trzeci backend — `lib/own-db.ts`, zwykły `pg` po TCP. Wybierany
+**po HOŚCIE w adresie bazy** (`czyNeon()`), nie po osobnym przełączniku:
+przełącznik da się ustawić źle i dostać cichą awarię przy poprawnym adresie,
+a host jest faktem. Abstrakcja (`Sql` + `toParamQuery`) istniała już dla PGlite,
+więc to droga raz przetarta.
+
+Reszta: `output: "standalone"` (za zmienną `BUILD_STANDALONE`, żeby nie ruszać
+wejścia Vercela), `docker/Dockerfile` + `compose.yml` + `zadania.sh` (zamiennik
+`crons` z `vercel.json`), `scripts/kopia-zapasowa/na-dysk-zewnetrzny.sh`.
+
+#### Pułapka: uruchomienie wywlekło błąd, którego `tsc` nie widzi
+
+`pg` zwraca DATE/TIMESTAMP jako obiekty `Date`, a panel zakłada wszędzie
+stringi — porównuje z `"2026-07-26"`, robi `.slice(0, 10)`, `.trim()` i wkłada
+do JSON-a lecącego do apki. Objaw („`e.trim is not a function`" przy odczycie
+stanu automatów) wypadł kilka warstw od przyczyny, bo `Date` przechodzi przez
+większość kodu bez protestu i pęka dopiero tam, gdzie ktoś traktuje go jak tekst.
+
+Naprawa: `types.setTypeParser` dla 1082/1114/1184 — ta sama sztuczka, co
+w `dev-db.ts` dla PGlite. **Wniosek na przyszłość: nowy sterownik bazy
+sprawdza się URUCHOMIENIEM, nie kompilacją.**
+
+#### Zmierzone
+
+Pełne migracje przeciw Postgresowi 17 w kontenerze: **163 ms**. Na Neonie zimny
+start to kilka sekund, bo `neon()` płaci osobne żądanie HTTP za każde zapytanie
+(patrz „Bramka migracji"). Sąsiedztwo panelu i bazy to nie tylko prywatność.
+
+Sprawdzone uruchomieniem obrazu przeciw prawdziwej bazie: strona publiczna,
+odbicie API bez sesji (401), logowanie, `/api/clients`, `/api/clients/powiazania`,
+trasa cyklicznа z `CRON_SECRET`. Osobno: funkcja okna, `ANY(tablica)`, wsadowy
+`UNNEST`, `UNION ALL`, transakcja z COMMIT i ROLLBACK, indeks częściowy.
+
+Produkcja na Vercelu została nietknięta — sprawdzone osobnym buildem bez
+`BUILD_STANDALONE`.

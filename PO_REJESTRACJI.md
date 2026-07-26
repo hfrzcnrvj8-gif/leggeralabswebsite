@@ -142,7 +142,54 @@ zostały przygotowane, ale nie wypełnione. **Po rejestracji przejść całą li
   istnieje i jest wskazana jako administrator w polityce prywatności (pkt 2).
 - Treść zgody → `docs/DO-PRAWNIKA-I-TLUMACZA.md` pkt 1.4.
 
+## 13a. DECYZJA: przenieść panel na własny NAS zamiast płacić za Vercel Pro (2026-07-26)
+
+**Przeczytaj TO przed pkt 13** — może go w całości unieważnić.
+
+Właściciel zdecydował 2026-07-26, że panel i baza mają docelowo stanąć na jego
+NAS-ie (Ugreen DXP4800 Plus), a rejestracja firmy jest **wyzwalaczem tej
+przeprowadzki**. Powód wyboru momentu: zysk z trzymania danych u siebie rośnie
+razem z ilością cudzych danych w bazie, a przy rejestracji i tak dotykasz
+Vercela, KSeF-a i noty prawnej — więc decyzja o kosztach zapada sama.
+
+**Etap 1 jest już zrobiony** (commit `9c4e9db`): kod umie stanąć na własnym
+serwerze. Trzeci sterownik bazy (`lib/own-db.ts`, zwykły Postgres po TCP),
+obraz Dockera i `compose` w `docker/`, zamiennik zadań cyklicznych, skrypt
+kopii na dysk zewnętrzny. Produkcja na Vercelu jest tym NIETKNIĘTA.
+
+**Zostają dwa etapy**, oba do wykonania przy rejestracji:
+1. Uruchomienie na NAS-ie + tunel + przeniesienie danych z Neona — przy wciąż
+   żywym Vercelu, więc jest dokąd wrócić.
+2. Przełączenie DNS i wygaszenie Vercela; potem pliki przy kliencie (krok 5
+   Modułu 54) — w tym układzie zwykły katalog obok bazy, bez tunelu.
+
+**Dwa warunki, bez których tego NIE ROBIMY:**
+
+- **Kopia wywożona z domu.** Dziś oryginał jest w chmurze, a kopie na NAS-ie;
+  po przenosinach jedno i drugie leży pod jednym dachem, więc pożar albo
+  kradzież zabiera wszystko naraz (usterka odnotowana już w Audycie 3). Wybór
+  właściciela: zaszyfrowany dysk zewnętrzny trzymany poza domem —
+  `scripts/kopia-zapasowa/na-dysk-zewnetrzny.sh`.
+- **Droga powrotna do chmury.** Pusty projekt w Neonie i uśpione wdrożenie na
+  Vercelu nic nie kosztują, a odtworzenie z zaszyfrowanej kopii zamienia „padł
+  dom" z problemu na dobę w problem na godzinę. Taniej niż jakakolwiek
+  nadmiarowość w domu.
+
+**Sprawdź stan dysków NAS-a PRZED przenosinami.** Dopóki trzyma same kopie,
+jego zdrowie jest higieną. Gdy stanie na nim panel, staje się warunkiem
+działania firmy — SMART i stan macierzy w UGOS, a potem cyklicznie.
+
+Czego przeprowadzka NIE załatwi: skrzynka pocztowa zostaje u dostawcy poczty,
+aplikacja czyta z niej przez IMAP. Treści maili wrócą do domu, sama skrzynka nie.
+
+Pełne uzasadnienie i odrzucone warianty: `HUB_SETUP.md` → „Moduł 55".
+
 ## 13. Vercel — przejść z planu Hobby na Pro (2026-07-20)
+
+> **Nieaktualne, jeśli wykonasz pkt 13a** — panel na własnym serwerze nie
+> potrzebuje żadnego planu Vercela. Poniższe zostaje na wypadek, gdybyś
+> przeprowadzkę odłożył albo z niej zrezygnował: użytek komercyjny na planie
+> Hobby łamie warunki niezależnie od tego, co postanowisz z NAS-em.
 
 **To jedyna pozycja na tej liście, która jest problemem UMOWNYM z dostawcą,
 a nie brakiem danych rejestrowych.**

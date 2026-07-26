@@ -24,8 +24,11 @@ zatwierdzonej kolejności.
    odbiegające od tego briefu** w `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 3"
 4. ~~Wiele osób kontaktowych przy firmie~~ ✅ wykonane (2026-07-26) —
    `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 4"
-5. **Pliki przy kliencie (NAS)** ← następne
-6. **Układ boczny profilu (atrybuty | oś czasu)** — najniższy priorytet
+5. **Pliki przy kliencie (NAS)** — ⏸ ODŁOŻONE do przeprowadzki panelu na NAS
+   (Moduł 55). Powód: w docelowym układzie to zwykły katalog obok bazy, bez
+   tunelu i bez nowego punktu awarii — budowanie tunelu teraz byłoby pracą do
+   wyrzucenia. Wyzwalacz: rejestracja firmy, patrz `PO_REJESTRACJI.md` pkt 13a.
+6. **Układ boczny profilu (atrybuty | oś czasu)** ← następne
 
 ---
 
