@@ -860,16 +860,26 @@ export function ClientDetailPanel({
 
             {tab === "history" && (
               <div>
-                {/* Limit szerokości TYLKO tutaj: po zdjęciu podziału na zakładki
-                    prawa kolumna ma na monitorze właściciela ponad 1800 px, a oś
-                    czasu to zdania do czytania — wiersz przez cały ekran gubi się
-                    przy powrocie do lewej krawędzi. „Powiązane" limitu nie mają,
-                    bo to krótkie wiersze z linkami. */}
-                <div className="mt-6 max-w-5xl space-y-4">
+                {/* Od `2xl` (≥1536 px) formularz odchodzi na WŁASNĄ kolumnę po
+                    prawej, a oś czasu zajmuje resztę (zgłoszenie właściciela
+                    2026-07-26: „w środku przepełnione, z prawej mnóstwo wolnego
+                    miejsca"). Wcześniej oś miała twardy limit `max-w-5xl`, więc
+                    na monitorze 2288 px zostawało pół ekranu pustki przy prawej
+                    krawędzi — po podziale limit jest zbędny, bo przestrzeń zjada
+                    formularz, a nie pustka.
+                    Poniżej `2xl` podziału NIE ma: przy 700 px kolumny wyszłyby
+                    dwa za wąskie słupki. Formularz wraca wtedy NAD oś, bo to
+                    główna akcja tej zakładki. */}
+                <div className="mt-6 space-y-4 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:items-start 2xl:gap-6 2xl:space-y-0">
                   {/* Formularz na WŁASNEJ płycie — to jedyne miejsce w profilu,
                       w którym się PISZE, a leżąc na wspólnym tle wyglądał jak
-                      pierwszy wpis osi. */}
-                  <SekcjaProfilu tytul="Nowy wpis" wiersze={false}>
+                      pierwszy wpis osi. Przypięty, więc przy przewijaniu długiej
+                      historii nie trzeba wracać na górę, żeby coś dopisać. */}
+                  <SekcjaProfilu
+                    tytul="Nowy wpis"
+                    wiersze={false}
+                    className="2xl:sticky 2xl:top-0 2xl:order-2"
+                  >
                   <form onSubmit={submitNote} className="space-y-2">
                     <textarea
                       ref={noteRef}
@@ -1012,6 +1022,7 @@ export function ClientDetailPanel({
                   <SekcjaProfilu
                     tytul="Pełna historia"
                     plyta={false}
+                    className="2xl:order-1"
                     akcje={
                       osCzasu.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">

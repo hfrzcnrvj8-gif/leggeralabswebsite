@@ -7803,6 +7803,24 @@ wcięciu — wychodziło 17 px rozjazdu i linii nie było widać pod odznakami.
 Linia musi być `before` z tą samą współrzędną, co środek odznaki (14 px = pół
 z 28 px odznaki). Sprawdzone pomiarem: `ul.left = 665`, środek odznaki `679`.
 
+#### Runda czwarta — formularz w trzeciej kolumnie
+
+Zgłoszenie właściciela: „w środku przepełnione, a z prawej mnóstwo wolnego
+miejsca". Na monitorze 2288 px oś czasu miała twardy limit `max-w-5xl`, więc
+pół ekranu przy prawej krawędzi stało puste, a „Nowy wpis" leżał NAD osią
+i rozpychał ją w dół.
+
+Od `2xl` (≥1536 px) zakładka historii ma **dwie kolumny**: oś czasu bierze
+resztę szerokości (limit zdjęty — przestrzeń zjada teraz formularz, nie
+pustka), a „Nowy wpis" stoi po prawej w 380 px i jest **przypięty**, więc przy
+przewijaniu długiej historii nie trzeba wracać na górę, żeby cokolwiek
+dopisać. Razem z kolumną atrybutów daje to trzy kolumny — atrybuty ｜ oś ｜
+zapis.
+
+Poniżej `2xl` podziału NIE ma i formularz wraca nad oś: przy 700 px kolumny
+wyszłyby dwa za wąskie słupki, a formularz jest główną akcją tej zakładki,
+więc nie może wylądować pod historią.
+
 #### Profil leada poszedł za klientem (ta sama runda)
 
 Brief kroku 6 mówił o kliencie i tylko o nim, ale rozjazd zgłoszony od razu:

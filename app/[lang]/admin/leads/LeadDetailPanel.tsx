@@ -506,14 +506,14 @@ export function LeadDetailPanel({
           </div>
 
           <ViewSwitch viewKey={tab}>
-            {/* Limit szerokości jak u klienta: oś czasu to zdania do czytania,
-                a prawa kolumna ma na szerokim monitorze ponad 1800 px. */}
+            {/* Podział na oś + przypięty formularz po prawej od `2xl` —
+                bliźniak zakładki historii u klienta, powody w komentarzu tam. */}
             {tab === "history" && (
-              <div className="mt-6 max-w-5xl space-y-4">
+              <div className="mt-6 space-y-4 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:items-start 2xl:gap-6 2xl:space-y-0">
                 {/* Formularz na własnej płycie — to jedyne miejsce w profilu,
                     w którym się PISZE, a na wspólnym tle wyglądał jak pierwszy
                     wpis osi. */}
-                <SekcjaProfilu tytul="Nowy wpis" wiersze={false}>
+                <SekcjaProfilu tytul="Nowy wpis" wiersze={false} className="2xl:sticky 2xl:top-0 2xl:order-2">
                 <form onSubmit={submitNote} className="space-y-2">
                   <textarea
                     ref={noteRef}
@@ -650,7 +650,7 @@ export function LeadDetailPanel({
 
                 {/* `plyta={false}`: wpisy mają własne obramowania, więc płyta
                     pod nimi zrobiłaby pudełko w pudełku. */}
-                <SekcjaProfilu tytul="Log aktywności" plyta={false}>
+                <SekcjaProfilu tytul="Log aktywności" plyta={false} className="2xl:order-1">
                 {activity.length === 0 ? (
                   <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
                 ) : (
