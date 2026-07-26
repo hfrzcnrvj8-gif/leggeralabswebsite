@@ -8218,3 +8218,43 @@ w bazie, pigułka i lista reagują od razu. Dialogu powodu **nie udało się
 kliknąć** — kalibracja dotyku symulatora, ta sama pułapka co przy Leadach
 (patrz „Pułapki" w `51-audyt-uiux-panel-i-apka.md`); ostateczna ocena należy
 do właściciela na telefonie.
+
+### Szablony ofert — cennik po badaniu rynku (2026-07-26)
+
+Do trzech szablonów z Modułu 20 doszły cztery nowe + pozycja rabatowa.
+Decyzje cenowe są WŁAŚCICIELA, podjęte na podstawie stawek dla Polski 2026
+(automatyzacja jednego procesu 2–8 tys., asystent z bazą wiedzy 5–15 tys.,
+integracje systemów 10–25 tys., szkolenie ok. 2,8 tys., stawka godzinowa
+low-code 80–220 zł freelance / 180–300 zł software house):
+
+| Szablon | Kwota | Dlaczego tyle |
+|---|---|---|
+| Automatyzacja jednego procesu | 4 900 | środek widełek 2–8 tys.; najniższy próg wejścia |
+| Asystent AI na dokumentach firmy | 9 800 | środek widełek 5–15 tys. |
+| Lokalny model AI na własnym sprzęcie | 14 000 | wdrożenie BEZ sprzętu (ten z katalogu, osobne pozycje) |
+| Szkolenie zespołu — dzień roboczy | 3 900 | szkolenia otwarte ok. 2,8 tys.; dedykowane u klienta drożej |
+| Rabat wprowadzający (za referencję) | −20 % | patrz niżej |
+
+**Rabat jest osobną, JAWNĄ pozycją, nie obniżką cennika.** Cennik zostaje
+rynkowy, a w ofercie widać wprost, za co klient dostaje mniej: referencja
+i zgoda na opis wdrożenia. Cena obniżona bez powodu uczy klienta, że cennik
+jest fikcją, i zabiera kotwicę przy drugim projekcie. Kwotę wpisuje się
+ręcznie ze znakiem minus (20 % sumy pozostałych pozycji) — pozycje ujemne
+przechodzą przez `PATCH` pozycji, blokada `>= 0` jest tylko przy zakładaniu
+nowej pozycji.
+
+**Szablon „Lokalny model AI" to jedyny, który sprzedaje katalog** (62 pozycje
+sprzętu: Mac Studio, GPU, sieć 25/100 GbE). Wdrożenie i sprzęt są świadomie
+rozdzielone: sprzęt zostaje własnością klienta i wycenia się go z katalogu
+przyciskiem „Z katalogu", a wdrożenie jest stałą kwotą.
+
+#### Dosiew treści ≠ migracja schematu
+
+Nowe szablony wchodzą do bazy przez `dosiewJuzByl()`/`oznaczDosiew()`
+w `lib/db.ts`, NIE przez zwykłą bramkę `schemaUpToDate()`. Różnica jest
+zasadnicza: bramka porównuje wersję KODU, więc przy każdym wdrożeniu wraca
+`false` i migracja leci znowu — dla schematu w porządku (idempotentny), dla
+treści byłoby katastrofą, bo skasowany przez właściciela szablon odradzałby
+się po każdym deployu. Znacznik dosiewu jest niezależny od wersji, więc
+dosiew wykonuje się dokładnie raz w życiu bazy. Sprawdzone: usunięcie
+szablonu i ponowne wywołanie migracji go NIE przywraca.

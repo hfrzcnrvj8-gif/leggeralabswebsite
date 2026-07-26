@@ -38,6 +38,15 @@ pytaj ogólnie „co zmienić".
    `documentYear()`, nie `new Date()`) — ale sprawdź, czy w Umowach nie ma
    drugiej takiej linijki. Ta pułapka wyszła w tym projekcie trzy razy.
 
+## Zgłoszenie właściciela do tego modułu (2026-07-26)
+
+„Layout modułu Umowy jest jakiś dziwny, «Wyślij do podpisu» zajmuje za dużo
+miejsca, myślę że powinno być tutaj w ogóle więcej opcji." Ostre rogi płyty
+pod przyciskiem są już naprawione (przycisk dostał własną sekcję), ale
+**reszta zgłoszenia jest otwarta**: profil umowy w apce ma dziś jedną akcję
+i pustą sekcję „Zakres prac", gdy umowa jest szkicem. Zacznij od pytania,
+czego właściciel realnie potrzebuje przy umowie w terenie — nie zgaduj.
+
 ## Co sprawdzić
 
 1. **Parytet między platformami** — panel (`/admin/contracts`,

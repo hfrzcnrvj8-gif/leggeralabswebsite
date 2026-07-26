@@ -147,6 +147,31 @@ async function markSchemaApplied(name: string): Promise<void> {
   cache?.set(name, SCHEMA_VERSION);
 }
 
+
+/** Czy jednorazowy DOSIEW TREŚCI o tej nazwie już się odbył.
+ *
+ * Różnica wobec `schemaUpToDate`: tamto porównuje wersję kodu, więc przy każdym
+ * wdrożeniu wraca `false` i migracja leci znowu — dla schematu w porządku
+ * (jest idempotentny), dla TREŚCI byłaby katastrofą: skasowany przez
+ * właściciela szablon odradzałby się przy każdym deployu. Tu liczy się samo
+ * ISTNIENIE znacznika, niezależne od wersji, więc dosiew wykonuje się dokładnie
+ * raz w życiu bazy. */
+async function dosiewJuzByl(nazwa: string): Promise<boolean> {
+  const sql = getSql();
+  const rows = await inMigration(() => sql`SELECT 1 FROM schema_state WHERE name = ${nazwa} LIMIT 1;`);
+  return rows.length > 0;
+}
+
+async function oznaczDosiew(nazwa: string): Promise<void> {
+  const sql = getSql();
+  await inMigration(
+    () => sql`
+      INSERT INTO schema_state (name, version) VALUES (${nazwa}, 'dosiew')
+      ON CONFLICT (name) DO NOTHING;
+    `
+  );
+}
+
 function connectionString(): string {
   // Vercel's native Postgres product (and @vercel/postgres) is gone — DB
   // storage now comes from the Marketplace (Neon, Supabase, etc.), which
@@ -1293,6 +1318,83 @@ async function createOfferTemplatesSchema(): Promise<void> {
         `
       );
     }
+  }
+
+
+  // Dosiew 2026-07-26 — cztery szablony dołożone po badaniu rynku (ceny
+  // w środku widełek dla Polski 2026: automatyzacja procesu 2–8 tys.,
+  // asystent na dokumentach 5–15 tys., integracje 10–25 tys.). Osobno od
+  // `isNew` wyżej, bo baza produkcyjna tabelę już ma. Wykonuje się RAZ —
+  // patrz `dosiewJuzByl`: skasowany szablon nie wróci przy kolejnym wdrożeniu.
+  if (!(await dosiewJuzByl("offer_templates:dosiew-2026-07-26"))) {
+    const dosiew: { id: string; nazwa: string; opis: string; pozycje: unknown[]; uwagi: string }[] = [
+      {
+        id: "seed-automatyzacja-procesu",
+        nazwa: "Automatyzacja jednego procesu",
+        opis: "Najniższy próg wejścia — jeden powtarzalny proces zdjęty z rąk zespołu.",
+        pozycje: [
+          { nazwa: "Rozpoznanie procesu i projekt przepływu", ilosc: 1, jednostka: "kpl.", cena: 1200 },
+          { nazwa: "Budowa automatyzacji (n8n / Make)", ilosc: 1, jednostka: "kpl.", cena: 3000 },
+          { nazwa: "Testy z danymi klienta i uruchomienie", ilosc: 1, jednostka: "kpl.", cena: 700 },
+        ],
+        uwagi:
+          "Zakres: jeden proces wskazany przez Zamawiającego, od wyzwalacza po zapis wyniku w docelowym systemie. Czas realizacji: 1–2 tygodnie od akceptacji. Nie obejmuje kosztów subskrypcji narzędzi po stronie Zamawiającego (n8n/Make: ok. 40–500 zł/mies. zależnie od liczby operacji; wariant na własnym serwerze bez opłaty licencyjnej). Płatność: 100% po uruchomieniu.",
+      },
+      {
+        id: "seed-asystent-dokumenty",
+        nazwa: "Asystent AI na dokumentach firmy",
+        opis: "Odpowiedzi z WŁASNYCH dokumentów firmy, z podaniem źródła — nie z internetu.",
+        pozycje: [
+          { nazwa: "Przygotowanie i porządkowanie bazy dokumentów", ilosc: 1, jednostka: "kpl.", cena: 2500 },
+          { nazwa: "Wyszukiwanie po treści + asystent odpowiadający ze źródłami", ilosc: 1, jednostka: "kpl.", cena: 5500 },
+          { nazwa: "Wdrożenie u zespołu i szkolenie (2 h)", ilosc: 1, jednostka: "kpl.", cena: 1800 },
+        ],
+        uwagi:
+          "Zakres: asystent odpowiada wyłącznie na podstawie dokumentów przekazanych przez Zamawiającego i przy każdej odpowiedzi wskazuje źródło. Nie zastępuje decyzji człowieka. Wariant chmurowy albo lokalny (patrz szablon „Lokalny model AI…”) — wybór wpływa na koszty bieżące i na to, gdzie fizycznie leżą dane. Czas realizacji: 2–3 tygodnie. Płatność: 50% zaliczki, 50% po odbiorze.",
+      },
+      {
+        id: "seed-lokalny-llm",
+        nazwa: "Lokalny model AI na własnym sprzęcie",
+        opis: "Model działa u klienta — dane nie opuszczają firmy, brak opłat za tokeny.",
+        pozycje: [
+          { nazwa: "Dobór sprzętu i projekt wdrożenia", ilosc: 1, jednostka: "kpl.", cena: 2500 },
+          { nazwa: "Instalacja i konfiguracja modelu lokalnego", ilosc: 1, jednostka: "kpl.", cena: 6500 },
+          { nazwa: "Integracja z systemami firmy", ilosc: 1, jednostka: "kpl.", cena: 3500 },
+          { nazwa: "Szkolenie zespołu i dokumentacja", ilosc: 1, jednostka: "kpl.", cena: 1500 },
+        ],
+        uwagi:
+          "Wycena obejmuje WYŁĄCZNIE wdrożenie. Sprzęt dobierany indywidualnie i doliczany osobno — pozycje z katalogu („Z katalogu” w edytorze oferty). Po wdrożeniu nie ma opłat za zapytania do modelu; koszt bieżący to prąd i ewentualna opieka. Dane pozostają w infrastrukturze Zamawiającego, co upraszcza zgodność z RODO. Czas realizacji: 3–4 tygodnie od dostawy sprzętu. Płatność: sprzęt z góry, wdrożenie 50/50.",
+      },
+      {
+        id: "seed-szkolenie-zespolu",
+        nazwa: "Szkolenie zespołu — dzień roboczy",
+        opis: "Praktyczne szkolenie u klienta: jak używać AI w codziennej pracy i gdzie jej nie ufać.",
+        pozycje: [
+          { nazwa: "Szkolenie praktyczne (8 h, do 10 osób)", ilosc: 1, jednostka: "dzień", cena: 3200 },
+          { nazwa: "Materiały i zestaw gotowych poleceń dla zespołu", ilosc: 1, jednostka: "kpl.", cena: 700 },
+        ],
+        uwagi:
+          "Zakres: praca na realnych przykładach z firmy Zamawiającego, granice zaufania do modeli (co wolno, czego nie wolno im powierzyć), ochrona danych firmowych. Materiały zostają u Zamawiającego. Dojazd poza Trójmiasto rozliczany osobno.",
+      },
+      {
+        id: "seed-rabat-wprowadzajacy",
+        nazwa: "Rabat wprowadzający (za referencję)",
+        opis: "Pozycja ujemna do doklejenia do dowolnej oferty — jawna wymiana, nie ustępstwo.",
+        pozycje: [{ nazwa: "Rabat wprowadzający −20% w zamian za referencję i zgodę na opis wdrożenia", ilosc: 1, jednostka: "kpl.", cena: 0 }],
+        uwagi:
+          "Rabat przysługuje pod warunkiem pisemnej referencji po odbiorze prac oraz zgody na opisanie wdrożenia (zakres i efekt) na stronie Wykonawcy. Zakres opisu wymaga akceptacji Zamawiającego przed publikacją; dane wrażliwe i liczby finansowe nie są publikowane bez odrębnej zgody. WPISZ KWOTĘ ze znakiem minus — 20% sumy pozostałych pozycji.",
+      },
+    ];
+    for (const t of dosiew) {
+      await inMigration(
+        () => sql`
+          INSERT INTO offer_templates (id, nazwa, opis, pozycje, uwagi)
+          VALUES (${t.id}, ${t.nazwa}, ${t.opis}, ${JSON.stringify(t.pozycje)}, ${t.uwagi})
+          ON CONFLICT (id) DO NOTHING;
+        `
+      );
+    }
+    await oznaczDosiew("offer_templates:dosiew-2026-07-26");
   }
 
   await markSchemaApplied("offer_templates");
