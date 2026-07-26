@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { acceptOffer } from "@/lib/offerAccept";
 import { notify } from "@/lib/notificationLog";
+import { sendEmail } from "@/lib/email";
+import { offerReference } from "@/lib/offers";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 import type { Offer } from "@/lib/offers";
 
@@ -76,6 +78,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     entityId: offer.id,
     dedupeKey: `offer_accepted:${offer.id}`,
   });
+
+  // Potwierdzenie DLA KLIENTA. Do rundy 3 osoba, która właśnie podpisała
+  // ofertę, nie dostawała od nas ani słowa: powiadomienie szło wyłącznie do
+  // właściciela. Każde dojrzałe narzędzie odsyła podpisany dokument z powrotem
+  // — brak tego maila wyglądał jak zignorowanie klienta w najważniejszym
+  // momencie rozmowy. Wysyłka jest „best effort": gdyby padła, akceptacja
+  // i tak jest zapisana, więc nie zwracamy błędu.
+  if (offer.klient_email) {
+    try {
+      const url = `${req.nextUrl.origin}/pl/oferta/${token}`;
+      await sendEmail({
+        to: String(offer.klient_email),
+        subject: `Potwierdzenie akceptacji — ${offer.tytul || "oferta"}`,
+        text: [
+          `Dzień dobry,`,
+          ``,
+          `potwierdzamy akceptację oferty „${offer.tytul || "oferta"}" (nr ref. ${offerReference(offer)}).`,
+          ``,
+          `Zaakceptowano: ${name}`,
+          ``,
+          `Dokument pozostaje dostępny pod tym adresem:`,
+          url,
+          ``,
+          `Kolejny krok po naszej stronie: przygotowanie umowy do podpisu. Odezwiemy się z nią wkrótce.`,
+          ``,
+          `Pozdrawiamy,`,
+          `Leggera Labs`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      console.error("[POST /api/offers/public/:token/accept] potwierdzenie dla klienta nie poszło", err);
+    }
+  }
 
   return NextResponse.json({ ok: true, acceptedByName: name });
 }

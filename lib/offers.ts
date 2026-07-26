@@ -193,6 +193,10 @@ export type Offer = {
    * z której ta powstała, `superseded_at` oznacza ofertę ZASTĄPIONĄ nowszą
    * wersją — taka nie liczy się do skuteczności ani do pipeline'u, bo nie
    * jest ani wygrana, ani przegrana. */
+  /** Wyliczenie zwrotu na dokumencie (runda 3) — godziny oszczędzane
+   * miesięcznie i koszt godziny po stronie klienta. Zero = blok wyłączony. */
+  roi_godziny: number;
+  roi_stawka: number;
   parent_offer_id: string | null;
   wersja: number;
   superseded_at: string | null;
@@ -309,6 +313,28 @@ export function isOfferStale(
   if (o.przypomniano_at) return false;
   const days = offerSilenceDays(o, now);
   return days != null && days >= OFFER_STALE_DAYS;
+}
+
+/** Szacowany zwrot z wdrożenia. Liczby podaje właściciel, panel tylko mnoży —
+ * zero prognoz, zero „inteligentnych" założeń.
+ *
+ * `null`, gdy którakolwiek liczba jest zerowa albo oferta nic nie kosztuje:
+ * blok, który pokazuje „zwrot w 0 miesięcy", jest gorszy niż jego brak.
+ * Miesiące zaokrąglamy W GÓRĘ — obietnica ma być ostrożna, nie optymistyczna. */
+export function obliczZwrot(
+  o: Pick<Offer, "roi_godziny" | "roi_stawka">,
+  kwota: number
+): { oszczednoscMiesiac: number; miesiecyDoZwrotu: number; oszczednoscRok: number } | null {
+  const godziny = Number(o.roi_godziny) || 0;
+  const stawka = Number(o.roi_stawka) || 0;
+  if (godziny <= 0 || stawka <= 0 || kwota <= 0) return null;
+  const oszczednoscMiesiac = round2(godziny * stawka);
+  if (oszczednoscMiesiac <= 0) return null;
+  return {
+    oszczednoscMiesiac,
+    miesiecyDoZwrotu: Math.ceil(kwota / oszczednoscMiesiac),
+    oszczednoscRok: round2(oszczednoscMiesiac * 12),
+  };
 }
 
 /** Adres klienta jako linie do wydruku (patrz lib/documents.ts). */

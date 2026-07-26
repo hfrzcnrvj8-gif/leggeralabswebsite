@@ -122,6 +122,10 @@ export const OFFER_PUBLIC_FIELDS = [
   "created_at",
   "jezyk",
   "waluta",
+  // Runda 3 — blok wyliczenia zwrotu na dokumencie. Same liczby wpisane
+  // przez właściciela, nic o kliencie.
+  "roi_godziny",
+  "roi_stawka",
   "status",
   "tytul",
   "uwagi",

@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type Offer, type OfferItem, type OfferSection, type OfferLang, offerTotal, itemKwota, clientAddressLines, offerReference, isOfferExpired } from "@/lib/offers";
+import {
+  type Offer,
+  type OfferItem,
+  type OfferSection,
+  type OfferLang,
+  offerTotal,
+  itemKwota,
+  clientAddressLines,
+  offerReference,
+  isOfferExpired,
+  obliczZwrot,
+} from "@/lib/offers";
+import { formatPlDateTime } from "@/lib/dates";
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
@@ -52,6 +64,21 @@ type Dict = {
    * bierze, więc dokument musi mu to powiedzieć w JEGO języku. */
   optionalTag: string;
   optionalHint: string;
+  /** Runda 3 — certyfikat akceptacji na dokumencie, prośba o zmianę, zwrot. */
+  certTitle: string;
+  certWho: string;
+  certWhen: string;
+  certRef: string;
+  changeTitle: string;
+  changeHint: string;
+  changePlaceholder: string;
+  changeSend: string;
+  changeSent: string;
+  roiTitle: string;
+  roiSaving: string;
+  roiPayback: string;
+  roiYear: string;
+  roiNote: string;
 };
 
 const DICT: Record<OfferLang, Dict> = {
@@ -92,6 +119,20 @@ const DICT: Record<OfferLang, Dict> = {
     privacyLink: "Polityka Prywatności",
     optionalTag: "do wyboru",
     optionalHint: "Część pozycji jest do wyboru — zaznacz te, które Cię interesują, a kwota przeliczy się od razu.",
+    certTitle: "Potwierdzenie akceptacji",
+    certWho: "Zaakceptowano przez",
+    certWhen: "Data i godzina",
+    certRef: "Dokument",
+    changeTitle: "Chcesz czegoś inaczej?",
+    changeHint: "Napisz, co zmienić — wrócimy z poprawioną wersją. To nie jest akceptacja oferty.",
+    changePlaceholder: "np. proszę o wariant bez szkolenia i termin od października.",
+    changeSend: "Wyślij prośbę o zmianę",
+    changeSent: "Dziękujemy — wiadomość dotarła. Odezwiemy się z poprawioną ofertą.",
+    roiTitle: "Szacowany zwrot",
+    roiSaving: "Oszczędność miesięczna",
+    roiPayback: "Zwrot z inwestycji",
+    roiYear: "W skali roku",
+    roiNote: "Szacunek na podstawie czasu wskazanego przez Państwa w rozmowie — nie jest gwarancją wyniku.",
   },
   en: {
     doc: "Quote",
@@ -130,6 +171,20 @@ const DICT: Record<OfferLang, Dict> = {
     privacyLink: "Privacy Policy",
     optionalTag: "optional",
     optionalHint: "Some items are optional — tick the ones you want and the total updates instantly.",
+    certTitle: "Acceptance confirmation",
+    certWho: "Accepted by",
+    certWhen: "Date and time",
+    certRef: "Document",
+    changeTitle: "Want something changed?",
+    changeHint: "Tell us what to adjust and we will come back with a revised version. This is not an acceptance.",
+    changePlaceholder: "e.g. please drop the training and start in October.",
+    changeSend: "Send change request",
+    changeSent: "Thank you — we received it and will come back with a revised quote.",
+    roiTitle: "Estimated return",
+    roiSaving: "Monthly saving",
+    roiPayback: "Payback period",
+    roiYear: "Per year",
+    roiNote: "Estimate based on the time you indicated during our conversation — not a guaranteed outcome.",
   },
   de: {
     doc: "Angebot",
@@ -168,6 +223,20 @@ const DICT: Record<OfferLang, Dict> = {
     privacyLink: "Datenschutzerklärung",
     optionalTag: "optional",
     optionalHint: "Einige Positionen sind optional — wählen Sie aus, was Sie interessiert; die Summe wird sofort neu berechnet.",
+    certTitle: "Annahmebestätigung",
+    certWho: "Angenommen von",
+    certWhen: "Datum und Uhrzeit",
+    certRef: "Dokument",
+    changeTitle: "Möchten Sie etwas ändern?",
+    changeHint: "Schreiben Sie, was angepasst werden soll — wir melden uns mit einer überarbeiteten Fassung. Dies ist keine Annahme.",
+    changePlaceholder: "z. B. bitte ohne Schulung und Start ab Oktober.",
+    changeSend: "Änderungswunsch senden",
+    changeSent: "Vielen Dank — wir haben Ihre Nachricht erhalten und melden uns mit einem überarbeiteten Angebot.",
+    roiTitle: "Geschätzte Amortisation",
+    roiSaving: "Monatliche Ersparnis",
+    roiPayback: "Amortisationszeit",
+    roiYear: "Pro Jahr",
+    roiNote: "Schätzung auf Basis der von Ihnen genannten Zeit — keine Garantie für das Ergebnis.",
   },
 };
 
@@ -194,6 +263,9 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
    * oczach, ale nic nie zapisuje się bez decyzji. */
   const [wybrane, setWybrane] = useState<Set<string>>(new Set());
   const [sections, setSections] = useState<OfferSection[]>([]);
+  const [zmianaTresc, setZmianaTresc] = useState("");
+  const [zmianaWyslana, setZmianaWyslana] = useState(false);
+  const [zmianaBusy, setZmianaBusy] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -254,6 +326,7 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   );
   const total = offerTotal(pozycjeZWyborem);
   const maOpcjonalne = items.some((it) => it.opcjonalna);
+  const zwrot = obliczZwrot(offer, total);
   const zaakceptowana = offer.status === "Zaakceptowana";
 
   const przelacz = (id: string) => {
@@ -263,6 +336,23 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
       else next.add(id);
       return next;
     });
+  };
+
+  const submitChangeRequest = async () => {
+    if (!token || !zmianaTresc.trim() || zmianaBusy) return;
+    setZmianaBusy(true);
+    const res = await fetch(`/api/offers/public/${token}/comment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tresc: zmianaTresc.trim(), name: signName.trim() }),
+    });
+    setZmianaBusy(false);
+    if (res.ok) {
+      setZmianaWyslana(true);
+      setZmianaTresc("");
+    } else {
+      setAcceptError("Nie udało się wysłać wiadomości.");
+    }
   };
 
   const submitAcceptance = async () => {
@@ -469,6 +559,60 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
             </div>
           </div>
 
+          {/* Szacowany zwrot (runda 3). Liczby podaje właściciel w panelu,
+              dokument tylko mnoży — i mówi wprost, że to szacunek, nie
+              gwarancja. Blok znika, gdy którejkolwiek liczby brakuje. */}
+          {zwrot && (
+            <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-neutral-400">{t.roiTitle}</div>
+              <div className="grid grid-cols-3 gap-4 text-[12px]">
+                <div>
+                  <div className="text-neutral-500">{t.roiSaving}</div>
+                  <div className="mt-0.5 text-[15px] font-semibold text-neutral-900">{money(zwrot.oszczednoscMiesiac, lang, offer.waluta)}</div>
+                </div>
+                <div>
+                  <div className="text-neutral-500">{t.roiPayback}</div>
+                  <div className="mt-0.5 text-[15px] font-semibold text-neutral-900">
+                    {zwrot.miesiecyDoZwrotu} {lang === "pl" ? "mies." : lang === "de" ? "Mon." : "mo."}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-neutral-500">{t.roiYear}</div>
+                  <div className="mt-0.5 text-[15px] font-semibold text-neutral-900">{money(zwrot.oszczednoscRok, lang, offer.waluta)}</div>
+                </div>
+              </div>
+              <div className="mt-2 text-[10.5px] leading-relaxed text-neutral-400">{t.roiNote}</div>
+            </div>
+          )}
+
+          {/* Certyfikat akceptacji — dowód, który do rundy 3 leżał w bazie
+              i nigdzie nie było go widać. Drukuje się razem z dokumentem
+              (bez `print:hidden`), bo o to w nim chodzi. */}
+          {zaakceptowana && offer.accepted_at && (
+            <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-[12px] text-neutral-700">
+              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-emerald-700">{t.certTitle}</div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-neutral-500">{t.certWho}</div>
+                  <div className="mt-0.5 font-medium text-neutral-900">{offer.accepted_by_name || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-neutral-500">{t.certWhen}</div>
+                  <div className="mt-0.5 font-medium text-neutral-900">{formatPlDateTime(offer.accepted_at)}</div>
+                </div>
+                <div>
+                  <div className="text-neutral-500">{t.certRef}</div>
+                  <div className="mt-0.5 font-medium text-neutral-900">{offerReference(offer)}</div>
+                </div>
+              </div>
+              {/* IP tylko w podglądzie z panelu — publiczna biała lista pól
+                  świadomie go nie wypuszcza (lib/publicFields.ts). */}
+              {offer.accepted_ip && (
+                <div className="mt-2 text-[10.5px] text-neutral-400">IP: {offer.accepted_ip}</div>
+              )}
+            </div>
+          )}
+
           {offer.uwagi && <div className="mt-6 whitespace-pre-line text-neutral-600">{offer.uwagi}</div>}
 
           {/* Stopka: stałe dane firmowe, przyklejona do dołu strony
@@ -541,6 +685,38 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
                   {accepting ? t.accepting : t.acceptButton}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* „Poproszę o zmianę" — druga droga obok akceptacji (runda 3).
+              Do tej pory klient, który chciał czegoś inaczej, musiał wyjść
+              z dokumentu i napisać maila; teraz odpisuje stąd, a prośba trafia
+              na oś czasu klienta i do dzwonka. Nie pokazujemy jej przy ofercie
+              zaakceptowanej ani przeterminowanej — tam nie ma czego zmieniać. */}
+          {!zaakceptowana && !isOfferExpired(offer) && (
+            <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-4">
+              {zmianaWyslana ? (
+                <p className="text-[13px] text-neutral-700">{t.changeSent}</p>
+              ) : (
+                <>
+                  <h2 className="mb-1 text-sm font-semibold text-neutral-900">{t.changeTitle}</h2>
+                  <p className="mb-2 text-[12px] text-neutral-500">{t.changeHint}</p>
+                  <textarea
+                    value={zmianaTresc}
+                    onChange={(e) => setZmianaTresc(e.target.value)}
+                    rows={3}
+                    placeholder={t.changePlaceholder}
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  />
+                  <button
+                    onClick={submitChangeRequest}
+                    disabled={!zmianaTresc.trim() || zmianaBusy}
+                    className="mt-2 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 disabled:opacity-40"
+                  >
+                    {t.changeSend}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

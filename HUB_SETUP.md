@@ -8354,3 +8354,80 @@ przekazującego sobie dokument z rąk do rąk.
 **Apka nie dostała tej rundy** — kwoty liczy serwer, więc pozycje opcjonalne
 działają w niej poprawnie „z pudełka", ale sekcji, wersji ani śladu otwarcia
 jeszcze nie pokazuje. To naturalny kandydat na następną paczkę mobilną.
+
+## Moduł 57, runda 3 — domknięcie wobec konkurencji (2026-07-26)
+
+Druga tura przeglądu (PandaDoc, Proposify, Qwilr, Storydoc) po zbudowaniu
+rundy 2. Cztery rzeczy, w tym jedna, która była zwykłym BRAKIEM, nie
+ulepszeniem.
+
+### Klient dostaje potwierdzenie akceptacji
+
+`POST /api/offers/public/:token/accept` wysyła teraz mail do KLIENTA:
+podsumowanie, numer referencyjny, link do dokumentu i zdanie o następnym kroku
+(umowa). Do tej pory osoba, która właśnie podpisała ofertę e-podpisem, nie
+dostawała od nas ani słowa — powiadomienie szło wyłącznie do właściciela.
+Wysyłka jest „best effort" (try/catch): gdyby padła, akceptacja i tak jest
+zapisana, a błąd maila nie może wywrócić najważniejszej operacji w lejku.
+
+### Certyfikat akceptacji na dokumencie
+
+Dowód (kto, kiedy, numer referencyjny) był w bazie od Fazy I i nigdzie go nie
+było widać. Teraz drukuje się razem z ofertą — **bez `print:hidden`**, bo o to
+w nim chodzi. IP pokazuje się WYŁĄCZNIE w podglądzie z panelu: publiczna biała
+lista pól świadomie go nie wypuszcza (`lib/publicFields.ts`).
+
+### „Poproszę o zmianę" — druga droga obok akceptacji
+
+`POST /api/offers/public/:token/comment`: klient pisze, czego chce inaczej,
+a prośba idzie na oś czasu klienta (`offer_change_requested`), do dzwonka
+i mailem do właściciela. Do tej pory klient, który chciał negocjować, musiał
+wyjść z dokumentu i napisać maila — czyli zostawał sam dokładnie w momencie,
+w którym najłatwiej stracić sprzedaż.
+
+Świadomie BEZ osobnej tabeli komentarzy: prośba ląduje tam, gdzie i tak czyta
+się historię rozmowy. Nowa skrzynka, której nic nie odhacza, byłaby drugą
+listą zadań. To jest tania wersja „redliningu" z PandaDoc — bez wersjonowania
+akapitów, za to z jednym zdaniem, na które można odpowiedzieć.
+
+### Szablon z istniejącej oferty + pola scalane
+
+`POST /api/offer-templates` przyjmuje `from_offer_id` i kopiuje pozycje,
+sekcje i uwagi — czyli „zapisz tę ofertę jako szablon", **otwarte pytanie
+jeszcze z briefu Modułu 20**. Przycisk w kolumnie akcji edytora.
+
+Pola scalane (`{{klient}}`, `{{kwota}}`, `{{wazna_do}}`, `{{dzis}}`)
+podstawiają się RAZ, przy wstawianiu szablonu (`podstawPola` w
+`lib/offerTemplates.ts`). Wynik jest zwykłym tekstem do dowolnej poprawki —
+świadomie nie „silnik szablonów". **Nieznane pole zostaje w treści jako
+`{{cos}}`**: literówkę widać, zamiast po cichu wstawić pustkę w ofercie
+idącej do klienta.
+
+### Szacowany zwrot (ROI) na dokumencie
+
+Dwie liczby wpisuje właściciel (`roi_godziny`, `roi_stawka`), resztę liczy
+`obliczZwrot()`: oszczędność miesięczna, czas zwrotu, skala roku. **Miesiące
+zaokrąglane W GÓRĘ** — obietnica wobec klienta ma być ostrożna. Blok znika,
+gdy którejkolwiek liczby brak albo oferta nic nie kosztuje („zwrot w 0
+miesięcy" jest gorszy niż brak bloku), i zawsze niesie zdanie, że to szacunek
+z rozmowy, nie gwarancja.
+
+### Odrzucone świadomie w tej rundzie
+
+Analityka sekcji („ile sekund czytał harmonogram") — zbieranie zachowania
+klienta, którego nie potrzebujesz, za cenę nowej kategorii danych osobowych.
+Automatyczne sekwencje przypomnień — łamią zasadę „decyzję klikasz Ty".
+Wideo w ofercie, wiele podpisów, śledzenie przekazań wewnątrz firmy klienta,
+płatności online (czekają na rejestrację).
+
+### Poprawki wyglądu z tej samej rundy
+
+- **Profil oferty na pełną szerokość** (zgłoszenie: „po bokach są wolne
+  przestrzenie"): stała wysokość 85vh, kolumny przewijane osobno, a od 1536 px
+  TRZY kolumny — dane klienta obok treści i cennika. Zmierzone na 1920 px:
+  karta 1584 px (było 944), kolumny 420 / 726 / 340.
+- **Ważność: gotowe 7 / 14 / 30 dni** liczone od dziś + podpis „wygasa za N
+  dni". Datę ustawia się przy każdej ofercie i zawsze tak samo — wybieranie
+  jej z koła dat było najczęstszym drobnym tarciem w module.
+- **Menu pod prawym przyciskiem** na wierszu listy (9 akcji). Wcześniej prawy
+  przycisk nie robił nic. Menu jest SKRÓTEM — widoczne przyciski zostają.

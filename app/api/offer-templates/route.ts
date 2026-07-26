@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOfferTemplatesSchema } from "@/lib/db";
+import { getSql, ensureOfferTemplatesSchema, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import type { OfferTemplateItem } from "@/lib/offerTemplates";
 
@@ -53,11 +53,30 @@ export async function POST(req: NextRequest) {
     const nazwa = typeof body.nazwa === "string" ? body.nazwa.slice(0, 200) : "Nowy szablon";
     const opis = typeof body.opis === "string" ? body.opis.slice(0, 500) : "";
     const uwagi = typeof body.uwagi === "string" ? body.uwagi.slice(0, 4000) : "";
-    const pozycje = parsePozycje(body.pozycje);
-    const sekcje = parseSekcje(body.sekcje);
+    // „Zapisz tę ofertę jako szablon" (runda 3) — otwarte pytanie jeszcze
+    // z briefu Modułu 20. Bez tego dobrze napisana oferta zostawała
+    // jednorazowa: szablony dało się tworzyć tylko od zera.
+    let pozycje = parsePozycje(body.pozycje);
+    let sekcje = parseSekcje(body.sekcje);
+    let uwagiZOferty = "";
+    const fromOfferId = typeof body.from_offer_id === "string" && body.from_offer_id.trim() ? body.from_offer_id : "";
+    if (fromOfferId) {
+      await ensureOffersSchema();
+      const oferta = (await sql`SELECT tytul, uwagi FROM offers WHERE id = ${fromOfferId};`)[0];
+      if (!oferta) return NextResponse.json({ error: "Nie znaleziono oferty do skopiowania." }, { status: 404 });
+      const pozycjeOferty = await sql`
+        SELECT nazwa, ilosc, jednostka, cena FROM offer_items WHERE offer_id = ${fromOfferId} ORDER BY position ASC;
+      `;
+      const sekcjeOferty = await sql`
+        SELECT tytul, tresc FROM offer_sections WHERE offer_id = ${fromOfferId} ORDER BY position ASC;
+      `;
+      pozycje = parsePozycje(pozycjeOferty);
+      sekcje = parseSekcje(sekcjeOferty);
+      uwagiZOferty = typeof oferta.uwagi === "string" ? oferta.uwagi : "";
+    }
     await sql`
       INSERT INTO offer_templates (id, nazwa, opis, pozycje, sekcje, uwagi)
-      VALUES (${id}, ${nazwa}, ${opis}, ${JSON.stringify(pozycje)}, ${JSON.stringify(sekcje)}, ${uwagi});
+      VALUES (${id}, ${nazwa}, ${opis}, ${JSON.stringify(pozycje)}, ${JSON.stringify(sekcje)}, ${uwagi || uwagiZOferty});
     `;
     return NextResponse.json({ ok: true, id });
   } catch (err) {

@@ -13,7 +13,9 @@ import {
   offerSilenceDays,
   isOfferStale,
   offerLiczySieDoStatystyk,
+  obliczZwrot,
 } from "../lib/offers.ts";
+import { podstawPola } from "../lib/offerTemplates.ts";
 import { contractReference } from "../lib/contracts.ts";
 import { domyslnaStawkaVat } from "../lib/offerAccept.ts";
 
@@ -125,4 +127,30 @@ test("upomnienie: po progu tak, po przypomnieniu już nie", () => {
 test("oferta zastąpiona nowszą wersją wypada z liczników", () => {
   assert.equal(offerLiczySieDoStatystyk({ superseded_at: null }), true);
   assert.equal(offerLiczySieDoStatystyk({ superseded_at: "2026-07-26 12:00:00+00" }), false);
+});
+
+// ── Runda 3 ───────────────────────────────────────────────────────────────
+
+test("zwrot: liczony z liczb właściciela, miesiące w GÓRĘ", () => {
+  // 8 h × 120 zł = 960 zł/mies; 6000 / 960 = 6,25 → 7 miesięcy (ostrożnie).
+  assert.deepEqual(obliczZwrot({ roi_godziny: 8, roi_stawka: 120 }, 6000), {
+    oszczednoscMiesiac: 960,
+    miesiecyDoZwrotu: 7,
+    oszczednoscRok: 11520,
+  });
+});
+
+test("zwrot: brak którejkolwiek liczby = brak bloku", () => {
+  assert.equal(obliczZwrot({ roi_godziny: 0, roi_stawka: 120 }, 6000), null);
+  assert.equal(obliczZwrot({ roi_godziny: 8, roi_stawka: 0 }, 6000), null);
+  // Oferta bez kwoty: „zwrot w 0 miesięcy" byłby gorszy niż brak bloku.
+  assert.equal(obliczZwrot({ roi_godziny: 8, roi_stawka: 120 }, 0), null);
+});
+
+test("pola scalane podstawiają się, nieznane zostają widoczne", () => {
+  const w = { klient: "Nordwind Studio", kwota: "18 000,00 zł", wazna_do: "09.08.2026", dzis: "26.07.2026" };
+  assert.equal(podstawPola("Dla {{klient}} za {{kwota}}.", w), "Dla Nordwind Studio za 18 000,00 zł.");
+  assert.equal(podstawPola("Ważna do {{ wazna_do }}", w), "Ważna do 09.08.2026");
+  // Literówka ma być WIDOCZNA, nie zamieniona w pustkę w ofercie do klienta.
+  assert.equal(podstawPola("Cześć {{klientt}}", w), "Cześć {{klientt}}");
 });

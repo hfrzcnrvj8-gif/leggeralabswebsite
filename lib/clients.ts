@@ -124,6 +124,7 @@ export const CLIENT_EVENT_KINDS = [
   // znała wyłącznie sukces (utworzono / wysłano / zaakceptowano), więc klient,
   // który powiedział „nie", kończył się na wpisie „wysłano ofertę".
   "offer_opened",
+  "offer_change_requested",
   "offer_rejected",
   "offer_expired",
   "invoice_issued",
@@ -169,6 +170,7 @@ export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projec
   offer_sent: "offers",
   offer_accepted: "offers",
   offer_opened: "offers",
+  offer_change_requested: "offers",
   offer_rejected: "offers",
   offer_expired: "offers",
   invoice_issued: "invoices",

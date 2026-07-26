@@ -69,6 +69,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE offers SET client_id = ${cid}, updated_at = now() WHERE id = ${id};`;
     }
     if ("uwagi" in body) await sql`UPDATE offers SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
+    for (const pole of ["roi_godziny", "roi_stawka"] as const) {
+      if (!(pole in body)) continue;
+      const n = Number(body[pole]);
+      const v = Number.isFinite(n) && n >= 0 ? n : 0;
+      if (pole === "roi_godziny") await sql`UPDATE offers SET roi_godziny = ${v}, updated_at = now() WHERE id = ${id};`;
+      else await sql`UPDATE offers SET roi_stawka = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("waluta" in body) {
       if (!isOfferCurrency(body.waluta)) return NextResponse.json({ error: "invalid waluta" }, { status: 400 });
       await sql`UPDATE offers SET waluta = ${body.waluta}, updated_at = now() WHERE id = ${id};`;

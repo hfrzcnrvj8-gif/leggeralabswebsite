@@ -1238,6 +1238,12 @@ async function createOffersSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS parent_offer_id TEXT REFERENCES offers(id) ON DELETE SET NULL;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS wersja INTEGER NOT NULL DEFAULT 1;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS superseded_at TIMESTAMPTZ;`;
+  // Wyliczenie zwrotu (runda 3). Dwie liczby podane przez WŁAŚCICIELA —
+  // ile godzin miesięcznie oszczędza wdrożenie i ile kosztuje godzina pracy
+  // po stronie klienta. Reszta (oszczędność miesięczna, czas zwrotu) liczy
+  // się z kwoty oferty, więc nie ma czego trzymać w bazie.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS roi_godziny NUMERIC NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS roi_stawka NUMERIC NOT NULL DEFAULT 0;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (

@@ -19,6 +19,7 @@ import {
   rejectReasonLabel,
   offerTotal,
   offerOptionalRest,
+  obliczZwrot,
   itemKwota,
 } from "@/lib/offers";
 import { CONTRACT_STATUS_CLASS } from "@/lib/contracts";
@@ -56,7 +57,7 @@ export function OfferEditor({
   onChange?: () => void;
   onDeleted?: (id: string) => void;
 }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, prompt } = useUI();
   const [offer, setOffer] = useState<Offer | null>(null);
   const [items, setItems] = useState<OfferItem[]>([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
@@ -76,6 +77,7 @@ export function OfferEditor({
   /** Okno „dlaczego odrzucona" — status zmienia się dopiero po wyborze powodu. */
   const [rejectOpen, setRejectOpen] = useState(false);
   const [versioning, setVersioning] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   /** Bloki treści oferty — „Kontekst", „Zakres prac", „Harmonogram". */
   const [sections, setSections] = useState<OfferSection[]>([]);
 
@@ -485,6 +487,27 @@ export function OfferEditor({
     window.location.href = `/${lang}/admin/offers/${data.id}`;
   }, [id, lang, confirm, toast, onChange]);
 
+  /** „Zapisz tę ofertę jako szablon" — pozycje, sekcje i uwagi lądują
+   * w bibliotece szablonów (otwarte pytanie z briefu Modułu 20). */
+  const saveAsTemplate = useCallback(async () => {
+    const nazwa = await prompt("Nazwa szablonu", { placeholder: offer?.tytul || "np. Wdrożenie automatyzacji" });
+    if (!nazwa || !nazwa.trim()) return;
+    setSavingTemplate(true);
+    const res = await fetch("/api/offer-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nazwa: nazwa.trim(), from_offer_id: id }),
+    });
+    setSavingTemplate(false);
+    if (!res.ok) {
+      toast("Nie udało się zapisać szablonu.", "error");
+      return;
+    }
+    const lista = await fetch("/api/offer-templates").then((r) => (r.ok ? r.json() : { templates: [] }));
+    setTemplates((lista.templates ?? []) as OfferTemplate[]);
+    toast(`Zapisano szablon „${nazwa.trim()}".`);
+  }, [id, offer?.tytul, prompt, toast]);
+
   const generateContract = useCallback(async () => {
     setGeneratingContract(true);
     const res = await fetch("/api/contracts", {
@@ -558,6 +581,7 @@ export function OfferEditor({
   const waluta = offer.waluta || DEFAULT_OFFER_CURRENCY;
   const powodOdrzucenia = rejectReasonLabel(offer.powod_odrzucenia ?? "", offer.komentarz_odrzucenia ?? "");
   const dniDoWaznosci = offer.wazna_do ? daysBetweenISO(todayLocalISO(), offer.wazna_do) : null;
+  const zwrot = obliczZwrot(offer, total);
 
   // Moduł 30 — miękka podpowiedź o powiązaniu (patrz lib/links.ts). Na ofercie
   // waży to więcej niż na fakturze: to z niej lib/offerAccept.ts przepisuje
@@ -1100,6 +1124,47 @@ export function OfferEditor({
             </div>
           )}
 
+          {/* Wyliczenie zwrotu (runda 3). Dwie liczby, resztę liczy dokument —
+              i mówi klientowi wprost, że to szacunek. Puste = blok nie
+              pojawia się na ofercie w ogóle. */}
+          <div className="card-paper rounded-xl border hairline p-4">
+            <h3 className="mb-1.5 text-[11px] uppercase tracking-wide text-muted">Zwrot dla klienta</h3>
+            <Field label="Godzin / mies.">
+              <input
+                type="number"
+                min={0}
+                value={offer.roi_godziny || ""}
+                onChange={(e) => setOffer((p) => (p ? { ...p, roi_godziny: Number(e.target.value) } : p))}
+                onBlur={(e) => patchOffer({ roi_godziny: Number(e.target.value) || 0 })}
+                placeholder="0"
+                className="w-20 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+              />
+            </Field>
+            <Field label="Stawka / h">
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={offer.roi_stawka || ""}
+                onChange={(e) => setOffer((p) => (p ? { ...p, roi_stawka: Number(e.target.value) } : p))}
+                onBlur={(e) => patchOffer({ roi_stawka: Number(e.target.value) || 0 })}
+                placeholder="0"
+                className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
+              />
+            </Field>
+            {zwrot ? (
+              <p className="mt-1.5 rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
+                Na dokumencie: oszczędność {formatMoney(zwrot.oszczednoscMiesiac, waluta)}/mies., zwrot po{" "}
+                {zwrot.miesiecyDoZwrotu} mies.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[11px] text-muted opacity-70">
+                Puste — blok zwrotu nie pojawi się na ofercie. Wpisz czas, który wdrożenie realnie oszczędza, i koszt
+                godziny po stronie klienta.
+              </p>
+            )}
+          </div>
+
           {offer.status === "Odrzucona" && (
             <div className="card-paper rounded-xl border hairline p-4">
               <h3 className="mb-1.5 text-[11px] uppercase tracking-wide text-muted">Odrzucona</h3>
@@ -1232,6 +1297,16 @@ export function OfferEditor({
           {/* Wersja ≠ duplikat: wersja zastępuje, duplikat mnoży. Przy ofercie
               zaakceptowanej wersja nie ma sensu (serwer ją odrzuci), więc jej
               tu nie pokazujemy. */}
+          <button
+            onClick={saveAsTemplate}
+            disabled={savingTemplate}
+            title="Zapisz pozycje, sekcje i uwagi tej oferty jako szablon do kolejnych ofert"
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            {savingTemplate ? <IconLoader2 size={13} className="animate-spin" /> : <IconLayoutGrid size={13} />}
+            Zapisz jako szablon
+          </button>
+
           {!accepted && (
             <button
               onClick={newVersion}

@@ -34,6 +34,10 @@ export type NotificationKind =
   // PIERWSZYM otwarciu, bo dziesiąte wejście w ten sam dokument nie jest
   // wiadomością, tylko szumem.
   | "offer_opened"
+  // Runda 3 — klient nie akceptuje, tylko prosi o zmianę. To NIE jest kronika
+  // do przeczytania później: to zdanie, na które trzeba odpowiedzieć, więc
+  // zostaje w dzwonku dopóki go nie odhaczysz.
+  | "offer_change_requested"
   | "contract_signed"
   | "review_collected"
   // 2026-07-22 — klient odpowiedział na zaproszenie na spotkanie. Kronika,
