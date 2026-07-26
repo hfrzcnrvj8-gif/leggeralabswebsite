@@ -205,6 +205,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     applied.osoba_kontaktowa = str(body.osoba_kontaktowa, 200);
     await sql`UPDATE clients SET osoba_kontaktowa = ${applied.osoba_kontaktowa}, updated_at = now() WHERE id = ${id};`;
   }
+  // Źródło — edytowalne od 2026-07-26, druga runda audytu Klientów. Pierwsza
+  // zostawiła je tylko do odczytu („migawka z chwili awansu z leada"), co dało
+  // asymetrię nie do obronienia: lead ma picker do poprawienia kategorii,
+  // klient nie miał nic, a klienci sprzed tej zmiany mają pole PUSTE. Po tej
+  // kolumnie liczy się pętla poleceń, więc pole, którego nie da się poprawić,
+  // po prostu zostaje błędne na zawsze.
+  if ("zrodlo_kategoria" in body) {
+    applied.zrodlo_kategoria = str(body.zrodlo_kategoria, 100);
+    await sql`UPDATE clients SET zrodlo_kategoria = ${applied.zrodlo_kategoria}, updated_at = now() WHERE id = ${id};`;
+  }
+  if ("zrodlo" in body) {
+    applied.zrodlo = str(body.zrodlo, 300);
+    await sql`UPDATE clients SET zrodlo = ${applied.zrodlo}, updated_at = now() WHERE id = ${id};`;
+  }
   if ("linkedin_url" in body) {
     applied.linkedin_url = str(body.linkedin_url, 300);
     await sql`UPDATE clients SET linkedin_url = ${applied.linkedin_url}, updated_at = now() WHERE id = ${id};`;

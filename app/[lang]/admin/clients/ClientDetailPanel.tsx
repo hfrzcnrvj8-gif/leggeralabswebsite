@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { IconMessageCircle, IconCornerUpLeft, IconMail, IconPhoneOff } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
@@ -28,6 +29,7 @@ import {
   StatusTag,
 } from "./shared";
 import { ProcessMap, PillPicker } from "../components";
+import { SOURCE_CATEGORIES } from "@/lib/leads";
 import { formatPlDate } from "@/lib/projects";
 import { CONTRACT_TYP_LABEL } from "@/lib/contracts";
 import { formatMoney } from "@/lib/invoices";
@@ -123,6 +125,7 @@ export function ClientDetailPanel({
   onFieldChange?: (id: string, field: string, value: string) => void;
 }) {
   const { confirm, toast } = useUI();
+  const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [changes, setChanges] = useState<FieldChange[]>([]);
@@ -137,6 +140,7 @@ export function ClientDetailPanel({
   const [contracts, setContracts] = useState<LinkedContract[]>([]);
   const [mail, setMail] = useState<ClientMail[]>([]);
   const [followups, setFollowups] = useState<ClientFollowupItem[]>([]);
+  const [creatingDoc, setCreatingDoc] = useState<"offers" | "invoices" | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteFollowup, setNoteFollowup] = useState("");
@@ -275,6 +279,31 @@ export function ClientDetailPanel({
     }
     setFollowups((prev) => prev.map((f) => (f.id === followupId ? { ...f, done_at: new Date().toISOString() } : f)));
     toast("Kontakt kontrolny oznaczony jako obsłużony.");
+  };
+
+  /** Nowy szkic oferty/faktury dla TEGO klienta i od razu przejście do niego —
+   * patrz komentarz przy przyciskach. `klient_nazwa` jedzie razem z `client_id`,
+   * bo to dwie różne rzeczy: pierwsze to migawka nabywcy na dokumencie, drugie
+   * wskaźnik, na którym wisi karta klienta i kontakt retencyjny. */
+  const createDocument = async (kind: "offers" | "invoices") => {
+    if (!client) return;
+    setCreatingDoc(kind);
+    const res = await fetch(`/api/${kind}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        kind === "offers"
+          ? { client_id: client.id, klient_nazwa: client.nazwa, tytul: `Oferta — ${client.nazwa}` }
+          : { client_id: client.id, klient_nazwa: client.nazwa }
+      ),
+    });
+    const data = (await res.json().catch(() => ({}))) as { id?: string };
+    if (!res.ok || !data.id) {
+      setCreatingDoc(null);
+      toast(kind === "offers" ? "Nie udało się utworzyć oferty." : "Nie udało się utworzyć faktury.", "error");
+      return;
+    }
+    router.push(`/${lang}/admin/${kind}/${data.id}`);
   };
 
   const deleteNote = async (activityId: string) => {
@@ -426,22 +455,28 @@ export function ClientDetailPanel({
                   <EditableText value={client.next_action} onSave={(v) => updateClient("next_action", v)} />
                 </Field>
               )}
-              {/* Skąd ten klient przyszedł — pole zapisywane przez trzy ścieżki
-                  awansu z leada i do 2026-07-26 nieczytane przez NIC. Świadomie
-                  tylko do odczytu: to migawka pochodzenia z chwili awansu, nie
-                  bieżący stan (ten sam powód, dla którego PATCH go nie zna). */}
-              {(client.zrodlo_kategoria || client.zrodlo) && (
-                <Field label="Skąd przyszedł">
-                  <p className="px-1 py-1.5 text-sm">
-                    {client.zrodlo_kategoria && (
-                      <span className="rounded-full bg-brand-purple/15 px-2 py-0.5 text-[11px] text-[var(--fg)]">
-                        {client.zrodlo_kategoria}
-                      </span>
-                    )}
-                    {client.zrodlo && <span className="ml-1.5 text-muted">{client.zrodlo}</span>}
-                  </p>
-                </Field>
-              )}
+            </div>
+
+            {/* Skąd ten klient przyszedł — pole zapisywane przez trzy ścieżki
+                awansu z leada i do 2026-07-26 nieczytane przez NIC. Edytowalne,
+                bo klienci sprzed tej daty mają kategorię PUSTĄ, a po niej liczy
+                się pętla poleceń — pole nie do poprawienia zostaje błędne na
+                zawsze. Pełna lista kategorii (jak w profilu leada): tu się je
+                POPRAWIA, nie tworzy. */}
+            <div className="mt-4">
+              <label className="mb-1 block text-[11px] text-muted">Skąd przyszedł</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <PillPicker
+                  value={client.zrodlo_kategoria}
+                  options={[...SOURCE_CATEGORIES]}
+                  onChange={(v) => updateClient("zrodlo_kategoria", v)}
+                  placeholder="Kategoria — wybierz"
+                  title="Kategoria źródła"
+                />
+                <div className="min-w-[200px] flex-1">
+                  <EditableText value={client.zrodlo} onSave={(v) => updateClient("zrodlo", v)} />
+                </div>
+              </div>
             </div>
 
             {followups.length > 0 && (
@@ -523,9 +558,43 @@ export function ClientDetailPanel({
               <EditableTextarea value={client.notatki} onSave={(v) => updateClient("notatki", v)} />
             </div>
 
-            {linkedCount > 0 && (
-              <div className="mt-6 border-t hairline pt-6">
-                <h2 className="mb-4 text-lg font-semibold">Powiązane</h2>
+            <div className="mt-6 border-t hairline pt-6">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-semibold">Powiązane</h2>
+                <span className="flex-1" />
+                {/* Nowy dokument wprost z karty klienta (2026-07-26, druga runda
+                    audytu). Do tej pory jedyna droga wiodła przez „+ Nowa oferta"
+                    na ekranie Ofert i wybranie klienta z pickera — z profilu
+                    klienta, czyli z miejsca, w którym akurat się stoi, nie dało
+                    się zrobić nic.
+
+                    Świadomie BEZ dedupe „jedna oferta na klienta" (inaczej niż
+                    przy NDA z Modułu 51): druga oferta dla tego samego klienta
+                    jest normalną sytuacją, a nie pomyłką. Rolę zabezpieczenia
+                    gra tu natychmiastowe przejście do dokumentu — nowy szkic
+                    nigdy nie zostaje niewidoczny, a przycisk jest w tym czasie
+                    zablokowany, więc podwójne kliknięcie nie zrobi dwóch. */}
+                <button
+                  onClick={() => createDocument("offers")}
+                  disabled={creatingDoc !== null}
+                  className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
+                >
+                  {creatingDoc === "offers" ? "Tworzę…" : "+ Nowa oferta"}
+                </button>
+                <button
+                  onClick={() => createDocument("invoices")}
+                  disabled={creatingDoc !== null}
+                  className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
+                >
+                  {creatingDoc === "invoices" ? "Tworzę…" : "+ Nowa faktura"}
+                </button>
+              </div>
+              {linkedCount === 0 && (
+                <p className="text-sm text-muted opacity-60">
+                  Nic jeszcze nie jest przypięte do tego klienta — zacznij od oferty.
+                </p>
+              )}
+              {linkedCount > 0 && (
                 <div className="space-y-4">
                   {offers.length > 0 && (
                     <LinkedGroup title="Oferty">
@@ -583,8 +652,8 @@ export function ClientDetailPanel({
                     </LinkedGroup>
                   )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Mapa procesu zostaje na wizytówce — to „gdzie jesteśmy z tym
                 klientem", czyli kontekst do danych obok, a nie historia. */}

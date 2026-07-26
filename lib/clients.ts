@@ -28,8 +28,12 @@ export type Client = {
   /** Osoba kontaktowa u klienta — kopiowana z leada przy awansie (Moduł 12),
    * pole istniało tylko w leads przed tą migracją. */
   osoba_kontaktowa: string;
-  /** Pochodzenie klienta (skąd przyszedł jako lead) — wolny tekst,
-   * kopiowany z leada przy awansie, nigdy nie edytowany ręcznie potem. */
+  /** Pochodzenie klienta (skąd przyszedł jako lead) — wolny tekst, kopiowany
+   * z leada przy awansie. Do 2026-07-26 opisane tu jako „nigdy nie edytowane
+   * ręcznie potem" i faktycznie nieprzyjmowane przez PATCH; poprawialne od
+   * drugiej rundy audytu Klientów, bo pole, po którym liczy się pętla poleceń,
+   * nie może zostawać błędne na zawsze (i było puste u wszystkich klientów
+   * sprzed rozbicia źródła na kategorię + szczegóły). */
   zrodlo: string;
   /** Kategoria źródła (SOURCE_CATEGORIES w lib/leads.ts) — patrz zrodlo. */
   zrodlo_kategoria: string;

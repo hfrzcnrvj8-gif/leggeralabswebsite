@@ -11,7 +11,7 @@ import {
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
 } from "./shared";
-import { SOURCE_CATEGORIES } from "@/lib/leads";
+import { SOURCE_CATEGORIES, guessSourceCategory } from "@/lib/leads";
 import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { ClientDetailPanel } from "./ClientDetailPanel";
@@ -155,6 +155,28 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     [confirm, toast]
   );
 
+  /** Auto-kategoryzacja źródeł dla klientów sprzed rozbicia źródła na
+   * kategorię + szczegóły — bliźniak `tidySources` z Leadów. Bez tego dojście
+   * do sensownej „konwersji per źródło" wymagałoby ręcznego otwarcia każdej
+   * karty: kategoria jest dziś pusta u WSZYSTKICH klientów założonych przed
+   * 2026-07-26. Sam tekst źródła zostaje nietknięty. */
+  const tidySources = useCallback(async () => {
+    if (!clients) return;
+    const targets = clients.filter((c) => !c.zrodlo_kategoria);
+    if (targets.length === 0) {
+      toast("Wszyscy klienci mają już przypisaną kategorię źródła.");
+      return;
+    }
+    const ok = await confirm(
+      `Automatycznie przypisać kategorię źródła dla ${targets.length} klientów, którzy jej jeszcze nie mają (na podstawie tekstu w polu „Źródło")? Sam tekst zostaje bez zmian, tylko dojdzie kategoria.`
+    );
+    if (!ok) return;
+    for (const c of targets) {
+      await updateClient(c.id, "zrodlo_kategoria", guessSourceCategory(c.zrodlo));
+    }
+    toast(`Uporządkowano źródło dla ${targets.length} klientów.`);
+  }, [clients, confirm, toast, updateClient]);
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -270,8 +292,9 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       // Tylko w palecie, bez kafelka w interfejsie: to akcja jednorazowa, nie
       // krok codziennej pracy, a Klienci to jej naturalny dom.
       { id: "orphans", label: "Powiąż wstecz oferty i faktury bez klienta", run: () => setOrphansOpen(true) },
+      { id: "tidy-sources", label: "Uporządkuj źródła (auto-kategoryzacja)", run: tidySources },
     ],
-    [addClient, switchView]
+    [addClient, switchView, tidySources]
   );
 
   if (!clients) {

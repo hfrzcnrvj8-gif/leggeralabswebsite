@@ -7300,3 +7300,47 @@ działała wcale i nie dawała żadnego objawu poza pigułką bez tła.
 Złapane pomiarem, nie okiem: zrzut ekranu wyglądał wiarygodnie, dopiero
 `getComputedStyle` pokazał `background-color: rgba(0,0,0,0)` przy poprawnej
 liście klas w `className`. Naprawa to jedna linia w `content`.
+
+### Moduł 51 — Klienci, runda domykająca (2026-07-26, tego samego dnia)
+
+Właściciel zapytał wprost, czy sekcja Klientów jest już „maksymalnie
+dopieszczona". Przegląd pod tym kątem wskazał cztery rzeczy — w tym jedną
+nierówność wprowadzoną godzinę wcześniej.
+
+**1. Opinie były w panelu, nie było ich w apce.** Pierwsza runda dodała
+karcie klienta w panelu ocenę, komentarz i zgodę na referencję; apka miała
+tylko gwiazdkę ze średnią w nagłówku. Zgoda jest tu najważniejsza — to ona
+decyduje, czy wolno pokazać opinię na zewnątrz. Apka składa `OpiniaKlienta`
+z pól przy projektach (opinia mieszka przy PROJEKCIE, nie przy kliencie).
+
+**2. Korespondencji klienta apka nie znała.** `GET /api/clients/:id` zwraca
+kartotekę do 100 wiadomości (Moduł 4d), panel renderuje ją nad osią kontaktu,
+apka dekodowała sam feed. Bez pełnej treści — ta mieszka w module Poczta; tu
+chodzi o kontekst przed telefonem.
+
+**3. Kategorii źródła klienta nie dało się poprawić.** Pierwsza runda zostawiła
+`zrodlo`/`zrodlo_kategoria` tylko do odczytu („migawka z chwili awansu"), co
+dało asymetrię nie do obronienia: lead ma picker, klient nie miał nic, a
+klienci sprzed tego dnia mają kategorię **pustą**. Po tej kolumnie liczy się
+pętla poleceń, więc pole nie do poprawienia zostaje błędne na zawsze. PATCH
+przyjmuje je teraz, wizytówka ma picker, apka też — a paleta poleceń dostała
+„Uporządkuj źródła (auto-kategoryzacja)", bliźniaka akcji z Leadów, dla
+rekordów sprzed zmiany. `WybieraczKategoriiZrodla` ma odtąd tryb `wszystkie`:
+przy TWORZENIU lista jest zawężona (kategorie ustawiane przez ścieżkę wejścia
+nie mają sensu pod palcem), przy POPRAWIANIU zawężenie jest szkodliwe — picker
+musiałby ukryć wartość, którą rekord właśnie ma, i cicho ją podmienić.
+
+**4. Z karty klienta nie dało się zrobić dokumentu.** Jedyna droga wiodła przez
+„+ Nowa oferta" na ekranie Ofert i wybranie klienta z pickera. Profil ma teraz
+„+ Nowa oferta" i „+ Nowa faktura" (z `client_id` i nazwą nabywcy).
+**Świadomie bez dedupe** — inaczej niż przy NDA z Modułu 51: druga oferta dla
+tego samego klienta to normalna sytuacja, nie pomyłka. Zabezpieczeniem jest
+natychmiastowe przejście do dokumentu (nowy szkic nigdy nie zostaje
+niewidoczny) plus zablokowany przycisk na czas tworzenia.
+
+**Pułapka z tej rundy: `tsc` przepuścił błąd składni JSX, bo puściłem go przed
+ostatnią zmianą.** Złapała go dopiero konsola przeglądarki („Unterminated
+regexp literal" — Turbopack tak raportuje zgubiony nawias w JSX). Uruchamiaj
+`tsc` PO ostatniej edycji, nie po przedostatniej; a jeśli strona nagle nie
+renderuje treści przy poprawnym typowaniu, pierwszym miejscem do sprawdzenia
+jest `read_console_messages`, nie kod.

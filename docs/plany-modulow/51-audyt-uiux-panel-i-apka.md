@@ -150,10 +150,17 @@ też gdzieś w `app/`. Nowa nie działała wcale i nie dawała żadnego objawu p
 pigułką bez tła. Złapane pomiarem `getComputedStyle` (zrzut wyglądał
 wiarygodnie), naprawione jedną linią w `content`.
 
+**Runda domykająca (ten sam dzień, po pytaniu „czy to już maksimum")** —
+szczegóły w `HUB_SETUP.md` → „Moduł 51 — Klienci, runda domykająca": opinie
+i korespondencja w apce (pierwsza runda dała je tylko panelowi), źródło klienta
+edytowalne wraz z auto-kategoryzacją dla rekordów sprzed zmiany, oraz „+ Nowa
+oferta / + Nowa faktura" wprost z karty klienta.
+
 **Świadomie nie ruszone:** retencja/RODO klientów (brak auto-usuwania jest
-decyzją z Audytu 2), rzeczy z `PO_REJESTRACJI.md`, tworzenie oferty/faktury
-wprost z karty klienta (nie istnieje w żadnej wersji — osobny zakres, nie
-regres), `zrodlo`/`zrodlo_kategoria` jako pola tylko do odczytu po utworzeniu.
+decyzją z Audytu 2), rzeczy z `PO_REJESTRACJI.md`, Moduł 16 (wsparcie
+posprzedażowe — jedyny niezbudowany etap mapy, czeka na pierwszego klienta
+z realną potrzebą), tablica kanban i eksport CSV w apce (to samo zawężenie
+„pełna kartoteka to praca przy biurku", co przy Leadach).
 
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
