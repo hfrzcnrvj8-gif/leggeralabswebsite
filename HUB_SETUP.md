@@ -8450,3 +8450,57 @@ płatności online (czekają na rejestrację).
   tego kontenera, bo animowany rodzic tworzy blok zawierający dla
   `position: fixed`. Zmierzone na 2560 px: lista 2286 px (było 1800),
   profil 2224 px. Menu jest SKRÓTEM — widoczne przyciski zostają.
+
+## Moduł 57, runda 4 — Oferty na iPhonie i iPadzie (2026-07-27)
+
+Decyzja właściciela: **wszystko oprócz cennika** działa na telefonie, plus
+akceptacja z wyraźnym potwierdzeniem. Poziom 2 dla Ofert zostaje cofnięty
+świadomie; Umowy i Faktury zostają na poziomie 2 bez zmian.
+
+### Co apka gubiła
+
+`APIClient` wołał TRZY trasy ofert z dziewięciu, a `sections` serwer wysyłał
+od rundy 2 — model ich po prostu nie dekodował. Profil pokazywał sam cennik.
+
+### Co jest teraz
+
+- **Treść oferty nad cennikiem**, ślad otwarcia („otworzył 3×", cisza od
+  wysyłki), szacowany zwrot, pozycje opcjonalne liczone jak w panelu
+  (`sumaPozycji` filtruje `opcjonalna && !wybrana` — bez tego telefon
+  pokazywałby cenę wariantu, którego klient nie kupił).
+- **Akcje**: udostępnienie linku (systemowe okno, nie schowek — z tym samym
+  ostrzeżeniem o szkicu co panel), przypomnienie mailem, nowa wersja,
+  odrzucenie z powodem, wygaśnięcie, **akceptacja**.
+- **Edycja treści** (`EdycjaTresciOfertyView`): bloki, uwagi, ważność 7/14/30,
+  waluta. Cennik świadomie NIE — literówka w cenie idzie prosto do klienta.
+- **Pulpit**: „Oferty bez decyzji" z przypomnieniem pod przesunięciem palcem.
+- **iPad**: dwie kolumny (`OfertyPanelIpad`) wzorem Klientów, z ich lekcją
+  o własnym nagłówku kolumny zamiast systemowego paska.
+- **Wiersz listy**: wersja, licznik otwarć, dni ciszy.
+
+### Akceptacja z telefonu — jak jest zbudowana
+
+Pytanie mówi wprost, co powstanie („projekt i SZKIC faktury… tego nie cofniesz
+jednym kliknięciem") i pozwala wybrać szablon projektu (`SzablonProjektu` —
+bliźniak `PROJECT_TEMPLATES`, tylko id + nazwa; kamienie milowe rozwija serwer).
+
+**Oferta po terminie nie jest ślepym zaułkiem**: serwer odmawia (409), a apka
+proponuje „Zaakceptuj mimo to", tak samo jak panel. Pułapka, na której to
+poległo za pierwszym razem: **409 przychodzi jako `APIError.odmowa`, NIE
+`APIError.serwer`** — pierwsze podejście łapało zły przypadek, kompilowało się
+bez ostrzeżeń i nie działało wcale. Wyszło dopiero przy klikaniu.
+
+### Pułapki złapane przy tej rundzie
+
+- **`CodingKeys` z kluczami spoza właściwości psuje syntetyczny `Encodable`.**
+  `PulpitOferta` mapuje `otwarta_at` na `otwarta: Bool`, więc `Codable`
+  wymagało ręcznego `encode` (cały `PulpitDzis` jest kodowany do pamięci
+  podręcznej widżetu).
+- **Wielkie ciało `List` wywala kompilator** („unable to type-check this
+  expression in reasonable time"). Lekarstwo: sekcje jako osobne
+  `@ViewBuilder`.
+- **Nowy plik `.swift` wymaga `xcodegen generate`** — bez tego build nie
+  widzi typu i mówi „cannot find in scope".
+- Mapa `CelWpisuOsi` musi nadążać za `CLIENT_EVENT_TARGET`: wpisy
+  `offer_opened`/`offer_rejected`/`offer_expired`/`offer_change_requested`
+  wyglądały na klikalne i prowadziły donikąd.

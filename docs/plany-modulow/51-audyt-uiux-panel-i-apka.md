@@ -279,6 +279,17 @@ czasu przez `new Date(created_at)` w przeglądarce, a `NoteActivityLog.tsx:120`
 tak samo renderuje datę — na Safari dadzą złą kolejność i „Invalid Date".
 Do zrobienia przy najbliższym dotknięciu tych plików.
 
+### Runda 4 — apka (2026-07-27)
+
+Oferty przeszły na iPhone'a i iPada w zakresie „wszystko oprócz cennika"
+(decyzja właściciela), razem z akceptacją oferty z telefonu. Szczegóły
+i pułapki: `HUB_SETUP.md` → „Moduł 57, runda 4".
+
+**Zostaje otwarte:** kolor „Wysłana" (cyjan panel / fiolet apka) do
+rozstrzygnięcia raz dla wszystkich dokumentów przy module Umowy, podręcznik
+obsługi dla części mobilnej, oraz szablony ofert na telefonie (świadomie nie —
+to praca przy biurku).
+
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`
