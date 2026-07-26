@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { IconPlus, IconStar, IconStarFilled, IconTrash, IconPencil } from "@tabler/icons-react";
 import { type ClientContact, clientContactLine, ContactChannelIcon } from "./shared";
+import { SekcjaProfilu } from "../ProfileSection";
 import { useUI } from "../ui";
 
 /**
@@ -122,18 +123,21 @@ export function ClientContacts({
   );
 
   return (
-    <div className="mt-6">
-      <div className="mb-2 flex items-center gap-2">
-        <h2 className="text-lg font-semibold">Osoby kontaktowe</h2>
-        <span className="flex-1" />
+    // Sekcja jak reszta atrybutów (runda czytelności 2026-07-26) — wcześniej
+    // ta lista miała własny nagłówek `text-lg` i wisiała na płaskim tle, przez
+    // co wyglądała jak trzeci rodzaj elementu obok pól i osi czasu.
+    <SekcjaProfilu
+      tytul="Osoby kontaktowe"
+      wiersze={false}
+      akcje={
         <button
           onClick={otworzNowa}
-          className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+          className="flex items-center gap-1 rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:text-[var(--fg)]"
         >
-          <IconPlus size={13} /> Dodaj osobę
+          <IconPlus size={12} /> Dodaj osobę
         </button>
-      </div>
-
+      }
+    >
       {contacts.length === 0 && edytowany === null && (
         // Trzeci wariant stanu pustego (ustalenie A1): mówi, czego brakuje
         // i co to zmienia, zamiast samego „brak".
@@ -216,7 +220,7 @@ export function ClientContacts({
           />
         )}
       </div>
-    </div>
+    </SekcjaProfilu>
   );
 }
 

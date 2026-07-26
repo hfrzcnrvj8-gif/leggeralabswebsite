@@ -420,6 +420,21 @@
   box-shadow: none;
 }
 
+/* Sekcja WEWNĄTRZ karty profilu — odpowiednik `Section` w `List(.insetGrouped)`
+   z apki (Moduł 54, krok 6, runda czytelności 2026-07-26). Zgłoszenie
+   właściciela brzmiało „w panelu wszystko się zlewa, w apce ten sam układ jest
+   przejrzysty" — i różnicą nie była treść ani odstępy, tylko to, że w apce
+   każda grupa pól leży na WŁASNEJ, jaśniejszej płycie z nagłówkiem
+   kapitalikami, a w panelu wszystko leżało na jednym płaskim tle.
+
+   Odcień dobrany o włos jaśniej niż `--bg-soft` karty (#0d0e10): ma się
+   odcinać, gdy się na to patrzy, i nie rzucać w oczy, gdy się czyta. Mocniejszy
+   kontrast robił z profilu szachownicę — sprawdzone na żywo. */
+.admin-linear .card-inset {
+  background: #101114;
+  border: 1px solid var(--hairline);
+}
+
 /* ─── Moduł 5, Paczka 4: „odwebowienie" panelu ──────────────────────────────
    Drobiazgi, po których na telefonie od razu widać stronę w przeglądarce
    zamiast aplikacji. Każdy z osobna wygląda błaho, razem odpowiadają za sporą

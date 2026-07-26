@@ -28,6 +28,7 @@ import {
   StatusTag,
 } from "./shared";
 import { ProcessMap, PillPicker } from "../components";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { CONTRACT_STATUS_CLASS } from "@/lib/contracts";
 import { LinkPicker } from "../LinkPicker";
 import { useUI } from "../ui";
@@ -407,70 +408,84 @@ export function LeadDetailPanel({
           przy pierwszej poprawce. */}
       <div className="mt-5 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="order-2 min-w-0 lg:sticky lg:top-0 lg:order-1 lg:max-h-[calc(85vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:gap-3">
-            <Field label="Branża">
-              <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
-            </Field>
-            <Field label="Telefon">
-              <EditableText value={lead.telefon} onSave={(v) => updateLead("telefon", v)} />
-            </Field>
-            <Field label="Email">
-              <EditableText value={lead.email} onSave={(v) => updateLead("email", v)} />
-            </Field>
-            <Field label="WWW">
-              <EditableText value={lead.www} onSave={(v) => updateLead("www", v)} />
-            </Field>
-            <Field label="LinkedIn">
-              <EditableText value={lead.linkedin_url} onSave={(v) => updateLead("linkedin_url", v)} />
-            </Field>
-            <Field label="Ulica">
-              <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
-            </Field>
-            <Field label="Kod / Miasto">
-              <div className="flex gap-2">
-                <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
-                <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
-              </div>
-            </Field>
-            <Field label="Kraj">
-              <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />
-            </Field>
-            <Field label="Źródło">
-              <PillPicker
-                value={lead.zrodlo_kategoria}
-                options={SOURCE_CATEGORIES}
-                onChange={(v) => updateLead("zrodlo_kategoria", v)}
-                placeholder="— wybierz kategorię —"
-                title="Zmień kategorię źródła"
-              />
-            </Field>
-            <Field label="Szczegóły źródła">
-              <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
-            </Field>
-            <Field label="Ostatni kontakt">
-              <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
-            </Field>
-            <Field label="Przypomnij mi">
-              <div className="space-y-1.5">
-                <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
-                {/* Pigułki jak u klienta i jak w apce: ustawienie terminu to
-                    jeden klik. Przypomnienie jest JEDYNĄ rzeczą, która zapala
-                    leadowi „wymaga działania dziś". */}
-                <QuickDateChips onPick={(v) => updateLead("next_followup", v)} />
-              </div>
-            </Field>
-            {lead.next_followup && (
-              <Field label="Następny krok (po co przypomnienie)">
-                <EditableText value={lead.next_action} onSave={(v) => updateLead("next_action", v)} />
-              </Field>
-            )}
-          </div>
+          {/* Sekcje i ich kolejność 1:1 z profilem klienta (runda czytelności
+              2026-07-26) — u leada nie ma tylko „Osób kontaktowych", bo to
+              wciąż jedno pole w nagłówku. Powód całego zabiegu: `SekcjaProfilu`
+              w `../ProfileSection.tsx`. */}
+          <div className="space-y-4">
+            <SekcjaProfilu tytul="Kontakt">
+              <WierszPola etykieta="Telefon">
+                <EditableText value={lead.telefon} onSave={(v) => updateLead("telefon", v)} />
+              </WierszPola>
+              <WierszPola etykieta="Email">
+                <EditableText value={lead.email} onSave={(v) => updateLead("email", v)} />
+              </WierszPola>
+              <WierszPola etykieta="WWW">
+                <EditableText value={lead.www} onSave={(v) => updateLead("www", v)} />
+              </WierszPola>
+              <WierszPola etykieta="LinkedIn">
+                <EditableText value={lead.linkedin_url} onSave={(v) => updateLead("linkedin_url", v)} />
+              </WierszPola>
+            </SekcjaProfilu>
 
-          {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
-              to stała prawda o leadzie, a nie wpis z datą. */}
-          <div className="mt-6 border-t hairline pt-6">
-            <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
-            <EditableTextarea value={lead.notatki} onSave={(v) => updateLead("notatki", v)} />
+            <SekcjaProfilu tytul="Rytm kontaktu">
+              <WierszPola etykieta="Ostatni kontakt">
+                <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
+              </WierszPola>
+              <WierszPola etykieta="Przypomnij mi">
+                <div className="space-y-1.5">
+                  <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
+                  {/* Pigułki jak u klienta i jak w apce: ustawienie terminu to
+                      jeden klik. Przypomnienie jest JEDYNĄ rzeczą, która zapala
+                      leadowi „wymaga działania dziś". */}
+                  <QuickDateChips onPick={(v) => updateLead("next_followup", v)} />
+                </div>
+              </WierszPola>
+              {lead.next_followup && (
+                <WierszPola etykieta="Następny krok" title="Po co jest to przypomnienie">
+                  <EditableText value={lead.next_action} onSave={(v) => updateLead("next_action", v)} />
+                </WierszPola>
+              )}
+            </SekcjaProfilu>
+
+            <SekcjaProfilu tytul="Firma">
+              <WierszPola etykieta="Branża">
+                <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
+              </WierszPola>
+              <WierszPola etykieta="Skąd przyszedł">
+                <div className="space-y-1">
+                  <PillPicker
+                    value={lead.zrodlo_kategoria}
+                    options={SOURCE_CATEGORIES}
+                    onChange={(v) => updateLead("zrodlo_kategoria", v)}
+                    placeholder="Kategoria — wybierz"
+                    title="Zmień kategorię źródła"
+                  />
+                  <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
+                </div>
+              </WierszPola>
+            </SekcjaProfilu>
+
+            <SekcjaProfilu tytul="Adres">
+              <WierszPola etykieta="Ulica">
+                <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
+              </WierszPola>
+              <WierszPola etykieta="Kod / Miasto">
+                <div className="flex gap-2">
+                  <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
+                  <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
+                </div>
+              </WierszPola>
+              <WierszPola etykieta="Kraj">
+                <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />
+              </WierszPola>
+            </SekcjaProfilu>
+
+            {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
+                to stała prawda o leadzie, a nie wpis z datą. */}
+            <SekcjaProfilu tytul="Notatka przypięta" wiersze={false}>
+              <EditableTextarea value={lead.notatki} onSave={(v) => updateLead("notatki", v)} />
+            </SekcjaProfilu>
           </div>
         </aside>
 
@@ -478,7 +493,9 @@ export function LeadDetailPanel({
           {/* Mapa procesu NAD zakładkami — „gdzie jesteśmy z tym leadem" to
               kontekst do wszystkiego, co niżej. */}
           <div className="mb-4">
-            <label className="mb-1.5 block text-[11px] text-muted">Proces sprzedaży</label>
+            <label className="mb-1.5 block px-1 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
+              Proces sprzedaży
+            </label>
             <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
           </div>
 
@@ -498,10 +515,12 @@ export function LeadDetailPanel({
             {/* Limit szerokości jak u klienta: oś czasu to zdania do czytania,
                 a prawa kolumna ma na szerokim monitorze ponad 1800 px. */}
             {tab === "history" && (
-              <div className="mt-6 max-w-5xl">
-                <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
-
-                <form onSubmit={submitNote} className="mb-6 space-y-2">
+              <div className="mt-6 max-w-5xl space-y-4">
+                {/* Formularz na własnej płycie — to jedyne miejsce w profilu,
+                    w którym się PISZE, a na wspólnym tle wyglądał jak pierwszy
+                    wpis osi. */}
+                <SekcjaProfilu tytul="Nowy wpis" wiersze={false}>
+                <form onSubmit={submitNote} className="space-y-2">
                   <textarea
                     ref={noteRef}
                     value={noteText}
@@ -633,13 +652,21 @@ export function LeadDetailPanel({
                     </button>
                   </div>
                 </form>
+                </SekcjaProfilu>
 
+                {/* `plyta={false}`: wpisy mają własne obramowania, więc płyta
+                    pod nimi zrobiłaby pudełko w pudełku. */}
+                <SekcjaProfilu tytul="Log aktywności" plyta={false}>
                 {activity.length === 0 ? (
                   <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
                 ) : (
                   groupActivityByDay(activity).map((group) => (
                     <div key={group.label} className="mb-4 last:mb-0">
-                      <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
+                      {/* Nagłówek dnia przykleja się do góry karty przy
+                          przewijaniu — jak w Wiadomościach iOS i jak u klienta. */}
+                      <div className="sticky top-0 z-10 -mx-1 bg-[var(--bg-soft)] px-1 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted opacity-90">
+                        {group.label}
+                      </div>
                       <ul className="space-y-2">
                         {group.items.map((a) => {
                           const badge = activityBadge(a);
@@ -680,6 +707,7 @@ export function LeadDetailPanel({
                     </div>
                   ))
                 )}
+                </SekcjaProfilu>
               </div>
             )}
 
@@ -704,15 +732,6 @@ function PanelHeader({ onClose }: { onClose?: () => void }) {
       >
         ✕ Zamknij
       </button>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1 block text-[11px] text-muted">{label}</label>
-      {children}
     </div>
   );
 }

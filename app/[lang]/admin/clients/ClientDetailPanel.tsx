@@ -41,6 +41,7 @@ import {
   StatusTag,
 } from "./shared";
 import { ProcessMap, PillPicker } from "../components";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { SOURCE_CATEGORIES } from "@/lib/leads";
 import { formatPlDate } from "@/lib/projects";
 import { CONTRACT_TYP_LABEL } from "@/lib/contracts";
@@ -489,137 +490,144 @@ export function ClientDetailPanel({
           kartoteka na telefonie to i tak domena apki. */}
       <div className="mt-5 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="order-2 min-w-0 lg:sticky lg:top-0 lg:order-1 lg:max-h-[calc(85vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
-          {/* Jedna kolumna pól od `lg` w górę — to cała idea tego układu.
-              Do 2026-07-26 siatka szła do czterech kolumn na szerokim
-              ekranie; teraz szerokość dostaje oś czasu, a pola stoją
-              w słupku, jak atrybuty rekordu w Attio. Przy węższym ekranie
-              (bez podziału na kolumny) zostają dwie kolumny, żeby nie robić
-              z wizytówki kilometrowej listy. */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:gap-3">
+          {/* Atrybuty w NAZWANYCH sekcjach, po jednej płycie na grupę — wprost
+              z apki (`Section("Kontakt")`, `Section("Dane")`
+              w `KlientDetailView.swift`). Do rundy czytelności 2026-07-26 stała
+              tu jedna siatka trzynastu pól bez żadnego podziału i to ona
+              odpowiadała za „wszystko się zlewa": pola były w dobrej
+              kolejności, tylko nic nie mówiło, gdzie kończy się jedna myśl,
+              a zaczyna druga.
+
+              Kolejność sekcji to kolejność pytań przy telefonie: najpierw
+              „jak się z nimi skontaktować", potem „kiedy do nich wrócić",
+              a dane rejestrowe i adres na końcu — bo do nich sięga się przy
+              fakturze, nie w rozmowie. */}
+          <div className="space-y-4">
+            <SekcjaProfilu tytul="Kontakt">
+              <WierszPola etykieta="Telefon">
+                <EditableText value={client.telefon} onSave={(v) => updateClient("telefon", v)} />
+              </WierszPola>
+              <WierszPola etykieta="Email">
+                <EditableText value={client.email} onSave={(v) => updateClient("email", v)} />
+              </WierszPola>
+              <WierszPola etykieta="WWW">
+                <EditableText value={client.www} onSave={(v) => updateClient("www", v)} />
+              </WierszPola>
+              <WierszPola etykieta="LinkedIn">
+                <EditableText value={client.linkedin_url} onSave={(v) => updateClient("linkedin_url", v)} />
+              </WierszPola>
+            </SekcjaProfilu>
+
+            <SekcjaProfilu tytul="Rytm kontaktu">
+              <WierszPola etykieta="Ostatni kontakt">
+                <div className="space-y-1">
+                  <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
+                  {/* Sama data wymaga liczenia w głowie — a pytanie brzmi „jak
+                      dawno", nie „którego". Tabela miała kolumnę „Dni" od
+                      dawna, karta milczała. */}
+                  {daysAgoLabel(clientDaysSince(client.ostatni_kontakt)) && (
+                    <p className="px-1 text-[11px] text-muted">{daysAgoLabel(clientDaysSince(client.ostatni_kontakt))}</p>
+                  )}
+                </div>
+              </WierszPola>
+              <WierszPola etykieta="Przypomnij mi">
+                <div className="space-y-1.5">
+                  <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
+                  {/* Pigułki jak w apce: ustawienie terminu to jeden klik,
+                      nie wejście w kalendarz. Przypomnienie jest JEDYNĄ rzeczą,
+                      która zapala klientowi „wymaga działania dziś". */}
+                  <QuickDateChips onPick={(v) => updateClient("next_followup", v)} />
+                </div>
+              </WierszPola>
+              {client.next_followup && (
+                <WierszPola etykieta="Następny krok" title="Po co jest to przypomnienie">
+                  <EditableText value={client.next_action} onSave={(v) => updateClient("next_action", v)} />
+                </WierszPola>
+              )}
+              {/* Rytm kontaktu (2026-07-26) — wzorzec z Claya: rytm jest
+                  decyzją PER RELACJA, nie stałą dla wszystkich. Domyślnie
+                  „bez pilnowania", bo sztywny próg ciszy dla każdego klienta
+                  został tu wcześniej świadomie odrzucony. Gdy rytm minie,
+                  klient sam trafia do „wymaga działania dziś" i w poranny mail
+                  — także wtedy, gdy nie ustawiłeś mu żadnej daty. */}
+              <WierszPola etykieta="Odzywaj się" title="Co ile odzywać się do tego klienta">
+                <div className="space-y-1">
+                  <PillPicker
+                    value={CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label ?? "Bez pilnowania"}
+                    options={CLIENT_RHYTHMS.map((r) => r.label)}
+                    onChange={(label) => {
+                      const wybrany = CLIENT_RHYTHMS.find((r) => r.label === label);
+                      updateClient("rytm_kontaktu_mies", wybrany?.miesiace ? String(wybrany.miesiace) : "");
+                    }}
+                    placeholder="Bez pilnowania"
+                    title="Co ile odzywać się do tego klienta"
+                  />
+                  {clientRhythmOverdue(client) && (
+                    <p className="px-1 text-[11px] font-medium text-orange-400">
+                      Rytm minął — cisza od {clientSilenceDays(client)} dni.
+                    </p>
+                  )}
+                </div>
+              </WierszPola>
+            </SekcjaProfilu>
+
             {/* Pojedyncze pole „Osoba kontaktowa" zastąpione LISTĄ osób
-                (Moduł 54, krok 4) — sekcja pod siatką pól. Kolumna
-                `osoba_kontaktowa` została w bazie jako migawka osoby głównej
-                i serwer przepisuje ją sam, więc tutaj nie ma już czego
-                edytować. */}
-            <Field label="NIP">
-              <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
-            </Field>
-            <Field label="Branża">
-              <EditableText value={client.branza} onSave={(v) => updateClient("branza", v)} />
-            </Field>
-            <Field label="Telefon">
-              <EditableText value={client.telefon} onSave={(v) => updateClient("telefon", v)} />
-            </Field>
-            <Field label="Email">
-              <EditableText value={client.email} onSave={(v) => updateClient("email", v)} />
-            </Field>
-            <Field label="WWW">
-              <EditableText value={client.www} onSave={(v) => updateClient("www", v)} />
-            </Field>
-            <Field label="LinkedIn">
-              <EditableText value={client.linkedin_url} onSave={(v) => updateClient("linkedin_url", v)} />
-            </Field>
-            <Field label="Ulica">
-              <EditableText value={client.ulica} onSave={(v) => updateClient("ulica", v)} />
-            </Field>
-            <Field label="Kod / Miasto">
-              <div className="flex gap-2">
-                <EditableText value={client.kod} onSave={(v) => updateClient("kod", v)} />
-                <EditableText value={client.miasto} onSave={(v) => updateClient("miasto", v)} />
-              </div>
-            </Field>
-            <Field label="Kraj">
-              <EditableText value={client.kraj} onSave={(v) => updateClient("kraj", v)} />
-            </Field>
-            <Field label="Ostatni kontakt">
-              <div className="space-y-1">
-                <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
-                {/* Sama data wymaga liczenia w głowie — a pytanie brzmi „jak
-                    dawno", nie „którego". Tabela miała kolumnę „Dni" od
-                    dawna, karta milczała. */}
-                {daysAgoLabel(clientDaysSince(client.ostatni_kontakt)) && (
-                  <p className="px-1 text-[11px] text-muted">{daysAgoLabel(clientDaysSince(client.ostatni_kontakt))}</p>
-                )}
-              </div>
-            </Field>
-            <Field label="Przypomnij mi">
-              <div className="space-y-1.5">
-                <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
-                {/* Pigułki jak w apce: ustawienie terminu to jeden klik,
-                    nie wejście w kalendarz. Przypomnienie jest JEDYNĄ rzeczą,
-                    która zapala klientowi „wymaga działania dziś". */}
-                <QuickDateChips onPick={(v) => updateClient("next_followup", v)} />
-              </div>
-            </Field>
-            {/* Rytm kontaktu (2026-07-26) — wzorzec z Claya: rytm jest
-                decyzją PER RELACJA, nie stałą dla wszystkich. Domyślnie
-                „bez pilnowania", bo sztywny próg ciszy dla każdego klienta
-                został tu wcześniej świadomie odrzucony. Gdy rytm minie,
-                klient sam trafia do „wymaga działania dziś" i w poranny mail
-                — także wtedy, gdy nie ustawiłeś mu żadnej daty. */}
-            <Field label="Odzywaj się">
-              <div className="space-y-1">
-                <PillPicker
-                  value={CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label ?? "Bez pilnowania"}
-                  options={CLIENT_RHYTHMS.map((r) => r.label)}
-                  onChange={(label) => {
-                    const wybrany = CLIENT_RHYTHMS.find((r) => r.label === label);
-                    updateClient("rytm_kontaktu_mies", wybrany?.miesiace ? String(wybrany.miesiace) : "");
-                  }}
-                  placeholder="Bez pilnowania"
-                  title="Co ile odzywać się do tego klienta"
-                />
-                {clientRhythmOverdue(client) && (
-                  <p className="px-1 text-[11px] font-medium text-orange-400">
-                    Rytm minął — cisza od {clientSilenceDays(client)} dni.
-                  </p>
-                )}
-              </div>
-            </Field>
-            {client.next_followup && (
-              <Field label="Następny krok (po co przypomnienie)">
-                <EditableText value={client.next_action} onSave={(v) => updateClient("next_action", v)} />
-              </Field>
-            )}
-          </div>
+                (Moduł 54, krok 4). Kolumna `osoba_kontaktowa` została w bazie
+                jako migawka osoby głównej i serwer przepisuje ją sam, więc
+                tutaj nie ma już czego edytować.
 
-          {/* Skąd ten klient przyszedł — pole zapisywane przez trzy ścieżki
-              awansu z leada i do 2026-07-26 nieczytane przez NIC. Edytowalne,
-              bo klienci sprzed tej daty mają kategorię PUSTĄ, a po niej liczy
-              się pętla poleceń — pole nie do poprawienia zostaje błędne na
-              zawsze. Pełna lista kategorii (jak w profilu leada): tu się je
-              POPRAWIA, nie tworzy. */}
-          <div className="mt-4">
-            <label className="mb-1 block text-[11px] text-muted">Skąd przyszedł</label>
-            <div className="flex flex-wrap items-center gap-2">
-              <PillPicker
-                value={client.zrodlo_kategoria}
-                options={[...SOURCE_CATEGORIES]}
-                onChange={(v) => updateClient("zrodlo_kategoria", v)}
-                placeholder="Kategoria — wybierz"
-                title="Kategoria źródła"
-              />
-              <div className="min-w-[200px] flex-1">
-                <EditableText value={client.zrodlo} onSave={(v) => updateClient("zrodlo", v)} />
-              </div>
-            </div>
-          </div>
-
-          {/* Osoby kontaktowe (Moduł 54, krok 4) — zaraz pod danymi firmy,
-              nad kontaktami kontrolnymi: to odpowiedź na pytanie „z kim
-              rozmawiam", które pada wcześniej niż „kiedy do nich wrócić".
-              `load` zamiast samego przeładowania listy, bo zmiana osoby
-              głównej przepisuje migawkę na kliencie. */}
-          <div className="mt-6 border-t hairline pt-6">
+                `load` zamiast samego przeładowania listy, bo zmiana osoby
+                głównej przepisuje migawkę na kliencie. */}
             <ClientContacts clientId={id} contacts={contacts} onChanged={load} waskaKolumna />
-          </div>
 
-          {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
-              to stała prawda o kliencie („płaci przelewem, nie kartą"), a nie
-              wpis z datą. Wpisy z datą mają swoje miejsce obok. */}
-          <div className="mt-6 border-t hairline pt-6">
-            <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
-            <EditableTextarea value={client.notatki} onSave={(v) => updateClient("notatki", v)} />
+            <SekcjaProfilu tytul="Firma">
+              <WierszPola etykieta="NIP">
+                <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
+              </WierszPola>
+              <WierszPola etykieta="Branża">
+                <EditableText value={client.branza} onSave={(v) => updateClient("branza", v)} />
+              </WierszPola>
+              {/* Skąd ten klient przyszedł — pole zapisywane przez trzy ścieżki
+                  awansu z leada i do 2026-07-26 nieczytane przez NIC.
+                  Edytowalne, bo klienci sprzed tej daty mają kategorię PUSTĄ,
+                  a po niej liczy się pętla poleceń — pole nie do poprawienia
+                  zostaje błędne na zawsze. Pełna lista kategorii (jak w profilu
+                  leada): tu się je POPRAWIA, nie tworzy. */}
+              <WierszPola etykieta="Skąd przyszedł">
+                <div className="space-y-1">
+                  <PillPicker
+                    value={client.zrodlo_kategoria}
+                    options={[...SOURCE_CATEGORIES]}
+                    onChange={(v) => updateClient("zrodlo_kategoria", v)}
+                    placeholder="Kategoria — wybierz"
+                    title="Kategoria źródła"
+                  />
+                  <EditableText value={client.zrodlo} onSave={(v) => updateClient("zrodlo", v)} />
+                </div>
+              </WierszPola>
+            </SekcjaProfilu>
+
+            <SekcjaProfilu tytul="Adres">
+              <WierszPola etykieta="Ulica">
+                <EditableText value={client.ulica} onSave={(v) => updateClient("ulica", v)} />
+              </WierszPola>
+              <WierszPola etykieta="Kod / Miasto">
+                <div className="flex gap-2">
+                  <EditableText value={client.kod} onSave={(v) => updateClient("kod", v)} />
+                  <EditableText value={client.miasto} onSave={(v) => updateClient("miasto", v)} />
+                </div>
+              </WierszPola>
+              <WierszPola etykieta="Kraj">
+                <EditableText value={client.kraj} onSave={(v) => updateClient("kraj", v)} />
+              </WierszPola>
+            </SekcjaProfilu>
+
+            {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
+                to stała prawda o kliencie („płaci przelewem, nie kartą"), a nie
+                wpis z datą. Wpisy z datą mają swoje miejsce obok. */}
+            <SekcjaProfilu tytul="Notatka przypięta" wiersze={false}>
+              <EditableTextarea value={client.notatki} onSave={(v) => updateClient("notatki", v)} />
+            </SekcjaProfilu>
           </div>
         </aside>
 
@@ -629,7 +637,9 @@ export function ClientDetailPanel({
               Do kroku 6 siedziała na dole wizytówki, więc widać ją było tylko
               po przewinięciu wszystkich pól. */}
           <div className="mb-4">
-            <label className="mb-1.5 block text-[11px] text-muted">Proces sprzedaży</label>
+            <label className="mb-1.5 block px-1 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
+              Proces sprzedaży
+            </label>
             <ProcessMap currentStep={CLIENT_STATUS_STEP[client.status] ?? 3} />
           </div>
 
@@ -648,11 +658,10 @@ export function ClientDetailPanel({
 
           <ViewSwitch viewKey={tab}>
             {tab === "linked" && (
-              <div>
+              <div className="mt-6 space-y-4">
                 {followups.length > 0 && (
-                  <div className={SEKCJA_ZAKLADKI}>
-                    <h2 className="mb-1 text-lg font-semibold">Kontakty kontrolne</h2>
-                    <p className="mb-4 text-[12px] text-muted opacity-70">
+                  <SekcjaProfilu tytul="Kontakty kontrolne" wiersze={false}>
+                    <p className="mb-3 text-[12px] text-muted opacity-70">
                       Planowane automatycznie po wdrożeniu projektu (+14 i +90 dni). Szkic wiadomości przygotujesz na
                       Pulpicie w dniu terminu.
                     </p>
@@ -686,12 +695,11 @@ export function ClientDetailPanel({
                         );
                       })}
                     </ul>
-                  </div>
+                  </SekcjaProfilu>
                 )}
 
                 {reviewed.length > 0 && (
-                  <div className={SEKCJA_ZAKLADKI}>
-                    <h2 className="mb-4 text-lg font-semibold">Opinie</h2>
+                  <SekcjaProfilu tytul="Opinie" wiersze={false}>
                     <ul className="space-y-2 text-sm">
                       {reviewed.map((p) => {
                         const ocena = projectRating(p);
@@ -720,40 +728,43 @@ export function ClientDetailPanel({
                         );
                       })}
                     </ul>
-                  </div>
+                  </SekcjaProfilu>
                 )}
 
-                <div className={SEKCJA_ZAKLADKI}>
-                  <div className="mb-4 flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold">Powiązane</h2>
-                    <span className="flex-1" />
-                    {/* Nowy dokument wprost z karty klienta (2026-07-26, druga runda
-                        audytu). Do tej pory jedyna droga wiodła przez „+ Nowa oferta"
-                        na ekranie Ofert i wybranie klienta z pickera — z profilu
-                        klienta, czyli z miejsca, w którym akurat się stoi, nie dało
-                        się zrobić nic.
+                {/* Nowy dokument wprost z karty klienta (2026-07-26, druga runda
+                    audytu). Do tej pory jedyna droga wiodła przez „+ Nowa oferta"
+                    na ekranie Ofert i wybranie klienta z pickera — z profilu
+                    klienta, czyli z miejsca, w którym akurat się stoi, nie dało
+                    się zrobić nic.
 
-                        Świadomie BEZ dedupe „jedna oferta na klienta" (inaczej niż
-                        przy NDA z Modułu 51): druga oferta dla tego samego klienta
-                        jest normalną sytuacją, a nie pomyłką. Rolę zabezpieczenia
-                        gra tu natychmiastowe przejście do dokumentu — nowy szkic
-                        nigdy nie zostaje niewidoczny, a przycisk jest w tym czasie
-                        zablokowany, więc podwójne kliknięcie nie zrobi dwóch. */}
-                    <button
-                      onClick={() => createDocument("offers")}
-                      disabled={creatingDoc !== null}
-                      className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
-                    >
-                      {creatingDoc === "offers" ? "Tworzę…" : "+ Nowa oferta"}
-                    </button>
-                    <button
-                      onClick={() => createDocument("invoices")}
-                      disabled={creatingDoc !== null}
-                      className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
-                    >
-                      {creatingDoc === "invoices" ? "Tworzę…" : "+ Nowa faktura"}
-                    </button>
-                  </div>
+                    Świadomie BEZ dedupe „jedna oferta na klienta" (inaczej niż
+                    przy NDA z Modułu 51): druga oferta dla tego samego klienta
+                    jest normalną sytuacją, a nie pomyłką. Rolę zabezpieczenia
+                    gra tu natychmiastowe przejście do dokumentu — nowy szkic
+                    nigdy nie zostaje niewidoczny, a przycisk jest w tym czasie
+                    zablokowany, więc podwójne kliknięcie nie zrobi dwóch. */}
+                <SekcjaProfilu
+                  tytul="Powiązane"
+                  wiersze={false}
+                  akcje={
+                    <>
+                      <button
+                        onClick={() => createDocument("offers")}
+                        disabled={creatingDoc !== null}
+                        className="rounded-full border hairline px-2.5 py-0.5 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                      >
+                        {creatingDoc === "offers" ? "Tworzę…" : "+ Nowa oferta"}
+                      </button>
+                      <button
+                        onClick={() => createDocument("invoices")}
+                        disabled={creatingDoc !== null}
+                        className="rounded-full border hairline px-2.5 py-0.5 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                      >
+                        {creatingDoc === "invoices" ? "Tworzę…" : "+ Nowa faktura"}
+                      </button>
+                    </>
+                  }
+                >
                   {linkedCount === 0 && (
                     <p className="text-sm text-muted opacity-60">
                       Nic jeszcze nie jest przypięte do tego klienta — zacznij od oferty.
@@ -818,7 +829,7 @@ export function ClientDetailPanel({
                       )}
                     </div>
                   )}
-                </div>
+                </SekcjaProfilu>
               </div>
             )}
 
@@ -829,19 +840,12 @@ export function ClientDetailPanel({
                     czasu to zdania do czytania — wiersz przez cały ekran gubi się
                     przy powrocie do lewej krawędzi. „Powiązane" limitu nie mają,
                     bo to krótkie wiersze z linkami. */}
-                <div className="mt-6 max-w-5xl">
-                  {/* JEDNA oś zamiast dwóch list (2026-07-26). Do tej pory nad
-                      historią stała osobna sekcja „Korespondencja", a feed i tak
-                      zawiera wpisy powstałe z tych samych maili — ten sam mail
-                      widniał więc dwa razy (zgłoszenie właściciela). Maile, których
-                      feed nie zna, dochodzą do osi niżej, więc scalenie niczego nie
-                      gubi. Nadpisuje decyzję z 2026-07-15 o osobnej kartotece. */}
-                  <h2 className="mb-1 text-lg font-semibold">Pełna historia</h2>
-                  <p className="mb-4 text-[12px] text-muted opacity-70">
-                    Rozmowy, maile i zdarzenia systemowe (oferty, faktury, wpłaty) w jednej chronologicznej osi.
-                  </p>
-
-                  <form onSubmit={submitNote} className="mb-6 space-y-2">
+                <div className="mt-6 max-w-5xl space-y-4">
+                  {/* Formularz na WŁASNEJ płycie — to jedyne miejsce w profilu,
+                      w którym się PISZE, a leżąc na wspólnym tle wyglądał jak
+                      pierwszy wpis osi. */}
+                  <SekcjaProfilu tytul="Nowy wpis" wiersze={false}>
+                  <form onSubmit={submitNote} className="space-y-2">
                     <textarea
                       ref={noteRef}
                       value={noteText}
@@ -969,24 +973,39 @@ export function ClientDetailPanel({
                       </button>
                     </div>
                   </form>
+                  </SekcjaProfilu>
 
-                  {osCzasu.length > 0 && (
-                    <div className="mb-3 flex flex-wrap gap-1.5">
-                      {FEED_FILTERS.map((f) => (
-                        <button
-                          key={f.value}
-                          type="button"
-                          onClick={() => setFeedFilter(f.value)}
-                          className={`rounded-full border hairline px-2.5 py-1 text-[11px] ${
-                            feedFilter === f.value ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
-                          }`}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {/* JEDNA oś zamiast dwóch list (2026-07-26). Do tej pory nad
+                      historią stała osobna sekcja „Korespondencja", a feed i tak
+                      zawiera wpisy powstałe z tych samych maili — ten sam mail
+                      widniał więc dwa razy (zgłoszenie właściciela). Maile, których
+                      feed nie zna, dochodzą do osi niżej, więc scalenie niczego nie
+                      gubi. Nadpisuje decyzję z 2026-07-15 o osobnej kartotece.
 
+                      `plyta={false}`: wpisy mają własne obramowania, więc płyta
+                      pod nimi zrobiłaby pudełko w pudełku. */}
+                  <SekcjaProfilu
+                    tytul="Pełna historia"
+                    plyta={false}
+                    akcje={
+                      osCzasu.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {FEED_FILTERS.map((f) => (
+                            <button
+                              key={f.value}
+                              type="button"
+                              onClick={() => setFeedFilter(f.value)}
+                              className={`rounded-full border hairline px-2.5 py-0.5 text-[11px] ${
+                                feedFilter === f.value ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
+                              }`}
+                            >
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : undefined
+                    }
+                  >
                   {osCzasu.length === 0 ? (
                     <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
                   ) : filteredFeed.length === 0 ? (
@@ -994,7 +1013,14 @@ export function ClientDetailPanel({
                   ) : (
                     groupFeedByDay(filteredFeed).map((group) => (
                       <div key={group.label} className="mb-4 last:mb-0">
-                        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
+                        {/* Nagłówek dnia PRZYKLEJA SIĘ do góry karty przy
+                            przewijaniu — jak w Wiadomościach iOS. Przy długiej
+                            historii to jedyna rzecz, która mówi „czytasz teraz
+                            marzec", gdy data wpisu dawno wyjechała w górę.
+                            Tło jest konieczne: pod spodem przewijają się wpisy. */}
+                        <div className="sticky top-0 z-10 -mx-1 bg-[var(--bg-soft)] px-1 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted opacity-90">
+                          {group.label}
+                        </div>
                         <ul className="space-y-2">
                           {group.items.map((f) => {
                             const badge = feedBadge(f);
@@ -1051,6 +1077,7 @@ export function ClientDetailPanel({
                       </div>
                     ))
                   )}
+                  </SekcjaProfilu>
                 </div>
               </div>
             )}
@@ -1062,13 +1089,6 @@ export function ClientDetailPanel({
     </div>
   );
 }
-
-/** Odstęp sekcji w zakładce „Powiązane". Kreska rozdzielająca — ale nie dla
- * PIERWSZEJ widocznej sekcji, bo tuż nad nią biegnie już kreska paska
- * zakładek i wychodziłaby z tego podwójna linia. Które sekcje się pokażą,
- * zależy od danych (kontakty kontrolne i opinie bywają puste), więc rozstrzyga
- * to `first:` na tym, co faktycznie trafiło do DOM-u, a nie warunek w kodzie. */
-const SEKCJA_ZAKLADKI = "mt-6 border-t hairline pt-6 first:border-t-0 first:pt-0";
 
 /** Średnia z trzech ocen jednej opinii — ta sama arytmetyka, co w
  * `GET /api/clients` (podzapytanie `avg_rating`) i w `lib/projects.ts`.
@@ -1084,7 +1104,10 @@ function projectRating(p: Pick<LinkedProject, "review_rating_jakosc" | "review_r
 function LinkedGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="mb-1.5 text-[11px] uppercase tracking-wide text-muted">{title}</h3>
+      {/* Świadomie BEZ kapitalików — te same kapitaliki nosi nagłówek sekcji
+          „Powiązane" tuż wyżej, a to jest poziom niżej (grupa w sekcji).
+          Dwa poziomy w jednym stylu czytają się jak jeden. */}
+      <h3 className="mb-1 text-[11px] font-medium text-muted opacity-70">{title}</h3>
       <ul className="space-y-1 text-sm">{children}</ul>
     </div>
   );
@@ -1098,15 +1121,6 @@ function PanelHeader({ onClose }: { onClose?: () => void }) {
       <button onClick={onClose} className="rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]" aria-label="Zamknij" title="Zamknij (Esc)">
         ✕ Zamknij
       </button>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1 block text-[11px] text-muted">{label}</label>
-      {children}
     </div>
   );
 }

@@ -7705,6 +7705,46 @@ z linkami i limit byłby tam pustym pasem bez powodu.
    kontrolne i opinie bywają puste), więc rozstrzyga to `first:` na tym, co
    faktycznie trafiło do DOM-u (`SEKCJA_ZAKLADKI`), a nie warunek w kodzie.
 
+#### Runda czytelności — sekcje zamiast jednej płaskiej płachty
+
+Zgłoszenie właściciela zaraz po wdrożeniu układu: „treść jest w porządku, ale
+w panelu wszystko się tak mocno zlewa — w aplikacji ten sam layout jest
+przejrzysty". To była trafna diagnoza CZEGOŚ INNEGO niż kolejność czy gęstość.
+
+Porównanie z `KlientDetailView.swift` pokazało różnicę w jednym zdaniu: apka
+trzyma pola w `List(.insetGrouped)`, czyli w kilku **osobnych płytach**
+z nagłówkami `Section("Kontakt")`, `Section("Dane")`. Panel miał tę samą treść,
+w tej samej kolejności, rozłożoną na **jednym płaskim tle** i rozdzieloną
+wyłącznie odstępem. Brakowało nie miejsca, tylko KRAWĘDZI.
+
+Zbudowane: `app/[lang]/admin/ProfileSection.tsx` (`SekcjaProfilu`, `WierszPola`)
+plus klasa `.card-inset` w `globals.css`. Zmiany:
+
+| | Przed | Po |
+|---|---|---|
+| Atrybuty | jedna siatka 13 pól | pięć nazwanych sekcji na własnych płytach |
+| Etykieta pola | NAD wartością | **po lewej**, wartość w drugiej kolumnie |
+| Nagłówki sekcji | `text-lg font-semibold` (jak nazwa rekordu) | kapitaliki 10,5 px |
+| Formularz wpisu | luźne pola na wspólnym tle | własna płyta „Nowy wpis" |
+| Nagłówek dnia na osi | przewijał się z treścią | **przykleja się** do góry karty |
+
+Trzy rzeczy, które przy tym wyszły i warto je znać:
+
+1. **Etykieta po lewej robi połowę roboty.** Układ „etykieta nad wartością"
+   przy JEDNEJ kolumnie daje ciąg naprzemiennych linijek bez żadnej pionowej
+   osi — oko nie ma się o co zaczepić. To był drugi powód „zlewania się", obok
+   braku płyt, i sam podział na sekcje by go nie usunął.
+2. **Płyta pod płytą to krok wstecz.** Oś czasu ma własne obramowania na każdym
+   wpisie, więc dostała `plyta={false}` — sam nagłówek. Pudełko w pudełku
+   odbiera czytelność obu.
+3. **Kontrast płyty ma być ledwie widoczny** (#101114 przy #0d0e10 karty).
+   Mocniejszy robił z profilu szachownicę — sprawdzone na żywo. Krawędź
+   (`--hairline`) niesie tu więcej niż wypełnienie.
+
+Nagłówki grup wewnątrz „Powiązanych" (`LinkedGroup`: Oferty, Faktury…) straciły
+kapitaliki: nosi je teraz nagłówek sekcji tuż wyżej, a dwa poziomy hierarchii
+w jednym stylu czytają się jak jeden.
+
 #### Profil leada poszedł za klientem (ta sama runda)
 
 Brief kroku 6 mówił o kliencie i tylko o nim, ale rozjazd zgłoszony od razu:

@@ -107,6 +107,13 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
 ## Design system (trzymaj się tego)
 
 - `.card-paper` — gęste karty z treścią (większość UI)
+- `.card-inset` — płyta WEWNĄTRZ `.card-paper` (o włos jaśniejsza), pod grupę
+  pól albo formularz. Używaj przez `SekcjaProfilu`/`WierszPola`
+  (`app/[lang]/admin/ProfileSection.tsx`) — nagłówek kapitalikami + płyta +
+  wiersze „etykieta po lewej, wartość po prawej", odpowiednik `Section`
+  w `List(.insetGrouped)` z apki. To jest odpowiedź na „w panelu wszystko się
+  zlewa": treść bez KRAWĘDZI czyta się jak jedna plama, choćby odstępy były
+  poprawne (runda czytelności 2026-07-26)
 - `.glass` — zarezerwowane dla chrome (nagłówek, overlay peek panelu) — NIE
   nadużywać na zwykłych kartach
 - `.hairline` — kolor obramowań, zgodny z motywem jasny/ciemny
