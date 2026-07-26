@@ -270,6 +270,11 @@ export function offerLiczySieDoStatystyk(o: Pick<Offer, "superseded_at">): boole
   return !o.superseded_at;
 }
 
+/** Gotowe okresy ważności oferty (dni od dziś) — 7 dni to „decyzja w tym
+ * tygodniu", 14 to standard przy większym wdrożeniu, 30 przy budżecie, który
+ * musi przejść przez czyjeś biurko. */
+export const WAZNOSC_SKROTY = [7, 14, 30] as const;
+
 /** Po ilu dniach ciszy od wysyłki oferta trafia na Pulpit jako „warto
  * przypomnieć". Pięć dni roboczo-kalendarzowych: krócej to nachalność, dłużej
  * i oferta zdąży wyjść klientowi z głowy. Bliźniak `CONTRACT_STALE_DAYS`

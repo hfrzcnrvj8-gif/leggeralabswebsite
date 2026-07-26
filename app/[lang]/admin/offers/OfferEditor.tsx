@@ -13,6 +13,7 @@ import {
   OFFER_STATUS_CLASS,
   OFFER_CURRENCIES,
   SEKCJE_STARTOWE,
+  WAZNOSC_SKROTY,
   DEFAULT_OFFER_CURRENCY,
   isOfferExpired,
   rejectReasonLabel,
@@ -29,7 +30,8 @@ import { formatMoney, type CatalogItem } from "@/lib/invoices";
 import { hasPriceRange } from "@/lib/catalog";
 import { CatalogCategoryIcon } from "../icons";
 import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
-import { formatPlDateTime } from "@/lib/dates";
+import { formatPlDateTime, todayLocalISO, daysBetweenISO } from "@/lib/dates";
+import { addDaysISO } from "@/lib/documents";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
@@ -555,6 +557,7 @@ export function OfferEditor({
   const expired = isOfferExpired(offer);
   const waluta = offer.waluta || DEFAULT_OFFER_CURRENCY;
   const powodOdrzucenia = rejectReasonLabel(offer.powod_odrzucenia ?? "", offer.komentarz_odrzucenia ?? "");
+  const dniDoWaznosci = offer.wazna_do ? daysBetweenISO(todayLocalISO(), offer.wazna_do) : null;
 
   // Moduł 30 — miękka podpowiedź o powiązaniu (patrz lib/links.ts). Na ofercie
   // waży to więcej niż na fakturze: to z niej lib/offerAccept.ts przepisuje
@@ -624,8 +627,17 @@ export function OfferEditor({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="min-w-0 space-y-4">
+      {/* Karta ma stałą wysokość 85vh od `lg`, a kolumny przewijają się
+          OSOBNO — ten sam wzorzec co profil klienta (Moduł 54, krok 6).
+          Bez tego pełna szerokość dawała bardzo długą stronę, w której akcje
+          po prawej uciekały poza ekran przy dłuższej liście pozycji. */}
+      <div className="mt-4 grid gap-5 lg:h-[calc(85vh-88px)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
+        {/* Na bardzo szerokim ekranie kolumna treści dzieli się na dwie:
+            dane klienta stoją obok treści i cennika, zamiast rozciągać pola
+            formularza na tysiąc pikseli. Poniżej `2xl` układ jest jak dotąd. */}
+        <div className="min-w-0 lg:h-full lg:overflow-y-auto lg:pr-2">
+          <div className="space-y-4 2xl:grid 2xl:grid-cols-[minmax(340px,420px)_minmax(0,1fr)] 2xl:items-start 2xl:gap-5 2xl:space-y-0">
+          <div className="space-y-4">
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-[13px] font-medium">Oferta</h2>
@@ -729,6 +741,9 @@ export function OfferEditor({
             )}
           </div>
 
+          </div>
+
+          <div className="space-y-4">
           {/* Bloki treści (runda 2 Modułu 57). Stoją NAD pozycjami, bo klient
               ma najpierw przeczytać, co dostaje, a dopiero potem zobaczyć cenę
               — tak układają ofertę PandaDoc, Proposify i Qwilr. */}
@@ -959,9 +974,11 @@ export function OfferEditor({
               className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
           </div>
+          </div>
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:h-full lg:overflow-y-auto lg:pr-1">
           <div className="card-paper rounded-xl border hairline p-4">
             <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Dokument</h3>
             <Field label="Język">
@@ -995,8 +1012,54 @@ export function OfferEditor({
           <div className="card-paper rounded-xl border hairline p-4">
             <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Ważność</h3>
             <Field label="Ważna do">
-              <DateField value={offer.wazna_do ?? ""} onChange={(v) => patchOffer({ wazna_do: v || null })} placeholder="—" />
+              <DateField
+                value={offer.wazna_do ?? ""}
+                onChange={(v) => patchOffer({ wazna_do: v || null })}
+                placeholder="bez terminu"
+              />
             </Field>
+            {/* Gotowe okresy. Datę ważności ustawia się przy KAŻDEJ ofercie,
+                zawsze jako „dziś + tydzień/dwa" — wybieranie jej z koła dat
+                było najczęstszym drobnym tarciem w tym module (zgłoszenie
+                właściciela). Liczone od DZIŚ, nie od daty wystawienia: oferta
+                bywa wysyłana kilka dni po napisaniu. */}
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              {WAZNOSC_SKROTY.map((dni: number) => {
+                const cel = addDaysISO(null, dni);
+                const aktywny = offer.wazna_do === cel;
+                return (
+                  <button
+                    key={dni}
+                    onClick={() => patchOffer({ wazna_do: aktywny ? null : cel })}
+                    title={`Ważna do ${formatPlDate(cel)}`}
+                    className={`rounded-full border px-2.5 py-0.5 text-[11px] ${
+                      aktywny
+                        ? "border-brand-purple/60 bg-brand-purple/10 text-[var(--fg)]"
+                        : "hairline text-muted hover:text-[var(--fg)]"
+                    }`}
+                  >
+                    {dni} dni
+                  </button>
+                );
+              })}
+              {offer.wazna_do && (
+                <button
+                  onClick={() => patchOffer({ wazna_do: null })}
+                  className="rounded-full border hairline px-2.5 py-0.5 text-[11px] text-muted hover:text-[var(--fg)]"
+                >
+                  Wyczyść
+                </button>
+              )}
+            </div>
+            {offer.wazna_do && !expired && (
+              <p className="mt-1.5 text-[11px] text-muted">
+                {dniDoWaznosci === 0
+                  ? "Wygasa dziś."
+                  : dniDoWaznosci === 1
+                    ? "Wygasa jutro."
+                    : `Wygasa za ${dniDoWaznosci} dni.`}
+              </p>
+            )}
             {expired && (
               <p className="mt-2 rounded-lg bg-brand-gold/10 px-2.5 py-1.5 text-[11px] text-brand-gold">
                 Termin ważności minął, a oferta wciąż jest otwarta. Przedłuż datę albo zamknij ją statusem

@@ -1,14 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPlus, IconX, IconExternalLink, IconLayoutGrid, IconFileDescription, IconSearch, IconEye } from "@tabler/icons-react";
+import {
+  IconPlus,
+  IconX,
+  IconExternalLink,
+  IconLayoutGrid,
+  IconFileDescription,
+  IconSearch,
+  IconEye,
+  IconCopy,
+  IconMail,
+  IconBell,
+  IconThumbDown,
+  IconClockOff,
+  IconCheck,
+} from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, CLOSED_OFFER_STATUSES, isOfferExpired, weightedOfferValue, offerLiczySieDoStatystyk } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
 import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
-import { Popover, MenuRow, MenuDivider, PropertyMenu } from "../Menu";
+import { Popover, MenuRow, MenuDivider, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Tooltip } from "../Tooltip";
 import { InfoDot } from "../components";
@@ -43,6 +57,10 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const [kursor, setKursor] = useState(0);
   /** Id oferty, dla której otwarte jest okno „dlaczego odrzucona". */
   const [rejectFor, setRejectFor] = useState<string | null>(null);
+  /** Menu pod prawym przyciskiem — jedno na listę, nie na wiersz
+   * (patrz `useContextMenu` w Menu.tsx). Do tej pory prawy przycisk na
+   * ofercie nie robił nic. */
+  const ctx = useContextMenu<OfferRow>();
 
   const load = useCallback(async () => {
     const res = await fetch("/api/offers");
@@ -194,6 +212,54 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     toast(`Usunięto ${ids.length} ofert.`);
     clearSelection();
   }, [selectedIds, confirm, toast, clearSelection]);
+
+  /** Szybkie akcje z menu kontekstowego — świadomie te same trasy, których
+   * używa profil oferty, żeby nie powstała druga implementacja tego samego. */
+  const duplicateOffer = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/offers/${id}/duplicate`, { method: "POST" });
+      if (!res.ok) {
+        toast("Nie udało się zduplikować oferty.", "error");
+        return;
+      }
+      await load();
+      toast("Utworzono duplikat jako nowy szkic.");
+    },
+    [load, toast]
+  );
+
+  const sendOffer = useCallback(
+    async (o: OfferRow) => {
+      if (!o.klient_email) {
+        toast("Brak adresu e-mail klienta — uzupełnij go w ofercie.", "error");
+        return;
+      }
+      const ok = await confirm(`Wysłać ofertę na ${o.klient_email}?`, {});
+      if (!ok) return;
+      const res = await fetch(`/api/offers/${o.id}/send`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast(data.error ?? "Nie udało się wysłać oferty.", "error");
+        return;
+      }
+      await load();
+      toast("Oferta wysłana mailem.");
+    },
+    [confirm, load, toast]
+  );
+
+  const remindOffer = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/offers/${id}/remind`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast(data.error ?? "Nie udało się wysłać przypomnienia.", "error");
+        return;
+      }
+      toast("Przypomnienie wysłane.");
+    },
+    [toast]
+  );
 
   useRegisterActions([{ id: "add", label: "+ Nowa oferta", hint: "N", run: createOffer }], [createOffer]);
 
@@ -522,6 +588,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                     <tr
                       key={o.id}
                       onClick={() => setOpenId(o.id)}
+                      onContextMenu={(e) => ctx.openAt(e, o)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                         expired ? "bg-red-500/[0.04]" : ""
                       } ${selectedIds.has(o.id) ? "bg-[#4ea7fc]/[0.08]" : ""} ${
@@ -598,10 +665,104 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         )}
       </div>
 
+      {/* Menu kontekstowe jest SKRÓTEM — wszystko, co w nim jest, da się
+          zrobić też widocznymi przyciskami albo w profilu oferty. */}
+      <ContextMenu ctl={ctx} width={230}>
+        {(o, close) => (
+          <>
+            <ContextMenuItem
+              icon={<IconFileDescription size={14} />}
+              label="Otwórz ofertę"
+              onClick={() => {
+                close();
+                setOpenId(o.id);
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconExternalLink size={14} />}
+              label="Podgląd / wydruk"
+              onClick={() => {
+                close();
+                window.open(`/${lang}/admin/offers/${o.id}/print`, "_blank");
+              }}
+            />
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconMail size={14} />}
+              label={o.status === "Szkic" ? "Wyślij mailem" : "Wyślij ponownie"}
+              disabled={!o.klient_email || CLOSED_OFFER_STATUSES.has(o.status)}
+              onClick={() => {
+                close();
+                sendOffer(o);
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconBell size={14} />}
+              label="Przypomnij mailem"
+              disabled={o.status !== "Wysłana" || !o.klient_email}
+              onClick={() => {
+                close();
+                remindOffer(o.id);
+              }}
+            />
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconCheck size={14} />}
+              label="Oznacz: zaakceptowana"
+              disabled={o.status === "Zaakceptowana"}
+              onClick={() => {
+                close();
+                setOpenId(o.id);
+                toast("Akceptacja zakłada projekt i fakturę — potwierdź ją w ofercie.");
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconThumbDown size={14} />}
+              label="Klient odrzucił…"
+              disabled={o.status === "Odrzucona"}
+              onClick={() => {
+                close();
+                setRejectFor(o.id);
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconClockOff size={14} />}
+              label="Oznacz jako wygasłą"
+              disabled={CLOSED_OFFER_STATUSES.has(o.status)}
+              onClick={() => {
+                close();
+                zapiszStatus(o.id, "Wygasła");
+              }}
+            />
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconCopy size={14} />}
+              label="Duplikuj ofertę"
+              onClick={() => {
+                close();
+                duplicateOffer(o.id);
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconX size={14} />}
+              label="Usuń ofertę"
+              danger
+              onClick={() => {
+                close();
+                deleteOffer(o.id, o.tytul);
+              }}
+            />
+          </>
+        )}
+      </ContextMenu>
+
       <Modal
         open={!!openId}
         onClose={() => setOpenId(null)}
-        card="card-paper my-auto w-full max-w-5xl rounded-2xl border hairline p-5 sm:p-6"
+        // Pełna szerokość jak w Leadach i Klientach (zgłoszenie właściciela
+        // 2026-07-26: „po bokach są wolne przestrzenie"). Wysokość i własne
+        // przewijanie kolumn są w OfferEditor — tam, gdzie jest treść.
+        card="card-paper my-auto w-full rounded-2xl border hairline p-5 sm:p-6"
       >
         {openId && (
           <OfferEditor
