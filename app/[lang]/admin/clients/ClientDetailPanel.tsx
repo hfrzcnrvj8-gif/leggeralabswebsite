@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconMessageCircle, IconCornerUpLeft, IconMail, IconPhoneOff } from "@tabler/icons-react";
@@ -141,6 +141,8 @@ export function ClientDetailPanel({
   const [mail, setMail] = useState<ClientMail[]>([]);
   const [followups, setFollowups] = useState<ClientFollowupItem[]>([]);
   const [creatingDoc, setCreatingDoc] = useState<"offers" | "invoices" | null>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const [focusNote, setFocusNote] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteFollowup, setNoteFollowup] = useState("");
@@ -192,6 +194,29 @@ export function ClientDetailPanel({
     setTab("card");
     load();
   }, [load]);
+
+  // Fokus na polu wpisu po „Zapisz kontakt". Przez efekt, nie przez
+  // `requestAnimationFrame` w kliknięciu: tamto wyprzedzało zamontowanie
+  // zakładki (`ViewSwitch` animuje wejście), więc `ref` był jeszcze pusty
+  // i fokus lądował na `body`. Jedna próba ponowna pokrywa czas animacji.
+  useEffect(() => {
+    if (!focusNote || tab !== "history") return;
+    const zrob = () => {
+      if (!noteRef.current) return false;
+      noteRef.current.focus();
+      setFocusNote(false);
+      return true;
+    };
+    if (zrob()) return;
+    // `ViewSwitch` animuje wejście zakładki, więc pole montuje się z opóźnieniem
+    // i JEDNA próba ponowna bywa za wczesna (zmierzone: fokus zostawał na
+    // `body`). Krótkie odpytywanie do skutku, maksymalnie przez sekundę.
+    let probes = 0;
+    const interval = setInterval(() => {
+      if (zrob() || ++probes > 10) clearInterval(interval);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [focusNote, tab]);
 
   // Log zmian dociągany dopiero po otwarciu zakładki — i za KAŻDYM jej
   // otwarciem, bo właściciel mógł właśnie coś zmienić w wizytówce obok.
@@ -407,7 +432,20 @@ export function ClientDetailPanel({
         </div>
         <p className="mt-2 text-[12.5px] text-muted opacity-80">{CLIENT_STATUS_HINT[client.status]}</p>
 
-        <div className="mt-4">
+        {/* Akcja GŁÓWNA obok szybkich kanałów. Attio prowadzi pasek rekordu
+            od „New note", a apka od „Zaloguj rozmowę" — w panelu zapisanie
+            kontaktu wymagało dotąd przejścia na zakładkę Historia i znalezienia
+            formularza. */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              setTab("history");
+              setFocusNote(true);
+            }}
+            className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-brand-purple/40 bg-brand-purple/10 px-3.5 py-2 text-[13px] font-medium text-[var(--fg)] hover:bg-brand-purple/15"
+          >
+            <IconMessageCircle size={15} /> Zapisz kontakt
+          </button>
           <ContactQuickActions telefon={client.telefon} email={client.email} linkedinUrl={client.linkedin_url} />
         </div>
       </div>
@@ -478,7 +516,13 @@ export function ClientDetailPanel({
                 <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
               </Field>
               <Field label="Przypomnij mi">
-                <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
+                <div className="space-y-1.5">
+                  <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
+                  {/* Pigułki jak w apce: ustawienie terminu to jeden klik,
+                      nie wejście w kalendarz. Przypomnienie jest JEDYNĄ rzeczą,
+                      która zapala klientowi „wymaga działania dziś". */}
+                  <QuickDateChips onPick={(v) => updateClient("next_followup", v)} />
+                </div>
               </Field>
               {client.next_followup && (
                 <Field label="Następny krok (po co przypomnienie)">
@@ -710,6 +754,7 @@ export function ClientDetailPanel({
 
               <form onSubmit={submitNote} className="mb-6 space-y-2">
                 <textarea
+                  ref={noteRef}
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   onKeyDown={(e) => {
