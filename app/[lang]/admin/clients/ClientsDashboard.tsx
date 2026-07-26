@@ -26,8 +26,18 @@ import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { todayLocalISO } from "@/lib/dates";
+import { formatPlDate } from "@/lib/projects";
 
 type ViewMode = "kanban" | "table";
+
+/** Trafienie w treści historii klienta (`GET /api/clients/search`). */
+type HistoryHit = {
+  client_id: string;
+  nazwa: string;
+  rodzaj: string;
+  created_at: string;
+  fragment: string;
+};
 
 export function ClientsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
@@ -57,6 +67,10 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Trafienia w TREŚCI historii (rozmowy, zdarzenia, maile) — osobno od
+  // filtrowania listy, bo to inne pytanie: nie „który klient nazywa się tak",
+  // tylko „z którym klientem rozmawialiśmy o tym". Patrz api/clients/search.
+  const [historyHits, setHistoryHits] = useState<HistoryHit[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -245,6 +259,31 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     clearSelection();
   }, [filterStatus, filterBranza, filterKanal, search, view, clearSelection]);
 
+  // Szukanie po TREŚCI historii — z opóźnieniem, żeby nie strzelać zapytaniem
+  // na każdą literę, i dopiero od dwóch znaków (jeden zwróciłby pół rejestru).
+  useEffect(() => {
+    const fraza = search.trim();
+    if (fraza.length < 2) {
+      setHistoryHits([]);
+      return;
+    }
+    let porzucone = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/clients/search?q=${encodeURIComponent(fraza)}`);
+        if (!res.ok || porzucone) return;
+        const data = (await res.json()) as { hits: HistoryHit[] };
+        if (!porzucone) setHistoryHits(data.hits ?? []);
+      } catch {
+        // Cisza jest tu w porządku: to dodatek do listy, która działa i bez niego.
+      }
+    }, 300);
+    return () => {
+      porzucone = true;
+      clearTimeout(t);
+    };
+  }, [search]);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -430,6 +469,34 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Znalezione w historii — pokazujemy TYLKO wtedy, gdy fraza trafiła
+            w treść, a nie w nazwę: inaczej ta sama firma stałaby raz tu i raz
+            na liście niżej. */}
+        {historyHits.length > 0 && (
+          <div className="mb-4 rounded-lg border hairline p-3">
+            <h2 className="mb-2 text-[12.5px] font-medium text-muted">
+              Znalezione w historii ({historyHits.length})
+            </h2>
+            <ul className="space-y-1">
+              {historyHits.slice(0, 8).map((h) => (
+                <li key={`${h.client_id}:${h.created_at}:${h.rodzaj}`}>
+                  <button
+                    onClick={() => setOpenClientId(h.client_id)}
+                    className="w-full rounded-md px-2 py-1.5 text-left hover:bg-[var(--hairline)]"
+                  >
+                    <span className="text-[13px] font-medium">{h.nazwa}</span>
+                    <span className="ml-2 rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted">
+                      {h.rodzaj}
+                    </span>
+                    <span className="ml-2 text-[11px] text-muted">{formatPlDate(h.created_at)}</span>
+                    <span className="mt-0.5 block truncate text-[12px] text-muted opacity-80">{h.fragment}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
