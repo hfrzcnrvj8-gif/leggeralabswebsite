@@ -19,6 +19,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const n = Number(body.ilosc);
     await sql`UPDATE offer_items SET ilosc = ${Number.isFinite(n) && n >= 0 ? n : 0} WHERE id = ${itemId} AND offer_id = ${id};`;
   }
+  if ("position" in body) {
+    const n = Number(body.position);
+    await sql`UPDATE offer_items SET position = ${Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0} WHERE id = ${itemId} AND offer_id = ${id};`;
+  }
   if ("opcjonalna" in body) {
     const v = body.opcjonalna === true;
     // Zdjęcie „opcjonalnej" czyści wybór klienta — pozycja obowiązkowa liczy

@@ -369,6 +369,37 @@ export function OfferEditor({
     [id, flashSaved, onChange]
   );
 
+  /** Zamiana pozycji miejscami — strzałki, nie przeciąganie (ten sam powód
+   * co przy sekcjach: przeciąganie w modalu walczy z przewijaniem karty).
+   * Kolejność pozycji jest treścią oferty: klient czyta ją z góry na dół,
+   * a najdroższa rzecz rzadko ma stać na końcu. */
+  const moveItem = useCallback(
+    async (index: number, kierunek: -1 | 1) => {
+      const cel = index + kierunek;
+      if (cel < 0 || cel >= items.length) return;
+      const a = items[index];
+      const b = items[cel];
+      const next = [...items];
+      next[index] = b;
+      next[cel] = a;
+      setItems(next.map((it, i) => ({ ...it, position: i })));
+      await Promise.all([
+        fetch(`/api/offers/${id}/items/${a.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: cel }),
+        }),
+        fetch(`/api/offers/${id}/items/${b.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: index }),
+        }),
+      ]);
+      onChange?.();
+    },
+    [id, items, onChange]
+  );
+
   const deleteItem = useCallback(
     async (itemId: string) => {
       setItems((prev) => prev.filter((it) => it.id !== itemId));
@@ -964,6 +995,7 @@ export function OfferEditor({
             ) : (
               <div className="space-y-1.5">
                 <div className="flex gap-1.5 px-1 text-[10px] uppercase tracking-wide text-muted">
+                  <span className="w-4 shrink-0" />
                   <span className="flex-1">Nazwa</span>
                   <span className="w-12 text-right">Ilość</span>
                   <span className="w-24 text-right">Cena</span>
@@ -973,8 +1005,26 @@ export function OfferEditor({
                   </Tooltip>
                   <span className="w-5" />
                 </div>
-                {items.map((it) => (
+                {items.map((it, i) => (
                   <div key={it.id} className="flex items-center gap-1.5">
+                    <span className="flex w-4 shrink-0 flex-col">
+                      <button
+                        onClick={() => moveItem(i, -1)}
+                        disabled={i === 0}
+                        title="W górę"
+                        className="text-muted hover:text-[var(--fg)] disabled:opacity-25"
+                      >
+                        <IconChevronUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => moveItem(i, 1)}
+                        disabled={i === items.length - 1}
+                        title="W dół"
+                        className="text-muted hover:text-[var(--fg)] disabled:opacity-25"
+                      >
+                        <IconChevronDown size={11} />
+                      </button>
+                    </span>
                     <input
                       value={it.nazwa}
                       onChange={(e) => setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, nazwa: e.target.value } : x)))}

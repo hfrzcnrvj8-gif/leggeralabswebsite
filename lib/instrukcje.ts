@@ -389,30 +389,55 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "2. Złóż pozycje z gotowych klocków",
         opis:
-          "„Wstaw z szablonu” wkłada cały szkielet oferty (pozycje + uwagi), „Z katalogu” dokłada pojedynczy komponent z cennika. Wszystko po wstawieniu jest w pełni edytowalne — szablon to punkt startowy, nie sztywny wzór.",
+          "„Wstaw z szablonu” wkłada cały szkielet oferty (pozycje, bloki treści i uwagi), „Z katalogu” dokłada pojedynczy komponent z cennika. Kolejność pozycji zmieniasz strzałkami — klient czyta je z góry na dół. Wszystko po wstawieniu jest w pełni edytowalne: szablon to punkt startowy, nie sztywny wzór. Dobrze napisaną ofertę zapisz z powrotem przyciskiem „Zapisz jako szablon”.",
       },
       {
-        tytul: "3. Ustaw ważność i walutę",
+        tytul: "3. Napisz, co klient dostaje — nie tylko za ile",
         opis:
-          "Data ważności to jedyna rzecz, dzięki której panel wie, kiedy się o ofertę upomnieć. Waluta ma znaczenie dla klienta zagranicznego: wydruk liczy w niej, a po akceptacji przechodzi na fakturę.",
+          "Sekcja „Treść oferty” to bloki, które klient czyta NAD cennikiem: kontekst, zakres, harmonogram, warunki. Sześć gotowych szkieletów wstawisz przyciskiem „+ Gotowa sekcja” i uzupełnisz w nawiasach. Bez nich oferta jest samą tabelą cen — a ceny bez opisu porównuje się wyłącznie po kwocie.",
       },
       {
-        tytul: "4. Wyślij mailem — status zmieni się sam",
+        tytul: "4. Rozważ pozycje „do wyboru”",
         opis:
-          "„Wyślij mailem” wysyła klientowi link do podglądu z możliwością podpisu i przestawia „Szkic” na „Wysłana”. Link możesz w każdej chwili unieważnić; wysyłka unieważnionym linkiem jest zablokowana, nowy trzeba wygenerować świadomie.",
+          "Kwadracik przy pozycji robi z niej dodatek, który klient sam zaznacza na swojej stronie — kwota przelicza mu się od razu, a na fakturę po akceptacji trafia tylko to, co wybrał. Tak sprzedasz wariant bez pisania drugiej oferty.",
       },
       {
-        tytul: "5. Gdy klient mówi „tak”",
+        tytul: "5. Ustaw ważność i walutę",
+        opis:
+          "Ważność ustawiasz jednym kliknięciem: 7, 14 albo 30 dni od dziś. To jedyna rzecz, dzięki której panel wie, kiedy się o ofertę upomnieć. Waluta ma znaczenie dla klienta zagranicznego: wydruk liczy w niej, a po akceptacji przechodzi na fakturę.",
+      },
+      {
+        tytul: "6. Jeśli sprzedajesz oszczędność czasu — pokaż ją liczbą",
+        opis:
+          "W „Zwrot dla klienta” wpisz, ile godzin miesięcznie wdrożenie oszczędza i ile kosztuje godzina u klienta. Dokument sam policzy oszczędność i czas zwrotu, zaokrąglając miesiące w GÓRĘ i podpisując, że to szacunek z rozmowy. Puste pola = bloku nie ma.",
+      },
+      {
+        tytul: "7. Wyślij mailem albo skopiuj link",
+        opis:
+          "„Wyślij mailem” wysyła klientowi link do podglądu z możliwością podpisu i przestawia „Szkic” na „Wysłana”. Jeśli wolisz wysłać samemu — „Kopiuj link dla klienta” (także pod prawym przyciskiem myszy na liście). UWAGA: publiczna strona nie pokazuje SZKICÓW, więc przy kopiowaniu linku do szkicu panel zapyta, czy oznaczyć ofertę jako wysłaną. Link możesz w każdej chwili unieważnić; wysyłka unieważnionym linkiem jest zablokowana.",
+      },
+      {
+        tytul: "8. Sprawdzaj, czy klient otworzył",
+        opis:
+          "Po wysyłce w profilu oferty i na liście widać, ile razy klient otworzył link i kiedy ostatnio. Pierwsze otwarcie zapala dzwonek — to zwykle najlepszy moment na telefon. Jeśli po pięciu dniach nadal cisza, oferta pojawi się na Pulpicie w „Oferty bez decyzji” z gotowym przypomnieniem do wysłania.",
+      },
+      {
+        tytul: "9. Gdy klient mówi „tak”",
         opis:
           "„Akceptuj ofertę” zakłada projekt (opcjonalnie z szablonu) i szkic faktury z tymi samymi pozycjami, zamyka leada sukcesem i wpisuje wszystko na oś czasu klienta. Klient może zrobić to sam z linku — wtedy dostajesz powiadomienie.",
       },
       {
-        tytul: "6. Gdy klient mówi „nie” — zapisz to i powiedz dlaczego",
+        tytul: "10. Gdy klient mówi „nie” — zapisz to i powiedz dlaczego",
         opis:
           "Ustaw status „Odrzucona”; panel zapyta o powód z krótkiej listy (za drogo, nie ten termin, wybrali kogoś innego, brak decyzji, inny). Robi się to z pigułki statusu na liście, z profilu oferty i z telefonu. Po kilkunastu ofertach to jedyne miejsce, z którego da się odczytać, na czym realnie przegrywasz.",
       },
       {
-        tytul: "7. Po akceptacji — umowa",
+        tytul: "11. Gdy klient chce czegoś inaczej",
+        opis:
+          "Na swojej stronie klient ma obok akceptacji drugi przycisk: „Chcesz czegoś inaczej?”. Jego wiadomość trafia do dzwonka, na oś czasu klienta i mailem do Ciebie. Poprawioną ofertę zrób przyciskiem „Nowa wersja oferty” — poprzednia zostanie oznaczona jako zastąpiona i wypadnie ze skuteczności, zamiast liczyć się jako druga przegrana szansa.",
+      },
+      {
+        tytul: "12. Po akceptacji — umowa",
         opis:
           "Na karcie zaakceptowanej oferty jest „Wygeneruj umowę”, a gdy umowa już istnieje — jej status i „Otwórz umowę”. Drugie kliknięcie nigdy nie zrobi drugiego dokumentu.",
       },
@@ -422,6 +447,11 @@ export const MODULY: ModulInstrukcji[] = [
         tytul: "Oferta po terminie nie znika sama",
         opis:
           "Panel jej NIE zamyka za Ciebie — pokazuje ją na czerwono na liście, wypisuje na Pulpicie z przyciskiem „oznacz jako wygasła”, a na ekranie Ofert dopisuje pod „W toku”, ile z tej kwoty jest już martwe. Decyzja zostaje Twoja, bo przedłużenie terminu bywa równie sensowne jak zamknięcie.",
+      },
+      {
+        tytul: "Klient dostaje potwierdzenie, Ty dostajesz sygnał",
+        opis:
+          "Po akceptacji e-podpisem klient dostaje maila z numerem referencyjnym i linkiem, a na samym dokumencie pojawia się blok „Potwierdzenie akceptacji” (kto, kiedy, numer). Ty w tym czasie dostajesz powiadomienie w dzwonku.",
       },
       {
         tytul: "Akceptacja robi trzy rzeczy naraz",
@@ -439,6 +469,11 @@ export const MODULY: ModulInstrukcji[] = [
         tytul: "Oferta bez daty ważności jest niewidzialna dla przypominacza",
         opis:
           "Nie trafi ani do „Wygasają w 7 dni”, ani do listy po terminie. Nikt się o nią nie upomni — będzie wisieć w „W toku” tak długo, aż sam o niej pomyślisz.",
+      },
+      {
+        tytul: "Duplikat mnoży, wersja zastępuje",
+        opis:
+          "„Duplikuj” robi drugą, niepowiązaną ofertę — to jest w porządku, gdy sprzedajesz temu samemu klientowi coś nowego. „Nowa wersja” zastępuje: poprzednia wypada z liczników. Użycie duplikatu do poprawki zakresu zaniża skuteczność, bo jedna rozmowa liczy się wtedy dwa razy.",
       },
       {
         tytul: "Wskaźniki nie przeliczają walut",
@@ -461,6 +496,7 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "j / k", opis: "Ruch po liście ofert." },
       { tytul: "Enter", opis: "Otwiera zaznaczoną ofertę." },
       { tytul: "n", opis: "Nowa oferta." },
+      { tytul: "Prawy przycisk myszy", opis: "Menu na wierszu listy: wysyłka, przypomnienie, kopiowanie linku, zamknięcie statusem, duplikat, usunięcie." },
       {
         tytul: "Telefon: przesunięcie palcem",
         opis:

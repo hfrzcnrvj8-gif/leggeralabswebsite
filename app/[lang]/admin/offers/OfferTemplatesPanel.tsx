@@ -200,6 +200,79 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
         </div>
       </div>
 
+      {/* Bloki treści szablonu (runda 2 Modułu 57). Do tej pory sekcje wchodziły
+          do szablonu WYŁĄCZNIE przez „zapisz tę ofertę jako szablon" — szablonu
+          zrobionego od zera nie dało się nimi uzupełnić, a istniejących
+          poprawić. Funkcja zbudowana w połowie jest gorsza niż jej brak, bo
+          wygląda na działającą. */}
+      <div>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label className="text-[11px] text-muted">Bloki treści (wstawią się do oferty)</label>
+          <button
+            onClick={() => {
+              const sekcje = [...(t.sekcje ?? []), { tytul: "", tresc: "" }];
+              setT((p) => ({ ...p, sekcje }));
+              patch({ sekcje });
+            }}
+            className="rounded-full border hairline px-2.5 py-0.5 text-[11px] text-muted hover:text-[var(--fg)]"
+          >
+            + Blok
+          </button>
+        </div>
+        {(t.sekcje ?? []).length === 0 ? (
+          <p className="rounded-lg border hairline px-2.5 py-2 text-[11px] text-muted opacity-70">
+            Bez bloków szablon wstawi same pozycje — oferta będzie cennikiem bez opisu.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {(t.sekcje ?? []).map((sek, i) => (
+              <div key={i} className="card-inset rounded-lg p-2">
+                <div className="mb-1 flex items-center gap-1.5">
+                  <input
+                    value={sek.tytul}
+                    onChange={(e) => {
+                      const sekcje = (t.sekcje ?? []).map((x, idx) => (idx === i ? { ...x, tytul: e.target.value } : x));
+                      setT((p) => ({ ...p, sekcje }));
+                    }}
+                    onBlur={() => patch({ sekcje: t.sekcje })}
+                    placeholder="Nagłówek (np. Zakres prac)"
+                    className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium text-[var(--fg)] placeholder:text-muted hover:border-[var(--hairline)] focus:border-[var(--hairline)] focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      const sekcje = (t.sekcje ?? []).filter((_, idx) => idx !== i);
+                      setT((p) => ({ ...p, sekcje }));
+                      patch({ sekcje });
+                    }}
+                    className="text-muted hover:text-red-400"
+                    title="Usuń blok"
+                  >
+                    <IconTrash size={12} />
+                  </button>
+                </div>
+                <textarea
+                  value={sek.tresc}
+                  onChange={(e) => {
+                    const sekcje = (t.sekcje ?? []).map((x, idx) => (idx === i ? { ...x, tresc: e.target.value } : x));
+                    setT((p) => ({ ...p, sekcje }));
+                  }}
+                  onBlur={() => patch({ sekcje: t.sekcje })}
+                  rows={3}
+                  placeholder="Treść, którą przeczyta klient."
+                  className="w-full rounded-md border hairline bg-transparent px-2 py-1.5 text-[12px] text-[var(--fg)] placeholder:text-muted"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Pola scalane były niewidoczne: działały, ale nikt nie mógł się
+            domyślić, że istnieją. */}
+        <p className="mt-1 text-[10.5px] leading-relaxed text-muted">
+          W treści bloków i uwag możesz wpisać <code>{"{{klient}}"}</code>, <code>{"{{kwota}}"}</code>,{" "}
+          <code>{"{{wazna_do}}"}</code>, <code>{"{{dzis}}"}</code> — podstawią się przy wstawianiu szablonu do oferty.
+        </p>
+      </div>
+
       <div>
         <label className="mb-1 block text-[11px] text-muted">Domyślne uwagi (zakres/warunki)</label>
         <textarea
