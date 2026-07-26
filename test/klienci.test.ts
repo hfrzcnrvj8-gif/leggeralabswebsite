@@ -46,10 +46,23 @@ function klient(pola: Partial<Client>): Client {
 }
 
 /** `n` dni temu jako ISO — do ustawiania ostatniego kontaktu w przeszłości. */
+/** Data sprzed `n` dni w strefie Europe/Warsaw — DOKŁADNIE tak, jak liczy ją
+ * `todayLocalISO()` w `lib/dates.ts`.
+ *
+ * Wcześniej było tu `toISOString()`, czyli data w UTC. Między północą a drugą
+ * w nocy czasu letniego UTC jest jeszcze „wczoraj", więc pomocnik zwracał datę
+ * o dzień wcześniejszą niż ta, którą widzi biblioteka — i test „89 dni jeszcze
+ * nie, 90 już tak" wywracał się co noc na dwie godziny. Złapane 2026-07-27
+ * o 00:04 (nie przez zmianę w kodzie, tylko przez porę pracy). */
 function dniTemu(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Warsaw",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 test("bez rytmu i bez przypomnienia klient nigdy nie jest zaległy", () => {
