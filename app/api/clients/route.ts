@@ -7,16 +7,36 @@ import { rematchUnassigned } from "@/lib/mailSync";
 
 export const runtime = "nodejs";
 
+/** Górny limit tego, ile klientów trasa odda naraz (Moduł 54, krok 3a).
+ *
+ * Trasa świadomie NIE jest stronicowana. Panel (Kanban, pasek „Wymaga
+ * działania dziś", lista branż w filtrach) i apka (`KlienciListaTresc.widoczni`,
+ * zalegli na Pulpicie) filtrują i sortują po stronie klienta — a każde z tych
+ * pięciu miejsc odpowiada na pytanie o CAŁY rejestr, nie o jedną stronę.
+ * Stronicowanie bez przeniesienia filtrów na serwer dałoby „listę, która kłamie
+ * pustką" (ustalenie A1), a przeniesienie ich to przepisanie dwóch interfejsów.
+ *
+ * Zamiast tego jest sufit z ostrzeżeniem: obok listy leci `total` z pełnym
+ * przelicznikiem, więc gdy rejestr przerośnie limit, panel i apka mówią o tym
+ * WPROST, zamiast po cichu gubić klientów. Dopiero wtedy warto budować
+ * prawdziwe stronicowanie. */
+const CLIENTS_LIMIT = 1000;
+
 /** GET /api/clients — lista klientów. Admin-only. Dociąga `avg_rating`
  * (Moduł 15) — średnią z opinii zebranych po wszystkich projektach danego
- * klienta, do odznaki ★ w Kanban/liście (KanbanBoard.tsx/TableView.tsx). */
+ * klienta, do odznaki ★ w Kanban/liście (KanbanBoard.tsx/TableView.tsx).
+ *
+ * Zwraca `{ clients, total }` — patrz CLIENTS_LIMIT. */
 export async function GET() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureClientsSchema();
   await ensureHubSchema();
   const sql = getSql();
-  const rows = await sql`
-    SELECT c.*, r.avg_rating
+  // `COUNT(*) OVER ()` liczy się PRZED `LIMIT`, więc `total` to pełny rozmiar
+  // rejestru, a nie długość zwróconej strony. Jedno zapytanie zamiast dwóch —
+  // neon() płaci rundę HTTP za każde.
+  const rows = (await sql`
+    SELECT c.*, r.avg_rating, COUNT(*) OVER () AS _total
     FROM clients c
     LEFT JOIN (
       SELECT client_id, AVG((review_rating_jakosc + review_rating_terminowosc + review_rating_komunikacja) / 3.0)::float8 AS avg_rating
@@ -24,9 +44,15 @@ export async function GET() {
       WHERE review_submitted_at IS NOT NULL AND client_id IS NOT NULL
       GROUP BY client_id
     ) r ON r.client_id = c.id
-    ORDER BY c.created_at DESC;
-  `;
-  return NextResponse.json({ clients: rows });
+    ORDER BY c.created_at DESC
+    LIMIT ${CLIENTS_LIMIT};
+  `) as unknown as Record<string, unknown>[];
+
+  // `_total` jest techniczne — powtórzone w każdym wierszu i nikomu poza tą
+  // funkcją niepotrzebne. Zdejmujemy je, żeby nie wyciekło do modelu klienta.
+  const total = rows.length > 0 ? Number(rows[0]._total) : 0;
+  const clients = rows.map(({ _total, ...c }) => c);
+  return NextResponse.json({ clients, total });
 }
 
 /** POST /api/clients — ręczne utworzenie klienta (np. z przycisku "Utwórz

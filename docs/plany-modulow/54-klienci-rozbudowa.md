@@ -20,14 +20,21 @@ zatwierdzonej kolejności.
 
 1. ~~Rytm kontaktu per klient~~ ✅ wykonane
 2. ~~Szukanie po treści historii~~ ✅ wykonane
-3. **Sufity techniczne** ← następne
-4. **Wiele osób kontaktowych przy firmie**
+3. ~~Sufity techniczne~~ ✅ wykonane (2026-07-26) — szczegóły i **dwie decyzje
+   odbiegające od tego briefu** w `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 3"
+4. **Wiele osób kontaktowych przy firmie** ← następne
 5. **Pliki przy kliencie (NAS)**
 6. **Układ boczny profilu (atrybuty | oś czasu)** — najniższy priorytet
 
 ---
 
-## Krok 3 — Sufity techniczne
+## Krok 3 — Sufity techniczne ✅ WYKONANE 2026-07-26
+
+> **Uwaga przy czytaniu:** dwa z trzech punktów wykonano INACZEJ, niż zakładał
+> ten opis. 3a nie dostało stronicowania (decyzja właściciela: sufit
+> z ostrzeżeniem), a propozycja z 3c zepsułaby liczniki w apce. Aktualny stan
+> jest w `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 3". Poniższy tekst zostaje
+> jako zapis tego, co wiedzieliśmy PRZED wejściem w kod.
 
 Trzy znane ograniczenia. Dziś NIE bolą (rejestr ma kilka rekordów), ale
 właściciel świadomie zgodził się je zdjąć zawczasu.

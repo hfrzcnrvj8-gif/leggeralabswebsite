@@ -7479,3 +7479,79 @@ Pulpit+Leady, iPad Leady+Klienci, Projekty nigdzie.
 3. **Ukrycie paska nawigacji zabiera systemowy przycisk zwijania panelu
    bocznego.** Przy zwiniętym panelu i wybranym rekordzie nie ma już czym go
    przywrócić. Pasek ma zostać PUSTY, nie zniknąć.
+
+### Moduł 54 — Klienci, krok 3: sufity techniczne (2026-07-26)
+
+Trzy znane ograniczenia zdjęte „na zapas", zanim zaczną boleć — decyzja
+właściciela z briefu `docs/plany-modulow/54-klienci-rozbudowa.md`.
+
+#### 3a. `GET /api/clients` — sufit z ostrzeżeniem, NIE stronicowanie
+
+Brief zostawiał to jako decyzję. Zapadła: **trasa dalej oddaje wszystko naraz**,
+z limitem 1000 i licznikiem `total` obok listy.
+
+Powód jest policzalny. Kompletu listy wymaga **pięć** miejsc, a nie jedno:
+Kanban (grupuje po statusie), pasek „Wymaga działania dziś", lista branż
+w filtrach, `KlienciListaTresc.widoczni` w apce i zalegli klienci na Pulpicie
+apki. Stronicowanie bez przeniesienia filtrów na serwer wywraca każde z nich —
+to „lista, która kłamie pustką" (ustalenie A1). Przeniesienie filtrów to
+przepisanie dwóch interfejsów wraz z ich stanami pustymi, dla rejestru, który
+dziś ma kilka rekordów.
+
+Zamiast tego limit jest **głośny**: gdy `total` przewyższa długość listy, panel
+pokazuje pomarańczowy pasek nad tablicą, a apka wiersz `PasekSufituKlientow`
+na górze obu list klientów (iPhone i iPad). Prawdziwe stronicowanie budujemy
+dopiero wtedy, gdy ten pasek zapali się w praktyce.
+
+`total` liczy się przez `COUNT(*) OVER ()` w tym samym zapytaniu — okno liczy
+się PRZED `LIMIT`, więc to pełny rozmiar rejestru, i nie kosztuje drugiej rundy
+HTTP (`neon()` płaci ją za każde zapytanie). Techniczna kolumna `_total` jest
+zdejmowana z wierszy przed odesłaniem.
+
+**Czego świadomie NIE zrobiliśmy: nie ucięliśmy `notatki` w liście.** Wyglądało
+to na darmowy zysk (4000 znaków na klienta w widoku, który i tak je obcina), ale
+`KlientDetailView` czyta `aktualny` = `store.klienci.first(...)`, a lista
+odświeża się w `.task` przy każdym wejściu na ekran. Ucięte notatki z listy
+**nadpisałyby** pełne, pobrane z profilu — i telefon pokazywałby fragment jako
+całą notatkę. W panelu `Truncate` trzyma pełny tekst w `title`, więc zniknęłaby
+też podpowiedź po najechaniu.
+
+#### 3b. Operacje masowe — `/api/clients/bulk`
+
+`PATCH` (`{ ids, pola }`) i `DELETE` (`{ ids }`). Przy 50 zaznaczonych klientach
+to **trzy zapytania zamiast stu pięćdziesięciu**: jeden `SELECT` stanu sprzed
+zapisu, jeden `UPDATE ... WHERE id = ANY`, jeden wsadowy `INSERT` audytu
+(`logFieldChangesBatch` / `deleteFieldChangesBatch` w `lib/auditLog.ts`).
+
+Pola przyjmowane wsadowo to **wąska biała lista** (`BULK_FIELDS`), nie kopia
+dwudziestu gałęzi z `PATCH /api/clients/:id`: status, kategoria źródła, branża,
+następny krok. Adres czy notatki są z definicji per klient.
+
+**Trzeci konsument, którego brief nie wymieniał:** `tidySources`
+(auto-kategoryzacja źródeł, akcja z palety poleceń) też leciał pętlą po jednym
+`PATCH` na klienta. Teraz grupuje po wyliczonej kategorii — kilkanaście żądań
+zamiast N.
+
+#### 3c. Apka: cztery listy → jedno żądanie (i pułapka, którą brief przeoczył)
+
+Brief proponował `GET /api/clients/:id/powiazane` w miejsce
+`dociagnijDokumentyDoPowiazan()`. **To by zepsuło liczniki.** Te cztery listy
+robiły DWIE rzeczy: karmiły menu przytrzymania („Otwórz powiązane") **oraz**
+liczniki przy Ofertach/Umowach/Fakturach w `PanelBoczny.swift` (pasek boczny
+iPada) i `WiecejView.swift`. Podmiana wg briefu naprawiłaby jedno milczenie,
+robiąc drugie — liczniki pokazywałyby zero do czasu wejścia w moduł.
+
+Zbudowane: `GET /api/clients/powiazania` — jedno `UNION ALL` po ofertach,
+fakturach, umowach i projektach, zwracające **i** powiązania per klient, **i**
+liczby wszystkich dokumentów. Cztery żądania na start apki → jedno. Pełne listy
+zostają leniwe. W `AppStore` doszły `powiazaniaKlientow`, `liczbyDokumentow`
+i cztery liczniki (`licznikOfert` itd.), które biorą liczbę z pełnej listy, gdy
+ta jest wczytana, a z endpointu, gdy nie — nigdy zero „bo jeszcze nie
+wchodziłem".
+
+`liczby` celowo liczą CAŁE tabele, nie tylko dokumenty z klientem: licznik
+pokazuje długość pełnej listy, a faktura bez przypisanego klienta jest normalna.
+
+Dla umów `tytul` jedzie surowo (`"umowa"`/`"nda"`) — etykietę robi
+`PowiazanyDokumentKlienta.Rodzaj.tytul(_:)` w apce, żeby reguła nazewnicza
+została w jednym miejscu, a nie rozjechała się między SQL-em a Swiftem.

@@ -42,6 +42,10 @@ type HistoryHit = {
 export function ClientsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [clients, setClients] = useState<Client[] | null>(null);
+  // Ilu klientów jest NAPRAWDĘ w rejestrze — trasa oddaje najwyżej 1000 naraz
+  // (Moduł 54, krok 3a). Gdy `total` przewyższa długość listy, mówimy o tym
+  // wprost: lista, która po cichu gubi rekordy, jest gorsza niż jej brak.
+  const [total, setTotal] = useState(0);
   const [filterStatus, setFilterStatus] = useState("");
   // Moduł 34 — filtr po ostatnim kanale, ustawiany klikiem w odznakę na liście
   // (ten sam wzorzec co w Leadach; to o tę odznakę pytał właściciel).
@@ -79,8 +83,9 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       window.location.reload();
       return;
     }
-    const data = (await res.json()) as { clients: Client[] };
+    const data = (await res.json()) as { clients: Client[]; total?: number };
     setClients(data.clients);
+    setTotal(data.total ?? data.clients.length);
   }, []);
 
   useEffect(() => {
@@ -173,6 +178,32 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     [confirm, toast]
   );
 
+  /** Jedno pole na wielu klientach — jedno żądanie zamiast N (Moduł 54, krok
+   * 3b). Do 2026-07-26 pasek zaznaczenia strzelał osobnym PATCH-em na każdego
+   * zaznaczonego; przy 50 to 50 rund HTTP, a `neon()` dokładał własną rundę za
+   * każde zapytanie SQL po drugiej stronie. Lista aktualizuje się od razu — tak
+   * samo jak przy `updateClient`, bo to ta sama operacja, tylko hurtem. */
+  const bulkPatch = useCallback(
+    async (ids: string[], pola: Record<string, string>) => {
+      if (ids.length === 0) return false;
+      setClients((prev) => prev?.map((c) => (ids.includes(c.id) ? { ...c, ...pola } : c)) ?? prev);
+      const res = await fetch("/api/clients/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, pola }),
+      });
+      if (!res.ok) {
+        toast("Nie udało się zapisać zmian.", "error");
+        // Stan lokalny wyprzedził serwer, a zapis nie przeszedł — wczytujemy
+        // listę od nowa, żeby ekran nie pokazywał zmiany, której nie ma.
+        load();
+        return false;
+      }
+      return true;
+    },
+    [toast, load]
+  );
+
   /** Auto-kategoryzacja źródeł dla klientów sprzed rozbicia źródła na
    * kategorię + szczegóły — bliźniak `tidySources` z Leadów. Bez tego dojście
    * do sensownej „konwersji per źródło" wymagałoby ręcznego otwarcia każdej
@@ -189,11 +220,22 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       `Automatycznie przypisać kategorię źródła dla ${targets.length} klientów, którzy jej jeszcze nie mają (na podstawie tekstu w polu „Źródło")? Sam tekst zostaje bez zmian, tylko dojdzie kategoria.`
     );
     if (!ok) return;
+    // Grupujemy po WYLICZONEJ kategorii i wysyłamy jedno żądanie na grupę.
+    // Kategorii jest kilkanaście, klientów może być setki — to ta sama pętla
+    // rund HTTP, co w pasku zaznaczenia (krok 3b), tylko mniej rzucająca się
+    // w oczy, bo akcja siedzi w palecie poleceń.
+    const grupy = new Map<string, string[]>();
     for (const c of targets) {
-      await updateClient(c.id, "zrodlo_kategoria", guessSourceCategory(c.zrodlo));
+      const kategoria = guessSourceCategory(c.zrodlo);
+      const lista = grupy.get(kategoria);
+      if (lista) lista.push(c.id);
+      else grupy.set(kategoria, [c.id]);
+    }
+    for (const [kategoria, ids] of grupy) {
+      if (!(await bulkPatch(ids, { zrodlo_kategoria: kategoria }))) return;
     }
     toast(`Uporządkowano źródło dla ${targets.length} klientów.`);
-  }, [clients, confirm, toast, updateClient]);
+  }, [clients, confirm, toast, bulkPatch]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -215,14 +257,12 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       const ids = [...selectedIds];
       if (ids.length === 0) return;
       setBulkBusy(true);
-      for (const id of ids) {
-        await updateClient(id, "status", status);
-      }
+      const ok = await bulkPatch(ids, { status });
       setBulkBusy(false);
-      toast(`Zaktualizowano status dla ${ids.length} klientów.`);
+      if (ok) toast(`Zaktualizowano status dla ${ids.length} klientów.`);
       clearSelection();
     },
-    [selectedIds, updateClient, toast, clearSelection]
+    [selectedIds, bulkPatch, toast, clearSelection]
   );
 
   const bulkDelete = useCallback(async () => {
@@ -231,11 +271,18 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     const ok = await confirm(`Usunąć ${ids.length} zaznaczonych klientów?`, { danger: true });
     if (!ok) return;
     setBulkBusy(true);
-    for (const id of ids) {
-      await fetch(`/api/clients/${id}`, { method: "DELETE" });
-    }
+    const res = await fetch("/api/clients/bulk", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
     setBulkBusy(false);
+    if (!res.ok) {
+      toast("Nie udało się usunąć klientów.", "error");
+      return;
+    }
     setClients((prev) => prev?.filter((c) => !selectedIds.has(c.id)) ?? prev);
+    setTotal((t) => Math.max(t - ids.length, 0));
     toast(`Usunięto ${ids.length} klientów.`);
     clearSelection();
   }, [selectedIds, confirm, toast, clearSelection]);
@@ -450,6 +497,19 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
+        {/* Sufit trasy (Moduł 54, krok 3a). Widoczny WYŁĄCZNIE wtedy, gdy
+            rejestr faktycznie przerósł limit — do tego czasu nic tu nie stoi.
+            Bez tego paska filtry i liczniki liczyłyby się z niepełnej listy,
+            nie mówiąc o tym ani słowa. */}
+        {total > clients.length && (
+          <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3 text-[12.5px] text-orange-400">
+            Rejestr ma <b>{total}</b> klientów, a widzisz pierwszych{" "}
+            <b>{clients.length}</b> (najnowszych). Filtry, sortowanie i pasek
+            „Wymaga działania dziś" liczą się tylko z tego, co wczytane — czas na
+            stronicowanie po stronie serwera.
+          </div>
+        )}
+
         {overdue.length > 0 && (
           <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
             <h2 className="mb-1.5 text-[12.5px] font-medium text-orange-400">Wymaga działania dziś</h2>

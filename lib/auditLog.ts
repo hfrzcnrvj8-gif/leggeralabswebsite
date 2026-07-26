@@ -83,6 +83,49 @@ export async function logFieldChanges(
 }
 
 /**
+ * To samo, co `logFieldChanges`, ale dla WIELU rekordów naraz — jeden `INSERT`
+ * na całą operację masową (Moduł 54, krok 3b).
+ *
+ * Bez tego `PATCH /api/clients/bulk` przy 50 zaznaczonych klientach zapisałby
+ * audyt pięćdziesięcioma osobnymi zapytaniami — czyli dokładnie tą pętlą rund
+ * HTTP, którą trasa wsadowa miała zlikwidować. Porównanie „co się faktycznie
+ * zmieniło" jest per rekord (każdy ma inny stan sprzed zapisu), scalenie
+ * dotyczy wyłącznie zapisu.
+ */
+export async function logFieldChangesBatch(
+  entity: AuditEntity,
+  records: { entityId: string; before: Record<string, unknown>; after: Record<string, unknown> }[]
+): Promise<void> {
+  const changed = records.flatMap(({ entityId, before, after }) =>
+    Object.entries(after).flatMap(([field, rawNew]) => {
+      const oldValue = normalize(before[field]);
+      const newValue = normalize(rawNew);
+      if (oldValue === newValue) return [];
+      return [{ entityId, field, oldValue: oldValue.slice(0, MAX_STORED), newValue: newValue.slice(0, MAX_STORED) }];
+    })
+  );
+  if (changed.length === 0) return;
+
+  try {
+    await ensureAuditSchema();
+    const sql = getSql();
+    await sql`
+      INSERT INTO field_changes (id, entity, entity_id, field, old_value, new_value)
+      SELECT * FROM UNNEST(
+        ${changed.map(() => randomUUID())}::text[],
+        ${changed.map(() => entity)}::text[],
+        ${changed.map((c) => c.entityId)}::text[],
+        ${changed.map((c) => c.field)}::text[],
+        ${changed.map((c) => c.oldValue)}::text[],
+        ${changed.map((c) => c.newValue)}::text[]
+      );
+    `;
+  } catch (e) {
+    console.error(`[audit] nie udało się zapisać zmian wsadowych ${entity}`, e);
+  }
+}
+
+/**
  * Kasuje CAŁĄ historię zmian jednego rekordu (RODO, Audyt 2). `field_changes`
  * nie ma klucza obcego do leada/klienta (świadomie — audytuje też byty bez
  * własnej tabeli), więc usunięcie osoby NIE zabiera jej wpisów z tego logu:
@@ -95,6 +138,16 @@ export async function deleteFieldChanges(entity: AuditEntity, entityId: string):
   await ensureAuditSchema();
   const sql = getSql();
   await sql`DELETE FROM field_changes WHERE entity = ${entity} AND entity_id = ${entityId};`;
+}
+
+/** To samo dla wielu rekordów — jedno zapytanie na całe usuwanie masowe.
+ * Ten sam obowiązek co wyżej: bez tego skasowanie 50 klientów zostawiłoby
+ * w logu ich surowe e-maile i telefony. */
+export async function deleteFieldChangesBatch(entity: AuditEntity, entityIds: string[]): Promise<void> {
+  if (entityIds.length === 0) return;
+  await ensureAuditSchema();
+  const sql = getSql();
+  await sql`DELETE FROM field_changes WHERE entity = ${entity} AND entity_id = ANY(${entityIds}::text[]);`;
 }
 
 /** Log zmian jednego rekordu, od najnowszej. Limit odcina historię starszą
