@@ -163,7 +163,7 @@ const GO_CHORDS: Record<string, string> = {
  * dokładnie odwrotny efekt. Dopisuj tu moduł dopiero wtedy, gdy realnie
  * brakuje mu miejsca — nie „dla spójności".
  */
-const PELNA_SZEROKOSC = ["mail", "leads", "clients"];
+const PELNA_SZEROKOSC = ["mail", "leads", "clients", "offers"];
 
 export function AppShell({
   lang,
@@ -643,7 +643,15 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
             gęsty trójkolumnowy dashboard (foldery + lista + podgląd), gdzie
             globalny limit `max-w-[1800px]` marnował widoczną przestrzeń na
             szerokich monitorach (zgłoszone przez właściciela, Moduł 4e runda
-            2). Inne moduły (Faktury/Projekty, formularze) zostają przy
+            2). Oferty dołączyły 2026-07-27 z tego samego powodu: profil oferty
+            jest teraz pełnoekranowym modalem o trzech kolumnach, a `mx-auto`
+            z limitem 1800 px zostawiał po bokach kilkaset pikseli pustki na
+            szerokim monitorze — i to WŁAŚNIE ten limit, nie sam modal, było
+            widać (zgłoszenie właściciela: „nadal nie zajmuje pełnej
+            szerokości"). Modal siedzi wewnątrz tego kontenera, bo animowany
+            rodzic tworzy blok zawierający dla `position: fixed`.
+
+            Inne moduły (Faktury/Projekty, formularze) zostają przy
             dotychczasowym limicie — nie ujednolicaj bez potrzeby.
 
             `md:overflow-y-auto` (Moduł 35): to JEST pasek przewijania panelu.

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureOffersSchema, ensureContractsSchema, ensureInvoicesSchema, ensureHubSchema } from "@/lib/db";
-import { isShareLinkKind, revokeShareLink, regenerateShareLink, type ShareLinkKind } from "@/lib/shareLinks";
+import { isShareLinkKind, revokeShareLink, regenerateShareLink, ensureShareLink, type ShareLinkKind } from "@/lib/shareLinks";
 
 export const runtime = "nodejs";
 
@@ -15,8 +15,11 @@ export const runtime = "nodejs";
  * białą listą (`isShareLinkKind`) i nigdy nie trafia do SQL-a jako tekst —
  * zapytania są rozpisane rodzaj po rodzaju w lib/shareLinks.ts.
  *
- * Ciało: `{ action: "revoke" | "regenerate" }`. Odpowiedź przy "regenerate"
- * zawiera gotowy, NOWY adres — stary od tej chwili zwraca 410. */
+ * Ciało: `{ action: "revoke" | "regenerate" | "ensure" }`. „regenerate" zwraca
+ * gotowy, NOWY adres — stary od tej chwili zwraca 410. „ensure" oddaje adres
+ * ISTNIEJĄCY (zakładając go tylko wtedy, gdy jeszcze go nie było), więc da się
+ * skopiować link do własnej wiadomości, nie psując tego, co klient już
+ * dostał. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ kind: string; id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { kind, id } = await params;
@@ -24,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ kin
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const action = body.action;
-  if (action !== "revoke" && action !== "regenerate") {
+  if (action !== "revoke" && action !== "regenerate" && action !== "ensure") {
     return NextResponse.json({ error: "Nieznana operacja." }, { status: 400 });
   }
 
@@ -35,6 +38,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ kin
     const res = await revokeShareLink(sql, kind, id);
     if (!res) return NextResponse.json({ error: "Ten dokument nie ma jeszcze publicznego linku." }, { status: 404 });
     return NextResponse.json({ ok: true, revokedAt: res.revokedAt });
+  }
+
+  if (action === "ensure") {
+    const res = await ensureShareLink(sql, kind, id);
+    if (!res) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json({
+      ok: true,
+      token: res.token,
+      revokedAt: res.revokedAt,
+      url: `${req.nextUrl.origin}${await publicPath(kind, res.token, id)}`,
+    });
   }
 
   const res = await regenerateShareLink(sql, kind, id);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconSquare, IconSquareCheck, IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconChevronUp, IconExternalLink, IconMail, IconCopy, IconVersions, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
+import { IconSquare, IconSquareCheck, IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconChevronUp, IconExternalLink, IconMail, IconCopy, IconVersions, IconLink, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Offer,
@@ -78,6 +78,7 @@ export function OfferEditor({
   const [rejectOpen, setRejectOpen] = useState(false);
   const [versioning, setVersioning] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [copyingLink, setCopyingLink] = useState(false);
   /** Bloki treści oferty — „Kontekst", „Zakres prac", „Harmonogram". */
   const [sections, setSections] = useState<OfferSection[]>([]);
 
@@ -507,6 +508,43 @@ export function OfferEditor({
     setTemplates((lista.templates ?? []) as OfferTemplate[]);
     toast(`Zapisano szablon „${nazwa.trim()}".`);
   }, [id, offer?.tytul, prompt, toast]);
+
+  /** „Kopiuj link dla klienta" — adres publicznej strony oferty, ten sam,
+   * który idzie mailem. Do 2026-07-27 nie dało się go zdobyć inaczej niż
+   * wysyłając maila z panelu: token powstawał dopiero przy wysyłce, a jedyna
+   * trasa („wygeneruj nowy") UNIEWAŻNIAŁA poprzedni. Kto chciał wkleić link do
+   * własnej wiadomości albo na czacie, nie miał czego skopiować. */
+  const copyClientLink = useCallback(async () => {
+    setCopyingLink(true);
+    const res = await fetch(`/api/share-links/offer/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "ensure" }),
+    });
+    setCopyingLink(false);
+    if (!res.ok) {
+      toast("Nie udało się przygotować linku.", "error");
+      return;
+    }
+    const data = (await res.json()) as { url: string; revokedAt: string | null };
+    setOffer((p) => (p ? { ...p, share_token: p.share_token ?? "utworzony" } : p));
+    if (data.revokedAt) {
+      toast("Ten link jest unieważniony — wygeneruj nowy poniżej, zanim go wyślesz.", "error");
+      return;
+    }
+    // `navigator.clipboard` potrafi CICHO odmówić (brak zgody, kontekst bez
+    // HTTPS) — wtedy pokazujemy adres do ręcznego skopiowania zamiast udawać
+    // sukces (ta sama pułapka co przy kodach zapasowych TOTP, Moduł 41).
+    try {
+      await navigator.clipboard.writeText(data.url);
+      toast("Link dla klienta skopiowany.");
+    } catch {
+      await prompt("Skopiuj link ręcznie (Cmd/Ctrl+C):", { placeholder: data.url });
+    }
+    if (offer?.status === "Szkic") {
+      toast("Uwaga: przy statusie „Szkic” link pokaże klientowi „nie znaleziono”. Wyślij ofertę albo zmień status.", "error");
+    }
+  }, [id, offer?.status, prompt, toast]);
 
   const generateContract = useCallback(async () => {
     setGeneratingContract(true);
@@ -1274,6 +1312,16 @@ export function OfferEditor({
               )}
             </Popover>
           )}
+
+          <button
+            onClick={copyClientLink}
+            disabled={copyingLink}
+            title="Skopiuj adres strony, którą zobaczy klient — ten sam, który idzie mailem"
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
+          >
+            {copyingLink ? <IconLoader2 size={13} className="animate-spin" /> : <IconLink size={13} />}
+            Kopiuj link dla klienta
+          </button>
 
           <button
             onClick={sendOfferEmail}

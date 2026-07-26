@@ -15,6 +15,7 @@ import {
   IconThumbDown,
   IconClockOff,
   IconCheck,
+  IconLink,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, CLOSED_OFFER_STATUSES, isOfferExpired, weightedOfferValue, offerLiczySieDoStatystyk } from "@/lib/offers";
@@ -40,7 +41,7 @@ type OfferRow = Offer & { kwota: number };
 const PO_TERMINIE = "__po_terminie__";
 
 export function OffersDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, prompt } = useUI();
   const [offers, setOffers] = useState<OfferRow[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
@@ -246,6 +247,34 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       toast("Oferta wysłana mailem.");
     },
     [confirm, load, toast]
+  );
+
+  /** Ten sam adres co w profilu oferty — patrz `copyClientLink`
+   * w OfferEditor.tsx. */
+  const copyClientLink = useCallback(
+    async (o: OfferRow) => {
+      const res = await fetch(`/api/share-links/offer/${o.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ensure" }),
+      });
+      if (!res.ok) {
+        toast("Nie udało się przygotować linku.", "error");
+        return;
+      }
+      const data = (await res.json()) as { url: string; revokedAt: string | null };
+      if (data.revokedAt) {
+        toast("Ten link jest unieważniony — wygeneruj nowy w ofercie.", "error");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(data.url);
+        toast(o.status === "Szkic" ? "Link skopiowany — ale przy statusie „Szkic” klient zobaczy „nie znaleziono”." : "Link dla klienta skopiowany.");
+      } catch {
+        await prompt("Skopiuj link ręcznie (Cmd/Ctrl+C):", { placeholder: data.url });
+      }
+    },
+    [prompt, toast]
   );
 
   const remindOffer = useCallback(
@@ -684,6 +713,14 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
               onClick={() => {
                 close();
                 window.open(`/${lang}/admin/offers/${o.id}/print`, "_blank");
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconLink size={14} />}
+              label="Kopiuj link dla klienta"
+              onClick={() => {
+                close();
+                copyClientLink(o);
               }}
             />
             <MenuDivider />

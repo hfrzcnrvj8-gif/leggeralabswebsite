@@ -84,6 +84,51 @@ export async function revokeShareLink(sql: Sql, kind: ShareLinkKind, id: string)
 /** Wpisuje NOWY token i zeruje znacznik unieważnienia — jednym `UPDATE`-em,
  * z pominięciem idempotentnych `ensure*ShareToken()` (patrz zasada 2 wyżej).
  * Zwraca `null`, gdy nie ma takiego rekordu. */
+/** Token do publicznego linku BEZ unieważniania poprzedniego: zwraca ten,
+ * który już jest, a gdy go nie ma — zakłada nowy.
+ *
+ * Powstało 2026-07-27, bo linku dla klienta nie dało się w ogóle zdobyć inaczej
+ * niż wysyłając maila z panelu: `ShareLinkControl` nie renderuje się, dopóki
+ * token nie istnieje, a jedyną trasą był `regenerate`, który UNIEWAŻNIA stary.
+ * Właściciel, który chciał wkleić link do własnej wiadomości, nie miał czego
+ * skopiować. */
+export async function ensureShareLink(sql: Sql, kind: ShareLinkKind, id: string): Promise<{ token: string; revokedAt: string | null } | null> {
+  const kolumna = await odczytajToken(sql, kind, id);
+  if (!kolumna) return null;
+  if (kolumna.token) return { token: kolumna.token, revokedAt: kolumna.revokedAt };
+  const nowy = await regenerateShareLink(sql, kind, id);
+  return nowy ? { token: nowy.token, revokedAt: null } : null;
+}
+
+/** Aktualny token i stan unieważnienia — czytane rodzaj po rodzaju, tak jak
+ * reszta tego pliku (nazwa tabeli nigdy nie wchodzi do SQL-a jako tekst). */
+async function odczytajToken(sql: Sql, kind: ShareLinkKind, id: string): Promise<{ token: string | null; revokedAt: string | null } | null> {
+  let rows: Record<string, unknown>[];
+  switch (kind) {
+    case "offer":
+      rows = await sql`SELECT share_token, share_revoked_at FROM offers WHERE id = ${id};`;
+      break;
+    case "contract":
+      rows = await sql`SELECT share_token, share_revoked_at FROM contracts WHERE id = ${id};`;
+      break;
+    case "invoice":
+      rows = await sql`SELECT share_token, share_revoked_at FROM invoices WHERE id = ${id};`;
+      break;
+    case "wezwanie":
+      rows = await sql`SELECT wezwanie_share_token AS share_token, wezwanie_share_revoked_at AS share_revoked_at FROM invoices WHERE id = ${id};`;
+      break;
+    case "project":
+      rows = await sql`SELECT review_share_token AS share_token, review_share_revoked_at AS share_revoked_at FROM projects WHERE id = ${id};`;
+      break;
+  }
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    token: typeof r.share_token === "string" ? r.share_token : null,
+    revokedAt: typeof r.share_revoked_at === "string" ? r.share_revoked_at : null,
+  };
+}
+
 export async function regenerateShareLink(sql: Sql, kind: ShareLinkKind, id: string): Promise<{ token: string } | null> {
   const token = newToken();
   let rows: Record<string, unknown>[];
