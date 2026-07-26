@@ -352,7 +352,31 @@ export function ClientDetailPanel({
     { value: "system", label: "Systemowe" },
     { value: "notes", label: "Notatki" },
   ];
-  const filteredFeed = feed.filter((f) => {
+  // Maile z kartoteki, których nie ma na osi — np. dopięte do klienta po
+  // fakcie przez dopasowanie adresu, bez wpisu na osi. Bez nich scalenie
+  // gubiłoby korespondencję, którą osobna sekcja pokazywała.
+  const znaneMaile = new Set(feed.map((f) => f.mail_message_id).filter(Boolean));
+  const osCzasu = [
+    ...feed,
+    ...mail
+      .filter((m) => !znaneMaile.has(m.id))
+      .map((m) => ({
+        id: `mail:${m.id}`,
+        created_at: m.received_at,
+        kind: "note" as const,
+        text: m.subject || "(bez tematu)",
+        amount: null,
+        kanal: "email",
+        kierunek: m.kierunek === "out" ? "wychodzacy" : "przychodzacy",
+        wynik: null,
+        czas_trwania_sek: null,
+        related_id: null,
+        mail_message_id: m.id,
+        source: "system" as const,
+      })),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const filteredFeed = osCzasu.filter((f) => {
     if (feedFilter === "all") return true;
     if (feedFilter === "calls") return f.kanal === "telefon";
     if (feedFilter === "system") return f.source === "system";
@@ -672,36 +696,16 @@ export function ClientDetailPanel({
 
         {tab === "history" && (
           <div>
-            {mail.length > 0 && (
-              <div className="mt-6">
-                <h2 className="mb-1 text-lg font-semibold">Korespondencja</h2>
-                <p className="mb-4 text-[12px] text-muted opacity-70">
-                  Wszystkie maile tego klienta — pełna treść w Poczcie pod linkiem.
-                </p>
-                <ul className="space-y-1.5">
-                  {mail.map((m) => (
-                    <li key={m.id}>
-                      <Link
-                        href={`/${lang}/admin/mail/${m.id}`}
-                        className="flex items-center gap-2.5 rounded-xl border hairline px-3 py-2 text-sm hover:bg-[var(--hairline)]/40"
-                      >
-                        <span className="shrink-0 text-base" aria-hidden>
-                          {m.kierunek === "out" ? <IconCornerUpLeft size={13} /> : <IconMail size={13} />}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{m.subject || "(bez tematu)"}</span>
-                        <MailStatusTag status={m.status as MailStatus} />
-                        <span className="shrink-0 text-[11px] text-muted">{formatPlDate(m.received_at)}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className={mail.length > 0 ? "mt-6 border-t hairline pt-6" : "mt-6"}>
+            <div className="mt-6">
+              {/* JEDNA oś zamiast dwóch list (2026-07-26). Do tej pory nad
+                  historią stała osobna sekcja „Korespondencja", a feed i tak
+                  zawiera wpisy powstałe z tych samych maili — ten sam mail
+                  widniał więc dwa razy (zgłoszenie właściciela). Maile, których
+                  feed nie zna, dochodzą do osi niżej, więc scalenie niczego nie
+                  gubi. Nadpisuje decyzję z 2026-07-15 o osobnej kartotece. */}
               <h2 className="mb-1 text-lg font-semibold">Pełna historia</h2>
               <p className="mb-4 text-[12px] text-muted opacity-70">
-                Notatki i zdarzenia systemowe (oferty, faktury, wpłaty) w jednej chronologicznej osi.
+                Rozmowy, maile i zdarzenia systemowe (oferty, faktury, wpłaty) w jednej chronologicznej osi.
               </p>
 
               <form onSubmit={submitNote} className="mb-6 space-y-2">
@@ -832,7 +836,7 @@ export function ClientDetailPanel({
                 </div>
               </form>
 
-              {feed.length > 0 && (
+              {osCzasu.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-1.5">
                   {FEED_FILTERS.map((f) => (
                     <button
@@ -849,7 +853,7 @@ export function ClientDetailPanel({
                 </div>
               )}
 
-              {feed.length === 0 ? (
+              {osCzasu.length === 0 ? (
                 <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
               ) : filteredFeed.length === 0 ? (
                 <p className="text-sm text-muted opacity-60">Brak wpisów w tym filtrze.</p>
