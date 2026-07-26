@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { withTransaction, logClientEvent } from "./db";
 import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "./projects";
-import { isOfferExpired, DEFAULT_OFFER_CURRENCY, type Offer } from "./offers";
+import { isOfferExpired, itemLiczySie, DEFAULT_OFFER_CURRENCY, type Offer } from "./offers";
 
 /** Stawka VAT dla pozycji SZKICU faktury zakładanego przy akceptacji oferty.
  *
@@ -51,7 +51,7 @@ class OfferAlreadyAcceptedError extends Error {}
  * środku zostawiały osierocone rekordy w bazie. */
 export async function acceptOffer(
   offer: Offer,
-  items: { nazwa: string; ilosc: number; jednostka: string; cena: number }[],
+  items: { nazwa: string; ilosc: number; jednostka: string; cena: number; opcjonalna?: boolean; wybrana?: boolean }[],
   opts: {
     template?: string;
     /** Admin może świadomie zaakceptować przeterminowaną ofertę po
@@ -71,8 +71,19 @@ export async function acceptOffer(
   if (isOfferExpired(offer) && !opts.allowExpired) {
     return { ok: false, status: 409, error: "Oferta jest przeterminowana (minęła data ważności).", expired: true };
   }
-  if (items.length === 0) {
-    return { ok: false, status: 400, error: "Oferta bez pozycji — dodaj co najmniej jedną pozycję." };
+  // Na fakturę i do zakresu projektu idą tylko pozycje, które KLIENT
+  // faktycznie kupuje: obowiązkowe zawsze, opcjonalne wyłącznie zaznaczone
+  // (runda 2 Modułu 57). Niezaznaczony dodatek nie może wylądować na fakturze.
+  const kupione = items.filter((it) => itemLiczySie({ opcjonalna: !!it.opcjonalna, wybrana: !!it.wybrana }));
+  if (kupione.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        items.length === 0
+          ? "Oferta bez pozycji — dodaj co najmniej jedną pozycję."
+          : "Wszystkie pozycje są opcjonalne i żadna nie została wybrana — nie ma czego zaakceptować.",
+    };
   }
 
   const templateId = opts.template?.trim() ? opts.template : undefined;
@@ -140,7 +151,7 @@ export async function acceptOffer(
       `;
       const stawka = domyslnaStawkaVat(offer.klient_kraj);
       let pos = 0;
-      for (const it of items) {
+      for (const it of kupione) {
         await sql`
           INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
           VALUES (${randomUUID()}, ${invoiceId}, ${it.nazwa}, ${it.ilosc}, ${it.jednostka}, ${it.cena}, ${stawka}, ${pos});

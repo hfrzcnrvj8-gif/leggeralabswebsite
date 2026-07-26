@@ -47,6 +47,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       pos += 1;
     }
 
+    // Sekcje szablonu dopisujemy na końcu istniejących — tak samo jak pozycje.
+    // Czysta kopia: po wstawieniu to zwykłe bloki treści oferty, bez związku
+    // z szablonem.
+    const sekcje = (typeof template.sekcje === "string" ? JSON.parse(template.sekcje) : template.sekcje ?? []) as {
+      tytul: string;
+      tresc: string;
+    }[];
+    if (Array.isArray(sekcje) && sekcje.length > 0) {
+      const sPosRows = await sql`SELECT COALESCE(MAX(position), -1) + 1 AS pos FROM offer_sections WHERE offer_id = ${id};`;
+      let sPos = Number(sPosRows[0]?.pos ?? 0);
+      for (const sekcja of sekcje) {
+        await sql`
+          INSERT INTO offer_sections (id, offer_id, tytul, tresc, position)
+          VALUES (${randomUUID()}, ${id}, ${String(sekcja?.tytul ?? "").slice(0, 200)}, ${String(sekcja?.tresc ?? "").slice(0, 8000)}, ${sPos});
+        `;
+        sPos += 1;
+      }
+    }
+
     const templateUwagi = typeof template.uwagi === "string" ? template.uwagi : "";
     if (templateUwagi.trim()) {
       const existing = typeof offer.uwagi === "string" ? offer.uwagi : "";
@@ -55,10 +74,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
+    const sekcjeOferty = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
     const offerAfter = await sql`SELECT * FROM offers WHERE id = ${id};`;
     return NextResponse.json({
       ok: true,
       items: items.map((r) => ({ ...r, ilosc: Number(r.ilosc), cena: Number(r.cena) })),
+      sections: sekcjeOferty,
       offer: offerAfter[0],
     });
   } catch (err) {

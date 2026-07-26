@@ -8,7 +8,19 @@ export const runtime = "nodejs";
 
 type Row = Record<string, unknown>;
 function parseRow(r: Row): Row {
-  return { ...r, pozycje: typeof r.pozycje === "string" ? JSON.parse(r.pozycje) : r.pozycje };
+  return {
+    ...r,
+    pozycje: typeof r.pozycje === "string" ? JSON.parse(r.pozycje) : r.pozycje,
+    sekcje: typeof r.sekcje === "string" ? JSON.parse(r.sekcje) : (r.sekcje ?? []),
+  };
+}
+
+function parseSekcje(v: unknown): { tytul: string; tresc: string }[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((s: Record<string, unknown>) => ({
+    tytul: typeof s?.tytul === "string" ? s.tytul.slice(0, 200) : "",
+    tresc: typeof s?.tresc === "string" ? s.tresc.slice(0, 8000) : "",
+  }));
 }
 
 function parsePozycje(v: unknown): OfferTemplateItem[] {
@@ -42,9 +54,10 @@ export async function POST(req: NextRequest) {
     const opis = typeof body.opis === "string" ? body.opis.slice(0, 500) : "";
     const uwagi = typeof body.uwagi === "string" ? body.uwagi.slice(0, 4000) : "";
     const pozycje = parsePozycje(body.pozycje);
+    const sekcje = parseSekcje(body.sekcje);
     await sql`
-      INSERT INTO offer_templates (id, nazwa, opis, pozycje, uwagi)
-      VALUES (${id}, ${nazwa}, ${opis}, ${JSON.stringify(pozycje)}, ${uwagi});
+      INSERT INTO offer_templates (id, nazwa, opis, pozycje, sekcje, uwagi)
+      VALUES (${id}, ${nazwa}, ${opis}, ${JSON.stringify(pozycje)}, ${JSON.stringify(sekcje)}, ${uwagi});
     `;
     return NextResponse.json({ ok: true, id });
   } catch (err) {

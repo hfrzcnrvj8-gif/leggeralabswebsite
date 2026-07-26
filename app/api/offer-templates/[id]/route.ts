@@ -29,6 +29,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE offer_templates SET pozycje = ${JSON.stringify(pozycje)}, updated_at = now() WHERE id = ${id};`;
     }
 
+    if ("sekcje" in body && Array.isArray(body.sekcje)) {
+      const sekcje = body.sekcje.map((sek: Record<string, unknown>) => ({
+        tytul: str(sek?.tytul, 200),
+        tresc: str(sek?.tresc, 8000),
+      }));
+      await sql`UPDATE offer_templates SET sekcje = ${JSON.stringify(sekcje)}, updated_at = now() WHERE id = ${id};`;
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[PATCH /api/offer-templates/:id] failed", err);

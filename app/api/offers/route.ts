@@ -31,7 +31,10 @@ export async function GET() {
     SELECT o.*, COALESCE(t.kwota, 0)::float8 AS kwota, COUNT(*) OVER () AS _total
     FROM offers o
     LEFT JOIN (
-      SELECT offer_id, SUM(ilosc * cena) AS kwota
+      -- Pozycje opcjonalne wchodzą do kwoty dopiero, gdy klient je
+      -- zaznaczy (runda 2 Modułu 57) — inaczej lista i wskaźniki
+      -- pokazywałyby cenę wariantu, którego nikt nie kupił.
+      SELECT offer_id, SUM(ilosc * cena) FILTER (WHERE NOT opcjonalna OR wybrana) AS kwota
       FROM offer_items GROUP BY offer_id
     ) t ON t.offer_id = o.id
     ORDER BY o.created_at DESC

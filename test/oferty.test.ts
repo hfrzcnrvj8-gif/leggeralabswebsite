@@ -1,7 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { documentYear } from "../lib/documents.ts";
-import { offerReference, isOfferStatus, isOfferCurrency, rejectReasonLabel, weightedOfferValue, isOfferExpired } from "../lib/offers.ts";
+import {
+  offerReference,
+  isOfferStatus,
+  isOfferCurrency,
+  rejectReasonLabel,
+  weightedOfferValue,
+  isOfferExpired,
+  offerTotal,
+  offerOptionalRest,
+  offerSilenceDays,
+  isOfferStale,
+  offerLiczySieDoStatystyk,
+} from "../lib/offers.ts";
 import { contractReference } from "../lib/contracts.ts";
 import { domyslnaStawkaVat } from "../lib/offerAccept.ts";
 
@@ -76,4 +88,41 @@ test("zamknięta oferta nie wchodzi do pipeline'u ani do przeterminowania", () =
   assert.equal(isOfferExpired({ status: "Odrzucona", wazna_do: "2000-01-01" }), false);
   assert.equal(isOfferExpired({ status: "Wysłana", wazna_do: "2000-01-01" }), true);
   assert.equal(isOfferExpired({ status: "Wysłana", wazna_do: null }), false);
+});
+
+// ── Runda 2 Modułu 57 ─────────────────────────────────────────────────────
+
+test("pozycje opcjonalne wchodzą do kwoty dopiero zaznaczone", () => {
+  const items = [
+    { ilosc: 1, cena: 12000 },
+    { ilosc: 1, cena: 3900, opcjonalna: true, wybrana: false },
+    { ilosc: 2, cena: 500, opcjonalna: true, wybrana: true },
+  ];
+  assert.equal(offerTotal(items), 13000);
+  assert.equal(offerOptionalRest(items), 3900);
+  // Pozycje bez tych pól (oferty sprzed zmiany) liczą się jak obowiązkowe.
+  assert.equal(offerTotal([{ ilosc: 1, cena: 100 }]), 100);
+});
+
+test("cisza po wysyłce liczona od wyslana_at, tylko dla „Wysłana”", () => {
+  const teraz = Date.parse("2026-07-26T12:00:00Z");
+  const szesc = "2026-07-20 12:00:00+00";
+  assert.equal(offerSilenceDays({ status: "Wysłana", wyslana_at: szesc }, teraz), 6);
+  assert.equal(offerSilenceDays({ status: "Szkic", wyslana_at: szesc }, teraz), null);
+  assert.equal(offerSilenceDays({ status: "Wysłana", wyslana_at: null }, teraz), null);
+});
+
+test("upomnienie: po progu tak, po przypomnieniu już nie", () => {
+  const teraz = Date.parse("2026-07-26T12:00:00Z");
+  const dawno = "2026-07-20 12:00:00+00";
+  const wczoraj = "2026-07-25 12:00:00+00";
+  assert.equal(isOfferStale({ status: "Wysłana", wyslana_at: dawno, przypomniano_at: null }, teraz), true);
+  assert.equal(isOfferStale({ status: "Wysłana", wyslana_at: wczoraj, przypomniano_at: null }, teraz), false);
+  // Raz przypomniane nie wraca — inaczej Pulpit prosiłby o to samo codziennie.
+  assert.equal(isOfferStale({ status: "Wysłana", wyslana_at: dawno, przypomniano_at: wczoraj }, teraz), false);
+});
+
+test("oferta zastąpiona nowszą wersją wypada z liczników", () => {
+  assert.equal(offerLiczySieDoStatystyk({ superseded_at: null }), true);
+  assert.equal(offerLiczySieDoStatystyk({ superseded_at: "2026-07-26 12:00:00+00" }), false);
 });

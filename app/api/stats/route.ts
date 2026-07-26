@@ -45,6 +45,7 @@ export async function GET() {
     timeEntryRows,
     hunterRows,
     hunterRejectRows,
+    offerRejectRows,
   ] = await Promise.all([
     // Czas do pierwszej odpowiedzi: pierwszy wpis na osi leada zainicjowany
     // PRZEZ NAS ("wychodzacy") po utworzeniu leada — nie ma dedykowanej
@@ -120,6 +121,22 @@ export async function GET() {
       FROM lead_candidates WHERE stan = 'odrzucony' AND powod_odrzucenia <> ''
       GROUP BY powod_odrzucenia ORDER BY ile DESC LIMIT 5;
     ` as unknown as Promise<{ powod: string; ile: number }[]>,
+    // Dlaczego przegrywamy oferty (runda 2 Modułu 57). Powody zbieramy od
+    // 2026-07-26 przy zmianie statusu na „Odrzucona"; bez tego zestawienia
+    // były danymi, których nic nie czyta. Oferty ZASTĄPIONE nowszą wersją są
+    // pominięte — nie są przegrane, tylko nieaktualne.
+    sql`
+      SELECT COALESCE(NULLIF(powod_odrzucenia, ''), 'Bez podanego powodu') AS powod,
+        COUNT(*)::int AS ile,
+        COALESCE(SUM(t.kwota), 0)::float8 AS kwota
+      FROM offers o
+      LEFT JOIN (
+        SELECT offer_id, SUM(ilosc * cena) FILTER (WHERE NOT opcjonalna OR wybrana) AS kwota
+        FROM offer_items GROUP BY offer_id
+      ) t ON t.offer_id = o.id
+      WHERE o.status = 'Odrzucona' AND o.superseded_at IS NULL
+      GROUP BY 1 ORDER BY ile DESC;
+    ` as unknown as Promise<{ powod: string; ile: number; kwota: number }[]>,
   ]);
 
   // --- 1) Czas do pierwszej odpowiedzi (godziny) ---
@@ -306,6 +323,14 @@ export async function GET() {
         return { ocena, wzietych, klientow, pct: wzietych > 0 ? statsRound1((klientow / wzietych) * 100) : null };
       }),
       topRejections: hunterRejectRows,
+    },
+    /** Runda 2 Modułu 57 — „na czym realnie przegrywamy". Kwota obok liczby,
+     * bo pięć małych ofert przegranych na cenie znaczy co innego niż jedna
+     * duża. */
+    offerLosses: {
+      reasons: offerRejectRows,
+      total: offerRejectRows.reduce((sum, r) => sum + r.ile, 0),
+      totalKwota: offerRejectRows.reduce((sum, r) => sum + Number(r.kwota || 0), 0),
     },
   });
 }

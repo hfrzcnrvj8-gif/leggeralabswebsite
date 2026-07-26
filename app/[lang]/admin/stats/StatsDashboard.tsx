@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMoney } from "@/lib/invoices";
+
 // Statystyki (Moduł 18) — wskaźniki zdrowia biznesu z mapy drogi klienta
 // (docs/plany-modulow/00-mapa-drogi-klienta.md, sekcja "Jak sprawdzić, że
 // CAŁY system działa jak należy"): czas do 1. odpowiedzi, konwersja
@@ -30,6 +32,12 @@ type StatsData = {
   timeTracking: { totalHours: number; trend: StatsTrendPoint[] };
   /** Pętla poprawy sita „Łowcy leadów" (Moduł 52) — patrz komentarz przy
    * kafelku niżej. */
+  /** Runda 2 Modułu 57 — powody odrzucenia ofert. */
+  offerLosses: {
+    reasons: { powod: string; ile: number; kwota: number }[];
+    total: number;
+    totalKwota: number;
+  };
   hunter: {
     byGrade: { ocena: string; wzietych: number; klientow: number; pct: number | null }[];
     topRejections: { powod: string; ile: number }[];
@@ -246,6 +254,36 @@ export function StatsDashboard() {
                 </div>
               ))}
             </div>
+          )}
+        </ChartCard>
+        {/* „Na czym przegrywamy" (runda 2 Modułu 57). Powody zbierają się przy
+            każdym odrzuceniu oferty — to jedyne miejsce, w którym zamieniają
+            się w liczbę. Kwota obok liczby, bo pięć drobnych ofert przegranych
+            na cenie znaczy co innego niż jedna duża. */}
+        <ChartCard
+          title="Dlaczego przegrywamy oferty"
+          sub="powody odrzucenia zapisane przy zmianie statusu; bez ofert zastąpionych nowszą wersją"
+        >
+          {data.offerLosses.reasons.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">
+              Żadna oferta nie została jeszcze odrzucona — albo odrzucenia zapisano bez powodu. Powód
+              pyta się sam przy ustawianiu statusu „Odrzucona”.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                {data.offerLosses.reasons.map((r) => (
+                  <div key={r.powod} className="flex items-center gap-2 text-[12px]">
+                    <span className="min-w-0 flex-1 truncate">{r.powod}</span>
+                    <span className="shrink-0 tabular-nums text-muted">{formatMoney(r.kwota)}</span>
+                    <span className="w-10 shrink-0 text-right font-medium tabular-nums">{r.ile}×</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 border-t hairline pt-2 text-[11px] text-muted">
+                Razem {data.offerLosses.total} przegranych ofert na {formatMoney(data.offerLosses.totalKwota)}.
+              </div>
+            </>
           )}
         </ChartCard>
       </div>

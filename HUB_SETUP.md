@@ -8258,3 +8258,99 @@ treści byłoby katastrofą, bo skasowany przez właściciela szablon odradzałb
 się po każdym deployu. Znacznik dosiewu jest niezależny od wersji, więc
 dosiew wykonuje się dokładnie raz w życiu bazy. Sprawdzone: usunięcie
 szablonu i ponowne wywołanie migracji go NIE przywraca.
+
+## Moduł 57, runda 2 — czego brakowało wobec konkurencji (2026-07-26)
+
+Po pytaniu właściciela „panel ofert nadal jest niekompletny — co możemy
+podpatrzeć u najlepszych" przejrzeliśmy PandaDoc, Proposify, Qwilr, HubSpot
+Quotes i narzędzia dla solo-konsultantów. Sześć rzeczy przeszło filtr „ma sens
+dla JEDNEJ osoby"; obiegi akceptacji, redlining, biblioteki treści dla zespołu
+i integracje odpadły jako funkcje dla zespołu (`KANDYDACI-FUTURE-PROOF.md`).
+
+### 1. Wiadomo, czy klient otworzył ofertę
+
+Publiczna trasa `GET /api/offers/public/:token` zapisuje `otwarta_at`,
+`ostatnio_otwarta_at`, `liczba_otwarc`. **Świadomie BEZ IP i bez identyfikacji
+osoby** (decyzja właściciela): sam czas i licznik odpowiadają na pytanie „czy
+w ogóle przeczytał", nie zakładając nowej kategorii danych osobowych do objęcia
+retencją z Audytu 2. IP zostaje tam, gdzie jest dowodem woli — przy e-podpisie.
+
+Pierwsze otwarcie (i tylko pierwsze, `dedupeKey`) daje powiadomienie
+`offer_opened` i wpis na osi klienta. Dziesiąte wejście w ten sam dokument nie
+jest wiadomością, tylko szumem. Zamknięte oferty nie powiadamiają wcale.
+
+Zapis siedzi w `GET` — nietypowo, ale to jedyny moment, w którym klient dotyka
+systemu. Jest w `try/catch`: gdyby padł, oferta i tak się pokaże.
+
+### 2. Oferta bez decyzji sama prosi o ruch
+
+`OFFER_STALE_DAYS = 5`, `offerSilenceDays()`, `isOfferStale()` w `lib/offers.ts`
+(cisza liczona od `wyslana_at`). Pulpit ma sekcję **„Oferty bez decyzji"** —
+otwarte przez klienta na górze, bo to cieplejszy trop — z przyciskiem
+„Przypomnij mailem" (`POST /api/offers/:id/remind`, ton sprzedażowy, nie
+windykacyjny; wzorem `invoices/[id]/remind`).
+
+Po przypomnieniu oferta **znika z listy i nie wraca** — dopiero ponowna wysyłka
+zeruje `przypomniano_at`. Druga i trzecia prośba o to samo w tydzień to
+nagabywanie klienta, a Pulpit pokazujący coś, czego nie da się odhaczyć, uczy
+ignorowania Pulpitu.
+
+### 3. Pozycje opcjonalne wybierane przez klienta
+
+`offer_items.opcjonalna` + `wybrana`. W edytorze przełącznik przy pozycji,
+na publicznej stronie pole wyboru z natychmiastowym przeliczeniem kwoty
+(trójjęzycznie). Wybór klienta idzie w ciele akceptacji (`wybrane: string[]`),
+zapisuje się PRZED `acceptOffer`, więc faktura i zakres projektu powstają
+dokładnie z tego, co klient odhaczył.
+
+Reguła „co wchodzi do kwoty" żyje w JEDNYM miejscu (`itemLiczySie`), bo stosują
+ją cztery ekrany i faktura. Sumy w SQL (lista, Pulpit) mają
+`FILTER (WHERE NOT opcjonalna OR wybrana)`.
+
+**Pułapka złapana pomiarem:** publiczna strona najpierw odfiltrowywała pozycje,
+a potem podawała je do `offerTotal`, które filtruje ponownie — kwota nie
+drgała po zaznaczeniu. Na ekranie wyglądało to jak „nic się nie stało".
+Poprawka: wybór klienta NAKŁADAMY na pozycje (`{...it, wybrana}`), a sumę liczy
+jedna funkcja.
+
+### 4. Bloki treści — oferta czyta się jak dokument
+
+Tabela `offer_sections` (tytuł, treść, kolejność) + `SEKCJE_STARTOWE`
+w `lib/offers.ts`: sześć gotowych bloków („Kontekst", „Zakres prac", „Jak to
+przebiega", „Terminy", „Warunki", „Dlaczego ja") do wstawienia jednym
+kliknięciem. Treść jest PUNKTEM STARTOWYM z nawiasami do wypełnienia, nie
+marketingową laurką.
+
+Na wydruku sekcje stoją **NAD** cennikiem — klient ma najpierw przeczytać, co
+dostaje. `uwagi` zostają tam, gdzie były (krótka notka pod kwotą). Szablony
+ofert niosą sekcje w kolumnie `sekcje` (JSONB) i wstawiają je razem z pozycjami.
+
+### 5. Wersje zamiast sierocych duplikatów
+
+`parent_offer_id`, `wersja`, `superseded_at`. `POST /api/offers/:id/version`
+kopiuje pozycje (z opcjonalnością) i sekcje, a poprzedniczkę oznacza jako
+zastąpioną i ustawia jej status „Wygasła".
+
+**Świadomie NIE „Odrzucona"** — nikt jej nie odrzucił, a wrzucenie tego do
+statystyki przegranych fałszowałoby powody porażek. `offerLiczySieDoStatystyk()`
+wyjmuje zastąpione ze skuteczności i z pipeline'u (panel i Pulpit): jedna
+rozmowa handlowa nie może liczyć się dwa razy, a skuteczność nie ma spadać przy
+każdej poprawce zakresu. „Duplikuj" zostaje osobno — to druga sprzedaż dla tego
+samego klienta, świadomie wspierany przypadek.
+
+### 6. „Dlaczego przegrywamy" jako liczba
+
+Statystyki dostały kartę z rozbiciem powodów odrzucenia (liczba + kwota, bez
+ofert zastąpionych). Powody zbierają się od pierwszej rundy — do tej pory nic
+ich nie czytało.
+
+### Czego NIE zbudowano i dlaczego
+
+Płatność online przy akceptacji (czeka na rejestrację firmy; akceptacja i tak
+zakłada fakturę), komentarze/redlining klienta w dokumencie, obiegi akceptacji,
+biblioteki treści dla zespołu, integracje z CRM-ami. To funkcje dla zespołu
+przekazującego sobie dokument z rąk do rąk.
+
+**Apka nie dostała tej rundy** — kwoty liczy serwer, więc pozycje opcjonalne
+działają w niej poprawnie „z pudełka", ale sekcji, wersji ani śladu otwarcia
+jeszcze nie pokazuje. To naturalny kandydat na następną paczkę mobilną.

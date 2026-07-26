@@ -30,12 +30,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // linkiem mógłby dalej zaakceptować ofertę e-podpisem.
   if (offer.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
 
+  // Wybór klienta co do pozycji opcjonalnych (runda 2 Modułu 57). Zapisujemy
+  // go PRZED akceptacją, żeby faktura i zakres projektu powstały dokładnie
+  // z tego, co klient odhaczył — a nie z domyślnego zestawu. Lista id jest
+  // filtrowana po `offer_id`, więc nie da się nią ruszyć cudzej oferty.
+  const wybrane = Array.isArray(body?.wybrane)
+    ? (body.wybrane as unknown[]).filter((v): v is string => typeof v === "string")
+    : null;
+  if (wybrane) {
+    await sql`UPDATE offer_items SET wybrana = false WHERE offer_id = ${offer.id} AND opcjonalna;`;
+    if (wybrane.length > 0) {
+      await sql`
+        UPDATE offer_items SET wybrana = true
+        WHERE offer_id = ${offer.id} AND opcjonalna AND id = ANY(${wybrane}::text[]);
+      `;
+    }
+  }
+
   const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = req.headers.get("user-agent") ?? null;
 
-  const result = await acceptOffer(offer, items as { nazwa: string; ilosc: number; jednostka: string; cena: number }[], {
+  const result = await acceptOffer(offer, items as { nazwa: string; ilosc: number; jednostka: string; cena: number; opcjonalna?: boolean; wybrana?: boolean }[], {
     allowExpired: false,
     acceptedByName: name,
     acceptedIp: ip,

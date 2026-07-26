@@ -14,11 +14,19 @@ export type OfferTemplateItem = {
   cena: number;
 };
 
+/** Blok treści w szablonie — kopiowany do oferty przy „Wstaw z szablonu",
+ * tak samo jak pozycje (runda 2 Modułu 57). */
+export type OfferTemplateSection = {
+  tytul: string;
+  tresc: string;
+};
+
 export type OfferTemplate = {
   id: string;
   nazwa: string;
   opis: string;
   pozycje: OfferTemplateItem[];
+  sekcje: OfferTemplateSection[];
   uwagi: string;
   created_at: string;
   updated_at: string;

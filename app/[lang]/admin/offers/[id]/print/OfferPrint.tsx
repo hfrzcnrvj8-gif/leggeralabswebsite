@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type Offer, type OfferItem, type OfferLang, offerTotal, itemKwota, clientAddressLines, offerReference, isOfferExpired } from "@/lib/offers";
+import { type Offer, type OfferItem, type OfferSection, type OfferLang, offerTotal, itemKwota, clientAddressLines, offerReference, isOfferExpired } from "@/lib/offers";
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
 import { DocLogoMark } from "../../../DocLogoMark";
@@ -48,6 +48,10 @@ type Dict = {
   expiredLabel: string;
   privacyNote: string;
   privacyLink: string;
+  /** Pozycje opcjonalne (runda 2 Modułu 57) — klient sam decyduje, czy je
+   * bierze, więc dokument musi mu to powiedzieć w JEGO języku. */
+  optionalTag: string;
+  optionalHint: string;
 };
 
 const DICT: Record<OfferLang, Dict> = {
@@ -86,6 +90,8 @@ const DICT: Record<OfferLang, Dict> = {
     expiredLabel: "Ta oferta wygasła. Skontaktuj się z nadawcą, aby ustalić dalsze kroki.",
     privacyNote: "Akceptując, zapisujemy Twoje imię i nazwisko, adres IP oraz datę i godzinę — jako dowód złożenia oświadczenia woli. Szczegóły przetwarzania danych: ",
     privacyLink: "Polityka Prywatności",
+    optionalTag: "do wyboru",
+    optionalHint: "Część pozycji jest do wyboru — zaznacz te, które Cię interesują, a kwota przeliczy się od razu.",
   },
   en: {
     doc: "Quote",
@@ -122,6 +128,8 @@ const DICT: Record<OfferLang, Dict> = {
     expiredLabel: "This quote has expired. Please contact the sender to discuss next steps.",
     privacyNote: "When you accept, we record your name, IP address and the date and time as proof of your declaration. Details on data processing: ",
     privacyLink: "Privacy Policy",
+    optionalTag: "optional",
+    optionalHint: "Some items are optional — tick the ones you want and the total updates instantly.",
   },
   de: {
     doc: "Angebot",
@@ -158,6 +166,8 @@ const DICT: Record<OfferLang, Dict> = {
     expiredLabel: "Dieses Angebot ist abgelaufen. Bitte kontaktieren Sie den Absender für die nächsten Schritte.",
     privacyNote: "Bei der Annahme speichern wir Ihren Namen, Ihre IP-Adresse sowie Datum und Uhrzeit als Nachweis Ihrer Willenserklärung. Einzelheiten zur Datenverarbeitung: ",
     privacyLink: "Datenschutzerklärung",
+    optionalTag: "optional",
+    optionalHint: "Einige Positionen sind optional — wählen Sie aus, was Sie interessiert; die Summe wird sofort neu berechnet.",
   },
 };
 
@@ -179,6 +189,11 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   const [signConfirm, setSignConfirm] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
+  /** Pozycje opcjonalne odhaczone przez KLIENTA (runda 2 Modułu 57).
+   * Stan lokalny, dopóki nie kliknie akceptacji — kwota przelicza się na jego
+   * oczach, ale nic nie zapisuje się bez decyzji. */
+  const [wybrane, setWybrane] = useState<Set<string>>(new Set());
+  const [sections, setSections] = useState<OfferSection[]>([]);
 
   useEffect(() => {
     if (token) {
@@ -199,6 +214,12 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
           setOffer(d.offer);
           setItems(d.items);
           setSettings(d.settings);
+          // Wybór zapisany wcześniej (np. klient wrócił do linku albo już
+          // zaakceptował) wygrywa nad pustym zaznaczeniem — inaczej dokument
+          // pokazywałby po akceptacji inny zestaw niż ten, który poszedł na
+          // fakturę.
+          setWybrane(new Set((d.items as OfferItem[]).filter((it) => it.wybrana).map((it) => it.id)));
+          setSections((d.sections ?? []) as OfferSection[]);
         })
         .catch(() => setNotFound(true));
       return;
@@ -211,6 +232,8 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
         setOffer(offerData.offer);
         setItems(offerData.items);
         setSettings(settingsData.settings);
+        setWybrane(new Set((offerData.items as OfferItem[]).filter((it) => it.wybrana).map((it) => it.id)));
+        setSections((offerData.sections ?? []) as OfferSection[]);
       })
       .catch(() => setNotFound(true));
   }, [id, token]);
@@ -222,7 +245,25 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!offer) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 
-  const total = offerTotal(items);
+  // Wybór klienta NAKŁADANY na pozycje, a nie filtrowanie ich przed sumą:
+  // `offerTotal` sam odrzuca opcjonalne bez `wybrana`, więc wcześniejsze
+  // odfiltrowanie robiło to drugi raz i suma nie drgnęła po zaznaczeniu
+  // (złapane pomiarem — na ekranie po prostu zostawała stara liczba).
+  const pozycjeZWyborem = items.map((it) =>
+    it.opcjonalna ? { ...it, wybrana: wybrane.has(it.id) } : it
+  );
+  const total = offerTotal(pozycjeZWyborem);
+  const maOpcjonalne = items.some((it) => it.opcjonalna);
+  const zaakceptowana = offer.status === "Zaakceptowana";
+
+  const przelacz = (id: string) => {
+    setWybrane((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const submitAcceptance = async () => {
     if (!token || !signName.trim() || !signConfirm || accepting) return;
@@ -231,7 +272,7 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
     const res = await fetch(`/api/offers/public/${token}/accept`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: signName.trim() }),
+      body: JSON.stringify({ name: signName.trim(), wybrane: [...wybrane] }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string; acceptedByName?: string };
     setAccepting(false);
@@ -338,6 +379,29 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
             </div>
           </div>
 
+          {/* Treść oferty PRZED cennikiem — klient ma najpierw przeczytać,
+              co dostaje. Bez sekcji dokument wygląda dokładnie jak dawniej. */}
+          {sections.length > 0 && (
+            <div className="mt-10 space-y-5">
+              {sections.map((sekcja) => (
+                <div key={sekcja.id} className="break-inside-avoid">
+                  {sekcja.tytul && (
+                    <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400">
+                      {sekcja.tytul}
+                    </h2>
+                  )}
+                  <div className="whitespace-pre-line text-[12.5px] leading-relaxed text-neutral-700">{sekcja.tresc}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {maOpcjonalne && !zaakceptowana && (
+            <p className="mt-8 rounded-lg bg-violet-50 px-3 py-2 text-[11.5px] text-violet-900 print:hidden">
+              {t.optionalHint}
+            </p>
+          )}
+
           {/* Pozycje */}
           <table className="mt-10 w-full border-collapse text-[12px]">
             <thead>
@@ -351,16 +415,42 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
               </tr>
             </thead>
             <tbody>
-              {items.map((it, i) => (
-                <tr key={it.id} className="border-b border-neutral-100">
-                  <td className="py-2.5 pr-2 text-neutral-400">{i + 1}</td>
-                  <td className="py-2.5 pr-2 text-neutral-900">{it.nazwa || "—"}</td>
-                  <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{it.ilosc}</td>
-                  <td className="py-2.5 pr-2 text-neutral-500">{it.jednostka}</td>
-                  <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{money(it.cena, lang, offer.waluta)}</td>
-                  <td className="py-2.5 pl-2 text-right tabular-nums font-medium text-neutral-900">{money(itemKwota(it), lang, offer.waluta)}</td>
-                </tr>
-              ))}
+              {items.map((it, i) => {
+                // Pozycja opcjonalna: klient decyduje sam. Po akceptacji nikt
+                // już nic nie przełącza — dokument staje się zapisem tego,
+                // co zostało kupione, więc pola wyboru znikają.
+                const wybor = it.opcjonalna && !zaakceptowana;
+                const liczySie = !it.opcjonalna || wybrane.has(it.id);
+                return (
+                  <tr key={it.id} className={`border-b border-neutral-100 ${it.opcjonalna && !liczySie ? "text-neutral-400" : ""}`}>
+                    <td className="py-2.5 pr-2 text-neutral-400">{it.opcjonalna ? "" : i + 1}</td>
+                    <td className="py-2.5 pr-2 text-neutral-900">
+                      {wybor ? (
+                        <label className="flex cursor-pointer items-center gap-2 print:cursor-auto">
+                          <input
+                            type="checkbox"
+                            checked={wybrane.has(it.id)}
+                            onChange={() => przelacz(it.id)}
+                            className="h-3.5 w-3.5 shrink-0 accent-violet-600"
+                          />
+                          <span className={liczySie ? "text-neutral-900" : "text-neutral-400"}>{it.nazwa || "—"}</span>
+                          <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[9.5px] uppercase tracking-wide text-neutral-500 print:hidden">
+                            {t.optionalTag}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className={liczySie ? "" : "line-through"}>{it.nazwa || "—"}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{it.ilosc}</td>
+                    <td className="py-2.5 pr-2 text-neutral-500">{it.jednostka}</td>
+                    <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{money(it.cena, lang, offer.waluta)}</td>
+                    <td className={`py-2.5 pl-2 text-right tabular-nums font-medium ${liczySie ? "text-neutral-900" : "text-neutral-400 line-through"}`}>
+                      {money(itemKwota(it), lang, offer.waluta)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

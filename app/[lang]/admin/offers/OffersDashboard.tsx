@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPlus, IconX, IconExternalLink, IconLayoutGrid, IconFileDescription, IconSearch } from "@tabler/icons-react";
+import { IconPlus, IconX, IconExternalLink, IconLayoutGrid, IconFileDescription, IconSearch, IconEye } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, CLOSED_OFFER_STATUSES, isOfferExpired, weightedOfferValue } from "@/lib/offers";
+import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, CLOSED_OFFER_STATUSES, isOfferExpired, weightedOfferValue, offerLiczySieDoStatystyk } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
 import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
@@ -249,7 +249,10 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   }, [rows, kursor, openId, newOpen, templatesOpen, rejectFor]);
 
   const kpi = useMemo(() => {
-    const list = offers ?? [];
+    // Oferty zastąpione nowszą wersją NIE wchodzą do liczników — jedna
+    // rozmowa handlowa liczyłaby się wtedy dwa razy, a skuteczność spadałaby
+    // przy każdej poprawce zakresu (patrz offerLiczySieDoStatystyk).
+    const list = (offers ?? []).filter(offerLiczySieDoStatystyk);
     let wToku = 0;
     let zaakceptowane = 0;
     let wazony = 0;
@@ -537,6 +540,20 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       <td className="p-2.5 font-medium text-[var(--fg)]">
                         <span className="flex items-center gap-1.5">
                           {o.tytul || <span className="text-muted">(bez tytułu)</span>}
+                          {o.wersja > 1 && (
+                            <Tooltip label="Nowsza wersja wcześniejszej oferty">
+                              <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                                v{o.wersja}
+                              </span>
+                            </Tooltip>
+                          )}
+                          {o.otwarta_at && !CLOSED_OFFER_STATUSES.has(o.status) && (
+                            <Tooltip label={`Klient otworzył ofertę ${o.liczba_otwarc}×`}>
+                              <span className="flex items-center gap-0.5 rounded-full bg-brand-cyan/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-cyan">
+                                <IconEye size={11} /> {o.liczba_otwarc}
+                              </span>
+                            </Tooltip>
+                          )}
                           <Tooltip label="Język wydruku">
                             <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted">
                               {o.jezyk}

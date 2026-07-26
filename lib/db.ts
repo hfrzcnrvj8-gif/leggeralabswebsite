@@ -1217,6 +1217,27 @@ async function createOffersSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS powod_odrzucenia TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS komentarz_odrzucenia TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS odrzucona_at TIMESTAMPTZ;`;
+  // Moduł 57, runda 2 — ślad otwarcia publicznego linku przez klienta.
+  // ŚWIADOMIE bez IP i bez identyfikacji osoby (decyzja właściciela
+  // 2026-07-26): sam czas i licznik odpowiadają na pytanie „czy w ogóle
+  // przeczytał", a nie zakładają nowej kategorii danych osobowych do objęcia
+  // retencją z Audytu 2. E-podpis (accepted_ip) to osobna sprawa — tam IP jest
+  // dowodem woli, tu byłoby tylko ciekawostką.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS otwarta_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS ostatnio_otwarta_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS liczba_otwarc INTEGER NOT NULL DEFAULT 0;`;
+  // Kiedy ostatnio przypomnieliśmy o ofercie bez decyzji — żeby przypominacz
+  // nie prosił o to samo codziennie.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS przypomniano_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS wyslana_at TIMESTAMPTZ;`;
+  // Wersje oferty (runda 2 Modułu 57). „Duplikuj" robiło DRUGĄ, niepowiązaną
+  // ofertę — w statystykach wyglądało to jak dwie szanse sprzedaży, choć
+  // rozmowa była jedna. Wersja wskazuje poprzedniczkę, a poprzedniczka
+  // dostaje `superseded_at` i wypada z liczników (nie jest ani wygrana, ani
+  // przegrana — została zastąpiona).
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS parent_offer_id TEXT REFERENCES offers(id) ON DELETE SET NULL;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS wersja INTEGER NOT NULL DEFAULT 1;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS superseded_at TIMESTAMPTZ;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (
@@ -1230,6 +1251,28 @@ async function createOffersSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS offer_items_offer_id_idx ON offer_items(offer_id);`;
+  // Pozycje opcjonalne (runda 2 Modułu 57) — „dodatek do wyboru", który klient
+  // sam odhacza na publicznej stronie. `wybrana` trzyma JEGO decyzję, więc po
+  // akceptacji wiadomo, co dokładnie kupił; pozycje obowiązkowe mają
+  // `opcjonalna = false` i `wybrana` bez znaczenia.
+  await sql`ALTER TABLE offer_items ADD COLUMN IF NOT EXISTS opcjonalna BOOLEAN NOT NULL DEFAULT false;`;
+  await sql`ALTER TABLE offer_items ADD COLUMN IF NOT EXISTS wybrana BOOLEAN NOT NULL DEFAULT false;`;
+
+  // Bloki treści oferty (runda 2 Modułu 57). Do tej pory oferta była tabelą
+  // pozycji plus jedno pole „Uwagi" — czyli cennikiem. Dojrzałe narzędzia
+  // (PandaDoc, Proposify, Qwilr) sprzedają dokument, który się CZYTA: kontekst,
+  // zakres, harmonogram, warunki. Osobna tabela, nie kolumny na ofercie, bo
+  // sekcji jest dowolna liczba i mają kolejność.
+  await sql`
+    CREATE TABLE IF NOT EXISTS offer_sections (
+      id TEXT PRIMARY KEY,
+      offer_id TEXT NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+      tytul TEXT NOT NULL DEFAULT '',
+      tresc TEXT NOT NULL DEFAULT '',
+      position INTEGER NOT NULL DEFAULT 0
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS offer_sections_offer_id_idx ON offer_sections(offer_id);`;
 
   await markSchemaApplied("offers");
 }
@@ -1254,6 +1297,8 @@ async function createOfferTemplatesSchema(): Promise<void> {
   const existing = await sql`SELECT to_regclass('public.offer_templates') AS reg;`;
   const isNew = !existing[0]?.reg;
 
+  // `sekcje` (bloki treści) dokładane po pierwszym wdrożeniu szablonów —
+  // stąd ALTER niżej, nie kolumna w CREATE TABLE.
   await sql`
     CREATE TABLE IF NOT EXISTS offer_templates (
       id TEXT PRIMARY KEY,
@@ -1265,6 +1310,8 @@ async function createOfferTemplatesSchema(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `;
+
+  await sql`ALTER TABLE offer_templates ADD COLUMN IF NOT EXISTS sekcje JSONB NOT NULL DEFAULT '[]';`;
 
   if (isNew) {
     const seed: { id: string; nazwa: string; opis: string; pozycje: unknown[]; uwagi: string }[] = [

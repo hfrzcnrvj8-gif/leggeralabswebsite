@@ -50,6 +50,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await sql`UPDATE offers SET status = 'Wysłana', updated_at = now() WHERE id = ${id};`;
       status = "Wysłana";
     }
+    // `wyslana_at` liczy się od KAŻDEJ wysyłki (także ponownej), bo od niej
+    // liczy się cisza po stronie klienta — a przypominacz pyta właśnie
+    // „ile dni bez decyzji". Ponowna wysyłka zeruje też ślad przypomnienia.
+    await sql`UPDATE offers SET wyslana_at = now(), przypomniano_at = NULL WHERE id = ${id};`;
     const clientId = typeof offer.client_id === "string" ? offer.client_id : null;
     await logClientEvent(sql, clientId, "offer_sent", `Wysłano ofertę „${tytul}” mailem`, null, id);
 

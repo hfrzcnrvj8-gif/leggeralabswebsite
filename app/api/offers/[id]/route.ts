@@ -29,12 +29,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const offer = rows[0];
   if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
   const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
+  const sections = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
   const contracts = await sql`
     SELECT id, status, typ FROM contracts
     WHERE offer_id = ${id} AND typ = 'umowa'
     ORDER BY created_at ASC LIMIT 1;
   `;
-  return NextResponse.json({ offer, items: numItems(items), contract: contracts[0] ?? null });
+  return NextResponse.json({ offer, items: numItems(items), sections, contract: contracts[0] ?? null });
 }
 
 /** PATCH /api/offers/:id — aktualizacja pól nagłówka oferty. */

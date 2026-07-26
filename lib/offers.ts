@@ -5,7 +5,7 @@
 // pojawia się dopiero na fakturze po akceptacji.
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines, documentYear } from "./documents";
-import { todayLocalISO } from "./dates";
+import { todayLocalISO, parsePgTimestamp } from "./dates";
 import { round2 } from "./invoices";
 
 /** Język wydruku oferty — jak w fakturach (lib/invoices.ts), niezależny od
@@ -81,7 +81,70 @@ export type OfferItem = {
   jednostka: string;
   cena: number;
   position: number;
+  /** Pozycja „do wyboru" — klient odhacza ją sam na publicznej stronie
+   * (runda 2 Modułu 57, wzorem PandaDoc/Qwilr). Pozwala sprzedać wariant bez
+   * pisania drugiej oferty. */
+  opcjonalna: boolean;
+  /** Decyzja KLIENTA co do pozycji opcjonalnej. Dla pozycji obowiązkowych
+   * bez znaczenia — liczy się zawsze. */
+  wybrana: boolean;
 };
+
+/** Czy pozycja wchodzi do kwoty: obowiązkowa zawsze, opcjonalna tylko
+ * zaznaczona. Jedno miejsce, bo tę samą regułę stosują cztery ekrany
+ * (edytor, lista, wydruk, publiczna strona) i faktura po akceptacji. */
+export function itemLiczySie(it: Pick<OfferItem, "opcjonalna" | "wybrana">): boolean {
+  return !it.opcjonalna || it.wybrana;
+}
+
+/** Blok treści oferty (runda 2 Modułu 57) — „Kontekst", „Zakres prac",
+ * „Harmonogram", „Warunki". Osobno od `uwagi`, które zostają krótką notką pod
+ * kwotą; to jest treść, przez którą klient czyta ofertę zanim spojrzy na
+ * cenę. */
+export type OfferSection = {
+  id: string;
+  offer_id: string;
+  tytul: string;
+  tresc: string;
+  position: number;
+};
+
+/** Gotowe bloki treści do wstawienia jednym kliknięciem (runda 2 Modułu 57).
+ * Treść jest PUNKTEM STARTOWYM do przepisania pod konkretnego klienta — dlatego
+ * krótka i konkretna, a nie „lorem ipsum" ani marketingowa laurka. Kolejność
+ * odpowiada temu, jak czyta się ofertę: co rozumiem z Twojej sytuacji → co
+ * zrobię → kiedy → na jakich warunkach. */
+export const SEKCJE_STARTOWE: { tytul: string; tresc: string }[] = [
+  {
+    tytul: "Kontekst",
+    tresc:
+      "Z naszej rozmowy rozumiem, że [opisz sytuację klienta jego słowami — co dziś zajmuje czas, co się gubi, gdzie boli]. Ta oferta odpowiada na ten problem, nie na wszystko naraz.",
+  },
+  {
+    tytul: "Zakres prac",
+    tresc:
+      "Co robię:\n• [krok pierwszy]\n• [krok drugi]\n• [krok trzeci]\n\nCzego ta oferta NIE obejmuje: [wypisz wprost — to skraca późniejsze nieporozumienia bardziej niż jakikolwiek zapis w umowie].",
+  },
+  {
+    tytul: "Jak to przebiega",
+    tresc:
+      "1. Start — ustalamy dostępy i osobę kontaktową po Państwa stronie.\n2. Praca — pokazuję działający fragment, zanim zrobię całość.\n3. Odbiór — wspólne sprawdzenie na Państwa danych.\n4. Po wdrożeniu — [wsparcie / szkolenie / przekazanie dokumentacji].",
+  },
+  {
+    tytul: "Terminy",
+    tresc: "Realizacja zajmuje ok. [X tygodni] od akceptacji oferty i przekazania dostępów.",
+  },
+  {
+    tytul: "Warunki",
+    tresc:
+      "Płatność: [np. 50% zaliczki, 50% po odbiorze].\nOferta jest ważna do daty podanej wyżej.\nOferta nie stanowi umowy — po akceptacji przygotowuję umowę do podpisu.",
+  },
+  {
+    tytul: "Dlaczego ja",
+    tresc:
+      "[Jedno–dwa zdania konkretu: co dokładnie zrobiłeś podobnego i z jakim efektem. Bez przymiotników — liczby i fakty przekonują, deklaracje nie.]",
+  },
+];
 
 export type Offer = {
   id: string;
@@ -117,6 +180,22 @@ export type Offer = {
   powod_odrzucenia: string;
   komentarz_odrzucenia: string;
   odrzucona_at: string | null;
+  /** Ślad otwarcia publicznego linku przez klienta (runda 2 Modułu 57) —
+   * bez IP i bez identyfikacji osoby, patrz migracja w lib/db.ts. */
+  otwarta_at: string | null;
+  ostatnio_otwarta_at: string | null;
+  liczba_otwarc: number;
+  /** Znacznik ostatniej wysyłki i ostatniego przypomnienia — z nich liczy się
+   * cisza po stronie klienta (patrz isOfferStale). */
+  wyslana_at: string | null;
+  przypomniano_at: string | null;
+  /** Wersjonowanie (runda 2 Modułu 57): `parent_offer_id` wskazuje ofertę,
+   * z której ta powstała, `superseded_at` oznacza ofertę ZASTĄPIONĄ nowszą
+   * wersją — taka nie liczy się do skuteczności ani do pipeline'u, bo nie
+   * jest ani wygrana, ani przegrana. */
+  parent_offer_id: string | null;
+  wersja: number;
+  superseded_at: string | null;
   /** E-podpis akceptacji (Faza I) — patrz lib/offerAccept.ts. Puste
    * accepted_by_name = zaakceptowano ręcznie w panelu, nie przez klienta. */
   accepted_at: string | null;
@@ -131,9 +210,25 @@ export function itemKwota(it: { ilosc: number; cena: number }): number {
   return round2(it.ilosc * it.cena);
 }
 
-/** Suma kwoty oferty (bez VAT — patrz komentarz na górze pliku). */
-export function offerTotal(items: { ilosc: number; cena: number }[]): number {
-  return round2(items.reduce((sum, it) => sum + itemKwota(it), 0));
+/** Suma kwoty oferty (bez VAT — patrz komentarz na górze pliku).
+ *
+ * Pozycje opcjonalne wchodzą TYLKO zaznaczone. Starsze wywołania podają
+ * pozycje bez tych pól — wtedy `itemLiczySie` traktuje je jak obowiązkowe,
+ * czyli dokładnie jak przed tą zmianą. */
+export function offerTotal(items: { ilosc: number; cena: number; opcjonalna?: boolean; wybrana?: boolean }[]): number {
+  return round2(
+    items
+      .filter((it) => itemLiczySie({ opcjonalna: !!it.opcjonalna, wybrana: !!it.wybrana }))
+      .reduce((sum, it) => sum + itemKwota(it), 0)
+  );
+}
+
+/** Suma samych pozycji opcjonalnych NIEzaznaczonych — „ile jeszcze można
+ * dołożyć". Do pokazania obok kwoty, żeby było widać potencjał oferty. */
+export function offerOptionalRest(items: { ilosc: number; cena: number; opcjonalna?: boolean; wybrana?: boolean }[]): number {
+  return round2(
+    items.filter((it) => it.opcjonalna && !it.wybrana).reduce((sum, it) => sum + itemKwota(it), 0)
+  );
 }
 
 /** Statusy zamknięte — oferta w jednym z nich nie jest już "w grze" (ani do
@@ -166,6 +261,49 @@ export const OFFER_STATUS_WEIGHT: Partial<Record<OfferStatus, number>> = {
 export function weightedOfferValue(status: OfferStatus, kwota: number): number {
   if (CLOSED_OFFER_STATUSES.has(status)) return 0;
   return kwota * (OFFER_STATUS_WEIGHT[status] ?? 1);
+}
+
+/** Czy oferta w ogóle wchodzi do liczników. Zastąpiona nowszą wersją nie —
+ * inaczej jedna rozmowa handlowa liczyłaby się dwa razy (raz jako wersja 1,
+ * raz jako 2), a skuteczność spadałaby przy każdej poprawce zakresu. */
+export function offerLiczySieDoStatystyk(o: Pick<Offer, "superseded_at">): boolean {
+  return !o.superseded_at;
+}
+
+/** Po ilu dniach ciszy od wysyłki oferta trafia na Pulpit jako „warto
+ * przypomnieć". Pięć dni roboczo-kalendarzowych: krócej to nachalność, dłużej
+ * i oferta zdąży wyjść klientowi z głowy. Bliźniak `CONTRACT_STALE_DAYS`
+ * (tam 7 — umowa po akceptacji ma inny rytm niż oferta w negocjacji). */
+export const OFFER_STALE_DAYS = 5;
+
+/** Ile dni ciszy od wysłania oferty — `null`, gdy pytanie nie ma sensu
+ * (szkic, oferta zamknięta, brak znacznika wysyłki). */
+export function offerSilenceDays(
+  o: Pick<Offer, "status" | "wyslana_at">,
+  now: number = Date.now()
+): number | null {
+  if (o.status !== "Wysłana") return null;
+  // `parsePgTimestamp`, NIE `new Date()` — ta funkcja liczy się także
+  // w przeglądarce (Pulpit, apka), a Postgres oddaje „2026-07-26 19:12+01".
+  const wyslana = parsePgTimestamp(o.wyslana_at);
+  if (!wyslana) return null;
+  const days = Math.floor((now - wyslana.getTime()) / 86_400_000);
+  return days < 0 ? 0 : days;
+}
+
+/** Czy oferta czeka na decyzję na tyle długo, żeby zaproponować przypomnienie.
+ *
+ * Po wysłaniu przypomnienia (`przypomniano_at`) oferta ZNIKA z listy i nie
+ * wraca — dopiero ponowna wysyłka zeruje znacznik. Świadomie: druga i trzecia
+ * prośba o to samo w tydzień to już nagabywanie klienta, a Pulpit, który
+ * pokazuje coś, czego nie da się odhaczyć, uczy ignorowania Pulpitu. */
+export function isOfferStale(
+  o: Pick<Offer, "status" | "wyslana_at" | "przypomniano_at">,
+  now: number = Date.now()
+): boolean {
+  if (o.przypomniano_at) return false;
+  const days = offerSilenceDays(o, now);
+  return days != null && days >= OFFER_STALE_DAYS;
 }
 
 /** Adres klienta jako linie do wydruku (patrz lib/documents.ts). */

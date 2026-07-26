@@ -76,6 +76,8 @@ type TodayData = {
   overdueInvoices: InvoiceRow[];
   draftInvoices: InvoiceRow[];
   expiredOffers: OfferRow[];
+  /** Runda 2 Modułu 57 — wysłane, brak decyzji, cisza ≥ 5 dni. */
+  staleOffers: (OfferRow & { silenceDays: number })[];
   staleContracts: StaleContract[];
   dueFollowups: DueFollowup[];
   pendingMails: PendingMail[];
@@ -290,6 +292,20 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     toast("Oferta oznaczona jako wygasła.");
   };
 
+  /** Uprzejme przypomnienie o ofercie bez decyzji. Po wysłaniu oferta znika
+   * z tej listy i nie wraca — dopiero ponowna wysyłka oferty zeruje znacznik
+   * (patrz isOfferStale). */
+  const remindOffer = async (id: string) => {
+    const res = await fetch(`/api/offers/${id}/remind`, { method: "POST" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast(body?.error ?? "Nie udało się wysłać przypomnienia.", "error");
+      return;
+    }
+    setData((prev) => (prev ? { ...prev, staleOffers: prev.staleOffers.filter((o) => o.id !== id) } : prev));
+    toast("Przypomnienie wysłane.");
+  };
+
   const remindInvoice = async (id: string, numer: string | null) => {
     const res = await fetch(`/api/invoices/${id}/remind`, { method: "POST" });
     const body = await res.json().catch(() => ({}));
@@ -335,6 +351,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.overdueInvoices.length +
     data.draftInvoices.length +
     data.expiredOffers.length +
+    data.staleOffers.length +
     data.staleContracts.length;
 
   const revenueThisMonthPln = sumPln(data.kpi.revenueThisMonth);
@@ -794,6 +811,54 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   >
                     Wystaw
                   </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Runda 2 Modułu 57. Pulpit upominał się dotąd dopiero o ofertę PO
+            TERMINIE — czyli wtedy, gdy na rozmowę było już za późno. Tu chodzi
+            o moment wcześniejszy: wysłana, cisza, decyzji brak. „Otwarta"
+            znaczy, że klient wszedł w link — to cieplejszy trop niż oferta,
+            której nikt nie widział, więc idzie na górę listy. */}
+        <section className="card-paper rounded-xl border hairline p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Oferty bez decyzji</h2>
+            <Link href={`/${lang}/admin/offers`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {data.staleOffers.length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — żadna wysłana oferta nie czeka za długo.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.staleOffers.slice(0, 6).map((o) => (
+                <li key={o.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/offers/${o.id}`} className="font-medium hover:underline">
+                      {o.klient_nazwa || "(bez klienta)"}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — {formatMoney(o.kwota, o.waluta || "PLN")} — cisza od {o.silenceDays} dni
+                    </span>
+                    {o.otwarta_at ? (
+                      <span className="ml-1.5 rounded-full bg-brand-cyan/15 px-1.5 py-0.5 text-[10.5px] text-brand-cyan">
+                        otwarta {o.liczba_otwarc}×
+                      </span>
+                    ) : (
+                      <span className="ml-1.5 rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10.5px] text-muted">
+                        nieotwarta
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => remindOffer(o.id)}
+                    className="shrink-0 rounded-full border hairline px-2 py-0.5 text-[11px] text-[var(--fg)]"
+                  >
+                    Przypomnij mailem
+                  </button>
                 </li>
               ))}
             </ul>

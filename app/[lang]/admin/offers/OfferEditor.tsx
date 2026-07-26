@@ -1,20 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
+import { IconSquare, IconSquareCheck, IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconChevronUp, IconExternalLink, IconMail, IconCopy, IconVersions, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Offer,
   type OfferItem,
+  type OfferSection,
   OFFER_LANGS,
   OFFER_LANG_LABEL,
   OFFER_STATUSES,
   OFFER_STATUS_CLASS,
   OFFER_CURRENCIES,
+  SEKCJE_STARTOWE,
   DEFAULT_OFFER_CURRENCY,
   isOfferExpired,
   rejectReasonLabel,
   offerTotal,
+  offerOptionalRest,
   itemKwota,
 } from "@/lib/offers";
 import { CONTRACT_STATUS_CLASS } from "@/lib/contracts";
@@ -26,9 +29,11 @@ import { formatMoney, type CatalogItem } from "@/lib/invoices";
 import { hasPriceRange } from "@/lib/catalog";
 import { CatalogCategoryIcon } from "../icons";
 import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
+import { formatPlDateTime } from "@/lib/dates";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
+import { Tooltip } from "../Tooltip";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { invalidateLinkTargets } from "../LinkPicker";
@@ -68,6 +73,9 @@ export function OfferEditor({
   const [contract, setContract] = useState<{ id: string; status: string } | null>(null);
   /** Okno „dlaczego odrzucona" — status zmienia się dopiero po wyborze powodu. */
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [versioning, setVersioning] = useState(false);
+  /** Bloki treści oferty — „Kontekst", „Zakres prac", „Harmonogram". */
+  const [sections, setSections] = useState<OfferSection[]>([]);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -86,10 +94,12 @@ export function OfferEditor({
     const data = (await res.json()) as {
       offer: Offer;
       items: OfferItem[];
+      sections: OfferSection[];
       contract: { id: string; status: string } | null;
     };
     setOffer(data.offer);
     setItems(data.items);
+    setSections(data.sections ?? []);
     setContract(data.contract ?? null);
   }, [id]);
 
@@ -257,13 +267,82 @@ export function OfferEditor({
         toast("Nie udało się wstawić szablonu.", "error");
         return;
       }
-      const data = (await res.json()) as { items: OfferItem[]; offer: Offer };
+      const data = (await res.json()) as { items: OfferItem[]; sections: OfferSection[]; offer: Offer };
       setItems(data.items);
+      setSections(data.sections ?? []);
       setOffer(data.offer);
       onChange?.();
       toast("Wstawiono pozycje z szablonu.");
     },
     [id, toast, onChange]
+  );
+
+  const addSection = useCallback(
+    async (tytul = "", tresc = "") => {
+      const res = await fetch(`/api/offers/${id}/sections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tytul, tresc }),
+      });
+      if (!res.ok) {
+        toast("Nie udało się dodać sekcji.", "error");
+        return;
+      }
+      const data = (await res.json()) as { sections: OfferSection[] };
+      setSections(data.sections);
+    },
+    [id, toast]
+  );
+
+  const patchSection = useCallback(
+    async (sectionId: string, patch: Partial<OfferSection>) => {
+      setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, ...patch } : s)));
+      setSaveState("saving");
+      const res = await fetch(`/api/offers/${id}/sections/${sectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) flashSaved();
+      else setSaveState("idle");
+    },
+    [id, flashSaved]
+  );
+
+  const deleteSection = useCallback(
+    async (sectionId: string) => {
+      setSections((prev) => prev.filter((s) => s.id !== sectionId));
+      await fetch(`/api/offers/${id}/sections/${sectionId}`, { method: "DELETE" });
+    },
+    [id]
+  );
+
+  /** Zamiana miejscami z sąsiadem. Strzałki zamiast przeciągania — sekcji jest
+   * kilka, a przeciąganie w modalu walczy z przewijaniem karty. */
+  const moveSection = useCallback(
+    async (index: number, kierunek: -1 | 1) => {
+      const cel = index + kierunek;
+      if (cel < 0 || cel >= sections.length) return;
+      const a = sections[index];
+      const b = sections[cel];
+      const next = [...sections];
+      next[index] = b;
+      next[cel] = a;
+      setSections(next.map((s, i) => ({ ...s, position: i })));
+      await Promise.all([
+        fetch(`/api/offers/${id}/sections/${a.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: cel }),
+        }),
+        fetch(`/api/offers/${id}/sections/${b.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: index }),
+        }),
+      ]);
+    },
+    [id, sections]
   );
 
   const patchItem = useCallback(
@@ -382,6 +461,28 @@ export function OfferEditor({
     [id, flashSaved, onChange, toast, load]
   );
 
+  /** Nowa WERSJA oferty (runda 2 Modułu 57) — w odróżnieniu od duplikatu
+   * zostaje powiązana z poprzedniczką, a ta wypada z liczników. */
+  const newVersion = useCallback(async () => {
+    const ok = await confirm(
+      "Zrobić nową wersję tej oferty? Obecna zostanie oznaczona jako zastąpiona (wypadnie ze skuteczności i z pipeline'u), a Ty dostaniesz jej kopię jako świeży szkic.",
+      {}
+    );
+    if (!ok) return;
+    setVersioning(true);
+    const res = await fetch(`/api/offers/${id}/version`, { method: "POST" });
+    setVersioning(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(data.error ?? "Nie udało się utworzyć wersji.", "error");
+      return;
+    }
+    const data = (await res.json()) as { id: string; wersja: number };
+    toast(`Utworzono wersję ${data.wersja}.`);
+    onChange?.();
+    window.location.href = `/${lang}/admin/offers/${data.id}`;
+  }, [id, lang, confirm, toast, onChange]);
+
   const generateContract = useCallback(async () => {
     setGeneratingContract(true);
     const res = await fetch("/api/contracts", {
@@ -444,6 +545,9 @@ export function OfferEditor({
   }
 
   const total = offerTotal(items);
+  // Ile klient może jeszcze dołożyć, klikając pozycje opcjonalne — potencjał
+  // oferty widoczny obok jej dzisiejszej kwoty.
+  const dodatki = offerOptionalRest(items);
   const accepted = offer.status === "Zaakceptowana";
   // Lista malowała przeterminowaną ofertę na czerwono, a profil pokazywał tę
   // samą datę na biało i świecił przyciskiem „Akceptuj ofertę" — dwa ekrany,
@@ -487,6 +591,20 @@ export function OfferEditor({
           {expired && (
             <span className="rounded-full bg-brand-gold/15 px-2.5 py-1 text-[11px] font-medium text-brand-gold">
               po terminie ważności
+            </span>
+          )}
+          {offer.wersja > 1 && (
+            <a
+              href={offer.parent_offer_id ? `/${lang}/admin/offers/${offer.parent_offer_id}` : undefined}
+              title="Zobacz poprzednią wersję"
+              className="rounded-full bg-[var(--hairline)] px-2.5 py-1 text-[11px] font-medium text-muted hover:text-[var(--fg)]"
+            >
+              wersja {offer.wersja}
+            </a>
+          )}
+          {offer.superseded_at && (
+            <span className="rounded-full bg-[var(--hairline)] px-2.5 py-1 text-[11px] font-medium text-muted">
+              zastąpiona nowszą wersją
             </span>
           )}
         </span>
@@ -611,6 +729,83 @@ export function OfferEditor({
             )}
           </div>
 
+          {/* Bloki treści (runda 2 Modułu 57). Stoją NAD pozycjami, bo klient
+              ma najpierw przeczytać, co dostaje, a dopiero potem zobaczyć cenę
+              — tak układają ofertę PandaDoc, Proposify i Qwilr. */}
+          <div className="card-paper rounded-xl border hairline p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-[13px] font-medium">Treść oferty</h2>
+              <div className="flex items-center gap-1.5">
+                <Popover
+                  align="right"
+                  width={220}
+                  trigger={(open) => (
+                    <button onClick={open} className="rounded-full border hairline px-3 py-1 text-xs text-muted hover:text-[var(--fg)]">
+                      + Gotowa sekcja
+                    </button>
+                  )}
+                >
+                  {(close) => (
+                    <div>
+                      {SEKCJE_STARTOWE.map((sekcja: { tytul: string; tresc: string }) => (
+                        <MenuRow
+                          key={sekcja.tytul}
+                          label={sekcja.tytul}
+                          onClick={() => {
+                            close();
+                            addSection(sekcja.tytul, sekcja.tresc);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Popover>
+                <button onClick={() => addSection()} className="rounded-full border hairline px-3 py-1 text-xs">
+                  + Pusta
+                </button>
+              </div>
+            </div>
+            {sections.length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted opacity-70">
+                Bez sekcji oferta jest samym cennikiem. Dodaj „Kontekst” albo „Zakres prac”, żeby klient
+                wiedział, co kupuje, zanim spojrzy na kwotę.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {sections.map((sekcja, i) => (
+                  <div key={sekcja.id} className="card-inset rounded-lg p-2.5">
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <input
+                        value={sekcja.tytul}
+                        onChange={(e) => setSections((prev) => prev.map((x) => (x.id === sekcja.id ? { ...x, tytul: e.target.value } : x)))}
+                        onBlur={(e) => patchSection(sekcja.id, { tytul: e.target.value })}
+                        placeholder="Nagłówek sekcji"
+                        className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[13px] font-medium text-[var(--fg)] placeholder:text-muted hover:border-[var(--hairline)] focus:border-[var(--hairline)] focus:outline-none"
+                      />
+                      <button onClick={() => moveSection(i, -1)} disabled={i === 0} className="text-muted disabled:opacity-30" title="W górę">
+                        <IconChevronUp size={13} />
+                      </button>
+                      <button onClick={() => moveSection(i, 1)} disabled={i === sections.length - 1} className="text-muted disabled:opacity-30" title="W dół">
+                        <IconChevronDown size={13} />
+                      </button>
+                      <button onClick={() => deleteSection(sekcja.id)} className="text-muted hover:text-red-400" title="Usuń sekcję">
+                        <IconTrash size={13} />
+                      </button>
+                    </div>
+                    <textarea
+                      value={sekcja.tresc}
+                      onChange={(e) => setSections((prev) => prev.map((x) => (x.id === sekcja.id ? { ...x, tresc: e.target.value } : x)))}
+                      onBlur={(e) => patchSection(sekcja.id, { tresc: e.target.value })}
+                      rows={3}
+                      placeholder="Treść, którą przeczyta klient."
+                      className="w-full rounded-md border hairline bg-transparent px-2 py-1.5 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-[13px] font-medium">Pozycje</h2>
@@ -685,6 +880,9 @@ export function OfferEditor({
                   <span className="w-12 text-right">Ilość</span>
                   <span className="w-24 text-right">Cena</span>
                   <span className="w-24 text-right">Kwota</span>
+                  <Tooltip label="Pozycja do wyboru przez klienta">
+                    <span className="w-5 text-center">?</span>
+                  </Tooltip>
                   <span className="w-5" />
                 </div>
                 {items.map((it) => (
@@ -711,7 +909,23 @@ export function OfferEditor({
                       onBlur={(e) => patchItem(it.id, { cena: Number(e.target.value) })}
                       className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
                     />
-                    <span className="w-24 text-right text-[13px] tabular-nums">{formatMoney(itemKwota(it), waluta)}</span>
+                    <span
+                      className={`w-24 text-right text-[13px] tabular-nums ${
+                        it.opcjonalna && !it.wybrana ? "text-muted line-through opacity-60" : ""
+                      }`}
+                    >
+                      {formatMoney(itemKwota(it), waluta)}
+                    </span>
+                    {/* „Do wyboru" — klient odhacza tę pozycję sam na stronie
+                        z ofertą (runda 2 Modułu 57). Pozwala sprzedać wariant
+                        bez pisania drugiej oferty. */}
+                    <button
+                      onClick={() => patchItem(it.id, { opcjonalna: !it.opcjonalna, wybrana: false })}
+                      title={it.opcjonalna ? "Pozycja do wyboru przez klienta — kliknij, żeby uczynić ją obowiązkową" : "Uczyń pozycją do wyboru przez klienta"}
+                      className={`flex w-5 justify-center ${it.opcjonalna ? "text-brand-cyan" : "text-muted hover:text-[var(--fg)]"}`}
+                    >
+                      {it.opcjonalna ? <IconSquareCheck size={13} /> : <IconSquare size={13} />}
+                    </button>
                     <button onClick={() => deleteItem(it.id)} className="flex w-5 justify-center text-muted hover:text-red-400" title="Usuń pozycję">
                       <IconTrash size={13} />
                     </button>
@@ -721,10 +935,16 @@ export function OfferEditor({
             )}
 
             <div className="mt-3 flex flex-col items-end gap-0.5 border-t hairline pt-3 text-[13px]">
-              <div className="flex w-48 justify-between font-semibold">
+              <div className="flex w-56 justify-between font-semibold">
                 <span>Kwota oferty</span>
                 <span className="tabular-nums text-[var(--fg)]">{formatMoney(total, waluta)}</span>
               </div>
+              {dodatki > 0 && (
+                <div className="flex w-56 justify-between text-[11.5px] text-muted">
+                  <span>Dodatki do wyboru</span>
+                  <span className="tabular-nums">+ {formatMoney(dodatki, waluta)}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -784,6 +1004,38 @@ export function OfferEditor({
               </p>
             )}
           </div>
+
+          {/* Ślad otwarcia (runda 2 Modułu 57) — odpowiedź na pytanie, które
+              przed tą rundą nie miało gdzie paść: „czy on to w ogóle
+              przeczytał". Pokazujemy dopiero po wysłaniu; przy szkicu nie ma
+              o czym mówić. */}
+          {offer.status !== "Szkic" && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <h3 className="mb-1.5 text-[11px] uppercase tracking-wide text-muted">Klient</h3>
+              {offer.otwarta_at ? (
+                <>
+                  <p className="text-[12.5px] text-[var(--fg)]">
+                    Otworzył ofertę {offer.liczba_otwarc}×
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted">
+                    pierwszy raz {formatPlDateTime(offer.otwarta_at)}
+                    {offer.ostatnio_otwarta_at && offer.liczba_otwarc > 1
+                      ? `, ostatnio ${formatPlDateTime(offer.ostatnio_otwarta_at)}`
+                      : ""}
+                  </p>
+                </>
+              ) : (
+                <p className="text-[12.5px] text-muted">
+                  Jeszcze nie otworzył linku z ofertą.
+                </p>
+              )}
+              {offer.przypomniano_at && (
+                <p className="mt-1 text-[11px] text-muted">
+                  Przypomniano {formatPlDateTime(offer.przypomniano_at)}
+                </p>
+              )}
+            </div>
+          )}
 
           {offer.status === "Odrzucona" && (
             <div className="card-paper rounded-xl border hairline p-4">
@@ -913,6 +1165,21 @@ export function OfferEditor({
             etykieta="tej oferty"
             onChanged={(revokedAt) => setOffer((p) => (p ? { ...p, share_revoked_at: revokedAt } : p))}
           />
+
+          {/* Wersja ≠ duplikat: wersja zastępuje, duplikat mnoży. Przy ofercie
+              zaakceptowanej wersja nie ma sensu (serwer ją odrzuci), więc jej
+              tu nie pokazujemy. */}
+          {!accepted && (
+            <button
+              onClick={newVersion}
+              disabled={versioning}
+              title="Klient poprosił o zmianę — zrób wersję 2 zamiast drugiej, niepowiązanej oferty"
+              className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
+            >
+              {versioning ? <IconLoader2 size={13} className="animate-spin" /> : <IconVersions size={13} />}
+              Nowa wersja oferty
+            </button>
+          )}
 
           <button
             onClick={duplicateOffer}

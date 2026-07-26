@@ -4,7 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
 import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
-import { isOfferExpired, weightedOfferValue, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
+import { isOfferExpired, isOfferStale, offerSilenceDays, weightedOfferValue, offerLiczySieDoStatystyk, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
 import { isContractStale, contractSilenceDays, signedContractRate, type Contract } from "@/lib/contracts";
 import { isClientOverdue, type Client } from "@/lib/clients";
 import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
@@ -106,7 +106,7 @@ export async function GET() {
       SELECT o.*, COALESCE(t.kwota, 0)::float8 AS kwota
       FROM offers o
       LEFT JOIN (
-        SELECT offer_id, SUM(ilosc * cena) AS kwota FROM offer_items GROUP BY offer_id
+        SELECT offer_id, SUM(ilosc * cena) FILTER (WHERE NOT opcjonalna OR wybrana) AS kwota FROM offer_items GROUP BY offer_id
       ) t ON t.offer_id = o.id;
     ` as unknown as Promise<OfferRow[]>,
     // Moduł 31 — umowy/NDA do dwóch rzeczy naraz: ciszy po wysyłce (niżej
@@ -161,6 +161,18 @@ export async function GET() {
   const realInvoices = invoices.filter((i) => i.typ_dokumentu !== "proforma");
   const overdueInvoices = realInvoices.filter(isInvoiceOverdue);
   const expiredOffers = offers.filter(isOfferExpired);
+  // Oferty, w których zapadła cisza (runda 2 Modułu 57). Do tej pory Pulpit
+  // upominał się dopiero o ofertę PO TERMINIE — czyli wtedy, gdy było już za
+  // późno na rozmowę. Tu chodzi o moment wcześniejszy: wysłana, brak decyzji.
+  // Kolejność: najdłuższa cisza na górze, a otwarte przez klienta przed
+  // nieotwartymi (te pierwsze są cieplejsze — ktoś dokument widział).
+  const staleOffers = offers
+    .filter((o) => isOfferStale(o) && !isOfferExpired(o))
+    .map((o) => ({ ...o, silenceDays: offerSilenceDays(o) ?? 0 }))
+    .sort((a, b) => {
+      if (!!a.otwarta_at !== !!b.otwarta_at) return a.otwarta_at ? -1 : 1;
+      return b.silenceDays - a.silenceDays;
+    });
   // Moduł 31 — umowy/NDA wysłane i niepodpisane od tygodnia. Dni ciszy liczone
   // raz tutaj, nie w UI: DashboardHome i dzienny mail pokazują tę samą liczbę.
   const staleContracts = contracts
@@ -215,7 +227,10 @@ export async function GET() {
 
   // Wartość pipeline'u — oferty jeszcze nie zamknięte (oferty są wyłącznie w PLN, bez pola waluty),
   // ważona szacowanym prawdopodobieństwem zamknięcia wg statusu (patrz OFFER_STATUS_WEIGHT).
-  const pipeline = offers.reduce((sum, o) => sum + weightedOfferValue(o.status, o.kwota), 0);
+  // Zastąpione wersje poza pipeline'em — patrz offerLiczySieDoStatystyk.
+  const pipeline = offers
+    .filter(offerLiczySieDoStatystyk)
+    .reduce((sum, o) => sum + weightedOfferValue(o.status, o.kwota), 0);
   // Surowa (nieważona) suma otwartych ofert — do podpisu KPI, dla przejrzystości.
   const pipelineRaw = offers.reduce((sum, o) => (CLOSED_OFFER_STATUSES.has(o.status) ? sum : sum + o.kwota), 0);
 
@@ -279,6 +294,7 @@ export async function GET() {
     draftInvoices,
     overdueMilestones,
     expiredOffers,
+    staleOffers,
     staleContracts,
     dueFollowups,
     pendingMails,

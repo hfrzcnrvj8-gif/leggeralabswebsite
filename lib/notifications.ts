@@ -29,6 +29,11 @@ export type NotificationKind =
   // a nie drugą listą "do zrobienia" — potwierdzone przez właściciela
   // 2026-07-17.
   | "offer_accepted"
+  // Runda 2 Modułu 57 — klient OTWORZYŁ ofertę z linku. Kronika, nie zadanie:
+  // dzwoni się z własnej decyzji, nie odhacza. Zapisywane wyłącznie przy
+  // PIERWSZYM otwarciu, bo dziesiąte wejście w ten sam dokument nie jest
+  // wiadomością, tylko szumem.
+  | "offer_opened"
   | "contract_signed"
   | "review_collected"
   // 2026-07-22 — klient odpowiedział na zaproszenie na spotkanie. Kronika,
