@@ -1183,6 +1183,15 @@ async function createOffersSchema(): Promise<void> {
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS accepted_by_name TEXT;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS accepted_ip TEXT;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS accepted_user_agent TEXT;`;
+  // Moduł 57 — waluta dokumentu. Do tej pory oferta była trójjęzyczna, ale
+  // wydruk liczył zawsze w złotówkach; waluta przenosi się na fakturę przy
+  // akceptacji, żeby nie trzeba było jej wpisywać drugi raz.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS waluta TEXT NOT NULL DEFAULT 'PLN';`;
+  // Moduł 57 — dlaczego klient powiedział „nie". Bez tego odrzucenie znikało
+  // bez śladu: oś czasu klienta kończyła się na „wysłano ofertę".
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS powod_odrzucenia TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS komentarz_odrzucenia TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS odrzucona_at TIMESTAMPTZ;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (

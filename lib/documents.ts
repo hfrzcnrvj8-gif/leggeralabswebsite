@@ -47,6 +47,25 @@ export function addDaysISO(baseIso: string | null, days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Rok ze znacznika czasu z bazy — do referencji dokumentu („OF-2026-…",
+ * „UM-2026-…").
+ *
+ * Świadomie BEZ `new Date()`: Postgres oddaje `created_at` jako
+ * „2026-07-26 19:12:44.487+01" (spacja zamiast „T", strefa bez dwukropka),
+ * czyli dokładnie w formacie, którego silnik dat Safari nie parsuje — a te
+ * referencje renderują się w przeglądarce, na dokumencie oglądanym przez
+ * KLIENTA. W Chrome numer wychodził poprawnie, na iPhonie klient zobaczyłby
+ * „OF-NaN-964BE4". Ta sama pułapka wyszła już przy stoperze w apce i przy
+ * kopiach zapasowych — patrz `parsePgTimestamp` w lib/dates.ts.
+ *
+ * Rok czytamy wprost ze stringa (pierwsze cztery cyfry), bo to jedyne, czego
+ * tu potrzeba; `parsePgTimestamp` byłby armatą na wróbla i przy okazji
+ * przesuwałby datę o strefę. */
+export function documentYear(createdAt: string | null | undefined): string {
+  const rok = typeof createdAt === "string" ? createdAt.slice(0, 4) : "";
+  return /^\d{4}$/.test(rok) ? rok : String(new Date().getFullYear());
+}
+
 /** Kwota sformatowana wg locale danego języka wydruku. */
 export function docMoney(n: number, lang: DocLang, currency = "PLN"): string {
   return new Intl.NumberFormat(DOC_LOCALE[lang], { style: "currency", currency }).format(n);

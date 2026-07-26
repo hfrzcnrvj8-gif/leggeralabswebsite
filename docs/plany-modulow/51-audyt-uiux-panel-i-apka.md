@@ -193,6 +193,92 @@ kolejne zgłoszenia właściciela („zlewa się", „koślawo", „za mało mie
 rozstrzygnął dopiero POMIAR w przeglądarce (wysokości wierszy, pozycje
 krawędzi), nie oglądanie zrzutu. Zrzut wyglądał za każdym razem wiarygodnie.
 
+## Stan po module „Oferty" (2026-07-26)
+
+**Zastane dobrze** (i dlatego nieruszone): Moduł 20 (szablony ofert) —
+najwyżej oceniona pozycja backlogu — **był już zbudowany**: panel szablonów,
+„Wstaw z szablonu", `POST /api/offers/[id]/apply-template`, plus dołożony
+później katalog komponentów (Moduł 47). Akceptacja oferty jest atomowa
+(jedna transakcja, „claim" chroniący przed podwójnym kliknięciem), umowa
+z oferty ma dedupe po stronie serwera, publiczny e-podpis i unieważnianie
+linków (Moduł 40) działają po obu drogach wejścia.
+
+**Zrobione w tym module** (szczegóły techniczne: `HUB_SETUP.md` → „Moduł 57
+(audyt UI/UX) — Oferty"):
+
+1. **Profil oferty przestał ukrywać jej stan.** Lista malowała przeterminowaną
+   ofertę na czerwono, a profil pokazywał tę samą datę na biało i świecił
+   przyciskiem „Akceptuj ofertę". Teraz w nagłówku stoi pigułka statusu
+   (klikalna — status zmienia się z profilu, nie tylko z listy) i odznaka „po
+   terminie ważności", a przy dacie ostrzeżenie tłumaczące, co to zmienia.
+2. **Odrzucenie zostawia ślad i powód.** Oś czasu klienta znała tylko sukces
+   (`offer_created`/`offer_sent`/`offer_accepted`) — klient, który powiedział
+   „nie", kończył się wpisem „wysłano ofertę". Doszły `offer_rejected`
+   i `offer_expired` oraz zamknięta lista pięciu powodów (+ własny komentarz),
+   pytana JEDNYM oknem wspólnym dla listy i profilu. Zdarzenie powstaje tylko
+   przy realnej zmianie statusu — drugie kliknięcie nie dopisuje drugiego.
+3. **Karta oferty wie, że umowa już istnieje.** Serwer dedupował od dawna, ale
+   przycisk zawsze mówił „Wygeneruj umowę", a komunikat „Wygenerowano" — także
+   wtedy, gdy umowa leżała podpisana. Teraz `GET /api/offers/:id` dokłada
+   umowę, a karta pokazuje jej status i „Otwórz umowę".
+4. **Status walidowany.** `PATCH` przyjmował dowolny string do 40 znaków, więc
+   literówka wypadała naraz z filtra, z koloru pigułki i z ważonego pipeline'u
+   (fallback wagi = 1 zawyżał prognozę). Teraz 400 dla nieznanej wartości.
+5. **Sufit i praca wsadowa.** `GET /api/offers` oddaje najwyżej 1000 ofert
+   z `total` i GŁOŚNYM ostrzeżeniem nad listą (wzorzec z Modułu 54, krok 3a);
+   pasek zaznaczenia woła nowe `/api/offers/bulk` zamiast N żądań w pętli.
+6. **Lista: szukanie (`/`), kursor `j/k` + Enter, filtr „po terminie".**
+   Wskaźnik „W toku" mówi teraz wprost, ile z tej kwoty jest po terminie
+   (świadomie NIE zmieniamy samej liczby — to byłaby druga definicja tego
+   samego wskaźnika). Pusty stan tłumaczy, co oferta zmienia, zamiast „brak".
+7. **Waluta dokumentu** (decyzja właściciela). Oferta była trójjęzyczna, ale
+   wydruk liczył zawsze w złotówkach — po niemiecku pokazywał „6.000,00 zł".
+   Waluta przenosi się na fakturę przy akceptacji. Wskaźniki NIE przeliczają
+   walut (zero kursów w panelu) i mówią o tym pod spodem.
+8. **VAT szkicu faktury wywiedziony z kraju klienta** (decyzja właściciela):
+   pusty/Polska → 23%, inny kraj → „np" (odwrotne obciążenie). Wcześniej `'23'`
+   było wpisane na sztywno dla każdej pozycji, także zagranicznej.
+9. **Profil na etykietowanych wierszach** (`SekcjaProfilu`/`WierszPola`,
+   wzorzec z Modułu 54): siedem pól danych klienta rozpoznawalnych wyłącznie
+   po placeholderze — a placeholder znika, gdy pole ma treść. Zmierzone po
+   zmianie: rytm wierszy 38–39 px, kolumna treści 603 px (było 438),
+   karta `max-w-5xl` zamiast `3xl`. **Szerokości NIE zrównywano z Leadami/
+   Klientami** (te są pełnoekranowe) — tabela pozycji tego nie potrzebuje.
+10. **Apka: ofertę da się zamknąć z telefonu.** „Klient odrzucił" (z powodem)
+    i „Wygasła" — gestem na liście, z menu przytrzymania i z profilu; powód
+    widoczny w sekcji „Dlaczego odpadła". Kwoty w walucie oferty. Tworzenie,
+    edycja pozycji i akceptacja dalej zostają przy biurku (poziom 2 bez zmian)
+    — akceptacja zakłada projekt i fakturę, to praca na desktop.
+
+**Znalezione przy okazji, poza modułem: numer dokumentu mógł wyjść klientowi
+jako `OF-NaN-964BE4`.** `offerReference()` liczył rok przez `new Date(created_at)`,
+a baza oddaje `„2026-07-26 19:12:44.487+01"` (zmierzone) — spacja zamiast „T",
+strefa bez dwukropka, czyli format, którego nie parsuje silnik dat Safari.
+Chrome wybaczał, iPhone klienta nie musi. Naprawione wspólną funkcją
+`documentYear()` w `lib/documents.ts`, użytą też przez `contractReference`
+(Umowy miały tę samą linijkę).
+
+**Sprawdzone i ŚWIADOMIE nieruszone:**
+
+- **Kolor „Wysłana": cyjan w panelu, fiolet w apce.** Pierwsza ocena brzmiała
+  „rozjazd do naprawy" — pomiar pokazał co innego: cyjan jest w panelu
+  KONSEKWENTNY dla „dokument w obiegu" w TRZECH modułach naraz (Oferty, Umowy,
+  Faktury), a fiolet jest równie konsekwentny w apce. To dwie spójne palety,
+  nie błąd w Ofertach. Zmiana w jednym module zrobiłaby świeżą niespójność
+  wewnątrz panelu. **Do rozstrzygnięcia raz, dla wszystkich dokumentów** —
+  naturalne miejsce: moduł Umowy. (Czerwona „Odrzucona" w panelu vs szara
+  w apce to nie rozjazd, tylko udokumentowana reguła „w apce bez czerwieni".)
+- Poziom 2 apki (brak tworzenia i edycji pozycji oferty na telefonie).
+- iPad pokazuje Oferty jako listę z telefonu, bez układu trójkolumnowego —
+  przy dokumencie poziomu 2 to nie boli tak, jak bolało przy Leadach.
+- Rzeczy z `PO_REJESTRACJI.md` (dane sprzedawcy na wydruku, KSeF).
+
+**Dług zauważony, NIE naprawiony w tym module** (ta sama pułapka co punkt
+z `OF-NaN`, ale w innych modułach): `ClientDetailPanel.tsx:425` sortuje oś
+czasu przez `new Date(created_at)` w przeglądarce, a `NoteActivityLog.tsx:120`
+tak samo renderuje datę — na Safari dadzą złą kolejność i „Invalid Date".
+Do zrobienia przy najbliższym dotknięciu tych plików.
+
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`

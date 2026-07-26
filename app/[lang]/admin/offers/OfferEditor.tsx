@@ -3,7 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconExternalLink, IconMail, IconCopy, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Offer, type OfferItem, OFFER_LANGS, OFFER_LANG_LABEL, offerTotal, itemKwota } from "@/lib/offers";
+import {
+  type Offer,
+  type OfferItem,
+  OFFER_LANGS,
+  OFFER_LANG_LABEL,
+  OFFER_STATUSES,
+  OFFER_STATUS_CLASS,
+  OFFER_CURRENCIES,
+  DEFAULT_OFFER_CURRENCY,
+  isOfferExpired,
+  rejectReasonLabel,
+  offerTotal,
+  itemKwota,
+} from "@/lib/offers";
+import { CONTRACT_STATUS_CLASS } from "@/lib/contracts";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
+import { Modal } from "../Modal";
+import { OknoOdrzucenia } from "./RejectDialog";
 import { type OfferTemplate, templateTotal } from "@/lib/offerTemplates";
 import { formatMoney, type CatalogItem } from "@/lib/invoices";
 import { hasPriceRange } from "@/lib/catalog";
@@ -45,6 +62,12 @@ export function OfferEditor({
   const [generatingContract, setGeneratingContract] = useState(false);
   const [templates, setTemplates] = useState<OfferTemplate[]>([]);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  /** Umowa wygenerowana z tej oferty — `null`, dopóki jej nie ma. Przychodzi
+   * z `GET /api/offers/:id`, żeby karta WIEDZIAŁA, że dokument już istnieje
+   * (patrz komentarz przy tej trasie). */
+  const [contract, setContract] = useState<{ id: string; status: string } | null>(null);
+  /** Okno „dlaczego odrzucona" — status zmienia się dopiero po wyborze powodu. */
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/clients")
@@ -60,9 +83,14 @@ export function OfferEditor({
   const load = useCallback(async () => {
     const res = await fetch(`/api/offers/${id}`);
     if (!res.ok) return;
-    const data = (await res.json()) as { offer: Offer; items: OfferItem[] };
+    const data = (await res.json()) as {
+      offer: Offer;
+      items: OfferItem[];
+      contract: { id: string; status: string } | null;
+    };
     setOffer(data.offer);
     setItems(data.items);
+    setContract(data.contract ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -315,6 +343,45 @@ export function OfferEditor({
     }
   }, [id, onChange, toast]);
 
+  /** Zmiana statusu z profilu. Do Modułu 57 status dało się ruszyć WYŁĄCZNIE
+   * z listy — profil nie pokazywał go nawet do odczytu. „Odrzucona" idzie
+   * przez osobne okno, bo bez powodu odrzucenie nie zostawia nic, z czego
+   * dałoby się kiedyś wyczytać, na czym przegrywamy. */
+  const changeStatus = useCallback(
+    async (status: string) => {
+      if (status === "Odrzucona") {
+        setRejectOpen(true);
+        return;
+      }
+      await patchOffer({ status: status as Offer["status"] });
+    },
+    [patchOffer]
+  );
+
+  const rejectOffer = useCallback(
+    async (powod: string, komentarz: string) => {
+      setRejectOpen(false);
+      setOffer((p) =>
+        p ? { ...p, status: "Odrzucona", powod_odrzucenia: powod, komentarz_odrzucenia: komentarz } : p
+      );
+      setSaveState("saving");
+      const res = await fetch(`/api/offers/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Odrzucona", powod_odrzucenia: powod, komentarz_odrzucenia: komentarz }),
+      });
+      if (!res.ok) {
+        setSaveState("idle");
+        toast("Nie udało się zapisać.", "error");
+        return;
+      }
+      flashSaved();
+      onChange?.();
+      await load();
+    },
+    [id, flashSaved, onChange, toast, load]
+  );
+
   const generateContract = useCallback(async () => {
     setGeneratingContract(true);
     const res = await fetch("/api/contracts", {
@@ -325,7 +392,11 @@ export function OfferEditor({
     setGeneratingContract(false);
     if (res.ok) {
       const data = (await res.json()) as { id: string };
-      toast("Wygenerowano umowę z oferty.");
+      // Serwer dedupuje (POST /api/contracts oddaje istniejącą umowę zamiast
+      // robić drugą) — komunikat nie może więc twierdzić, że coś powstało,
+      // skoro drugie kliknięcie tylko otwiera to, co już było.
+      toast(contract ? "Umowa dla tej oferty już istnieje — otwieram ją." : "Wygenerowano umowę z oferty.");
+      setContract((prev) => prev ?? { id: data.id, status: "Szkic" });
       window.open(`/${lang}/admin/contracts/${data.id}`, "_blank");
     } else {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -374,6 +445,12 @@ export function OfferEditor({
 
   const total = offerTotal(items);
   const accepted = offer.status === "Zaakceptowana";
+  // Lista malowała przeterminowaną ofertę na czerwono, a profil pokazywał tę
+  // samą datę na biało i świecił przyciskiem „Akceptuj ofertę" — dwa ekrany,
+  // dwie różne odpowiedzi na pytanie „czy ta oferta jeszcze żyje".
+  const expired = isOfferExpired(offer);
+  const waluta = offer.waluta || DEFAULT_OFFER_CURRENCY;
+  const powodOdrzucenia = rejectReasonLabel(offer.powod_odrzucenia ?? "", offer.komentarz_odrzucenia ?? "");
 
   // Moduł 30 — miękka podpowiedź o powiązaniu (patrz lib/links.ts). Na ofercie
   // waży to więcej niż na fakturze: to z niej lib/offerAccept.ts przepisuje
@@ -394,9 +471,24 @@ export function OfferEditor({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-2 text-xs text-muted">
+        <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
           Oferty / <span className="text-[var(--fg)]">{offer.tytul || "(bez tytułu)"}</span>
           <ClientLinkChip clientId={offer.client_id} lang={lang} />
+          <PropertyMenu
+            value={offer.status}
+            options={OFFER_STATUSES.map((s) => ({ value: s, label: s }))}
+            onChange={changeStatus}
+            title="Zmień status oferty"
+          >
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${OFFER_STATUS_CLASS[offer.status] ?? ""}`}>
+              {offer.status}
+            </span>
+          </PropertyMenu>
+          {expired && (
+            <span className="rounded-full bg-brand-gold/15 px-2.5 py-1 text-[11px] font-medium text-brand-gold">
+              po terminie ważności
+            </span>
+          )}
         </span>
         <div className="flex items-center gap-3">
           <SaveIndicator state={saveState} />
@@ -427,75 +519,91 @@ export function OfferEditor({
               />
             </div>
             {linkHint && <LinkHint text={linkHint} />}
-            <input
-              value={offer.tytul}
-              onChange={(e) => setOffer((p) => (p ? { ...p, tytul: e.target.value } : p))}
-              onBlur={(e) => patchOffer({ tytul: e.target.value })}
-              placeholder="Tytuł oferty"
-              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-            />
-            <input
-              value={offer.klient_nazwa}
-              onChange={(e) => setOffer((p) => (p ? { ...p, klient_nazwa: e.target.value } : p))}
-              onBlur={(e) => patchOffer({ klient_nazwa: e.target.value })}
-              placeholder="Nazwa klienta / firmy"
-              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-            />
-            <div className="mb-2 flex gap-1.5">
-              <input
-                value={offer.klient_nip}
-                onChange={(e) => setOffer((p) => (p ? { ...p, klient_nip: e.target.value } : p))}
-                onBlur={(e) => patchOffer({ klient_nip: e.target.value })}
-                placeholder="NIP lub VAT-UE (np. DE123456789)"
-                className="min-w-0 flex-1 rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-              />
-              <button
-                onClick={lookupNip}
-                disabled={nipLoading}
+            {/* Etykieta po lewej, wartość po prawej (Moduł 54, krok 6). Wcześniej
+                było tu siedem pól rozpoznawalnych WYŁĄCZNIE po placeholderze —
+                a placeholder znika, gdy pole ma treść, więc wypełniona oferta
+                była stosem nieopisanych linijek. */}
+            <SekcjaProfilu tytul="Dokument" className="mb-3">
+              <WierszPola etykieta="Tytuł">
+                <PoleTekstowe
+                  value={offer.tytul}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, tytul: v } : p))}
+                  onSave={(v) => patchOffer({ tytul: v })}
+                  placeholder="np. Oferta — wdrożenie asystenta AI"
+                />
+              </WierszPola>
+            </SekcjaProfilu>
+            <SekcjaProfilu tytul="Klient">
+              <WierszPola etykieta="Nazwa">
+                <PoleTekstowe
+                  value={offer.klient_nazwa}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, klient_nazwa: v } : p))}
+                  onSave={(v) => patchOffer({ klient_nazwa: v })}
+                  placeholder="Nazwa firmy"
+                />
+              </WierszPola>
+              <WierszPola
+                etykieta="NIP"
                 title="Polski NIP → Biała Lista MF; numer z prefiksem kraju UE (np. DE, IE) → VIES"
-                className="flex shrink-0 items-center gap-1 rounded-lg border hairline px-2.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                sufiks={
+                  <button
+                    onClick={lookupNip}
+                    disabled={nipLoading}
+                    title="Pobierz dane po NIP / VAT-UE"
+                    className="flex shrink-0 items-center gap-1 rounded-md border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                  >
+                    {nipLoading ? <IconLoader2 size={12} className="animate-spin" /> : <IconSearch size={12} />}
+                    Szukaj
+                  </button>
+                }
               >
-                {nipLoading ? <IconLoader2 size={13} className="animate-spin" /> : <IconSearch size={13} />}
-                Szukaj po NIP / VAT-UE
-              </button>
-            </div>
-            <input
-              value={offer.klient_email}
-              onChange={(e) => setOffer((p) => (p ? { ...p, klient_email: e.target.value } : p))}
-              onBlur={(e) => patchOffer({ klient_email: e.target.value })}
-              placeholder="E-mail klienta (do wysyłki oferty)"
-              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-            />
-            <input
-              value={offer.klient_ulica}
-              onChange={(e) => setOffer((p) => (p ? { ...p, klient_ulica: e.target.value } : p))}
-              onBlur={(e) => patchOffer({ klient_ulica: e.target.value })}
-              placeholder="Ulica i numer"
-              className="mb-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-            />
-            <div className="grid grid-cols-[100px_1fr] gap-2">
-              <input
-                value={offer.klient_kod}
-                onChange={(e) => setOffer((p) => (p ? { ...p, klient_kod: e.target.value } : p))}
-                onBlur={(e) => patchOffer({ klient_kod: e.target.value })}
-                placeholder="Kod pocztowy"
-                className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-              />
-              <input
-                value={offer.klient_miasto}
-                onChange={(e) => setOffer((p) => (p ? { ...p, klient_miasto: e.target.value } : p))}
-                onBlur={(e) => patchOffer({ klient_miasto: e.target.value })}
-                placeholder="Miasto"
-                className="rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-              />
-            </div>
-            <input
-              value={offer.klient_kraj}
-              onChange={(e) => setOffer((p) => (p ? { ...p, klient_kraj: e.target.value } : p))}
-              onBlur={(e) => patchOffer({ klient_kraj: e.target.value })}
-              placeholder="Kraj (dla klientów zagranicznych)"
-              className="mt-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-            />
+                <PoleTekstowe
+                  value={offer.klient_nip}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, klient_nip: v } : p))}
+                  onSave={(v) => patchOffer({ klient_nip: v })}
+                  placeholder="np. DE123456789"
+                />
+              </WierszPola>
+              <WierszPola etykieta="Email" title="Adres, na który idzie link do oferty">
+                <PoleTekstowe
+                  value={offer.klient_email}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, klient_email: v } : p))}
+                  onSave={(v) => patchOffer({ klient_email: v })}
+                  placeholder="do wysyłki oferty"
+                />
+              </WierszPola>
+              <WierszPola etykieta="Ulica">
+                <PoleTekstowe
+                  value={offer.klient_ulica}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, klient_ulica: v } : p))}
+                  onSave={(v) => patchOffer({ klient_ulica: v })}
+                  placeholder="ulica i numer"
+                />
+              </WierszPola>
+              <WierszPola etykieta="Kod / Miasto">
+                <PoleTekstowe
+                  value={offer.klient_kod}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, klient_kod: v } : p))}
+                  onSave={(v) => patchOffer({ klient_kod: v })}
+                  placeholder="00-000"
+                  className="w-[86px] shrink-0"
+                />
+                <PoleTekstowe
+                  value={offer.klient_miasto}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, klient_miasto: v } : p))}
+                  onSave={(v) => patchOffer({ klient_miasto: v })}
+                  placeholder="miasto"
+                />
+              </WierszPola>
+              <WierszPola etykieta="Kraj" title="Wypełnij dla klienta zagranicznego — stąd bierze się stawka VAT szkicu faktury po akceptacji">
+                <PoleTekstowe
+                  value={offer.klient_kraj}
+                  onLocal={(v) => setOffer((p) => (p ? { ...p, klient_kraj: v } : p))}
+                  onSave={(v) => patchOffer({ klient_kraj: v })}
+                  placeholder="pusty = Polska"
+                />
+              </WierszPola>
+            </SekcjaProfilu>
             {offer.klient_adres && !offer.klient_ulica && !offer.klient_miasto && (
               <p className="mt-2 whitespace-pre-line rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
                 Stary adres (sprzed rozbicia na pola): {offer.klient_adres}
@@ -603,7 +711,7 @@ export function OfferEditor({
                       onBlur={(e) => patchItem(it.id, { cena: Number(e.target.value) })}
                       className="w-24 rounded-md border hairline bg-transparent px-1.5 py-1 text-right text-[13px] text-[var(--fg)]"
                     />
-                    <span className="w-24 text-right text-[13px] tabular-nums">{formatMoney(itemKwota(it))}</span>
+                    <span className="w-24 text-right text-[13px] tabular-nums">{formatMoney(itemKwota(it), waluta)}</span>
                     <button onClick={() => deleteItem(it.id)} className="flex w-5 justify-center text-muted hover:text-red-400" title="Usuń pozycję">
                       <IconTrash size={13} />
                     </button>
@@ -615,7 +723,7 @@ export function OfferEditor({
             <div className="mt-3 flex flex-col items-end gap-0.5 border-t hairline pt-3 text-[13px]">
               <div className="flex w-48 justify-between font-semibold">
                 <span>Kwota oferty</span>
-                <span className="tabular-nums text-[var(--fg)]">{formatMoney(total)}</span>
+                <span className="tabular-nums text-[var(--fg)]">{formatMoney(total, waluta)}</span>
               </div>
             </div>
           </div>
@@ -649,6 +757,19 @@ export function OfferEditor({
                 </span>
               </PropertyMenu>
             </Field>
+            <Field label="Waluta">
+              <PropertyMenu
+                value={waluta}
+                options={OFFER_CURRENCIES.map((c) => ({ value: c, label: c }))}
+                onChange={(v) => patchOffer({ waluta: v as Offer["waluta"] })}
+                title="Waluta oferty — przeniesie się na fakturę po akceptacji"
+                full
+              >
+                <span className="text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)] rounded-md px-1.5 py-1 -mx-1.5">
+                  {waluta}
+                </span>
+              </PropertyMenu>
+            </Field>
           </div>
 
           <div className="card-paper rounded-xl border hairline p-4">
@@ -656,7 +777,23 @@ export function OfferEditor({
             <Field label="Ważna do">
               <DateField value={offer.wazna_do ?? ""} onChange={(v) => patchOffer({ wazna_do: v || null })} placeholder="—" />
             </Field>
+            {expired && (
+              <p className="mt-2 rounded-lg bg-brand-gold/10 px-2.5 py-1.5 text-[11px] text-brand-gold">
+                Termin ważności minął, a oferta wciąż jest otwarta. Przedłuż datę albo zamknij ją statusem
+                „Wygasła” — do tego czasu liczy się do pipeline’u jak żywa.
+              </p>
+            )}
           </div>
+
+          {offer.status === "Odrzucona" && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <h3 className="mb-1.5 text-[11px] uppercase tracking-wide text-muted">Odrzucona</h3>
+              <p className="text-[12.5px] text-[var(--fg)]">{powodOdrzucenia || "Bez podanego powodu."}</p>
+              {offer.odrzucona_at && (
+                <p className="mt-0.5 text-[11px] text-muted">{formatPlDate(offer.odrzucona_at)}</p>
+              )}
+            </div>
+          )}
 
           {accepted ? (
             <div className="card-paper rounded-xl border hairline p-3 text-center text-[12px] text-muted">
@@ -684,14 +821,37 @@ export function OfferEditor({
                   Zaakceptowano samodzielnie przez klienta: {offer.accepted_by_name}, {formatPlDate(offer.accepted_at)}
                 </div>
               )}
-              <button
-                onClick={generateContract}
-                disabled={generatingContract}
-                className="btn-primary mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {generatingContract ? <IconLoader2 size={15} className="animate-spin" /> : null}
-                Wygeneruj umowę
-              </button>
+              {/* Idempotencja bez widocznego śladu to połowa roboty (ustalenie
+                  z NDA na leadzie, Moduł 51): serwer i tak nie zrobi drugiej
+                  umowy, ale do dziś karta mówiła „Wygeneruj" także wtedy, gdy
+                  umowa leżała już podpisana. */}
+              {contract ? (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted">
+                    Umowa
+                    <span className={`rounded-full px-2 py-0.5 font-medium ${CONTRACT_STATUS_CLASS[contract.status] ?? ""}`}>
+                      {contract.status}
+                    </span>
+                  </div>
+                  <a
+                    href={`/${lang}/admin/contracts/${contract.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border hairline px-3 py-2 text-sm font-medium text-[var(--fg)] hover:bg-[var(--hairline)]"
+                  >
+                    <IconExternalLink size={14} /> Otwórz umowę
+                  </a>
+                </div>
+              ) : (
+                <button
+                  onClick={generateContract}
+                  disabled={generatingContract}
+                  className="btn-primary mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {generatingContract ? <IconLoader2 size={15} className="animate-spin" /> : null}
+                  Wygeneruj umowę
+                </button>
+              )}
             </div>
           ) : (
             <Popover
@@ -768,7 +928,44 @@ export function OfferEditor({
           </button>
         </div>
       </div>
+
+      <Modal
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        z={95}
+        card="card-paper my-auto w-full max-w-md rounded-2xl border hairline p-5"
+      >
+        <OknoOdrzucenia onCancel={() => setRejectOpen(false)} onConfirm={rejectOffer} />
+      </Modal>
     </div>
+  );
+}
+
+/** Pole tekstowe wiersza profilu: lokalny stan w trakcie pisania, zapis na
+ * `blur` — ta sama obsługa powtarzała się w siedmiu polach danych klienta.
+ * Obramowanie pojawia się dopiero pod kursorem/przy edycji, żeby wypełniona
+ * karta czytała się jak wizytówka, a nie jak formularz. */
+function PoleTekstowe({
+  value,
+  onLocal,
+  onSave,
+  placeholder,
+  className = "",
+}: {
+  value: string;
+  onLocal: (v: string) => void;
+  onSave: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <input
+      value={value ?? ""}
+      onChange={(e) => onLocal(e.target.value)}
+      onBlur={(e) => onSave(e.target.value)}
+      placeholder={placeholder}
+      className={`min-w-0 flex-1 rounded-md border border-transparent bg-transparent py-1 text-[var(--fg)] placeholder:text-muted hover:border-[var(--hairline)] focus:border-[var(--hairline)] focus:outline-none ${className}`}
+    />
   );
 }
 

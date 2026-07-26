@@ -4,7 +4,7 @@
 // Świadomie bez VAT na pozycjach — oferta to kwota netto/ogólna, VAT
 // pojawia się dopiero na fakturze po akceptacji.
 
-import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
+import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines, documentYear } from "./documents";
 import { todayLocalISO } from "./dates";
 import { round2 } from "./invoices";
 
@@ -16,6 +16,54 @@ export const OFFER_LANG_LABEL = DOC_LANG_LABEL;
 
 export type OfferStatus = "Szkic" | "Wysłana" | "Zaakceptowana" | "Odrzucona" | "Wygasła";
 export const OFFER_STATUSES: OfferStatus[] = ["Szkic", "Wysłana", "Zaakceptowana", "Odrzucona", "Wygasła"];
+
+/** Czy `v` to znany status oferty. Trasa PATCH przyjmowała wcześniej DOWOLNY
+ * string do 40 znaków — literówka w statusie („Wyslana") przechodziła cicho,
+ * a potem wypadała ze wszystkich liczników naraz: `weightedOfferValue` liczyło
+ * ją z wagą 1 (fallback), pigułka na liście traciła kolor (brak wpisu w
+ * OFFER_STATUS_CLASS), a filtr statusu jej nie pokazywał. */
+export function isOfferStatus(v: unknown): v is OfferStatus {
+  return typeof v === "string" && (OFFER_STATUSES as string[]).includes(v);
+}
+
+/** Waluta oferty — ten sam zestaw co na fakturze (`lib/invoices.ts`), bo po
+ * akceptacji oferta przepisuje się wprost na fakturę. Do tego modułu oferta
+ * waluty nie miała w ogóle: dokument był trójjęzyczny (PL/EN/DE), ale wydruk
+ * liczył zawsze w złotówkach, więc oferta po niemiecku pokazywała „6.000,00 zł". */
+export const OFFER_CURRENCIES = ["PLN", "EUR", "USD", "GBP"] as const;
+export type OfferCurrency = (typeof OFFER_CURRENCIES)[number];
+export const DEFAULT_OFFER_CURRENCY: OfferCurrency = "PLN";
+
+export function isOfferCurrency(v: unknown): v is OfferCurrency {
+  return typeof v === "string" && (OFFER_CURRENCIES as readonly string[]).includes(v);
+}
+
+/** Powody odrzucenia oferty — krótka, ZAMKNIĘTA lista (decyzja właściciela
+ * 2026-07-26), żeby dało się kiedyś policzyć, na czym realnie przegrywamy.
+ * „Inny powód" zostawia miejsce na zdanie własnymi słowami; sam komentarz
+ * można dopisać do każdego z powodów. */
+export const OFFER_REJECT_REASONS = [
+  "Za drogo",
+  "Nie ten termin",
+  "Wybrali kogoś innego",
+  "Brak decyzji / ucichło",
+  "Inny powód",
+] as const;
+export type OfferRejectReason = (typeof OFFER_REJECT_REASONS)[number];
+
+export function isOfferRejectReason(v: unknown): v is OfferRejectReason {
+  return typeof v === "string" && (OFFER_REJECT_REASONS as readonly string[]).includes(v);
+}
+
+/** Powód odrzucenia jednym zdaniem — do osi czasu klienta i profilu oferty. */
+export function rejectReasonLabel(powod: string, komentarz: string): string {
+  const p = powod.trim();
+  const k = komentarz.trim();
+  if (!p && !k) return "";
+  if (!k) return p;
+  if (!p) return k;
+  return `${p} — ${k}`;
+}
 
 export const OFFER_STATUS_CLASS: Record<string, string> = {
   Szkic: "bg-[var(--hairline)] text-muted",
@@ -62,7 +110,13 @@ export type Offer = {
   wazna_do: string | null;
   status: OfferStatus;
   jezyk: OfferLang;
+  waluta: OfferCurrency;
   uwagi: string;
+  /** Dlaczego klient powiedział „nie" — jeden z `OFFER_REJECT_REASONS`
+   * (puste, dopóki oferta nie jest odrzucona) + własny komentarz. */
+  powod_odrzucenia: string;
+  komentarz_odrzucenia: string;
+  odrzucona_at: string | null;
   /** E-podpis akceptacji (Faza I) — patrz lib/offerAccept.ts. Puste
    * accepted_by_name = zaakceptowano ręcznie w panelu, nie przez klienta. */
   accepted_at: string | null;
@@ -126,6 +180,5 @@ export function clientAddressLines(
  * numeracji VAT), więc wystarczy stabilny identyfikator liczony z daty
  * utworzenia i ID, bez osobnej kolumny/migracji w bazie. */
 export function offerReference(offer: Pick<Offer, "id" | "created_at">): string {
-  const year = new Date(offer.created_at).getFullYear();
-  return `OF-${year}-${offer.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+  return `OF-${documentYear(offer.created_at)}-${offer.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 }

@@ -16,7 +16,7 @@ export function OfferDetail({ id, lang }: { id: string; lang: Locale }) {
       <Link href={`/${lang}/admin/offers`} className="mb-3 inline-block text-sm text-muted hover:text-[var(--fg)]">
         ← Wróć do listy
       </Link>
-      <div className="card-paper w-full max-w-3xl rounded-2xl border hairline p-5 sm:p-6">
+      <div className="card-paper w-full max-w-5xl rounded-2xl border hairline p-5 sm:p-6">
         <OfferEditor id={id} lang={lang} onClose={backToList} onDeleted={backToList} />
       </div>
     </div>

@@ -1,24 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconX, IconExternalLink, IconLayoutGrid, IconFileDescription } from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IconPlus, IconX, IconExternalLink, IconLayoutGrid, IconFileDescription, IconSearch } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Offer, OFFER_STATUSES, OFFER_STATUS_CLASS, CLOSED_OFFER_STATUSES, isOfferExpired, weightedOfferValue } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
 import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
-import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { Popover, MenuRow, MenuDivider, PropertyMenu } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Tooltip } from "../Tooltip";
 import { InfoDot } from "../components";
 import { OfferEditor } from "./OfferEditor";
 import { OfferTemplatesPanel } from "./OfferTemplatesPanel";
+import { OknoOdrzucenia } from "./RejectDialog";
 import { Modal } from "../Modal";
 import { NewDocumentDialog, type NewDocumentLink } from "../NewDocumentDialog";
 import { invalidateLinkTargets } from "../LinkPicker";
 
 type OfferRow = Offer & { kwota: number };
+
+/** Wartość filtra „po terminie" — nie jest statusem z bazy, więc trzyma się
+ * poza `OFFER_STATUSES` (patrz komentarz przy filtrowaniu). */
+const PO_TERMINIE = "__po_terminie__";
 
 export function OffersDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
@@ -29,6 +34,15 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [szukaj, setSzukaj] = useState("");
+  /** Pełny rozmiar rejestru z serwera — patrz OFFERS_LIMIT w trasie. Gdy jest
+   * większy niż to, co przyszło, lista mówi o tym WPROST zamiast po cichu
+   * gubić oferty (i liczyć z nich wskaźniki). */
+  const [total, setTotal] = useState(0);
+  const szukajRef = useRef<HTMLInputElement>(null);
+  const [kursor, setKursor] = useState(0);
+  /** Id oferty, dla której otwarte jest okno „dlaczego odrzucona". */
+  const [rejectFor, setRejectFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/offers");
@@ -36,8 +50,9 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       window.location.reload();
       return;
     }
-    const data = (await res.json()) as { offers: OfferRow[] };
+    const data = (await res.json()) as { offers: OfferRow[]; total?: number };
     setOffers(data.offers);
+    setTotal(data.total ?? data.offers.length);
   }, []);
 
   useEffect(() => {
@@ -86,17 +101,32 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     [confirm, toast]
   );
 
-  const updateStatus = useCallback(
-    async (id: string, status: string) => {
+  const zapiszStatus = useCallback(
+    async (id: string, status: string, powod?: string, komentarz?: string) => {
       setOffers((prev) => prev?.map((o) => (o.id === id ? { ...o, status: status as Offer["status"] } : o)) ?? prev);
       const res = await fetch(`/api/offers/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...(powod ? { powod_odrzucenia: powod, komentarz_odrzucenia: komentarz ?? "" } : {}) }),
       });
       if (!res.ok) toast("Nie udało się zapisać.", "error");
     },
     [toast]
+  );
+
+  /** Odrzucenie idzie przez to samo okno co w profilu oferty (RejectDialog) —
+   * inaczej powód zapisywałby się tylko wtedy, gdy właściciel akurat wszedł
+   * w profil, a statystyka „na czym przegrywamy" miałaby dziury zależne od
+   * tego, którą drogą kliknął. */
+  const updateStatus = useCallback(
+    async (id: string, status: string) => {
+      if (status === "Odrzucona") {
+        setRejectFor(id);
+        return;
+      }
+      await zapiszStatus(id, status);
+    },
+    [zapiszStatus]
   );
 
   const toggleSelect = useCallback((id: string) => {
@@ -114,19 +144,29 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
+  // Jedno żądanie na całe zaznaczenie (`/api/offers/bulk`), nie jedno na
+  // ofertę — wzorem Klientów (Moduł 54, krok 3b). Przy 30 zaznaczonych pętla
+  // robiła 30 rund HTTP, a każda z nich własną rundę do bazy.
   const bulkUpdateStatus = useCallback(
     async (status: string) => {
       const ids = [...selectedIds];
       if (ids.length === 0) return;
       setBulkBusy(true);
-      for (const id of ids) {
-        await updateStatus(id, status);
-      }
+      const res = await fetch("/api/offers/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, status }),
+      });
       setBulkBusy(false);
+      if (!res.ok) {
+        toast("Nie udało się zapisać.", "error");
+        return;
+      }
+      setOffers((prev) => prev?.map((o) => (selectedIds.has(o.id) ? { ...o, status: status as Offer["status"] } : o)) ?? prev);
       toast(`Zaktualizowano status dla ${ids.length} ofert.`);
       clearSelection();
     },
-    [selectedIds, updateStatus, toast, clearSelection]
+    [selectedIds, toast, clearSelection]
   );
 
   const bulkDelete = useCallback(async () => {
@@ -135,11 +175,18 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     const ok = await confirm(`Usunąć ${ids.length} zaznaczonych ofert?`, { danger: true });
     if (!ok) return;
     setBulkBusy(true);
-    for (const id of ids) {
-      await fetch(`/api/offers/${id}`, { method: "DELETE" });
-    }
+    const res = await fetch("/api/offers/bulk", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
     setBulkBusy(false);
+    if (!res.ok) {
+      toast("Nie udało się usunąć.", "error");
+      return;
+    }
     setOffers((prev) => prev?.filter((o) => !selectedIds.has(o.id)) ?? prev);
+    setTotal((t) => Math.max(0, t - ids.length));
     toast(`Usunięto ${ids.length} ofert.`);
     clearSelection();
   }, [selectedIds, confirm, toast, clearSelection]);
@@ -148,9 +195,54 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
 
   const rows = useMemo(() => {
     let list = offers ?? [];
-    if (filterStatus) list = list.filter((o) => o.status === filterStatus);
+    // `PO_TERMINIE` to filtr wyliczany, nie status z bazy — oferta po terminie
+    // wciąż ma status „Wysłana"/„Szkic", więc bez tego nie dało się jej znaleźć
+    // inaczej niż wzrokiem po czerwonej dacie.
+    if (filterStatus === PO_TERMINIE) list = list.filter(isOfferExpired);
+    else if (filterStatus) list = list.filter((o) => o.status === filterStatus);
+    const igla = szukaj.trim().toLowerCase();
+    if (igla) {
+      list = list.filter(
+        (o) => o.tytul.toLowerCase().includes(igla) || (o.klient_nazwa ?? "").toLowerCase().includes(igla)
+      );
+    }
     return list;
-  }, [offers, filterStatus]);
+  }, [offers, filterStatus, szukaj]);
+
+  // Kursor po liście (j/k jak w Leadach i Klientach) nie może wskazywać poza
+  // przefiltrowaną listę — inaczej Enter otwierałby ofertę, której nie widać.
+  useEffect(() => {
+    setKursor((k) => Math.min(k, Math.max(0, rows.length - 1)));
+  }, [rows.length]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const cel = e.target as HTMLElement | null;
+      const wPolu = !!cel && (cel.tagName === "INPUT" || cel.tagName === "TEXTAREA" || cel.isContentEditable);
+      if (e.key === "Escape" && wPolu && cel === szukajRef.current) {
+        setSzukaj("");
+        szukajRef.current?.blur();
+        return;
+      }
+      if (wPolu || e.metaKey || e.ctrlKey || e.altKey) return;
+      // Modal profilu ma własną obsługę klawiszy — lista nie może pod nim
+      // przewijać kursora ani otwierać drugiej oferty.
+      if (openId || newOpen || templatesOpen || rejectFor) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        szukajRef.current?.focus();
+      } else if (e.key === "j") {
+        setKursor((k) => Math.min(k + 1, Math.max(0, rows.length - 1)));
+      } else if (e.key === "k") {
+        setKursor((k) => Math.max(k - 1, 0));
+      } else if (e.key === "Enter") {
+        const cel = rows[kursor];
+        if (cel) setOpenId(cel.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [rows, kursor, openId, newOpen, templatesOpen, rejectFor]);
 
   const kpi = useMemo(() => {
     const list = offers ?? [];
@@ -160,6 +252,8 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     let liczbaZaakceptowanych = 0;
     let liczbaOdrzuconych = 0;
     let wygasajace = 0;
+    let poTerminie = 0;
+    let poTerminieKwota = 0;
     let sumaWszystkich = 0;
     const today = todayLocalISO();
     const zaTydzien = addDaysToISO(today, 7);
@@ -177,13 +271,25 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       if (!CLOSED_OFFER_STATUSES.has(o.status) && o.wazna_do && o.wazna_do >= today && o.wazna_do <= zaTydzien) {
         wygasajace += 1;
       }
+      // Oferta po terminie wciąż ma otwarty status, więc wchodzi do „W toku"
+      // i do ważonego pipeline'u jak żywa. Nie zmieniamy tych liczb po cichu
+      // (to byłaby druga definicja tego samego wskaźnika) — mówimy wprost,
+      // ile z nich jest martwych.
+      if (isOfferExpired(o)) {
+        poTerminie += 1;
+        poTerminieKwota += o.kwota;
+      }
     }
     // Skuteczność liczona tylko z ofert ROZSTRZYGNIĘTYCH — wliczanie otwartych
     // zaniżałoby ją tym bardziej, im więcej ofert właśnie wisi w toku.
     const rozstrzygniete = liczbaZaakceptowanych + liczbaOdrzuconych;
     const skutecznosc = rozstrzygniete > 0 ? Math.round((liczbaZaakceptowanych / rozstrzygniete) * 100) : null;
     const srednia = list.length > 0 ? sumaWszystkich / list.length : 0;
-    return { wToku, zaakceptowane, wazony, skutecznosc, rozstrzygniete, wygasajace, srednia };
+    // Waluty NIE przeliczamy — panel nie ma i nie będzie miał kursu (zero
+    // źródeł zewnętrznych w logice). Zamiast po cichu sumować euro ze
+    // złotówkami, mówimy o tym pod wskaźnikami.
+    const obceWaluty = [...new Set(list.map((o) => o.waluta || "PLN").filter((w) => w !== "PLN"))];
+    return { wToku, zaakceptowane, wazony, skutecznosc, rozstrzygniete, wygasajace, poTerminie, poTerminieKwota, srednia, obceWaluty };
   }, [offers]);
 
   if (!offers) {
@@ -202,13 +308,22 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Oferty</span>
-        <span className="flex-1" />
+        <div className="ml-3 flex min-w-0 flex-1 items-center gap-1.5 text-muted">
+          <IconSearch size={13} className="shrink-0" />
+          <input
+            ref={szukajRef}
+            value={szukaj}
+            onChange={(e) => setSzukaj(e.target.value)}
+            placeholder="Szukaj po tytule lub kliencie   /"
+            className="min-w-0 max-w-[280px] flex-1 bg-transparent text-[12.5px] text-[var(--fg)] placeholder:text-muted focus:outline-none"
+          />
+        </div>
         <Popover
           align="right"
           width={220}
           trigger={(open) => (
             <button onClick={open} className="flex h-6 items-center rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
-              {filterStatus || "Status: wszystkie"}
+              {filterStatus === PO_TERMINIE ? "Po terminie" : filterStatus || "Status: wszystkie"}
             </button>
           )}
         >
@@ -218,6 +333,12 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
               {OFFER_STATUSES.map((s) => (
                 <MenuRow key={s} label={s} selected={filterStatus === s} onClick={() => { setFilterStatus(s); close(); }} />
               ))}
+              <MenuDivider />
+              <MenuRow
+                label="Po terminie ważności"
+                selected={filterStatus === PO_TERMINIE}
+                onClick={() => { setFilterStatus(PO_TERMINIE); close(); }}
+              />
             </div>
           )}
         </Popover>
@@ -232,6 +353,15 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">W toku</div>
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.wToku)}</div>
+            {kpi.poTerminie > 0 && (
+              <button
+                onClick={() => setFilterStatus(PO_TERMINIE)}
+                title="Pokaż oferty po terminie ważności"
+                className="mt-0.5 text-left text-[11px] text-brand-gold underline decoration-dotted underline-offset-2"
+              >
+                w tym {kpi.poTerminie} po terminie — {formatMoney(kpi.poTerminieKwota)}
+              </button>
+            )}
           </div>
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Zaakceptowane</div>
@@ -268,6 +398,13 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.srednia)}</div>
           </div>
         </div>
+
+        {kpi.obceWaluty.length > 0 && (
+          <p className="-mt-2 mb-3 text-[11px] text-muted">
+            Wskaźniki sumują kwoty bez przeliczania walut — na liście są też oferty w{" "}
+            {kpi.obceWaluty.join(", ")}.
+          </p>
+        )}
 
         {selectedIds.size > 0 && (
           <div className="card-paper sticky top-2 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-full px-4 py-2 text-xs">
@@ -310,10 +447,42 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
           </div>
         )}
 
+        {offers.length > 0 && total > offers.length && (
+          <div className="mb-3 rounded-xl border border-brand-gold/40 bg-brand-gold/10 px-3 py-2 text-[12px] text-brand-gold">
+            Widzisz {offers.length} z {total} ofert — reszta jest w bazie, ale nie na tej liście. Wskaźniki
+            u góry liczą się z tego, co widać, więc od tej chwili są zaniżone. Powiedz o tym Claude’owi:
+            czas na stronicowanie.
+          </div>
+        )}
+
         {rows.length === 0 ? (
           <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
             <IconOfferEmpty />
-            <p className="mt-2">{filterStatus ? "Brak ofert o tym statusie." : "Brak ofert — utwórz pierwszą przyciskiem +."}</p>
+            {/* Pusty stan ma mówić, czego brakuje i co to zmienia (ustalenie A1)
+                — samo „brak ofert" nie tłumaczy, po co w ogóle wchodzić w ten
+                ekran. */}
+            {szukaj.trim() || filterStatus ? (
+              <>
+                <p className="mt-2">Nic nie pasuje do tego, czego szukasz.</p>
+                <button
+                  onClick={() => { setSzukaj(""); setFilterStatus(""); }}
+                  className="mt-2 rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)]"
+                >
+                  Wyczyść filtry
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-[var(--fg)]">Nie ma jeszcze żadnej oferty.</p>
+                <p className="mx-auto mt-1 max-w-md text-[12.5px]">
+                  Oferta to moment, w którym rozmowa zamienia się w liczby. Gdy klient ją zaakceptuje,
+                  panel sam założy projekt i szkic faktury, a lead z niej zrobiony awansuje na klienta.
+                </p>
+                <button onClick={createOffer} className="btn-primary mt-3 rounded-full px-4 py-1.5 text-xs font-semibold">
+                  + Nowa oferta
+                </button>
+              </>
+            )}
           </div>
         ) : (
           // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
@@ -340,7 +509,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((o) => {
+                {rows.map((o, i) => {
                   const expired = isOfferExpired(o);
                   return (
                     <tr
@@ -348,7 +517,9 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       onClick={() => setOpenId(o.id)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                         expired ? "bg-red-500/[0.04]" : ""
-                      } ${selectedIds.has(o.id) ? "bg-[#4ea7fc]/[0.08]" : ""}`}
+                      } ${selectedIds.has(o.id) ? "bg-[#4ea7fc]/[0.08]" : ""} ${
+                        i === kursor ? "ring-1 ring-inset ring-brand-purple/50" : ""
+                      }`}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <input
@@ -370,7 +541,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                         </span>
                       </td>
                       <td className="p-2.5">{o.klient_nazwa || <span className="text-muted opacity-60">— brak —</span>}</td>
-                      <td className="p-2.5 text-right tabular-nums">{formatMoney(o.kwota)}</td>
+                      <td className="p-2.5 text-right tabular-nums">{formatMoney(o.kwota, o.waluta || "PLN")}</td>
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <PropertyMenu value={o.status} options={statusOpts} onChange={(v) => updateStatus(o.id, v)} title="Zmień status">
                           <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${OFFER_STATUS_CLASS[o.status] ?? ""}`}>
@@ -409,7 +580,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       <Modal
         open={!!openId}
         onClose={() => setOpenId(null)}
-        card="card-paper my-auto w-full max-w-3xl rounded-2xl border hairline p-5 sm:p-6"
+        card="card-paper my-auto w-full max-w-5xl rounded-2xl border hairline p-5 sm:p-6"
       >
         {openId && (
           <OfferEditor
@@ -432,6 +603,24 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         card="card-paper my-auto w-full max-w-xl rounded-2xl border hairline p-5 sm:p-6"
       >
         <OfferTemplatesPanel onClose={() => setTemplatesOpen(false)} />
+      </Modal>
+
+      <Modal
+        open={!!rejectFor}
+        onClose={() => setRejectFor(null)}
+        z={95}
+        card="card-paper my-auto w-full max-w-md rounded-2xl border hairline p-5"
+      >
+        {rejectFor && (
+          <OknoOdrzucenia
+            onCancel={() => setRejectFor(null)}
+            onConfirm={(powod, komentarz) => {
+              const id = rejectFor;
+              setRejectFor(null);
+              zapiszStatus(id, "Odrzucona", powod, komentarz);
+            }}
+          />
+        )}
       </Modal>
 
       <NewDocumentDialog

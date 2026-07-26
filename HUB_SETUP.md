@@ -8077,3 +8077,144 @@ Indeks jest KOLUMNĄ w tej samej tabeli, nie kopią w osobnym miejscu. Usunięci
 wiersza przez retencję (Audyt 2) zabiera go razem z treścią, więc rejestr
 czynności i terminy retencji nie wymagają zmiany. Gdyby kiedyś powstała osobna
 tabela indeksu — wymagałaby.
+
+## Moduł 57 (audyt UI/UX) — Oferty (2026-07-26)
+
+Kolejny moduł inicjatywy z `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md`
+(po Pulpicie, Leadach i Klientach). Pełna lista ustaleń i tego, co świadomie
+zostało nietknięte: tamten plik → „Stan po module «Oferty»". Tutaj — jak to
+działa i dlaczego tak.
+
+**Moduł 20 (szablony ofert) był już zbudowany** — panel szablonów,
+„Wstaw z szablonu", `POST /api/offers/[id]/apply-template`, plus katalog
+komponentów z Modułu 47. Ten moduł go nie ruszał.
+
+### Odrzucenie oferty przestało znikać
+
+Oś czasu klienta znała wyłącznie sukces: `offer_created`, `offer_sent`,
+`offer_accepted`. Klient, który powiedział „nie", kończył historię na wpisie
+„wysłano ofertę" — a to najczęstsze zakończenie rozmowy handlowej.
+
+- Nowe rodzaje zdarzeń: `offer_rejected`, `offer_expired` (`lib/clients.ts`,
+  ikony w `admin/icons.tsx`).
+- Nowe kolumny: `offers.powod_odrzucenia`, `komentarz_odrzucenia`,
+  `odrzucona_at`.
+- **Powodów jest PIĘĆ i lista jest zamknięta** (`OFFER_REJECT_REASONS`
+  w `lib/offers.ts`, bliźniak `PowodOdrzuceniaOferty` w apce). Wolne pole
+  tekstowe nie dałoby się policzyć; komentarz obok jest opcjonalny i wolny.
+- **Jedno okno dla dwóch dróg** (`offers/RejectDialog.tsx`): pigułka statusu
+  na liście i pigułka w profilu prowadzą do tego samego pytania. Dwie kopie
+  rozjechałyby się przy pierwszej zmianie listy powodów, a statystyka
+  „na czym przegrywamy" liczyłaby wtedy dwa słowniki.
+- **Zdarzenie powstaje tylko przy REALNEJ zmianie statusu** — trasa czyta stan
+  sprzed zapisu. Drugie kliknięcie „Odrzucona" nie dopisuje drugiego wpisu
+  (sprawdzone dwoma identycznymi żądaniami pod rząd).
+- Wyjście z „Odrzucona" czyści powód — inaczej ofercie wróconej do gry
+  zostawałby na karcie nieaktualny napis „Za drogo".
+
+### Status: walidowany i widoczny
+
+`PATCH /api/offers/:id` przyjmował **dowolny** string do 40 znaków. Literówka
+(„Wyslana") wypadała naraz z filtra statusu, z mapy kolorów i z ważonego
+pipeline'u — tam z wagą 1 z fallbacku, czyli **zawyżając prognozę**. Teraz
+`isOfferStatus()` i 400 dla nieznanej wartości.
+
+Profil oferty pokazuje status (klikalny) i odznakę „po terminie ważności".
+Do tego modułu profil nie pokazywał go wcale: lista malowała przeterminowaną
+ofertę na czerwono, a profil tę samą datę na biało — i świecił przyciskiem
+„Akceptuj ofertę".
+
+### Umowa: idempotencja ze śladem
+
+`POST /api/contracts` dedupował od dawna (`WHERE offer_id = … LIMIT 1`), ale
+karta oferty o tym nie wiedziała — przycisk zawsze mówił „Wygeneruj", toast
+zawsze „Wygenerowano". `GET /api/offers/:id` dokłada teraz `contract`
+(id + status), a karta pokazuje „Otwórz umowę" i status podpisu. To druga
+połowa tego samego ustalenia co przy NDA na leadzie (Moduł 51).
+
+### Waluta dokumentu
+
+`offers.waluta` (domyślnie `PLN`, zestaw jak na fakturze). Wydruk liczy
+w walucie dokumentu — wcześniej `docMoney` brał domyślne „PLN", więc oferta
+po niemiecku pokazywała klientowi „6.000,00 zł". Waluta przenosi się na
+fakturę przy akceptacji.
+
+**Wskaźniki na liście NIE przeliczają walut** i mówią o tym wprost pod
+spodem. Panel nie ma i nie będzie miał kursu (zero źródeł zewnętrznych
+w logice) — sumowanie euro ze złotówkami po cichu byłoby gorsze niż zdanie
+wyjaśniające.
+
+### VAT szkicu faktury wywiedziony z kraju
+
+`domyslnaStawkaVat()` w `lib/offerAccept.ts`: kraj pusty albo Polska → `23`,
+cokolwiek innego → `np` (odwrotne obciążenie). Wcześniej `'23'` było wpisane
+na sztywno dla KAŻDEJ pozycji, także zagranicznej. Reguła świadomie nie
+rozstrzyga UE vs poza UE ani statusu VAT-UE kontrahenta — to decyzja księgowa
+per faktura, a stawkę zmienia się w edytorze jednym kliknięciem.
+
+### Sufit i praca wsadowa
+
+- `GET /api/offers` → `{ offers, total }`, `OFFERS_LIMIT = 1000`,
+  `COUNT(*) OVER ()` w tym samym zapytaniu. Nad listą pojawia się GŁOŚNE
+  ostrzeżenie, gdy `total > offers.length` — bo sześć wskaźników liczy się
+  po stronie przeglądarki z tego, co przyszło. Wzorzec 1:1 z Modułu 54, krok 3a.
+- `PATCH/DELETE /api/offers/bulk` — jedno zapytanie na całą zaznaczoną paczkę
+  zamiast N żądań w pętli. **Powód odrzucenia świadomie NIE wchodzi wsadowo**:
+  wpisany hurtem byłby zmyśloną statystyką.
+
+### Numer dokumentu: `OF-NaN-…` na Safari
+
+`offerReference()` liczył rok przez `new Date(offer.created_at)`, a baza oddaje
+`„2026-07-26 19:12:44.487+01"` (zmierzone) — spacja zamiast „T" i strefa bez
+dwukropka, czyli format, którego silnik dat Safari nie parsuje. Renderuje się
+to w przeglądarce, na dokumencie oglądanym przez KLIENTA: w Chrome numer
+wychodził poprawnie, na iPhonie klienta wyszłoby „OF-NaN-964BE4".
+
+Naprawione wspólną `documentYear()` w `lib/documents.ts` (rok czytany wprost
+ze stringa). Ta sama linijka siedziała w `contractReference` — poprawiona przy
+okazji, bo Umowy to następny moduł. To trzeci raz, gdy ta pułapka wychodzi
+w tym projekcie — patrz `parsePgTimestamp` w `lib/dates.ts`.
+
+### Czytelność profilu
+
+Dane klienta były stosem siedmiu pól rozpoznawalnych wyłącznie po
+placeholderze — a placeholder znika, gdy pole ma treść. Teraz
+`SekcjaProfilu`/`WierszPola` (wzorzec z Modułu 54, krok 6): etykieta z ikoną
+po lewej, wartość po prawej, obramowanie pola dopiero pod kursorem.
+
+Zmierzone po zmianie (okno 1280 px): karta 933 px (`max-w-5xl`, było
+`max-w-3xl` = 768), kolumna treści 603 px (było 438), rytm wierszy 38–39 px.
+**Szerokości świadomie NIE zrównano z Leadami/Klientami** (te są
+pełnoekranowe) — tabela pozycji tego nie potrzebuje, a CLAUDE.md wprost
+dopuszcza własne limity dla dokumentów. Uwaga: CLAUDE.md twierdził, że Oferty
+mają `max-w-7xl` — to była nieprawda (`7xl` mają Faktury).
+
+### Lista ofert
+
+Szukanie po tytule i kliencie (`/` ustawia kursor), `j`/`k` + Enter jak
+w Leadach i Klientach, filtr „po terminie ważności" (wyliczany, nie status
+z bazy — oferta po terminie wciąż ma status „Wysłana"). Wskaźnik „W toku"
+dostał podpis „w tym N po terminie", klikalny jak filtr; **sama liczba się
+nie zmieniła** — dwie definicje tego samego wskaźnika byłyby gorsze niż jedna
+z przypisem. Pusty stan tłumaczy, co oferta zmienia (akceptacja zakłada
+projekt i szkic faktury, pierwsza oferta z leada awansuje go na klienta).
+
+### Apka (iPhone/iPad)
+
+Poziom 2 zostaje: tworzenia oferty, edycji pozycji ani akceptacji na telefonie
+NIE ma i nie planujemy — akceptacja zakłada projekt i fakturę, to praca przy
+biurku. Doszło **zamknięcie oferty statusem**, bo to sprawa telefoniczna
+(„dzwonili, że nie biorą"): „Klient odrzucił" (z powodem) i „Wygasła" —
+gestem na liście, z menu przytrzymania i z profilu. Powód widać w sekcji
+„Dlaczego odpadła", kwoty liczą się w walucie oferty.
+
+`Oferta` w `Finanse.swift` dostała `waluta`, `powodOdrzucenia`,
+`komentarzOdrzucenia` — **każde pole w trzech miejscach** (właściwość,
+`CodingKeys`, `init(from:)`), bo pominięcie któregokolwiek kompiluje się
+i cicho zwraca pustkę.
+
+Sprawdzone w symulatorze end-to-end: zmiana statusu z telefonu zapisuje się
+w bazie, pigułka i lista reagują od razu. Dialogu powodu **nie udało się
+kliknąć** — kalibracja dotyku symulatora, ta sama pułapka co przy Leadach
+(patrz „Pułapki" w `51-audyt-uiux-panel-i-apka.md`); ostateczna ocena należy
+do właściciela na telefonie.

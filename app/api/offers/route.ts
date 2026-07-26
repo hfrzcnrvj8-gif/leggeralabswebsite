@@ -6,21 +6,41 @@ import { zasiejOsobeZMigawki } from "@/lib/clientContacts";
 
 export const runtime = "nodejs";
 
-/** GET /api/offers — lista ofert z sumą kwoty (do listy). Admin-only. */
+/** Górny limit tego, ile ofert trasa odda naraz — ten sam wzorzec co przy
+ * klientach (Moduł 54, krok 3a): sufit z GŁOŚNYM ostrzeżeniem zamiast
+ * przedwczesnego stronicowania.
+ *
+ * Trasa świadomie NIE jest stronicowana: lista ofert filtruje, sortuje i liczy
+ * SZEŚĆ wskaźników po stronie przeglądarki (ważony pipeline, skuteczność,
+ * średnia wartość), a każdy z nich odpowiada na pytanie o CAŁY rejestr, nie
+ * o jedną stronę. Stronicowanie bez przeniesienia tego na serwer dałoby
+ * wskaźniki liczone z połowy danych — czyli liczby, które kłamią po cichu.
+ * Zamiast tego obok listy leci `total` z pełnym przelicznikiem. */
+const OFFERS_LIMIT = 1000;
+
+/** GET /api/offers — lista ofert z sumą kwoty (do listy). Admin-only.
+ * Zwraca `{ offers, total }` — patrz OFFERS_LIMIT. */
 export async function GET() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureOffersSchema();
   const sql = getSql();
-  const rows = await sql`
-    SELECT o.*, COALESCE(t.kwota, 0)::float8 AS kwota
+  // `COUNT(*) OVER ()` liczy się PRZED `LIMIT`, więc `total` to pełny rozmiar
+  // rejestru, a nie długość zwróconej strony (jedno zapytanie zamiast dwóch —
+  // neon() płaci rundę HTTP za każde).
+  const rows = (await sql`
+    SELECT o.*, COALESCE(t.kwota, 0)::float8 AS kwota, COUNT(*) OVER () AS _total
     FROM offers o
     LEFT JOIN (
       SELECT offer_id, SUM(ilosc * cena) AS kwota
       FROM offer_items GROUP BY offer_id
     ) t ON t.offer_id = o.id
-    ORDER BY o.created_at DESC;
-  `;
-  return NextResponse.json({ offers: rows });
+    ORDER BY o.created_at DESC
+    LIMIT ${OFFERS_LIMIT};
+  `) as unknown as Record<string, unknown>[];
+
+  const total = rows.length > 0 ? Number(rows[0]._total) : 0;
+  const offers = rows.map(({ _total, ...o }) => o);
+  return NextResponse.json({ offers, total });
 }
 
 /** POST /api/offers — nowa oferta (szkic). Może wejść z leada (kopiujemy

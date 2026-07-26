@@ -120,6 +120,11 @@ export const CLIENT_EVENT_KINDS = [
   "offer_created",
   "offer_sent",
   "offer_accepted",
+  // Moduł 57 — druga połowa historii oferty. Do 2026-07-26 oś czasu klienta
+  // znała wyłącznie sukces (utworzono / wysłano / zaakceptowano), więc klient,
+  // który powiedział „nie", kończył się na wpisie „wysłano ofertę".
+  "offer_rejected",
+  "offer_expired",
   "invoice_issued",
   "invoice_sent",
   "invoice_reminder",
@@ -162,6 +167,8 @@ export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projec
   offer_created: "offers",
   offer_sent: "offers",
   offer_accepted: "offers",
+  offer_rejected: "offers",
+  offer_expired: "offers",
   invoice_issued: "invoices",
   invoice_sent: "invoices",
   invoice_reminder: "invoices",

@@ -25,11 +25,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     await sql`
       INSERT INTO offers (
         id, tytul, lead_id, client_id, klient_nazwa, klient_nip, klient_adres,
-        klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email, jezyk, uwagi
+        klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email, jezyk, waluta, uwagi
       )
       VALUES (
         ${newId}, ${src.tytul}, ${src.lead_id}, ${src.client_id}, ${src.klient_nazwa}, ${src.klient_nip}, ${src.klient_adres},
-        ${src.klient_ulica}, ${src.klient_kod}, ${src.klient_miasto}, ${src.klient_kraj}, ${src.klient_email}, ${src.jezyk}, ${src.uwagi}
+        ${src.klient_ulica}, ${src.klient_kod}, ${src.klient_miasto}, ${src.klient_kraj}, ${src.klient_email}, ${src.jezyk}, ${src.waluta}, ${src.uwagi}
       );
     `;
 

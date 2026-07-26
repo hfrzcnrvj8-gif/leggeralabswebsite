@@ -16,7 +16,7 @@
 // po polsku — treść prawna wymaga weryfikacji prawnika niezależnie od
 // języka, tłumaczenie dokładałoby pracę bez realnej wartości na tym etapie.
 
-import { type DocLang } from "./documents";
+import { type DocLang, documentYear } from "./documents";
 
 export type ContractTyp = "umowa" | "nda";
 export const CONTRACT_TYPY: ContractTyp[] = ["umowa", "nda"];
@@ -234,8 +234,9 @@ export function clientAddressLines(
  * — wzorem offerReference, bez formalnej numeracji fiskalnej. */
 export function contractReference(c: Pick<Contract, "id" | "typ" | "created_at">): string {
   const prefix = c.typ === "nda" ? "NDA" : "UM";
-  const year = new Date(c.created_at).getFullYear();
-  return `${prefix}-${year}-${c.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+  // `documentYear`, NIE `new Date()` — patrz komentarz przy tej funkcji
+  // (znacznik czasu z Postgresa jest nieparsowalny dla Safari).
+  return `${prefix}-${documentYear(c.created_at)}-${c.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 }
 
 /** Czy dokument jeszcze "czeka" — pomocnicze do liczników na Pulpicie/liście. */

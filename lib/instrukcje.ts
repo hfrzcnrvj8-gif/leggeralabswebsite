@@ -56,7 +56,7 @@ export const WSTEP = {
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Na razie opisane są Pulpit, Leady i Klienci — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
+    "Na razie opisane są Pulpit, Leady, Klienci i Oferty — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -367,6 +367,104 @@ export const MODULY: ModulInstrukcji[] = [
         tytul: "Telefon i iPad: przesunięcie palcem",
         opis:
           "W prawo — zadzwoń. W lewo — „Obsłużone” (tylko przy kliencie z zaległym przypomnieniem; przy pozostałych nie ma czego gasić). To samo jest w menu po przytrzymaniu wiersza, razem ze zmianą statusu i logowaniem rozmowy.",
+      },
+    ],
+  },
+
+  /* ────────────────────────────── OFERTY ────────────────────────────── */
+  {
+    id: "oferty",
+    nazwa: "Oferty",
+    gdzie: "Panel: czwarta pozycja w menu. Telefon: zakładka „Więcej” → Oferty. iPad: w panelu bocznym.",
+    poCoTo:
+      "Moment, w którym rozmowa zamienia się w liczby. Oferta zbiera zakres i cenę w jeden dokument, który klient dostaje linkiem i może podpisać sam — a jej akceptacja uruchamia całą resztę: zakłada projekt i szkic faktury.",
+    kiedy:
+      "Gdy wiesz już, czego klient potrzebuje i za ile chcesz to zrobić. Oraz zawsze wtedy, gdy klient odpowie — „tak” i „nie” zapisuje się TU, nie w głowie.",
+    kroki: [
+      {
+        tytul: "1. Zacznij od „dla kogo”, nie od pustej kartki",
+        opis:
+          "„+ Nowa oferta” najpierw pyta o powiązanie. To ważniejsze, niż wygląda: oferta bez klienta nie trafi na jego oś czasu, a po zamknięciu projektu nie zaplanuje się kontakt kontrolny. Wybór leada dodatkowo awansuje go na klienta — pierwsza oferta jest sygnałem, że rozmowa jest realna.",
+      },
+      {
+        tytul: "2. Złóż pozycje z gotowych klocków",
+        opis:
+          "„Wstaw z szablonu” wkłada cały szkielet oferty (pozycje + uwagi), „Z katalogu” dokłada pojedynczy komponent z cennika. Wszystko po wstawieniu jest w pełni edytowalne — szablon to punkt startowy, nie sztywny wzór.",
+      },
+      {
+        tytul: "3. Ustaw ważność i walutę",
+        opis:
+          "Data ważności to jedyna rzecz, dzięki której panel wie, kiedy się o ofertę upomnieć. Waluta ma znaczenie dla klienta zagranicznego: wydruk liczy w niej, a po akceptacji przechodzi na fakturę.",
+      },
+      {
+        tytul: "4. Wyślij mailem — status zmieni się sam",
+        opis:
+          "„Wyślij mailem” wysyła klientowi link do podglądu z możliwością podpisu i przestawia „Szkic” na „Wysłana”. Link możesz w każdej chwili unieważnić; wysyłka unieważnionym linkiem jest zablokowana, nowy trzeba wygenerować świadomie.",
+      },
+      {
+        tytul: "5. Gdy klient mówi „tak”",
+        opis:
+          "„Akceptuj ofertę” zakłada projekt (opcjonalnie z szablonu) i szkic faktury z tymi samymi pozycjami, zamyka leada sukcesem i wpisuje wszystko na oś czasu klienta. Klient może zrobić to sam z linku — wtedy dostajesz powiadomienie.",
+      },
+      {
+        tytul: "6. Gdy klient mówi „nie” — zapisz to i powiedz dlaczego",
+        opis:
+          "Ustaw status „Odrzucona”; panel zapyta o powód z krótkiej listy (za drogo, nie ten termin, wybrali kogoś innego, brak decyzji, inny). Robi się to z pigułki statusu na liście, z profilu oferty i z telefonu. Po kilkunastu ofertach to jedyne miejsce, z którego da się odczytać, na czym realnie przegrywasz.",
+      },
+      {
+        tytul: "7. Po akceptacji — umowa",
+        opis:
+          "Na karcie zaakceptowanej oferty jest „Wygeneruj umowę”, a gdy umowa już istnieje — jej status i „Otwórz umowę”. Drugie kliknięcie nigdy nie zrobi drugiego dokumentu.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Oferta po terminie nie znika sama",
+        opis:
+          "Panel jej NIE zamyka za Ciebie — pokazuje ją na czerwono na liście, wypisuje na Pulpicie z przyciskiem „oznacz jako wygasła”, a na ekranie Ofert dopisuje pod „W toku”, ile z tej kwoty jest już martwe. Decyzja zostaje Twoja, bo przedłużenie terminu bywa równie sensowne jak zamknięcie.",
+      },
+      {
+        tytul: "Akceptacja robi trzy rzeczy naraz",
+        opis:
+          "Projekt, szkic faktury i domknięcie leada powstają w jednej operacji — albo wszystko, albo nic. Dwa kliknięcia (albo Twoje i klienta jednocześnie) nie założą dwóch projektów.",
+      },
+      {
+        tytul: "Stawka VAT na szkicu faktury podpowiada się z kraju",
+        opis:
+          "Pusty kraj albo Polska → 23%. Inny kraj → „np” (odwrotne obciążenie). To tylko podpowiedź na szkicu — stawkę zmieniasz w edytorze faktury przed wystawieniem.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Oferta bez daty ważności jest niewidzialna dla przypominacza",
+        opis:
+          "Nie trafi ani do „Wygasają w 7 dni”, ani do listy po terminie. Nikt się o nią nie upomni — będzie wisieć w „W toku” tak długo, aż sam o niej pomyślisz.",
+      },
+      {
+        tytul: "Wskaźniki nie przeliczają walut",
+        opis:
+          "Panel nie zna kursów i celowo ich nie pobiera. Jeśli masz oferty w euro i w złotówkach, sumy u góry dodają liczby bez przeliczania — jest o tym napisane pod kafelkami.",
+      },
+      {
+        tytul: "Usunięcie oferty nie usuwa tego, co z niej powstało",
+        opis:
+          "Projekt i faktura założone przy akceptacji zostają — to już osobne, samodzielne dokumenty.",
+      },
+      {
+        tytul: "Na telefonie ofert się nie tworzy",
+        opis:
+          "Telefon i iPad służą do podglądu, wysyłki i zamknięcia oferty statusem („klient odrzucił”, „wygasła”). Składanie pozycji i akceptacja — która od razu zakłada projekt i fakturę — zostają przy biurku. To celowe zawężenie, nie brak.",
+      },
+    ],
+    skroty: [
+      { tytul: "/", opis: "Kursor do wyszukiwarki (szuka po tytule i nazwie klienta)." },
+      { tytul: "j / k", opis: "Ruch po liście ofert." },
+      { tytul: "Enter", opis: "Otwiera zaznaczoną ofertę." },
+      { tytul: "n", opis: "Nowa oferta." },
+      {
+        tytul: "Telefon: przesunięcie palcem",
+        opis:
+          "W lewo na wierszu — „Wyślij” i „Odrzucona”. To samo (plus „Wygasła”) jest w menu po przytrzymaniu wiersza.",
       },
     ],
   },

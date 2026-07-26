@@ -121,6 +121,7 @@ export const OFFER_PUBLIC_FIELDS = [
   "id",
   "created_at",
   "jezyk",
+  "waluta",
   "status",
   "tytul",
   "uwagi",

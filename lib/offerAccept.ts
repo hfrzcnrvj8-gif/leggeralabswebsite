@@ -7,7 +7,27 @@
 import { randomUUID } from "node:crypto";
 import { withTransaction, logClientEvent } from "./db";
 import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "./projects";
-import { isOfferExpired, type Offer } from "./offers";
+import { isOfferExpired, DEFAULT_OFFER_CURRENCY, type Offer } from "./offers";
+
+/** Stawka VAT dla pozycji SZKICU faktury zakładanego przy akceptacji oferty.
+ *
+ * Do 2026-07-26 było tu `'23'` wpisane na sztywno dla każdej pozycji — także
+ * dla klienta zagranicznego, gdzie usługa idzie na odwrotnym obciążeniu.
+ * Szkic i tak przechodzi przez ręce właściciela przed wystawieniem, ale
+ * domyślna wartość ma podpowiadać poprawnie, a nie wymagać poprawki za
+ * każdym razem.
+ *
+ * Reguła jest prosta i deterministyczna: kraj pusty albo Polska → 23%,
+ * cokolwiek innego → „np" (nie podlega — odwrotne obciążenie). Świadomie NIE
+ * rozstrzygamy tu UE vs poza UE ani statusu VAT-UE kontrahenta — to decyzja
+ * księgowa per faktura, a stawkę zmienia się w edytorze faktury jednym
+ * kliknięciem. */
+export function domyslnaStawkaVat(kraj: string | null | undefined): string {
+  const k = (kraj ?? "").trim().toLowerCase();
+  if (!k) return "23";
+  const polska = ["pl", "pol", "polska", "poland"];
+  return polska.includes(k) ? "23" : "np";
+}
 
 export type AcceptOfferResult =
   | { ok: true; projectId: string; invoiceId: string }
@@ -110,18 +130,20 @@ export async function acceptOffer(
       await sql`
         INSERT INTO invoices (
           id, lead_id, project_id, client_id, klient_nazwa, klient_nip, klient_adres,
-          klient_ulica, klient_kod, klient_miasto, klient_kraj
+          klient_ulica, klient_kod, klient_miasto, klient_kraj, waluta
         )
         VALUES (
           ${invoiceId}, ${leadId}, ${projectId}, ${clientId}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres},
-          ${offer.klient_ulica ?? ""}, ${offer.klient_kod ?? ""}, ${offer.klient_miasto ?? ""}, ${offer.klient_kraj ?? ""}
+          ${offer.klient_ulica ?? ""}, ${offer.klient_kod ?? ""}, ${offer.klient_miasto ?? ""}, ${offer.klient_kraj ?? ""},
+          ${offer.waluta || DEFAULT_OFFER_CURRENCY}
         );
       `;
+      const stawka = domyslnaStawkaVat(offer.klient_kraj);
       let pos = 0;
       for (const it of items) {
         await sql`
           INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
-          VALUES (${randomUUID()}, ${invoiceId}, ${it.nazwa}, ${it.ilosc}, ${it.jednostka}, ${it.cena}, '23', ${pos});
+          VALUES (${randomUUID()}, ${invoiceId}, ${it.nazwa}, ${it.ilosc}, ${it.jednostka}, ${it.cena}, ${stawka}, ${pos});
         `;
         pos += 1;
       }

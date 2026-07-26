@@ -161,7 +161,10 @@ const DICT: Record<OfferLang, Dict> = {
   },
 };
 
-const money = docMoney;
+/** Kwoty liczone w walucie DOKUMENTU (Moduł 57) — do 2026-07-26 wydruk brał
+ * domyślne „PLN" z `docMoney`, więc oferta po niemiecku pokazywała klientowi
+ * „6.000,00 zł". Starsze oferty nie mają kolumny wypełnionej — stąd fallback. */
+const money = (n: number, lang: OfferLang, waluta?: string | null) => docMoney(n, lang, waluta || "PLN");
 const dateStr = docDate;
 
 export function OfferPrint({ id, token }: { id?: string; token?: string }) {
@@ -354,8 +357,8 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
                   <td className="py-2.5 pr-2 text-neutral-900">{it.nazwa || "—"}</td>
                   <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{it.ilosc}</td>
                   <td className="py-2.5 pr-2 text-neutral-500">{it.jednostka}</td>
-                  <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{money(it.cena, lang)}</td>
-                  <td className="py-2.5 pl-2 text-right tabular-nums font-medium text-neutral-900">{money(itemKwota(it), lang)}</td>
+                  <td className="py-2.5 pr-2 text-right tabular-nums text-neutral-700">{money(it.cena, lang, offer.waluta)}</td>
+                  <td className="py-2.5 pl-2 text-right tabular-nums font-medium text-neutral-900">{money(itemKwota(it), lang, offer.waluta)}</td>
                 </tr>
               ))}
             </tbody>
@@ -370,7 +373,7 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
                   className="tabular-nums"
                   style={{ background: DOC_GRADIENT, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
                 >
-                  {money(total, lang)}
+                  {money(total, lang, offer.waluta)}
                 </span>
               </div>
             </div>
