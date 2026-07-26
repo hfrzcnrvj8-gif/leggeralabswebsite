@@ -10,6 +10,7 @@ import {
   IconPhoneOff,
   IconPhoneIncoming,
   IconPhoneOutgoing,
+  IconTrash,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
@@ -434,42 +435,47 @@ export function ClientDetailPanel({
     <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
       <PanelHeader onClose={onClose} />
 
+      {/* Nagłówek rekordu ZWARTY (runda czytelności 2026-07-26): tożsamość,
+          status i akcje w jednym wierszu, jak pasek rekordu w Attio. Wcześniej
+          te same rzeczy stały w czterech piętrach (nazwa → status → podpowiedź
+          → cztery duże przyciski) i zjadały u góry profilu tyle wysokości, co
+          dwie sekcje danych — a to jest nagłówek, nie treść.
+
+          Na telefonie (`flex-wrap`) rozkłada się z powrotem na piętra, bo tam
+          szerokości nie ma; `min-w-[12rem]` na nazwie pilnuje, żeby zawinęła
+          się CAŁA, zamiast ucinać się w połowie firmy. */}
       <div className={onClose ? "mt-4" : ""}>
-        {/* Moduł 5 (mobilny) — jak w LeadDetailPanel: na telefonie kolumna,
-            żeby nazwa klienta nie dzieliła wiersza z „Usuń klienta". */}
-        <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <input
             value={client.nazwa}
             onChange={(e) => setClient((prev) => (prev ? { ...prev, nazwa: e.target.value } : prev))}
             onBlur={(e) => updateClient("nazwa", e.target.value)}
-            className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
+            className="min-w-[12rem] flex-1 bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
           />
-          <button onClick={deleteClient} className="shrink-0 rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
-            Usuń klienta
-          </button>
-        </div>
-
-        <div className="mt-2">
           <StatusTag status={client.status} onChange={(v) => updateClient("status", v)} />
-        </div>
-        <p className="mt-2 text-[12.5px] text-muted opacity-80">{CLIENT_STATUS_HINT[client.status]}</p>
-
-        {/* Akcja GŁÓWNA obok szybkich kanałów. Attio prowadzi pasek rekordu
-            od „New note", a apka od „Zaloguj rozmowę" — w panelu zapisanie
-            kontaktu wymagało dotąd przejścia na zakładkę Historia i znalezienia
-            formularza. */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {/* Akcja GŁÓWNA obok szybkich kanałów. Attio prowadzi pasek rekordu
+              od „New note", a apka od „Zaloguj rozmowę" — dlatego ta jedna
+              zostaje z napisem, a kanały schodzą do samych ikon. */}
           <button
             onClick={() => {
               setTab("history");
               setFocusNote(true);
             }}
-            className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-brand-purple/40 bg-brand-purple/10 px-3.5 py-2 text-[13px] font-medium text-[var(--fg)] hover:bg-brand-purple/15"
+            className="flex h-[34px] items-center gap-1.5 rounded-lg border border-brand-purple/40 bg-brand-purple/10 px-3 text-[13px] font-medium text-[var(--fg)] hover:bg-brand-purple/15"
           >
             <IconMessageCircle size={15} /> Zapisz kontakt
           </button>
-          <ContactQuickActions telefon={client.telefon} email={client.email} linkedinUrl={client.linkedin_url} />
+          <ContactQuickActions telefon={client.telefon} email={client.email} linkedinUrl={client.linkedin_url} zwarte />
+          <button
+            onClick={deleteClient}
+            title="Usuń klienta z rejestru"
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg border hairline text-muted hover:bg-red-500/10 hover:text-red-400"
+            aria-label="Usuń klienta"
+          >
+            <IconTrash size={15} />
+          </button>
         </div>
+        <p className="mt-1.5 text-[12.5px] text-muted opacity-80">{CLIENT_STATUS_HINT[client.status]}</p>
       </div>
 
       {/* Układ boczny (Moduł 54, krok 6, wzorzec ze strony rekordu w Attio):
@@ -503,7 +509,7 @@ export function ClientDetailPanel({
               a dane rejestrowe i adres na końcu — bo do nich sięga się przy
               fakturze, nie w rozmowie. */}
           <div className="space-y-4">
-            <SekcjaProfilu tytul="Kontakt">
+            <SekcjaProfilu tytul="Kontakt" zwijalna>
               <WierszPola etykieta="Telefon">
                 <EditableText value={client.telefon} onSave={(v) => updateClient("telefon", v)} />
               </WierszPola>
@@ -518,7 +524,7 @@ export function ClientDetailPanel({
               </WierszPola>
             </SekcjaProfilu>
 
-            <SekcjaProfilu tytul="Rytm kontaktu">
+            <SekcjaProfilu tytul="Rytm kontaktu" zwijalna>
               {/* Sufiks zamiast drugiej linijki: sama data wymaga liczenia
                   w głowie, a pytanie brzmi „jak dawno", nie „którego". */}
               <WierszPola
@@ -593,7 +599,7 @@ export function ClientDetailPanel({
                 głównej przepisuje migawkę na kliencie. */}
             <ClientContacts clientId={id} contacts={contacts} onChanged={load} waskaKolumna />
 
-            <SekcjaProfilu tytul="Firma">
+            <SekcjaProfilu tytul="Firma" zwijalna>
               <WierszPola etykieta="NIP">
                 <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
               </WierszPola>
@@ -622,7 +628,7 @@ export function ClientDetailPanel({
               </WierszPola>
             </SekcjaProfilu>
 
-            <SekcjaProfilu tytul="Adres">
+            <SekcjaProfilu tytul="Adres" zwijalna>
               <WierszPola etykieta="Ulica">
                 <EditableText value={client.ulica} onSave={(v) => updateClient("ulica", v)} />
               </WierszPola>
@@ -644,7 +650,7 @@ export function ClientDetailPanel({
             {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
                 to stała prawda o kliencie („płaci przelewem, nie kartą"), a nie
                 wpis z datą. Wpisy z datą mają swoje miejsce obok. */}
-            <SekcjaProfilu tytul="Notatka przypięta" wiersze={false}>
+            <SekcjaProfilu tytul="Notatka przypięta" wiersze={false} zwijalna>
               <EditableTextarea value={client.notatki} onSave={(v) => updateClient("notatki", v)} />
             </SekcjaProfilu>
           </div>
@@ -1040,7 +1046,14 @@ export function ClientDetailPanel({
                         <div className="sticky top-0 z-10 -mx-1 bg-[var(--bg-soft)] px-1 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted opacity-90">
                           {group.label}
                         </div>
-                        <ul className="space-y-2">
+                        {/* Jeden ciąg na pionowej linii, nie stos osobnych kart
+                            (runda czytelności 2026-07-26, wzorzec z Attio
+                            i z historii zdarzeń w Linear). Ramka wokół każdego
+                            wpisu dawała tyle krawędzi, że gubiła się ta jedna,
+                            która coś znaczy — chronologia. Linia biegnie przez
+                            środek odznak (lewy margines + `before`), a wpisy
+                            rozdziela odstęp, nie obwódka. */}
+                        <ul className="relative space-y-0.5 before:absolute before:bottom-3 before:left-[14px] before:top-3 before:w-px before:bg-[var(--hairline)] before:content-['']">
                           {group.items.map((f) => {
                             const badge = feedBadge(f);
                             // Moduł 12 — zdarzenie klikalne, gdy ma zapisany cel
@@ -1062,9 +1075,15 @@ export function ClientDetailPanel({
                               </p>
                             );
                             return (
-                              <li key={`${f.source}:${f.id}`} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
+                              <li
+                                key={`${f.source}:${f.id}`}
+                                className="group relative flex items-start gap-2.5 rounded-lg py-2 pl-10 pr-2 text-sm hover:bg-[var(--hairline)]/60"
+                              >
+                                {/* Odznaka siedzi NA linii (ujemny lewy margines
+                                    równy wcięciu listy), więc oś czasu ma jeden
+                                    tor zamiast dwóch krawędzi. */}
                                 <span
-                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
+                                  className={`absolute left-0 top-2 flex h-7 w-7 items-center justify-center rounded-full ring-4 ring-[var(--bg-soft)] ${badge.cls}`}
                                   aria-hidden
                                 >
                                   {badge.icon}
@@ -1081,9 +1100,18 @@ export function ClientDetailPanel({
                                         </span>
                                       )}
                                     </span>
+                                    {/* Kosz pojawia się na najechanie — w ciągu
+                                        bez ramek dwadzieścia stałych krzyżyków
+                                        przy prawej krawędzi robiło własną,
+                                        fałszywą kolumnę. */}
                                     {f.source === "client" && (
-                                      <button onClick={() => deleteNote(f.id)} className="text-muted hover:text-red-400" aria-label="Usuń wpis" title="Usuń wpis">
-                                        ✕
+                                      <button
+                                        onClick={() => deleteNote(f.id)}
+                                        className="shrink-0 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
+                                        aria-label="Usuń wpis"
+                                        title="Usuń wpis"
+                                      >
+                                        <IconTrash size={13} />
                                       </button>
                                     )}
                                   </div>

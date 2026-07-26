@@ -79,6 +79,11 @@ import {
   IconTool,
   IconLifebuoy,
   IconBox,
+  IconWorld,
+  IconHistory,
+  IconBriefcase,
+  IconMapPin,
+  IconFlag,
 } from "@tabler/icons-react";
 import type { ContactChannel, CallOutcome } from "@/lib/contact";
 import type { MailFolder, MailCategory } from "@/lib/mail";
@@ -337,6 +342,48 @@ export function MailCategoryIcon({
   className?: string;
 }) {
   const Icon = MAIL_CATEGORY[kind];
+  if (!Icon) return null;
+  return <Icon size={size} className={className} />;
+}
+
+/** Ikona pola na wizytówce rekordu (runda czytelności 2026-07-26).
+ *
+ * Attio, Linear i Notion stawiają małą ikonę przed KAŻDĄ nazwą atrybutu —
+ * po kilku wejściach przestaje się czytać etykiety i skanuje kształty.
+ * Tutaj, a nie przy wywołaniach, bo tę samą listę pól ma profil leada
+ * i profil klienta: dwie kopie rozjechałyby się przy pierwszym nowym polu.
+ *
+ * Klucz to `etykieta` wiersza — celowo tekst, nie osobny identyfikator:
+ * `WierszPola` i tak ją dostaje, a dodatkowy identyfikator byłby trzecią
+ * nazwą tego samego pola (obok kolumny w bazie i etykiety na ekranie).
+ * Pole bez wpisu w tej mapie renderuje się bez ikony, nie pusto. */
+const POLE_PROFILU: Record<string, TablerIcon> = {
+  Telefon: IconPhone,
+  Email: IconMail,
+  WWW: IconWorld,
+  LinkedIn: IconBrandLinkedin,
+  "Ostatni kontakt": IconHistory,
+  "Przypomnij mi": IconBell,
+  "Następny krok": IconTarget,
+  "Odzywaj się": IconRepeat,
+  NIP: IconLicense,
+  Branża: IconBriefcase,
+  "Skąd przyszedł": IconRadar,
+  Ulica: IconMapPin,
+  "Kod / Miasto": IconBuildingEstate,
+  Kraj: IconFlag,
+};
+
+export function PoleProfiluIcon({
+  etykieta,
+  size = DEFAULT_SIZE,
+  className,
+}: {
+  etykieta: string;
+  size?: number;
+  className?: string;
+}) {
+  const Icon = POLE_PROFILU[etykieta];
   if (!Icon) return null;
   return <Icon size={size} className={className} />;
 }

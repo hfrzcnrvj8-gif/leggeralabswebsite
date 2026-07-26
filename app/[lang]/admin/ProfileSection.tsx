@@ -1,6 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { IconChevronRight } from "@tabler/icons-react";
+import { PoleProfiluIcon } from "./icons";
 
 /**
  * Sekcja profilu rekordu — nagłówek kapitalikami nad jaśniejszą płytą
@@ -27,6 +29,7 @@ export function SekcjaProfilu({
    * gdzie kreska co element rysowałaby siatkę zamiast grupy. */
   wiersze = true,
   plyta = true,
+  zwijalna = false,
   className = "",
 }: {
   tytul: string;
@@ -37,20 +40,48 @@ export function SekcjaProfilu({
    * krawędzie (oś czasu: każdy wpis jest osobną kartą). Płyta pod płytą robi
    * pudełko w pudełku i zabiera obu czytelność. */
   plyta?: boolean;
+  /** Nagłówek staje się przyciskiem zwijającym sekcję, a stan **przeżywa
+   * zamknięcie karty** (localStorage per tytuł sekcji). Bez zapamiętania to
+   * jest zabawka: zwijasz „Adres", wchodzisz na następnego klienta i wraca. */
+  zwijalna?: boolean;
   className?: string;
 }) {
+  const [zwinieta, setZwinieta] = useZapamietaneZwiniecie(tytul, zwijalna);
+
+  const naglowek = (
+    <>
+      {zwijalna && (
+        <IconChevronRight
+          size={12}
+          className={`shrink-0 text-muted transition-transform ${zwinieta ? "" : "rotate-90"}`}
+        />
+      )}
+      <h3 className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">{tytul}</h3>
+    </>
+  );
+
   return (
     <section className={className}>
       <div className="mb-1.5 flex min-h-[22px] flex-wrap items-center gap-2 px-1">
-        <h3 className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">{tytul}</h3>
-        {akcje && (
+        {zwijalna ? (
+          <button
+            onClick={() => setZwinieta(!zwinieta)}
+            className="-mx-1 flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[var(--hairline)]"
+            title={zwinieta ? "Rozwiń sekcję" : "Zwiń sekcję"}
+          >
+            {naglowek}
+          </button>
+        ) : (
+          naglowek
+        )}
+        {akcje && !zwinieta && (
           <>
             <span className="flex-1" />
             {akcje}
           </>
         )}
       </div>
-      {plyta ? (
+      {zwinieta ? null : plyta ? (
         <div
           className={`card-inset overflow-hidden rounded-xl ${
             wiersze ? "divide-y divide-[var(--hairline)]" : "p-3"
@@ -63,6 +94,42 @@ export function SekcjaProfilu({
       )}
     </section>
   );
+}
+
+/** Zwinięcie sekcji zapamiętane między wejściami na kartę.
+ *
+ * Odczyt idzie przez `useEffect`, a nie przez wartość początkową `useState`:
+ * to komponent kliencki renderowany też na serwerze, a `localStorage` tam nie
+ * istnieje — czytanie go w pierwszym renderze wywala hydrację. Skutek uboczny
+ * jest znany i przyjęty: przez pierwszą klatkę sekcja jest rozwinięta.
+ */
+function useZapamietaneZwiniecie(tytul: string, wlaczone: boolean): [boolean, (v: boolean) => void] {
+  const klucz = `profil-sekcja-zwinieta:${tytul}`;
+  const [zwinieta, setZwinieta] = useState(false);
+
+  useEffect(() => {
+    if (!wlaczone) return;
+    try {
+      setZwinieta(window.localStorage.getItem(klucz) === "1");
+    } catch {
+      // Prywatne okno / zablokowane ciasteczka — sekcja po prostu zostaje
+      // rozwinięta. To ustawienie wygody, nie dane.
+    }
+  }, [klucz, wlaczone]);
+
+  const ustaw = useCallback(
+    (v: boolean) => {
+      setZwinieta(v);
+      try {
+        window.localStorage.setItem(klucz, v ? "1" : "0");
+      } catch {
+        /* jw. */
+      }
+    },
+    [klucz]
+  );
+
+  return [wlaczone && zwinieta, ustaw];
 }
 
 /**
@@ -106,8 +173,13 @@ export function WierszPola({
 }) {
   return (
     <div className="flex min-h-[38px] items-center gap-2 px-3 py-1">
-      <span className="w-[104px] shrink-0 text-[11.5px] leading-tight text-muted" title={title}>
-        {etykieta}
+      {/* Ikona przed nazwą — Attio, Linear i Notion mają to wszystkie. Po
+          kilku wejściach przestaje się czytać etykiety i skanuje kształty.
+          Mapa w `icons.tsx`, żeby profil leada i klienta nie rozjechały się
+          przy pierwszym nowym polu. */}
+      <span className="flex w-[118px] shrink-0 items-center gap-1.5 text-[11.5px] leading-tight text-muted" title={title}>
+        <PoleProfiluIcon etykieta={etykieta} size={13} className="shrink-0 opacity-70" />
+        <span className="min-w-0 truncate">{etykieta}</span>
       </span>
       <div className="flex min-w-0 flex-1 items-center gap-2 [&_input]:px-1.5 [&_input]:text-[13px]">
         {children}

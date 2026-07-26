@@ -7775,6 +7775,34 @@ Przy okazji dwie rzeczy w tej samej klasie błędu:
   co „Warszawie", więc miasto zaczynało się w połowie wiersza. Kod ma teraz
   stałe 64 px.
 
+#### Runda trzecia — cztery cechy Attio/Linear, wybrane przez właściciela
+
+Na pytanie „co jeszcze robią topowe programy" właściciel wskazał **wszystkie
+cztery** przedstawione opcje. Wdrożone w obu profilach:
+
+1. **Ikona przy każdej nazwie pola** — mapa `POLE_PROFILU` w `icons.tsx`
+   (klucz = etykieta wiersza, celowo bez trzeciej nazwy pola obok kolumny
+   w bazie i etykiety na ekranie). Pole spoza mapy renderuje się bez ikony.
+2. **Zwijane sekcje** — `SekcjaProfilu zwijalna`, stan w `localStorage` per
+   TYTUŁ sekcji, więc „Adres" zwinięty u klienta jest zwinięty i u leada
+   (to samo ustawienie wygody, nie dwa różne). Odczyt idzie przez `useEffect`,
+   nie przez wartość początkową `useState`: `localStorage` nie istnieje przy
+   renderze serwerowym i czytanie go w pierwszym renderze wywala hydrację.
+3. **Zwarty nagłówek rekordu** — nazwa, status, „Zapisz kontakt" i kanały
+   w JEDNYM wierszu; kanały i usuwanie jako ikony 34 px (`ContactQuickActions
+   zwarte`). Wcześniej te same rzeczy stały w czterech piętrach i zjadały
+   u góry tyle wysokości, co dwie sekcje danych.
+4. **Oś czasu jako jeden ciąg** — pionowa linia (`before` na `<ul>`, 14 px od
+   lewej), odznaki wpisów siedzą NA niej, wpisy rozdziela odstęp i podświetlenie
+   na najechanie zamiast ramki. Kosz pojawia się dopiero na najechanie: w ciągu
+   bez ramek dwadzieścia stałych krzyżyków robiło własną, fałszywą kolumnę.
+
+**Pułapka przy osi:** linia rysowana jako `border-l` na `<ul>` biegnie po
+KRAWĘDZI listy, a odznaka pozycjonowana `left-0` w `<li>` siedzi po jego
+wcięciu — wychodziło 17 px rozjazdu i linii nie było widać pod odznakami.
+Linia musi być `before` z tą samą współrzędną, co środek odznaki (14 px = pół
+z 28 px odznaki). Sprawdzone pomiarem: `ul.left = 665`, środek odznaki `679`.
+
 #### Profil leada poszedł za klientem (ta sama runda)
 
 Brief kroku 6 mówił o kliencie i tylko o nim, ale rozjazd zgłoszony od razu:

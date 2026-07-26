@@ -190,40 +190,54 @@ export function ContactQuickActions({
   telefon,
   email,
   linkedinUrl,
+  // Wariant do nagłówka rekordu (runda czytelności 2026-07-26): sama ikona,
+  // nazwa w podpowiedzi. Cztery przyciski z napisami zjadały u góry profilu
+  // tyle wysokości, co dwie sekcje danych — a to są akcje, których się szuka
+  // wzrokiem raz i potem zna ich miejsce, jak paska akcji rekordu w Attio.
+  // Dotyk zostaje obsłużony: 34 px to nadal cel palcem, a na telefonie profil
+  // i tak otwiera się arkuszem na pełną szerokość.
+  zwarte = false,
 }: {
   telefon: string;
   email: string;
   linkedinUrl: string;
+  zwarte?: boolean;
 }) {
   const wa = waLink(telefon);
   const li = linkedinLink(linkedinUrl);
   if (!telefon && !email && !wa && !li) return null;
 
-  const cls =
-    "flex min-h-[44px] items-center gap-1.5 rounded-full border hairline px-3.5 py-2 text-[13px] font-medium text-[var(--fg)] hover:bg-[var(--hairline)]";
+  const cls = zwarte
+    ? "flex h-[34px] w-[34px] items-center justify-center rounded-lg border hairline text-[var(--fg)] hover:bg-[var(--hairline)]"
+    : "flex min-h-[44px] items-center gap-1.5 rounded-full border hairline px-3.5 py-2 text-[13px] font-medium text-[var(--fg)] hover:bg-[var(--hairline)]";
+  const podpis = (tekst: string) => (zwarte ? null : <> {tekst}</>);
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {/* Ikony przez ContactChannelIcon (Moduł 33) — ten sam znak kanału co na
           osi kontaktu i w odznakach list, z jednego źródła. */}
       {telefon && (
         <a href={`tel:${telefon}`} className={cls} title="Zadzwoń">
-          <ContactChannelIcon kind="telefon" size={15} /> Zadzwoń
+          <ContactChannelIcon kind="telefon" size={15} />
+          {podpis("Zadzwoń")}
         </a>
       )}
       {email && (
         <a href={`mailto:${email}`} className={cls} title="Napisz maila">
-          <ContactChannelIcon kind="email" size={15} /> Mail
+          <ContactChannelIcon kind="email" size={15} />
+          {podpis("Mail")}
         </a>
       )}
       {wa && (
         <a href={wa} target="_blank" rel="noopener noreferrer" className={cls} title="Otwórz WhatsApp">
-          <ContactChannelIcon kind="whatsapp" size={15} /> WhatsApp
+          <ContactChannelIcon kind="whatsapp" size={15} />
+          {podpis("WhatsApp")}
         </a>
       )}
       {li && (
         <a href={li} target="_blank" rel="noopener noreferrer" className={cls} title="Otwórz profil LinkedIn">
-          <ContactChannelIcon kind="linkedin" size={15} /> LinkedIn
+          <ContactChannelIcon kind="linkedin" size={15} />
+          {podpis("LinkedIn")}
         </a>
       )}
     </div>

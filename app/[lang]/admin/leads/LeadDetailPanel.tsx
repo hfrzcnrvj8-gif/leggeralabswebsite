@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { IconMessageCircle, IconPhoneOff, IconLink } from "@tabler/icons-react";
+import { IconMessageCircle, IconPhoneOff, IconLink, IconTrash } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
@@ -294,34 +294,48 @@ export function LeadDetailPanel({
     <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl border hairline p-6 sm:p-8">
       <PanelHeader onClose={onClose} />
 
+      {/* Nagłówek zwarty — bliźniak `ClientDetailPanel.tsx`, powody tam.
+          U leada w tym samym wierszu musi się zmieścić więcej (osoba
+          kontaktowa, awans na klienta, NDA), więc drugi rząd zostaje —
+          ale mieści rzeczy związane ze SOBĄ, a nie kolejne piętro tego
+          samego nagłówka. */}
       <div className={onClose ? "mt-4" : ""}>
-        {/* Moduł 5 (mobilny): na telefonie kolumna, nie wiersz — nazwa firmy to
-            najważniejszy tekst na ekranie, a dzieląc wiersz z „Usuń leada"
-            zostawała ucięta w połowie. Od `sm` wraca dotychczasowy wiersz. */}
-        <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <input
             value={lead.firma}
             onChange={(e) => setLead((prev) => (prev ? { ...prev, firma: e.target.value } : prev))}
             onBlur={(e) => updateLead("firma", e.target.value)}
-            className="w-full bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
+            className="min-w-[12rem] flex-1 bg-transparent text-2xl font-semibold tracking-tight text-[var(--fg)] outline-none"
           />
+          <StatusTag status={lead.status} onChange={(v) => updateLead("status", v)} />
+          <button
+            onClick={() => {
+              setTab("history");
+              setFocusNote(true);
+            }}
+            className="flex h-[34px] items-center gap-1.5 rounded-lg border border-brand-purple/40 bg-brand-purple/10 px-3 text-[13px] font-medium text-[var(--fg)] hover:bg-brand-purple/15"
+          >
+            <IconMessageCircle size={15} /> Zapisz kontakt
+          </button>
+          <ContactQuickActions telefon={lead.telefon} email={lead.email} linkedinUrl={lead.linkedin_url} zwarte />
           <button
             onClick={deleteLead}
-            className="shrink-0 rounded-full border hairline px-3 py-1.5 text-xs text-red-400"
+            title="Usuń leada z rejestru"
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg border hairline text-muted hover:bg-red-500/10 hover:text-red-400"
+            aria-label="Usuń leada"
           >
-            Usuń leada
+            <IconTrash size={15} />
           </button>
         </div>
-        <input
-          value={lead.osoba_kontaktowa}
-          onChange={(e) => setLead((prev) => (prev ? { ...prev, osoba_kontaktowa: e.target.value } : prev))}
-          onBlur={(e) => updateLead("osoba_kontaktowa", e.target.value)}
-          placeholder="Osoba kontaktowa (imię i nazwisko)"
-          className="mt-0.5 w-full bg-transparent text-sm text-muted outline-none placeholder:text-muted placeholder:opacity-60"
-        />
 
-        <div className="mt-2 flex items-center gap-2">
-          <StatusTag status={lead.status} onChange={(v) => updateLead("status", v)} />
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <input
+            value={lead.osoba_kontaktowa}
+            onChange={(e) => setLead((prev) => (prev ? { ...prev, osoba_kontaktowa: e.target.value } : prev))}
+            onBlur={(e) => updateLead("osoba_kontaktowa", e.target.value)}
+            placeholder="Osoba kontaktowa (imię i nazwisko)"
+            className="min-w-[10rem] flex-1 bg-transparent text-sm text-muted outline-none placeholder:text-muted placeholder:opacity-60"
+          />
           {lead.client_id ? (
             <Link href={`/${lang}/admin/clients/${lead.client_id}`} className="text-[12.5px] text-muted hover:text-[var(--fg)] hover:underline">
               → Karta klienta
@@ -382,23 +396,7 @@ export function LeadDetailPanel({
             </button>
           )}
         </div>
-        <p className="mt-2 text-[12.5px] text-muted opacity-80">{LEAD_STATUS_HINT[lead.status]}</p>
-
-        {/* Akcja GŁÓWNA obok szybkich kanałów — jak u klienta. Zapisanie
-            kontaktu wymagało dotąd przejścia na zakładkę Historia i znalezienia
-            formularza. */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => {
-              setTab("history");
-              setFocusNote(true);
-            }}
-            className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-brand-purple/40 bg-brand-purple/10 px-3.5 py-2 text-[13px] font-medium text-[var(--fg)] hover:bg-brand-purple/15"
-          >
-            <IconMessageCircle size={15} /> Zapisz kontakt
-          </button>
-          <ContactQuickActions telefon={lead.telefon} email={lead.email} linkedinUrl={lead.linkedin_url} />
-        </div>
+        <p className="mt-1.5 text-[12.5px] text-muted opacity-80">{LEAD_STATUS_HINT[lead.status]}</p>
       </div>
 
       {/* Układ boczny — bliźniak `ClientDetailPanel.tsx` (Moduł 54, krok 6).
@@ -413,7 +411,7 @@ export function LeadDetailPanel({
               wciąż jedno pole w nagłówku. Powód całego zabiegu: `SekcjaProfilu`
               w `../ProfileSection.tsx`. */}
           <div className="space-y-4">
-            <SekcjaProfilu tytul="Kontakt">
+            <SekcjaProfilu tytul="Kontakt" zwijalna>
               <WierszPola etykieta="Telefon">
                 <EditableText value={lead.telefon} onSave={(v) => updateLead("telefon", v)} />
               </WierszPola>
@@ -428,7 +426,7 @@ export function LeadDetailPanel({
               </WierszPola>
             </SekcjaProfilu>
 
-            <SekcjaProfilu tytul="Rytm kontaktu">
+            <SekcjaProfilu tytul="Rytm kontaktu" zwijalna>
               <WierszPola etykieta="Ostatni kontakt">
                 <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
               </WierszPola>
@@ -444,7 +442,7 @@ export function LeadDetailPanel({
               )}
             </SekcjaProfilu>
 
-            <SekcjaProfilu tytul="Firma">
+            <SekcjaProfilu tytul="Firma" zwijalna>
               <WierszPola etykieta="Branża">
                 <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
               </WierszPola>
@@ -460,7 +458,7 @@ export function LeadDetailPanel({
               </WierszPola>
             </SekcjaProfilu>
 
-            <SekcjaProfilu tytul="Adres">
+            <SekcjaProfilu tytul="Adres" zwijalna>
               <WierszPola etykieta="Ulica">
                 <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
               </WierszPola>
@@ -479,7 +477,7 @@ export function LeadDetailPanel({
 
             {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
                 to stała prawda o leadzie, a nie wpis z datą. */}
-            <SekcjaProfilu tytul="Notatka przypięta" wiersze={false}>
+            <SekcjaProfilu tytul="Notatka przypięta" wiersze={false} zwijalna>
               <EditableTextarea value={lead.notatki} onSave={(v) => updateLead("notatki", v)} />
             </SekcjaProfilu>
           </div>
@@ -663,13 +661,18 @@ export function LeadDetailPanel({
                       <div className="sticky top-0 z-10 -mx-1 bg-[var(--bg-soft)] px-1 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted opacity-90">
                         {group.label}
                       </div>
-                      <ul className="space-y-2">
+                      {/* Jeden ciąg na pionowej linii — bliźniak osi z profilu
+                          klienta, powody w komentarzu tam. */}
+                      <ul className="relative space-y-0.5 before:absolute before:bottom-3 before:left-[14px] before:top-3 before:w-px before:bg-[var(--hairline)] before:content-['']">
                         {group.items.map((a) => {
                           const badge = activityBadge(a);
                           return (
-                            <li key={a.id} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
+                            <li
+                              key={a.id}
+                              className="group relative flex items-start gap-2.5 rounded-lg py-2 pl-10 pr-2 text-sm hover:bg-[var(--hairline)]/60"
+                            >
                               <span
-                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
+                                className={`absolute left-0 top-2 flex h-7 w-7 items-center justify-center rounded-full ring-4 ring-[var(--bg-soft)] ${badge.cls}`}
                                 aria-hidden
                               >
                                 {badge.icon}
@@ -687,11 +690,11 @@ export function LeadDetailPanel({
                                   </span>
                                   <button
                                     onClick={() => deleteNote(a.id)}
-                                    className="text-muted hover:text-red-400"
+                                    className="shrink-0 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
                                     aria-label="Usuń wpis"
                                     title="Usuń wpis"
                                   >
-                                    ✕
+                                    <IconTrash size={13} />
                                   </button>
                                 </div>
                                 <p className="whitespace-pre-wrap">{a.text}</p>
