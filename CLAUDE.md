@@ -88,8 +88,13 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   panelu z prawej (`.glass` tło) — zmienione na wyraźną prośbę właściciela,
   bo gęsta treść profilu (dane + adres + źródło + log + mapa procesu) nie
   mieściła się wygodnie. Leady/Klienci: BEZ `max-w` (`w-full`, margines
-  tylko z paddingu overlayu) — modal zajmuje całą szerokość ekranu, siatka
-  pól ma `xl:grid-cols-3`. Faktury/Oferty/Projekty: własne, węższe limity
+  tylko z paddingu overlayu) — modal zajmuje całą szerokość ekranu.
+  **Od 2026-07-26 (Moduł 54, krok 6) Leady i Klienci mają w nim układ boczny
+  wzorem Attio**: przypięta kolumna atrybutów po lewej, oś czasu (i powiązania
+  u klienta) po prawej, bez zakładki „Wizytówka". `LeadDetailPanel.tsx` jest
+  bliźniakiem `ClientDetailPanel.tsx` — zmieniając jeden, sprawdź drugi.
+  Szczegóły i powody: `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 6".
+  Faktury/Oferty/Projekty: własne, węższe limity
   (`max-w-7xl` itp. w `InvoicesDashboard.tsx` i analogicznych) — nie
   ujednolicaj bez potrzeby, mają inny kształt treści (tabele pozycji).
   Wzorzec: `fixed inset-0 ... flex items-start justify-center` overlay +

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { IconMessageCircle, IconPhoneOff, IconLink } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
@@ -83,7 +83,13 @@ export function LeadDetailPanel({
   const [changes, setChanges] = useState<FieldChange[]>([]);
   // Moduł 23 — zakładki, jak u klienta (ClientDetailPanel). Stan tutaj, nie w
   // wrapperach, więc działa i w modalu z listy, i na podstronie [id].
-  const [tab, setTab] = useState<"card" | "history" | "changes">("card");
+  //
+  // Moduł 54, krok 6: zakładka „Wizytówka" ZNIKŁA — atrybuty stoją stale
+  // w lewej kolumnie, dokładnie jak u klienta. Zostały dwie zakładki, bo lead
+  // nie ma czego wkładać do „Powiązanych" (oferty i faktury wiszą na kliencie).
+  const [tab, setTab] = useState<"history" | "changes">("history");
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const [focusNote, setFocusNote] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/leads/${id}`);
@@ -110,9 +116,28 @@ export function LeadDetailPanel({
   useEffect(() => {
     setLead(null);
     setNotFound(false);
-    setTab("card");
+    setTab("history");
     load();
   }, [load]);
+
+  // Fokus na polu wpisu po „Zapisz kontakt" — kopia mechanizmu z profilu
+  // klienta wraz z powodem: `ViewSwitch` animuje wejście zakładki, więc `ref`
+  // bywa jeszcze pusty i jedna próba ponowna potrafi być za wczesna.
+  useEffect(() => {
+    if (!focusNote || tab !== "history") return;
+    const zrob = () => {
+      if (!noteRef.current) return false;
+      noteRef.current.focus();
+      setFocusNote(false);
+      return true;
+    };
+    if (zrob()) return;
+    let probes = 0;
+    const interval = setInterval(() => {
+      if (zrob() || ++probes > 10) clearInterval(interval);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [focusNote, tab]);
 
   // Log zmian dociągany po otwarciu zakładki — i za każdym jej otwarciem, bo
   // właściciel mógł właśnie coś zmienić w wizytówce obok.
@@ -358,287 +383,310 @@ export function LeadDetailPanel({
         </div>
         <p className="mt-2 text-[12.5px] text-muted opacity-80">{LEAD_STATUS_HINT[lead.status]}</p>
 
-        <div className="mt-4">
+        {/* Akcja GŁÓWNA obok szybkich kanałów — jak u klienta. Zapisanie
+            kontaktu wymagało dotąd przejścia na zakładkę Historia i znalezienia
+            formularza. */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              setTab("history");
+              setFocusNote(true);
+            }}
+            className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-brand-purple/40 bg-brand-purple/10 px-3.5 py-2 text-[13px] font-medium text-[var(--fg)] hover:bg-brand-purple/15"
+          >
+            <IconMessageCircle size={15} /> Zapisz kontakt
+          </button>
           <ContactQuickActions telefon={lead.telefon} email={lead.email} linkedinUrl={lead.linkedin_url} />
         </div>
       </div>
 
-      {/* Nazwa, status, „Utwórz klienta"/NDA i szybkie akcje zostają NAD
-          zakładkami — to tożsamość leada i główne akcje dnia, więc mają być
-          pod ręką niezależnie od czytanej zakładki (jak u klienta). */}
-      <div className="mt-5 flex h-9 items-center gap-4 border-b hairline">
-        <ViewTabs
-          value={tab}
-          onChange={setTab}
-          layoutId="lead-detail-tab-underline"
-          tabs={[
-            { id: "card", label: "Wizytówka" },
-            { id: "history", label: "Historia kontaktu" },
-            { id: "changes", label: "Logi zmian" },
-          ]}
-        />
-      </div>
-
-      <ViewSwitch viewKey={tab}>
-        {tab === "card" && (
-          <div>
-            {/* Czwarta kolumna od 2xl — patrz clients/ClientDetailPanel.tsx.
-                Leady dostały pełną szerokość dzień wcześniej i miały ten sam
-                skutek uboczny: pole na 750 px zamiast pustki po bokach. */}
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              <Field label="Branża">
-                <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
-              </Field>
-              <Field label="Telefon">
-                <EditableText value={lead.telefon} onSave={(v) => updateLead("telefon", v)} />
-              </Field>
-              <Field label="Email">
-                <EditableText value={lead.email} onSave={(v) => updateLead("email", v)} />
-              </Field>
-              <Field label="WWW">
-                <EditableText value={lead.www} onSave={(v) => updateLead("www", v)} />
-              </Field>
-              <Field label="LinkedIn">
-                <EditableText value={lead.linkedin_url} onSave={(v) => updateLead("linkedin_url", v)} />
-              </Field>
-              <Field label="Ulica">
-                <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
-              </Field>
-              <Field label="Kod / Miasto">
-                <div className="flex gap-2">
-                  <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
-                  <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
-                </div>
-              </Field>
-              <Field label="Kraj">
-                <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />
-              </Field>
-              <Field label="Źródło">
-                <PillPicker
-                  value={lead.zrodlo_kategoria}
-                  options={SOURCE_CATEGORIES}
-                  onChange={(v) => updateLead("zrodlo_kategoria", v)}
-                  placeholder="— wybierz kategorię —"
-                  title="Zmień kategorię źródła"
-                />
-              </Field>
-              <Field label="Szczegóły źródła">
-                <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
-              </Field>
-              <Field label="Ostatni kontakt">
-                <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
-              </Field>
-              <Field label="Przypomnij mi">
-                <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
-              </Field>
-              {lead.next_followup && (
-                <Field label="Następny krok (po co przypomnienie)">
-                  <EditableText value={lead.next_action} onSave={(v) => updateLead("next_action", v)} />
-                </Field>
-              )}
-            </div>
-
-            <div className="mt-4">
-              <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
-              <EditableTextarea value={lead.notatki} onSave={(v) => updateLead("notatki", v)} />
-            </div>
-
-            {/* Mapa procesu zostaje na wizytówce — „gdzie jesteśmy z tym
-                leadem" to kontekst do danych obok, a nie historia. */}
-            <div className="mt-6 border-t hairline pt-6">
-              <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
-              <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
-            </div>
-          </div>
-        )}
-
-        {tab === "history" && (
-          <div className="mt-6">
-            <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
-
-            <form onSubmit={submitNote} className="mb-6 space-y-2">
-              <textarea
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    e.currentTarget.form?.requestSubmit();
-                  }
-                }}
-                placeholder="Co się wydarzyło? np. zadzwoniłem, obiecał odpowiedzieć do piątku… (Cmd+Enter, by zapisać)"
-                rows={3}
-                className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+      {/* Układ boczny — bliźniak `ClientDetailPanel.tsx` (Moduł 54, krok 6).
+          Powody, pułapki i to, czego świadomie NIE zrobiliśmy (karta o stałej
+          wysokości), opisuje `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 6";
+          nie powielam ich tu, bo dwa opisy tej samej decyzji rozjeżdżają się
+          przy pierwszej poprawce. */}
+      <div className="mt-5 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="order-2 min-w-0 lg:sticky lg:top-0 lg:order-1 lg:max-h-[calc(85vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:gap-3">
+            <Field label="Branża">
+              <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
+            </Field>
+            <Field label="Telefon">
+              <EditableText value={lead.telefon} onSave={(v) => updateLead("telefon", v)} />
+            </Field>
+            <Field label="Email">
+              <EditableText value={lead.email} onSave={(v) => updateLead("email", v)} />
+            </Field>
+            <Field label="WWW">
+              <EditableText value={lead.www} onSave={(v) => updateLead("www", v)} />
+            </Field>
+            <Field label="LinkedIn">
+              <EditableText value={lead.linkedin_url} onSave={(v) => updateLead("linkedin_url", v)} />
+            </Field>
+            <Field label="Ulica">
+              <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
+            </Field>
+            <Field label="Kod / Miasto">
+              <div className="flex gap-2">
+                <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
+                <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
+              </div>
+            </Field>
+            <Field label="Kraj">
+              <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />
+            </Field>
+            <Field label="Źródło">
+              <PillPicker
+                value={lead.zrodlo_kategoria}
+                options={SOURCE_CATEGORIES}
+                onChange={(v) => updateLead("zrodlo_kategoria", v)}
+                placeholder="— wybierz kategorię —"
+                title="Zmień kategorię źródła"
               />
-
-              <div className="flex flex-wrap items-center gap-2">
-                <PillPicker
-                  value={noteChannel ? CONTACT_CHANNEL_LABEL[noteChannel as keyof typeof CONTACT_CHANNEL_LABEL] : ""}
-                  options={CONTACT_CHANNELS.map((c) => CONTACT_CHANNEL_LABEL[c])}
-                  onChange={(label) => {
-                    const found = CONTACT_CHANNELS.find((c) => CONTACT_CHANNEL_LABEL[c] === label);
-                    setNoteChannel(found ?? "");
-                  }}
-                  placeholder="Kanał — wybierz"
-                  title="Jakim kanałem?"
-                />
-                <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
-                  {CONTACT_DIRECTIONS.map((dir) => (
-                    <button
-                      key={dir}
-                      type="button"
-                      onClick={() => setNoteDirection(dir)}
-                      className={`min-h-[30px] px-2.5 ${
-                        noteDirection === dir ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
-                      }`}
-                    >
-                      {CONTACT_DIRECTION_LABEL[dir]}
-                    </button>
-                  ))}
-                </div>
+            </Field>
+            <Field label="Szczegóły źródła">
+              <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
+            </Field>
+            <Field label="Ostatni kontakt">
+              <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
+            </Field>
+            <Field label="Przypomnij mi">
+              <div className="space-y-1.5">
+                <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
+                {/* Pigułki jak u klienta i jak w apce: ustawienie terminu to
+                    jeden klik. Przypomnienie jest JEDYNĄ rzeczą, która zapala
+                    leadowi „wymaga działania dziś". */}
+                <QuickDateChips onPick={(v) => updateLead("next_followup", v)} />
               </div>
-
-              {noteChannel === "telefon" && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
-                    {CALL_OUTCOMES.map((o) => (
-                      <button
-                        key={o}
-                        type="button"
-                        onClick={() => setNoteOutcome(o)}
-                        className={`flex min-h-[30px] items-center gap-1 px-2.5 ${
-                          noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
-                        }`}
-                      >
-                        <CallOutcomeIcon kind={o} size={13} />
-                        {CALL_OUTCOME_LABEL[o]}
-                      </button>
-                    ))}
-                  </div>
-                  {noteOutcome === "odebrane" && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted">
-                      <input
-                        type="number"
-                        min={0}
-                        value={noteDurationMin}
-                        onChange={(e) => setNoteDurationMin(e.target.value)}
-                        placeholder="0"
-                        className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
-                      />
-                      min
-                      <input
-                        type="number"
-                        min={0}
-                        max={59}
-                        value={noteDurationSec}
-                        onChange={(e) => setNoteDurationSec(e.target.value)}
-                        placeholder="0"
-                        className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
-                      />
-                      s
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {noteChannel === "telefon" && noteDirection === "przychodzacy" && noteOutcome === "nieodebrane" && !noteFollowup && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNoteFollowup(addDaysLocalISO(1));
-                    setNoteAction("Oddzwonić");
-                  }}
-                  className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
-                >
-                  <IconPhoneOff size={12} className="mr-1 inline align-[-2px]" />Nieodebrane od klienta — ustaw przypomnienie na jutro
-                </button>
-              )}
-
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-xs text-muted">
-                  <input
-                    type="checkbox"
-                    checked={markContacted}
-                    onChange={(e) => setMarkContacted(e.target.checked)}
-                  />
-                  Oznacz jako dzisiejszy kontakt
-                </label>
-                <label className="flex items-center gap-2 text-xs text-muted">
-                  Przypomnij mi:
-                  <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
-                </label>
-                <QuickDateChips onPick={setNoteFollowup} />
-              </div>
-              {noteFollowup && (
-                <input
-                  value={noteAction}
-                  onChange={(e) => setNoteAction(e.target.value)}
-                  placeholder="Następny krok — po co to przypomnienie? np. oddzwonić, spytać o budżet"
-                  className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-xs text-[var(--fg)] placeholder:text-muted"
-                />
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={saving || !noteText.trim()}
-                  className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? "Zapisuję…" : "Dodaj wpis"}
-                </button>
-              </div>
-            </form>
-
-            {activity.length === 0 ? (
-              <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
-            ) : (
-              groupActivityByDay(activity).map((group) => (
-                <div key={group.label} className="mb-4 last:mb-0">
-                  <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
-                  <ul className="space-y-2">
-                    {group.items.map((a) => {
-                      const badge = activityBadge(a);
-                      return (
-                        <li key={a.id} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
-                          <span
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
-                            aria-hidden
-                          >
-                            {badge.icon}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-0.5 flex items-center justify-between gap-2">
-                              <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                                {formatTime(a.created_at)}
-                                {a.czas_trwania_sek != null && <span>· {formatCallDuration(a.czas_trwania_sek)}</span>}
-                                {a.kierunek && (
-                                  <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
-                                    {CONTACT_DIRECTION_LABEL[a.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
-                                  </span>
-                                )}
-                              </span>
-                              <button
-                                onClick={() => deleteNote(a.id)}
-                                className="text-muted hover:text-red-400"
-                                aria-label="Usuń wpis"
-                                title="Usuń wpis"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                            <p className="whitespace-pre-wrap">{a.text}</p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))
+            </Field>
+            {lead.next_followup && (
+              <Field label="Następny krok (po co przypomnienie)">
+                <EditableText value={lead.next_action} onSave={(v) => updateLead("next_action", v)} />
+              </Field>
             )}
           </div>
-        )}
 
-        {tab === "changes" && <FieldChangesTab entity="lead" changes={changes} />}
-      </ViewSwitch>
+          {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
+              to stała prawda o leadzie, a nie wpis z datą. */}
+          <div className="mt-6 border-t hairline pt-6">
+            <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
+            <EditableTextarea value={lead.notatki} onSave={(v) => updateLead("notatki", v)} />
+          </div>
+        </aside>
+
+        <div className="order-1 min-w-0 lg:order-2">
+          {/* Mapa procesu NAD zakładkami — „gdzie jesteśmy z tym leadem" to
+              kontekst do wszystkiego, co niżej. */}
+          <div className="mb-4">
+            <label className="mb-1.5 block text-[11px] text-muted">Proces sprzedaży</label>
+            <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
+          </div>
+
+          <div className="flex h-9 items-center gap-4 border-b hairline">
+            <ViewTabs
+              value={tab}
+              onChange={setTab}
+              layoutId="lead-detail-tab-underline"
+              tabs={[
+                { id: "history", label: "Historia kontaktu" },
+                { id: "changes", label: "Logi zmian" },
+              ]}
+            />
+          </div>
+
+          <ViewSwitch viewKey={tab}>
+            {/* Limit szerokości jak u klienta: oś czasu to zdania do czytania,
+                a prawa kolumna ma na szerokim monitorze ponad 1800 px. */}
+            {tab === "history" && (
+              <div className="mt-6 max-w-5xl">
+                <h2 className="mb-4 text-lg font-semibold">Log aktywności</h2>
+
+                <form onSubmit={submitNote} className="mb-6 space-y-2">
+                  <textarea
+                    ref={noteRef}
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                        e.preventDefault();
+                        e.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                    placeholder="Co się wydarzyło? np. zadzwoniłem, obiecał odpowiedzieć do piątku… (Cmd+Enter, by zapisać)"
+                    rows={3}
+                    className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+                  />
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PillPicker
+                      value={noteChannel ? CONTACT_CHANNEL_LABEL[noteChannel as keyof typeof CONTACT_CHANNEL_LABEL] : ""}
+                      options={CONTACT_CHANNELS.map((c) => CONTACT_CHANNEL_LABEL[c])}
+                      onChange={(label) => {
+                        const found = CONTACT_CHANNELS.find((c) => CONTACT_CHANNEL_LABEL[c] === label);
+                        setNoteChannel(found ?? "");
+                      }}
+                      placeholder="Kanał — wybierz"
+                      title="Jakim kanałem?"
+                    />
+                    <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+                      {CONTACT_DIRECTIONS.map((dir) => (
+                        <button
+                          key={dir}
+                          type="button"
+                          onClick={() => setNoteDirection(dir)}
+                          className={`min-h-[30px] px-2.5 ${
+                            noteDirection === dir ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
+                          }`}
+                        >
+                          {CONTACT_DIRECTION_LABEL[dir]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {noteChannel === "telefon" && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+                        {CALL_OUTCOMES.map((o) => (
+                          <button
+                            key={o}
+                            type="button"
+                            onClick={() => setNoteOutcome(o)}
+                            className={`flex min-h-[30px] items-center gap-1 px-2.5 ${
+                              noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
+                            }`}
+                          >
+                            <CallOutcomeIcon kind={o} size={13} />
+                            {CALL_OUTCOME_LABEL[o]}
+                          </button>
+                        ))}
+                      </div>
+                      {noteOutcome === "odebrane" && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted">
+                          <input
+                            type="number"
+                            min={0}
+                            value={noteDurationMin}
+                            onChange={(e) => setNoteDurationMin(e.target.value)}
+                            placeholder="0"
+                            className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                          />
+                          min
+                          <input
+                            type="number"
+                            min={0}
+                            max={59}
+                            value={noteDurationSec}
+                            onChange={(e) => setNoteDurationSec(e.target.value)}
+                            placeholder="0"
+                            className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                          />
+                          s
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {noteChannel === "telefon" && noteDirection === "przychodzacy" && noteOutcome === "nieodebrane" && !noteFollowup && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNoteFollowup(addDaysLocalISO(1));
+                        setNoteAction("Oddzwonić");
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
+                    >
+                      <IconPhoneOff size={12} className="mr-1 inline align-[-2px]" />Nieodebrane od klienta — ustaw przypomnienie na jutro
+                    </button>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs text-muted">
+                      <input
+                        type="checkbox"
+                        checked={markContacted}
+                        onChange={(e) => setMarkContacted(e.target.checked)}
+                      />
+                      Oznacz jako dzisiejszy kontakt
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-muted">
+                      Przypomnij mi:
+                      <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
+                    </label>
+                    <QuickDateChips onPick={setNoteFollowup} />
+                  </div>
+                  {noteFollowup && (
+                    <input
+                      value={noteAction}
+                      onChange={(e) => setNoteAction(e.target.value)}
+                      placeholder="Następny krok — po co to przypomnienie? np. oddzwonić, spytać o budżet"
+                      className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-xs text-[var(--fg)] placeholder:text-muted"
+                    />
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={saving || !noteText.trim()}
+                      className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {saving ? "Zapisuję…" : "Dodaj wpis"}
+                    </button>
+                  </div>
+                </form>
+
+                {activity.length === 0 ? (
+                  <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
+                ) : (
+                  groupActivityByDay(activity).map((group) => (
+                    <div key={group.label} className="mb-4 last:mb-0">
+                      <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
+                      <ul className="space-y-2">
+                        {group.items.map((a) => {
+                          const badge = activityBadge(a);
+                          return (
+                            <li key={a.id} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
+                              <span
+                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
+                                aria-hidden
+                              >
+                                {badge.icon}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-0.5 flex items-center justify-between gap-2">
+                                  <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                                    {formatTime(a.created_at)}
+                                    {a.czas_trwania_sek != null && <span>· {formatCallDuration(a.czas_trwania_sek)}</span>}
+                                    {a.kierunek && (
+                                      <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
+                                        {CONTACT_DIRECTION_LABEL[a.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <button
+                                    onClick={() => deleteNote(a.id)}
+                                    className="text-muted hover:text-red-400"
+                                    aria-label="Usuń wpis"
+                                    title="Usuń wpis"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <p className="whitespace-pre-wrap">{a.text}</p>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {tab === "changes" && <FieldChangesTab entity="lead" changes={changes} />}
+          </ViewSwitch>
+        </div>
+      </div>
     </div>
   );
 }

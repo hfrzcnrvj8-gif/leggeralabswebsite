@@ -32,12 +32,18 @@ export function ClientContacts({
   clientId,
   contacts,
   onChanged,
+  waskaKolumna = false,
 }: {
   clientId: string;
   contacts: ClientContact[];
   /** Przeładowanie profilu — migawka osoby głównej zmienia też nagłówek
    * i wiersz na liście klientów, więc odświeżamy całość, nie samą listę. */
   onChanged: () => void;
+  /** Lista stoi w kolumnie atrybutów (Moduł 54, krok 6), a nie na pełnej
+   * szerokości karty. Formularz idzie wtedy w jednej kolumnie: `sm:grid-cols-2`
+   * mierzy OKNO, nie kontener, więc na szerokim ekranie rozbiłby dwa pola na
+   * ~150 px każde i „Imię i nazwisko" nie zmieściłoby się nawet jako podpowiedź. */
+  waskaKolumna?: boolean;
 }) {
   const { toast, confirm } = useUI();
   /** `null` = nic nie edytujemy, `""` = formularz nowej osoby, id = edycja. */
@@ -147,6 +153,7 @@ export function ClientContacts({
               zapisuje={zapisuje}
               onZapisz={zapisz}
               onAnuluj={() => setEdytowany(null)}
+              waskaKolumna={waskaKolumna}
             />
           ) : (
             <div key={c.id} className="group flex items-start gap-2 rounded-lg border hairline px-3 py-2">
@@ -205,6 +212,7 @@ export function ClientContacts({
             zapisuje={zapisuje}
             onZapisz={zapisz}
             onAnuluj={() => setEdytowany(null)}
+            waskaKolumna={waskaKolumna}
           />
         )}
       </div>
@@ -218,12 +226,14 @@ function Formularz({
   zapisuje,
   onZapisz,
   onAnuluj,
+  waskaKolumna,
 }: {
   szkic: Szkic;
   setSzkic: (s: Szkic) => void;
   zapisuje: boolean;
   onZapisz: () => void;
   onAnuluj: () => void;
+  waskaKolumna: boolean;
 }) {
   const pole = "w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-[12.5px] outline-none";
   return (
@@ -234,7 +244,7 @@ function Formularz({
       }}
       className="card-paper space-y-2 rounded-lg border hairline p-3"
     >
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className={`grid gap-2 ${waskaKolumna ? "" : "sm:grid-cols-2"}`}>
         <input
           autoFocus
           value={szkic.imie}

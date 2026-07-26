@@ -28,7 +28,8 @@ zatwierdzonej kolejności.
    (Moduł 55). Powód: w docelowym układzie to zwykły katalog obok bazy, bez
    tunelu i bez nowego punktu awarii — budowanie tunelu teraz byłoby pracą do
    wyrzucenia. Wyzwalacz: rejestracja firmy, patrz `PO_REJESTRACJI.md` pkt 13a.
-6. **Układ boczny profilu (atrybuty | oś czasu)** ← następne
+6. ~~Układ boczny profilu (atrybuty | oś czasu)~~ ✅ wykonane (2026-07-26) —
+   `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 6"
 
 ---
 
@@ -135,7 +136,11 @@ decyzja kosztowa z Fazy 8, patrz pamięć `zalaczniki-na-zadanie-imap`).
 
 ---
 
-## Krok 6 — Układ boczny profilu (atrybuty | oś czasu)
+## Krok 6 — Układ boczny profilu (atrybuty | oś czasu) ✅ WYKONANE 2026-07-26
+
+> Stan faktyczny, wraz z tym, czego ten opis nie przewidział (zniknięcie
+> zakładki „Wizytówka", nowa zakładka „Powiązane", limit szerokości osi czasu
+> i rozjazd wobec profilu leada): `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 6".
 
 Wzorzec ze strony rekordu w Attio: wąska kolumna atrybutów po lewej (zawsze
 widoczna, nie znika przy przewijaniu), cała pozostała szerokość na oś czasu

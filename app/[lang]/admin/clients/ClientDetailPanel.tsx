@@ -146,7 +146,12 @@ export function ClientDetailPanel({
   // („żeby nie wszystko kumulowało się na jednej stronie"). Stan trzymany tu, w
   // *DetailPanel, a nie w wrapperach — dzięki temu działa i w modalu z listy, i
   // na podstronie [id], bez dublowania.
-  const [tab, setTab] = useState<"card" | "history" | "changes">("card");
+  //
+  // Moduł 54, krok 6: zakładka „Wizytówka" ZNIKŁA — jej treść (atrybuty) stoi
+  // teraz stale w lewej kolumnie, więc zakładki zostały tylko dla tego, co
+  // wypełnia prawą. Domyślną jest historia: to ona jest powodem, dla którego
+  // otwiera się kartę klienta.
+  const [tab, setTab] = useState<"history" | "linked" | "changes">("history");
   const [offers, setOffers] = useState<LinkedOffer[]>([]);
   const [invoices, setInvoices] = useState<LinkedInvoice[]>([]);
   const [projects, setProjects] = useState<LinkedProject[]>([]);
@@ -207,7 +212,7 @@ export function ClientDetailPanel({
   useEffect(() => {
     setClient(null);
     setNotFound(false);
-    setTab("card");
+    setTab("history");
     load();
   }, [load]);
 
@@ -466,568 +471,604 @@ export function ClientDetailPanel({
         </div>
       </div>
 
-      {/* Nazwa, status i szybkie akcje zostają NAD zakładkami — to tożsamość
-          rekordu i główna akcja dnia, więc mają być pod ręką niezależnie od
-          tego, którą zakładkę właściciel akurat czyta. */}
-      <div className="mt-5 flex h-9 items-center gap-4 border-b hairline">
-        <ViewTabs
-          value={tab}
-          onChange={setTab}
-          layoutId="client-detail-tab-underline"
-          tabs={[
-            { id: "card", label: "Wizytówka" },
-            { id: "history", label: "Historia kontaktu" },
-            { id: "changes", label: "Logi zmian" },
-          ]}
-        />
-      </div>
+      {/* Układ boczny (Moduł 54, krok 6, wzorzec ze strony rekordu w Attio):
+          wąska kolumna atrybutów przypięta po lewej, cała reszta szerokości na
+          oś czasu i powiązania. Wcześniej jedno i drugie było zakładkami, więc
+          czytanie historii z danymi klienta pod ręką było niemożliwe — trzeba
+          było przełączać widok tam i z powrotem.
 
-      <ViewSwitch viewKey={tab}>
-        {tab === "card" && (
-          <div>
-            {/* Czwarta kolumna od 2xl (≥1536 px) — dołożona 2026-07-26 razem ze
-                zdjęciem limitu szerokości panelu. Sam szerszy kontener bez tego
-                nic nie daje: profil rozciągnięty na 2288 px przy trzech
-                kolumnach to pole na 750 px, czyli NIP wypisany przez pół
-                ekranu. Puste pasy po bokach zamieniłyby się w puste pasy
-                wewnątrz pól. */}
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {/* Pojedyncze pole „Osoba kontaktowa" zastąpione LISTĄ osób
-                  (Moduł 54, krok 4) — sekcja pod siatką pól. Kolumna
-                  `osoba_kontaktowa` została w bazie jako migawka osoby głównej
-                  i serwer przepisuje ją sam, więc tutaj nie ma już czego
-                  edytować. */}
-              <Field label="NIP">
-                <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
-              </Field>
-              <Field label="Branża">
-                <EditableText value={client.branza} onSave={(v) => updateClient("branza", v)} />
-              </Field>
-              <Field label="Telefon">
-                <EditableText value={client.telefon} onSave={(v) => updateClient("telefon", v)} />
-              </Field>
-              <Field label="Email">
-                <EditableText value={client.email} onSave={(v) => updateClient("email", v)} />
-              </Field>
-              <Field label="WWW">
-                <EditableText value={client.www} onSave={(v) => updateClient("www", v)} />
-              </Field>
-              <Field label="LinkedIn">
-                <EditableText value={client.linkedin_url} onSave={(v) => updateClient("linkedin_url", v)} />
-              </Field>
-              <Field label="Ulica">
-                <EditableText value={client.ulica} onSave={(v) => updateClient("ulica", v)} />
-              </Field>
-              <Field label="Kod / Miasto">
-                <div className="flex gap-2">
-                  <EditableText value={client.kod} onSave={(v) => updateClient("kod", v)} />
-                  <EditableText value={client.miasto} onSave={(v) => updateClient("miasto", v)} />
-                </div>
-              </Field>
-              <Field label="Kraj">
-                <EditableText value={client.kraj} onSave={(v) => updateClient("kraj", v)} />
-              </Field>
-              <Field label="Ostatni kontakt">
-                <div className="space-y-1">
-                  <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
-                  {/* Sama data wymaga liczenia w głowie — a pytanie brzmi „jak
-                      dawno", nie „którego". Tabela miała kolumnę „Dni" od
-                      dawna, karta milczała. */}
-                  {daysAgoLabel(clientDaysSince(client.ostatni_kontakt)) && (
-                    <p className="px-1 text-[11px] text-muted">{daysAgoLabel(clientDaysSince(client.ostatni_kontakt))}</p>
-                  )}
-                </div>
-              </Field>
-              <Field label="Przypomnij mi">
-                <div className="space-y-1.5">
-                  <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
-                  {/* Pigułki jak w apce: ustawienie terminu to jeden klik,
-                      nie wejście w kalendarz. Przypomnienie jest JEDYNĄ rzeczą,
-                      która zapala klientowi „wymaga działania dziś". */}
-                  <QuickDateChips onPick={(v) => updateClient("next_followup", v)} />
-                </div>
-              </Field>
-              {/* Rytm kontaktu (2026-07-26) — wzorzec z Claya: rytm jest
-                  decyzją PER RELACJA, nie stałą dla wszystkich. Domyślnie
-                  „bez pilnowania", bo sztywny próg ciszy dla każdego klienta
-                  został tu wcześniej świadomie odrzucony. Gdy rytm minie,
-                  klient sam trafia do „wymaga działania dziś" i w poranny mail
-                  — także wtedy, gdy nie ustawiłeś mu żadnej daty. */}
-              <Field label="Odzywaj się">
-                <div className="space-y-1">
-                  <PillPicker
-                    value={CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label ?? "Bez pilnowania"}
-                    options={CLIENT_RHYTHMS.map((r) => r.label)}
-                    onChange={(label) => {
-                      const wybrany = CLIENT_RHYTHMS.find((r) => r.label === label);
-                      updateClient("rytm_kontaktu_mies", wybrany?.miesiace ? String(wybrany.miesiace) : "");
-                    }}
-                    placeholder="Bez pilnowania"
-                    title="Co ile odzywać się do tego klienta"
-                  />
-                  {clientRhythmOverdue(client) && (
-                    <p className="px-1 text-[11px] font-medium text-orange-400">
-                      Rytm minął — cisza od {clientSilenceDays(client)} dni.
-                    </p>
-                  )}
-                </div>
-              </Field>
-              {client.next_followup && (
-                <Field label="Następny krok (po co przypomnienie)">
-                  <EditableText value={client.next_action} onSave={(v) => updateClient("next_action", v)} />
-                </Field>
-              )}
-            </div>
+          Przypięcie robi `sticky` WZGLĘDEM KARTY (to ona jest kontenerem
+          przewijania, `max-h-[85vh] overflow-y-auto`), a nie względem okna.
+          Kolumna dostaje własny `overflow-y-auto` z limitem wysokości: bez
+          niego atrybuty dłuższe niż ekran przypięłyby się z uciętym dołem, do
+          którego nie da się już doscrollować.
 
-            {/* Skąd ten klient przyszedł — pole zapisywane przez trzy ścieżki
-                awansu z leada i do 2026-07-26 nieczytane przez NIC. Edytowalne,
-                bo klienci sprzed tej daty mają kategorię PUSTĄ, a po niej liczy
-                się pętla poleceń — pole nie do poprawienia zostaje błędne na
-                zawsze. Pełna lista kategorii (jak w profilu leada): tu się je
-                POPRAWIA, nie tworzy. */}
-            <div className="mt-4">
-              <label className="mb-1 block text-[11px] text-muted">Skąd przyszedł</label>
-              <div className="flex flex-wrap items-center gap-2">
+          Poniżej `lg` (telefon, iPad w pionie) kolumn nie ma — i wtedy oś czasu
+          idzie PIERWSZA (`order`), bo to ona jest treścią; atrybuty lądują pod
+          nią, tak samo jak przed tą zmianą lądowały pod nagłówkiem. Pełna
+          kartoteka na telefonie to i tak domena apki. */}
+      <div className="mt-5 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="order-2 min-w-0 lg:sticky lg:top-0 lg:order-1 lg:max-h-[calc(85vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-2">
+          {/* Jedna kolumna pól od `lg` w górę — to cała idea tego układu.
+              Do 2026-07-26 siatka szła do czterech kolumn na szerokim
+              ekranie; teraz szerokość dostaje oś czasu, a pola stoją
+              w słupku, jak atrybuty rekordu w Attio. Przy węższym ekranie
+              (bez podziału na kolumny) zostają dwie kolumny, żeby nie robić
+              z wizytówki kilometrowej listy. */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:gap-3">
+            {/* Pojedyncze pole „Osoba kontaktowa" zastąpione LISTĄ osób
+                (Moduł 54, krok 4) — sekcja pod siatką pól. Kolumna
+                `osoba_kontaktowa` została w bazie jako migawka osoby głównej
+                i serwer przepisuje ją sam, więc tutaj nie ma już czego
+                edytować. */}
+            <Field label="NIP">
+              <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
+            </Field>
+            <Field label="Branża">
+              <EditableText value={client.branza} onSave={(v) => updateClient("branza", v)} />
+            </Field>
+            <Field label="Telefon">
+              <EditableText value={client.telefon} onSave={(v) => updateClient("telefon", v)} />
+            </Field>
+            <Field label="Email">
+              <EditableText value={client.email} onSave={(v) => updateClient("email", v)} />
+            </Field>
+            <Field label="WWW">
+              <EditableText value={client.www} onSave={(v) => updateClient("www", v)} />
+            </Field>
+            <Field label="LinkedIn">
+              <EditableText value={client.linkedin_url} onSave={(v) => updateClient("linkedin_url", v)} />
+            </Field>
+            <Field label="Ulica">
+              <EditableText value={client.ulica} onSave={(v) => updateClient("ulica", v)} />
+            </Field>
+            <Field label="Kod / Miasto">
+              <div className="flex gap-2">
+                <EditableText value={client.kod} onSave={(v) => updateClient("kod", v)} />
+                <EditableText value={client.miasto} onSave={(v) => updateClient("miasto", v)} />
+              </div>
+            </Field>
+            <Field label="Kraj">
+              <EditableText value={client.kraj} onSave={(v) => updateClient("kraj", v)} />
+            </Field>
+            <Field label="Ostatni kontakt">
+              <div className="space-y-1">
+                <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
+                {/* Sama data wymaga liczenia w głowie — a pytanie brzmi „jak
+                    dawno", nie „którego". Tabela miała kolumnę „Dni" od
+                    dawna, karta milczała. */}
+                {daysAgoLabel(clientDaysSince(client.ostatni_kontakt)) && (
+                  <p className="px-1 text-[11px] text-muted">{daysAgoLabel(clientDaysSince(client.ostatni_kontakt))}</p>
+                )}
+              </div>
+            </Field>
+            <Field label="Przypomnij mi">
+              <div className="space-y-1.5">
+                <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
+                {/* Pigułki jak w apce: ustawienie terminu to jeden klik,
+                    nie wejście w kalendarz. Przypomnienie jest JEDYNĄ rzeczą,
+                    która zapala klientowi „wymaga działania dziś". */}
+                <QuickDateChips onPick={(v) => updateClient("next_followup", v)} />
+              </div>
+            </Field>
+            {/* Rytm kontaktu (2026-07-26) — wzorzec z Claya: rytm jest
+                decyzją PER RELACJA, nie stałą dla wszystkich. Domyślnie
+                „bez pilnowania", bo sztywny próg ciszy dla każdego klienta
+                został tu wcześniej świadomie odrzucony. Gdy rytm minie,
+                klient sam trafia do „wymaga działania dziś" i w poranny mail
+                — także wtedy, gdy nie ustawiłeś mu żadnej daty. */}
+            <Field label="Odzywaj się">
+              <div className="space-y-1">
                 <PillPicker
-                  value={client.zrodlo_kategoria}
-                  options={[...SOURCE_CATEGORIES]}
-                  onChange={(v) => updateClient("zrodlo_kategoria", v)}
-                  placeholder="Kategoria — wybierz"
-                  title="Kategoria źródła"
+                  value={CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label ?? "Bez pilnowania"}
+                  options={CLIENT_RHYTHMS.map((r) => r.label)}
+                  onChange={(label) => {
+                    const wybrany = CLIENT_RHYTHMS.find((r) => r.label === label);
+                    updateClient("rytm_kontaktu_mies", wybrany?.miesiace ? String(wybrany.miesiace) : "");
+                  }}
+                  placeholder="Bez pilnowania"
+                  title="Co ile odzywać się do tego klienta"
                 />
-                <div className="min-w-[200px] flex-1">
-                  <EditableText value={client.zrodlo} onSave={(v) => updateClient("zrodlo", v)} />
-                </div>
+                {clientRhythmOverdue(client) && (
+                  <p className="px-1 text-[11px] font-medium text-orange-400">
+                    Rytm minął — cisza od {clientSilenceDays(client)} dni.
+                  </p>
+                )}
               </div>
-            </div>
-
-            {/* Osoby kontaktowe (Moduł 54, krok 4) — zaraz pod danymi firmy,
-                nad kontaktami kontrolnymi: to odpowiedź na pytanie „z kim
-                rozmawiam", które pada wcześniej niż „kiedy do nich wrócić".
-                `load` zamiast samego przeładowania listy, bo zmiana osoby
-                głównej przepisuje migawkę na kliencie. */}
-            <div className="mt-6 border-t hairline pt-6">
-              <ClientContacts clientId={id} contacts={contacts} onChanged={load} />
-            </div>
-
-            {followups.length > 0 && (
-              <div className="mt-6 border-t hairline pt-6">
-                <h2 className="mb-1 text-lg font-semibold">Kontakty kontrolne</h2>
-                <p className="mb-4 text-[12px] text-muted opacity-70">
-                  Planowane automatycznie po wdrożeniu projektu (+14 i +90 dni). Szkic wiadomości przygotujesz na
-                  Pulpicie w dniu terminu.
-                </p>
-                <ul className="space-y-1.5 text-sm">
-                  {followups.map((f) => {
-                    const zalegly = !f.done_at && f.due_date.slice(0, 10) <= todayLocalISO();
-                    return (
-                      <li
-                        key={f.id}
-                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 ${
-                          zalegly ? "border-orange-500/30 bg-orange-500/[0.05]" : "hairline"
-                        }`}
-                      >
-                        <span className={`shrink-0 text-[12px] ${zalegly ? "font-semibold text-orange-400" : "text-muted"}`}>
-                          {formatPlDate(f.due_date)}
-                        </span>
-                        <span className={`min-w-0 flex-1 truncate ${f.done_at ? "text-muted line-through" : ""}`}>
-                          {f.powod}
-                        </span>
-                        {f.done_at ? (
-                          <span className="shrink-0 text-[11px] text-muted">obsłużony</span>
-                        ) : (
-                          <button
-                            onClick={() => markFollowupDone(f.id)}
-                            className="shrink-0 rounded-md px-2 py-0.5 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
-                          >
-                            Obsłużone
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+            </Field>
+            {client.next_followup && (
+              <Field label="Następny krok (po co przypomnienie)">
+                <EditableText value={client.next_action} onSave={(v) => updateClient("next_action", v)} />
+              </Field>
             )}
+          </div>
 
-            {reviewed.length > 0 && (
-              <div className="mt-6 border-t hairline pt-6">
-                <h2 className="mb-4 text-lg font-semibold">Opinie</h2>
-                <ul className="space-y-2 text-sm">
-                  {reviewed.map((p) => {
-                    const ocena = projectRating(p);
-                    return (
-                    <li key={p.id} className="rounded-xl border hairline p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Opinia bez gwiazdek jest możliwa (klient wypełnił sam
-                            komentarz) — wtedy nie udajemy oceny. */}
-                        {ocena != null && <span className="font-medium text-brand-gold">★ {ocena.toFixed(1)}</span>}
-                        <Link href={`/${lang}/admin/projects/${p.id}`} className="min-w-0 flex-1 truncate hover:underline">
-                          {p.tytul}
-                        </Link>
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${
-                            p.review_consent_case_study
-                              ? "bg-emerald-500/15 text-emerald-400"
-                              : "bg-[var(--hairline)] text-muted"
-                          }`}
-                          title="Zgoda na wykorzystanie opinii jako referencji/case study"
-                        >
-                          {p.review_consent_case_study ? "zgoda na referencję" : "bez zgody na referencję"}
-                        </span>
-                      </div>
-                      {p.review_comment && <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-muted">{p.review_comment}</p>}
-                    </li>
-                    );
-                  })}
-                </ul>
+          {/* Skąd ten klient przyszedł — pole zapisywane przez trzy ścieżki
+              awansu z leada i do 2026-07-26 nieczytane przez NIC. Edytowalne,
+              bo klienci sprzed tej daty mają kategorię PUSTĄ, a po niej liczy
+              się pętla poleceń — pole nie do poprawienia zostaje błędne na
+              zawsze. Pełna lista kategorii (jak w profilu leada): tu się je
+              POPRAWIA, nie tworzy. */}
+          <div className="mt-4">
+            <label className="mb-1 block text-[11px] text-muted">Skąd przyszedł</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <PillPicker
+                value={client.zrodlo_kategoria}
+                options={[...SOURCE_CATEGORIES]}
+                onChange={(v) => updateClient("zrodlo_kategoria", v)}
+                placeholder="Kategoria — wybierz"
+                title="Kategoria źródła"
+              />
+              <div className="min-w-[200px] flex-1">
+                <EditableText value={client.zrodlo} onSave={(v) => updateClient("zrodlo", v)} />
               </div>
-            )}
-
-            <div className="mt-4">
-              <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
-              <EditableTextarea value={client.notatki} onSave={(v) => updateClient("notatki", v)} />
-            </div>
-
-            <div className="mt-6 border-t hairline pt-6">
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold">Powiązane</h2>
-                <span className="flex-1" />
-                {/* Nowy dokument wprost z karty klienta (2026-07-26, druga runda
-                    audytu). Do tej pory jedyna droga wiodła przez „+ Nowa oferta"
-                    na ekranie Ofert i wybranie klienta z pickera — z profilu
-                    klienta, czyli z miejsca, w którym akurat się stoi, nie dało
-                    się zrobić nic.
-
-                    Świadomie BEZ dedupe „jedna oferta na klienta" (inaczej niż
-                    przy NDA z Modułu 51): druga oferta dla tego samego klienta
-                    jest normalną sytuacją, a nie pomyłką. Rolę zabezpieczenia
-                    gra tu natychmiastowe przejście do dokumentu — nowy szkic
-                    nigdy nie zostaje niewidoczny, a przycisk jest w tym czasie
-                    zablokowany, więc podwójne kliknięcie nie zrobi dwóch. */}
-                <button
-                  onClick={() => createDocument("offers")}
-                  disabled={creatingDoc !== null}
-                  className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
-                >
-                  {creatingDoc === "offers" ? "Tworzę…" : "+ Nowa oferta"}
-                </button>
-                <button
-                  onClick={() => createDocument("invoices")}
-                  disabled={creatingDoc !== null}
-                  className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
-                >
-                  {creatingDoc === "invoices" ? "Tworzę…" : "+ Nowa faktura"}
-                </button>
-              </div>
-              {linkedCount === 0 && (
-                <p className="text-sm text-muted opacity-60">
-                  Nic jeszcze nie jest przypięte do tego klienta — zacznij od oferty.
-                </p>
-              )}
-              {linkedCount > 0 && (
-                <div className="space-y-4">
-                  {offers.length > 0 && (
-                    <LinkedGroup title="Oferty">
-                      {offers.map((o) => (
-                        <li key={o.id}>
-                          <Link href={`/${lang}/admin/offers/${o.id}`} className="hover:underline">
-                            {o.tytul || "(bez tytułu)"}
-                          </Link>
-                          <span className="text-muted"> — {o.status}{o.wazna_do ? `, ważna do ${formatPlDate(o.wazna_do)}` : ""}</span>
-                        </li>
-                      ))}
-                    </LinkedGroup>
-                  )}
-                  {invoices.length > 0 && (
-                    <LinkedGroup title="Faktury">
-                      {invoices.map((i) => (
-                        <li key={i.id}>
-                          <Link href={`/${lang}/admin/invoices/${i.id}`} className="hover:underline">
-                            {i.numer ?? "(szkic)"}
-                          </Link>
-                          <span className="text-muted"> — {i.status}</span>
-                        </li>
-                      ))}
-                    </LinkedGroup>
-                  )}
-                  {projects.length > 0 && (
-                    <LinkedGroup title="Projekty">
-                      {projects.map((p) => (
-                        <li key={p.id}>
-                          <Link href={`/${lang}/admin/projects/${p.id}`} className="hover:underline">
-                            {p.tytul}
-                          </Link>
-                          <span className="text-muted"> — {p.status}{p.termin ? `, termin ${formatPlDate(p.termin)}` : ""}</span>
-                        </li>
-                      ))}
-                    </LinkedGroup>
-                  )}
-                  {/* Moduł 31 — do tej pory jedyny moduł, o którym karta klienta
-                      milczała, mimo że od niego zależy start jego projektów. */}
-                  {contracts.length > 0 && (
-                    <LinkedGroup title="Umowy i NDA">
-                      {contracts.map((c) => (
-                        <li key={c.id}>
-                          <Link href={`/${lang}/admin/contracts/${c.id}`} className="hover:underline">
-                            {CONTRACT_TYP_LABEL[c.typ]}
-                          </Link>
-                          <span className="text-muted">
-                            {" "}
-                            — {c.status}
-                            {c.accepted_at ? `, podpisana ${formatPlDate(c.accepted_at)}` : ""}
-                            {c.typ === "umowa" && !c.project_id ? ", bez projektu" : ""}
-                          </span>
-                        </li>
-                      ))}
-                    </LinkedGroup>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Mapa procesu zostaje na wizytówce — to „gdzie jesteśmy z tym
-                klientem", czyli kontekst do danych obok, a nie historia. */}
-            <div className="mt-6 border-t hairline pt-6">
-              <h2 className="mb-4 text-lg font-semibold">Proces sprzedaży</h2>
-              <ProcessMap currentStep={CLIENT_STATUS_STEP[client.status] ?? 3} />
             </div>
           </div>
-        )}
 
-        {tab === "history" && (
-          <div>
-            <div className="mt-6">
-              {/* JEDNA oś zamiast dwóch list (2026-07-26). Do tej pory nad
-                  historią stała osobna sekcja „Korespondencja", a feed i tak
-                  zawiera wpisy powstałe z tych samych maili — ten sam mail
-                  widniał więc dwa razy (zgłoszenie właściciela). Maile, których
-                  feed nie zna, dochodzą do osi niżej, więc scalenie niczego nie
-                  gubi. Nadpisuje decyzję z 2026-07-15 o osobnej kartotece. */}
-              <h2 className="mb-1 text-lg font-semibold">Pełna historia</h2>
-              <p className="mb-4 text-[12px] text-muted opacity-70">
-                Rozmowy, maile i zdarzenia systemowe (oferty, faktury, wpłaty) w jednej chronologicznej osi.
-              </p>
+          {/* Osoby kontaktowe (Moduł 54, krok 4) — zaraz pod danymi firmy,
+              nad kontaktami kontrolnymi: to odpowiedź na pytanie „z kim
+              rozmawiam", które pada wcześniej niż „kiedy do nich wrócić".
+              `load` zamiast samego przeładowania listy, bo zmiana osoby
+              głównej przepisuje migawkę na kliencie. */}
+          <div className="mt-6 border-t hairline pt-6">
+            <ClientContacts clientId={id} contacts={contacts} onChanged={load} waskaKolumna />
+          </div>
 
-              <form onSubmit={submitNote} className="mb-6 space-y-2">
-                <textarea
-                  ref={noteRef}
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                      e.preventDefault();
-                      e.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                  placeholder="Kiedy, jak i w jakiej sprawie się kontaktowałeś? np. rozmowa telefoniczna, umówiliśmy się na demo za 2 tygodnie… (Cmd+Enter, by zapisać)"
-                  rows={3}
-                  className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
-                />
+          {/* Notatka przypięta zostaje przy atrybutach, nie przy osi czasu:
+              to stała prawda o kliencie („płaci przelewem, nie kartą"), a nie
+              wpis z datą. Wpisy z datą mają swoje miejsce obok. */}
+          <div className="mt-6 border-t hairline pt-6">
+            <label className="mb-1 block text-[11px] text-muted">Notatka przypięta</label>
+            <EditableTextarea value={client.notatki} onSave={(v) => updateClient("notatki", v)} />
+          </div>
+        </aside>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <PillPicker
-                    value={noteChannel ? CONTACT_CHANNEL_LABEL[noteChannel as keyof typeof CONTACT_CHANNEL_LABEL] : ""}
-                    options={CONTACT_CHANNELS.map((c) => CONTACT_CHANNEL_LABEL[c])}
-                    onChange={(label) => {
-                      const found = CONTACT_CHANNELS.find((c) => CONTACT_CHANNEL_LABEL[c] === label);
-                      setNoteChannel(found ?? "");
-                    }}
-                    placeholder="Kanał — wybierz"
-                    title="Jakim kanałem?"
-                  />
-                  <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
-                    {CONTACT_DIRECTIONS.map((dir) => (
-                      <button
-                        key={dir}
-                        type="button"
-                        onClick={() => setNoteDirection(dir)}
-                        className={`min-h-[30px] px-2.5 ${
-                          noteDirection === dir ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
-                        }`}
-                      >
-                        {CONTACT_DIRECTION_LABEL[dir]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+        <div className="order-1 min-w-0 lg:order-2">
+          {/* Mapa procesu NAD zakładkami, nie w żadnej z nich — to „gdzie
+              jesteśmy z tym klientem", czyli kontekst do wszystkiego, co niżej.
+              Do kroku 6 siedziała na dole wizytówki, więc widać ją było tylko
+              po przewinięciu wszystkich pól. */}
+          <div className="mb-4">
+            <label className="mb-1.5 block text-[11px] text-muted">Proces sprzedaży</label>
+            <ProcessMap currentStep={CLIENT_STATUS_STEP[client.status] ?? 3} />
+          </div>
 
-                {noteChannel === "telefon" && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
-                      {CALL_OUTCOMES.map((o) => (
-                        <button
-                          key={o}
-                          type="button"
-                          onClick={() => setNoteOutcome(o)}
-                          className={`flex min-h-[30px] items-center gap-1 px-2.5 ${
-                            noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
-                          }`}
-                        >
-                          <CallOutcomeIcon kind={o} size={13} />
-                          {CALL_OUTCOME_LABEL[o]}
-                        </button>
-                      ))}
-                    </div>
-                    {noteOutcome === "odebrane" && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted">
-                        <input
-                          type="number"
-                          min={0}
-                          value={noteDurationMin}
-                          onChange={(e) => setNoteDurationMin(e.target.value)}
-                          placeholder="0"
-                          className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
-                        />
-                        min
-                        <input
-                          type="number"
-                          min={0}
-                          max={59}
-                          value={noteDurationSec}
-                          onChange={(e) => setNoteDurationSec(e.target.value)}
-                          placeholder="0"
-                          className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
-                        />
-                        s
-                      </div>
-                    )}
-                  </div>
-                )}
+          <div className="flex h-9 items-center gap-4 border-b hairline">
+            <ViewTabs
+              value={tab}
+              onChange={setTab}
+              layoutId="client-detail-tab-underline"
+              tabs={[
+                { id: "history", label: "Historia kontaktu" },
+                { id: "linked", label: "Powiązane" },
+                { id: "changes", label: "Logi zmian" },
+              ]}
+            />
+          </div>
 
-                {noteChannel === "telefon" && noteDirection === "przychodzacy" && noteOutcome === "nieodebrane" && !noteFollowup && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNoteFollowup(addDaysLocalISO(1));
-                      setNoteAction("Oddzwonić");
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
-                  >
-                    <IconPhoneOff size={12} className="mr-1 inline align-[-2px]" />Nieodebrane od klienta — ustaw przypomnienie na jutro
-                  </button>
-                )}
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 text-xs text-muted">
-                    <input type="checkbox" checked={markContacted} onChange={(e) => setMarkContacted(e.target.checked)} />
-                    Oznacz jako dzisiejszy kontakt
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-muted">
-                    Przypomnij mi:
-                    <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
-                  </label>
-                  <QuickDateChips onPick={setNoteFollowup} />
-                </div>
-                {noteFollowup && (
-                  <input
-                    value={noteAction}
-                    onChange={(e) => setNoteAction(e.target.value)}
-                    placeholder="Następny krok — po co to przypomnienie? np. wysłać ofertę po demo"
-                    className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-xs text-[var(--fg)] placeholder:text-muted"
-                  />
-                )}
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={saving || !noteText.trim()}
-                    className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {saving ? "Zapisuję…" : "Dodaj wpis"}
-                  </button>
-                </div>
-              </form>
-
-              {osCzasu.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-1.5">
-                  {FEED_FILTERS.map((f) => (
-                    <button
-                      key={f.value}
-                      type="button"
-                      onClick={() => setFeedFilter(f.value)}
-                      className={`rounded-full border hairline px-2.5 py-1 text-[11px] ${
-                        feedFilter === f.value ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {osCzasu.length === 0 ? (
-                <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
-              ) : filteredFeed.length === 0 ? (
-                <p className="text-sm text-muted opacity-60">Brak wpisów w tym filtrze.</p>
-              ) : (
-                groupFeedByDay(filteredFeed).map((group) => (
-                  <div key={group.label} className="mb-4 last:mb-0">
-                    <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
-                    <ul className="space-y-2">
-                      {group.items.map((f) => {
-                        const badge = feedBadge(f);
-                        // Moduł 12 — zdarzenie klikalne, gdy ma zapisany cel
-                        // (oferta/faktura/projekt/umowa) i typ zdarzenia wie, dokąd
-                        // prowadzi (patrz CLIENT_EVENT_TARGET). Starsze zdarzenia
-                        // sprzed migracji nie mają related_id — zostają bez linku.
-                        const targetSegment = CLIENT_EVENT_TARGET[f.kind];
-                        // Wpis z maila (Moduł 4) linkuje do pełnej treści w Poczcie;
-                        // reszta — do rekordu wg CLIENT_EVENT_TARGET.
-                        const href = f.mail_message_id
-                          ? `/${lang}/admin/mail/${f.mail_message_id}`
-                          : f.related_id && targetSegment
-                            ? `/${lang}/admin/${targetSegment}/${f.related_id}`
-                            : null;
-                        const text = (
-                          <p className={`whitespace-pre-wrap ${href ? "hover:underline" : ""}`}>
-                            {f.text}
-                            {f.amount != null && <span className="font-medium"> — {formatMoney(f.amount)}</span>}
-                          </p>
-                        );
+          <ViewSwitch viewKey={tab}>
+            {tab === "linked" && (
+              <div>
+                {followups.length > 0 && (
+                  <div className={SEKCJA_ZAKLADKI}>
+                    <h2 className="mb-1 text-lg font-semibold">Kontakty kontrolne</h2>
+                    <p className="mb-4 text-[12px] text-muted opacity-70">
+                      Planowane automatycznie po wdrożeniu projektu (+14 i +90 dni). Szkic wiadomości przygotujesz na
+                      Pulpicie w dniu terminu.
+                    </p>
+                    <ul className="space-y-1.5 text-sm">
+                      {followups.map((f) => {
+                        const zalegly = !f.done_at && f.due_date.slice(0, 10) <= todayLocalISO();
                         return (
-                          <li key={`${f.source}:${f.id}`} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
-                            <span
-                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
-                              aria-hidden
-                            >
-                              {badge.icon}
+                          <li
+                            key={f.id}
+                            className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 ${
+                              zalegly ? "border-orange-500/30 bg-orange-500/[0.05]" : "hairline"
+                            }`}
+                          >
+                            <span className={`shrink-0 text-[12px] ${zalegly ? "font-semibold text-orange-400" : "text-muted"}`}>
+                              {formatPlDate(f.due_date)}
                             </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="mb-0.5 flex items-center justify-between gap-2">
-                                <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                                  <span className="font-medium">{badge.label}</span>
-                                  <span className="tabular-nums">{formatTime(f.created_at)}</span>
-                                  {f.czas_trwania_sek != null && <span>· {formatCallDuration(f.czas_trwania_sek)}</span>}
-                                  {f.source === "lead" && (
-                                    <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted" title="Wpis sprzed awansu na klienta">
-                                      z etapu leada
-                                    </span>
-                                  )}
-                                </span>
-                                {f.source === "client" && (
-                                  <button onClick={() => deleteNote(f.id)} className="text-muted hover:text-red-400" aria-label="Usuń wpis" title="Usuń wpis">
-                                    ✕
-                                  </button>
-                                )}
-                              </div>
-                              {href ? <Link href={href}>{text}</Link> : text}
-                            </div>
+                            <span className={`min-w-0 flex-1 truncate ${f.done_at ? "text-muted line-through" : ""}`}>
+                              {f.powod}
+                            </span>
+                            {f.done_at ? (
+                              <span className="shrink-0 text-[11px] text-muted">obsłużony</span>
+                            ) : (
+                              <button
+                                onClick={() => markFollowupDone(f.id)}
+                                className="shrink-0 rounded-md px-2 py-0.5 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                              >
+                                Obsłużone
+                              </button>
+                            )}
                           </li>
                         );
                       })}
                     </ul>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+                )}
 
-        {tab === "changes" && <FieldChangesTab entity="client" changes={changes} />}
-      </ViewSwitch>
+                {reviewed.length > 0 && (
+                  <div className={SEKCJA_ZAKLADKI}>
+                    <h2 className="mb-4 text-lg font-semibold">Opinie</h2>
+                    <ul className="space-y-2 text-sm">
+                      {reviewed.map((p) => {
+                        const ocena = projectRating(p);
+                        return (
+                        <li key={p.id} className="rounded-xl border hairline p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Opinia bez gwiazdek jest możliwa (klient wypełnił sam
+                                komentarz) — wtedy nie udajemy oceny. */}
+                            {ocena != null && <span className="font-medium text-brand-gold">★ {ocena.toFixed(1)}</span>}
+                            <Link href={`/${lang}/admin/projects/${p.id}`} className="min-w-0 flex-1 truncate hover:underline">
+                              {p.tytul}
+                            </Link>
+                            <span
+                              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${
+                                p.review_consent_case_study
+                                  ? "bg-emerald-500/15 text-emerald-400"
+                                  : "bg-[var(--hairline)] text-muted"
+                              }`}
+                              title="Zgoda na wykorzystanie opinii jako referencji/case study"
+                            >
+                              {p.review_consent_case_study ? "zgoda na referencję" : "bez zgody na referencję"}
+                            </span>
+                          </div>
+                          {p.review_comment && <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-muted">{p.review_comment}</p>}
+                        </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+
+                <div className={SEKCJA_ZAKLADKI}>
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold">Powiązane</h2>
+                    <span className="flex-1" />
+                    {/* Nowy dokument wprost z karty klienta (2026-07-26, druga runda
+                        audytu). Do tej pory jedyna droga wiodła przez „+ Nowa oferta"
+                        na ekranie Ofert i wybranie klienta z pickera — z profilu
+                        klienta, czyli z miejsca, w którym akurat się stoi, nie dało
+                        się zrobić nic.
+
+                        Świadomie BEZ dedupe „jedna oferta na klienta" (inaczej niż
+                        przy NDA z Modułu 51): druga oferta dla tego samego klienta
+                        jest normalną sytuacją, a nie pomyłką. Rolę zabezpieczenia
+                        gra tu natychmiastowe przejście do dokumentu — nowy szkic
+                        nigdy nie zostaje niewidoczny, a przycisk jest w tym czasie
+                        zablokowany, więc podwójne kliknięcie nie zrobi dwóch. */}
+                    <button
+                      onClick={() => createDocument("offers")}
+                      disabled={creatingDoc !== null}
+                      className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
+                    >
+                      {creatingDoc === "offers" ? "Tworzę…" : "+ Nowa oferta"}
+                    </button>
+                    <button
+                      onClick={() => createDocument("invoices")}
+                      disabled={creatingDoc !== null}
+                      className="rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] disabled:opacity-50"
+                    >
+                      {creatingDoc === "invoices" ? "Tworzę…" : "+ Nowa faktura"}
+                    </button>
+                  </div>
+                  {linkedCount === 0 && (
+                    <p className="text-sm text-muted opacity-60">
+                      Nic jeszcze nie jest przypięte do tego klienta — zacznij od oferty.
+                    </p>
+                  )}
+                  {linkedCount > 0 && (
+                    <div className="space-y-4">
+                      {offers.length > 0 && (
+                        <LinkedGroup title="Oferty">
+                          {offers.map((o) => (
+                            <li key={o.id}>
+                              <Link href={`/${lang}/admin/offers/${o.id}`} className="hover:underline">
+                                {o.tytul || "(bez tytułu)"}
+                              </Link>
+                              <span className="text-muted"> — {o.status}{o.wazna_do ? `, ważna do ${formatPlDate(o.wazna_do)}` : ""}</span>
+                            </li>
+                          ))}
+                        </LinkedGroup>
+                      )}
+                      {invoices.length > 0 && (
+                        <LinkedGroup title="Faktury">
+                          {invoices.map((i) => (
+                            <li key={i.id}>
+                              <Link href={`/${lang}/admin/invoices/${i.id}`} className="hover:underline">
+                                {i.numer ?? "(szkic)"}
+                              </Link>
+                              <span className="text-muted"> — {i.status}</span>
+                            </li>
+                          ))}
+                        </LinkedGroup>
+                      )}
+                      {projects.length > 0 && (
+                        <LinkedGroup title="Projekty">
+                          {projects.map((p) => (
+                            <li key={p.id}>
+                              <Link href={`/${lang}/admin/projects/${p.id}`} className="hover:underline">
+                                {p.tytul}
+                              </Link>
+                              <span className="text-muted"> — {p.status}{p.termin ? `, termin ${formatPlDate(p.termin)}` : ""}</span>
+                            </li>
+                          ))}
+                        </LinkedGroup>
+                      )}
+                      {/* Moduł 31 — do tej pory jedyny moduł, o którym karta klienta
+                          milczała, mimo że od niego zależy start jego projektów. */}
+                      {contracts.length > 0 && (
+                        <LinkedGroup title="Umowy i NDA">
+                          {contracts.map((c) => (
+                            <li key={c.id}>
+                              <Link href={`/${lang}/admin/contracts/${c.id}`} className="hover:underline">
+                                {CONTRACT_TYP_LABEL[c.typ]}
+                              </Link>
+                              <span className="text-muted">
+                                {" "}
+                                — {c.status}
+                                {c.accepted_at ? `, podpisana ${formatPlDate(c.accepted_at)}` : ""}
+                                {c.typ === "umowa" && !c.project_id ? ", bez projektu" : ""}
+                              </span>
+                            </li>
+                          ))}
+                        </LinkedGroup>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {tab === "history" && (
+              <div>
+                {/* Limit szerokości TYLKO tutaj: po zdjęciu podziału na zakładki
+                    prawa kolumna ma na monitorze właściciela ponad 1800 px, a oś
+                    czasu to zdania do czytania — wiersz przez cały ekran gubi się
+                    przy powrocie do lewej krawędzi. „Powiązane" limitu nie mają,
+                    bo to krótkie wiersze z linkami. */}
+                <div className="mt-6 max-w-5xl">
+                  {/* JEDNA oś zamiast dwóch list (2026-07-26). Do tej pory nad
+                      historią stała osobna sekcja „Korespondencja", a feed i tak
+                      zawiera wpisy powstałe z tych samych maili — ten sam mail
+                      widniał więc dwa razy (zgłoszenie właściciela). Maile, których
+                      feed nie zna, dochodzą do osi niżej, więc scalenie niczego nie
+                      gubi. Nadpisuje decyzję z 2026-07-15 o osobnej kartotece. */}
+                  <h2 className="mb-1 text-lg font-semibold">Pełna historia</h2>
+                  <p className="mb-4 text-[12px] text-muted opacity-70">
+                    Rozmowy, maile i zdarzenia systemowe (oferty, faktury, wpłaty) w jednej chronologicznej osi.
+                  </p>
+
+                  <form onSubmit={submitNote} className="mb-6 space-y-2">
+                    <textarea
+                      ref={noteRef}
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                          e.preventDefault();
+                          e.currentTarget.form?.requestSubmit();
+                        }
+                      }}
+                      placeholder="Kiedy, jak i w jakiej sprawie się kontaktowałeś? np. rozmowa telefoniczna, umówiliśmy się na demo za 2 tygodnie… (Cmd+Enter, by zapisać)"
+                      rows={3}
+                      className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted"
+                    />
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PillPicker
+                        value={noteChannel ? CONTACT_CHANNEL_LABEL[noteChannel as keyof typeof CONTACT_CHANNEL_LABEL] : ""}
+                        options={CONTACT_CHANNELS.map((c) => CONTACT_CHANNEL_LABEL[c])}
+                        onChange={(label) => {
+                          const found = CONTACT_CHANNELS.find((c) => CONTACT_CHANNEL_LABEL[c] === label);
+                          setNoteChannel(found ?? "");
+                        }}
+                        placeholder="Kanał — wybierz"
+                        title="Jakim kanałem?"
+                      />
+                      <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+                        {CONTACT_DIRECTIONS.map((dir) => (
+                          <button
+                            key={dir}
+                            type="button"
+                            onClick={() => setNoteDirection(dir)}
+                            className={`min-h-[30px] px-2.5 ${
+                              noteDirection === dir ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
+                            }`}
+                          >
+                            {CONTACT_DIRECTION_LABEL[dir]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {noteChannel === "telefon" && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
+                          {CALL_OUTCOMES.map((o) => (
+                            <button
+                              key={o}
+                              type="button"
+                              onClick={() => setNoteOutcome(o)}
+                              className={`flex min-h-[30px] items-center gap-1 px-2.5 ${
+                                noteOutcome === o ? `${CALL_OUTCOME_CLASS[o]} font-medium` : "text-muted hover:bg-[var(--hairline)]"
+                              }`}
+                            >
+                              <CallOutcomeIcon kind={o} size={13} />
+                              {CALL_OUTCOME_LABEL[o]}
+                            </button>
+                          ))}
+                        </div>
+                        {noteOutcome === "odebrane" && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted">
+                            <input
+                              type="number"
+                              min={0}
+                              value={noteDurationMin}
+                              onChange={(e) => setNoteDurationMin(e.target.value)}
+                              placeholder="0"
+                              className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                            />
+                            min
+                            <input
+                              type="number"
+                              min={0}
+                              max={59}
+                              value={noteDurationSec}
+                              onChange={(e) => setNoteDurationSec(e.target.value)}
+                              placeholder="0"
+                              className="w-12 rounded-md border hairline bg-transparent px-2 py-1 text-center text-[var(--fg)]"
+                            />
+                            s
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {noteChannel === "telefon" && noteDirection === "przychodzacy" && noteOutcome === "nieodebrane" && !noteFollowup && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNoteFollowup(addDaysLocalISO(1));
+                          setNoteAction("Oddzwonić");
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/15"
+                      >
+                        <IconPhoneOff size={12} className="mr-1 inline align-[-2px]" />Nieodebrane od klienta — ustaw przypomnienie na jutro
+                      </button>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-muted">
+                        <input type="checkbox" checked={markContacted} onChange={(e) => setMarkContacted(e.target.checked)} />
+                        Oznacz jako dzisiejszy kontakt
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-muted">
+                        Przypomnij mi:
+                        <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
+                      </label>
+                      <QuickDateChips onPick={setNoteFollowup} />
+                    </div>
+                    {noteFollowup && (
+                      <input
+                        value={noteAction}
+                        onChange={(e) => setNoteAction(e.target.value)}
+                        placeholder="Następny krok — po co to przypomnienie? np. wysłać ofertę po demo"
+                        className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-xs text-[var(--fg)] placeholder:text-muted"
+                      />
+                    )}
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={saving || !noteText.trim()}
+                        className="bg-[var(--fg)] text-[var(--bg)] hover:opacity-90 rounded-full px-4 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {saving ? "Zapisuję…" : "Dodaj wpis"}
+                      </button>
+                    </div>
+                  </form>
+
+                  {osCzasu.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {FEED_FILTERS.map((f) => (
+                        <button
+                          key={f.value}
+                          type="button"
+                          onClick={() => setFeedFilter(f.value)}
+                          className={`rounded-full border hairline px-2.5 py-1 text-[11px] ${
+                            feedFilter === f.value ? "bg-[var(--fg)] text-[var(--bg)]" : "text-muted hover:bg-[var(--hairline)]"
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {osCzasu.length === 0 ? (
+                    <p className="text-sm text-muted opacity-60">Brak wpisów — dodaj pierwszy powyżej.</p>
+                  ) : filteredFeed.length === 0 ? (
+                    <p className="text-sm text-muted opacity-60">Brak wpisów w tym filtrze.</p>
+                  ) : (
+                    groupFeedByDay(filteredFeed).map((group) => (
+                      <div key={group.label} className="mb-4 last:mb-0">
+                        <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted opacity-60">{group.label}</div>
+                        <ul className="space-y-2">
+                          {group.items.map((f) => {
+                            const badge = feedBadge(f);
+                            // Moduł 12 — zdarzenie klikalne, gdy ma zapisany cel
+                            // (oferta/faktura/projekt/umowa) i typ zdarzenia wie, dokąd
+                            // prowadzi (patrz CLIENT_EVENT_TARGET). Starsze zdarzenia
+                            // sprzed migracji nie mają related_id — zostają bez linku.
+                            const targetSegment = CLIENT_EVENT_TARGET[f.kind];
+                            // Wpis z maila (Moduł 4) linkuje do pełnej treści w Poczcie;
+                            // reszta — do rekordu wg CLIENT_EVENT_TARGET.
+                            const href = f.mail_message_id
+                              ? `/${lang}/admin/mail/${f.mail_message_id}`
+                              : f.related_id && targetSegment
+                                ? `/${lang}/admin/${targetSegment}/${f.related_id}`
+                                : null;
+                            const text = (
+                              <p className={`whitespace-pre-wrap ${href ? "hover:underline" : ""}`}>
+                                {f.text}
+                                {f.amount != null && <span className="font-medium"> — {formatMoney(f.amount)}</span>}
+                              </p>
+                            );
+                            return (
+                              <li key={`${f.source}:${f.id}`} className="flex items-start gap-2.5 rounded-xl border hairline p-3 text-sm">
+                                <span
+                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] ${badge.cls}`}
+                                  aria-hidden
+                                >
+                                  {badge.icon}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="mb-0.5 flex items-center justify-between gap-2">
+                                    <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                                      <span className="font-medium">{badge.label}</span>
+                                      <span className="tabular-nums">{formatTime(f.created_at)}</span>
+                                      {f.czas_trwania_sek != null && <span>· {formatCallDuration(f.czas_trwania_sek)}</span>}
+                                      {f.source === "lead" && (
+                                        <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted" title="Wpis sprzed awansu na klienta">
+                                          z etapu leada
+                                        </span>
+                                      )}
+                                    </span>
+                                    {f.source === "client" && (
+                                      <button onClick={() => deleteNote(f.id)} className="text-muted hover:text-red-400" aria-label="Usuń wpis" title="Usuń wpis">
+                                        ✕
+                                      </button>
+                                    )}
+                                  </div>
+                                  {href ? <Link href={href}>{text}</Link> : text}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {tab === "changes" && <FieldChangesTab entity="client" changes={changes} />}
+          </ViewSwitch>
+        </div>
+      </div>
     </div>
   );
 }
+
+/** Odstęp sekcji w zakładce „Powiązane". Kreska rozdzielająca — ale nie dla
+ * PIERWSZEJ widocznej sekcji, bo tuż nad nią biegnie już kreska paska
+ * zakładek i wychodziłaby z tego podwójna linia. Które sekcje się pokażą,
+ * zależy od danych (kontakty kontrolne i opinie bywają puste), więc rozstrzyga
+ * to `first:` na tym, co faktycznie trafiło do DOM-u, a nie warunek w kodzie. */
+const SEKCJA_ZAKLADKI = "mt-6 border-t hairline pt-6 first:border-t-0 first:pt-0";
 
 /** Średnia z trzech ocen jednej opinii — ta sama arytmetyka, co w
  * `GET /api/clients` (podzapytanie `avg_rating`) i w `lib/projects.ts`.

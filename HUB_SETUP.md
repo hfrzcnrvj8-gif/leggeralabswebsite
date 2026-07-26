@@ -7637,6 +7637,96 @@ teraz dopinany do tej firmy"), a nie po fakcie.
    na pusto, właściciel wskazuje następcę. Zgadywanie, kto teraz wita w mailach,
    jest gorsze niż puste powitanie („Cześć,").
 
+### Moduł 54 — Klienci, krok 6: układ boczny profilu (2026-07-26)
+
+Wzorzec ze strony rekordu w Attio: wąska kolumna atrybutów przypięta po lewej,
+cała reszta szerokości na oś czasu i powiązania. **Tylko panel** — apka ma
+telefon, na którym dwóch kolumn nie ma.
+
+Przed zmianą dane i historia były dwiema ZAKŁADKAMI, więc czytanie historii
+z danymi klienta pod ręką było niemożliwe: żeby sprawdzić numer telefonu
+w trakcie czytania osi, trzeba było przełączyć widok i wrócić.
+
+#### Co gdzie stoi
+
+| | Przed | Po |
+|---|---|---|
+| Zakładki | Wizytówka · Historia kontaktu · Logi zmian | Historia kontaktu · **Powiązane** · Logi zmian |
+| Domyślna | Wizytówka | **Historia kontaktu** |
+| Pola, źródło, osoby, notatka przypięta | zakładka Wizytówka | lewa kolumna, stale widoczna |
+| Kontakty kontrolne, opinie, dokumenty | zakładka Wizytówka | zakładka **Powiązane** |
+| Mapa procesu | dół Wizytówki | nad zakładkami, zawsze widoczna |
+| Nazwa, status, szybkie akcje, „Usuń klienta" | nad zakładkami | bez zmian |
+
+Zakładka „Wizytówka" **zniknęła** — jej treść nie ma się już gdzie chować.
+Notatka przypięta poszła do atrybutów, nie do osi: to stała prawda o kliencie
+(„płaci przelewem"), a nie wpis z datą.
+
+#### Przypięcie: sticky względem KARTY, nie okna
+
+Kontenerem przewijania jest sama karta profilu (`max-h-[85vh] overflow-y-auto`
+w `ClientDetailPanel.tsx`) — i to do niej odnosi się `sticky top-0` kolumny.
+Kolumna dostaje przy tym **własny** `overflow-y-auto` z limitem wysokości:
+bez niego atrybuty dłuższe niż ekran przypięłyby się z uciętym dołem, do
+którego nie da się już doscrollować (pola adresowe + lista osób + notatka to
+u dziś istniejącego klienta 1187 px przy 564 px miejsca).
+
+Świadomie **nie** poszliśmy w kartę o stałej wysokości z osobno przewijanymi
+kolumnami (prawdziwy układ Attio). Karta stoi w dwóch miejscach — w modalu
+z listy i na podstronie `/admin/clients/[id]` — a stała wysokość zrobiłaby
+z profilu świeżego klienta bez historii wysoki pusty prostokąt.
+
+Skutek uboczny, świadomie przyjęty: przy karcie przewiniętej na samą górę dół
+przypiętej kolumny wychodzi pod krawędź karty i wraca dopiero po pierwszym
+przewinięciu. Poprawka wymagałaby przypięcia nagłówka rekordu, czyli tej
+stałej wysokości powyżej.
+
+#### Szerokości i to, czego one NIE robią
+
+Kolumna atrybutów: 320 px od `lg`, 360 px od `xl`. Siatka pól schodzi tam do
+**jednej** kolumny — do tego dnia szła do czterech na szerokim ekranie
+(2026-07-26, razem ze zdjęciem limitu szerokości panelu). Teraz szerokość
+dostaje oś czasu, a pola stoją w słupku.
+
+Oś czasu ma limit `max-w-5xl`, powiązania nie mają żadnego. Powód:
+po zdjęciu podziału na zakładki prawa kolumna ma na monitorze właściciela
+ponad 1800 px, a oś czasu to zdania do czytania — wiersz przez cały ekran
+gubi się przy powrocie do lewej krawędzi. Powiązania to krótkie wiersze
+z linkami i limit byłby tam pustym pasem bez powodu.
+
+#### Dwie pułapki
+
+1. **`sm:grid-cols-2` mierzy OKNO, nie kontener.** Formularz osoby kontaktowej
+   (`ClientContacts.tsx`) rozbijał dwa pola na ~150 px każde, bo szeroki ekran
+   spełnia `sm:` niezależnie od tego, że komponent siedzi w 360-pikselowej
+   kolumnie. Stąd jawny przełącznik `waskaKolumna`, a nie kolejny breakpoint.
+2. **Kreska nad pierwszą sekcją zakładki „Powiązane"** dublowałaby kreskę
+   paska zakładek. Które sekcje się pokażą, zależy od danych (kontakty
+   kontrolne i opinie bywają puste), więc rozstrzyga to `first:` na tym, co
+   faktycznie trafiło do DOM-u (`SEKCJA_ZAKLADKI`), a nie warunek w kodzie.
+
+#### Profil leada poszedł za klientem (ta sama runda)
+
+Brief kroku 6 mówił o kliencie i tylko o nim, ale rozjazd zgłoszony od razu:
+dzień wcześniej wyrównywaliśmy oba profile w apce. Decyzja właściciela —
+**lead dostaje ten sam układ**. `LeadDetailPanel.tsx` jest od teraz bliźniakiem
+`ClientDetailPanel.tsx`: kolumna atrybutów, mapa procesu nad zakładkami,
+notatka przypięta przy atrybutach, limit `max-w-5xl` na osi.
+
+Trzy różnice zostają, każda z powodu:
+- **Dwie zakładki, nie trzy** (Historia kontaktu · Logi zmian) — lead nie ma
+  czego wkładać do „Powiązanych": oferty, faktury, umowy i projekty wiszą na
+  kliencie, a NDA leada jest pigułką w nagłówku (Moduł 51).
+- **Nagłówek jest bogatszy** — pod nazwą firmy siedzi osoba kontaktowa,
+  a w rzędzie statusu „Podepnij istniejącego"/„+ Utwórz klienta" i NDA.
+- **Brak listy osób kontaktowych** — u leada to wciąż jedno pole
+  (`osoba_kontaktowa`); `client_contacts` jest tabelą przy kliencie.
+
+Przy okazji lead dostał dwie rzeczy, które klient miał, a on nie: przycisk
+**„Zapisz kontakt"** w pasku akcji (przełącza na Historię i ustawia fokus na
+polu wpisu — ten sam mechanizm z odpytywaniem, bo `ViewSwitch` animuje wejście
+zakładki) i **pigułki terminów** pod „Przypomnij mi".
+
 ### Apka — profil leada wyrównany do profilu klienta (2026-07-26)
 
 Zgłoszenie właściciela po obejrzeniu obu ekranów na telefonie: Klienci powstali
