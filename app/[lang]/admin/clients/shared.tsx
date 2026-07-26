@@ -16,6 +16,9 @@ export {
   clientDaysSince,
   isClientOverdue,
   clientOverdueReason,
+  CLIENT_SORTS,
+  type ClientSort,
+  sortClients,
 } from "@/lib/clients";
 
 export {

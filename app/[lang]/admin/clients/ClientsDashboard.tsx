@@ -8,6 +8,9 @@ import {
   CLIENT_STATUSES,
   isClientOverdue,
   clientOverdueReason,
+  CLIENT_SORTS,
+  type ClientSort,
+  sortClients,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
 } from "./shared";
@@ -34,6 +37,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   // (ten sam wzorzec co w Leadach; to o tę odznakę pytał właściciel).
   const [filterKanal, setFilterKanal] = useState("");
   const [filterBranza, setFilterBranza] = useState("");
+  const [sort, setSort] = useState<ClientSort>("Alfabetycznie");
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("kanban");
   const [openClientId, setOpenClientId] = useState<string | null>(null);
@@ -231,13 +235,10 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     if (filterKanal) list = list.filter((c) => c.ostatni_kanal === filterKanal);
     if (filterBranza) list = list.filter((c) => c.branza === filterBranza);
     if (search) list = list.filter((c) => c.nazwa.toLowerCase().includes(search.toLowerCase()));
-    return [...list].sort((a, b) => {
-      const ao = isClientOverdue(a) ? 0 : 1;
-      const bo = isClientOverdue(b) ? 0 : 1;
-      if (ao !== bo) return ao - bo;
-      return a.nazwa.localeCompare(b.nazwa);
-    });
-  }, [clients, filterStatus, filterBranza, filterKanal, search]);
+    // Reguła w `lib/clients.ts` — ta sama, co w apce (bliźniak). Do 2026-07-26
+    // porządek był jeden i zaszyty tutaj: zaległe na górę, reszta alfabetycznie.
+    return sortClients(list, sort);
+  }, [clients, filterStatus, filterBranza, filterKanal, search, sort]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -351,6 +352,14 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
         >
           {() => (
             <div className="max-h-[60vh] overflow-y-auto">
+              {/* Sortowanie nad filtrami: filtr odejmuje wiersze, sortowanie
+                  decyduje, który zobaczysz pierwszy — a przy rejestrze klientów
+                  to ono odpowiada na pytanie „kto najdłużej milczy". */}
+              <MenuLabel>Sortowanie</MenuLabel>
+              {CLIENT_SORTS.map((s) => (
+                <MenuRow key={s} label={s} selected={sort === s} onClick={() => setSort(s)} />
+              ))}
+              <MenuDivider />
               <MenuLabel>Status</MenuLabel>
               <MenuRow label="Wszystkie" selected={!filterStatus} onClick={() => setFilterStatus("")} />
               {CLIENT_STATUSES.map((s) => (

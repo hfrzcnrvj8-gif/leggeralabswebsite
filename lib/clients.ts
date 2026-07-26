@@ -334,3 +334,48 @@ export function clientOverdueReason(client: Pick<Client, "next_followup" | "next
 }
 
 export { daysSince as clientDaysSince };
+
+/** Porządek listy klientów. Do 2026-07-26 był JEDEN, zaszyty w kodzie:
+ * wymagające działania na górę, reszta alfabetycznie. Alfabet odpowiada na
+ * pytanie „gdzie jest firma X", ale nie na to, które realnie się zadaje przy
+ * przeglądaniu rejestru — „kto najdłużej milczy". Przy trzech klientach to bez
+ * znaczenia, przy stu decyduje o tym, czy ktoś wypadnie z pola widzenia. */
+export const CLIENT_SORTS = ["Alfabetycznie", "Najdłużej bez kontaktu", "Wymagające działania"] as const;
+export type ClientSort = (typeof CLIENT_SORTS)[number];
+
+/** Wspólna reguła sortowania — panel i apka mają ten sam bliźniak
+ * (`SortowanieKlientow` w rdzeniu apki). Klient bez ani jednego kontaktu jest
+ * traktowany jak milczący NAJDŁUŻEJ, nie jak świeży: to o nim najłatwiej
+ * zapomnieć (ta sama zasada, co przy ciszy leada w Module 52). */
+export function sortClients<T extends Pick<Client, "nazwa" | "status" | "ostatni_kontakt" | "next_followup">>(
+  clients: T[],
+  sort: ClientSort
+): T[] {
+  const alfabetycznie = (a: T, b: T) => a.nazwa.localeCompare(b.nazwa, "pl");
+  const list = [...clients];
+
+  if (sort === "Najdłużej bez kontaktu") {
+    return list.sort((a, b) => {
+      const da = daysSince(a.ostatni_kontakt);
+      const db = daysSince(b.ostatni_kontakt);
+      // null = nigdy nie było kontaktu → na samą górę.
+      if (da === null && db === null) return alfabetycznie(a, b);
+      if (da === null) return -1;
+      if (db === null) return 1;
+      return db - da || alfabetycznie(a, b);
+    });
+  }
+
+  if (sort === "Wymagające działania") {
+    return list.sort((a, b) => {
+      const ao = isClientOverdue(a) ? 0 : 1;
+      const bo = isClientOverdue(b) ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      // W obrębie zaległych: najstarszy termin pierwszy.
+      if (ao === 0) return (a.next_followup ?? "").localeCompare(b.next_followup ?? "");
+      return alfabetycznie(a, b);
+    });
+  }
+
+  return list.sort(alfabetycznie);
+}
