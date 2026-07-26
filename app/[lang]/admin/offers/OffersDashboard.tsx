@@ -96,6 +96,10 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         return;
       }
       setOffers((prev) => prev?.filter((o) => o.id !== id) ?? prev);
+      // `total` to rozmiar rejestru po stronie serwera — bez tego ostrzeżenie
+      // o sufi­cie zapalało się po ZWYKŁYM usunięciu („widzisz 4 z 5 ofert"),
+      // choć nic się nie gubiło (zgłoszenie właściciela 2026-07-26).
+      setTotal((t) => Math.max(0, t - 1));
       toast("Oferta usunięta.");
     },
     [confirm, toast]
@@ -590,6 +594,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
             onChange={load}
             onDeleted={(id) => {
               setOffers((prev) => prev?.filter((o) => o.id !== id) ?? prev);
+              setTotal((t) => Math.max(0, t - 1));
               setOpenId(null);
             }}
           />
