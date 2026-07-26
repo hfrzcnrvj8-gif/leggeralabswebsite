@@ -8429,5 +8429,24 @@ płatności online (czekają na rejestrację).
 - **Ważność: gotowe 7 / 14 / 30 dni** liczone od dziś + podpis „wygasa za N
   dni". Datę ustawia się przy każdej ofercie i zawsze tak samo — wybieranie
   jej z koła dat było najczęstszym drobnym tarciem w module.
-- **Menu pod prawym przyciskiem** na wierszu listy (9 akcji). Wcześniej prawy
-  przycisk nie robił nic. Menu jest SKRÓTEM — widoczne przyciski zostają.
+- **Menu pod prawym przyciskiem** na wierszu listy (10 akcji). Wcześniej prawy
+  przycisk nie robił nic.
+- **„Kopiuj link dla klienta"** (profil + menu kontekstowe). Do 2026-07-27
+  adresu publicznej strony NIE dało się zdobyć inaczej niż wysyłając maila
+  z panelu: token powstawał dopiero przy wysyłce, a jedyna trasa („wygeneruj
+  nowy") UNIEWAŻNIAŁA poprzedni. Doszła akcja `ensure` w
+  `/api/share-links/:kind/:id` — oddaje link istniejący, zakłada tylko gdy go
+  nie ma.
+
+  **Szkic pod tym linkiem daje „nie znaleziono oferty"** (publiczna trasa ma
+  `status != 'Szkic'`). Pierwsza wersja tylko ostrzegała PO skopiowaniu —
+  i właściciel wkleił martwy link mimo to. Teraz panel pyta PRZED skopiowaniem
+  i po zgodzie sam ustawia „Wysłana": ręczne wysłanie linku to dokładnie to
+  samo zdarzenie co wysyłka mailem. Sprawdzone end-to-end: po potwierdzeniu
+  publiczna strona odpowiada 200.
+- **Oferty dołączyły do modułów bez limitu szerokości** (`PELNA_SZEROKOSC`
+  w `AppShell.tsx`, obok Poczty, Leadów i Klientów). Pustka po bokach nie brała
+  się z modala, tylko z globalnego `max-w-[1800px]` — modal siedzi WEWNĄTRZ
+  tego kontenera, bo animowany rodzic tworzy blok zawierający dla
+  `position: fixed`. Zmierzone na 2560 px: lista 2286 px (było 1800),
+  profil 2224 px. Menu jest SKRÓTEM — widoczne przyciski zostają.

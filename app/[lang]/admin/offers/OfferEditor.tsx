@@ -515,6 +515,20 @@ export function OfferEditor({
    * trasa („wygeneruj nowy") UNIEWAŻNIAŁA poprzedni. Kto chciał wkleić link do
    * własnej wiadomości albo na czacie, nie miał czego skopiować. */
   const copyClientLink = useCallback(async () => {
+    // Szkic NIE jest widoczny pod publicznym linkiem (patrz
+    // `app/api/offers/public/[token]` — `status != 'Szkic'`), więc skopiowanie
+    // adresu szkicu daje klientowi „nie znaleziono oferty". Pierwsza wersja
+    // tylko ostrzegała PO skopiowaniu — i właściciel i tak wkleił martwy link
+    // (zgłoszenie 2026-07-27). Teraz pytamy PRZED, a zgoda od razu zdejmuje
+    // przyczynę: status „Wysłana" znaczy dokładnie „poszła do klienta", więc
+    // ręczne wysłanie linku jest tym samym zdarzeniem co wysyłka mailem.
+    if (offer?.status === "Szkic") {
+      const ok = await confirm(
+        "Ta oferta jest szkicem, a szkiców publiczny link nie pokazuje — klient zobaczyłby „nie znaleziono oferty”. Oznaczyć ją jako wysłaną i skopiować działający link?"
+      );
+      if (!ok) return;
+      await patchOffer({ status: "Wysłana" });
+    }
     setCopyingLink(true);
     const res = await fetch(`/api/share-links/offer/${id}`, {
       method: "POST",
@@ -541,10 +555,7 @@ export function OfferEditor({
     } catch {
       await prompt("Skopiuj link ręcznie (Cmd/Ctrl+C):", { placeholder: data.url });
     }
-    if (offer?.status === "Szkic") {
-      toast("Uwaga: przy statusie „Szkic” link pokaże klientowi „nie znaleziono”. Wyślij ofertę albo zmień status.", "error");
-    }
-  }, [id, offer?.status, prompt, toast]);
+  }, [id, offer?.status, confirm, patchOffer, prompt, toast]);
 
   const generateContract = useCallback(async () => {
     setGeneratingContract(true);

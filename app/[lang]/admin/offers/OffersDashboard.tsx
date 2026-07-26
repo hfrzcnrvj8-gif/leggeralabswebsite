@@ -253,6 +253,15 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
    * w OfferEditor.tsx. */
   const copyClientLink = useCallback(
     async (o: OfferRow) => {
+      // Patrz komentarz przy `copyClientLink` w OfferEditor.tsx — szkicu
+      // publiczny link nie pokazuje, więc pytamy PRZED skopiowaniem.
+      if (o.status === "Szkic") {
+        const ok = await confirm(
+          "Ta oferta jest szkicem, a szkiców publiczny link nie pokazuje — klient zobaczyłby „nie znaleziono oferty”. Oznaczyć ją jako wysłaną i skopiować działający link?"
+        );
+        if (!ok) return;
+        await zapiszStatus(o.id, "Wysłana");
+      }
       const res = await fetch(`/api/share-links/offer/${o.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -269,12 +278,12 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       }
       try {
         await navigator.clipboard.writeText(data.url);
-        toast(o.status === "Szkic" ? "Link skopiowany — ale przy statusie „Szkic” klient zobaczy „nie znaleziono”." : "Link dla klienta skopiowany.");
+        toast("Link dla klienta skopiowany.");
       } catch {
         await prompt("Skopiuj link ręcznie (Cmd/Ctrl+C):", { placeholder: data.url });
       }
     },
-    [prompt, toast]
+    [confirm, prompt, toast, zapiszStatus]
   );
 
   const remindOffer = useCallback(
