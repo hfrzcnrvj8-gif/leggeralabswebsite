@@ -18,6 +18,7 @@ import {
   CLIENT_STATUS_STEP,
   ClientEventIcon,
   CLIENT_EVENT_TARGET,
+  clientDaysSince,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
   ContactChannelIcon,
@@ -42,7 +43,7 @@ import { CONTRACT_TYP_LABEL } from "@/lib/contracts";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
-import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
+import { todayLocalISO, addDaysLocalISO, daysAgoLabel } from "@/lib/dates";
 import { MailStatusTag, type MailStatus } from "../mail/shared";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { FieldChangesTab } from "../FieldChangesTab";
@@ -520,7 +521,15 @@ export function ClientDetailPanel({
                 <EditableText value={client.kraj} onSave={(v) => updateClient("kraj", v)} />
               </Field>
               <Field label="Ostatni kontakt">
-                <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
+                <div className="space-y-1">
+                  <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
+                  {/* Sama data wymaga liczenia w głowie — a pytanie brzmi „jak
+                      dawno", nie „którego". Tabela miała kolumnę „Dni" od
+                      dawna, karta milczała. */}
+                  {daysAgoLabel(clientDaysSince(client.ostatni_kontakt)) && (
+                    <p className="px-1 text-[11px] text-muted">{daysAgoLabel(clientDaysSince(client.ostatni_kontakt))}</p>
+                  )}
+                </div>
               </Field>
               <Field label="Przypomnij mi">
                 <div className="space-y-1.5">

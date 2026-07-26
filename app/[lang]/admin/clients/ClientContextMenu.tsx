@@ -9,10 +9,13 @@ import {
   IconMail,
   IconPhone,
   IconTrash,
+  IconBellPlus,
+  IconCheck,
 } from "@tabler/icons-react";
 import { ContextMenuItem, MenuDivider, MenuLabel } from "../Menu";
 import { useCopy } from "../ui";
-import { type Client, CLIENT_STATUSES } from "./shared";
+import { type Client, CLIENT_STATUSES, isClientOverdue } from "./shared";
+import { addDaysLocalISO, todayLocalISO } from "@/lib/dates";
 
 /**
  * Treść menu kontekstowego klienta — wspólna dla Tablicy i Tabeli (ten sam
@@ -43,6 +46,33 @@ export function ClientMenuItems({
 
   return (
     <>
+      {/* Parytet z menu przytrzymania w apce (2026-07-26). „Obsłużone" gasi
+          przypomnienie i stawia dzisiejszy kontakt — świadomie NIE rusza
+          statusu relacji, w odróżnieniu od leadów: u klienta status to długa
+          oś, której jedna rozmowa nie przesuwa. */}
+      {isClientOverdue(client) && (
+        <ContextMenuItem
+          icon={<IconCheck size={14} />}
+          label="Oznacz jako obsłużone"
+          onClick={() =>
+            run(() => {
+              onUpdate(client.id, "next_followup", "");
+              onUpdate(client.id, "ostatni_kontakt", todayLocalISO());
+            })
+          }
+        />
+      )}
+      <ContextMenuItem
+        icon={<IconBellPlus size={14} />}
+        label="Przypomnij za tydzień"
+        onClick={() =>
+          run(() => {
+            onUpdate(client.id, "next_followup", addDaysLocalISO(7));
+            onUpdate(client.id, "next_action", "wrócić do rozmowy");
+          })
+        }
+      />
+      <MenuDivider />
       <ContextMenuItem icon={<IconArrowUpRight size={14} />} label="Otwórz" onClick={() => run(() => onOpen(client.id))} />
       <ContextMenuItem
         icon={<IconExternalLink size={14} />}

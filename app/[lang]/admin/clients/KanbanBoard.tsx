@@ -165,6 +165,12 @@ export function KanbanBoard({
                       ✕
                     </button>
                   </div>
+                  {/* Osoba kontaktowa na kafelku (2026-07-26) — tabela i apka
+                      pokazywały ją od dawna, tablica nie, mimo że to ta sama
+                      karta ma przypominać, z KIM się rozmawia. */}
+                  {client.osoba_kontaktowa && (
+                    <p className="mt-0.5 truncate text-[11.5px] text-muted">{client.osoba_kontaktowa}</p>
+                  )}
                   {(client.branza || client.avg_rating != null) && (
                     <div className="flex items-center gap-1.5 text-[11px] text-muted">
                       {client.branza && <span>{client.branza}</span>}
