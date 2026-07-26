@@ -7636,3 +7636,58 @@ teraz dopinany do tej firmy"), a nie po fakcie.
 3. **Usunięcie osoby głównej NIE przenosi roli na kogoś innego.** Migawka idzie
    na pusto, właściciel wskazuje następcę. Zgadywanie, kto teraz wita w mailach,
    jest gorsze niż puste powitanie („Cześć,").
+
+### Apka — profil leada wyrównany do profilu klienta (2026-07-26)
+
+Zgłoszenie właściciela po obejrzeniu obu ekranów na telefonie: Klienci powstali
+później i dostali inny układ profilu niż Leady. Decyzja: **wzorcem jest
+klient**, lead się do niego dostraja. Zmiana dotyczy WYŁĄCZNIE apki — panel
+webowy miał oba profile spójne od początku (te same trzy zakładki, ta sama
+kolejność).
+
+Sześć rozjazdów, każdy naprawiony w stronę Klientów:
+
+| Element | Lead przed | Po |
+|---|---|---|
+| Kolejność zakładek | Wizytówka · Historia · **Logi · Akcje** | Wizytówka · Historia · **Akcje · Logi** |
+| Szybki kontakt | schowany w zakładce „Akcje" | pasek ikon pod nazwą, nad zakładkami |
+| Przypomnienie | brak — tylko do odczytu | sekcja „Następny krok" + pigułki terminów |
+| Status | `Picker(.menu)` w szklanej kapsule | rząd pigułek |
+| Usuwanie | nagłówek „Strefa nieodwracalna" | goły czerwony przycisk na końcu |
+| Prawa kolumna iPada | brak własnego nagłówka | `NaglowekKolumnyIpad` (nazwa + „Edytuj") |
+
+Najcięższy jest trzeci. Leady **mają** `next_followup` — to jedyne pole
+zapalające „wymaga działania dziś" — a z telefonu dało się je ustawić wyłącznie
+przez formularz edycji. Decyzja „wrócić za tydzień" zapada zaraz po rozmowie,
+czyli z telefonem w ręku.
+
+Szósty dotyczył iPada: `LeadyPanelIpad` renderował `LeadDetailView` bez flagi
+`wKolumnieIpada`, więc prawa kolumna zaczynała się od pigułki statusu wiszącej
+w powietrzu — nazwy leada nie było widać nigdzie, a systemowy pasek dorysowywał
+u dołu ekranu widmo nagłówka. Klienci mieli to naprawione od Fazy 9.
+
+#### Wspólne klocki wyprowadzone z `KlientDetailView`
+
+`TerminySkrotow`, `PigulkaTerminu`, `PigulkaStatusu` i `PrzyciskAkcjiProfilu`
+(dawniej `PrzyciskAkcjiKlienta`) były `private` w profilu klienta. Przeniesione
+do `WierszeProfilu.swift` — jeden wygląd, jedno miejsce.
+
+Doszedł `PigulkiStatusuZawijane` + `UkladZawijany` (własny `Layout`): statusów
+leada jest osiem i mają długie nazwy, więc jeden rząd chował ostatnie za
+krawędzią — a status, o którego istnieniu nie wiesz, to status, którego nie
+ustawisz. Świadomie NIE `LazyVGrid`: siatka rozdziela pigułki na równe kolumny,
+więc „Nowe" dostawałoby tyle samo miejsca, co „Czeka na odpowiedź". Klient
+używa tego samego komponentu, mimo że jego cztery krótkie nazwy mieszczą się
+w linii — dwa prawie identyczne rzędy pigułek to dwa miejsca do rozjechania.
+
+#### Trzeci raz ta sama pułapka: `IkonaAkcji` ignoruje `foregroundStyle`
+
+Dzwonek przy przypomnieniu (`IkonaAkcji(nazwa: "bell.fill")`) świecił złotem
+także wtedy, gdy termin JESZCZE nie minął — bo `IkonaAkcji` podstawia gotowy
+obrazek z gradientem marki i styl widoku go omija. Kolor miał tu coś znaczyć.
+Naprawione w OBU profilach na `Image(systemName:)`.
+
+To ten sam błąd, co przy gwiazdce osoby głównej (krok 4) i przy koszu
+w „Usuń klienta". **Reguła: gdziekolwiek kolor ikony ma NIEŚĆ ZNACZENIE,
+`IkonaAkcji` jest złym wyborem** — nadaje się tylko tam, gdzie ikona ma po
+prostu być w barwach marki.
