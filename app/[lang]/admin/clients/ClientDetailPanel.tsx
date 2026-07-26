@@ -14,6 +14,7 @@ import {
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
+  type ClientContact,
   CLIENT_STATUS_HINT,
   CLIENT_STATUS_STEP,
   ClientEventIcon,
@@ -50,6 +51,7 @@ import { todayLocalISO, addDaysLocalISO, daysAgoLabel } from "@/lib/dates";
 import { MailStatusTag, type MailStatus } from "../mail/shared";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { FieldChangesTab } from "../FieldChangesTab";
+import { ClientContacts } from "./ClientContacts";
 import type { FieldChange } from "@/lib/audit";
 
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
@@ -151,6 +153,7 @@ export function ClientDetailPanel({
   const [contracts, setContracts] = useState<LinkedContract[]>([]);
   const [mail, setMail] = useState<ClientMail[]>([]);
   const [followups, setFollowups] = useState<ClientFollowupItem[]>([]);
+  const [contacts, setContacts] = useState<ClientContact[]>([]);
   const [creatingDoc, setCreatingDoc] = useState<"offers" | "invoices" | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const [focusNote, setFocusNote] = useState(false);
@@ -186,6 +189,7 @@ export function ClientDetailPanel({
       contracts: LinkedContract[];
       mail: ClientMail[];
       followups: ClientFollowupItem[];
+      contacts: ClientContact[];
     };
     setClient(data.client);
     setFeed(data.feed);
@@ -195,6 +199,7 @@ export function ClientDetailPanel({
     setContracts(data.contracts ?? []);
     setMail(data.mail ?? []);
     setFollowups(data.followups ?? []);
+    setContacts(data.contacts ?? []);
     setNoteFollowup(data.client.next_followup ?? "");
     setNoteAction(data.client.next_action ?? "");
   }, [id]);
@@ -487,12 +492,11 @@ export function ClientDetailPanel({
                 ekranu. Puste pasy po bokach zamieniłyby się w puste pasy
                 wewnątrz pól. */}
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {/* Osoba kontaktowa — do 2026-07-26 karta jej nie pokazywała ani
-                  nie pozwalała poprawić, mimo że to ona wita adresata w mailu
-                  retencyjnym (`buildNurtureMessage`). */}
-              <Field label="Osoba kontaktowa">
-                <EditableText value={client.osoba_kontaktowa} onSave={(v) => updateClient("osoba_kontaktowa", v)} />
-              </Field>
+              {/* Pojedyncze pole „Osoba kontaktowa" zastąpione LISTĄ osób
+                  (Moduł 54, krok 4) — sekcja pod siatką pól. Kolumna
+                  `osoba_kontaktowa` została w bazie jako migawka osoby głównej
+                  i serwer przepisuje ją sam, więc tutaj nie ma już czego
+                  edytować. */}
               <Field label="NIP">
                 <EditableText value={client.nip} onSave={(v) => updateClient("nip", v)} />
               </Field>
@@ -595,6 +599,15 @@ export function ClientDetailPanel({
                   <EditableText value={client.zrodlo} onSave={(v) => updateClient("zrodlo", v)} />
                 </div>
               </div>
+            </div>
+
+            {/* Osoby kontaktowe (Moduł 54, krok 4) — zaraz pod danymi firmy,
+                nad kontaktami kontrolnymi: to odpowiedź na pytanie „z kim
+                rozmawiam", które pada wcześniej niż „kiedy do nich wrócić".
+                `load` zamiast samego przeładowania listy, bo zmiana osoby
+                głównej przepisuje migawkę na kliencie. */}
+            <div className="mt-6 border-t hairline pt-6">
+              <ClientContacts clientId={id} contacts={contacts} onChanged={load} />
             </div>
 
             {followups.length > 0 && (

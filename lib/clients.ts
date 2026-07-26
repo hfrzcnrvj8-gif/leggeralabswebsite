@@ -60,6 +60,42 @@ export type Client = {
   avg_rating: number | null;
 };
 
+/** Osoba kontaktowa przy firmie (Moduł 54, krok 4).
+ *
+ * Lista tych rekordów zastępuje w interfejsie pojedyncze pole
+ * `Client.osoba_kontaktowa`, ale samo pole zostaje jako **migawka osoby
+ * głównej** — czyta je dwanaście miejsc w panelu i apce. Zapis osoby głównej
+ * przepisuje jej imię do tamtej kolumny.
+ *
+ * `email` osoby wchodzi do dopasowania przychodzącej poczty
+ * (`findContactsByEmail`, decyzja właściciela 2026-07-26): mail od Anny wpada
+ * do firmy sam, ale dopasowanie zostaje deterministyczne — równość adresu,
+ * nigdy zgadywanie z treści. */
+export type ClientContact = {
+  id: string;
+  client_id: string;
+  imie: string;
+  /** Stanowisko/rola — wolny tekst („prezes", „księgowość", „IT"). */
+  rola: string;
+  telefon: string;
+  email: string;
+  /** Czym się ta osoba zajmuje, o czym pamiętać — jedno zdanie, nie CRM. */
+  notatka: string;
+  /** Osoba główna. Baza pilnuje, że jest ich najwyżej jedna na klienta
+   * (`client_contacts_glowna_idx`). */
+  glowna: boolean;
+  created_at: string;
+};
+
+/** Kim jest ta osoba w jednej linijce — do wiersza listy i podpisu w apce.
+ * Rola bywa pusta (osoby zasiane z dawnego pola jej nie mają). */
+export function clientContactLine(c: Pick<ClientContact, "imie" | "rola">): string {
+  const imie = c.imie.trim();
+  const rola = c.rola.trim();
+  if (!imie) return rola;
+  return rola ? `${imie} — ${rola}` : imie;
+}
+
 export type ClientActivity = {
   id: string;
   client_id: string;

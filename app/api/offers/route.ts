@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { zasiejOsobeZMigawki } from "@/lib/clientContacts";
 
 export const runtime = "nodejs";
 
@@ -90,6 +91,8 @@ export async function POST(req: NextRequest) {
       `;
       await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${leadId};`;
       await logClientEvent(sql, clientId, "client_created", "Awansował z leada przy tworzeniu pierwszej oferty");
+      // Patrz `zasiejOsobeZMigawki` (Moduł 54, krok 4).
+      await zasiejOsobeZMigawki(sql, clientId, String(lead.osoba_kontaktowa ?? ""));
     }
   }
 

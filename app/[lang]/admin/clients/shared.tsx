@@ -5,6 +5,8 @@
 export {
   type Client,
   type ClientActivity,
+  type ClientContact,
+  clientContactLine,
   type ClientEvent,
   type ClientStatus,
   CLIENT_STATUSES,

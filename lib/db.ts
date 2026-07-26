@@ -1460,6 +1460,59 @@ async function createClientsSchema(): Promise<void> {
   // powodem, dla którego wcześniej odrzuciliśmy sztywny próg ciszy u klientów.
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS rytm_kontaktu_mies INTEGER;`;
 
+  // Osoby kontaktowe przy firmie (Moduł 54, krok 4, 2026-07-26).
+  //
+  // Lista ZASTĘPUJE pole `clients.osoba_kontaktowa` w interfejsie, ale samo
+  // pole ZOSTAJE jako migawka osoby głównej — czyta je dwanaście miejsc w
+  // panelu i apce (powitanie w mailu retencyjnym, wiersz listy, wyszukiwarka,
+  // eksport CSV, wiadomości projektowe), a przepisywanie wszystkich naraz to
+  // prosta droga do cichego błędu. Zapis osoby głównej przepisuje jej imię do
+  // tej kolumny — patrz `api/clients/[id]/contacts`.
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_contacts (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      imie TEXT NOT NULL DEFAULT '',
+      rola TEXT NOT NULL DEFAULT '',
+      telefon TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      notatka TEXT NOT NULL DEFAULT '',
+      glowna BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_contacts_client_id_idx ON client_contacts(client_id);`;
+  // Dopasowanie poczty po adresie osoby (`findContactsByEmail`) idzie po tej
+  // kolumnie przy każdej przychodzącej wiadomości.
+  await sql`CREATE INDEX IF NOT EXISTS client_contacts_email_idx ON client_contacts(LOWER(TRIM(email)));`;
+  // Osoba główna może być TYLKO jedna — inaczej migawka w
+  // `clients.osoba_kontaktowa` przestaje wiedzieć, którą osobę przepisać, a to
+  // ona wita adresata w mailu. Indeks częściowy zamiast pilnowania w kodzie:
+  // dróg zapisu jest kilka, a baza nie zapomina.
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS client_contacts_glowna_idx
+    ON client_contacts(client_id) WHERE glowna;
+  `;
+
+  // Zasianie listy z dzisiejszego pola. Bez tego klient, który OSOBĘ MA,
+  // pokazałby pustą listę osób — lista kłamiąca pustką (ustalenie A1).
+  //
+  // Idempotentne przez `NOT EXISTS`: sieje tylko tam, gdzie jeszcze nikogo nie
+  // ma, więc kolejne wdrożenie nie zrobi duplikatu ani nie cofnie zmian
+  // wprowadzonych ręcznie. `inMigration()` jest OBOWIĄZKOWE — to zapytanie
+  // nie-DDL wewnątrz migracji, a filtr `isDDL()` w dev-db.ts łapie tylko
+  // CREATE/ALTER/DROP; bez tego dev zakleszcza seeder i wszystkie /api/* wiszą.
+  await inMigration(
+    () => sql`
+      INSERT INTO client_contacts (id, client_id, imie, telefon, email, glowna)
+      SELECT md5(c.id || ':osoba-glowna'), c.id, c.osoba_kontaktowa, c.telefon, c.email, true
+      FROM clients c
+      WHERE TRIM(c.osoba_kontaktowa) <> ''
+        AND NOT EXISTS (SELECT 1 FROM client_contacts k WHERE k.client_id = c.id);
+    `
+  );
+
   await markSchemaApplied("clients");
 }
 

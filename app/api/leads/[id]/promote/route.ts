@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { zasiejOsobeZMigawki } from "@/lib/clientContacts";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   `;
   await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${id};`;
   await logClientEvent(sql, clientId, "client_created", "Ręcznie utworzony z leada");
+  // Patrz `zasiejOsobeZMigawki` — cztery drogi tworzą klienta, każda musi
+  // założyć pierwszą osobę, bo każda przepisuje jej imię z leada.
+  await zasiejOsobeZMigawki(sql, clientId, String(lead.osoba_kontaktowa ?? ""));
 
   return NextResponse.json({ ok: true, id: clientId });
 }

@@ -6,6 +6,7 @@ import { mailSummaryLine, type MailMessage } from "@/lib/mail";
 import { findContactsByEmail } from "@/lib/contactLookup";
 import { logMailOnTimeline } from "@/lib/mailSync";
 import { todayLocalISO } from "@/lib/dates";
+import { zasiejOsobeZMigawki } from "@/lib/clientContacts";
 
 export const runtime = "nodejs";
 
@@ -82,6 +83,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Oś czasu klienta zaczyna się od momentu jego powstania — ten sam wzorzec
   // co przy awansie leada (patrz app/api/leads/[id]/promote).
   await logClientEvent(sql, clientId, "client_created", `Klient utworzony z wiadomości e-mail od ${mail.from_addr}`);
+  // Patrz `zasiejOsobeZMigawki` (Moduł 54, krok 4) — nadawca maila trafia do
+  // migawki, więc musi też trafić na listę osób.
+  await zasiejOsobeZMigawki(sql, clientId, mail.from_name);
 
   await sql`UPDATE mail_messages SET client_id = ${clientId} WHERE id = ${id};`;
 

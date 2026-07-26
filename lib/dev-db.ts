@@ -429,6 +429,21 @@ async function ensureSeeded(): Promise<void> {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [clientA, "Nordwind Studio", "5261234567", "Anna Nowak", "anna@nordwind.pl", "601202303", "Aktywny", iso(-3), "whatsapp", "Polecenie", "polecił Marek Kowalski"]
       );
+      // Osoby kontaktowe (Moduł 54, krok 4). Seed idzie PO migracjach, więc
+      // jednorazowy zasiew z `createClientsSchema` nie miał tu czego znaleźć —
+      // a dev bez ani jednej osoby pokazywałby pustą sekcję i niczego nie
+      // dowodził. Dwie osoby, żeby widać było też przełączanie głównej.
+      await raw(
+        `INSERT INTO client_contacts (id, client_id, imie, rola, telefon, email, notatka, glowna)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8), ($9,$2,$10,$11,$12,$13,$14,$15)`,
+        [
+          `${clientA}-osoba-1`, clientA, "Anna Nowak", "właścicielka", "601202303", "anna@nordwind.pl",
+          "Decyduje o budżecie, woli WhatsAppa niż mail.", true,
+          `${clientA}-osoba-2`, "Marek Zieliński", "księgowość", "223003040", "ksiegowosc@nordwind.pl",
+          "Do faktur i płatności.", false,
+        ]
+      );
+
       // Moduł 31 — dopięcie umowy do klienta, dopiero teraz, bo klient
       // powstaje po niej. Dzięki temu sekcja „Umowy i NDA" na karcie klienta
       // też ma co pokazać w dev.

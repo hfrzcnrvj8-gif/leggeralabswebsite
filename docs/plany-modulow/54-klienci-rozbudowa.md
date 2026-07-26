@@ -22,8 +22,9 @@ zatwierdzonej kolejności.
 2. ~~Szukanie po treści historii~~ ✅ wykonane
 3. ~~Sufity techniczne~~ ✅ wykonane (2026-07-26) — szczegóły i **dwie decyzje
    odbiegające od tego briefu** w `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 3"
-4. **Wiele osób kontaktowych przy firmie** ← następne
-5. **Pliki przy kliencie (NAS)**
+4. ~~Wiele osób kontaktowych przy firmie~~ ✅ wykonane (2026-07-26) —
+   `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 4"
+5. **Pliki przy kliencie (NAS)** ← następne
 6. **Układ boczny profilu (atrybuty | oś czasu)** — najniższy priorytet
 
 ---
@@ -73,7 +74,13 @@ dokumentach.
 
 ---
 
-## Krok 4 — Wiele osób kontaktowych przy firmie
+## Krok 4 — Wiele osób kontaktowych przy firmie ✅ WYKONANE 2026-07-26
+
+> **Rozstrzygnięcie pułapki z końca tej sekcji:** właściciel wybrał, żeby adresy
+> osób weszły do `findContactsByEmail` jako TRZECIE źródło (obok aliasów
+> i adresu firmowego). Tabela aliasów została nietknięta. Szczegóły i to, czego
+> ten brief nie przewidział (cztery drogi tworzenia klienta, każda z własną
+> migawką), w `HUB_SETUP.md` → „Moduł 54 — Klienci, krok 4".
 
 **Decyzja właściciela: lista osób ZASTĘPUJE dzisiejsze pole**, ale
 `clients.osoba_kontaktowa` **zostaje jako migawka osoby głównej**.

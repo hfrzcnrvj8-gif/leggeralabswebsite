@@ -5,6 +5,7 @@ import { isPlausibleDateString } from "@/lib/projects";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
+import { osobyKlienta } from "@/lib/clientContacts";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // jego projektów (bramka w api/projects/[id]).
   await ensureContractsSchema();
   await ensureFollowupsSchema();
-  const [clientActivity, leadActivity, events, offers, invoices, projects, contracts, mail, followups] = await Promise.all([
+  const [clientActivity, leadActivity, events, offers, invoices, projects, contracts, mail, followups, contacts] = await Promise.all([
     sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
     leadId
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
@@ -69,6 +70,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     // „kiedy mam do niego wrócić" ani odwołać kontaktu, mimo że to jedyny
     // mechanizm domykający pętlę retencji.
     sql`SELECT id, project_id, due_date, powod, done_at, created_at FROM client_followups WHERE client_id = ${id} ORDER BY due_date ASC;`,
+    // Osoby kontaktowe (Moduł 54, krok 4) — razem z profilem, nie osobnym
+    // żądaniem: to kilka wierszy, które karta pokazuje ZAWSZE, w odróżnieniu
+    // od logu zmian (osobny endpoint, bo zwykle nikt go nie otwiera).
+    osobyKlienta(sql, id),
   ]);
   // Audyt zmian (Moduł 23) świadomie NIE jest tutaj — ma własny endpoint
   // `/changes`, dociągany dopiero po otwarciu zakładki. Dwa powody: profil nie
@@ -125,7 +130,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail, followups });
+  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail, followups, contacts });
 }
 
 /** PATCH /api/clients/:id — aktualizacja pól karty klienta. */
@@ -196,15 +201,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     applied.www = str(body.www, 200);
     await sql`UPDATE clients SET www = ${applied.www}, updated_at = now() WHERE id = ${id};`;
   }
-  // Osoba kontaktowa — edytowalna od 2026-07-26 (audyt Klientów). Wcześniej
-  // dało się ją wyłącznie odziedziczyć po leadzie: PATCH jej nie znał, karta
-  // klienta jej nie pokazywała, a formularz w apce po cichu ją wyrzucał.
-  // Tymczasem pole realnie pracuje — wita adresata w mailu retencyjnym
-  // (`buildNurtureMessage`), stoi w wierszu listy i wchodzi do wyszukiwarki.
-  if ("osoba_kontaktowa" in body) {
-    applied.osoba_kontaktowa = str(body.osoba_kontaktowa, 200);
-    await sql`UPDATE clients SET osoba_kontaktowa = ${applied.osoba_kontaktowa}, updated_at = now() WHERE id = ${id};`;
-  }
+  // `osoba_kontaktowa` świadomie NIE jest tu przyjmowana (Moduł 54, krok 4).
+  //
+  // Od listy osób kontaktowych ta kolumna jest MIGAWKĄ osoby głównej, liczoną
+  // przez `synchronizujMigawke` w `lib/clientContacts.ts`. Drugi pisarz
+  // rozjechałby ją z listą: wizytówka pokazywałaby gwiazdkę przy jednej
+  // osobie, a wiersz listy i powitanie w mailu — imię innej, aż do najbliższej
+  // zmiany osób, która po cichu skasowałaby ręczny wpis. Osobę zmienia się
+  // przez `/api/clients/:id/contacts`.
+  //
+  // Krótko (2026-07-26, ten sam dzień) pole BYŁO tu przyjmowane — dołożone
+  // w audycie Klientów, gdy jeszcze było jedynym nośnikiem tej informacji.
   // Źródło — edytowalne od 2026-07-26, druga runda audytu Klientów. Pierwsza
   // zostawiła je tylko do odczytu („migawka z chwili awansu z leada"), co dało
   // asymetrię nie do obronienia: lead ma picker do poprawienia kategorii,

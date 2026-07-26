@@ -54,7 +54,23 @@ export async function findContactsByPhone(telefon: string): Promise<ContactMatch
  * (mail_address_links) — adres, który właściciel raz ręcznie przypiął w
  * panelu. Aliasy idą pierwsze: to jawna decyzja człowieka, a nie zbieżność
  * adresów. Dopasowanie zostaje w 100% deterministyczne (równość
- * znormalizowanego adresu), tylko źródeł prawdy jest teraz dwa. */
+ * znormalizowanego adresu), tylko źródeł prawdy jest teraz dwa.
+ *
+ * Moduł 54 (2026-07-26, decyzja właściciela): źródeł jest TRZY — doszły adresy
+ * OSÓB KONTAKTOWYCH przy kliencie (`client_contacts`). Mail od Anny z księgowości
+ * dopina się do jej firmy sam, zamiast czekać w „Nieprzypisanych" na ręczny ruch
+ * przy każdym nowym adresie. Reguła się nie zmienia — dalej równość adresu, nigdy
+ * czytanie treści — a osoba trafia do kartoteki wyłącznie dlatego, że właściciel
+ * ją tam wpisał.
+ *
+ * Tabela aliasów została świadomie NIETKNIĘTA: alias dalej powstaje wyłącznie
+ * z jawnej decyzji przy konkretnym mailu (patrz `rememberAddressLink`). To dwa
+ * różne rejestry — „kto jest kim w firmie" i „ten adres przypiąłem ręcznie" —
+ * i mieszanie ich zabrałoby możliwość odróżnienia jednego od drugiego.
+ *
+ * Kolejność: aliasy → adres FIRMOWY klienta → osoby kontaktowe → leady. Adres
+ * firmowy przed osobą, bo gdy oba wskazują na różne rekordy, to firma jest
+ * relacją, a osoba tylko drogą do niej. */
 export async function findContactsByEmail(email: string): Promise<ContactMatch[]> {
   const target = normalizeEmail(email);
   if (!target.includes("@")) return [];
@@ -67,13 +83,22 @@ export async function findContactsByEmail(email: string): Promise<ContactMatch[]
   // Porównanie i filtr po stronie SQL (LOWER + TRIM) — adresów jest tyle co
   // leadów/klientów, więc nie ma po co ciągnąć całej tabeli do Node'a jak
   // przy telefonach (tam wymusza to dopasowanie po ostatnich 9 cyfrach).
-  const [leads, clients, aliases] = await Promise.all([
+  const [leads, clients, osoby, aliases] = await Promise.all([
     sql`SELECT id, firma AS nazwa FROM leads WHERE LOWER(TRIM(email)) = ${target};` as unknown as Promise<
       { id: string; nazwa: string }[]
     >,
     sql`SELECT id, nazwa FROM clients WHERE LOWER(TRIM(email)) = ${target};` as unknown as Promise<
       { id: string; nazwa: string }[]
     >,
+    // Osoba wskazuje na SWOJĄ FIRMĘ, nie na siebie: `ContactMatch` opisuje
+    // rekord, do którego przypina się mail, a osoba nie jest osobnym bytem
+    // w kartotece — jest polem klienta.
+    sql`
+      SELECT c.id, c.nazwa
+      FROM client_contacts k
+      JOIN clients c ON c.id = k.client_id
+      WHERE LOWER(TRIM(k.email)) = ${target};
+    ` as unknown as Promise<{ id: string; nazwa: string }[]>,
     sql`
       SELECT a.client_id, a.lead_id, c.nazwa AS client_nazwa, l.firma AS lead_nazwa
       FROM mail_address_links a
@@ -94,6 +119,7 @@ export async function findContactsByEmail(email: string): Promise<ContactMatch[]
   const all = [
     ...fromAliases,
     ...clients.map((c) => ({ type: "client" as const, id: c.id, nazwa: c.nazwa })),
+    ...osoby.map((c) => ({ type: "client" as const, id: c.id, nazwa: c.nazwa })),
     ...leads.map((l) => ({ type: "lead" as const, id: l.id, nazwa: l.nazwa })),
   ];
 

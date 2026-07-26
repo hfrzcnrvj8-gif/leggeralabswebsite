@@ -7555,3 +7555,84 @@ pokazuje długość pełnej listy, a faktura bez przypisanego klienta jest norma
 Dla umów `tytul` jedzie surowo (`"umowa"`/`"nda"`) — etykietę robi
 `PowiazanyDokumentKlienta.Rodzaj.tytul(_:)` w apce, żeby reguła nazewnicza
 została w jednym miejscu, a nie rozjechała się między SQL-em a Swiftem.
+
+### Moduł 54 — Klienci, krok 4: wiele osób kontaktowych (2026-07-26)
+
+Lista osób przy firmie zastąpiła pojedyncze pole „Osoba kontaktowa" na
+wizytówce — w panelu i w apce. Tabela `client_contacts` (imię, rola, telefon,
+e-mail, notatka, `glowna`), CRUD pod `/api/clients/:id/contacts`.
+
+#### Migawka: co zostało i dlaczego
+
+`clients.osoba_kontaktowa` **zostaje w bazie** jako migawka osoby głównej —
+decyzja właściciela z briefu. Powód jest policzalny: to pole czyta **dwanaście**
+miejsc w obu repo (powitanie w `buildNurtureMessage`, `buildOnboardingWelcomeMessage`
+i `buildProjectClosingSummary`, wiersz listy w panelu i w apce, wyszukiwarka
+globalna, eksport CSV, podpis pod projektem w `ProjektDetailView`, picker
+powiązania wydarzenia). Przepisywanie ich wszystkich naraz to prosta droga do
+cichego błędu.
+
+**Migawka ma dokładnie JEDNEGO pisarza:** `synchronizujMigawke`
+w `lib/clientContacts.ts`, wołane po każdej zmianie listy osób. Przy tej okazji
+odebrano prawo zapisu dwóm miejscom, które ją dotąd ustawiały wprost:
+- gałąź `osoba_kontaktowa` w `PATCH /api/clients/:id` — usunięta;
+- pole „Osoba kontaktowa" w `EdycjaKlientaView.swift` (apka) — usunięte.
+
+Bez tego wizytówka pokazywałaby gwiazdkę przy jednej osobie, a wiersz listy
+i mail witałyby imieniem innej — aż do najbliższej zmiany osób, która po cichu
+skasowałaby ręczny wpis.
+
+#### Zasiew: migracja to za mało
+
+Jednorazowy `INSERT ... SELECT` w `createClientsSchema` (owinięty w
+`inMigration()` — to zapytanie nie-DDL, patrz „Zapytanie nie-DDL wewnątrz
+migracji") zasiewa osoby dla klientów sprzed wdrożenia.
+
+To załatwia tylko przeszłość. **Klienta tworzy CZTERY drogi** — `api/clients`
+POST, `leads/[id]/promote`, `api/offers` POST i `mail/[id]/create-client` —
+i każda z nich przepisuje imię osoby (z leada albo z nagłówka maila) wprost do
+migawki, nic nie wiedząc o liście osób. Bez tego klient założony PO wdrożeniu
+miałby imię w kolumnie i pustą listę: „lista, która kłamie pustką" w normalnym
+przepływie, nie w przypadku brzegowym. Dlatego wszystkie cztery wołają
+`zasiejOsobeZMigawki` (idempotentne, ciche przy błędzie).
+
+Dev-seed (`lib/dev-db.ts`) dostał osoby jawnie: seeder idzie PO migracjach, więc
+jednorazowy zasiew nie ma tam czego znaleźć.
+
+#### Poczta: trzecie źródło dopasowania (decyzja właściciela)
+
+`findContactsByEmail` sprawdza teraz TRZY źródła zamiast dwóch: aliasy
+(`mail_address_links`, Moduł 22) → adres FIRMOWY klienta → **adresy osób
+kontaktowych** → leady. Mail od Anny z księgowości dopina się do jej firmy sam.
+
+Reguła się nie zmienia — dalej równość znormalizowanego adresu, nigdy czytanie
+treści. Tabela aliasów została **nietknięta**: alias dalej powstaje wyłącznie
+z jawnej decyzji przy konkretnym mailu (`rememberAddressLink`). To dwa różne
+rejestry — „kto jest kim w firmie" i „ten adres przypiąłem ręcznie" — i zlanie
+ich odebrałoby możliwość odróżnienia jednego od drugiego.
+
+Kolejność ma znaczenie, bo `mail/sync` bierze PIERWSZE trafienie: adres firmowy
+przed osobą, bo gdy oba wskazują na różne rekordy, firma jest relacją, a osoba
+tylko drogą do niej.
+
+Zapis adresu osoby woła `rematchUnassigned()` — tak samo jak zapis adresu
+firmowego. Sprawdzone na żywo: dwa maile z prywatnej skrzynki Anny, wiszące
+w „Nieprzypisanych", trafiły do Nordwind Studio w chwili wpisania jej adresu.
+Formularz mówi o tym WPROST w chwili wpisywania („Mail z tego adresu będzie od
+teraz dopinany do tej firmy"), a nie po fakcie.
+
+#### Pułapki, które wyszły przy robocie
+
+1. **Osoba główna może być tylko jedna** — pilnuje tego częściowy indeks
+   `client_contacts_glowna_idx ON client_contacts(client_id) WHERE glowna`,
+   a nie kod. Dlatego każda ścieżka ustawiająca główną najpierw woła
+   `odbierzPozostalymGlowna`: bez tego przełączenie kończyłoby się BŁĘDEM
+   zapisu zamiast przełączeniem.
+2. **`IkonaAkcji` ignoruje `foregroundStyle`** — renderuje gotowy obrazek
+   z gradientem marki. Gwiazdka osoby NIEgłównej świeciła przez to tym samym
+   złotem, co głównej, i cała różnica ginęła (widać na zrzucie). W wierszu listy
+   ma być `Image(systemName:)`; reguła paska obowiązuje też tutaj — gradient
+   wyłącznie na akcji głównej.
+3. **Usunięcie osoby głównej NIE przenosi roli na kogoś innego.** Migawka idzie
+   na pusto, właściciel wskazuje następcę. Zgadywanie, kto teraz wita w mailach,
+   jest gorsze niż puste powitanie („Cześć,").

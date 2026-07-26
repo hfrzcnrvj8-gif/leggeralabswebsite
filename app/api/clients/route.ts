@@ -4,6 +4,7 @@ import { getSql, ensureClientsSchema, ensureHubSchema, logClientEvent } from "@/
 import { isAuthed } from "@/lib/auth";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
+import { zasiejOsobeZMigawki } from "@/lib/clientContacts";
 
 export const runtime = "nodejs";
 
@@ -142,6 +143,9 @@ export async function POST(req: NextRequest) {
     "client_created",
     leadId ? "Utworzony z leada" : "Dodany ręcznie do rejestru klientów"
   );
+  // Lista osób startuje od tej, którą właśnie przepisaliśmy do migawki
+  // (Moduł 54, krok 4) — inaczej klient miałby imię w kolumnie i pustą listę.
+  await zasiejOsobeZMigawki(sql, id, osobaKontaktowa);
 
   // Klient dostał adres — dopnij mu od razu korespondencję, która przyszła
   // zanim istniał (04d pkt 1), zamiast czekać na kolejny sync poczty.
