@@ -7745,6 +7745,36 @@ Nagłówki grup wewnątrz „Powiązanych" (`LinkedGroup`: Oferty, Faktury…) s
 kapitaliki: nosi je teraz nagłówek sekcji tuż wyżej, a dwa poziomy hierarchii
 w jednym stylu czytają się jak jeden.
 
+#### Runda druga — rytm wiersza („nadal koślawo")
+
+Sekcje same nie wystarczyły. Właściciel: „jest lepiej, ale nadal jakoś koślawo".
+Rozstrzygnął POMIAR, nie oko — wysokości wierszy w kolumnie atrybutów wynosiły
+**41, 42, 42, 42, 64, 110, 44, 41, 42, 70, 41 px**. Każdy wiersz z osobna był
+poprawny; słupek, w którym rytm skacze o 70 px, czyta się jak krzywy stół.
+
+Cztery przyczyny i cztery poprawki:
+
+| Przyczyna | Poprawka |
+|---|---|
+| Treść wyższa niż linijka w środku wiersza (pigułki terminów, „3 dni temu", ostrzeżenie o rytmie) | wiersz ma stałe `min-h`; dopiski idą w **sufiks obok wartości**, pigułki wyprowadzone do „Nowego wpisu" |
+| Szerokość etykiety w PROCENTACH (38 %) | stałe **104 px** — procent liczy się od szerokości sekcji, więc kolumna wartości wypadała gdzie indziej w każdej sekcji |
+| Trzy różne kontrolki w jednym słupku: `input` 12 px/wcięcie 4 px, data 13 px/6 px, pigułka 11 px/10 px | jedno wcięcie i jeden rozmiar, wymuszone przez `[&_input]` w `WierszPola` |
+| Puste pole = pusty pas | `EditableText` ma domyślny `placeholder="—"` (tak robią Attio, Linear i Notion) |
+
+Po zmianie **każdy wiersz atrybutu ma 38 px, a wartości zaczynają się na tym
+samym pikselu** — sprawdzone pomiarem, nie na oko.
+
+Przy okazji dwie rzeczy w tej samej klasie błędu:
+
+- **Mapa procesu jest domyślnie ZWINIĘTA** do „10/15 · Realizacja + pasek
+  postępu". Piętnaście pigułek nie mieści się w żadnej realnej szerokości, więc
+  pas przewijał się w poziomie i był ucięty prawą krawędzią. Rozwinięta
+  **zawija się** do trzech linii zamiast chować kroki za krawędzią — krok,
+  o którego istnieniu nie wiesz, to krok pominięty.
+- **„Kod / Miasto"**: dwa pola `flex-1` dawały pustemu kodowi tyle samo miejsca,
+  co „Warszawie", więc miasto zaczynało się w połowie wiersza. Kod ma teraz
+  stałe 64 px.
+
 #### Profil leada poszedł za klientem (ta sama runda)
 
 Brief kroku 6 mówił o kliencie i tylko o nim, ale rozjazd zgłoszony od razu:

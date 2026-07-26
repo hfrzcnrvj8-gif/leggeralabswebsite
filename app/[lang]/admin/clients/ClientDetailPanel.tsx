@@ -519,25 +519,29 @@ export function ClientDetailPanel({
             </SekcjaProfilu>
 
             <SekcjaProfilu tytul="Rytm kontaktu">
-              <WierszPola etykieta="Ostatni kontakt">
-                <div className="space-y-1">
-                  <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
-                  {/* Sama data wymaga liczenia w głowie — a pytanie brzmi „jak
-                      dawno", nie „którego". Tabela miała kolumnę „Dni" od
-                      dawna, karta milczała. */}
-                  {daysAgoLabel(clientDaysSince(client.ostatni_kontakt)) && (
-                    <p className="px-1 text-[11px] text-muted">{daysAgoLabel(clientDaysSince(client.ostatni_kontakt))}</p>
-                  )}
-                </div>
+              {/* Sufiks zamiast drugiej linijki: sama data wymaga liczenia
+                  w głowie, a pytanie brzmi „jak dawno", nie „którego". */}
+              <WierszPola
+                etykieta="Ostatni kontakt"
+                sufiks={
+                  daysAgoLabel(clientDaysSince(client.ostatni_kontakt)) ? (
+                    <span className="shrink-0 text-[11px] text-muted opacity-70">
+                      {daysAgoLabel(clientDaysSince(client.ostatni_kontakt))}
+                    </span>
+                  ) : undefined
+                }
+              >
+                <DateField value={client.ostatni_kontakt ?? ""} onChange={(v) => updateClient("ostatni_kontakt", v)} placeholder="—" />
               </WierszPola>
+              {/* Pigułki „Jutro / Za 3 dni / Za tydzień" ŚWIADOMIE zdjęte z tego
+                  wiersza (runda czytelności 2026-07-26): zawijały się na dwie
+                  linie i robiły z niego 110 px przy 41 px sąsiadów — jeden
+                  wiersz odpowiadał za połowę wrażenia krzywizny. Nie zniknęły
+                  z panelu: stoją w formularzu „Nowy wpis" obok, czyli tam, gdzie
+                  decyzja „wrócić za tydzień" i tak zapada — przy zapisywaniu
+                  rozmowy, nie przy czytaniu wizytówki. */}
               <WierszPola etykieta="Przypomnij mi">
-                <div className="space-y-1.5">
-                  <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
-                  {/* Pigułki jak w apce: ustawienie terminu to jeden klik,
-                      nie wejście w kalendarz. Przypomnienie jest JEDYNĄ rzeczą,
-                      która zapala klientowi „wymaga działania dziś". */}
-                  <QuickDateChips onPick={(v) => updateClient("next_followup", v)} />
-                </div>
+                <DateField value={client.next_followup ?? ""} onChange={(v) => updateClient("next_followup", v)} placeholder="—" />
               </WierszPola>
               {client.next_followup && (
                 <WierszPola etykieta="Następny krok" title="Po co jest to przypomnienie">
@@ -550,24 +554,33 @@ export function ClientDetailPanel({
                   został tu wcześniej świadomie odrzucony. Gdy rytm minie,
                   klient sam trafia do „wymaga działania dziś" i w poranny mail
                   — także wtedy, gdy nie ustawiłeś mu żadnej daty. */}
-              <WierszPola etykieta="Odzywaj się" title="Co ile odzywać się do tego klienta">
-                <div className="space-y-1">
-                  <PillPicker
-                    value={CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label ?? "Bez pilnowania"}
-                    options={CLIENT_RHYTHMS.map((r) => r.label)}
-                    onChange={(label) => {
-                      const wybrany = CLIENT_RHYTHMS.find((r) => r.label === label);
-                      updateClient("rytm_kontaktu_mies", wybrany?.miesiace ? String(wybrany.miesiace) : "");
-                    }}
-                    placeholder="Bez pilnowania"
-                    title="Co ile odzywać się do tego klienta"
-                  />
-                  {clientRhythmOverdue(client) && (
-                    <p className="px-1 text-[11px] font-medium text-orange-400">
-                      Rytm minął — cisza od {clientSilenceDays(client)} dni.
-                    </p>
-                  )}
-                </div>
+              <WierszPola
+                etykieta="Odzywaj się"
+                title="Co ile odzywać się do tego klienta"
+                sufiks={
+                  clientRhythmOverdue(client) ? (
+                    // Pełne zdanie („Rytm minął — cisza od 47 dni") zawijało
+                    // wiersz; w podpowiedzi mieści się w całości, a w wierszu
+                    // zostaje to, co niesie alarm.
+                    <span
+                      className="shrink-0 rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-medium text-orange-400"
+                      title={`Rytm minął — cisza od ${clientSilenceDays(client)} dni.`}
+                    >
+                      minął
+                    </span>
+                  ) : undefined
+                }
+              >
+                <PillPicker
+                  value={CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label ?? "Bez pilnowania"}
+                  options={CLIENT_RHYTHMS.map((r) => r.label)}
+                  onChange={(label) => {
+                    const wybrany = CLIENT_RHYTHMS.find((r) => r.label === label);
+                    updateClient("rytm_kontaktu_mies", wybrany?.miesiace ? String(wybrany.miesiace) : "");
+                  }}
+                  placeholder="Bez pilnowania"
+                  title="Co ile odzywać się do tego klienta"
+                />
               </WierszPola>
             </SekcjaProfilu>
 
@@ -594,16 +607,18 @@ export function ClientDetailPanel({
                   zostaje błędne na zawsze. Pełna lista kategorii (jak w profilu
                   leada): tu się je POPRAWIA, nie tworzy. */}
               <WierszPola etykieta="Skąd przyszedł">
-                <div className="space-y-1">
-                  <PillPicker
-                    value={client.zrodlo_kategoria}
-                    options={[...SOURCE_CATEGORIES]}
-                    onChange={(v) => updateClient("zrodlo_kategoria", v)}
-                    placeholder="Kategoria — wybierz"
-                    title="Kategoria źródła"
-                  />
-                  <EditableText value={client.zrodlo} onSave={(v) => updateClient("zrodlo", v)} />
-                </div>
+                <PillPicker
+                  value={client.zrodlo_kategoria}
+                  options={[...SOURCE_CATEGORIES]}
+                  onChange={(v) => updateClient("zrodlo_kategoria", v)}
+                  placeholder="Wybierz"
+                  title="Kategoria źródła"
+                />
+                <EditableText
+                  value={client.zrodlo}
+                  onSave={(v) => updateClient("zrodlo", v)}
+                  placeholder="szczegóły"
+                />
               </WierszPola>
             </SekcjaProfilu>
 
@@ -611,11 +626,15 @@ export function ClientDetailPanel({
               <WierszPola etykieta="Ulica">
                 <EditableText value={client.ulica} onSave={(v) => updateClient("ulica", v)} />
               </WierszPola>
+              {/* Kod dostaje stałą, wąską szerokość zamiast połowy wiersza:
+                  przy dwóch polach `flex-1` puste „—" zajmowało tyle samo, co
+                  „Warszawa", i miasto zaczynało się w połowie wiersza —
+                  w słupku wyrównanych wartości widać to od razu. */}
               <WierszPola etykieta="Kod / Miasto">
-                <div className="flex gap-2">
-                  <EditableText value={client.kod} onSave={(v) => updateClient("kod", v)} />
-                  <EditableText value={client.miasto} onSave={(v) => updateClient("miasto", v)} />
+                <div className="w-[64px] shrink-0">
+                  <EditableText value={client.kod} onSave={(v) => updateClient("kod", v)} placeholder="kod" />
                 </div>
+                <EditableText value={client.miasto} onSave={(v) => updateClient("miasto", v)} placeholder="miasto" />
               </WierszPola>
               <WierszPola etykieta="Kraj">
                 <EditableText value={client.kraj} onSave={(v) => updateClient("kraj", v)} />

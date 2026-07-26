@@ -68,31 +68,51 @@ export function SekcjaProfilu({
 /**
  * Wiersz „etykieta — wartość" wewnątrz `SekcjaProfilu`.
  *
- * Etykieta stoi PO LEWEJ w stałej kolumnie, nie nad wartością — to ta zmiana
- * daje pionową krawędź, po której oko przeskakuje w dół. Układ „etykieta nad
- * wartością" przy jednej kolumnie robił z wizytówki ciąg naprzemiennych
- * linijek bez żadnej osi.
+ * Etykieta stoi PO LEWEJ w stałej kolumnie, nie nad wartością — to daje pionową
+ * krawędź, po której oko przeskakuje w dół. Układ „etykieta nad wartością" przy
+ * jednej kolumnie robił z wizytówki ciąg naprzemiennych linijek bez żadnej osi.
  *
- * `items-start`, bo wartość bywa wyższa niż jedna linijka (pigułki terminów
- * pod datą, ostrzeżenie o rytmie, dwa pola w wierszu „Kod / Miasto").
+ * **Trzy rzeczy, bez których to dalej wygląda krzywo** (zgłoszenie właściciela
+ * „nadal jakoś koślawo", 2026-07-26, po zmierzeniu wysokości wierszy: 41, 42,
+ * 42, 42, 64, 110, 44, 41, 42, 70, 41 px):
+ *
+ * 1. **Stała wysokość wiersza.** Rytm skaczący o 70 px czyta się jak krzywy
+ *    stół, nawet gdy każdy wiersz z osobna jest poprawny. Dlatego `min-h` i
+ *    `items-center`, a treść wyższa niż jedna linijka NIE wchodzi do wiersza —
+ *    idzie do sufiksu obok wartości albo poza sekcję.
+ * 2. **Stała szerokość etykiety w PIKSELACH, nie w procentach.** Procent liczy
+ *    się od szerokości sekcji, więc kolumna wartości wypadała w innym miejscu
+ *    w każdej sekcji i pionowa krawędź, o którą w tym wszystkim chodzi,
+ *    rozjeżdżała się o kilkanaście pikseli.
+ * 3. **Jeden rozmiar i jedno wcięcie wartości.** W jednej kolumnie stały obok
+ *    siebie `input` (12 px, wcięcie 4 px), przycisk daty (13 px, 6 px) i
+ *    pigułka (11 px, 10 px) — trzy różne lewe krawędzie w jednym słupku.
+ *    Wyrównuje to `[&_input]` niżej, a nie poprawki w każdym wywołaniu.
  */
 export function WierszPola({
   etykieta,
   children,
   title,
+  /** Dopisek za wartością — „3 dni temu", „rytm minął". Kiedyś stał w drugiej
+   * linijce i to on rozdymał wiersz do 110 px. */
+  sufiks,
 }: {
   etykieta: string;
   children: ReactNode;
   /** Podpowiedź po najechaniu na etykietę — dla pól, których nazwa nie mieści
    * całego znaczenia (np. „Odzywaj się"). */
   title?: string;
+  sufiks?: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2 px-3 py-2">
-      <span className="w-[38%] shrink-0 pt-1 text-[11.5px] leading-tight text-muted" title={title}>
+    <div className="flex min-h-[38px] items-center gap-2 px-3 py-1">
+      <span className="w-[104px] shrink-0 text-[11.5px] leading-tight text-muted" title={title}>
         {etykieta}
       </span>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-2 [&_input]:px-1.5 [&_input]:text-[13px]">
+        {children}
+        {sufiks}
+      </div>
     </div>
   );
 }

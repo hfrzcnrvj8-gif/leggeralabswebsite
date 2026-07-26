@@ -432,14 +432,10 @@ export function LeadDetailPanel({
               <WierszPola etykieta="Ostatni kontakt">
                 <DateField value={lead.ostatni_kontakt ?? ""} onChange={(v) => updateLead("ostatni_kontakt", v)} placeholder="—" />
               </WierszPola>
+              {/* Pigułki terminów świadomie NIE w tym wierszu — patrz ten sam
+                  komentarz w `ClientDetailPanel.tsx`. Stoją w „Nowym wpisie". */}
               <WierszPola etykieta="Przypomnij mi">
-                <div className="space-y-1.5">
-                  <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
-                  {/* Pigułki jak u klienta i jak w apce: ustawienie terminu to
-                      jeden klik. Przypomnienie jest JEDYNĄ rzeczą, która zapala
-                      leadowi „wymaga działania dziś". */}
-                  <QuickDateChips onPick={(v) => updateLead("next_followup", v)} />
-                </div>
+                <DateField value={lead.next_followup ?? ""} onChange={(v) => updateLead("next_followup", v)} placeholder="—" />
               </WierszPola>
               {lead.next_followup && (
                 <WierszPola etykieta="Następny krok" title="Po co jest to przypomnienie">
@@ -453,16 +449,14 @@ export function LeadDetailPanel({
                 <EditableText value={lead.branza} onSave={(v) => updateLead("branza", v)} />
               </WierszPola>
               <WierszPola etykieta="Skąd przyszedł">
-                <div className="space-y-1">
-                  <PillPicker
-                    value={lead.zrodlo_kategoria}
-                    options={SOURCE_CATEGORIES}
-                    onChange={(v) => updateLead("zrodlo_kategoria", v)}
-                    placeholder="Kategoria — wybierz"
-                    title="Zmień kategorię źródła"
-                  />
-                  <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} />
-                </div>
+                <PillPicker
+                  value={lead.zrodlo_kategoria}
+                  options={SOURCE_CATEGORIES}
+                  onChange={(v) => updateLead("zrodlo_kategoria", v)}
+                  placeholder="Wybierz"
+                  title="Zmień kategorię źródła"
+                />
+                <EditableText value={lead.zrodlo} onSave={(v) => updateLead("zrodlo", v)} placeholder="szczegóły" />
               </WierszPola>
             </SekcjaProfilu>
 
@@ -470,11 +464,13 @@ export function LeadDetailPanel({
               <WierszPola etykieta="Ulica">
                 <EditableText value={lead.ulica} onSave={(v) => updateLead("ulica", v)} />
               </WierszPola>
+              {/* Wąski kod, szerokie miasto — patrz komentarz w profilu
+                  klienta. */}
               <WierszPola etykieta="Kod / Miasto">
-                <div className="flex gap-2">
-                  <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} />
-                  <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} />
+                <div className="w-[64px] shrink-0">
+                  <EditableText value={lead.kod} onSave={(v) => updateLead("kod", v)} placeholder="kod" />
                 </div>
+                <EditableText value={lead.miasto} onSave={(v) => updateLead("miasto", v)} placeholder="miasto" />
               </WierszPola>
               <WierszPola etykieta="Kraj">
                 <EditableText value={lead.kraj} onSave={(v) => updateLead("kraj", v)} />

@@ -61,18 +61,31 @@ export function SummaryCard({ label, value, alert }: { label: string; value: num
   );
 }
 
-export function EditableText({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+export function EditableText({
+  value,
+  onSave,
+  // Puste pole bez podpowiedzi wygląda jak dziura w układzie, a nie jak pole
+  // do wypełnienia — na wizytówce rekordu było ich naraz po kilka (runda
+  // czytelności 2026-07-26). Myślnik jest tym, co w tej roli pokazują Attio,
+  // Linear i Notion; `placeholder`, nie wartość, więc nic nie trafia do bazy.
+  placeholder = "—",
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  placeholder?: string;
+}) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return (
     <input
       value={v}
+      placeholder={placeholder}
       title={value || undefined}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
         if (v !== value) onSave(v);
       }}
-      className="w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
+      className="w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors placeholder:text-muted placeholder:opacity-60 hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
     />
   );
 }
@@ -244,36 +257,70 @@ export function QuickDateChips({ onPick }: { onPick: (iso: string) => void }) {
 }
 
 /** Miękka ściągawka 15-krokowego procesu (lib/process.ts) — wyłącznie
- * informacyjna, nigdy nie blokuje przejścia dalej. Renderowana na dole
- * panelu leada/klienta, podświetla krok wg statusu (LEAD_STATUS_STEP /
- * CLIENT_STATUS_STEP). Kroki przed aktualnym są "odhaczone", po — wyszarzone. */
+ * informacyjna, nigdy nie blokuje przejścia dalej. Stoi nad zakładkami profilu
+ * leada/klienta, podświetla krok wg statusu (LEAD_STATUS_STEP /
+ * CLIENT_STATUS_STEP).
+ *
+ * **Domyślnie ZWINIĘTA do jednej linijki** (runda czytelności 2026-07-26).
+ * Piętnaście pigułek nie mieści się w żadnej realnej szerokości, więc pas
+ * przewijał się w poziomie i był ucięty prawą krawędzią — z paska kontekstu
+ * robił się najbardziej „niedokończony" element ekranu. Pytanie brzmi zwykle
+ * „na którym jestem", a nie „jak brzmi cała lista"; pełna mapa jest o jedno
+ * kliknięcie dalej i wtedy ZAWIJA się do kilku linii, zamiast chować kroki
+ * za krawędzią (krok, o którego istnieniu nie wiesz, to krok pominięty). */
 export function ProcessMap({ currentStep }: { currentStep: number }) {
+  const [rozwinieta, setRozwinieta] = useState(false);
+  const biezacy = PROCESS_STEPS.find((s) => s.step === currentStep);
+  const postep = Math.round((currentStep / PROCESS_STEPS.length) * 100);
+
   return (
-    <div className="overflow-x-auto">
-      <ol className="flex min-w-max items-center gap-1.5">
-        {PROCESS_STEPS.map(({ step, label }, i) => {
-          const isCurrent = step === currentStep;
-          const isDone = step < currentStep;
-          return (
-            <li key={step} className="flex items-center gap-1.5">
-              <span
-                title={label}
-                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] whitespace-nowrap ${
-                  isCurrent
-                    ? "bg-gradient-to-r from-brand-purple to-brand-pink font-semibold text-white"
-                    : isDone
-                      ? "text-muted opacity-60"
-                      : "text-muted opacity-35"
-                }`}
-              >
-                <span aria-hidden>{isCurrent ? "●" : isDone ? "✓" : "○"}</span>
-                {label}
-              </span>
-              {i < PROCESS_STEPS.length - 1 && <span className="text-muted opacity-30">→</span>}
-            </li>
-          );
-        })}
-      </ol>
+    <div>
+      <button
+        onClick={() => setRozwinieta((v) => !v)}
+        className="flex w-full items-center gap-2.5 rounded-lg px-1 py-1 text-left hover:bg-[var(--hairline)]"
+        title={rozwinieta ? "Zwiń mapę procesu" : "Pokaż wszystkie 15 kroków"}
+      >
+        <span className="shrink-0 text-[12px] tabular-nums text-muted">
+          {currentStep}/{PROCESS_STEPS.length}
+        </span>
+        <span className="shrink-0 text-[13px] font-medium text-[var(--fg)]">{biezacy?.label ?? "—"}</span>
+        {/* Pasek zjada resztę wiersza — to on niesie „ile jeszcze przede mną",
+            czyli dokładnie to, co dawał ciąg wyszarzonych pigułek. */}
+        <span className="h-1 min-w-[40px] flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
+          <span
+            className="block h-full rounded-full bg-gradient-to-r from-brand-purple to-brand-pink"
+            style={{ width: `${postep}%` }}
+          />
+        </span>
+        <span className="shrink-0 text-[11px] text-muted opacity-70">{rozwinieta ? "zwiń" : "wszystkie kroki"}</span>
+      </button>
+
+      {rozwinieta && (
+        <ol className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1">
+          {PROCESS_STEPS.map(({ step, label }, i) => {
+            const isCurrent = step === currentStep;
+            const isDone = step < currentStep;
+            return (
+              <li key={step} className="flex items-center gap-1.5">
+                <span
+                  title={label}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ${
+                    isCurrent
+                      ? "bg-gradient-to-r from-brand-purple to-brand-pink font-semibold text-white"
+                      : isDone
+                        ? "text-muted opacity-60"
+                        : "text-muted opacity-35"
+                  }`}
+                >
+                  <span aria-hidden>{isCurrent ? "●" : isDone ? "✓" : "○"}</span>
+                  {label}
+                </span>
+                {i < PROCESS_STEPS.length - 1 && <span className="text-muted opacity-30">→</span>}
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }
