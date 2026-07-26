@@ -2889,3 +2889,145 @@ async function createEventAttendeesSchema(): Promise<void> {
 
 /** Lazily tworzy tabelę uczestników spotkań. */
 export const ensureEventAttendeesSchema: () => Promise<void> = razNaInstancje(createEventAttendeesSchema);
+
+/* ─────────────────── Wyszukiwanie pełnotekstowe (Moduł 56) ───────────────────
+ *
+ * Do 2026-07-26 panel szukał wyłącznie przez `ILIKE '%fraza%'` — wystarczająco
+ * przy kilkudziesięciu rekordach, ale ILIKE ma dwie wady, które rosną razem
+ * z bazą: skanuje całą tabelę (bez szans na indeks przy wiodącym `%`) i nie
+ * umie ocenić, które trafienie jest lepsze. Ta migracja dokłada prawdziwy
+ * indeks Postgresa (`tsvector` + GIN) tam, gdzie leży TREŚĆ: rozmowy, maile,
+ * notatki, opisy projektów.
+ *
+ * **Kolumny GENERATED, nie osobna tabela indeksu.** Tabela odświeżana przy
+ * zapisie wymagałaby dopisania linijki w każdej trasie, która coś zapisuje —
+ * a zapomniana linijka daje lukę bez żadnego objawu (ta sama klasa błędu, co
+ * zapomniane `isAuthed()`, patrz CLAUDE.md). Kolumna `GENERATED ALWAYS AS
+ * … STORED` liczy się sama przy każdym INSERT i UPDATE i nie da się jej ominąć.
+ *
+ * **Dlaczego `'simple'`, a nie słownik polski.** Postgres nie ma wbudowanej
+ * konfiguracji `polish`, a doinstalowanie słownika oznaczałoby zależność od
+ * konkretnego hostingu bazy — czyli dokładnie to, od czego odchodzimy
+ * w Module 55. `'simple'` nie odmienia wyrazów, więc odmianę nadrabiamy przy
+ * PYTANIU: każde słowo leci jako przedrostek (`faktur:*` łapie fakturę,
+ * faktury i fakturze). To przybliżenie, nie rdzeniowanie — ale działa na
+ * każdym Postgresie i nie kłamie.
+ *
+ * **Ogonki.** `szukaj_norm` sprowadza tekst do postaci bez polskich znaków,
+ * ta sama funkcja idzie w indeks i w zapytanie — dzięki temu „zamowienie"
+ * znajduje „zamówienie" i odwrotnie. Musi być IMMUTABLE, inaczej Postgres nie
+ * wpuści jej do kolumny generowanej.
+ *
+ * **Treść maila ucinana do 100 000 znaków.** `tsvector` ma twardy limit 1 MB
+ * na dokument; jeden załącznikowy potwór w treści wywaliłby CAŁY zapis maila,
+ * a nie samo indeksowanie.
+ */
+async function createSearchSchema(): Promise<void> {
+  if (await schemaUpToDate("search")) return;
+
+  const sql = getSql();
+
+  await sql`
+    CREATE OR REPLACE FUNCTION szukaj_norm(t TEXT) RETURNS TEXT
+    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS
+    $$ SELECT translate(lower($1), 'ąćęłńóśżźĄĆĘŁŃÓŚŻŹ', 'acelnoszzacelnoszz') $$;
+  `;
+
+  // Wycinek treści wokół szukanego słowa. Świadomie NIE `ts_headline`: ono
+  // pracuje na tekście podanym na wejściu, a nasz indeks powstaje z tekstu
+  // BEZ ogonków — podanie mu wersji znormalizowanej dałoby podgląd pisany
+  // „zamowienie” zamiast „zamówienie”, a podanie oryginału przestałoby
+  // trafiać. `position()` na wersji znormalizowanej daje MIEJSCE, a wycinamy
+  // z oryginału, więc podgląd jest w prawdziwej pisowni.
+  // Gdy słowa nie ma dosłownie (trafienie przyszło z innego wyrazu frazy),
+  // `position()` zwraca 0 → `greatest` cofa do początku wpisu. To rozsądny
+  // domyślny wycinek, nie błąd.
+  await sql`
+    CREATE OR REPLACE FUNCTION szukaj_fragment(tresc TEXT, fraza TEXT) RETURNS TEXT
+    LANGUAGE sql IMMUTABLE AS
+    $$ SELECT CASE
+         WHEN coalesce(tresc, '') = '' THEN ''
+         ELSE substr(tresc, greatest(1, position(szukaj_norm(fraza) IN szukaj_norm(tresc)) - 40), 200)
+       END $$;
+  `;
+
+  // Leady i klienci: tożsamość razem z notatką przypiętą. Nazwę firmy znajdzie
+  // też stare ILIKE, ale wtedy trafienie „w treści" i „po nazwie" wykluczałyby
+  // się nawzajem przy tej samej frazie — a wyszukiwarka ma pokazać wszystko,
+  // co pasuje, nie połowę.
+  await sql`
+    ALTER TABLE leads ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(
+        coalesce(firma,'') || ' ' || coalesce(osoba_kontaktowa,'') || ' ' ||
+        coalesce(branza,'') || ' ' || coalesce(zrodlo,'') || ' ' || coalesce(notatki,'')
+      ))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS leads_szukaj_idx ON leads USING GIN (szukaj);`;
+
+  await sql`
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(
+        coalesce(nazwa,'') || ' ' || coalesce(osoba_kontaktowa,'') || ' ' ||
+        coalesce(branza,'') || ' ' || coalesce(zrodlo,'') || ' ' || coalesce(notatki,'')
+      ))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS clients_szukaj_idx ON clients USING GIN (szukaj);`;
+
+  // Historia kontaktu — to po nią sięga się najczęściej („rozmawialiśmy o tym
+  // pół roku temu, tylko nie pamiętam z kim").
+  await sql`
+    ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(coalesce(text,'')))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS lead_activity_szukaj_idx ON lead_activity USING GIN (szukaj);`;
+
+  await sql`
+    ALTER TABLE client_activity ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(coalesce(text,'')))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_activity_szukaj_idx ON client_activity USING GIN (szukaj);`;
+
+  await sql`
+    ALTER TABLE client_events ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(coalesce(text,'')))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS client_events_szukaj_idx ON client_events USING GIN (szukaj);`;
+
+  await sql`
+    ALTER TABLE project_activity ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(coalesce(text,'')))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS project_activity_szukaj_idx ON project_activity USING GIN (szukaj);`;
+
+  await sql`
+    ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(
+        coalesce(subject,'') || ' ' || coalesce(from_name,'') || ' ' ||
+        coalesce(from_addr,'') || ' ' || left(coalesce(body_text,''), 100000)
+      ))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS mail_messages_szukaj_idx ON mail_messages USING GIN (szukaj);`;
+
+  await sql`
+    ALTER TABLE notes ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(
+        coalesce(tytul,'') || ' ' || coalesce(tagi,'') || ' ' || coalesce(tresc,'')
+      ))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS notes_szukaj_idx ON notes USING GIN (szukaj);`;
+
+  await sql`
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS szukaj tsvector
+      GENERATED ALWAYS AS (to_tsvector('simple', szukaj_norm(
+        coalesce(tytul,'') || ' ' || coalesce(opis,'')
+      ))) STORED;
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS projects_szukaj_idx ON projects USING GIN (szukaj);`;
+
+  await markSchemaApplied("search");
+}
+
+/** Indeks pełnotekstowy po TREŚCI (Moduł 56). Zależy od tabel tworzonych przez
+ * `ensureLeadsSchema`, `ensureClientsSchema`, `ensureHubSchema` i
+ * `ensureMailSchema` — wołaj ją PO nich, nigdy zamiast nich. */
+export const ensureSearchSchema: () => Promise<void> = razNaInstancje(createSearchSchema);

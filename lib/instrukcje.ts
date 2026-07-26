@@ -120,13 +120,18 @@ export const MODULY: ModulInstrukcji[] = [
     ],
     pulapki: [
       {
+        tytul: "Szukanie po treści nie odmienia wyrazów",
+        opis:
+          "Wpisane słowo działa jak POCZĄTEK wyrazu: „faktur” znajdzie fakturę, faktury i fakturze. Ale „prośbę” nie znajdzie „prośby” — końcówka się rozjeżdża. Gdy czegoś nie widać, skróć słowo do rdzenia. Polskie znaki nie mają znaczenia: „zamowienie” znajdzie „zamówienie”.",
+      },
+      {
         tytul: "Pulpit nie jest listą wszystkiego",
         opis:
           "Pokazuje tylko to, co wymaga ruchu DZIŚ. Pełne listy są w modułach. Pusty Pulpit nie znaczy „nie mam klientów”, tylko „nic nie jest po terminie”.",
       },
     ],
     skroty: [
-      { tytul: "⌘K / Ctrl+K", opis: "Paleta poleceń — wszystko, co da się zrobić, z klawiatury i z wyszukiwaniem po nazwie." },
+      { tytul: "⌘K / Ctrl+K", opis: "Paleta poleceń — wszystko, co da się zrobić, z klawiatury. Szuka DWOMA drogami naraz: po nazwie rekordu (lead, klient, oferta, faktura) i po TREŚCI (rozmowy, maile, notatki, opisy projektów). Wyniki z treści mają wycinek zdania i etykietę, skąd pochodzą." },
       { tytul: "Pociągnięcie w dół (telefon)", opis: "Odświeża dane. Nie ma osobnego przycisku „odśwież” — działa na każdym ekranie." },
     ],
   },

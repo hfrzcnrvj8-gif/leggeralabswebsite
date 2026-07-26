@@ -45,6 +45,7 @@ import { LogoMark } from "@/components/Logo";
 import type { Lead } from "@/lib/leads";
 import type { Client } from "@/lib/clients";
 import type { Project } from "@/lib/projects";
+import { SEGMENT_TRAFIENIA, ETYKIETA_TRAFIENIA, type TrafienieTresci } from "@/lib/szukaj";
 import { formatPlDate } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
 import type { HubEvent } from "@/lib/events";
@@ -224,6 +225,10 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     offers: { id: string; tytul: string; status: string; klient_nazwa: string }[];
     invoices: { id: string; numer: string | null; status: string; klient_nazwa: string }[];
     contracts: { id: string; typ: "umowa" | "nda"; status: string; klient_nazwa: string }[];
+    // Moduł 56 — trafienia po TREŚCI (rozmowy, maile, notatki, opisy).
+    // Osobna lista, bo to inne pytanie niż „który rekord tak się nazywa"
+    // i musi się wyświetlić z fragmentem, nie samą nazwą.
+    tresc?: TrafienieTresci[];
   } | null>(null);
   const [searching, setSearching] = useState(false);
   const [activeTimer, setActiveTimer] = useState<(TimeEntry & { project_tytul?: string; task_text?: string | null }) | null>(null);
@@ -351,6 +356,18 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
         label: `${c.klient_nazwa || "(bez nazwy)"} — ${c.status}`,
         hint: c.typ === "nda" ? "NDA" : "Umowa",
         run: () => router.push(`${base}/contracts/${c.id}`),
+      })
+    );
+    // Trafienia „w treści" NA KOŃCU listy (Moduł 56). Kolejność nie jest
+    // kosmetyczna: gdy szukasz nazwy firmy, chcesz rekord, a nie rozmowę,
+    // w której ta nazwa padła. Gdy szukasz frazy z rozmowy, po nazwie nie
+    // znajdzie się nic i sekcja treści zostaje sama na górze.
+    searchResults.tresc?.forEach((t, i) =>
+      out.push({
+        id: `tresc:${t.rodzaj}:${t.id}:${i}`,
+        label: t.fragment ? `${t.tytul} — ${t.fragment}` : t.tytul,
+        hint: ETYKIETA_TRAFIENIA[t.rodzaj],
+        run: () => router.push(`${base}/${SEGMENT_TRAFIENIA[t.rodzaj]}/${t.id}`),
       })
     );
     return out;

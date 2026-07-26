@@ -8,7 +8,12 @@
 Punkt odniesienia: Attio, Linear, HubSpot. Kontekst: **jedna osoba, zero
 klientów na dziś**, panel + apka iOS, dane własne.
 
-## Jedno „tak": wyszukiwanie pełnotekstowe po wszystkim
+## Jedno „tak": wyszukiwanie pełnotekstowe po wszystkim ✅ ZBUDOWANE 2026-07-26
+
+> Właściciel zdecydował inaczej niż sugerował ten dokument („nie teraz") —
+> zbudowane od razu, tego samego dnia. Stan faktyczny, decyzje i **granice
+> (brak rdzeniowania po polsku)**: `HUB_SETUP.md` → „Moduł 56". Poniższy tekst
+> zostaje jako zapis powodu, dla którego akurat to wygrało z resztą listy.
 
 **Dlaczego akurat to jest future-proof, a reszta nie.** Wartość wyszukiwania
 rośnie wprost proporcjonalnie do ilości danych — dokładnie ta krzywa, o którą

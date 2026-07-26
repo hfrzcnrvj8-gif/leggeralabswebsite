@@ -8006,3 +8006,74 @@ trasa cyklicznа z `CRON_SECRET`. Osobno: funkcja okna, `ANY(tablica)`, wsadowy
 
 Produkcja na Vercelu została nietknięta — sprawdzone osobnym buildem bez
 `BUILD_STANDALONE`.
+
+## Moduł 56 — wyszukiwanie pełnotekstowe (2026-07-26)
+
+Jedyna pozycja z listy „czego mają dojrzałe CRM-y, a my nie", którą właściciel
+zatwierdził do budowy od razu (`docs/plany-modulow/KANDYDACI-FUTURE-PROOF.md`).
+Powód wyboru: **wartość rośnie razem z ilością danych** — przy dwóch klientach
+jest bezużyteczna, przy dwudziestu i trzech latach korespondencji jest jedyną
+drogą do „rozmawialiśmy o tym rok temu, tylko nie pamiętam z kim".
+
+### Co dokładnie doszło
+
+Paleta ⌘K odpowiada teraz na DWA pytania naraz, nie na jedno:
+
+| | Pytanie | Jak |
+|---|---|---|
+| dotąd | „który rekord tak się NAZYWA" | `ILIKE '%fraza%'` po nazwach |
+| **nowe** | „gdzie o tym PISALIŚMY" | indeks `tsvector` + GIN po treści |
+
+**Obie drogi zostają.** To nie jest zamiana: `ILIKE '%nord%'` znajdzie
+„Nordwind" po fragmencie w środku wyrazu, czego indeks pełnotekstowy nie
+potrafi (`nord:*` tak, `wind:*` już nie). Zastąpienie jednego drugim zabrałoby
+połowę odpowiedzi.
+
+Dziewięć źródeł treści: notatki leada i klienta, historia kontaktu leada,
+klienta i projektu, zdarzenia klienta, maile (temat + treść), notatnik, opisy
+projektów. Wynik niesie **wycinek treści** wokół szukanego słowa, etykietę
+rodzaju („Mail", „Rozmowa (lead)") i prowadzi do karty rekordu — wpis historii
+nie ma własnej strony, więc trafienie w rozmowie otwiera kartę klienta.
+
+### Trzy decyzje, które trzeba znać przed zmianą czegokolwiek
+
+1. **Kolumny `GENERATED`, nie osobna tabela indeksu.** Tabela odświeżana przy
+   zapisie wymagałaby dopisania linijki w każdej trasie, która coś zapisuje —
+   a zapomniana linijka daje lukę bez objawu (ta sama klasa błędu, co
+   zapomniane `isAuthed()`). `GENERATED ALWAYS AS … STORED` liczy się samo
+   przy każdym INSERT i UPDATE i nie da się go ominąć. **Przy dokładaniu
+   nowego źródła: jedno `ALTER TABLE … ADD COLUMN szukaj` + jeden `CREATE
+   INDEX` w `createSearchSchema` i gałąź w `UNION ALL` — nic więcej.**
+2. **Konfiguracja `'simple'`, nie słownik polski.** Postgres nie ma wbudowanej
+   konfiguracji `polish`, a doinstalowanie słownika przywiązałoby nas do
+   konkretnego hostingu bazy — czyli odwrotnie do Modułu 55. Odmianę
+   nadrabiamy przy PYTANIU: każde słowo leci jako przedrostek (`faktur:*`).
+   **To przybliżenie i trzeba je znać:** „faktury" znajdzie „fakturę", ale
+   „prośbę" NIE znajdzie „prośby" (przedrostek się rozjeżdża na końcówce).
+   Rdzeniowania po polsku ta baza nie ma i nie udajemy, że ma.
+3. **Ogonki normalizuje `szukaj_norm`** — ta sama funkcja idzie w indeks i
+   w zapytanie, więc „zamowienie" znajduje „zamówienie" i odwrotnie. Musi być
+   `IMMUTABLE`, inaczej Postgres nie wpuści jej do kolumny generowanej.
+
+### Pułapki złapane przy budowie
+
+- **`to_tsquery` WYWALA SIĘ na zwykłym tekście.** Ma własną składnię
+  (`&`, `|`, `!`, `<->`), więc wpisane w wyszukiwarkę „umowa & " kończyłoby się
+  błędem SQL, a nie pustym wynikiem. Całe czyszczenie siedzi w
+  `lib/szukaj.ts` (`zapytanieTsquery`) i ma testy — z pola wyszukiwarki nie
+  wyjdzie nic poza literami, cyframi, `:*` i `&`.
+- **Jednoliterowe słowa wypadają.** Przedrostek `a:*` pasuje do połowy bazy.
+- **`ts_headline` odpadło.** Pracuje na tekście podanym na wejściu, a indeks
+  powstaje z tekstu BEZ ogonków: wersja znormalizowana dałaby podgląd pisany
+  „zamowienie", a oryginał przestałby trafiać. Zamiast tego `szukaj_fragment`
+  szuka MIEJSCA na wersji znormalizowanej, a wycina z oryginału.
+- **Treść maila ucinana do 100 000 znaków** — `tsvector` ma twardy limit 1 MB
+  na dokument, a przekroczenie wywaliłoby CAŁY zapis maila, nie samo
+  indeksowanie.
+
+### RODO — bez nowej kategorii danych
+
+Indeks jest KOLUMNĄ w tej samej tabeli, nie kopią w osobnym miejscu. Usunięcie
+wiersza przez retencję (Audyt 2) zabiera go razem z treścią, więc rejestr
+czynności i terminy retencji nie wymagają zmiany. Gdyby kiedyś powstała osobna
+tabela indeksu — wymagałaby.
