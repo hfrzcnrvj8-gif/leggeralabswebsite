@@ -16,6 +16,15 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // Paczka „standalone" — samowystarczalny katalog z serwerem i tylko tymi
+  // zależnościami, których build faktycznie dotknął. Potrzebna do obrazu
+  // Dockera na NAS-ie (Moduł 55): bez niej trzeba by wieźć całe
+  // `node_modules`, czyli setki megabajtów zamiast kilkudziesięciu.
+  //
+  // WŁĄCZANA ZMIENNĄ, nie na stałe. Vercel radzi sobie z jednym i drugim, ale
+  // dopóki produkcja stoi na Vercelu, nie ma powodu zmieniać jej wejścia —
+  // etap przygotowawczy ma nie ruszać działającego wdrożenia.
+  output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
   // pdf-to-img (Moduł 8, OCR PDF→PNG) korzysta z pdfjs-dist, które domyślnie
   // SAMO próbuje w runtime `require("@napi-rs/canvas")` żeby narysować
   // stronę — Next.js/Vercel nie widzi tego dynamicznego require głęboko w

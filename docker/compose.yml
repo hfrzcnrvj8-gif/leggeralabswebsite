@@ -1,0 +1,76 @@
+# Leggera Hub na własnym serwerze — panel + baza + zadania cykliczne.
+#
+# Trzy kontenery na NAS-ie. Baza NIE wystawia portu na zewnątrz: panel sięga po
+# nią po wewnętrznej sieci Dockera, więc Postgres jest nieosiągalny spoza
+# maszyny nawet wtedy, gdy tunel stoi otworem. To jedyny powód, dla którego
+# `ports:` przy bazie jest zakomentowane, a nie usunięte — odkomentuj TYLKO na
+# czas przenoszenia danych i zamknij zaraz potem.
+
+name: leggera-hub
+
+services:
+  baza:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: leggera
+      POSTGRES_USER: leggera
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?ustaw POSTGRES_PASSWORD w .env}
+      # Polskie sortowanie i porównania — bez tego „Ł" ląduje za „Z",
+      # a lista klientów sortuje się inaczej niż w Neonie.
+      LANG: pl_PL.utf8
+      POSTGRES_INITDB_ARGS: "--locale=pl_PL.utf8 --encoding=UTF8"
+    volumes:
+      - ./dane/postgres:/var/lib/postgresql/data
+    # ports:
+    #   - "127.0.0.1:5432:5432"   # tylko na czas migracji danych
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leggera -d leggera"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  panel:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      baza:
+        condition: service_healthy
+    environment:
+      # Nazwa usługi zamiast adresu IP — Docker rozwiązuje ją sam i przeżywa
+      # restart bazy z innym adresem.
+      DATABASE_URL: postgresql://leggera:${POSTGRES_PASSWORD}@baza:5432/leggera
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ustaw ADMIN_PASSWORD w .env}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?ustaw ADMIN_SESSION_SECRET w .env}
+      CRON_SECRET: ${CRON_SECRET:?ustaw CRON_SECRET w .env}
+      # Reszta jest opcjonalna — panel działa bez nich, tylko odpowiednie
+      # funkcje milczą (poczta, raport mailowy, Łowca, lokalne AI).
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      CEIDG_TOKEN: ${CEIDG_TOKEN:-}
+      OLLAMA_URL: ${OLLAMA_URL:-}
+    volumes:
+      - ./dane/pliki:/dane/pliki
+    ports:
+      # Tylko pętla zwrotna. Na świat wychodzi wyłącznie przez tunel, więc
+      # nasłuch na 0.0.0.0 byłby otwartym panelem w sieci lokalnej.
+      - "127.0.0.1:3000:3000"
+
+  # Zadania cykliczne — zastępują `crons` z vercel.json. Osobny kontener,
+  # bo panel ma być bezstanowym serwerem HTTP; wbudowany scheduler ożywałby
+  # przy każdym restarcie i gubił zadania przy dwóch instancjach.
+  zadania:
+    image: alpine:3.20
+    restart: unless-stopped
+    depends_on:
+      - panel
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+    volumes:
+      - ./zadania.sh:/zadania.sh:ro
+    command: ["sh", "/zadania.sh"]

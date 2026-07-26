@@ -1,6 +1,7 @@
 import { neon, Pool, type NeonQueryFunction } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 import { inMigration } from "./migration-ctx";
+import { czyNeon, getOwnSql, withOwnTransaction } from "./own-db";
 import { MAIL_NUDGE_DAYS, type NudgeThread } from "./mail";
 import { STARTER_CATALOG } from "./catalogStarter";
 import {
@@ -188,7 +189,18 @@ export function getSql(): Sql {
     return client;
   }
 
-  client = neon(connectionString());
+  // Trzeci backend (Moduł 55, 2026-07-26): WŁASNY Postgres po TCP, gdy adres
+  // nie wskazuje na Neona. `neon()` mówi wyłącznie z Neonem — to była jedyna
+  // rzecz w kodzie naprawdę przywiązująca panel do chmury. Rozpoznanie idzie
+  // po HOŚCIE, nie po osobnym przełączniku: przełącznik da się ustawić źle
+  // i dostać cichą awarię przy poprawnym adresie, a host jest faktem.
+  const cs = connectionString();
+  if (!czyNeon(cs)) {
+    client = getOwnSql(cs) as unknown as Sql;
+    return client;
+  }
+
+  client = neon(cs);
   return client;
 }
 
@@ -229,6 +241,13 @@ export async function withTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { withDevTransaction } = require("./dev-db") as typeof import("./dev-db");
     return withDevTransaction<T>(fn as unknown as Parameters<typeof withDevTransaction<T>>[0]);
+  }
+
+  // Własna baza ma własną transakcję — `Pool` z @neondatabase/serverless idzie
+  // po WebSocket przez proxy Neona i do Postgresa na NAS-ie się nie połączy.
+  const csTx = connectionString();
+  if (!czyNeon(csTx)) {
+    return withOwnTransaction<T>(csTx, fn as unknown as Parameters<typeof withOwnTransaction<T>>[1]);
   }
 
   const pool = new Pool({ connectionString: connectionString() });
