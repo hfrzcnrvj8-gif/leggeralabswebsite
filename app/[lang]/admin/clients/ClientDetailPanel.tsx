@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconMessageCircle, IconCornerUpLeft, IconMail, IconPhoneOff } from "@tabler/icons-react";
+import {
+  IconMessageCircle,
+  IconMail,
+  IconSend,
+  IconPhoneOff,
+  IconPhoneIncoming,
+  IconPhoneOutgoing,
+} from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
@@ -938,13 +945,9 @@ export function ClientDetailPanel({
                             <div className="min-w-0 flex-1">
                               <div className="mb-0.5 flex items-center justify-between gap-2">
                                 <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                                  {formatTime(f.created_at)}
+                                  <span className="font-medium">{badge.label}</span>
+                                  <span className="tabular-nums">{formatTime(f.created_at)}</span>
                                   {f.czas_trwania_sek != null && <span>· {formatCallDuration(f.czas_trwania_sek)}</span>}
-                                  {f.kierunek && (
-                                    <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px]">
-                                      {CONTACT_DIRECTION_LABEL[f.kierunek as keyof typeof CONTACT_DIRECTION_LABEL]}
-                                    </span>
-                                  )}
                                   {f.source === "lead" && (
                                     <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] text-muted" title="Wpis sprzed awansu na klienta">
                                       z etapu leada
@@ -1017,21 +1020,58 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** Kolorowa odznaka wpisu na osi — wzorem iOS: nieodebrane połączenie
- * czerwone, inne kanały mają swój stały kolor, zdarzenia systemowe i
- * notatki bez kanału dostają neutralne tło. */
-function feedBadge(f: { kanal: string | null; wynik: string | null; kind: string }): { icon: ReactNode; cls: string } {
-  if (f.kanal === "telefon" && f.wynik === "nieodebrane") {
-    return { icon: <CallOutcomeIcon kind="nieodebrane" size={14} />, cls: CALL_OUTCOME_CLASS.nieodebrane };
-  }
-  if (f.kanal) {
+/** Odznaka i etykieta wpisu na osi — **kierunek widać po IKONIE, nie po
+ * napisie** (zgłoszenie właściciela 2026-07-26: „na pierwszy rzut oka nie
+ * widać, czy to akcja wychodząca czy przychodząca").
+ *
+ * Do tej pory ikona niosła sam kanał, a kierunek był małą pigułką z tekstem
+ * „Ja → oni" / „Oni → ja" — czyli informacją, którą trzeba PRZECZYTAĆ, przy
+ * elemencie, który ma być rozpoznawany wzrokiem. Teraz mail przychodzący ma
+ * kopertę, wychodzący samolocik, a telefon strzałkę w dół albo w górę —
+ * dokładnie tak, jak spis połączeń w iOS i jak zrobiliśmy to w apce.
+ *
+ * Etykieta („Mail przychodzący", „Nieodebrane") jest ta sama, co w apce —
+ * jedno nazewnictwo na obu platformach.
+ */
+function feedBadge(f: { kanal: string | null; wynik: string | null; kind: string; kierunek: string | null; source: string }): {
+  icon: ReactNode;
+  cls: string;
+  label: string;
+} {
+  const wychodzacy = f.kierunek === "wychodzacy";
+
+  if (f.kanal === "telefon") {
+    if (f.wynik === "nieodebrane") {
+      return { icon: <IconPhoneOff size={14} />, cls: CALL_OUTCOME_CLASS.nieodebrane, label: "Nieodebrane" };
+    }
     return {
-      icon: <ContactChannelIcon kind={f.kanal} size={14} />,
-      cls: CONTACT_CHANNEL_CLASS[f.kanal as keyof typeof CONTACT_CHANNEL_CLASS],
+      icon: wychodzacy ? <IconPhoneOutgoing size={14} /> : <IconPhoneIncoming size={14} />,
+      cls: CONTACT_CHANNEL_CLASS.telefon,
+      label: wychodzacy ? "Telefon wychodzący" : "Telefon przychodzący",
     };
   }
-  if (f.kind === "note") return { icon: <IconMessageCircle size={14} />, cls: "bg-[var(--hairline)] text-muted" };
-  return { icon: <ClientEventIcon kind={f.kind} size={14} />, cls: "bg-[var(--hairline)] text-muted" };
+
+  if (f.kanal === "email") {
+    return {
+      icon: wychodzacy ? <IconSend size={14} /> : <IconMail size={14} />,
+      cls: CONTACT_CHANNEL_CLASS.email,
+      label: wychodzacy ? "Mail wychodzący" : "Mail przychodzący",
+    };
+  }
+
+  if (f.kanal) {
+    const kanal = f.kanal as keyof typeof CONTACT_CHANNEL_CLASS;
+    return {
+      icon: <ContactChannelIcon kind={f.kanal} size={14} />,
+      cls: CONTACT_CHANNEL_CLASS[kanal],
+      label: `${CONTACT_CHANNEL_LABEL[kanal]}${f.kierunek ? (wychodzacy ? " — wychodzące" : " — przychodzące") : ""}`,
+    };
+  }
+
+  if (f.kind === "note") {
+    return { icon: <IconMessageCircle size={14} />, cls: "bg-[var(--hairline)] text-muted", label: "Notatka" };
+  }
+  return { icon: <ClientEventIcon kind={f.kind} size={14} />, cls: "bg-[var(--hairline)] text-muted", label: "Zdarzenie" };
 }
 
 /** "Dziś" / "Wczoraj" / "DD.MM.YYYY" — kosmetyczne grupowanie osi po dniu
