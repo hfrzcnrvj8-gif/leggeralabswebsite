@@ -43,6 +43,9 @@ export type Client = {
   next_followup: string | null;
   /** Tekstowy "następny krok" obok next_followup — PO CO jest przypomnienie. */
   next_action: string;
+  /** Co ile MIESIĘCY odzywać się do tego klienta. `null` = bez pilnowania.
+   * Patrz CLIENT_RHYTHMS i isClientOverdue. */
+  rytm_kontaktu_mies: number | null;
   /** Kanał ostatniego wpisu na osi (denormalizacja z client_activity.kanal) —
    * do ikony na karcie kanban bez dociągania całej historii. */
   ostatni_kanal: string | null;
@@ -318,19 +321,72 @@ function daysSince(dateStr: string | null): number | null {
 
 const CLOSED_CLIENT_STATUSES = new Set<ClientStatus>(["Stracony"]);
 
-/** Klient "wymaga działania dziś" wyłącznie na podstawie jawnie ustawionego
- * przypomnienia — w przeciwieństwie do leadów nie ma tu sztywnej reguły
- * czasowej per status, bo tempo kontaktu z klientem jest bardziej
- * zróżnicowane i to Ty decydujesz kiedy wrócić. */
-export function isClientOverdue(client: Pick<Client, "status" | "next_followup">): boolean {
-  if (CLOSED_CLIENT_STATUSES.has(client.status)) return false;
-  if (!client.next_followup) return false;
-  return client.next_followup <= todayLocalISO();
+/** Rytmy do wyboru (miesiące). `null` = bez pilnowania i to jest DOMYŚLKA.
+ *
+ * Wzorzec z Claya (osobisty CRM): rytm jest decyzją per relacja, nie stałą dla
+ * wszystkich. Sztywny próg ciszy — taki jak `DNI_CISZY_W_OTWARTYM` u leadów —
+ * został tu wcześniej świadomie odrzucony właśnie dlatego, że tempo kontaktu
+ * z klientem jest zbyt różne: do jednego dzwoni się co tydzień, do innego raz
+ * na rok i to jest w porządku. Rytm ustawiany ręcznie godzi jedno z drugim. */
+export const CLIENT_RHYTHMS: { label: string; miesiace: number | null }[] = [
+  { label: "Bez pilnowania", miesiace: null },
+  { label: "Co miesiąc", miesiace: 1 },
+  { label: "Co kwartał", miesiace: 3 },
+  { label: "Co pół roku", miesiace: 6 },
+  { label: "Co rok", miesiace: 12 },
+];
+
+/** Miesiąc liczony jako 30 dni — świadomie, bo to próg „mniej więcej", a nie
+ * termin. Liczenie kalendarzowe dawałoby złudzenie precyzji, której ta reguła
+ * nie ma. */
+const DNI_W_MIESIACU = 30;
+
+/** Ile dni ciszy u tego klienta — od ostatniego kontaktu, a gdy go NIGDY nie
+ * było, od utworzenia rekordu. Ta druga część jest istotna: klient, do którego
+ * nikt się nie odezwał ani razu, milczałby inaczej wiecznie — a to właśnie
+ * o nim najłatwiej zapomnieć (ta sama zasada, co przy ciszy leada, Moduł 52). */
+export function clientSilenceDays(
+  client: Pick<Client, "ostatni_kontakt" | "created_at">
+): number | null {
+  return daysSince(client.ostatni_kontakt ?? client.created_at ?? null);
 }
 
-export function clientOverdueReason(client: Pick<Client, "next_followup" | "next_action">): string {
-  const action = client.next_action?.trim();
-  return `ustawione przypomnienie na ${client.next_followup}${action ? ` — ${action}` : ""}`;
+/** Czy minął ustawiony rytm kontaktu. `false`, gdy rytmu nie ma. */
+export function clientRhythmOverdue(
+  client: Pick<Client, "ostatni_kontakt" | "created_at" | "rytm_kontaktu_mies">
+): boolean {
+  const rytm = client.rytm_kontaktu_mies;
+  if (!rytm || rytm <= 0) return false;
+  const cisza = clientSilenceDays(client);
+  return cisza !== null && cisza >= rytm * DNI_W_MIESIACU;
+}
+
+/** Klient „wymaga działania dziś" z DWÓCH powodów, nie jednego.
+ *
+ * 1. Jawne przypomnienie (`next_followup`) — jak dotąd.
+ * 2. Minął ustawiony rytm kontaktu (2026-07-26). Bez tego klient, któremu
+ *    nigdy nie ustawiono daty, mógł milczeć rok i nie pojawić się nigdzie —
+ *    ani na Pulpicie, ani w porannym mailu. Sztywnego progu dla wszystkich
+ *    świadomie NIE ma; pilnujemy tylko tych, przy których sam ustawiłeś rytm.
+ */
+export function isClientOverdue(
+  client: Pick<Client, "status" | "next_followup" | "ostatni_kontakt" | "created_at" | "rytm_kontaktu_mies">
+): boolean {
+  if (CLOSED_CLIENT_STATUSES.has(client.status)) return false;
+  if (client.next_followup && client.next_followup <= todayLocalISO()) return true;
+  return clientRhythmOverdue(client);
+}
+
+export function clientOverdueReason(
+  client: Pick<Client, "next_followup" | "next_action" | "ostatni_kontakt" | "created_at" | "rytm_kontaktu_mies">
+): string {
+  if (client.next_followup && client.next_followup <= todayLocalISO()) {
+    const action = client.next_action?.trim();
+    return `ustawione przypomnienie na ${client.next_followup}${action ? ` — ${action}` : ""}`;
+  }
+  const cisza = clientSilenceDays(client);
+  const rytm = CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label.toLowerCase();
+  return `minął rytm kontaktu (${rytm ?? "ustawiony"}) — cisza od ${cisza ?? 0} dni`;
 }
 
 export { daysSince as clientDaysSince };
@@ -347,7 +403,12 @@ export type ClientSort = (typeof CLIENT_SORTS)[number];
  * (`SortowanieKlientow` w rdzeniu apki). Klient bez ani jednego kontaktu jest
  * traktowany jak milczący NAJDŁUŻEJ, nie jak świeży: to o nim najłatwiej
  * zapomnieć (ta sama zasada, co przy ciszy leada w Module 52). */
-export function sortClients<T extends Pick<Client, "nazwa" | "status" | "ostatni_kontakt" | "next_followup">>(
+export function sortClients<
+  T extends Pick<
+    Client,
+    "nazwa" | "status" | "ostatni_kontakt" | "next_followup" | "created_at" | "rytm_kontaktu_mies"
+  >,
+>(
   clients: T[],
   sort: ClientSort
 ): T[] {

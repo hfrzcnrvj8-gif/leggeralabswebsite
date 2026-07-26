@@ -19,6 +19,9 @@ import {
   ClientEventIcon,
   CLIENT_EVENT_TARGET,
   clientDaysSince,
+  CLIENT_RHYTHMS,
+  clientRhythmOverdue,
+  clientSilenceDays,
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
   ContactChannelIcon,
@@ -538,6 +541,31 @@ export function ClientDetailPanel({
                       nie wejście w kalendarz. Przypomnienie jest JEDYNĄ rzeczą,
                       która zapala klientowi „wymaga działania dziś". */}
                   <QuickDateChips onPick={(v) => updateClient("next_followup", v)} />
+                </div>
+              </Field>
+              {/* Rytm kontaktu (2026-07-26) — wzorzec z Claya: rytm jest
+                  decyzją PER RELACJA, nie stałą dla wszystkich. Domyślnie
+                  „bez pilnowania", bo sztywny próg ciszy dla każdego klienta
+                  został tu wcześniej świadomie odrzucony. Gdy rytm minie,
+                  klient sam trafia do „wymaga działania dziś" i w poranny mail
+                  — także wtedy, gdy nie ustawiłeś mu żadnej daty. */}
+              <Field label="Odzywaj się">
+                <div className="space-y-1">
+                  <PillPicker
+                    value={CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label ?? "Bez pilnowania"}
+                    options={CLIENT_RHYTHMS.map((r) => r.label)}
+                    onChange={(label) => {
+                      const wybrany = CLIENT_RHYTHMS.find((r) => r.label === label);
+                      updateClient("rytm_kontaktu_mies", wybrany?.miesiace ? String(wybrany.miesiace) : "");
+                    }}
+                    placeholder="Bez pilnowania"
+                    title="Co ile odzywać się do tego klienta"
+                  />
+                  {clientRhythmOverdue(client) && (
+                    <p className="px-1 text-[11px] font-medium text-orange-400">
+                      Rytm minął — cisza od {clientSilenceDays(client)} dni.
+                    </p>
+                  )}
                 </div>
               </Field>
               {client.next_followup && (

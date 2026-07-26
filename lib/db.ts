@@ -1455,6 +1455,10 @@ async function createClientsSchema(): Promise<void> {
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS osoba_kontaktowa TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS zrodlo TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS zrodlo_kategoria TEXT NOT NULL DEFAULT '';`;
+  // Rytm kontaktu (2026-07-26) — co ile miesięcy odzywać się do TEGO klienta.
+  // NULL = bez pilnowania, i to jest domyślka: reguła narzucona wszystkim była
+  // powodem, dla którego wcześniej odrzuciliśmy sztywny próg ciszy u klientów.
+  await sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS rytm_kontaktu_mies INTEGER;`;
 
   await markSchemaApplied("clients");
 }

@@ -74,6 +74,7 @@ const LEAD_FIELD_LABEL: Record<string, string> = {
   status: "Status",
   notatki: "Notatka przypięta",
   zrodlo_kategoria: "Źródło — kategoria",
+  rytm_kontaktu_mies: "Rytm kontaktu (miesiące)",
   zrodlo: "Źródło — szczegóły",
   ostatni_kontakt: "Ostatni kontakt",
   next_followup: "Przypomnij mi",

@@ -223,6 +223,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     applied.linkedin_url = str(body.linkedin_url, 300);
     await sql`UPDATE clients SET linkedin_url = ${applied.linkedin_url}, updated_at = now() WHERE id = ${id};`;
   }
+  // Rytm kontaktu — liczba miesięcy albo NULL (bez pilnowania). Pusty string
+  // i 0 traktujemy jak brak: „wyłącz pilnowanie" ma być jednym ruchem, nie
+  // szukaniem właściwej wartości.
+  if ("rytm_kontaktu_mies" in body) {
+    const raw = Number(body.rytm_kontaktu_mies);
+    const rytm = Number.isFinite(raw) && raw > 0 ? Math.min(Math.round(raw), 60) : null;
+    applied.rytm_kontaktu_mies = rytm;
+    await sql`UPDATE clients SET rytm_kontaktu_mies = ${rytm}, updated_at = now() WHERE id = ${id};`;
+  }
   if ("next_action" in body) {
     applied.next_action = str(body.next_action, 500);
     await sql`UPDATE clients SET next_action = ${applied.next_action}, updated_at = now() WHERE id = ${id};`;
