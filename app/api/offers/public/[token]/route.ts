@@ -30,9 +30,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   // dotyczy ofert wysłanych przed tą zmianą — te migawki nie mają.
   const migawka = (offer.migawka ?? null) as { offer?: Record<string, unknown>; items?: unknown[]; sections?: unknown[] } | null;
   const zMigawki = migawka && Array.isArray(migawka.items);
-  const items = zMigawki
+  let items = zMigawki
     ? (migawka.items as Record<string, unknown>[])
     : await sql`SELECT * FROM offer_items WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
+
+  // `wybrana` musi być ŻYWA — to jedyne pole pozycji, które należy do KLIENTA,
+  // a nie do dokumentu. Migawka powstaje przy wysyłce, więc zamraża ją na
+  // „nic nie zaznaczono": po akceptacji klient wracający pod ten sam link
+  // widział dodatek jako niewybrany i kwotę bez niego, choć na fakturze ten
+  // dodatek był (audyt Modułu 57 — oferta AUDYT-WYBOR: certyfikat akceptacji
+  // pod kwotą 1 000 zł przy fakturze na 1 500 zł). Komentarz w OfferPrint.tsx
+  // zakładał dokładnie to, czego migawka nie dowoziła.
+  if (zMigawki) {
+    const wyborKlienta = new Map(
+      (
+        (await sql`SELECT id, wybrana FROM offer_items WHERE offer_id = ${offer.id};`) as unknown as {
+          id: string;
+          wybrana: boolean;
+        }[]
+      ).map((r) => [r.id, r.wybrana])
+    );
+    items = items.map((it) =>
+      wyborKlienta.has(String(it.id)) ? { ...it, wybrana: wyborKlienta.get(String(it.id)) } : it
+    );
+  }
   const sections = zMigawki && Array.isArray(migawka.sections)
     ? (migawka.sections as Record<string, unknown>[])
     : await sql`SELECT id, tytul, tresc, position FROM offer_sections WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
@@ -45,7 +66,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   // KOMPLECIE i cała ta funkcja nic nie dawała (złapane testem: po zmianie
   // tytułu w bazie klient widział nowy). Teraz migawka jest podstawą,
   // a z bazy dokładamy tylko to, co wymienione.
-  const ZAWSZE_ZYWE = ["status", "accepted_at", "accepted_by_name", "share_revoked_at", "id", "created_at"] as const;
+  //
+  // `wazna_do` dołączyło do listy w audycie Modułu 57. Blokada dokumentu
+  // JAWNIE pozwala przedłużyć ważność mimo wysyłki i nazywa to „ustępstwem
+  // wobec klienta" (POLA_MIMO_BLOKADY_OFERTY) — a ustępstwo, którego klient
+  // nie widzi, nie jest ustępstwem. Sonda: przedłużenie do 2026-12-31 dawało
+  // 200, w bazie było 2026-12-31, a na stronie klienta dalej 2026-08-01.
+  // Odwrotny kierunek był gorszy: klient widział ofertę jako ważną i dostawał
+  // odmowę przy akceptacji, bo `isOfferExpired` liczy się z danych ŻYWYCH.
+  const ZAWSZE_ZYWE = ["status", "accepted_at", "accepted_by_name", "share_revoked_at", "id", "created_at", "wazna_do"] as const;
   const naglowek = zMigawki && migawka?.offer
     ? { ...migawka.offer, ...Object.fromEntries(ZAWSZE_ZYWE.map((k) => [k, (offer as Record<string, unknown>)[k]])) }
     : offer;
