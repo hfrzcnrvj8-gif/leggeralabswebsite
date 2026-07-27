@@ -60,6 +60,7 @@ import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { invalidateLinkTargets } from "../LinkPicker";
+import { DocLinkPicker } from "../DocLinkPicker";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 
@@ -164,7 +165,19 @@ export function InvoiceEditor({
       // Zablokowana faktura: przepuszczamy tylko zmianę statusu (np. anulowanie)
       // oraz e-mail nabywcy (potrzebny do wysyłki/przypomnień po wystawieniu) —
       // resztę pól dokumentu odrzucamy, bo edycja treści idzie przez korektę.
-      if (lockedRef.current && !("status" in patch) && !("klient_email" in patch)) return;
+      // `offer_id`/`contract_id` przechodzą też po wystawieniu (2026-07-27):
+      // powiązanie to porządek w rejestrze, nie treść dokumentu — a dopinania
+      // wstecz potrzebują właśnie stare, wystawione faktury. Trasa zezwala na
+      // te dwa pola tak samo (POLA_MIMO_BLOKADY_FAKTURY); bez tej linijki
+      // picker po cichu nic by nie zapisał.
+      if (
+        lockedRef.current &&
+        !("status" in patch) &&
+        !("klient_email" in patch) &&
+        !("offer_id" in patch) &&
+        !("contract_id" in patch)
+      )
+        return;
       setInvoice((prev) => (prev ? { ...prev, ...patch } : prev));
       setSaveState("saving");
       const res = await fetch(`/api/invoices/${id}`, {
@@ -656,6 +669,33 @@ export function InvoiceEditor({
               )}
             </div>
             {!locked && linkHint && <LinkHint text={linkHint} />}
+            {/* SKĄD WYNIKA TA FAKTURA (2026-07-27) — ścieżka „oferta → umowa →
+                faktura" na karcie klienta rysuje się z jawnych powiązań. Nowe
+                dokumenty niosą je same (umowa z oferty, zaliczka z umowy), ale
+                wszystko, co powstało wcześniej albo ręcznie, dało się połączyć
+                dopiero tutaj. Świadomie dostępne TAKŻE po wystawieniu faktury:
+                powiązanie to porządek w rejestrze, nie treść dokumentu. */}
+            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-b hairline pb-2 text-[12.5px] text-muted">
+              <span className="text-[11px] uppercase tracking-wide opacity-70">Wynika z</span>
+              <span className="flex items-center gap-1">
+                <span className="opacity-70">oferty</span>
+                <DocLinkPicker
+                  rodzaj="offer"
+                  clientId={invoice.client_id}
+                  value={invoice.offer_id}
+                  onPick={(v) => patchInvoice({ offer_id: v })}
+                />
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="opacity-70">umowy</span>
+                <DocLinkPicker
+                  rodzaj="contract"
+                  clientId={invoice.client_id}
+                  value={invoice.contract_id}
+                  onPick={(v) => patchInvoice({ contract_id: v })}
+                />
+              </span>
+            </div>
             <div className={lockCls}>
             <input
               value={invoice.klient_nazwa}

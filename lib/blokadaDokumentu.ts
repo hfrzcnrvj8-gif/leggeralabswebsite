@@ -137,7 +137,19 @@ export const POLA_MIMO_BLOKADY_OFERTY = new Set([
   "lead_id",
 ]);
 
-export const POLA_MIMO_BLOKADY_FAKTURY = new Set(["status", "ksef_status", "ksef_numer", "ksef_uid"]);
+/* `offer_id`/`contract_id` są tu świadomie (2026-07-27): to nie treść
+ * dokumentu — klient ich nie widzi, nie zmieniają kwoty ani numeru — tylko
+ * porządek w rejestrze („ta faktura wynika z tej umowy"). Bez tego wyjątku
+ * dopiąć wstecz dałoby się WYŁĄCZNIE fakturę-szkic, czyli dokładnie tę, która
+ * tego nie potrzebuje. */
+export const POLA_MIMO_BLOKADY_FAKTURY = new Set([
+  "status",
+  "ksef_status",
+  "ksef_numer",
+  "ksef_uid",
+  "offer_id",
+  "contract_id",
+]);
 
 export const POLA_MIMO_BLOKADY_UMOWY = new Set(["status", "client_id", "project_id"]);
 

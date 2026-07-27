@@ -32,6 +32,7 @@ import { DateField } from "../DatePicker";
 import { ClientLinkChip, EditableText } from "../components";
 import { PropertyMenu } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
+import { DocLinkPicker } from "../DocLinkPicker";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { Modal } from "../Modal";
@@ -338,6 +339,22 @@ export function ContractEditor({
               żaden ekran go nie wysyłał, więc umowa dostawała projekt WYŁĄCZNIE
               dziedzicząc go z oferty — i bramka startu projektu (api/projects/
               [id]:141) była nie do przejścia dla projektu założonego ręcznie. */}
+          {isUmowa && (
+            <span className="flex items-center gap-1 text-muted">
+              {/* Z KTÓREJ OFERTY (2026-07-27) — umowa wygenerowana z oferty ma
+                  to pole wypełnione od początku, ale umowa wolnostojąca nie
+                  miała jak go dostać, więc wypadała ze ścieżki dokumentów na
+                  karcie klienta. */}
+              <span className="text-[11px] uppercase tracking-wide opacity-70">Z oferty</span>
+              <DocLinkPicker
+                rodzaj="offer"
+                clientId={contract.client_id}
+                value={contract.offer_id}
+                onPick={(v) => patch({ offer_id: v })}
+                disabled={signed}
+              />
+            </span>
+          )}
           {isUmowa && (
             <span className="flex items-center gap-1 text-muted">
               <span className="text-[11px] uppercase tracking-wide opacity-70">Projekt</span>

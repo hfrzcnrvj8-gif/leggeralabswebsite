@@ -150,6 +150,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const v = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id : null;
       await sql`UPDATE invoices SET project_id = ${v}, updated_at = now() WHERE id = ${id};`;
     }
+    // Skąd wynika ta faktura (2026-07-27) — ścieżka dokumentów na karcie
+    // klienta. ŚWIADOMIE wolne mimo blokady wystawionej faktury: powiązanie
+    // nie jest treścią dokumentu (nie widzi go klient, nie zmienia kwoty),
+    // tylko porządkiem w rejestrze — a właśnie stare, wystawione faktury
+    // najczęściej wymagają dopięcia do umowy wstecz.
+    if ("offer_id" in body) {
+      const v = typeof body.offer_id === "string" && body.offer_id.trim() ? body.offer_id : null;
+      await sql`UPDATE invoices SET offer_id = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    if ("contract_id" in body) {
+      const v = typeof body.contract_id === "string" && body.contract_id.trim() ? body.contract_id : null;
+      await sql`UPDATE invoices SET contract_id = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("data_wystawienia" in body) {
       const v = dateOrNull(body.data_wystawienia);
       if (v === undefined) return NextResponse.json({ error: "invalid data_wystawienia" }, { status: 400 });

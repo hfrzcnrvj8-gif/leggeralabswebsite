@@ -9196,3 +9196,27 @@ Zaliczka (szkic)" i „Umowa Aneks nr 1".
 
 Apka pokazuje tę samą ścieżkę w karcie klienta, pionowo z wcięciem (poziomy
 łańcuch zawijałby się na telefonie w plątaninę).
+
+#### Ręczne wiązanie dokumentów (`DocLinkPicker`, 2026-07-27)
+
+Ścieżka rysuje się z jawnych powiązań, a te wypełniają się same TYLKO przy
+nowych dokumentach (umowa z oferty, zaliczka z umowy). Wszystko starsze albo
+zrobione ręcznie było nie do połączenia — właściciel widział osobne, samotne
+wątki i nie miał czym tego naprawić.
+
+`app/[lang]/admin/DocLinkPicker.tsx` — wybór dokumentu-ŹRÓDŁA: „Wynika z:
+oferty / umowy" w edytorze faktury, „Z oferty" w edytorze umowy. Lista zawężona
+do TEGO SAMEGO klienta (powiązanie z cudzą ofertą to nie funkcja, tylko pomyłka).
+
+**Osobny komponent, nie `LinkPicker`** — tamten obsługuje klienta/leada/projekt
+i jest WYŁĄCZNY w obrębie swoich rodzajów (wybór jednego czyści resztę,
+`lib/links.ts`). Tu faktura może wynikać naraz z oferty i z umowy.
+
+**`offer_id`/`contract_id` przechodzą MIMO blokady wystawionej faktury**
+(`POLA_MIMO_BLOKADY_FAKTURY`) — powiązanie to porządek w rejestrze, nie treść
+dokumentu: klient go nie widzi, nie zmienia kwoty ani numeru. Dopinania wstecz
+potrzebują właśnie stare, wystawione faktury; bez tego wyjątku dałoby się
+połączyć wyłącznie szkic, czyli ten dokument, który tego nie potrzebuje.
+Sprawdzone sondą: `PATCH {contract_id}` na `FV 2/2026` → 200, `PATCH
+{klient_nazwa}` na tej samej fakturze → 409. Edytor ma bliźniaczy wyjątek
+w `patchInvoice` — bez niego picker po cichu nic by nie zapisał.
