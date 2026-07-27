@@ -352,6 +352,67 @@ rozstrzygnięcia raz dla wszystkich dokumentów przy module Umowy, podręcznik
 obsługi dla części mobilnej, oraz szablony ofert na telefonie (świadomie nie —
 to praca przy biurku).
 
+## Stan po module „Umowy i NDA" (2026-07-27)
+
+Audyt + wdrożenie wniosków w jednym podejściu (prośba właściciela). Pełny
+zapis techniczny: `HUB_SETUP.md` → „Audyt Modułu 11 — Umowy i NDA".
+
+**Cztery dziury w nienaruszalności dokumentu, każda z dowodem z sondy:**
+
+1. **Blokadę podpisanej umowy zdejmowało jedno żądanie.** `PATCH
+   {"status":"Szkic"}` → 200, potem `PATCH {"cena":1}` → 200: dokument
+   zostawał z podpisem i datą podpisu, ale z inną treścią. Blokada chodzi
+   teraz po `accepted_at`, nie po statusie — bo status jest polem WOLNYM mimo
+   blokady (żeby dało się dokument zamknąć), więc oparcie na nim było drzwiami
+   na oścież.
+2. **`DELETE` kasował podpisaną umowę** (200). Faktura z numerem miała ten
+   zakaz od dawna; umowa nie miała żadnego. Sonda skasowała podpisaną umowę,
+   do której istniał podpisany aneks — aneks został na liście jako sierota.
+3. **`status` przyjmował dowolny string** (zapisane: `ZUPELNIE-DOWOLNY-STRING`).
+   Ta sama dziura, którą Oferty załatały w Module 57.
+4. **`send` działał na dokumencie już podpisanym**: druga strona dostawała mail
+   „można podpisać elektronicznie", `sent_at` wracało na zero (licznik ciszy),
+   a na osi klienta lądowało „Wysłano" PO „Podpisana".
+
+**Migawka umowy** (nowe) — powód INNY niż przy ofercie: oferta jest
+zablokowana od wysyłki, umowa dopiero od podpisu, więc w całym oknie negocjacji
+publiczny link renderował dane żywe. Sprawdzone end-to-end: zmiana w bazie nie
+zmienia tego, co widzi druga strona, dopóki nie wyślesz ponownie.
+
+**Aneks podpisywał się jako „Umowa" w czterech miejscach panelu** (Pulpit,
+wyszukiwarka, dwa wpisy na osi klienta + powiadomienie) — dokładnie ten sam
+błąd, który Moduł 58 naprawił po stronie apki. Dzienny mail używał słownika od
+początku, więc panel i mail mówiły o tym samym dokumencie dwa różne słowa.
+
+**Waluta umowy nie istniała**: `POST /api/contracts` nie kopiował jej z oferty
+(EUR → PLN), edytor nie miał ani pickera waluty, ani pola Kraj, a podgląd kwoty
+formatował zawsze w złotówkach. To ta sama klasa co „VAT 23% na sztywno"
+z Ofert: liczba wyglądała poprawnie i była nieprawdziwa.
+
+**Odrzucenie zostawia ślad** — `contract_rejected` na osi czasu klienta plus
+osobna lista powodów (`CONTRACT_REJECT_REASONS`, świadomie inna niż ofertowa:
+ofertę przegrywa się na cenie, umowę na zapisach). Przy NDA to jedyne miejsce,
+gdzie w ogóle da się zapisać, dlaczego kontrahent nie podpisał.
+
+**Profil i lista** dostały wzorzec z Modułu 57: pigułka statusu i cisza
+w nagłówku, „Sporządź aneks" w profilu (bo to tam pada komunikat blokady),
+aneksy widoczne z umowy i umowa z aneksu, etykietowane wiersze (38 px),
+`max-w-5xl`, sufit z `total`, szukanie `/`, kursor `j/k`, sensowny pusty stan.
+
+**Apka**: aneks pokazuje „było → jest" zamiast udawać umowę (serwer przestał
+oddawać mu klauzule), doszły „Oznacz jako podpisaną" i „Nie podpisali"
+z powodem (gest, menu, profil), cisza od N dni i filtr statusu; zniknęła pusta
+sekcja „Zakres prac" na szkicu — zgłoszenie właściciela z 26.07.
+
+**Świadomie nie ruszone:** poziom 2/3 apki (tworzenie umowy, klauzule i
+sporządzanie aneksu zostają przy biurku), trójkolumnowy iPad dla Umów, treść
+klauzul (czeka na prawnika — `docs/DO-PRAWNIKA-I-TLUMACZA.md`).
+
+**Lekcja metodyczna, trzeci raz z rzędu:** wszystkie cztery dziury znalazła
+sonda po realnych trasach, nie przegląd kodu — i wszystkie były w module, który
+audyt Ofert opisał zdaniem „Umowy: bez zarzutu". Tamto sprawdzenie objęło
+`PATCH` i ponowny e-podpis, a nie `DELETE`, `send` ani przejścia statusu.
+
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`

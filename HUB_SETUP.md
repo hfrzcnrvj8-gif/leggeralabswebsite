@@ -8838,3 +8838,189 @@ jej potomek, dwie zaakceptowane i wysłana.
 umowę da się wygenerować wyłącznie z oferty ZAAKCEPTOWANEJ, a zaakceptowanej
 nie da się już przestawić na inny status. Zostaje jako zabezpieczenie na
 wypadek, gdyby któraś z tych dwóch reguł kiedyś się zmieniła.
+
+## Audyt Modułu 11 — Umowy i NDA (2026-07-27)
+
+Audyt UI/UX i kompletności modułu Umowy w kolejce Modułu 51 (po Pulpicie,
+Leadach, Klientach i Ofertach). Metoda jak przy audycie Ofert: **sonda `curl`
+po KAŻDYM uchwycie HTTP osobno**, na lokalnym dev-panelu (PGlite), z odczytem
+stanu bazy po każdej próbie — plus przegląd panelu w przeglądarce i kodu apki.
+Właściciel poprosił o wdrożenie wszystkich wniosków od razu, więc ta sekcja
+opisuje stan PO poprawkach.
+
+### Nienaruszalność dokumentu — cztery dziury, wszystkie z dowodem z sondy
+
+| Trasa / reguła | Przed | Po |
+|---|---|---|
+| `PATCH` `{status:"Szkic"}` na PODPISANEJ umowie, potem `{cena:1}` | 200 i 200 — dokument z podpisem i inną treścią | 409 (`blokadaStatusuUmowy`) |
+| `PATCH` `{status:"CO_TYLKO_CHCE"}` | 200, wartość spoza słownika w bazie | 400 |
+| `DELETE` podpisanej umowy | 200 — dokument znikał razem z podpisem, aneks zostawał sierotą | 409 |
+| `POST /send` na podpisanym dokumencie | 200 — mail „można podpisać", `sent_at` od nowa, „Wysłano" PO „Podpisana" na osi klienta | 409 |
+
+**Blokada chodzi teraz po `accepted_at`, nie po statusie.** To była sedno
+pierwszej dziury: `status` jest polem WOLNYM mimo blokady (żeby dało się
+dokument zamknąć), więc blokada oparta na samym statusie miała drzwi na oścież.
+`accepted_at` jest jedynym śladem, którego nie da się cofnąć zwykłą edycją.
+
+Dwie reguły przejścia statusu (`blokadaStatusuUmowy`): **na „Podpisana" nie
+przechodzi się statusem** (podpis to data, nie etykieta — inaczej wydruk ma
+pustą rubrykę, a dokument wypada z retencji dowodu e-podpisu; od tego jest
+`POST /accept`), i **z „Podpisana" nie schodzi się wcale**.
+
+`DELETE` odmawia też umowie, do której sporządzono aneks — aneks straciłby
+jedyne powiązanie z dokumentem, do którego się odnosi.
+
+### Migawka umowy (nowe)
+
+`contracts.migawka` + `migawka_at`, wzorem oferty. **Powód jest inny niż przy
+ofercie**: oferta jest zablokowana od wysyłki, a umowa dopiero od PODPISU —
+czyli dokładnie w oknie negocjacji publiczny link renderował dane żywe.
+Migawka powstaje przy KAŻDEJ wysyłce (ponowna wysyłka po poprawce pokazuje
+poprawioną wersję). Żywe zostają: `status`, `accepted_at`, `accepted_by_name`,
+`share_revoked_at`, `id`, `created_at` (`CONTRACT_ZAWSZE_ZYWE`).
+
+Sprawdzone end-to-end, nie przeglądem: wysyłka → zmiana treści w bazie →
+druga strona dalej widzi wersję z wysyłki → ponowna wysyłka → widzi nową →
+podpis → status na stronie żywy.
+
+### Aneks podpisywał się jako „Umowa" w czterech miejscach
+
+Ten sam błąd, który Moduł 58 naprawił po stronie apki, żył dalej w panelu:
+`DashboardHome` („Umowa, cisza od N dni" na Pulpicie), `AppShell` (wyszukiwarka),
+`api/contracts/[id]/accept` i `public/[token]/accept` (oś czasu klienta
+i powiadomienie „Umowa podpisana"). Dzienny mail używał `CONTRACT_TYP_LABEL`
+od początku — panel i mail mówiły o tym samym dokumencie dwa różne słowa.
+Wszędzie jest teraz słownik. Komunikaty podpisu są **neutralne rodzajowo**
+(„NDA podpisana" / „Aneks podpisana" nie działały).
+
+### Waluta umowy — nie istniała
+
+`POST /api/contracts` kopiował z oferty zakres, kwotę i język, ale **nie
+walutę**: oferta w EUR dawała umowę w PLN. Edytor nie miał pickera waluty ani
+pola **Kraj**, a podsumowanie kwoty wołało `formatMoney(cena)` bez waluty, więc
+pokazywało „zł" zawsze (wydruk liczył poprawnie — rozjeżdżał się podgląd).
+Naprawione na obu końcach.
+
+### Odrzucenie zostawia ślad i powód
+
+Nowe kolumny (`powod_odrzucenia`, `komentarz_odrzucenia`, `odrzucona_at`),
+zdarzenie `contract_rejected` na osi czasu klienta i **osobna lista powodów**
+`CONTRACT_REJECT_REASONS` — świadomie inna niż przy ofercie: ofertę przegrywa
+się na cenie i terminie, umowę na zapisach. Wspólna lista zlałaby dwie różne
+porażki w jedną statystykę. Wyjście ze statusu „Odrzucona" czyści powód.
+
+Okno powodu (`OknoOdrzucenia`) przeniosło się do korzenia `admin/` i przyjmuje
+listę powodów oraz teksty; `offers/RejectDialog.tsx` został re-eksportem.
+
+### Profil i lista
+
+- **Profil mówi wreszcie, w jakim stanie jest dokument**: klikalna pigułka
+  statusu, referencja (`UM-2026-…`), „cisza od N dni", data i autor podpisu,
+  powód odrzucenia. Wcześniej umowa wysłana wyglądała jak szkic i świeciła
+  przyciskiem „Oznacz jako podpisaną" (ta sama wada co w Ofertach).
+- **„Sporządź aneks" jest w profilu**, nie tylko na liście — komunikat blokady
+  („Zmiana wymaga aneksu") dostaje się właśnie w profilu.
+- **Rodzina dokumentu widoczna z obu stron**: umowa pokazuje swoje aneksy
+  (numer, status, kwota), aneks linkuje do umowy-matki. `GET /api/contracts/:id`
+  dokłada `aneksy` i `matka`.
+- **Etykietowane wiersze** (`SekcjaProfilu`/`WierszPola`, rytm zmierzony 38 px)
+  zamiast nagich inputów z placeholderem, karta `max-w-5xl` zamiast `3xl`.
+- **Lista**: sufit 1000 z `total` i ostrzeżeniem, szukanie `/`, kursor `j/k`
+  + Enter, kolumna „Stan" z ciszą, przy aneksie „do UM-2026-…", pusty stan
+  mówiący, co umowa zmienia (ustalenie A1).
+- **Tabela „było → jest" formatuje wartości** (kwota z walutą, data po polsku).
+  Wydruk robił to od początku, panel pokazywał surowe `2026-09-30`.
+
+### Apka (iPhone + iPad)
+
+- **Aneks przestał wyglądać jak umowa.** Model zna `aneks_nr` i `poprzednie`,
+  profil pokazuje „Co zmienia ten aneks" (było → jest, z referencją umowy),
+  a `GET /api/contracts/:id` **nie oddaje już klauzul dla aneksu** — telefon
+  drukował pod aneksem 16 klauzul umowy, czyli dokładnie to, czego wydruk
+  świadomie unika.
+- **Dokument da się zamknąć z telefonu**: „Oznacz jako podpisaną" (papierowy
+  podpis) i „Nie podpisali" z powodem — z profilu, gestem na liście i z menu
+  przytrzymania. Sprawdzone na symulatorze end-to-end: `status = Podpisana`
+  i `accepted_at` w bazie po kliknięciu w telefonie.
+- Pusta sekcja „Zakres prac" na szkicu zniknęła (zgłoszenie właściciela
+  z 26.07), doszła „cisza od N dni" i filtr statusu w pasku.
+- `formatKwota` przeniesione do rdzenia (`LeggeraHubCore`), bo potrzebuje jej
+  też model — jedna definicja zamiast dwóch.
+
+### Świadomie nie ruszone
+
+Poziom 2/3 apki bez zmian (tworzenie umowy, redagowanie klauzul i sporządzanie
+aneksu zostają przy biurku), trójkolumnowy układ Umów na iPadzie, rzeczy
+z `PO_REJESTRACJI.md`, treść klauzul (idzie do prawnika).
+
+## Umowy — paczka „koniec czarnej skrzynki" (2026-07-27)
+
+Sześć rzeczy, które w narzędziach do umów są standardem, a panelowi ich
+brakowało. Punkt odniesienia: DocuSign / Dropbox Sign po stronie podpisu,
+Juro / Concord po stronie cyklu życia umowy (CLM). Świadomie NIE kopiujemy
+negocjacji z komentarzami, obiegu zatwierdzeń ani „AI review klauzul" — to
+funkcje dla działu prawnego, nie dla jednej osoby.
+
+**1. Przypomnienie o podpisie** (`POST /api/contracts/:id/remind`). Pulpit
+mówił „cisza od 12 dni" i zostawiał właściciela z pustą skrzynką. Teraz
+przycisk jest na Pulpicie, w profilu i w apce (gest na liście + akcja
+w profilu). Ton INNY niż przy ofercie: umowa bez podpisu zwykle nie jest
+brakiem chęci, tylko rzeczą, która utknęła u prawnika — mail pyta, czy któryś
+zapis wymaga rozmowy, zamiast ponaglać. Trasa odmawia dla szkicu, dokumentu
+podpisanego, odrzuconego i unieważnionego linku.
+**Uwaga:** „Przypomnij" na Pulpicie APKI wołało dotąd `send` — czyli wysyłało
+dokument ponownie (nowa migawka, wyzerowany licznik ciszy, mail bez śladu, że
+to przypomnienie). Teraz woła `/remind`.
+
+**2. Ślad otwarcia** (`otwarta_at`, `ostatnio_otwarta_at`, `liczba_otwarc`).
+1:1 z ofertami, razem z odsiewem automatów (`lib/publicVisit.ts`) — skaner
+bramki pocztowej i podgląd linku w komunikatorze nie liczą się jako otwarcie.
+Pierwsze otwarcie dzwoni powiadomieniem. Profil i apka pokazują „otwarta 3×"
+albo „jeszcze nieotwarta"; to dwie różne sytuacje, których panel wcześniej nie
+odróżniał.
+
+**3. Okres obowiązywania i alert odnowienia** — rdzeń CLM. Umowa znała tylko
+`termin_realizacji` (kiedy kończy się PRACA), więc umowa utrzymaniowa
+odnawiała się albo wygasała bez niczyjej wiedzy. Nowe pola: `obowiazuje_od`,
+`obowiazuje_do`, `odnawialna`, `wypowiedzenie_dni`.
+**Reguła alertu (`dniDoDzialaniaUmowy`): przy umowie odnawialnej liczymy do
+ostatniego dnia na WYPOWIEDZENIE, nie do daty końca** — po nim umowa przedłuża
+się sama i alert jest bezużyteczny. Próg to `max(60 dni, wypowiedzenie + 14)`,
+więc przy trzymiesięcznym wypowiedzeniu odzywa się odpowiednio wcześniej.
+Alert dotyczy TYLKO umów podpisanych (niepodpisana nie obowiązuje) i widać go
+na Pulpicie, w dziennym mailu, w profilu i na Pulpicie apki.
+
+**4. Rodzaje umowy** (`szablon`: wdrożeniowa / utrzymaniowa / PoC).
+**Szablon wybiera PODZBIÓR istniejących klauzul — nie dopisuje ani jednego
+nowego zdania prawnego.** To jest cała różnica wobec szablonów ofert, gdzie
+treść pisze właściciel: klauzule umowy nie przeszły weryfikacji prawnika, więc
+mnożenie ich wariantów byłoby mnożeniem ryzyka. Odejmowanie jest bezpieczne,
+dopisywanie nie. Brakujące klauzule (SLA dla utrzymaniowej, prawa do materiałów
+PoC) są WYPISANE w `docs/DO-PRAWNIKA-I-TLUMACZA.md` jako treść do napisania.
+Wydruk liczy klauzule tą samą funkcją co panel (`clausesDlaSzablonu`) — pierwsza
+wersja liczyła je lokalnie z pełnego katalogu i drukowała klauzulę, której
+panel dla tego rodzaju nie pokazywał.
+
+**5. Stanowisko podpisującego** (`accepted_by_role`). Pole na publicznej
+stronie, wypełnia je SAMA osoba podpisująca — nie właściciel za nią.
+Świadomie opcjonalne: wymuszanie zatrzymałoby podpis kogoś, kto nie wie, co
+wpisać, a zgadnięta funkcja jest gorsza niż jej brak.
+
+**6. Podpis po naszej stronie** (`podpis_nasz_at`, `podpis_nasz_osoba`,
+`POST|DELETE /api/contracts/:id/podpis-nasz`). Dokument miał jedną rubrykę
+(klienta), więc wydruk wyglądał jak jednostronne oświadczenie. Teraz są dwie:
+„Wykonawca" i „Zamawiający", pusta mówi wprost „podpis elektroniczny —
+oczekuje". Imię bierze się z ustawień firmy (nowe pole **„Podpisuje umowy"**),
+bo firma podpisuje przez człowieka. Cofnięcie własnego podpisu jest możliwe
+TYLKO dopóki druga strona nie podpisała. Bez IP i user-agenta — to nie jest
+podpis złożony przez internet przez kogoś, kogo nie widzimy, tylko odnotowanie
+własnego.
+
+### Co migawka zamraża, a co zostaje żywe (aktualizacja)
+
+Do migawki dołączyły `obowiazuje_*`, `wypowiedzenie_dni`, `odnawialna`
+i `szablon` — to treść dokumentu. Żywe zostają `accepted_by_role` (ruch drugiej
+strony) oraz `podpis_nasz_at`/`podpis_nasz_osoba`, bo nasz podpis bywa
+dopisywany PO wysyłce, a druga strona ma widzieć aktualny stan obu rubryk.
+Test `test/blokadaUmowy.test.ts` pilnuje, żeby żadne pole nie było na obu
+listach naraz — kolejność scalania decydowałaby wtedy po cichu.

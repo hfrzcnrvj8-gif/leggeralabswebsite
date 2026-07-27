@@ -61,14 +61,22 @@ export function blokadaFaktury(numer: string | null | undefined): PowodBlokady {
 
 /** Umowa/NDA/aneks: podpisany dokument jest nienaruszalny.
  *
+ * **`acceptedAt`, nie tylko `status`** (audyt Modułu 11, 2026-07-27). Status
+ * jest polem WOLNYM mimo blokady (żeby dało się dokument zamknąć), więc
+ * blokada oparta na samym statusie miała drzwi na oścież: sonda wysłała
+ * `PATCH {"status":"Szkic"}` na podpisanej umowie (200), a zaraz potem
+ * `PATCH {"cena":1}` — też 200. Dokument został z podpisem i datą podpisu,
+ * ale z inną treścią. `accepted_at` jest jedynym śladem, którego nie da się
+ * cofnąć zwykłą edycją, więc to on rozstrzyga.
+ *
  * `typ` wpływa WYŁĄCZNIE na to, dokąd odsyłamy — a to jest tu cała wartość
  * komunikatu. Do Modułu 58 zdanie „Zmiana wymaga aneksu" było obietnicą bez
  * pokrycia: aneksu system nie znał (audyt Modułu 57). Teraz aneks istnieje,
  * więc zdanie jest prawdziwe — pod warunkiem, że nie mówimy go nad samym
  * aneksem, bo aneksu do aneksu świadomie nie robimy (patrz trasa
  * `api/contracts/[id]/aneks`). */
-export function blokadaUmowy(status: string, typ?: string): PowodBlokady {
-  if (status === "Podpisana") {
+export function blokadaUmowy(status: string, typ?: string, acceptedAt?: string | null): PowodBlokady {
+  if (status === "Podpisana" || acceptedAt) {
     return {
       zablokowane: true,
       komunikat:
@@ -77,6 +85,38 @@ export function blokadaUmowy(status: string, typ?: string): PowodBlokady {
           : typ === "nda"
             ? "NDA jest podpisane — obie strony mają jego kopię, więc treści nie zmieniamy. Potrzebujesz innych zapisów? Sporządź nowe NDA."
             : "Umowa jest podpisana — obie strony mają jej kopię, więc treści nie zmieniamy. Zmiana wymaga aneksu („Sporządź aneks” na liście Umów).",
+    };
+  }
+  return WOLNE;
+}
+
+/** Czy wolno przestawić umowę/NDA/aneks na wskazany status.
+ *
+ * Dwie reguły, obie z audytu Modułu 11 (2026-07-27):
+ *
+ * 1. **Na „Podpisana" nie przechodzi się statusem.** Podpis to nie etykieta,
+ *    tylko `accepted_at` — dokument z pigułką „Podpisana" i pustą datą podpisu
+ *    kłamie na wydruku (rubryka podpisu zostaje pusta) i wypada z retencji
+ *    dowodu e-podpisu, która chodzi po `accepted_at`. Do tego służy
+ *    `POST /api/contracts/:id/accept`.
+ * 2. **Z „Podpisana" nie schodzi się wcale.** To była druga połowa dziury
+ *    opisanej przy `blokadaUmowy`: cofnięcie statusu odblokowywało treść.
+ *    Podpisany dokument jest zamknięty — pomyłka wychodzi aneksem, a nie
+ *    przewinięciem statusu do tyłu.
+ */
+export function blokadaStatusuUmowy(nowy: string, podpisany: boolean): PowodBlokady {
+  if (nowy === "Podpisana") {
+    return {
+      zablokowane: true,
+      komunikat:
+        "Podpisu nie ustawia się statusem — użyj „Oznacz jako podpisaną”, żeby zapisać też datę złożenia podpisu.",
+    };
+  }
+  if (podpisany) {
+    return {
+      zablokowane: true,
+      komunikat:
+        "Ten dokument jest podpisany — statusu nie cofamy. Zmianę warunków wprowadza aneks, a nie zmiana statusu.",
     };
   }
   return WOLNE;

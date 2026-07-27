@@ -13,6 +13,7 @@ import type { StanAutomatu } from "@/lib/observability";
 import { overdueReason } from "@/lib/leads";
 import { type Invoice, formatMoney } from "@/lib/invoices";
 import type { Offer } from "@/lib/offers";
+import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { type Client, clientOverdueReason } from "@/lib/clients";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI } from "./ui";
@@ -38,13 +39,26 @@ type PendingMail = {
  * mówiły tę samą liczbę. */
 type StaleContract = {
   id: string;
-  typ: "umowa" | "nda";
+  typ: ContractTyp;
   status: string;
   project_id: string | null;
   client_id: string | null;
   klient_nazwa: string;
   client_nazwa: string | null;
   silenceDays: number;
+};
+
+/** Umowa, przy której trzeba zdecydować: przedłużamy czy kończymy. Powód
+ * pisze serwer (jedno zdanie na trzy ekrany — Pulpit, mail, apka). */
+type WygasajacaUmowa = {
+  id: string;
+  klient_nazwa: string;
+  client_nazwa: string | null;
+  client_id: string | null;
+  obowiazuje_do: string | null;
+  odnawialna: boolean;
+  dniDoDzialania: number;
+  powod: string;
 };
 
 type TaxReserve = { vat: number; pit: number; zus: number };
@@ -79,6 +93,8 @@ type TodayData = {
   /** Runda 2 Modułu 57 — wysłane, brak decyzji, cisza ≥ 5 dni. */
   staleOffers: (OfferRow & { silenceDays: number })[];
   staleContracts: StaleContract[];
+  /** Umowy dobiegające końca — patrz umowaDoOdnowienia w lib/contracts.ts. */
+  wygasajaceUmowy: WygasajacaUmowa[];
   dueFollowups: DueFollowup[];
   pendingMails: PendingMail[];
   todayEvents: HubEvent[];
@@ -118,6 +134,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   const [draftEmail, setDraftEmail] = useState<string | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftSending, setDraftSending] = useState(false);
+  const [przypominam, setPrzypominam] = useState<string | null>(null);
 
   const loadToday = () => {
     setLoadError(null);
@@ -137,6 +154,22 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   useEffect(() => {
     loadToday();
   }, []);
+
+  /** Przypomnienie o niepodpisanej umowie — treść pisze serwer
+   * (`/api/contracts/:id/remind`), panel tylko klika. Ta sama zasada co przy
+   * ofertach: apka i panel nie mają własnych szablonów maila. */
+  const przypomnijOUmowie = async (id: string) => {
+    setPrzypominam(id);
+    const res = await fetch(`/api/contracts/${id}/remind`, { method: "POST" });
+    setPrzypominam(null);
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      toast(d.error ?? "Nie udało się wysłać przypomnienia.", "error");
+      return;
+    }
+    toast("Przypomnienie wysłane.");
+    loadToday();
+  };
 
   const markLeadHandled = async (id: string) => {
     const res = await fetch(`/api/leads/${id}`, {
@@ -352,7 +385,8 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.draftInvoices.length +
     data.expiredOffers.length +
     data.staleOffers.length +
-    data.staleContracts.length;
+    data.staleContracts.length +
+    (data.wygasajaceUmowy?.length ?? 0);
 
   const revenueThisMonthPln = sumPln(data.kpi.revenueThisMonth);
   const revenueLastMonthPln = sumPln(data.kpi.revenueLastMonth);
@@ -925,21 +959,61 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                     </Link>
                     <span className="text-muted">
                       {" "}
-                      — {c.typ === "nda" ? "NDA" : "Umowa"}, cisza od {c.silenceDays}{" "}
+                      {/* CONTRACT_TYP_LABEL, nie ternary „nda ? NDA : Umowa" —
+                          ta gałąź podpisywała aneks jako „Umowa" (audyt
+                          Modułu 11). Dzienny mail używa słownika od początku,
+                          więc panel i mail mówiły o tym samym dokumencie dwa
+                          różne słowa. */}
+                      — {CONTRACT_TYP_LABEL[c.typ] ?? "Umowa"}, cisza od {c.silenceDays}{" "}
                       {c.silenceDays === 1 ? "dnia" : "dni"}
                     </span>
                   </span>
-                  <Link
-                    href={`/${lang}/admin/contracts/${c.id}`}
-                    className="shrink-0 rounded-full border border-brand-cyan/40 px-2 py-0.5 text-[11px] text-brand-cyan"
+                  {/* Do tej pory „Przypomnij" tylko OTWIERAŁO profil — panel
+                      wskazywał problem i zostawiał człowieka z pustą skrzynką
+                      do napisania. Teraz woła `/remind`, jak przy ofertach. */}
+                  <button
+                    onClick={() => przypomnijOUmowie(c.id)}
+                    disabled={przypominam === c.id}
+                    className="shrink-0 rounded-full border border-brand-cyan/40 px-2 py-0.5 text-[11px] text-brand-cyan disabled:opacity-50"
                   >
-                    Przypomnij
-                  </Link>
+                    {przypominam === c.id ? "Wysyłam…" : "Przypomnij"}
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </section>
+
+        {/* Koniec umowy (2026-07-27) — jedyna rzecz w całym lejku, która dzieje
+            się SAMA i po terminie nie da się jej odkręcić: umowa odnawialna
+            przedłuża się w milczeniu, zwykła po prostu wygasa w trakcie pracy.
+            Dlatego alert liczy się od terminu WYPOWIEDZENIA, nie od daty
+            końca (patrz dniDoDzialaniaUmowy). */}
+        {(data.wygasajaceUmowy?.length ?? 0) > 0 && (
+          <section className="card-paper rounded-xl border hairline p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[13px] font-medium">Umowy dobiegające końca</h2>
+              <Link href={`/${lang}/admin/contracts`} className="text-xs text-muted hover:text-[var(--fg)]">
+                Zobacz wszystkie →
+              </Link>
+            </div>
+            <ul className="space-y-2">
+              {data.wygasajaceUmowy.slice(0, 6).map((u) => (
+                <li key={u.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/contracts/${u.id}`} className="font-medium hover:underline">
+                      {u.client_nazwa || u.klient_nazwa || "(bez nazwy)"}
+                    </Link>
+                    <span className={u.dniDoDzialania < 0 ? "text-brand-gold" : "text-muted"}> — {u.powod}</span>
+                  </span>
+                  {u.obowiazuje_do && (
+                    <span className="shrink-0 text-[11px] text-muted">do {formatPlDate(String(u.obowiazuje_do).slice(0, 10))}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="card-paper rounded-xl border hairline p-4">
           <div className="mb-3 flex items-center justify-between">

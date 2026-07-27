@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
-import { CONTRACT_TYP_LABEL, roznicaAneksu, type Contract, type ContractTyp, type PoprzednieWarunki } from "@/lib/contracts";
+import {
+  CONTRACT_MIGAWKA_POLA,
+  CONTRACT_TYP_LABEL,
+  roznicaAneksu,
+  type Contract,
+  type ContractTyp,
+  type PoprzednieWarunki,
+} from "@/lib/contracts";
 
 export const runtime = "nodejs";
 
@@ -23,6 +30,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!contract.klient_email) return NextResponse.json({ error: "Brak adresu e-mail — uzupełnij go w edytorze." }, { status: 400 });
 
     const typ = contract.typ as ContractTyp;
+    const label0 = CONTRACT_TYP_LABEL[typ] ?? "Umowa";
+
+    // Sprawa zamknięta nie idzie „do podpisu" (audyt Modułu 11). Trasa
+    // przyjmowała to bez mrugnięcia: klient dostawał mail „dokument można
+    // podpisać elektronicznie" pod dokumentem, który już podpisał, `sent_at`
+    // wracało na zero (czyli licznik ciszy na Pulpicie startował od nowa), a na
+    // osi czasu klienta lądowało „Wysłano umowę" PO „Umowa podpisana". Apka
+    // chowała ten przycisk od dawna — ale blokada w interfejsie nie jest
+    // blokadą (patrz lib/blokadaDokumentu.ts).
+    if (contract.status === "Podpisana" || contract.accepted_at) {
+      return NextResponse.json(
+        { error: `${label0} jest już podpisan${typ === "umowa" ? "a" : "y"} — nie ma po co prosić o podpis drugi raz. Zmianę warunków wprowadza aneks.` },
+        { status: 409 }
+      );
+    }
+    if (contract.status === "Odrzucona") {
+      return NextResponse.json(
+        { error: `${label0} została odrzucona — zanim wyślesz ją ponownie, przestaw status na „Szkic”.` },
+        { status: 409 }
+      );
+    }
 
     // Aneks bez ani jednej zmiany to kartka ze zdaniem „pozostałe postanowienia
     // pozostają bez zmian" i niczym więcej — wysłanie go klientowi do podpisu
@@ -48,7 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const token = await ensureContractShareToken(sql, id, typeof contract.share_token === "string" ? contract.share_token : null);
     const segment = typ === "nda" ? "nda" : "umowa";
     const url = `${req.nextUrl.origin}/pl/${segment}/${token}`;
-    const label = CONTRACT_TYP_LABEL[typ] ?? "Umowa";
+    const label = label0;
     const nazwa = typeof contract.klient_nazwa === "string" && contract.klient_nazwa ? contract.klient_nazwa : "";
 
     await sendEmail({
@@ -67,6 +95,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         `Leggera Labs`,
       ].join("\n"),
     });
+
+    // Migawka treści (audyt Modułu 11) — dokładnie w tym momencie druga strona
+    // dostaje link, więc to jest treść, którą przeczytała. Robimy ją przy
+    // KAŻDEJ wysyłce: ponowne wysłanie po poprawce ma pokazywać poprawioną
+    // wersję, a nie pierwszą. Umowa (inaczej niż oferta) jest edytowalna aż do
+    // podpisu, więc bez tego dokument „u drugiej strony" zmieniałby się razem
+    // z bazą.
+    const migawka = Object.fromEntries(
+      CONTRACT_MIGAWKA_POLA.map((k) => [k, (contract as Record<string, unknown>)[k]])
+    );
+    await sql`UPDATE contracts SET migawka = ${JSON.stringify(migawka)}, migawka_at = now() WHERE id = ${id};`;
 
     let status = String(contract.status);
     if (status === "Szkic") {

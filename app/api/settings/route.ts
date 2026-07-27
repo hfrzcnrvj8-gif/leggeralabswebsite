@@ -36,6 +36,7 @@ export async function PATCH(req: NextRequest) {
     if ("konto" in body) await sql`UPDATE company_settings SET konto = ${str(body.konto, 60)}, updated_at = now() WHERE id = 'default';`;
     if ("bank_nazwa" in body) await sql`UPDATE company_settings SET bank_nazwa = ${str(body.bank_nazwa, 200)}, updated_at = now() WHERE id = 'default';`;
     if ("swift" in body) await sql`UPDATE company_settings SET swift = ${str(body.swift, 20)}, updated_at = now() WHERE id = 'default';`;
+    if ("osoba_podpisujaca" in body) await sql`UPDATE company_settings SET osoba_podpisujaca = ${str(body.osoba_podpisujaca, 200)}, updated_at = now() WHERE id = 'default';`;
     if ("zwolnienie_podstawa" in body) await sql`UPDATE company_settings SET zwolnienie_podstawa = ${str(body.zwolnienie_podstawa, 300)}, updated_at = now() WHERE id = 'default';`;
     if ("domyslne_uwagi" in body) await sql`UPDATE company_settings SET domyslne_uwagi = ${str(body.domyslne_uwagi, 2000)}, updated_at = now() WHERE id = 'default';`;
     if ("vat_payer" in body) await sql`UPDATE company_settings SET vat_payer = ${Boolean(body.vat_payer)}, updated_at = now() WHERE id = 'default';`;

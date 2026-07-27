@@ -73,6 +73,27 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     )[0] as Contract | undefined;
     const obowiazujace = ostatniPodpisany ?? src;
 
+    // Dedupe szkicu (audyt Modułu 11) — ta sama lekcja co przy NDA na leadzie
+    // (Moduł 51): przycisk bez śladu po pierwszym kliknięciu mnoży dokumenty.
+    // Dwa kliknięcia „Sporządź aneks" dawały „Aneks nr 1" i „Aneks nr 2",
+    // oba puste i nie do odróżnienia na liście. Wysłany albo podpisany aneks
+    // NIE blokuje — kolejna zmiana warunków to naprawdę nowy dokument.
+    const szkicAneksu = (
+      await sql`
+        SELECT id, aneks_nr FROM contracts
+        WHERE parent_contract_id = ${id} AND typ = 'aneks' AND status = 'Szkic'
+        ORDER BY aneks_nr DESC LIMIT 1;
+      `
+    )[0];
+    if (szkicAneksu) {
+      return NextResponse.json({
+        ok: true,
+        id: String(szkicAneksu.id),
+        aneks_nr: Number(szkicAneksu.aneks_nr),
+        existing: true,
+      });
+    }
+
     // Numer rośnie po WSZYSTKICH aneksach tej umowy, także szkicach — dwa
     // dokumenty „Aneks nr 1" do jednej umowy byłyby nie do rozróżnienia
     // w rozmowie, nawet gdyby jeden z nich nigdy nie poszedł.

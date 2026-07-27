@@ -61,6 +61,14 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
         <div className="grid grid-cols-2 gap-2.5">
           <SField label="Nazwa banku" value={s.bank_nazwa} onSave={(v) => patch({ bank_nazwa: v })} placeholder="np. mBank" />
           <SField label="BIC / SWIFT" value={s.swift} onSave={(v) => patch({ swift: v })} placeholder="np. BREXPLPWMBK" />
+          {/* Kto podpisuje umowy po naszej stronie — wchodzi w rubrykę podpisu
+              na wydruku umowy/NDA/aneksu (2026-07-27). Puste = nazwa firmy. */}
+          <SField
+            label="Podpisuje umowy"
+            value={s.osoba_podpisujaca}
+            onSave={(v) => patch({ osoba_podpisujaca: v })}
+            placeholder="imię i nazwisko — trafia do rubryki podpisu"
+          />
         </div>
 
         <div className="mt-3 rounded-lg border hairline p-3">

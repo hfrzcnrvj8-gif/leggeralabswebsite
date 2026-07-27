@@ -69,10 +69,16 @@ export function EditableText({
   // czytelności 2026-07-26). Myślnik jest tym, co w tej roli pokazują Attio,
   // Linear i Notion; `placeholder`, nie wartość, więc nic nie trafia do bazy.
   placeholder = "—",
+  /** Pole tylko do odczytu — dla dokumentów zamkniętych blokadą (podpisana
+   * umowa). Bez tego pole wygląda na edytowalne, przyjmuje wpisany tekst
+   * i dopiero serwer odbija je komunikatem 409 — czyli interfejs obiecuje
+   * coś, czego trasa nie pozwoli zrobić (audyt Modułu 11). */
+  readOnly = false,
 }: {
   value: string;
   onSave: (v: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
@@ -80,12 +86,15 @@ export function EditableText({
     <input
       value={v}
       placeholder={placeholder}
-      title={value || undefined}
+      title={readOnly ? "Dokument jest podpisany — treści nie zmieniamy" : value || undefined}
+      readOnly={readOnly}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
-        if (v !== value) onSave(v);
+        if (!readOnly && v !== value) onSave(v);
       }}
-      className="w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors placeholder:text-muted placeholder:opacity-60 hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
+      className={`w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors placeholder:text-muted placeholder:opacity-60 focus:outline-none ${
+        readOnly ? "cursor-default opacity-70" : "hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60"
+      }`}
     />
   );
 }

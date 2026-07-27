@@ -7,13 +7,22 @@ import type { Lead } from "@/lib/leads";
 
 export const runtime = "nodejs";
 
+/** Sufit listy — wzorzec z Modułu 54 (krok 3a) i Ofert.
+ *
+ * Trasa oddawała WSZYSTKIE dokumenty bez limitu, więc przy kilkuset umowach
+ * jedno wejście na zakładkę wciągało całą tabelę do przeglądarki i do apki.
+ * Sufit sam w sobie byłby gorszy od braku sufitu (lista po cichu niepełna),
+ * dlatego idzie z `total` — panel mówi wprost, ilu dokumentów NIE pokazuje. */
+const SUFIT_UMOW = 1000;
+
 /** GET /api/contracts — lista umów+NDA. Admin-only. */
 export async function GET() {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await ensureContractsSchema();
   const sql = getSql();
-  const rows = await sql`SELECT * FROM contracts ORDER BY created_at DESC;`;
-  return NextResponse.json({ contracts: rows });
+  const total = Number((await sql`SELECT COUNT(*)::int AS n FROM contracts;`)[0]?.n ?? 0);
+  const rows = await sql`SELECT * FROM contracts ORDER BY created_at DESC LIMIT ${SUFIT_UMOW};`;
+  return NextResponse.json({ contracts: rows, total, limit: SUFIT_UMOW });
 }
 
 /** POST /api/contracts — nowy dokument (szkic).
@@ -63,11 +72,11 @@ export async function POST(req: NextRequest) {
       INSERT INTO contracts (
         id, typ, lead_id, client_id, project_id, offer_id,
         klient_nazwa, klient_nip, klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email,
-        zakres_prac, cena, jezyk
+        zakres_prac, cena, waluta, jezyk
       ) VALUES (
         ${id}, 'umowa', ${offer.lead_id}, ${offer.client_id}, ${offer.project_id}, ${offerId},
         ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_ulica}, ${offer.klient_kod}, ${offer.klient_miasto}, ${offer.klient_kraj}, ${offer.klient_email},
-        ${zakresPrac}, ${cena}, ${offer.jezyk}
+        ${zakresPrac}, ${cena}, ${offer.waluta || "PLN"}, ${offer.jezyk}
       );
     `;
     await logClientEvent(sql, offer.client_id, "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`, null, id);

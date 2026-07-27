@@ -30,6 +30,9 @@ export type CompanySettings = {
   bank_nazwa: string;
   /** BIC/SWIFT — potrzebny zagranicznym klientom do przelewu SEPA/SWIFT. */
   swift: string;
+  /** Kto podpisuje umowy po naszej stronie — rubryka podpisu na wydruku
+   * umowy/NDA/aneksu. Puste = nazwa firmy. */
+  osoba_podpisujaca: string;
   /** true = płatnik VAT (faktury z VAT), false = zwolniony (bez VAT). */
   vat_payer: boolean;
   /** Podstawa zwolnienia z VAT (pokazywana na fakturze, gdy vat_payer=false). */
@@ -67,6 +70,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   konto: "",
   bank_nazwa: "",
   swift: "",
+  osoba_podpisujaca: "",
   vat_payer: true,
   zwolnienie_podstawa: "art. 113 ust. 1 ustawy o VAT",
   domyslny_termin_dni: 14,

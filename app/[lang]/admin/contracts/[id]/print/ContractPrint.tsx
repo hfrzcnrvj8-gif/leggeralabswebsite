@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   type Contract,
   CONTRACT_TYP_LABEL_LANG,
-  CONTRACT_CLAUSES,
+  clausesDlaSzablonu,
   NDA_CLAUSES,
   POLE_ANEKSU_LABEL,
   aneksReference,
@@ -62,6 +62,17 @@ type Dict = {
   amendmentRest: string;
   amendmentEmpty: string;
   amendmentNone: string;
+  /* Okres obowiązywania i dwustronny podpis (2026-07-27) */
+  validity: string;
+  validFrom: string;
+  validTo: string;
+  autoRenew: string;
+  noticePeriod: string;
+  rolePlaceholder: string;
+  roleHint: string;
+  signatureBoxUs: string;
+  signatureBoxThem: string;
+  signaturePending: string;
 };
 
 const DICT: Record<DocLang, Dict> = {
@@ -97,6 +108,16 @@ const DICT: Record<DocLang, Dict> = {
     amendmentIs: "Nowe brzmienie",
     amendmentEmpty: "(brak)",
     amendmentNone: "W tym aneksie nie zmieniono jeszcze żadnego z warunków umowy. Zmień zakres, wynagrodzenie, walutę albo termin — dopiero wtedy aneks będzie miał treść.",
+    validity: "Okres obowiązywania",
+    validFrom: "od",
+    validTo: "do",
+    autoRenew: "Umowa przedłuża się na kolejny taki sam okres, o ile żadna ze stron nie wypowie jej wcześniej.",
+    noticePeriod: "Okres wypowiedzenia",
+    rolePlaceholder: "Stanowisko / funkcja (opcjonalnie)",
+    roleHint: "Np. „Prezes Zarządu” albo „Właściciel” — pomaga wykazać umocowanie do podpisania.",
+    signatureBoxUs: "Wykonawca",
+    signatureBoxThem: "Zamawiający",
+    signaturePending: "podpis elektroniczny — oczekuje",
   },
   en: {
     notFound: "Document not found.",
@@ -129,6 +150,16 @@ const DICT: Record<DocLang, Dict> = {
     amendmentWas: "Previous wording",
     amendmentIs: "New wording",
     amendmentEmpty: "(none)",
+    validity: "Term",
+    validFrom: "from",
+    validTo: "to",
+    autoRenew: "The agreement renews for a further identical term unless either party terminates it earlier.",
+    noticePeriod: "Notice period",
+    rolePlaceholder: "Position / role (optional)",
+    roleHint: "E.g. „CEO” or „Owner” — helps evidence the authority to sign.",
+    signatureBoxUs: "Contractor",
+    signatureBoxThem: "Client",
+    signaturePending: "electronic signature — pending",
     amendmentNone: "No terms have been changed in this amendment yet.",
   },
   de: {
@@ -162,6 +193,16 @@ const DICT: Record<DocLang, Dict> = {
     amendmentWas: "Bisherige Fassung",
     amendmentIs: "Neue Fassung",
     amendmentEmpty: "(keine)",
+    validity: "Laufzeit",
+    validFrom: "von",
+    validTo: "bis",
+    autoRenew: "Der Vertrag verlängert sich um einen weiteren gleich langen Zeitraum, sofern er nicht vorher von einer Partei gekündigt wird.",
+    noticePeriod: "Kündigungsfrist",
+    rolePlaceholder: "Position / Funktion (optional)",
+    roleHint: "Z. B. „Geschäftsführer” oder „Inhaber” — belegt die Vertretungsbefugnis.",
+    signatureBoxUs: "Auftragnehmer",
+    signatureBoxThem: "Auftraggeber",
+    signaturePending: "elektronische Unterschrift — ausstehend",
     amendmentNone: "In diesem Nachtrag wurden noch keine Vertragsbedingungen geändert.",
   },
 };
@@ -175,6 +216,10 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
   const [revoked, setRevoked] = useState(false);
   const [signName, setSignName] = useState("");
   const [signConfirm, setSignConfirm] = useState(false);
+  /** Stanowisko podpisującego — OPCJONALNE. Wymuszanie go zatrzymałoby podpis
+   * kogoś, kto po prostu nie wie, co wpisać; brak jest mniej szkodliwy niż
+   * zgadnięta funkcja. */
+  const [signRole, setSignRole] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
 
@@ -225,7 +270,11 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
   // pozostają bez zmian", które mówi to samo, a jest prawdą.
   const isAneks = contract.typ === "aneks";
   const isUmowa = contract.typ === "umowa";
-  const clauses = isUmowa ? CONTRACT_CLAUSES : NDA_CLAUSES;
+  // Klauzule wg RODZAJU umowy (2026-07-27) — wydruk liczył je lokalnie z pełnego
+  // katalogu, więc umowa utrzymaniowa drukowała klauzulę o odbiorze etapów,
+  // której panel dla niej świadomie nie pokazuje. Jedno źródło:
+  // clausesDlaSzablonu.
+  const clauses = isUmowa ? clausesDlaSzablonu(contract.szablon) : NDA_CLAUSES;
   const docLabel = CONTRACT_TYP_LABEL_LANG[lang][contract.typ];
   const poprzednie = (contract.poprzednie ?? null) as PoprzednieWarunki | null;
   const zmiany = isAneks && poprzednie ? roznicaAneksu(poprzednie, contract) : [];
@@ -245,7 +294,7 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
     const res = await fetch(`/api/contracts/public/${token}/accept`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: signName.trim() }),
+      body: JSON.stringify({ name: signName.trim(), role: signRole.trim() }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string; acceptedByName?: string };
     setAccepting(false);
@@ -254,7 +303,15 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
       return;
     }
     setContract((prev) =>
-      prev ? { ...prev, status: "Podpisana", accepted_by_name: data.acceptedByName ?? signName.trim(), accepted_at: new Date().toISOString() } : prev
+      prev
+        ? {
+            ...prev,
+            status: "Podpisana",
+            accepted_by_name: data.acceptedByName ?? signName.trim(),
+            accepted_by_role: signRole.trim() || null,
+            accepted_at: new Date().toISOString(),
+          }
+        : prev
     );
   };
 
@@ -420,6 +477,25 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
             </div>
           )}
 
+          {/* OKRES OBOWIĄZYWANIA (2026-07-27) — to treść umowy, nie metadana
+              panelu: przy umowie utrzymaniowej jest ważniejszy niż termin
+              realizacji. Milczące przedłużenie MUSI stać na dokumencie, bo to
+              ono zobowiązuje drugą stronę do pilnowania terminu. */}
+          {isUmowa && (contract.obowiazuje_od || contract.obowiazuje_do) && (
+            <div className="mt-6">
+              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.validity}</div>
+              <p className="leading-relaxed text-neutral-700">
+                {contract.obowiazuje_od ? `${t.validFrom} ${docDate(contract.obowiazuje_od, lang)}` : ""}
+                {contract.obowiazuje_od && contract.obowiazuje_do ? " " : ""}
+                {contract.obowiazuje_do ? `${t.validTo} ${docDate(contract.obowiazuje_do, lang)}` : ""}
+                {contract.odnawialna ? `. ${t.autoRenew}` : "."}
+                {contract.odnawialna && contract.wypowiedzenie_dni > 0
+                  ? ` ${t.noticePeriod}: ${contract.wypowiedzenie_dni} ${lang === "pl" ? "dni" : lang === "de" ? "Tage" : "days"}.`
+                  : ""}
+              </p>
+            </div>
+          )}
+
           {/* Aneks NIE powtarza klauzul umowy-matki — one obowiązują dalej,
               a przedruk sugerowałby, że aneks je zastępuje. Mówi to wprost
               zdanie „pozostałe postanowienia bez zmian" wyżej. */}
@@ -442,6 +518,34 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
 
           {contract.uwagi && <div className="mt-6 whitespace-pre-line text-neutral-600">{contract.uwagi}</div>}
 
+          {/* DWIE RUBRYKI PODPISU (2026-07-27) — dokument miał wcześniej tylko
+              ślad podpisu drugiej strony pod formularzem, więc wydrukowana
+              kartka wyglądała jak jednostronne oświadczenie. Umowa jest
+              dwustronna; rubryka pusta mówi wprost, że podpis czeka. */}
+          <div className="mt-10 grid grid-cols-2 gap-8">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.1em] text-neutral-400">{t.signatureBoxUs}</div>
+              <div className="mt-6 border-t border-neutral-300 pt-1.5 text-[11px] text-neutral-600">
+                {contract.podpis_nasz_osoba || settings?.nazwa || ""}
+                {contract.podpis_nasz_at ? `, ${docDate(contract.podpis_nasz_at, lang)}` : ""}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.1em] text-neutral-400">{t.signatureBoxThem}</div>
+              <div className="mt-6 border-t border-neutral-300 pt-1.5 text-[11px] text-neutral-600">
+                {contract.accepted_by_name ? (
+                  <>
+                    {contract.accepted_by_name}
+                    {contract.accepted_by_role ? `, ${contract.accepted_by_role}` : ""}
+                    {contract.accepted_at ? `, ${docDate(contract.accepted_at, lang)}` : ""}
+                  </>
+                ) : (
+                  <span className="text-neutral-400">{t.signaturePending}</span>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="mt-auto pt-10">
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[10.5px] leading-relaxed text-amber-700">
               ⚠ {LEGAL_PLACEHOLDER_NOTE_LANG[lang]}
@@ -456,7 +560,9 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
         <div className="mx-auto mt-4 max-w-[794px] px-4 print:hidden">
           {contract.status === "Podpisana" ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-              ✓ {contract.accepted_by_name ? `${t.signedByLabel} ${contract.accepted_by_name}, ${docDate(contract.accepted_at, lang)}` : t.signedNoNameLabel}
+              ✓ {contract.accepted_by_name
+                ? `${t.signedByLabel} ${contract.accepted_by_name}${contract.accepted_by_role ? `, ${contract.accepted_by_role}` : ""}, ${docDate(contract.accepted_at, lang)}`
+                : t.signedNoNameLabel}
             </div>
           ) : (
             <div className="rounded-xl border border-neutral-200 bg-white p-4">
@@ -469,6 +575,14 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
                   aria-label={t.namePlaceholder}
                   className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                 />
+                <input
+                  value={signRole}
+                  onChange={(e) => setSignRole(e.target.value)}
+                  placeholder={t.rolePlaceholder}
+                  aria-label={t.rolePlaceholder}
+                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+                <p className="text-[11px] leading-relaxed text-neutral-400">{t.roleHint}</p>
                 <label className="flex items-start gap-2 text-[13px] text-neutral-600">
                   <input type="checkbox" checked={signConfirm} onChange={(e) => setSignConfirm(e.target.checked)} className="mt-0.5" />
                   {t.confirmLabel}

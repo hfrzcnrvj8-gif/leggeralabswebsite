@@ -200,6 +200,7 @@ const CLIENT_EVENT: Record<string, TablerIcon> = {
   contract_created: IconFileText,
   contract_sent: IconSend,
   contract_signed: IconWriting,
+  contract_rejected: IconThumbDown,
   nda_created: IconLock,
   review_requested: IconMailbox,
   review_collected: IconStar,

@@ -48,6 +48,7 @@ import type { Project } from "@/lib/projects";
 import { SEGMENT_TRAFIENIA, ETYKIETA_TRAFIENIA, type TrafienieTresci } from "@/lib/szukaj";
 import { formatPlDate } from "@/lib/projects";
 import type { Note } from "@/lib/notes";
+import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import type { HubEvent } from "@/lib/events";
 import { type TimeEntry, formatDuration } from "@/lib/time-tracking";
 
@@ -224,7 +225,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
     // api/search (patrz SearchOffer/SearchInvoice/SearchContract tam).
     offers: { id: string; tytul: string; status: string; klient_nazwa: string }[];
     invoices: { id: string; numer: string | null; status: string; klient_nazwa: string }[];
-    contracts: { id: string; typ: "umowa" | "nda"; status: string; klient_nazwa: string }[];
+    contracts: { id: string; typ: ContractTyp; status: string; klient_nazwa: string }[];
     // Moduł 56 — trafienia po TREŚCI (rozmowy, maile, notatki, opisy).
     // Osobna lista, bo to inne pytanie niż „który rekord tak się nazywa"
     // i musi się wyświetlić z fragmentem, nie samą nazwą.
@@ -354,7 +355,8 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
       out.push({
         id: `contract:${c.id}`,
         label: `${c.klient_nazwa || "(bez nazwy)"} — ${c.status}`,
-        hint: c.typ === "nda" ? "NDA" : "Umowa",
+        // Słownik, nie ternary — patrz komentarz w DashboardHome (aneks).
+        hint: CONTRACT_TYP_LABEL[c.typ] ?? "Umowa",
         run: () => router.push(`${base}/contracts/${c.id}`),
       })
     );

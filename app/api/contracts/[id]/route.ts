@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema } from "@/lib/db";
+import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc } from "@/lib/blokadaDokumentu";
+import { blokadaStatusuUmowy, blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { isPlausibleDateString } from "@/lib/projects";
 import { DOC_LANGS } from "@/lib/documents";
-import { CONTRACT_CLAUSES, NDA_CLAUSES } from "@/lib/contracts";
+import {
+  CONTRACT_CLAUSES,
+  CONTRACT_STATUSES,
+  CONTRACT_SZABLONY,
+  CONTRACT_TYP_LABEL,
+  clausesDlaSzablonu,
+  isContractRejectReason,
+  NDA_CLAUSES,
+  type ContractTyp,
+} from "@/lib/contracts";
+import { rejectReasonLabel } from "@/lib/offers";
 
 export const runtime = "nodejs";
 
@@ -25,8 +35,40 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const rows = await sql`SELECT * FROM contracts WHERE id = ${id};`;
   const contract = rows[0];
   if (!contract) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const clauses = contract.typ === "nda" ? NDA_CLAUSES : CONTRACT_CLAUSES;
-  return NextResponse.json({ contract: { ...contract, cena: Number(contract.cena) }, clauses });
+  // Aneks NIE dostaje przedruku klauzul (audyt Modułu 11). Na wydruku ich nie
+  // ma świadomie — obowiązują dalej z umowy-matki, a przedruk sugerowałby, że
+  // aneks je zastępuje. Trasa jednak oddawała pełne `CONTRACT_CLAUSES` także
+  // aneksowi, więc profil w apce (jedyny czytelnik tego pola) pokazywał pod
+  // aneksem 16 klauzul umowy, czyli dokładnie to, czego wydruk unika.
+  // Klauzule wg RODZAJU umowy (2026-07-27): szablon wybiera zestaw z jednego,
+  // istniejącego katalogu — nie dopisuje nowej treści prawnej. Aneks nie
+  // dostaje żadnych (obowiązują z umowy-matki).
+  const clauses =
+    contract.typ === "aneks" ? [] : contract.typ === "nda" ? NDA_CLAUSES : clausesDlaSzablonu(String(contract.szablon ?? ""));
+
+  // Rodzina dokumentu: aneksy tej umowy / umowa-matka tego aneksu. Do audytu
+  // Modułu 11 obie strony tego powiązania były niewidoczne poza listą —
+  // z umowy nie dało się zobaczyć, że ma aneks (czyli że jej warunki już nie
+  // obowiązują w całości), a z aneksu nie było przejścia do umowy.
+  const aneksy =
+    contract.typ === "aneks"
+      ? []
+      : await sql`
+          SELECT id, aneks_nr, status, cena, waluta, created_at
+          FROM contracts WHERE parent_contract_id = ${id} ORDER BY aneks_nr ASC;
+        `;
+  const matka = contract.parent_contract_id
+    ? (
+        await sql`SELECT id, typ, status, klient_nazwa, created_at FROM contracts WHERE id = ${contract.parent_contract_id};`
+      )[0] ?? null
+    : null;
+
+  return NextResponse.json({
+    contract: { ...contract, cena: Number(contract.cena) },
+    clauses,
+    aneksy,
+    matka,
+  });
 }
 
 /** PATCH /api/contracts/:id — aktualizacja pól. */
@@ -42,11 +84,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Podpisanej umowy nie edytujemy — obie strony mają kopię (decyzja
   // właściciela 2026-07-27, patrz lib/blokadaDokumentu.ts). Zmiana wymaga
   // aneksu, czyli nowego dokumentu.
-  const stanUmowy = (await sql`SELECT status, typ FROM contracts WHERE id = ${id};`)[0];
+  const stanUmowy = (await sql`SELECT status, typ, accepted_at, client_id FROM contracts WHERE id = ${id};`)[0];
   if (!stanUmowy) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const blokada = blokadaUmowy(String(stanUmowy.status ?? ""), String(stanUmowy.typ ?? ""));
+  const podpisany = String(stanUmowy.status ?? "") === "Podpisana" || !!stanUmowy.accepted_at;
+  const blokada = blokadaUmowy(
+    String(stanUmowy.status ?? ""),
+    String(stanUmowy.typ ?? ""),
+    stanUmowy.accepted_at ? String(stanUmowy.accepted_at) : null
+  );
   if (blokada.zablokowane && ruszaTresc(body ?? {}, POLA_MIMO_BLOKADY_UMOWY)) {
     return NextResponse.json({ error: blokada.komunikat }, { status: 409 });
+  }
+
+  // Status: zamknięta lista wartości + dwie reguły przejścia
+  // (blokadaStatusuUmowy). Do audytu Modułu 11 trasa brała TU dowolny string
+  // do 40 znaków — sonda zapisała „ZUPELNIE-DOWOLNY-STRING", co wypada naraz
+  // z filtra listy, z koloru pigułki i z każdego licznika po statusie.
+  if ("status" in body) {
+    const nowy = typeof body.status === "string" ? body.status : "";
+    if (!(CONTRACT_STATUSES as string[]).includes(nowy)) {
+      return NextResponse.json({ error: `Nieznany status: „${nowy}”.` }, { status: 400 });
+    }
+    const przejscie = blokadaStatusuUmowy(nowy, podpisany);
+    if (przejscie.zablokowane) return NextResponse.json({ error: przejscie.komunikat }, { status: 409 });
   }
     const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
     const dateOrNull = (v: unknown): string | null | undefined => {
@@ -81,10 +141,70 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const n = typeof body.cena === "number" && Number.isFinite(body.cena) ? body.cena : 0;
       await sql`UPDATE contracts SET cena = ${n}, updated_at = now() WHERE id = ${id};`;
     }
-    if ("status" in body) await sql`UPDATE contracts SET status = ${str(body.status, 40)}, updated_at = now() WHERE id = ${id};`;
+    if ("status" in body) {
+      const nowy = String(body.status);
+      const poprzedni = String(stanUmowy.status ?? "");
+      const label = CONTRACT_TYP_LABEL[String(stanUmowy.typ ?? "umowa") as ContractTyp] ?? "Umowa";
+      if (nowy === "Odrzucona") {
+        // Powód pytamy RAZ, w chwili odrzucenia — jak przy ofercie (Moduł 57).
+        // Bez tego oś czasu klienta kończyła się na „wysłano umowę", a przy
+        // NDA nie było gdzie zapisać, dlaczego kontrahent nie podpisał.
+        const powod = isContractRejectReason(body.powod_odrzucenia) ? body.powod_odrzucenia : "";
+        const komentarz = str(body.komentarz_odrzucenia, 500);
+        await sql`
+          UPDATE contracts SET status = ${nowy}, powod_odrzucenia = ${powod},
+            komentarz_odrzucenia = ${komentarz}, odrzucona_at = now(), updated_at = now()
+          WHERE id = ${id};
+        `;
+        if (poprzedni !== nowy) {
+          const dlaczego = rejectReasonLabel(powod, komentarz);
+          const clientId = typeof stanUmowy.client_id === "string" ? stanUmowy.client_id : null;
+          await logClientEvent(
+            sql,
+            clientId,
+            "contract_rejected",
+            `Druga strona nie podpisała — ${label.toLowerCase()}${dlaczego ? ` (${dlaczego})` : ""}`,
+            null,
+            id
+          );
+        }
+      } else {
+        // Wyjście z „Odrzucona" sprząta powód — inaczej dokumentowi wróconemu
+        // do gry zostawałby w profilu nieaktualny napis „Zapisy nie do
+        // przyjęcia" (ta sama reguła co w ofertach).
+        await sql`
+          UPDATE contracts SET status = ${nowy}, updated_at = now(),
+            powod_odrzucenia = '', komentarz_odrzucenia = '', odrzucona_at = NULL
+          WHERE id = ${id};
+        `;
+      }
+    }
     if ("jezyk" in body) {
       const v = typeof body.jezyk === "string" && (DOC_LANGS as string[]).includes(body.jezyk) ? body.jezyk : "pl";
       await sql`UPDATE contracts SET jezyk = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    // Okres obowiązywania umowy — co innego niż termin realizacji.
+    for (const pole of ["obowiazuje_od", "obowiazuje_do"] as const) {
+      if (pole in body) {
+        const v = dateOrNull(body[pole]);
+        if (v === undefined) return NextResponse.json({ error: `invalid ${pole}` }, { status: 400 });
+        if (pole === "obowiazuje_od") await sql`UPDATE contracts SET obowiazuje_od = ${v}, updated_at = now() WHERE id = ${id};`;
+        else await sql`UPDATE contracts SET obowiazuje_do = ${v}, updated_at = now() WHERE id = ${id};`;
+      }
+    }
+    if ("wypowiedzenie_dni" in body) {
+      const n = Math.max(0, Math.min(365, Math.round(Number(body.wypowiedzenie_dni) || 0)));
+      await sql`UPDATE contracts SET wypowiedzenie_dni = ${n}, updated_at = now() WHERE id = ${id};`;
+    }
+    if ("odnawialna" in body) {
+      await sql`UPDATE contracts SET odnawialna = ${!!body.odnawialna}, updated_at = now() WHERE id = ${id};`;
+    }
+    if ("szablon" in body) {
+      // Nieznany szablon zmieniłby zestaw klauzul na pusty — czyli po cichu
+      // wystawił dokument bez warunków. Zamknięta lista, jak przy statusie.
+      const v = typeof body.szablon === "string" && (CONTRACT_SZABLONY as string[]).includes(body.szablon) ? body.szablon : null;
+      if (!v) return NextResponse.json({ error: "Nieznany rodzaj umowy." }, { status: 400 });
+      await sql`UPDATE contracts SET szablon = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("termin_realizacji" in body) {
       const v = dateOrNull(body.termin_realizacji);
@@ -100,12 +220,49 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-/** DELETE /api/contracts/:id. */
+/** DELETE /api/contracts/:id — tylko dokument, którego nikt jeszcze nie
+ * podpisał i do którego nic nie wskazuje.
+ *
+ * Do audytu Modułu 11 ta trasa kasowała wszystko bez pytania, łącznie
+ * z podpisaną umową — czyli dokładnie ten dokument, którego treści `PATCH`
+ * broni jako nienaruszalnej. Sonda skasowała podpisaną umowę, do której
+ * istniał podpisany aneks: aneks został na liście jako „Aneks nr 2", bez
+ * matki i bez śladu, czego dotyczy. Faktura z numerem miała ten zakaz od
+ * dawna (`api/invoices/[id]` — „dziura w numeracji"); umowa nie miała żadnego.
+ *
+ * Pomyłkę w podpisanym dokumencie zamyka się statusem albo aneksem — nie
+ * usunięciem, bo drugą kopię ma druga strona. */
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   await ensureContractsSchema();
   const sql = getSql();
+
+  const stan = (await sql`SELECT typ, status, accepted_at FROM contracts WHERE id = ${id};`)[0];
+  if (!stan) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  if (String(stan.status ?? "") === "Podpisana" || stan.accepted_at) {
+    const typ = String(stan.typ ?? "");
+    const zdanie =
+      typ === "nda" ? "NDA jest podpisane" : typ === "aneks" ? "Ten aneks jest podpisany" : "Umowa jest podpisana";
+    return NextResponse.json(
+      { error: `${zdanie} — drugą kopię ma druga strona, więc dokumentu nie usuwamy. Zmianę warunków wprowadza aneks.` },
+      { status: 409 }
+    );
+  }
+
+  // Umowa z aneksami zostaje nawet jako szkic: `poprzednie` aneksu przeżyje
+  // (migawka), ale sam aneks straciłby jedyne powiązanie z dokumentem,
+  // do którego się odnosi.
+  const dzieci = await sql`SELECT COUNT(*)::int AS n FROM contracts WHERE parent_contract_id = ${id};`;
+  const ile = Number(dzieci[0]?.n ?? 0);
+  if (ile > 0) {
+    return NextResponse.json(
+      { error: `Do tej umowy sporządzono ${ile === 1 ? "aneks" : `${ile} aneksy`} — usuń najpierw aneks(y) albo zostaw umowę.` },
+      { status: 409 }
+    );
+  }
+
   await sql`DELETE FROM contracts WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }

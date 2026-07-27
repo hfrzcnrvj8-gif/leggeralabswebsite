@@ -56,7 +56,7 @@ export const WSTEP = {
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Na razie opisane są Pulpit, Leady, Klienci i Oferty — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
+    "Na razie opisane są Pulpit, Leady, Klienci, Oferty oraz Umowy i NDA — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -512,6 +512,118 @@ export const MODULY: ModulInstrukcji[] = [
         tytul: "Telefon: przesunięcie palcem",
         opis:
           "W lewo na wierszu — „Wyślij” i „Odrzucona”. To samo (plus „Wygasła”) jest w menu po przytrzymaniu wiersza.",
+      },
+    ],
+  },
+
+  /* ────────────────────────────── UMOWY I NDA ─────────────────────────── */
+  {
+    id: "umowy",
+    nazwa: "Umowy i NDA",
+    gdzie: "Panel: piąta pozycja w menu. Telefon: zakładka „Więcej” → Umowy. iPad: w panelu bocznym.",
+    poCoTo:
+      "Papier przed pracą. Podpisana umowa to jedyna rzecz, która odblokowuje start projektu dla klienta — a NDA idzie jeszcze wcześniej, przed rozmową, w której padną szczegóły cudzych systemów. Oba dokumenty druga strona podpisuje elektronicznie, pod linkiem z maila.",
+    kiedy:
+      "NDA: zanim usiądziesz do rozmowy odkrywczej. Umowa: zaraz po akceptacji oferty — panel wygeneruje ją jednym przyciskiem z karty oferty.",
+    kroki: [
+      {
+        tytul: "1. Umowa robi się z oferty, nie od zera",
+        opis:
+          "Na karcie zaakceptowanej oferty jest „Wygeneruj umowę” — przenosi dane klienta, zakres z pozycji, kwotę, walutę i język. Drugie kliknięcie nigdy nie zrobi drugiego dokumentu: karta pokazuje wtedy status istniejącej umowy i „Otwórz umowę”. NDA powstaje analogicznie z profilu leada („Przygotuj NDA”). Wolnostojący szkic obu typów zrobisz przyciskiem + na liście Umów.",
+      },
+      {
+        tytul: "2. Sprawdź to, czego oferta nie znała",
+        opis:
+          "Termin realizacji, uwagi, kraj drugiej strony (jest na wydruku) i walutę wynagrodzenia. Klauzule są stałe — jeden szablon na wszystkie umowy — i świadomie nie da się ich edytować per dokument. Nad dokumentem stoi ostrzeżenie, że treść prawna czeka na weryfikację prawnika; to nie jest usterka, tylko stan faktyczny do czasu rejestracji firmy.",
+      },
+      {
+        tytul: "3. „Wyślij mailem” — i od tej chwili druga strona widzi migawkę",
+        opis:
+          "Mail idzie z linkiem do podglądu i e-podpisu; status przeskakuje ze „Szkic” na „Wysłana”. W tym samym momencie panel zapisuje MIGAWKĘ treści: to, co druga strona przeczytała, zostaje zamrożone. Jeśli poprawisz dokument w panelu, ona dalej widzi wersję z wysyłki — dopóki nie wyślesz ponownie. To jest dowód na wypadek sporu, nie ozdoba.",
+      },
+      {
+        tytul: "4. Podpis: elektroniczny albo Twój, ręczny",
+        opis:
+          "Druga strona wpisuje imię i nazwisko pod dokumentem — panel zapisuje datę, IP i przeglądarkę jako dowód złożenia oświadczenia woli, a Ty dostajesz powiadomienie. Jeśli podpisaliście papierowo, kliknij „Oznacz jako podpisaną” (działa też z telefonu). Statusem tego nie zrobisz — podpis to data, nie etykieta.",
+      },
+      {
+        tytul: "5. Gdy nie podpiszą — zamknij sprawę z powodem",
+        opis:
+          "Status „Odrzucona” pyta o powód z krótkiej listy (zapisy nie do przyjęcia, własny wzór umowy, zmiana planów, brak decyzji, inny). Powód ląduje na osi czasu klienta. Przy NDA to jedyne miejsce, w którym zostaje ślad, dlaczego kontrahent nie podpisał. Robi się to z pigułki na liście, z profilu i z telefonu.",
+      },
+      {
+        tytul: "6. Zmiana po podpisie: aneks, nie poprawka",
+        opis:
+          "Podpisanej umowy nie da się edytować — obie strony mają jej kopię. Zmianę wprowadza „Sporządź aneks” (na liście i w profilu podpisanej umowy). Aneks pokazuje WYŁĄCZNIE to, co się zmienia, w układzie „było → jest”, i ma własny numer, własny link i własny podpis. Oryginał zostaje podpisany i dalej obowiązuje. Drugi aneks liczy „było” od ostatniego PODPISANEGO aneksu, nie od pierwotnej umowy.",
+      },
+      {
+        tytul: "7. Umowa ciągła: wypełnij okres obowiązywania",
+        opis:
+          "„Rodzaj umowy” wybiera zestaw klauzul (wdrożeniowa / utrzymaniowa / PoC). Przy utrzymaniowej wypełnij sekcję „Obowiązywanie”: od, do, „przedłuża się sama” i okres wypowiedzenia. To jedyna rzecz w całym panelu, która dzieje się SAMA i po terminie nie da się jej odkręcić — umowa odnawialna przedłuża się w milczeniu. Panel zacznie się o tym przypominać na 60 dni przed (albo wcześniej, jeśli wypowiedzenie jest dłuższe).",
+      },
+      {
+        tytul: "8. Podpisz po swojej stronie",
+        opis:
+          "Dokument ma dwie rubryki: Wykonawca i Zamawiający. „Podpisz po naszej stronie” wstawia Twoje imię (z ustawień firmy, pole „Podpisuje umowy”) i datę — druga strona widzi wtedy dokument już podpisany przez Ciebie. Cofnąć da się to tylko dopóki ona nie podpisała.",
+      },
+      {
+        tytul: "9. Podepnij projekt",
+        opis:
+          "Pole „Projekt” w nagłówku umowy decyduje, który projekt ta umowa odblokowuje. Bez tego bramka startu („projekt z klientem wymaga podpisanej umowy”) będzie nie do przejścia, mimo że umowa leży podpisana.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Cisza po wysyłce liczy się sama",
+        opis:
+          "Dokument wysłany i niepodpisany od tygodnia odzywa się na Pulpicie i w porannym mailu, a licznik „cisza od N dni” widać też na liście Umów i w telefonie. Ponowna wysyłka zeruje ten zegar — bo właśnie przypomniałeś.",
+      },
+      {
+        tytul: "Podpis drugiej strony dzwoni",
+        opis:
+          "E-podpis pod linkiem wywołuje powiadomienie i wpis na osi czasu klienta. Twoje własne „oznacz jako podpisaną” nie dzwoni — wiesz, że kliknąłeś.",
+      },
+      {
+        tytul: "Dowód e-podpisu znika po sześciu latach",
+        opis:
+          "IP i przeglądarka osoby podpisującej czyszczą się automatycznie po terminie przedawnienia roszczeń. Sam podpis (imię, nazwisko, data) zostaje — to treść drukowana pod dokumentem.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Podpisanego dokumentu nie cofniesz statusem",
+        opis:
+          "Ani nie usuniesz. To celowe: drugą kopię ma druga strona. Pomyłkę naprawia aneks — a jeśli dokument nigdy nie powinien powstać, zostaw go zamkniętego zamiast kasować historię.",
+      },
+      {
+        tytul: "NDA się nie aneksuje",
+        opis:
+          "Nie ma w nim warunków handlowych, więc nie ma czego zmieniać — potrzebujesz innych zapisów, sporządź nowe NDA. Aneksu do aneksu też nie ma: kolejny robi się zawsze do umowy.",
+      },
+      {
+        tytul: "Aneks bez zmian nie da się wysłać",
+        opis:
+          "Świeży aneks startuje z warunkami umowy, więc na starcie nie zmienia niczego i panel odmawia jego wysyłki. Najpierw zmień zakres, kwotę, walutę albo termin — dopiero wtedy ma treść.",
+      },
+      {
+        tytul: "Klauzule zostają po polsku",
+        opis:
+          "Język wydruku (PL/EN/DE) dotyczy nagłówków i przycisków; sama treść prawna jest na razie tylko polska i czeka na tłumacza oraz prawnika. Na wydruku obcojęzycznym stoi o tym zdanie.",
+      },
+    ],
+    skroty: [
+      { tytul: "/", opis: "Kursor do wyszukiwarki (szuka po drugiej stronie, zakresie prac i numerze dokumentu)." },
+      { tytul: "j / k", opis: "Ruch po liście dokumentów." },
+      { tytul: "Enter", opis: "Otwiera zaznaczony dokument." },
+      { tytul: "n", opis: "Nowa umowa." },
+      {
+        tytul: "Telefon i iPad",
+        opis:
+          "Podgląd dokumentu, wysyłka do podpisu, „oznacz jako podpisaną”, „nie podpisali” z powodem, filtr statusu i licznik ciszy. Aneks pokazuje na telefonie tabelę „było → jest”. Tworzenie umowy i sporządzanie aneksu zostają przy biurku.",
+      },
+      {
+        tytul: "Telefon: przesunięcie palcem",
+        opis: "W lewo na wierszu — „Wyślij” i „Nie podpisali”. To samo jest w menu po przytrzymaniu wiersza.",
       },
     ],
   },

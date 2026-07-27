@@ -49,6 +49,7 @@ export const COMPANY_SETTINGS_PUBLIC_FIELDS = [
   "konto",
   "bank_nazwa",
   "swift",
+  "osoba_podpisujaca",
   "vat_payer",
   "zwolnienie_podstawa",
   "stawka_odsetek_ustawowych",
@@ -170,6 +171,17 @@ export const CONTRACT_PUBLIC_FIELDS = [
   // aneksu nie ma z czym porównać nowych warunków — cała kolumna „było"
   // stałaby pusta. `poprzednie` nie zawiera nic, czego nie ma na samym
   // dokumencie: to warunki handlowe, które druga strona już podpisała.
+  // Stanowisko podpisującego i nasz podpis (2026-07-27) — obie rubryki są na
+  // dokumencie, więc druga strona musi je widzieć pod swoim linkiem.
+  "accepted_by_role",
+  "podpis_nasz_at",
+  "podpis_nasz_osoba",
+  // Okres obowiązywania — to jest treść umowy, nie metadana panelu.
+  "obowiazuje_od",
+  "obowiazuje_do",
+  "wypowiedzenie_dni",
+  "odnawialna",
+  "szablon",
   "aneks_nr",
   "poprzednie",
 ] as const;

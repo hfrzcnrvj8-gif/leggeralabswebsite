@@ -403,3 +403,106 @@ a ich usunięcie zostawiłoby podpisany dokument z pustą rubryką.
 - **Ten okres musi trafić do polityki prywatności** — dziś polityka nie mówi
   o retencji danych e-podpisu w ogóle (patrz sekcja 2.1a, gdzie wymieniono
   e-podpis jako kategorię danych bez podanego okresu).
+
+## Migawka umowy — czy to wystarczający dowód (dodane 2026-07-27)
+
+Od audytu Modułu 11 panel zapisuje **migawkę treści umowy/NDA/aneksu w chwili
+wysyłki** (kolumna `contracts.migawka`) i to ją renderuje pod publicznym
+linkiem. Powód jest praktyczny: umowa pozostaje edytowalna aż do podpisu, więc
+bez migawki dokument „u drugiej strony" zmieniał się razem z bazą i przy sporze
+nie było czego pokazać. Żywe zostają tylko: status, data i imię podpisującego
+oraz unieważnienie linku.
+
+**Pytania do prawnika:**
+
+- Czy taka migawka + e-podpis (imię i nazwisko, znacznik czasu, IP,
+  przeglądarka) jest wystarczającym dowodem treści, którą strona podpisała,
+  czy potrzebny jest dodatkowo trwały plik (PDF) generowany w chwili podpisu?
+- Ponowna wysyłka po poprawce **nadpisuje** migawkę (druga strona widzi wtedy
+  nową wersję i podpisuje ją). Czy poprzednie wersje powinny być przechowywane,
+  czy wystarczy ta, pod którą złożono podpis?
+- Migawka to druga kopia danych osobowych drugiej strony w tym samym wierszu
+  (nazwa, NIP, adres, e-mail). Umowy — inaczej niż leady i oferty — **nie mają
+  dziś żadnej retencji**; proszę o wskazanie okresu, po którym dokument
+  niepodpisany (szkic/odrzucony) powinien zostać usunięty, oraz czy podpisana
+  umowa ma być trzymana bezterminowo, czy przez okres przedawnienia roszczeń.
+
+## Umowy ciągłe, rodzaje umowy i dwustronny podpis (dodane 2026-07-27)
+
+Panel dostał sześć rzeczy, które są standardem w narzędziach do umów
+(DocuSign/Dropbox Sign po stronie podpisu, Juro/Concord po stronie cyklu życia
+umowy). Mechanika jest gotowa i przetestowana — **treść prawna wymaga
+weryfikacji**.
+
+### 1. Okres obowiązywania i milczące przedłużenie — DO SPRAWDZENIA
+
+Umowa ma teraz `obowiązuje od / do`, znacznik „przedłuża się sama"
+i okres wypowiedzenia w dniach. Na dokumencie drukuje się sekcja **„Okres
+obowiązywania"** z tym zdaniem (PL/EN/DE, klucz `autoRenew` w `ContractPrint.tsx`):
+
+> „Umowa przedłuża się na kolejny taki sam okres, o ile żadna ze stron nie
+> wypowie jej wcześniej. Okres wypowiedzenia: N dni."
+
+**Pytania:**
+- Czy to zdanie wystarcza jako klauzula przedłużenia, czy potrzebna jest pełna
+  klauzula (forma wypowiedzenia — pisemna/mailowa, adres do doręczeń, skutek
+  wypowiedzenia w trakcie okresu rozliczeniowego)?
+- Czy przy umowie zawartej z **konsumentem** milczące przedłużenie wymaga
+  dodatkowego pouczenia (panel dziś nie rozróżnia B2B/B2C)?
+- Od kiedy liczyć wypowiedzenie — od doręczenia czy od końca okresu
+  rozliczeniowego? Panel liczy alert od DATY KOŃCA minus N dni.
+
+### 2. Rodzaje umowy (szablony) — BRAKUJE TREŚCI
+
+Umowa ma trzy rodzaje: **wdrożeniowa** (pełny zestaw klauzul), **utrzymaniowa**
+(ciągła opieka) i **PoC/pilotaż**. Szablon **wybiera podzbiór istniejących
+klauzul** — świadomie nie dopisaliśmy ani jednego nowego zdania prawnego.
+
+Co dziś odpada z zestawu:
+- utrzymaniowa: „Reklamacje i poprawki", „Odbiór prac", „Wsparcie powdrożeniowe";
+- PoC: „Własność intelektualna", „Wsparcie powdrożeniowe", „Reklamacje i poprawki".
+
+**Pytania (i prośba o treść):**
+- **Umowa utrzymaniowa nie ma dziś klauzuli SLA** — czasu reakcji, okien
+  serwisowych, wyłączeń. Prosimy o brzmienie albo o potwierdzenie, że
+  świadomie zostaje bez SLA (dziś na dokumencie jest tylko zdanie z klauzuli
+  „Infrastruktura i dostępność": „Wykonawca nie gwarantuje określonego poziomu
+  dostępności (SLA)").
+- **PoC nie przenosi praw autorskich** (klauzula usunięta). Czy zamiast niej
+  powinno stać zdanie wprost: „prawa do materiałów PoC pozostają przy
+  Wykonawcy, a wdrożenie produkcyjne wymaga odrębnej umowy"?
+- Czy usunięcie klauzuli „Odbiór prac" z umowy ciągłej nie zostawia luki co do
+  potwierdzania wykonania usługi w danym miesiącu.
+
+### 3. Podpis po naszej stronie i stanowisko podpisującego — DO SPRAWDZENIA
+
+Dokument ma teraz **dwie rubryki podpisu** (Wykonawca / Zamawiający). Nasza
+wypełnia się datą i imieniem z ustawień firmy; rubryka drugiej strony pokazuje
+imię, **stanowisko** (nowe, opcjonalne pole wpisywane przez podpisującego) i datę.
+
+**Pytania:**
+- Czy brak stanowiska osłabia dowód umocowania — czy pole powinno być
+  **obowiązkowe** przy podpisie w imieniu spółki?
+- Czy odnotowanie naszego podpisu w panelu (data + imię, bez podpisu odręcznego
+  i bez podpisu kwalifikowanego) jest wystarczające po naszej stronie, skoro
+  druga strona składa oświadczenie przez formularz?
+- Czy kolejność podpisów ma znaczenie prawne (dziś nie wymuszamy żadnej).
+
+### 4. Przypomnienie o podpisie — treść maila do akceptacji
+
+Nowy przycisk „Przypomnij o podpisie" wysyła mail o treści:
+
+> „wracam do dokumentu, który przesłałem N dni temu do podpisu: [link].
+> Dokument można podejrzeć i podpisać elektronicznie pod powyższym adresem.
+> Jeśli któryś z zapisów wymaga rozmowy albo zmiany — proszę o wiadomość,
+> ustalimy to przed podpisem."
+
+Prosimy o potwierdzenie, że taka wiadomość nie stanowi ponaglenia rodzącego
+skutki prawne ani oferty w rozumieniu k.c.
+
+### 5. Ślad otwarcia dokumentu — RODO
+
+Publiczny podgląd umowy zapisuje teraz **czas i licznik otwarć** (jak przy
+ofertach). Nie zapisujemy ani IP, ani przeglądarki odwiedzającego — tylko fakt
+i moment. Prosimy o potwierdzenie, że przy takim zakresie nie potrzeba
+odrębnej informacji dla drugiej strony (dziś jej nie ma).

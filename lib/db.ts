@@ -849,6 +849,10 @@ async function createInvoicesSchema(): Promise<void> {
   // wydruku (przydatne zwłaszcza zagranicznym klientom płacącym SWIFT/SEPA).
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_nazwa TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS swift TEXT NOT NULL DEFAULT '';`;
+  // Kto podpisuje umowy po naszej stronie (2026-07-27). Firma podpisuje przez
+  // człowieka, więc rubryka „Leggera Labs" bez nazwiska jest pusta w tym
+  // jednym miejscu, w którym nie powinna być. Puste = wracamy do nazwy firmy.
+  await sql`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS osoba_podpisujaca TEXT NOT NULL DEFAULT '';`;
   // Adres sprzedawcy rozbity na pola strukturalne (jak u nabywcy) — potrzebne
   // do FA(3)/KSeF (KodKraju + AdresL1) i czytelniejszego wydruku. Stare `adres`
   // zostaje jako fallback. `kraj` domyślnie PL (najczęstszy przypadek).
@@ -1556,6 +1560,57 @@ async function createContractsSchema(): Promise<void> {
   await inMigration(
     () => sql`UPDATE contracts SET sent_at = updated_at WHERE status = 'Wysłana' AND sent_at IS NULL;`
   );
+  // Ślad po odrzuceniu (audyt Modułu 11, 2026-07-27) — ten sam zestaw kolumn
+  // co w ofertach. Do tej rundy oś czasu klienta znała wyłącznie sukces
+  // (contract_created/sent/signed), więc kontrahent, który odmówił podpisu,
+  // kończył się wpisem „wysłano umowę" i ciszą. Przy NDA to jedyne miejsce,
+  // w którym w ogóle da się zapisać, DLACZEGO druga strona nie podpisała.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS powod_odrzucenia TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS komentarz_odrzucenia TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS odrzucona_at TIMESTAMPTZ;`;
+  // Migawka treści z chwili wysyłki (audyt Modułu 11) — ten sam mechanizm co
+  // `offers.migawka`. Umowa jest zablokowana dopiero po PODPISIE, więc między
+  // wysyłką a podpisem publiczny link renderował dane ŻYWE: dokument „u drugiej
+  // strony" zmieniał się razem z bazą i przy sporze nie było czego pokazać.
+  // Umowy wysłane przed tą zmianą migawki nie mają — publiczna trasa ma dla
+  // nich fallback na dane żywe.
+  // ── Paczka „umowa przestaje być czarną skrzynką" (2026-07-27) ─────────
+  // Ślad otwarcia publicznego linku — 1:1 z ofertami (`otwarta_at`,
+  // `ostatnio_otwarta_at`, `liczba_otwarc`). Po wysyłce umowy zapadała cisza
+  // absolutna: nie dało się odróżnić „nie przeczytał" od „czyta i się
+  // zastanawia", a to są dwa różne telefony następnego dnia. Automaty nie
+  // liczą się jako otwarcie (lib/publicVisit.ts).
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS otwarta_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS ostatnio_otwarta_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS liczba_otwarc INTEGER NOT NULL DEFAULT 0;`;
+  // Kiedy ostatnio poszło przypomnienie o niepodpisanym dokumencie
+  // (`/api/contracts/:id/remind`, wzorem ofert). Osobno od `sent_at`: wysyłka
+  // to nowy dokument u drugiej strony, przypomnienie to szturchnięcie.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS przypomniano_at TIMESTAMPTZ;`;
+  // Okres obowiązywania i wypowiedzenie — rdzeń CLM (Juro/Concord). Bez tego
+  // umowa utrzymaniowa odnawiała się albo wygasała bez niczyjej wiedzy:
+  // dokument znał wyłącznie termin REALIZACJI, czyli kiedy kończy się praca,
+  // a nie kiedy kończy się umowa. `odnawialna` = milcząco przedłużana, więc
+  // pilnujemy terminu WYPOWIEDZENIA, nie samego końca.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS obowiazuje_od DATE;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS obowiazuje_do DATE;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS wypowiedzenie_dni INTEGER NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS odnawialna BOOLEAN NOT NULL DEFAULT false;`;
+  // Rodzaj umowy (szablon) — wybiera ZESTAW stałych klauzul, nie pisze nowej
+  // treści prawnej. Patrz CONTRACT_TEMPLATES w lib/contracts.ts.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS szablon TEXT NOT NULL DEFAULT 'wdrozeniowa';`;
+  // Kto podpisał po DRUGIEJ stronie — samo imię i nazwisko nie mówiło, czy
+  // podpisała osoba uprawniona do reprezentacji. Pole wypełnia sam
+  // podpisujący na publicznej stronie (nie właściciel „za niego").
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS accepted_by_role TEXT;`;
+  // Podpis po NASZEJ stronie — dotąd dokument miał tylko rubrykę klienta,
+  // a nasza była domyślna i pusta. Data i imię, bez IP: to nie jest podpis
+  // złożony przez internet, tylko odnotowanie własnego.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS podpis_nasz_at TIMESTAMPTZ;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS podpis_nasz_osoba TEXT;`;
+  await sql`CREATE INDEX IF NOT EXISTS contracts_obowiazuje_do_idx ON contracts(obowiazuje_do);`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS migawka JSONB;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS migawka_at TIMESTAMPTZ;`;
 
   await markSchemaApplied("contracts");
 }

@@ -35,7 +35,14 @@ import {
 } from "@/lib/invoices";
 import { costBrutto, type RecurringCost } from "@/lib/costs";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
-import { isContractStale, contractSilenceDays, CONTRACT_TYP_LABEL, type Contract } from "@/lib/contracts";
+import {
+  isContractStale,
+  contractSilenceDays,
+  powodOdnowienia,
+  umowaDoOdnowienia,
+  CONTRACT_TYP_LABEL,
+  type Contract,
+} from "@/lib/contracts";
 import { sendEmail } from "@/lib/email";
 import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
@@ -364,11 +371,15 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     // na Pulpicie (isContractStale), żeby mail i panel nie mówiły dwóch
     // różnych rzeczy.
     sql`
-      SELECT c.id, c.typ, c.status, c.sent_at, c.klient_nazwa, cl.nazwa AS client_nazwa
+      SELECT c.id, c.typ, c.status, c.sent_at, c.klient_nazwa,
+             c.obowiazuje_do, c.wypowiedzenie_dni, c.odnawialna, cl.nazwa AS client_nazwa
       FROM contracts c
       LEFT JOIN clients cl ON cl.id = c.client_id;
     ` as unknown as Promise<
-      (Pick<Contract, "id" | "typ" | "status" | "sent_at" | "klient_nazwa"> & { client_nazwa: string | null })[]
+      (Pick<
+        Contract,
+        "id" | "typ" | "status" | "sent_at" | "klient_nazwa" | "obowiazuje_do" | "wypowiedzenie_dni" | "odnawialna"
+      > & { client_nazwa: string | null })[]
     >,
     // Zaplanowane kontakty nurture (Moduł 2) wymagalne dziś lub wcześniej —
     // ta sama reguła co na Pulpicie (patrz app/api/hub/today).
@@ -598,6 +609,16 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
         .join("\n")
     : "  (nic — nic nie wisi bez podpisu)";
 
+  // Umowy dobiegające końca (2026-07-27) — ta sama reguła co na Pulpicie
+  // (umowaDoOdnowienia), żeby mail i panel nie mówiły dwóch różnych rzeczy.
+  // Powód zdaniem z lib, nie sklejany tutaj drugi raz.
+  const wygasajaceUmowy = contracts.filter((c) => c.typ === "umowa" && umowaDoOdnowienia(c, today));
+  const renewalLines = wygasajaceUmowy.length
+    ? wygasajaceUmowy
+        .map((c) => `  • ${c.client_nazwa || c.klient_nazwa || "(bez nazwy)"} — ${powodOdnowienia(c, today)}`)
+        .join("\n")
+    : "";
+
   const summaryLines = STATUSES.map((s) => `  ${s}: ${counts[s] ?? 0}`).join("\n");
   const totalActionable =
     overdueLeads.length +
@@ -763,6 +784,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     "",
     `Umowy czekające na podpis (${staleContracts.length}):`,
     contractLines,
+    ...(wygasajaceUmowy.length
+      ? ["", `Umowy dobiegające końca (${wygasajaceUmowy.length}):`, renewalLines]
+      : []),
     "",
     `Faktury-szkice czekające na wystawienie: ${draftInvoices.length}`,
     "",

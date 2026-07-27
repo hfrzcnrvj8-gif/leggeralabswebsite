@@ -138,6 +138,9 @@ export const CLIENT_EVENT_KINDS = [
   "contract_created",
   "contract_sent",
   "contract_signed",
+  // Odrzucenie umowy/NDA (audyt Modułu 11) — do tej rundy oś czasu znała
+  // wyłącznie sukces, jak przy ofertach przed Modułem 57.
+  "contract_rejected",
   "nda_created",
   "review_requested",
   "review_collected",
@@ -184,6 +187,7 @@ export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projec
   contract_created: "contracts",
   contract_sent: "contracts",
   contract_signed: "contracts",
+  contract_rejected: "contracts",
   nda_created: "contracts",
   review_requested: "projects",
   review_collected: "projects",

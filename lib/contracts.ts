@@ -56,6 +56,27 @@ export const CONTRACT_STATUS_CLASS: Record<string, string> = {
   Odrzucona: "bg-[var(--hairline)] text-muted",
 };
 
+/** Dlaczego druga strona nie podpisała — krótka, ZAMKNIĘTA lista (audyt
+ * Modułu 11, 2026-07-27), wzorem `OFFER_REJECT_REASONS`.
+ *
+ * Powody są INNE niż przy ofercie i to jest sedno: ofertę przegrywa się na
+ * cenie i terminie, a umowę na zapisach — odpowiedzialności, prawach do kodu,
+ * poufności. Wspólna lista dla obu dokumentów zlałaby dwie różne porażki
+ * w jedną statystykę i nie powiedziałaby nic o tym, którą klauzulę trzeba
+ * przepisać. */
+export const CONTRACT_REJECT_REASONS = [
+  "Zapisy nie do przyjęcia",
+  "Wymagają własnego wzoru umowy",
+  "Zmiana planów po ich stronie",
+  "Brak decyzji / ucichło",
+  "Inny powód",
+] as const;
+export type ContractRejectReason = (typeof CONTRACT_REJECT_REASONS)[number];
+
+export function isContractRejectReason(v: unknown): v is ContractRejectReason {
+  return typeof v === "string" && (CONTRACT_REJECT_REASONS as readonly string[]).includes(v);
+}
+
 /** Statusy zamknięte — dokument nie jest już "w grze". */
 export const CLOSED_CONTRACT_STATUSES = new Set<ContractStatus>(["Podpisana", "Odrzucona"]);
 
@@ -96,6 +117,35 @@ export type Contract = {
   accepted_by_name: string | null;
   accepted_ip: string | null;
   accepted_user_agent: string | null;
+  /** Ślad otwarcia publicznego linku (wzorem ofert) — automaty się nie liczą,
+   * patrz lib/publicVisit.ts. */
+  otwarta_at: string | null;
+  ostatnio_otwarta_at: string | null;
+  liczba_otwarc: number;
+  /** Ostatnie przypomnienie o niepodpisanym dokumencie (`/remind`). */
+  przypomniano_at: string | null;
+  /** Okres obowiązywania UMOWY — co innego niż `termin_realizacji` (koniec
+   * pracy). `odnawialna` = przedłuża się milcząco, więc liczy się termin
+   * wypowiedzenia, nie sama data końca. */
+  obowiazuje_od: string | null;
+  obowiazuje_do: string | null;
+  wypowiedzenie_dni: number;
+  odnawialna: boolean;
+  /** Rodzaj umowy — wybiera zestaw stałych klauzul (CONTRACT_TEMPLATES). */
+  szablon: string;
+  /** Stanowisko osoby podpisującej po drugiej stronie — wpisuje je ONA sama
+   * przy składaniu podpisu, nie właściciel za nią. */
+  accepted_by_role: string | null;
+  /** Podpis po naszej stronie — data i imię, bez IP (to nie jest podpis
+   * złożony przez internet, tylko odnotowanie własnego). */
+  podpis_nasz_at: string | null;
+  podpis_nasz_osoba: string | null;
+  /** Dlaczego druga strona nie podpisała — jeden z `CONTRACT_REJECT_REASONS`
+   * (pusty dla dokumentów, które nie są odrzucone) plus zdanie własnymi
+   * słowami. Wyjście ze statusu „Odrzucona" czyści oba pola. */
+  powod_odrzucenia: string;
+  komentarz_odrzucenia: string;
+  odrzucona_at: string | null;
   created_at: string;
   updated_at: string;
   /** Aneks (Moduł 58) — umowa-matka, numer aneksu w jej obrębie i migawka
@@ -235,6 +285,71 @@ export const NDA_CLAUSES: Clause[] = [
     text: "Zobowiązanie do zachowania poufności obowiązuje przez 2 lata od dnia podpisania niniejszej umowy.",
   },
 ];
+
+/* ------------------------------------ Migawka dokumentu (audyt Modułu 11) -- */
+
+/** Pola dokumentu, które przy podglądzie publicznym MUSZĄ być żywe, nawet gdy
+ * reszta idzie z migawki zrobionej przy wysyłce.
+ *
+ * Zasada jest ta sama, co przy ofertach (audyt Modułu 57): **do migawki idzie
+ * to, co NAPISAŁ właściciel; żywe zostaje to, co ZROBIŁA druga strona (podpis,
+ * nazwisko) i sterowanie dokumentem** (status, unieważnienie linku). Bez tego
+ * druga strona po złożeniu podpisu dalej widziałaby przycisk „Podpisuję".
+ *
+ * `id` i `created_at` są tu, bo z nich liczy się referencja dokumentu
+ * (`contractReference`) i adres linku — migawka nie ma prawa ich zmienić.
+ *
+ * **Kolejność scalania jest całą różnicą**: migawka jest PODSTAWĄ, a z bazy
+ * dokłada się wyłącznie ta lista. Odwrotna kolejność (`{...migawka, ...wiersz}`)
+ * unieważnia funkcję po cichu — na tym poległa pierwsza wersja migawki oferty. */
+export const CONTRACT_ZAWSZE_ZYWE = [
+  "id",
+  "created_at",
+  "status",
+  "accepted_at",
+  "accepted_by_name",
+  // Stanowisko wpisuje druga strona przy podpisie — to jest jej ruch, jak sam
+  // podpis, więc nigdy nie idzie do migawki.
+  "accepted_by_role",
+  // Nasz podpis może zostać dopisany PO wysyłce (np. podpisujemy jako drudzy),
+  // a druga strona ma widzieć aktualny stan obu rubryk.
+  "podpis_nasz_at",
+  "podpis_nasz_osoba",
+  "share_revoked_at",
+] as const;
+
+/** Pola idące do migawki — czyli treść dokumentu w chwili wysyłki.
+ *
+ * Świadomie wyliczone z nazwy, nie „wszystko poza X": nowa kolumna ma domyślnie
+ * NIE trafiać do migawki, dopóki ktoś świadomie jej tu nie dopisze. Odwrotna
+ * domyślność zamroziłaby kiedyś pole, które powinno żyć — dokładnie tak
+ * `wybrana` i `wazna_do` wpadły do migawki oferty. */
+export const CONTRACT_MIGAWKA_POLA = [
+  "typ",
+  "jezyk",
+  "klient_nazwa",
+  "klient_nip",
+  "klient_ulica",
+  "klient_kod",
+  "klient_miasto",
+  "klient_kraj",
+  "klient_email",
+  "zakres_prac",
+  "cena",
+  "waluta",
+  "termin_realizacji",
+  "uwagi",
+  "aneks_nr",
+  "poprzednie",
+  // Okres obowiązywania i rodzaj umowy to TREŚĆ dokumentu — zamrażamy razem
+  // z resztą (2026-07-27). Zmiana daty końca po wysyłce nie może po cichu
+  // zmienić dokumentu, który druga strona już czyta.
+  "obowiazuje_od",
+  "obowiazuje_do",
+  "wypowiedzenie_dni",
+  "odnawialna",
+  "szablon",
+] as const;
 
 /** Adres klienta jako linie do wydruku — wzorem lib/documents.ts. */
 export function clientAddressLines(
@@ -452,4 +567,124 @@ export function roznicaAneksu(
  * bez zaglądania do bazy. */
 export function aneksReference(nr: number, referencjaUmowy: string): string {
   return `ANEKS-${nr}-${referencjaUmowy}`;
+}
+
+/* ─────────────── Rodzaje umowy (szablony klauzul, 2026-07-27) ───────────── */
+
+/**
+ * **Szablon wybiera ZESTAW istniejących klauzul — nie pisze nowej treści
+ * prawnej.** To jest cała różnica wobec szablonów ofert (Moduł 20), gdzie
+ * treść pisze właściciel. Klauzule umowy nie przeszły jeszcze weryfikacji
+ * prawnika (LEGAL_PLACEHOLDER_NOTE), więc mnożenie ich wariantów byłoby
+ * mnożeniem ryzyka. Mechanizm jest gotowy; brakujące klauzule (np. SLA dla
+ * umowy utrzymaniowej) są WYPISANE w docs/DO-PRAWNIKA-I-TLUMACZA.md jako
+ * treść do napisania, a nie zmyślone tutaj.
+ *
+ * Trzy rodzaje wynikają z tego, co właściciel realnie sprzedaje: jednorazowe
+ * wdrożenie, opiekę powdrożeniową i płatny PoC przed decyzją.
+ */
+export type ContractSzablon = "wdrozeniowa" | "utrzymaniowa" | "poc";
+
+export const CONTRACT_SZABLONY: ContractSzablon[] = ["wdrozeniowa", "utrzymaniowa", "poc"];
+
+export const CONTRACT_SZABLON_LABEL: Record<ContractSzablon, string> = {
+  wdrozeniowa: "Wdrożeniowa (jednorazowa)",
+  utrzymaniowa: "Utrzymaniowa (opieka, odnawialna)",
+  poc: "PoC / pilotaż (przed decyzją)",
+};
+
+export const CONTRACT_SZABLON_OPIS: Record<ContractSzablon, string> = {
+  wdrozeniowa:
+    "Pełny zestaw klauzul: odbiór prac, prawa autorskie po zapłacie, dwie rundy poprawek, wsparcie jako odrębna usługa.",
+  utrzymaniowa:
+    "Umowa ciągła — wypełnij okres obowiązywania i termin wypowiedzenia. Klauzule o odbiorze etapów i rundach poprawek nie mają tu zastosowania.",
+  poc:
+    "Krótki, zamknięty test przed decyzją: bez wsparcia powdrożeniowego i bez przenoszenia praw do kodu (PoC nie jest wdrożeniem).",
+};
+
+/** Które klauzule ODPADAJĄ przy danym rodzaju umowy.
+ *
+ * Świadomie „co usunąć", nie „co dodać": punktem wyjścia jest jeden,
+ * kompletny zestaw, który już istnieje i który zna prawnik. Odjęcie klauzuli,
+ * która nie ma zastosowania, jest bezpieczne; dopisanie nowej — nie. */
+const SZABLON_POMIJA: Record<ContractSzablon, string[]> = {
+  wdrozeniowa: [],
+  utrzymaniowa: ["Reklamacje i poprawki", "Odbiór prac", "Wsparcie powdrożeniowe"],
+  poc: ["Własność intelektualna", "Wsparcie powdrożeniowe", "Reklamacje i poprawki"],
+};
+
+/** Klauzule dokumentu wg rodzaju umowy. Dla NDA i aneksu bez zmian. */
+export function clausesDlaSzablonu(szablon: string | null | undefined): Clause[] {
+  const s = (szablon ?? "wdrozeniowa") as ContractSzablon;
+  const pomin = new Set(SZABLON_POMIJA[s] ?? []);
+  return CONTRACT_CLAUSES.filter((c) => !pomin.has(c.title));
+}
+
+/* ──────────────── Koniec umowy i odnowienie (2026-07-27) ────────────────── */
+
+/** Ile dni przed końcem umowy panel zaczyna się odzywać.
+ *
+ * 60 dni to punkt, w którym da się jeszcze zrobić coś sensownego: umówić
+ * rozmowę o przedłużeniu albo wypowiedzieć w terminie. Przy umowie z długim
+ * wypowiedzeniem próg przesuwa się sam (patrz dniDoDzialaniaUmowy) — alert
+ * dwa tygodnie po upływie terminu wypowiedzenia byłby alarmem o pożarze
+ * wysłanym po pożarze. */
+export const CONTRACT_RENEWAL_ALERT_DAYS = 60;
+
+/** Ile dni zostało do dnia, w którym trzeba zadziałać.
+ *
+ * Dla umowy zwykłej to koniec obowiązywania. Dla ODNAWIALNEJ — ostatni dzień
+ * na wypowiedzenie (koniec minus okres wypowiedzenia): po nim umowa przedłuża
+ * się sama, więc alert po tej dacie jest bezużyteczny.
+ *
+ * `null`, gdy nie ma czego liczyć (brak daty końca albo dokument nie jest
+ * podpisany — niepodpisana umowa nie obowiązuje).
+ *
+ * Liczone KALENDARZOWO (dni, nie momenty) — ta sama zasada co przy terminach
+ * projektów, patrz daysBetweenISO w lib/dates.ts. */
+export function dniDoDzialaniaUmowy(
+  c: Pick<Contract, "status" | "obowiazuje_do" | "wypowiedzenie_dni" | "odnawialna">,
+  dzisISO: string
+): number | null {
+  if (c.status !== "Podpisana") return null;
+  if (!c.obowiazuje_do) return null;
+  const koniec = String(c.obowiazuje_do).slice(0, 10);
+  const dzien = new Date(`${koniec}T00:00:00Z`).getTime();
+  if (!Number.isFinite(dzien)) return null;
+  const zapas = c.odnawialna ? Math.max(0, Number(c.wypowiedzenie_dni) || 0) : 0;
+  const dzisMs = new Date(`${dzisISO}T00:00:00Z`).getTime();
+  return Math.round((dzien - zapas * 86_400_000 - dzisMs) / 86_400_000);
+}
+
+/** Czy umowa wymaga decyzji o przedłużeniu/wypowiedzeniu.
+ *
+ * Próg rośnie razem z okresem wypowiedzenia: przy trzymiesięcznym
+ * wypowiedzeniu 60 dni ostrzeżenia to za mało, żeby zdążyć. */
+export function umowaDoOdnowienia(
+  c: Pick<Contract, "status" | "obowiazuje_do" | "wypowiedzenie_dni" | "odnawialna">,
+  dzisISO: string
+): boolean {
+  const dni = dniDoDzialaniaUmowy(c, dzisISO);
+  if (dni == null) return false;
+  const prog = Math.max(CONTRACT_RENEWAL_ALERT_DAYS, (Number(c.wypowiedzenie_dni) || 0) + 14);
+  return dni <= prog;
+}
+
+/** Jednozdaniowe wyjaśnienie, CO trzeba zrobić i do kiedy — na Pulpit,
+ * do maila i do apki. Jedno źródło, żeby trzy ekrany nie mówiły trzech
+ * różnych rzeczy. */
+export function powodOdnowienia(
+  c: Pick<Contract, "status" | "obowiazuje_do" | "wypowiedzenie_dni" | "odnawialna">,
+  dzisISO: string
+): string {
+  const dni = dniDoDzialaniaUmowy(c, dzisISO);
+  if (dni == null) return "";
+  if (c.odnawialna) {
+    if (dni < 0) return "Termin wypowiedzenia minął — umowa przedłużyła się na kolejny okres.";
+    if (dni === 0) return "Dziś ostatni dzień na wypowiedzenie — jutro umowa przedłuża się sama.";
+    return `Do wypowiedzenia zostało ${dni} dni — potem umowa przedłuży się sama.`;
+  }
+  if (dni < 0) return "Umowa wygasła — jeśli współpraca trwa, potrzebna jest nowa.";
+  if (dni === 0) return "Umowa kończy się dziś.";
+  return `Umowa kończy się za ${dni} dni.`;
 }

@@ -5,7 +5,15 @@ import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
 import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
 import { isOfferExpired, isOfferStale, offerSilenceDays, weightedOfferValue, offerLiczySieDoStatystyk, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
-import { isContractStale, contractSilenceDays, signedContractRate, type Contract } from "@/lib/contracts";
+import {
+  isContractStale,
+  contractSilenceDays,
+  dniDoDzialaniaUmowy,
+  powodOdnowienia,
+  signedContractRate,
+  umowaDoOdnowienia,
+  type Contract,
+} from "@/lib/contracts";
 import { isClientOverdue, type Client } from "@/lib/clients";
 import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
@@ -20,7 +28,20 @@ type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplac
 type OfferRow = Offer & { kwota: number };
 /** Moduł 31 — tylko tyle kolumn umowy, ile Pulpit realnie pokazuje. Nazwa
  * klienta z JOIN-a, bo migawka `klient_nazwa` bywa pusta na szkicu. */
-type ContractRow = Pick<Contract, "id" | "typ" | "status" | "project_id" | "client_id" | "sent_at" | "klient_nazwa"> & {
+type ContractRow = Pick<
+  Contract,
+  | "id"
+  | "typ"
+  | "status"
+  | "project_id"
+  | "client_id"
+  | "sent_at"
+  | "klient_nazwa"
+  // Okres obowiązywania — do sekcji „Umowy dobiegające końca" (2026-07-27).
+  | "obowiazuje_do"
+  | "wypowiedzenie_dni"
+  | "odnawialna"
+> & {
   client_nazwa: string | null;
 };
 
@@ -115,7 +136,8 @@ export async function GET() {
     // tydzień niepodpisana nie przypominała się nigdy — mimo że blokuje start
     // projektu (bramka w api/projects/[id]).
     sql`
-      SELECT c.id, c.typ, c.status, c.project_id, c.client_id, c.sent_at, c.klient_nazwa, cl.nazwa AS client_nazwa
+      SELECT c.id, c.typ, c.status, c.project_id, c.client_id, c.sent_at, c.klient_nazwa,
+             c.obowiazuje_do, c.wypowiedzenie_dni, c.odnawialna, cl.nazwa AS client_nazwa
       FROM contracts c
       LEFT JOIN clients cl ON cl.id = c.client_id;
     ` as unknown as Promise<ContractRow[]>,
@@ -179,6 +201,27 @@ export async function GET() {
     .filter((c) => isContractStale(c))
     .map((c) => ({ ...c, silenceDays: contractSilenceDays(c) ?? 0 }))
     .sort((a, b) => b.silenceDays - a.silenceDays);
+
+  // Umowy dobiegające końca (2026-07-27) — rdzeń CLM, którego panel nie miał:
+  // dokument znał termin REALIZACJI (kiedy kończy się praca), a nie koniec
+  // obowiązywania. Umowa utrzymaniowa odnawiała się albo wygasała bez niczyjej
+  // wiedzy. Przy umowie ODNAWIALNEJ liczy się ostatni dzień na wypowiedzenie,
+  // nie sama data końca — po nim alert jest już bezużyteczny (patrz
+  // dniDoDzialaniaUmowy). Powód pisze lib, żeby Pulpit, mail i apka mówiły
+  // jedno zdanie.
+  const wygasajaceUmowy = contracts
+    .filter((c) => c.typ === "umowa" && umowaDoOdnowienia(c, today))
+    .map((c) => ({
+      id: c.id,
+      klient_nazwa: c.klient_nazwa,
+      client_nazwa: (c as { client_nazwa?: string | null }).client_nazwa ?? null,
+      client_id: c.client_id,
+      obowiazuje_do: c.obowiazuje_do,
+      odnawialna: c.odnawialna,
+      dniDoDzialania: dniDoDzialaniaUmowy(c, today) ?? 0,
+      powod: powodOdnowienia(c, today),
+    }))
+    .sort((a, b) => a.dniDoDzialania - b.dniDoDzialania);
 
   // Faktury-szkice czekające na wystawienie — robota zrobiona, ale dokument
   // nigdy nie dostał numeru (a więc: nie liczy się do przychodu i nikt za
@@ -296,6 +339,7 @@ export async function GET() {
     expiredOffers,
     staleOffers,
     staleContracts,
+    wygasajaceUmowy,
     dueFollowups,
     pendingMails,
     todayEvents: rozwinSerieWydarzen(todayEvents, today, today),

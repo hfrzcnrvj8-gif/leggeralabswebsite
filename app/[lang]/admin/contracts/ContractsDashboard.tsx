@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconX, IconExternalLink, IconFileText, IconFilePlus } from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IconPlus, IconX, IconExternalLink, IconFileText, IconFilePlus, IconSearch } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Contract,
+  contractReference,
+  contractSilenceDays,
+  CONTRACT_REJECT_REASONS,
   CONTRACT_STATUSES,
   CONTRACT_STATUS_CLASS,
   CONTRACT_TYP_LABEL,
@@ -15,12 +18,20 @@ import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { ContractEditor } from "./ContractEditor";
 import { Modal } from "../Modal";
+import { OknoOdrzucenia } from "../RejectDialog";
 
 export function ContractsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
+  const [rejectFor, setRejectFor] = useState<string | null>(null);
+  const [szukaj, setSzukaj] = useState("");
+  const szukajRef = useRef<HTMLInputElement>(null);
+  const [kursor, setKursor] = useState(0);
+  /** Rozmiar rejestru po stronie serwera — bez tego ostrzeżenie o sufcie
+   * (patrz SUFIT_UMOW w api/contracts) nie miałoby czego porównać. */
+  const [total, setTotal] = useState(0);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/contracts");
@@ -28,8 +39,9 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
       window.location.reload();
       return;
     }
-    const data = (await res.json()) as { contracts: Contract[] };
+    const data = (await res.json()) as { contracts: Contract[]; total?: number };
     setContracts(data.contracts);
+    setTotal(data.total ?? data.contracts.length);
   }, []);
 
   useEffect(() => {
@@ -97,17 +109,56 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
     [confirm, toast]
   );
 
+  /** Zmiana statusu z pigułki na liście.
+   *
+   * „Podpisana" idzie INNĄ trasą (`/accept`) — podpis to `accepted_at`, nie
+   * etykieta, a `PATCH` od audytu Modułu 11 odmawia ustawienia tej wartości
+   * (patrz blokadaStatusuUmowy). Bez tego rozgałęzienia pigułka pokazywałaby
+   * status, którego serwer nie zapisał.
+   *
+   * Komunikat serwera pokazujemy dosłownie — to on tłumaczy, dlaczego
+   * podpisanego dokumentu nie cofa się statusem. */
   const updateStatus = useCallback(
-    async (id: string, status: string) => {
+    async (id: string, status: string, powod?: string, komentarz?: string) => {
+      const poprzednie = contracts?.find((c) => c.id === id)?.status;
       setContracts((prev) => prev?.map((c) => (c.id === id ? { ...c, status: status as Contract["status"] } : c)) ?? prev);
-      const res = await fetch(`/api/contracts/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) toast("Nie udało się zapisać.", "error");
+      const res =
+        status === "Podpisana"
+          ? await fetch(`/api/contracts/${id}/accept`, { method: "POST" })
+          : await fetch(`/api/contracts/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                status,
+                ...(powod ? { powod_odrzucenia: powod, komentarz_odrzucenia: komentarz ?? "" } : {}),
+              }),
+            });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast(data.error ?? "Nie udało się zapisać.", "error");
+        // Cofamy podgląd — inaczej lista pokazuje status, którego nie ma w bazie.
+        if (poprzednie) {
+          setContracts((prev) => prev?.map((c) => (c.id === id ? { ...c, status: poprzednie } : c)) ?? prev);
+        }
+        return;
+      }
+      if (status === "Podpisana") await load();
     },
-    [toast]
+    [contracts, toast, load]
+  );
+
+  /** „Odrzucona" nigdy nie zapisuje się bez pytania o powód — tym samym oknem,
+   * co w profilu dokumentu (patrz OknoOdrzucenia). Inaczej powód zapisywałby
+   * się tylko wtedy, gdy właściciel akurat wszedł w profil. */
+  const zmienStatus = useCallback(
+    async (id: string, status: string) => {
+      if (status === "Odrzucona") {
+        setRejectFor(id);
+        return;
+      }
+      await updateStatus(id, status);
+    },
+    [updateStatus]
   );
 
   useRegisterActions(
@@ -121,8 +172,50 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   const rows = useMemo(() => {
     let list = contracts ?? [];
     if (filterStatus) list = list.filter((c) => c.status === filterStatus);
+    const igla = szukaj.trim().toLowerCase();
+    if (igla) {
+      list = list.filter(
+        (c) =>
+          (c.klient_nazwa ?? "").toLowerCase().includes(igla) ||
+          (c.zakres_prac ?? "").toLowerCase().includes(igla) ||
+          contractReference(c).toLowerCase().includes(igla)
+      );
+    }
     return list;
-  }, [contracts, filterStatus]);
+  }, [contracts, filterStatus, szukaj]);
+
+  // Kursor nie może wskazywać poza przefiltrowaną listę — inaczej Enter
+  // otwierałby dokument, którego nie widać (1:1 z Ofertami).
+  useEffect(() => {
+    setKursor((k) => Math.min(k, Math.max(0, rows.length - 1)));
+  }, [rows.length]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const cel = e.target as HTMLElement | null;
+      const wPolu = !!cel && (cel.tagName === "INPUT" || cel.tagName === "TEXTAREA" || cel.isContentEditable);
+      if (e.key === "Escape" && wPolu && cel === szukajRef.current) {
+        setSzukaj("");
+        szukajRef.current?.blur();
+        return;
+      }
+      if (wPolu || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (openId || rejectFor) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        szukajRef.current?.focus();
+      } else if (e.key === "j") {
+        setKursor((k) => Math.min(k + 1, Math.max(0, rows.length - 1)));
+      } else if (e.key === "k") {
+        setKursor((k) => Math.max(k - 1, 0));
+      } else if (e.key === "Enter") {
+        const cel = rows[kursor];
+        if (cel) setOpenId(cel.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [rows, kursor, openId, rejectFor]);
 
   if (!contracts) {
     return (
@@ -140,7 +233,16 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Umowy</span>
-        <span className="flex-1" />
+        <div className="ml-3 flex min-w-0 flex-1 items-center gap-1.5 text-muted">
+          <IconSearch size={13} className="shrink-0" />
+          <input
+            ref={szukajRef}
+            value={szukaj}
+            onChange={(e) => setSzukaj(e.target.value)}
+            placeholder="Szukaj po stronie, zakresie lub numerze   /"
+            className="min-w-0 max-w-[300px] flex-1 bg-transparent text-[12.5px] text-[var(--fg)] placeholder:text-muted focus:outline-none"
+          />
+        </div>
         <Popover
           align="right"
           width={220}
@@ -182,10 +284,41 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
           szkic każdego z nich w dowolnej chwili, np. żeby podejrzeć szablon klauzul.
         </p>
 
+        {contracts.length > 0 && total > contracts.length && (
+          <div className="mb-3 rounded-xl border border-brand-gold/40 bg-brand-gold/10 px-3 py-2 text-[12px] text-brand-gold">
+            Widzisz {contracts.length} z {total} dokumentów — reszta jest w bazie, ale nie na tej liście.
+            Powiedz o tym Claude’owi: czas na stronicowanie.
+          </div>
+        )}
+
         {rows.length === 0 ? (
           <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
             <IconContractEmpty />
-            <p className="mt-2">{filterStatus ? "Brak dokumentów o tym statusie." : "Brak dokumentów."}</p>
+            {/* Pusty stan mówi, czego brakuje i co to zmienia (ustalenie A1) —
+                „Brak dokumentów." nie tłumaczyło, po co tu wchodzić. */}
+            {szukaj.trim() || filterStatus ? (
+              <>
+                <p className="mt-2">Nic nie pasuje do tego, czego szukasz.</p>
+                <button
+                  onClick={() => { setSzukaj(""); setFilterStatus(""); }}
+                  className="mt-2 rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)]"
+                >
+                  Wyczyść filtry
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-[var(--fg)]">Nie ma jeszcze żadnej umowy ani NDA.</p>
+                <p className="mx-auto mt-1 max-w-md text-[12.5px]">
+                  Podpisana umowa to jedyna rzecz, która odblokowuje start projektu z klientem
+                  („papier przed pracą”). NDA idzie wcześniej — przed rozmową, w której padną
+                  szczegóły cudzych systemów.
+                </p>
+                <button onClick={createUmowa} className="btn-primary mt-3 rounded-full px-4 py-1.5 text-xs font-semibold">
+                  + Nowa umowa
+                </button>
+              </>
+            )}
           </div>
         ) : (
           // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
@@ -198,19 +331,27 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                   <th className="p-2.5 font-medium">Druga strona</th>
                   <th className="p-2.5 text-right font-medium">Kwota</th>
                   <th className="p-2.5 font-medium">Status</th>
+                  <th className="p-2.5 font-medium">Stan</th>
                   <th className="p-2.5"></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((c) => (
+                {rows.map((c, i) => (
                   <tr
                     key={c.id}
                     onClick={() => setOpenId(c.id)}
-                    className="cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40"
+                    className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
+                      i === kursor ? "ring-1 ring-inset ring-brand-purple/50" : ""
+                    }`}
                   >
                     <td className="p-2.5 font-medium text-[var(--fg)]">
                       {CONTRACT_TYP_LABEL[c.typ]}
                       {c.typ === "aneks" && <span className="ml-1 text-muted">nr {c.aneks_nr}</span>}
+                      {/* Do KTÓREJ umowy — dwa aneksy tej samej firmy były na
+                          liście nie do odróżnienia (audyt Modułu 11). */}
+                      {c.typ === "aneks" && c.poprzednie && (
+                        <div className="text-[11px] font-normal text-muted">do {c.poprzednie.reference}</div>
+                      )}
                     </td>
                     <td className="p-2.5">{c.klient_nazwa || <span className="text-muted opacity-60">— brak —</span>}</td>
                     {/* Aneks też ma kwotę — to zwykle właśnie ona się w nim zmienia. */}
@@ -218,11 +359,25 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                       {c.typ === "nda" ? "—" : formatMoney(c.cena, c.waluta || "PLN")}
                     </td>
                     <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
-                      <PropertyMenu value={c.status} options={statusOpts} onChange={(v) => updateStatus(c.id, v)} title="Zmień status">
+                      <PropertyMenu value={c.status} options={statusOpts} onChange={(v) => zmienStatus(c.id, v)} title="Zmień status">
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${CONTRACT_STATUS_CLASS[c.status] ?? ""}`}>
                           {c.status}
                         </span>
                       </PropertyMenu>
+                    </td>
+                    {/* „Cisza od N dni" liczona tą samą funkcją, co Pulpit
+                        i dzienny mail — dotąd moduł Umowy był jedynym
+                        miejscem, które o niej nie mówiło. */}
+                    <td className="p-2.5 text-[12px] text-muted">
+                      {(() => {
+                        const dni = contractSilenceDays(c);
+                        if (dni == null) return <span className="opacity-50">—</span>;
+                        return (
+                          <span className={dni >= 7 ? "text-brand-gold" : ""}>
+                            cisza od {dni} {dni === 1 ? "dnia" : "dni"}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
@@ -262,7 +417,7 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
       <Modal
         open={!!openId}
         onClose={() => setOpenId(null)}
-        card="card-paper my-auto w-full max-w-3xl rounded-2xl border hairline p-5 sm:p-6"
+        card="card-paper my-auto w-full max-w-5xl rounded-2xl border hairline p-5 sm:p-6"
       >
         {openId && (
           <ContractEditor
@@ -273,6 +428,28 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
             onDeleted={(id) => {
               setContracts((prev) => prev?.filter((c) => c.id !== id) ?? prev);
               setOpenId(null);
+            }}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        open={!!rejectFor}
+        onClose={() => setRejectFor(null)}
+        z={95}
+        card="card-paper my-auto w-full max-w-md rounded-2xl border hairline p-5"
+      >
+        {rejectFor && (
+          <OknoOdrzucenia
+            tytul="Dokument nie został podpisany — dlaczego?"
+            opis="Zapisze się na osi czasu klienta. To jedyne miejsce, z którego da się kiedyś odczytać, na których zapisach umowy realnie się rozchodzicie."
+            powody={CONTRACT_REJECT_REASONS}
+            placeholder="Własnymi słowami (opcjonalnie) — np. „nie zgodzili się na przeniesienie praw dopiero po zapłacie”."
+            onCancel={() => setRejectFor(null)}
+            onConfirm={(powod, komentarz) => {
+              const id = rejectFor;
+              setRejectFor(null);
+              updateStatus(id, "Odrzucona", powod, komentarz);
             }}
           />
         )}

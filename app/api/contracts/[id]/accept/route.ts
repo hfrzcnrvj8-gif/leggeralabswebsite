@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
 
   const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
-  await logClientEvent(sql, clientId, "contract_signed", `${contract.typ === "nda" ? "NDA" : "Umowa"} oznaczona jako podpisana`, null, id);
+  // Słownik typów, nie ternary — ta gałąź podpisywała aneks jako „Umowa"
+  // (audyt Modułu 11; ten sam błąd Moduł 58 naprawił po stronie apki).
+  const label = CONTRACT_TYP_LABEL[contract.typ as ContractTyp] ?? "Umowa";
+  await logClientEvent(sql, clientId, "contract_signed", `Podpis odnotowany ręcznie — ${label.toLowerCase()}`, null, id);
 
   return NextResponse.json({ ok: true });
 }

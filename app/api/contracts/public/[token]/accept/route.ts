@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
+import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -31,6 +32,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 200) : "";
   if (!name) return NextResponse.json({ error: "Podaj imię i nazwisko." }, { status: 400 });
+  // Stanowisko/funkcja osoby podpisującej (2026-07-27). Samo imię nie mówiło,
+  // czy podpisała osoba uprawniona do reprezentacji — a to pierwsze pytanie
+  // przy sporze. Pole jest OPCJONALNE: wymuszanie go zatrzymałoby podpis
+  // kogoś, kto po prostu nie wie, co wpisać.
+  const role = typeof body.role === "string" ? body.role.trim().slice(0, 200) : "";
 
   await ensureContractsSchema();
   const sql = getSql();
@@ -46,15 +52,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const claimed = await sql`
     UPDATE contracts SET status = 'Podpisana', accepted_at = now(),
-      accepted_by_name = ${name}, accepted_ip = ${ip}, accepted_user_agent = ${userAgent}, updated_at = now()
+      accepted_by_name = ${name}, accepted_by_role = ${role || null},
+      accepted_ip = ${ip}, accepted_user_agent = ${userAgent}, updated_at = now()
     WHERE id = ${contract.id} AND status != 'Podpisana'
     RETURNING id;
   `;
   if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
 
   const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
-  const label = contract.typ === "nda" ? "NDA" : "Umowa";
-  await logClientEvent(sql, clientId, "contract_signed", `${label} podpisana przez ${name}`, null, contract.id);
+  // Słownik typów — patrz komentarz w contracts/[id]/accept. Bez tego klient
+  // podpisujący ANEKS dzwonił powiadomieniem „Umowa podpisana" i taki sam wpis
+  // szedł na oś czasu, obok wciąż obowiązującej umowy o tej samej nazwie.
+  const label = CONTRACT_TYP_LABEL[contract.typ as ContractTyp] ?? "Umowa";
+  await logClientEvent(sql, clientId, "contract_signed", `${label}: podpis złożył(a) ${name}${role ? ` (${role})` : ""}`, null, contract.id);
 
   // Centrum powiadomień (Moduł 24 + 31) — TYLKO tutaj, na publicznej trasie.
   // Bliźniaczy `contracts/[id]/accept` to ręczne "Oznacz jako podpisaną",
@@ -65,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const contractId = String(contract.id);
   await notify({
     kind: "contract_signed",
-    title: `${label} podpisana`,
+    title: `Podpis pod dokumentem: ${label.toLowerCase()}`,
     body: `${name} złożył(a) podpis pod dokumentem${contract.klient_nazwa ? ` — ${contract.klient_nazwa}` : ""}.${
       contract.typ === "umowa" && contract.project_id ? " Projekt można przestawić na „W trakcie”." : ""
     }`,
