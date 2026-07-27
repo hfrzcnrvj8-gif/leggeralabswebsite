@@ -16,13 +16,25 @@ export const runtime = "nodejs";
  * na klienta + zdarzenia systemowe jak wysłanie oferty/wystawienie
  * faktury/wpłata) + powiązane oferty/faktury/projekty (szybkie linki do
  * aktualnego stanu). */
-type OfferRow = { id: string; tytul: string; status: string; project_id: string | null; waluta?: string | null; created_at: string };
+type OfferRow = {
+  id: string;
+  tytul: string;
+  status: string;
+  project_id: string | null;
+  waluta?: string | null;
+  /** Suma pozycji — liczona w zapytaniu, żeby kafelek drzewka nie kazał
+   * wchodzić w ofertę tylko po to, żeby zobaczyć kwotę. */
+  kwota?: number | null;
+  created_at: string;
+};
 type ContractRow = {
   id: string;
   typ: string;
   status: string;
   offer_id: string | null;
   project_id: string | null;
+  cena: number | null;
+  waluta: string | null;
   parent_contract_id: string | null;
   aneks_nr: number;
   created_at: string;
@@ -36,10 +48,18 @@ type InvoiceRow = {
   offer_id: string | null;
   contract_id: string | null;
   project_id: string | null;
+  kwota: number | null;
+  waluta: string | null;
   created_at: string;
 };
 
-/** Jeden krok ścieżki — tyle, ile potrzeba, żeby narysować wiersz i kliknąć. */
+/** Jeden węzeł ścieżki — tyle, ile potrzeba, żeby narysować kafelek drzewka,
+ * kliknąć go i pokazać menu akcji.
+ *
+ * `rodzic` niesie ZALEŻNOŚĆ, nie kolejność: „ta faktura wynika z tej umowy".
+ * Do 2026-07-27 ścieżka była płaską listą, więc dwie faktury z jednej umowy
+ * wyglądały jak łańcuch faktura→faktura, choć są rodzeństwem. Drzewko bez
+ * krawędzi rodzic–dziecko byłoby ładniejszą wersją tego samego kłamstwa. */
 export type KrokSciezki = {
   rodzaj: "offer" | "contract" | "project" | "invoice";
   id: string;
@@ -48,6 +68,12 @@ export type KrokSciezki = {
   prefiks: string;
   etykieta: string;
   status: string;
+  /** Id węzła, z którego ten wynika. `null` = korzeń wątku. */
+  rodzic: string | null;
+  /** Kwota dokumentu — kafelek bez pieniędzy przy fakturze i ofercie zmusza
+   * do wchodzenia w każdy z osobna. Waluta osobno: panel nie przelicza kursów. */
+  kwota: number | null;
+  waluta: string | null;
   created_at: string;
 };
 
@@ -74,11 +100,17 @@ function zbudujSciezki(
     prefiks: "Oferta",
     etykieta: offerReference(o),
     status: o.status,
+    rodzic: null,
+    kwota: o.kwota ?? null,
+    waluta: o.waluta ?? null,
     created_at: o.created_at,
   });
-  const krokUmowy = (c: ContractRow): KrokSciezki => ({
+  const krokUmowy = (c: ContractRow, rodzic: string | null): KrokSciezki => ({
     rodzaj: "contract",
     id: c.id,
+    rodzic,
+    kwota: c.typ === "nda" || c.typ === "dpa" ? null : Number(c.cena) || null,
+    waluta: c.waluta ?? null,
     prefiks: c.typ === "aneks" ? "Aneks" : c.typ === "nda" ? "NDA" : c.typ === "dpa" ? "Powierzenie" : "Umowa",
     etykieta:
       c.typ === "aneks"
@@ -87,18 +119,24 @@ function zbudujSciezki(
     status: c.status,
     created_at: c.created_at,
   });
-  const krokFaktury = (i: InvoiceRow): KrokSciezki => ({
+  const krokFaktury = (i: InvoiceRow, rodzic: string | null): KrokSciezki => ({
     rodzaj: "invoice",
     id: i.id,
+    rodzic,
+    kwota: i.kwota ?? null,
+    waluta: i.waluta ?? null,
     prefiks: i.typ_dokumentu === "zaliczkowa" ? "Zaliczka" : i.typ_dokumentu === "proforma" ? "Proforma" : "Faktura",
     etykieta: i.numer || "(szkic)",
     status: i.status,
     created_at: i.created_at,
   });
 
-  const krokProjektu = (p: ProjectRow): KrokSciezki => ({
+  const krokProjektu = (p: ProjectRow, rodzic: string | null): KrokSciezki => ({
     rodzaj: "project",
     id: p.id,
+    rodzic,
+    kwota: null,
+    waluta: null,
     prefiks: "Projekt",
     etykieta: p.tytul || "(bez tytułu)",
     status: p.status,
@@ -108,66 +146,72 @@ function zbudujSciezki(
   const sciezki: KrokSciezki[][] = [];
 
   for (const o of offers) {
-    const krok = [krokOferty(o)];
-    // Umowy z tej oferty + ich aneksy (aneks idzie ZARAZ za swoją umową, nie
-    // na końcu wątku — inaczej „nr 1" wisiałby pod fakturą i nie było widać,
-    // czego dotyczy).
-    // Faktury z umów zbieramy NA BOK i dokładamy dopiero za projektem —
-    // kolejność ma czytać się jak lejek (oferta → papier → praca → pieniądze),
-    // a nie jak kolejność pętli w kodzie.
-    const fakturyUmow: KrokSciezki[] = [];
-    for (const c of contracts.filter((x) => x.offer_id === o.id && x.typ !== "aneks")) {
-      krok.push(krokUmowy(c));
-      uzyteUmowy.add(c.id);
-      for (const a of contracts.filter((x) => x.parent_contract_id === c.id)) {
-        krok.push(krokUmowy(a));
-        uzyteUmowy.add(a.id);
-      }
-      for (const f of invoices.filter((x) => x.contract_id === c.id)) {
-        fakturyUmow.push(krokFaktury(f));
-        uzyteFaktury.add(f.id);
-      }
-    }
-    // Projekt wchodzi PO umowie, a przed fakturami — tak biegnie lejek
-    // (papier przed pracą, praca przed rozliczeniem). Tylko raz, nawet gdy
-    // wskazuje na niego i oferta, i umowa.
+    const wezly = [krokOferty(o)];
+
+    // Projekt wisi pod UMOWĄ, jeśli umowa go wskazuje — „papier przed pracą".
+    // Gdy umowy nie ma, wisi wprost pod ofertą.
     const projektId =
       contracts.find((c) => c.offer_id === o.id && c.project_id)?.project_id ??
       o.project_id ??
       invoices.find((f) => f.offer_id === o.id && f.project_id)?.project_id ??
       null;
     const projekt = projektId ? projects.find((p) => p.id === projektId) : undefined;
+    let rodzicProjektu: string = o.id;
+
+    for (const c of contracts.filter((x) => x.offer_id === o.id && x.typ !== "aneks")) {
+      wezly.push(krokUmowy(c, o.id));
+      uzyteUmowy.add(c.id);
+      // Aneks wisi pod SWOJĄ umową, nie pod ofertą — zmienia jej warunki.
+      for (const a of contracts.filter((x) => x.parent_contract_id === c.id)) {
+        wezly.push(krokUmowy(a, c.id));
+        uzyteUmowy.add(a.id);
+      }
+      if (projekt && c.project_id === projekt.id) rodzicProjektu = c.id;
+    }
+
     if (projekt && !uzyteProjekty.has(projekt.id)) {
-      krok.push(krokProjektu(projekt));
+      wezly.push(krokProjektu(projekt, rodzicProjektu));
       uzyteProjekty.add(projekt.id);
     }
-    krok.push(...fakturyUmow);
-    for (const f of invoices.filter((x) => x.offer_id === o.id && !uzyteFaktury.has(x.id))) {
-      krok.push(krokFaktury(f));
+
+    // Faktura wisi pod umową, z której wynika; bez umowy — pod ofertą. Dwie
+    // faktury z jednej umowy są RODZEŃSTWEM, nie łańcuchem (to właśnie gubiła
+    // płaska lista).
+    for (const f of invoices.filter((x) => !uzyteFaktury.has(x.id))) {
+      const podUmowa = f.contract_id && uzyteUmowy.has(f.contract_id) ? f.contract_id : null;
+      const podOferta = f.offer_id === o.id ? o.id : null;
+      const rodzic = podUmowa ?? podOferta;
+      if (!rodzic) continue;
+      wezly.push(krokFaktury(f, rodzic));
       uzyteFaktury.add(f.id);
     }
-    sciezki.push(krok);
+
+    sciezki.push(wezly);
   }
 
+  // Wątki bez oferty — umowa wolnostojąca, NDA, powierzenie danych.
   for (const c of contracts.filter((x) => !uzyteUmowy.has(x.id) && x.typ !== "aneks")) {
-    const krok = [krokUmowy(c)];
-    for (const a of contracts.filter((x) => x.parent_contract_id === c.id && !uzyteUmowy.has(x.id))) krok.push(krokUmowy(a));
+    const wezly = [krokUmowy(c, null)];
+    uzyteUmowy.add(c.id);
+    for (const a of contracts.filter((x) => x.parent_contract_id === c.id && !uzyteUmowy.has(x.id))) {
+      wezly.push(krokUmowy(a, c.id));
+      uzyteUmowy.add(a.id);
+    }
     const p = c.project_id ? projects.find((x) => x.id === c.project_id) : undefined;
     if (p && !uzyteProjekty.has(p.id)) {
-      krok.push(krokProjektu(p));
+      wezly.push(krokProjektu(p, c.id));
       uzyteProjekty.add(p.id);
     }
     for (const f of invoices.filter((x) => x.contract_id === c.id && !uzyteFaktury.has(x.id))) {
-      krok.push(krokFaktury(f));
+      wezly.push(krokFaktury(f, c.id));
       uzyteFaktury.add(f.id);
     }
-    sciezki.push(krok);
+    sciezki.push(wezly);
   }
 
   // Pojedynczy dokument NIE jest ścieżką — sam ze sobą nic nie tworzy, a
-  // wyświetlony w tej sekcji wygląda jak powtórzenie listy niżej (zgłoszenie
-  // właściciela 2026-07-27: „jak mam to odczytywać?"). Dokumenty bez związku
-  // zostają tam, gdzie i tak są: w rejestrze pod spodem.
+  // narysowany jako drzewko z jednym kafelkiem powtarza rejestr niżej
+  // (zgłoszenie właściciela 2026-07-27: „jak mam to odczytywać?").
   return sciezki.filter((s) => s.length >= 2);
 }
 
@@ -205,8 +249,28 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
       : Promise.resolve([] as RawActivity[]),
     sql`SELECT id, kind, text, amount, related_id, created_at FROM client_events WHERE client_id = ${id};`,
-    sql`SELECT id, tytul, status, wazna_do, waluta, project_id, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
-    sql`SELECT id, numer, status, typ_dokumentu, offer_id, contract_id, project_id, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    // Kwota oferty liczona w bazie (suma pozycji bez odrzuconych opcji) —
+    // dokładnie tak, jak liczy ją lista Ofert.
+    sql`
+      SELECT o.id, o.tytul, o.status, o.wazna_do, o.waluta, o.project_id, o.created_at,
+             COALESCE(t.kwota, 0)::float8 AS kwota
+      FROM offers o
+      LEFT JOIN (
+        SELECT offer_id, SUM(ilosc * cena) FILTER (WHERE NOT opcjonalna OR wybrana) AS kwota
+        FROM offer_items GROUP BY offer_id
+      ) t ON t.offer_id = o.id
+      WHERE o.client_id = ${id} ORDER BY o.created_at DESC;
+    `,
+    sql`
+      SELECT i.id, i.numer, i.status, i.typ_dokumentu, i.offer_id, i.contract_id, i.project_id,
+             i.waluta, i.created_at,
+             COALESCE(t.kwota, 0)::float8 AS kwota
+      FROM invoices i
+      LEFT JOIN (
+        SELECT invoice_id, SUM(ilosc * cena_netto) AS kwota FROM invoice_items GROUP BY invoice_id
+      ) t ON t.invoice_id = i.id
+      WHERE i.client_id = ${id} ORDER BY i.created_at DESC;
+    `,
     // Pola opinii (Moduł 15) jadą razem z projektem: gwiazdka z listy klientów
     // mówiła TYLE, że jakaś opinia jest, ale profil klienta milczał o tym, KTÓRY
     // projekt ją przyniósł i czy klient zgodził się na referencję — a to jedyne
@@ -217,7 +281,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         review_comment, review_submitted_at, review_consent_case_study
       FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;
     `,
-    sql`SELECT id, typ, status, project_id, offer_id, parent_contract_id, aneks_nr, accepted_at, created_at FROM contracts WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    sql`SELECT id, typ, status, project_id, offer_id, parent_contract_id, aneks_nr, cena, waluta, accepted_at, created_at FROM contracts WHERE client_id = ${id} ORDER BY created_at DESC;`,
     // Kartoteka korespondencji (04d pkt 2) — osobny rejestr obok scalonego
     // feedu, na wyraźną prośbę właściciela (nadpisuje wcześniejszą decyzję z
     // 04-skrzynka-mailowa.md o braku osobnej sekcji).

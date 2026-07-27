@@ -9246,3 +9246,45 @@ projekt → faktury. Faktury z umów zbierane są na bok i doklejane ZA projekte
 **Gdy nic nie jest połączone, a dokumentów jest kilka**, sekcja mówi wprost,
 czym je połączyć („Wynika z" w fakturze, „Z oferty" w umowie) — zamiast
 milczeć albo pokazywać listę udającą ścieżkę.
+
+### Drzewko przepływu dokumentów (2026-07-27)
+
+Prośba właściciela: „żeby od razu było widać, co było najpierw, co z czego
+wychodzi, jakie są zależności — z menu akcji pod prawym przyciskiem".
+
+`app/[lang]/admin/SciezkaDokumentow.tsx` — kafelki w kolumnach (kolumna = etap
+lejka), krawędzie rysowane SVG-iem, prawy przycisk = te same akcje co lista
+modułu (otwórz, otwórz w nowej karcie, podgląd/wydruk, kopiuj link dla klienta).
+
+**Dlaczego drzewko, a nie lista ze strzałkami.** Lista czyta się jak łańcuch,
+a rzeczywistość się rozgałęzia: jedna umowa rodzi zaliczkę I fakturę końcową,
+dostaje aneks, projekt wisi pod umową. W jednym rzędzie wyglądało to jak
+następstwo („z zaliczki powstała faktura") — czyli ładna wersja nieprawdy.
+Dlatego serwer oddaje teraz **węzły z polem `rodzic`**, nie płaską listę:
+rodzeństwo stoi jedno pod drugim, potomstwo dalej w prawo.
+
+**Bez biblioteki do grafów.** Wątek jednego klienta ma kilka węzłów, a układ
+jest znany z góry (kolumna = etap). Silnik force-directed rysowałby to samo
+w innym miejscu przy każdym wejściu i ważyłby więcej niż cały moduł. Kolumny
+liczy DFS, krawędzie to jedno SVG mierzone PO ułożeniu kafelków (pozycje
+liczone z góry rozjeżdżają się przy zmianie szerokości okna albo długości
+numeru).
+
+**Kolor kafelka niesie ETAP, nie status** — status stoi obok słowem. Gdyby
+kolor niósł jedno i drugie, drzewko miałoby dwie sprzeczne mapy koloru naraz
+(lekcja z audytu słownika koloru). Dokument zamknięty przygasa do 60%.
+
+**Pułapka, na której to poległo za pierwszym razem:** `ulozDrzewo()` wołane
+gołe w renderze zwraca nową tablicę, więc `przelicz` (zależny od niej) był
+nowy przy każdym renderze, efekt strzelał ponownie, `setKrawedzie` renderowało
+— i tak w kółko, aż React przerwał („Maximum update depth exceeded"). Widok
+pokazał czerwoną barierę awarii zamiast drzewka. `useMemo` na układzie
++ porównanie geometrii przed `setState`.
+
+**Precedens rynkowy:** to jest odpowiednik **Document Flow / Belegfluss z SAP**
+(oferta → zamówienie → dostawa → faktura jako drzewo) i „related transactions"
+z Xero/QuickBooks. Narzędzia CRM dla małych firm tego NIE mają — pokazują listy
+powiązanych rekordów, bez zależności.
+
+Apka pokazuje tę samą ścieżkę tekstowo (pionowo, z wcięciem) — na telefonie
+drzewko z krawędziami wymagałoby przewijania w dwóch osiach naraz.

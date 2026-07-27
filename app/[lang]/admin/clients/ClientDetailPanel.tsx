@@ -47,6 +47,7 @@ import { SOURCE_CATEGORIES } from "@/lib/leads";
 import { formatPlDate } from "@/lib/projects";
 import { CONTRACT_TYP_LABEL, contractReference, type ContractTyp } from "@/lib/contracts";
 import { offerReference } from "@/lib/offers";
+import { SciezkaDokumentow, type WezelSciezki } from "../SciezkaDokumentow";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -131,21 +132,8 @@ type FeedItem = {
  */
 /** Jeden krok ścieżki dokumentów — kształt 1:1 z `KrokSciezki` po stronie
  * trasy (app/api/clients/[id]). */
-type KrokSciezki = {
-  rodzaj: "offer" | "contract" | "project" | "invoice";
-  id: string;
-  prefiks: string;
-  etykieta: string;
-  status: string;
-  created_at: string;
-};
-
-const SEGMENT_KROKU: Record<KrokSciezki["rodzaj"], string> = {
-  offer: "offers",
-  contract: "contracts",
-  project: "projects",
-  invoice: "invoices",
-};
+/** Kształt węzła mieszka w komponencie drzewka — tu tylko alias. */
+type KrokSciezki = WezelSciezki;
 
 export function ClientDetailPanel({
   id,
@@ -827,27 +815,12 @@ export function ClientDetailPanel({
                       <div>
                         <h3 className="text-[11px] uppercase tracking-wide text-muted">Co z czego wynikło</h3>
                         <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted opacity-70">
-                          Dokumenty połączone w jedną sprawę. Pełny rejestr — także to, co nie ma jeszcze związku
-                          z niczym — jest niżej.
+                          Co z czego powstało — od lewej do prawej. Kliknij kafelek, żeby otworzyć dokument;
+                          prawy przycisk daje podgląd, wydruk i link dla klienta. Pełny rejestr jest niżej.
                         </p>
                       </div>
                       {sciezki.map((sciezka, i) => (
-                        <div key={i} className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg card-inset px-3 py-2">
-                          {sciezka.map((krok, j) => (
-                            <span key={krok.id} className="flex items-center gap-1.5">
-                              {j > 0 && <span className="text-muted opacity-50">→</span>}
-                              <Link
-                                href={`/${lang}/admin/${SEGMENT_KROKU[krok.rodzaj]}/${krok.id}`}
-                                className="rounded-md px-1.5 py-0.5 text-[12px] text-[var(--fg)] hover:bg-[var(--hairline)]"
-                                title={`${krok.prefiks} — ${krok.status}`}
-                              >
-                                <span className="text-muted">{krok.prefiks} </span>
-                                {krok.etykieta}
-                              </Link>
-                              <span className="text-[10.5px] text-muted opacity-70">{krok.status}</span>
-                            </span>
-                          ))}
-                        </div>
+                        <SciezkaDokumentow key={i} wezly={sciezka} lang={lang} />
                       ))}
                     </div>
                   )}
