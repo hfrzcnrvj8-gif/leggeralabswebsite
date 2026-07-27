@@ -52,6 +52,18 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id, itemId } = await params;
   await ensureOffersSchema();
   const sql = getSql();
+
+  // Ta sama blokada co w PATCH wyżej. Audyt Modułu 57 (2026-07-27) złapał tu
+  // dziurę: PATCH odmawiał, DELETE przechodził — czyli ceny wysłanej oferty
+  // nie dało się zmienić, ale całą pozycję dało się usunąć. Blokada per PLIK
+  // by tego nie zobaczyła, bo plik „wspomina" blokadę w drugim uchwycie.
+  const stanOferty = (await sql`SELECT status FROM offers WHERE id = ${id};`)[0];
+  if (!stanOferty) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const blokadaTresci = blokadaOferty(String(stanOferty.status ?? ""));
+  if (blokadaTresci.zablokowane) {
+    return NextResponse.json({ error: blokadaTresci.komunikat }, { status: 409 });
+  }
+
   await sql`DELETE FROM offer_items WHERE id = ${itemId} AND offer_id = ${id};`;
   return NextResponse.json({ ok: true });
 }

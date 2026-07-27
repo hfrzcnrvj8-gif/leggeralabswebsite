@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureOffersSchema, ensureOfferTemplatesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { blokadaOferty } from "@/lib/blokadaDokumentu";
 import { podstawPola } from "@/lib/offerTemplates";
 import { formatPlDate } from "@/lib/projects";
 import { formatMoney } from "@/lib/invoices";
@@ -29,6 +30,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const offerRows = await sql`SELECT * FROM offers WHERE id = ${id};`;
     const offer = offerRows[0];
     if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+    // Treść wysłanej oferty jest zamknięta — patrz lib/blokadaDokumentu.ts.
+    // Audyt Modułu 57 (2026-07-27): ta trasa dopisywała do WYSŁANEJ oferty
+    // pozycje, bloki treści i uwagi, a więc robiła dokładnie to, czego
+    // zabraniają trzy trasy obok. Że dokłada, a nie edytuje, niczego nie
+    // zmienia — po wysyłce dokument jest zamknięty w obie strony.
+    const blokadaTresci = blokadaOferty(String(offer.status ?? ""));
+    if (blokadaTresci.zablokowane) {
+      return NextResponse.json({ error: blokadaTresci.komunikat }, { status: 409 });
+    }
 
     const templateRows = await sql`SELECT * FROM offer_templates WHERE id = ${templateId};`;
     const template = templateRows[0];

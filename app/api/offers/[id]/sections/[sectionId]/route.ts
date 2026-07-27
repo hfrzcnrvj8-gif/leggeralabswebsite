@@ -45,6 +45,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id, sectionId } = await params;
   await ensureOffersSchema();
   const sql = getSql();
+
+  // Ta sama blokada co w PATCH wyżej — patrz audyt Modułu 57 (2026-07-27).
+  // Skasowanie bloku treści to zmiana dokumentu tak samo jak jego edycja.
+  const stanOferty = (await sql`SELECT status FROM offers WHERE id = ${id};`)[0];
+  if (!stanOferty) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const blokadaTresci = blokadaOferty(String(stanOferty.status ?? ""));
+  if (blokadaTresci.zablokowane) {
+    return NextResponse.json({ error: blokadaTresci.komunikat }, { status: 409 });
+  }
+
   await sql`DELETE FROM offer_sections WHERE id = ${sectionId} AND offer_id = ${id};`;
   return NextResponse.json({ ok: true });
 }
