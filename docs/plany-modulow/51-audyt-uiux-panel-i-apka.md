@@ -279,6 +279,22 @@ czasu przez `new Date(created_at)` w przeglądarce, a `NoteActivityLog.tsx:120`
 tak samo renderuje datę — na Safari dadzą złą kolejność i „Invalid Date".
 Do zrobienia przy najbliższym dotknięciu tych plików.
 
+### Runda 5 — dokument i jego nienaruszalność (2026-07-27)
+
+- **Kalendarz zamiast koła dat** we WSZYSTKICH polach daty panelu: tydzień od
+  poniedziałku, „dziś" na złoto, pod siatką „za N dni". Koło zostaje pod
+  `wariant="kolo"`.
+- **Kwoty netto na dokumencie** (PL/EN/DE) + zdanie o odwrotnym obciążeniu dla
+  klienta spoza Polski. Brzmienie do weryfikacji: `docs/DO-PRAWNIKA-I-TLUMACZA.md`.
+- **Bloki treści przepisane** — koniec z didaskaliami w nawiasach, które
+  poszłyby do klienta; wskazówka dla właściciela żyje w panelu (`podpowiedz`).
+- **Blokada dokumentów po wysłaniu** (faktura / umowa / oferta) egzekwowana
+  w TRASACH, nie w edytorze, plus **migawka oferty** przy wysyłce. Szczegóły
+  i pułapki: `HUB_SETUP.md` → „Blokada dokumentów po wysłaniu".
+- **Kolor „Wysłana"** ujednolicony na fiolet marki (panel dołączył do apki).
+- Podgląd dokumentu w apce chowa pasek strony wydruku REGUŁĄ CSS (skrypt po
+  załadowaniu trafiał w moment, w którym React jeszcze nie narysował paska).
+
 ### Runda 4 — apka (2026-07-27)
 
 Oferty przeszły na iPhone'a i iPada w zakresie „wszystko oprócz cennika"

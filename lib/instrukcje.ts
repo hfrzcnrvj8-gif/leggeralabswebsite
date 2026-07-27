@@ -404,7 +404,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "5. Ustaw ważność i walutę",
         opis:
-          "Ważność ustawiasz jednym kliknięciem: 7, 14 albo 30 dni od dziś. To jedyna rzecz, dzięki której panel wie, kiedy się o ofertę upomnieć. Waluta ma znaczenie dla klienta zagranicznego: wydruk liczy w niej, a po akceptacji przechodzi na fakturę.",
+          "Ważność ustawiasz jednym kliknięciem: 7, 14 albo 30 dni od dziś, albo z kalendarza — pod siatką widzisz od razu, ile dni to od dzisiaj. Na dokumencie stoi zdanie, że kwoty są NETTO i nie zawierają VAT; dla klienta spoza Polski dochodzi zdanie o możliwym odwrotnym obciążeniu. To jedyna rzecz, dzięki której panel wie, kiedy się o ofertę upomnieć. Waluta ma znaczenie dla klienta zagranicznego: wydruk liczy w niej, a po akceptacji przechodzi na fakturę.",
       },
       {
         tytul: "6. Jeśli sprzedajesz oszczędność czasu — pokaż ją liczbą",
@@ -414,7 +414,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "7. Wyślij mailem albo skopiuj link",
         opis:
-          "„Wyślij mailem” wysyła klientowi link do podglądu z możliwością podpisu i przestawia „Szkic” na „Wysłana”. Jeśli wolisz wysłać samemu — „Kopiuj link dla klienta” (także pod prawym przyciskiem myszy na liście). UWAGA: publiczna strona nie pokazuje SZKICÓW, więc przy kopiowaniu linku do szkicu panel zapyta, czy oznaczyć ofertę jako wysłaną. Link możesz w każdej chwili unieważnić; wysyłka unieważnionym linkiem jest zablokowana.",
+          "Wysyłka zamyka treść oferty — od tej chwili poprawki idą przez nową wersję, więc przejrzyj dokument, zanim klikniesz. „Wyślij mailem” wysyła klientowi link do podglądu z możliwością podpisu i przestawia „Szkic” na „Wysłana”. Jeśli wolisz wysłać samemu — „Kopiuj link dla klienta” (także pod prawym przyciskiem myszy na liście). UWAGA: publiczna strona nie pokazuje SZKICÓW, więc przy kopiowaniu linku do szkicu panel zapyta, czy oznaczyć ofertę jako wysłaną. Link możesz w każdej chwili unieważnić; wysyłka unieważnionym linkiem jest zablokowana.",
       },
       {
         tytul: "8. Sprawdzaj, czy klient otworzył",
@@ -471,6 +471,16 @@ export const MODULY: ModulInstrukcji[] = [
           "Nie trafi ani do „Wygasają w 7 dni”, ani do listy po terminie. Nikt się o nią nie upomni — będzie wisieć w „W toku” tak długo, aż sam o niej pomyślisz.",
       },
       {
+        tytul: "Wysłanej oferty już nie poprawisz — i to jest celowe",
+        opis:
+          "Po wysłaniu treść jest zamknięta: pozycje, ceny, bloki i dane klienta. Powód jest prosty — klient patrzy na ten sam link, więc cicha poprawka znaczyłaby, że dokument „u niego” przestaje być tym, co dostał. Panel pilnuje tego po stronie serwera, nie tylko w oknie edycji, więc nie obejdziesz tego z telefonu ani z drugiej karty. Wolne zostają: status, powód odrzucenia, data ważności i powiązania — to praca handlowa, nie zmiana treści. Poprawka merytoryczna idzie przez „Nową wersję oferty”. Zaakceptowana oferta jest zamknięta w całości, bo powstały z niej projekt i faktura.",
+      },
+      {
+        tytul: "Klient widzi to, co dostał — nie to, co jest w bazie",
+        opis:
+          "W chwili wysyłki panel zapisuje kopię oferty i to JĄ pokazuje pod publicznym linkiem. Nawet gdyby coś w bazie się później zmieniło, klient ma przed sobą dokument z dnia wysłania — a Ty masz czym się posłużyć, gdyby kiedyś doszło do sporu. Żywy zostaje tylko status: po podpisaniu klient nie zobaczy już przycisku akceptacji.",
+      },
+      {
         tytul: "Duplikat mnoży, wersja zastępuje",
         opis:
           "„Duplikuj” robi drugą, niepowiązaną ofertę — to jest w porządku, gdy sprzedajesz temu samemu klientowi coś nowego. „Nowa wersja” zastępuje: poprzednia wypada z liczników. Użycie duplikatu do poprawki zakresu zaniża skuteczność, bo jedna rozmowa liczy się wtedy dwa razy.",
@@ -495,6 +505,7 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "/", opis: "Kursor do wyszukiwarki (szuka po tytule i nazwie klienta)." },
       { tytul: "j / k", opis: "Ruch po liście ofert." },
       { tytul: "Enter", opis: "Otwiera zaznaczoną ofertę." },
+      { tytul: "Telefon i iPad", opis: "Oferty działają na telefonie w komplecie poza cennikiem: treść, ślad otwarcia, przypomnienia, udostępnienie linku, akceptacja z wyborem szablonu projektu, odrzucenie z powodem i nowa wersja. Pozycji i cen nie składa się kciukiem — to zostaje przy biurku. Na iPadzie lista i profil stoją obok siebie." },
       { tytul: "n", opis: "Nowa oferta." },
       { tytul: "Prawy przycisk myszy", opis: "Menu na wierszu listy: wysyłka, przypomnienie, kopiowanie linku, zamknięcie statusem, duplikat, usunięcie." },
       {
