@@ -90,7 +90,17 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
         }
       `}</style>
 
-      <div className="mx-auto mb-4 flex max-w-[794px] items-center justify-between px-4 print:hidden">
+      {/* PASEK EKRANOWY — „Zamknij" i „Drukuj / Zapisz PDF". `print:hidden`
+          chowa go na WYDRUKU, `data-chrome="ekran"` pozwala schować go
+          tam, gdzie strona nie jest przeglądarką: apka pokazuje tę samą
+          stronę w WKWebView, gdzie `window.close()` i `window.print()` są
+          martwe, więc pasek byłby dwoma nieklikalnymi przyciskami nad
+          dokumentem. Osobny znacznik, NIE `print:hidden`, bo tej klasy
+          używają też pigułka „OPCJONALNA" i podpowiedzi — apka ma ukryć
+          chrome, nie treść. Bez dwukropka w nazwie: selektor idzie przez
+          dwa języki (Swift → JS) i każdy escape to okazja do pomyłki,
+          która już dwa razy przeszła niezauważona. */}
+      <div data-chrome="ekran" className="mx-auto mb-4 flex max-w-[794px] items-center justify-between px-4 print:hidden">
         <button onClick={() => window.close()} className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50">
           ← Zamknij
         </button>
