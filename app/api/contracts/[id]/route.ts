@@ -5,13 +5,11 @@ import { blokadaStatusuUmowy, blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc 
 import { isPlausibleDateString } from "@/lib/projects";
 import { DOC_LANGS } from "@/lib/documents";
 import {
-  CONTRACT_CLAUSES,
   CONTRACT_STATUSES,
   CONTRACT_SZABLONY,
   CONTRACT_TYP_LABEL,
-  clausesDlaSzablonu,
+  clausesDokumentu,
   isContractRejectReason,
-  NDA_CLAUSES,
   type ContractTyp,
 } from "@/lib/contracts";
 import { rejectReasonLabel } from "@/lib/offers";
@@ -43,8 +41,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // Klauzule wg RODZAJU umowy (2026-07-27): szablon wybiera zestaw z jednego,
   // istniejącego katalogu — nie dopisuje nowej treści prawnej. Aneks nie
   // dostaje żadnych (obowiązują z umowy-matki).
-  const clauses =
-    contract.typ === "aneks" ? [] : contract.typ === "nda" ? NDA_CLAUSES : clausesDlaSzablonu(String(contract.szablon ?? ""));
+  const clauses = clausesDokumentu(String(contract.typ ?? "umowa"), String(contract.szablon ?? ""));
 
   // Rodzina dokumentu: aneksy tej umowy / umowa-matka tego aneksu. Do audytu
   // Modułu 11 obie strony tego powiązania były niewidoczne poza listą —
@@ -198,6 +195,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     if ("odnawialna" in body) {
       await sql`UPDATE contracts SET odnawialna = ${!!body.odnawialna}, updated_at = now() WHERE id = ${id};`;
+    }
+    // Pola powierzenia danych (art. 28 RODO) i płatności etapami.
+    for (const pole of ["dpa_kategorie_danych", "dpa_kategorie_osob", "dpa_podprocesorzy", "platnosci_opis"] as const) {
+      if (pole in body) {
+        const v = str(body[pole], 2000);
+        if (pole === "dpa_kategorie_danych") await sql`UPDATE contracts SET dpa_kategorie_danych = ${v}, updated_at = now() WHERE id = ${id};`;
+        else if (pole === "dpa_kategorie_osob") await sql`UPDATE contracts SET dpa_kategorie_osob = ${v}, updated_at = now() WHERE id = ${id};`;
+        else if (pole === "dpa_podprocesorzy") await sql`UPDATE contracts SET dpa_podprocesorzy = ${v}, updated_at = now() WHERE id = ${id};`;
+        else await sql`UPDATE contracts SET platnosci_opis = ${v}, updated_at = now() WHERE id = ${id};`;
+      }
+    }
+    if ("zaliczka_procent" in body) {
+      // 0–100: „zaliczka 150%" nie jest zaliczką, tylko literówką, która
+      // wyszłaby dopiero na dokumencie u klienta.
+      const n = Math.max(0, Math.min(100, Math.round(Number(body.zaliczka_procent) || 0)));
+      await sql`UPDATE contracts SET zaliczka_procent = ${n}, updated_at = now() WHERE id = ${id};`;
     }
     if ("szablon" in body) {
       // Nieznany szablon zmieniłby zestaw klauzul na pusty — czyli po cichu

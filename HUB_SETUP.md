@@ -9039,3 +9039,34 @@ listach naraz — kolejność scalania decydowałaby wtedy po cichu.
   trasa go zrobi) i usunięcie. Pozycje niedostępne w danym stanie są wyszarzone,
   nie ukryte — inaczej menu zmienia kształt przy każdym wierszu i nie da się go
   zapamiętać. Prawy przycisk otwierał dotąd menu przeglądarki.
+
+### Powierzenie danych (DPA) i płatność etapami (2026-07-27)
+
+**DPA jako trzeci typ dokumentu** (`typ = 'dpa'`, obok `umowa` i `nda`; aneks
+dalej powstaje tylko z podpisanej umowy). Ta sama tabela i ta sama mechanika:
+e-podpis, `share_token`, wysyłka, przypomnienie, blokada po podpisie, migawka.
+Różni je treść (`DPA_CLAUSES` — dziesięć klauzul odwzorowujących art. 28 ust. 3
+RODO) i trzy pola wymagane przez przepis: **rodzaj danych, kategorie osób,
+dalsze podmioty przetwarzające**.
+
+**Dlaczego pola, a nie klauzule:** art. 28 wymaga określenia rodzaju danych
+i kategorii osób KONKRETNIE dla danego powierzenia. Wpisane na sztywno dałyby
+dokument, który wygląda poprawnie i mówi nieprawdę o tym, co naprawdę
+przetwarzamy. Wydruk pokazuje je nad klauzulami; puste pole w apce mówi „do
+uzupełnienia w panelu" zamiast myślnika. Referencja dokumentu ma własny prefiks
+(`DPA-2026-…`).
+
+DPA tworzy się z listy Umów („+ Powierzenie danych (DPA)") — z klientem
+w powiązaniu, bo powierzenie dotyczy realnej współpracy, nie rozmowy.
+**Świadomie bez dedupe** (inaczej niż NDA na leadzie): jeden klient może mieć
+kilka powierzeń o różnym zakresie danych, bo to inne wdrożenia.
+
+**Płatność etapami** — `zaliczka_procent` (0–100, przycinane po stronie trasy)
+i `platnosci_opis`. Domyślna klauzula mówi „faktura po zakończeniu prac,
+14 dni", czyli jednoosobowa firma finansowała klienta przez cały projekt.
+Sekcja „Warunki płatności" drukuje się TYLKO wtedy, gdy pola są wypełnione —
+inaczej dokument powtarzałby to, co i tak stoi w klauzuli.
+
+**Do zrobienia dalej (nie zbudowane):** wystawienie faktury zaliczkowej wprost
+z umowy. Panel ma faktury zaliczkowe od Fazy 2 KSeF, ale nic nie łączy ich
+z polem `zaliczka_procent` — dziś fakturę zaliczkową wystawia się ręcznie.

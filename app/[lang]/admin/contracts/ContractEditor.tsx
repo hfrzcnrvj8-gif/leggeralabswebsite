@@ -9,8 +9,7 @@ import {
   CONTRACT_STATUSES,
   CONTRACT_STATUS_CLASS,
   CONTRACT_TYP_LABEL,
-  CONTRACT_CLAUSES,
-  NDA_CLAUSES,
+  clausesDokumentu,
   LEGAL_PLACEHOLDER_NOTE,
   POLE_ANEKSU_LABEL,
   CONTRACT_STALE_DAYS,
@@ -272,7 +271,8 @@ export function ContractEditor({
 
   const isUmowa = contract.typ === "umowa";
   const isAneks = contract.typ === "aneks";
-  const clauses = isUmowa ? CONTRACT_CLAUSES : NDA_CLAUSES;
+  const isDpa = contract.typ === "dpa";
+  const clauses = clausesDokumentu(contract.typ, contract.szablon);
   const signed = contract.status === "Podpisana";
 
   // Aneks edytuje DOKŁADNIE te same warunki co umowa (zakres, kwota, termin) —
@@ -526,6 +526,38 @@ export function ContractEditor({
             </div>
           )}
 
+          {/* DPA — trzy pola, których art. 28 ust. 3 RODO wymaga KONKRETNIE
+              dla danego powierzenia. Puste = dokument niekompletny, więc
+              mówimy to wprost zamiast drukować „—". */}
+          {isDpa && (
+            <SekcjaProfilu tytul="Co powierzamy (wymagane przez RODO)">
+              <WierszPola etykieta="Rodzaj danych" title="Np. imię i nazwisko, e-mail, telefon, dane z faktur">
+                <EditableText
+                  value={contract.dpa_kategorie_danych}
+                  onSave={(v) => patch({ dpa_kategorie_danych: v })}
+                  placeholder="np. imię i nazwisko, adres e-mail, treść korespondencji"
+                  readOnly={signed}
+                />
+              </WierszPola>
+              <WierszPola etykieta="Czyje dane" title="Kategorie osób, których dane dotyczą">
+                <EditableText
+                  value={contract.dpa_kategorie_osob}
+                  onSave={(v) => patch({ dpa_kategorie_osob: v })}
+                  placeholder="np. klienci Zamawiającego, jego pracownicy"
+                  readOnly={signed}
+                />
+              </WierszPola>
+              <WierszPola etykieta="Podprocesorzy" title="Dalsze podmioty przetwarzające — puste znaczy „żadnych”">
+                <EditableText
+                  value={contract.dpa_podprocesorzy}
+                  onSave={(v) => patch({ dpa_podprocesorzy: v })}
+                  placeholder="puste = nie korzystam z żadnych"
+                  readOnly={signed}
+                />
+              </WierszPola>
+            </SekcjaProfilu>
+          )}
+
           {/* Aneks nie powtarza klauzul — obowiązują dalej z umowy-matki,
               a przedruk sugerowałby, że aneks je zastępuje (tak samo na
               wydruku, patrz ContractPrint.tsx). */}
@@ -736,6 +768,47 @@ export function ContractEditor({
               </div>
                 </>
               )}
+            </div>
+          )}
+
+          {/* PŁATNOŚĆ ETAPAMI (2026-07-27) — domyślna klauzula mówi „faktura po
+              zakończeniu prac, 14 dni", czyli jednoosobowa firma finansuje
+              klienta przez cały projekt. Zaliczka i harmonogram drukują się na
+              dokumencie tylko wtedy, gdy są wypełnione. */}
+          {isUmowa && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Płatność</h3>
+              <div className="flex items-center gap-2 py-0.5">
+                <span className="w-24 shrink-0 text-[12.5px] text-muted">Zaliczka</span>
+                {signed ? (
+                  <span className="text-[13px] text-[var(--fg)]">{contract.zaliczka_procent || 0}%</span>
+                ) : (
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={contract.zaliczka_procent ?? 0}
+                    onChange={(e) => setContract((p) => (p ? { ...p, zaliczka_procent: Number(e.target.value) } : p))}
+                    onBlur={(e) => patch({ zaliczka_procent: Number(e.target.value) })}
+                    className="w-20 rounded-lg border hairline bg-transparent px-2.5 py-1 text-right text-sm text-[var(--fg)]"
+                  />
+                )}
+                <span className="text-[11.5px] text-muted">%</span>
+              </div>
+              {contract.zaliczka_procent > 0 && contract.cena > 0 && (
+                <p className="mt-1 text-right text-[11px] text-muted">
+                  {formatMoney((contract.cena * contract.zaliczka_procent) / 100, contract.waluta || "PLN")} z góry
+                </p>
+              )}
+              <textarea
+                value={contract.platnosci_opis}
+                onChange={(e) => setContract((p) => (p ? { ...p, platnosci_opis: e.target.value } : p))}
+                onBlur={(e) => patch({ platnosci_opis: e.target.value })}
+                readOnly={signed}
+                rows={3}
+                placeholder="Harmonogram: np. 50% po odbiorze etapu 1, reszta po wdrożeniu produkcyjnym."
+                className="mt-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] placeholder:text-muted"
+              />
             </div>
           )}
 

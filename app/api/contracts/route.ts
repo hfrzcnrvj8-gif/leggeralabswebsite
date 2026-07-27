@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureContractsSchema, ensureOffersSchema, ensureLeadsSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureContractsSchema, ensureOffersSchema, ensureLeadsSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import type { Offer, OfferItem } from "@/lib/offers";
 import type { Lead } from "@/lib/leads";
@@ -40,9 +40,12 @@ export async function POST(req: NextRequest) {
   await ensureContractsSchema();
   await ensureOffersSchema();
   await ensureLeadsSchema();
+  await ensureClientsSchema();
   const sql = getSql();
 
-  const typ = body.typ === "nda" ? "nda" : "umowa";
+  // Trzy typy do utworzenia od zera: umowa, NDA i powierzenie danych (DPA).
+  // Aneks NIE — powstaje wyłącznie z podpisanej umowy.
+  const typ = body.typ === "nda" ? "nda" : body.typ === "dpa" ? "dpa" : "umowa";
 
   if (typ === "umowa") {
     const offerId = typeof body.offer_id === "string" && body.offer_id.trim() ? body.offer_id : "";
@@ -80,6 +83,34 @@ export async function POST(req: NextRequest) {
       );
     `;
     await logClientEvent(sql, offer.client_id, "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`, null, id);
+    return NextResponse.json({ ok: true, id });
+  }
+
+  if (typ === "dpa") {
+    // DPA idzie zwykle z KLIENTEM (powierzenie dotyczy realnej współpracy,
+    // nie rozmowy), ale dopuszczamy wolnostojący szkic — tak samo jak przy
+    // pozostałych typach. Bez dedupe: klient może mieć kilka powierzeń
+    // o różnym zakresie danych (inne wdrożenie = inne dane).
+    const id = randomUUID();
+    const clientId = typeof body.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+    const klientNazwa = typeof body.klient_nazwa === "string" ? body.klient_nazwa.slice(0, 300) : "";
+    if (clientId) {
+      const klientRows = await sql`SELECT * FROM clients WHERE id = ${clientId};`;
+      const klient = klientRows[0] as Record<string, unknown> | undefined;
+      if (!klient) return NextResponse.json({ error: "not found" }, { status: 404 });
+      await sql`
+        INSERT INTO contracts (
+          id, typ, client_id, klient_nazwa, klient_nip, klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email
+        ) VALUES (
+          ${id}, 'dpa', ${clientId}, ${String(klient.nazwa ?? "")}, ${String(klient.nip ?? "")},
+          ${String(klient.ulica ?? "")}, ${String(klient.kod ?? "")}, ${String(klient.miasto ?? "")},
+          ${String(klient.kraj ?? "")}, ${String(klient.email ?? "")}
+        );
+      `;
+      await logClientEvent(sql, clientId, "contract_created", "Przygotowano umowę powierzenia danych (DPA)", null, id);
+      return NextResponse.json({ ok: true, id });
+    }
+    await sql`INSERT INTO contracts (id, typ, klient_nazwa) VALUES (${id}, 'dpa', ${klientNazwa});`;
     return NextResponse.json({ ok: true, id });
   }
 

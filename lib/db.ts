@@ -1609,6 +1609,25 @@ async function createContractsSchema(): Promise<void> {
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS podpis_nasz_at TIMESTAMPTZ;`;
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS podpis_nasz_osoba TEXT;`;
   await sql`CREATE INDEX IF NOT EXISTS contracts_obowiazuje_do_idx ON contracts(obowiazuje_do);`;
+  // ── Umowa powierzenia danych (DPA) + płatność etapami (2026-07-27) ────
+  // DPA to trzeci samodzielny typ dokumentu (`typ = 'dpa'`) w TEJ SAMEJ tabeli
+  // — dzieli z umową komplet mechaniki (e-podpis, share_token, wysyłka,
+  // blokada po podpisie, migawka), różni się wyłącznie treścią i polami.
+  // Powstał, bo klauzula „Ochrona danych osobowych" w CONTRACT_CLAUSES sama
+  // odsyła do „odrębnej umowy powierzenia", a takiej dokument nie miał.
+  //
+  // Art. 28 ust. 3 RODO wymaga określenia w umowie: przedmiotu i czasu
+  // przetwarzania (mamy: zakres_prac + obowiazuje_od/do), charakteru i celu,
+  // RODZAJU DANYCH i KATEGORII OSÓB — te dwa nie miały gdzie mieszkać.
+  // Podprocesorzy (np. hosting) też muszą być wymienieni.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS dpa_kategorie_danych TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS dpa_kategorie_osob TEXT NOT NULL DEFAULT '';`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS dpa_podprocesorzy TEXT NOT NULL DEFAULT '';`;
+  // Płatność etapami — do tej pory umowa mówiła wyłącznie „faktura po
+  // zakończeniu prac, 14 dni", czyli jednoosobowa firma finansowała klienta
+  // przez cały projekt. Zaliczka w procentach + opis kamieni płatniczych.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS zaliczka_procent INTEGER NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS platnosci_opis TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS migawka JSONB;`;
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS migawka_at TIMESTAMPTZ;`;
 

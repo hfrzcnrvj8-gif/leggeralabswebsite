@@ -67,7 +67,7 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   }, [load]);
 
   const createDraft = useCallback(
-    async (typ: "umowa" | "nda") => {
+    async (typ: "umowa" | "nda" | "dpa") => {
       const nazwa = await prompt("Nazwa drugiej strony (firma / osoba) — możesz zostawić puste, np. tylko do podglądu szablonu:", {
         placeholder: "np. Kancelaria X sp. z o.o.",
       });
@@ -89,6 +89,10 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   );
 
   const createNda = useCallback(() => createDraft("nda"), [createDraft]);
+  /** Powierzenie danych (DPA) — dokument wymagany przez RODO, gdy przetwarzasz
+   * dane klienta. Klauzula „Ochrona danych osobowych" w umowie sama do niego
+   * odsyła, a do 2026-07-27 panel go nie znał. */
+  const createDpa = useCallback(() => createDraft("dpa"), [createDraft]);
   const createUmowa = useCallback(() => createDraft("umowa"), [createDraft]);
 
   /** Sporządź aneks do podpisanej umowy i od razu otwórz go do edycji.
@@ -245,8 +249,9 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
     [
       { id: "add", label: "+ Nowa umowa", hint: "N", run: createUmowa },
       { id: "add-nda", label: "+ Nowe NDA", run: createNda },
+      { id: "add-dpa", label: "+ Powierzenie danych (DPA)", run: createDpa },
     ],
-    [createUmowa, createNda]
+    [createUmowa, createNda, createDpa]
   );
 
   const rows = useMemo(() => {
@@ -352,6 +357,7 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
             <div>
               <MenuRow label="+ Nowa umowa" onClick={() => { close(); createUmowa(); }} />
               <MenuRow label="+ Nowe NDA" onClick={() => { close(); createNda(); }} />
+              <MenuRow label="+ Powierzenie danych (DPA)" onClick={() => { close(); createDpa(); }} />
             </div>
           )}
         </Popover>

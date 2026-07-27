@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import {
   type Contract,
   CONTRACT_TYP_LABEL_LANG,
-  clausesDlaSzablonu,
-  NDA_CLAUSES,
+  clausesDokumentu,
   POLE_ANEKSU_LABEL,
   aneksReference,
   roznicaAneksu,
@@ -73,6 +72,15 @@ type Dict = {
   signatureBoxUs: string;
   signatureBoxThem: string;
   signaturePending: string;
+  /* DPA (art. 28 RODO) i płatność etapami (2026-07-27) */
+  dpaSubject: string;
+  dpaDataTypes: string;
+  dpaDataSubjects: string;
+  dpaSubprocessors: string;
+  dpaSubprocessorsNone: string;
+  paymentTitle: string;
+  paymentAdvance: string;
+  paymentStages: string;
 };
 
 const DICT: Record<DocLang, Dict> = {
@@ -118,6 +126,14 @@ const DICT: Record<DocLang, Dict> = {
     signatureBoxUs: "Wykonawca",
     signatureBoxThem: "Zamawiający",
     signaturePending: "podpis elektroniczny — oczekuje",
+    dpaSubject: "Przedmiot i cel powierzenia",
+    dpaDataTypes: "Rodzaj danych osobowych",
+    dpaDataSubjects: "Kategorie osób, których dane dotyczą",
+    dpaSubprocessors: "Dalsze podmioty przetwarzające",
+    dpaSubprocessorsNone: "Wykonawca nie korzysta z dalszych podmiotów przetwarzających.",
+    paymentTitle: "Warunki płatności",
+    paymentAdvance: "Zaliczka",
+    paymentStages: "Harmonogram płatności",
   },
   en: {
     notFound: "Document not found.",
@@ -160,6 +176,14 @@ const DICT: Record<DocLang, Dict> = {
     signatureBoxUs: "Contractor",
     signatureBoxThem: "Client",
     signaturePending: "electronic signature — pending",
+    dpaSubject: "Subject and purpose of processing",
+    dpaDataTypes: "Types of personal data",
+    dpaDataSubjects: "Categories of data subjects",
+    dpaSubprocessors: "Sub-processors",
+    dpaSubprocessorsNone: "The Processor does not use any sub-processors.",
+    paymentTitle: "Payment terms",
+    paymentAdvance: "Advance payment",
+    paymentStages: "Payment schedule",
     amendmentNone: "No terms have been changed in this amendment yet.",
   },
   de: {
@@ -203,6 +227,14 @@ const DICT: Record<DocLang, Dict> = {
     signatureBoxUs: "Auftragnehmer",
     signatureBoxThem: "Auftraggeber",
     signaturePending: "elektronische Unterschrift — ausstehend",
+    dpaSubject: "Gegenstand und Zweck der Verarbeitung",
+    dpaDataTypes: "Art der personenbezogenen Daten",
+    dpaDataSubjects: "Kategorien betroffener Personen",
+    dpaSubprocessors: "Weitere Auftragsverarbeiter",
+    dpaSubprocessorsNone: "Der Auftragsverarbeiter setzt keine weiteren Auftragsverarbeiter ein.",
+    paymentTitle: "Zahlungsbedingungen",
+    paymentAdvance: "Anzahlung",
+    paymentStages: "Zahlungsplan",
     amendmentNone: "In diesem Nachtrag wurden noch keine Vertragsbedingungen geändert.",
   },
 };
@@ -269,12 +301,13 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
   // aneks je zastępuje. Zamiast nich idzie zdanie „pozostałe postanowienia
   // pozostają bez zmian", które mówi to samo, a jest prawdą.
   const isAneks = contract.typ === "aneks";
+  const isDpa = contract.typ === "dpa";
   const isUmowa = contract.typ === "umowa";
   // Klauzule wg RODZAJU umowy (2026-07-27) — wydruk liczył je lokalnie z pełnego
   // katalogu, więc umowa utrzymaniowa drukowała klauzulę o odbiorze etapów,
   // której panel dla niej świadomie nie pokazuje. Jedno źródło:
   // clausesDlaSzablonu.
-  const clauses = isUmowa ? clausesDlaSzablonu(contract.szablon) : NDA_CLAUSES;
+  const clauses = clausesDokumentu(contract.typ, contract.szablon);
   const docLabel = CONTRACT_TYP_LABEL_LANG[lang][contract.typ];
   const poprzednie = (contract.poprzednie ?? null) as PoprzednieWarunki | null;
   const zmiany = isAneks && poprzednie ? roznicaAneksu(poprzednie, contract) : [];
@@ -473,6 +506,56 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
                     {docMoney(contract.cena, lang, contract.waluta || "PLN")}
                   </span>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* DPA — pola, których art. 28 ust. 3 RODO wymaga KONKRETNIE dla
+              danego powierzenia. Świadomie NIE są stałymi klauzulami: wpisane
+              na sztywno dałyby dokument, który wygląda poprawnie i mówi
+              nieprawdę o tym, jakie dane naprawdę przetwarzamy. */}
+          {isDpa && (
+            <div className="mt-8 space-y-4">
+              <div>
+                <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.dpaSubject}</div>
+                <p className="whitespace-pre-line leading-relaxed text-neutral-700">{contract.zakres_prac || "—"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.dpaDataTypes}</div>
+                  <p className="whitespace-pre-line leading-relaxed text-neutral-700">{contract.dpa_kategorie_danych || "—"}</p>
+                </div>
+                <div>
+                  <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.dpaDataSubjects}</div>
+                  <p className="whitespace-pre-line leading-relaxed text-neutral-700">{contract.dpa_kategorie_osob || "—"}</p>
+                </div>
+              </div>
+              <div>
+                <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.dpaSubprocessors}</div>
+                <p className="whitespace-pre-line leading-relaxed text-neutral-700">
+                  {contract.dpa_podprocesorzy || t.dpaSubprocessorsNone}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Warunki płatności — drukowane tylko wtedy, gdy odbiegają od
+              domyślnej klauzuli („faktura po zakończeniu, 14 dni"). Zaliczka
+              albo harmonogram to zmiana warunku handlowego, więc musi stać na
+              dokumencie, a nie tylko w panelu. */}
+          {isUmowa && (contract.zaliczka_procent > 0 || contract.platnosci_opis) && (
+            <div className="mt-6">
+              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.paymentTitle}</div>
+              {contract.zaliczka_procent > 0 && (
+                <p className="leading-relaxed text-neutral-700">
+                  {t.paymentAdvance}: {contract.zaliczka_procent}%
+                  {contract.cena > 0
+                    ? ` (${docMoney((contract.cena * contract.zaliczka_procent) / 100, lang, contract.waluta || "PLN")})`
+                    : ""}
+                </p>
+              )}
+              {contract.platnosci_opis && (
+                <p className="mt-1 whitespace-pre-line leading-relaxed text-neutral-700">{contract.platnosci_opis}</p>
               )}
             </div>
           )}

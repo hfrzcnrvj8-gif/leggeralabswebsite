@@ -182,6 +182,14 @@ export const CONTRACT_PUBLIC_FIELDS = [
   "wypowiedzenie_dni",
   "odnawialna",
   "szablon",
+  // DPA — pola wymagane przez art. 28 RODO i warunki płatności. To treść
+  // dokumentu, więc druga strona MUSI je widzieć pod swoim linkiem; bez nich
+  // wydruk powierzenia pokazywał „—" w rubrykach, których przepis wymaga.
+  "dpa_kategorie_danych",
+  "dpa_kategorie_osob",
+  "dpa_podprocesorzy",
+  "zaliczka_procent",
+  "platnosci_opis",
   "aneks_nr",
   "poprzednie",
 ] as const;

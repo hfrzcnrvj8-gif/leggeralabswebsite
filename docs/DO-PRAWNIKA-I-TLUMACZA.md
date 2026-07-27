@@ -506,3 +506,58 @@ Publiczny podgląd umowy zapisuje teraz **czas i licznik otwarć** (jak przy
 ofertach). Nie zapisujemy ani IP, ani przeglądarki odwiedzającego — tylko fakt
 i moment. Prosimy o potwierdzenie, że przy takim zakresie nie potrzeba
 odrębnej informacji dla drugiej strony (dziś jej nie ma).
+
+## Umowa powierzenia danych (DPA) — NOWY DOKUMENT, wymaga weryfikacji (2026-07-27)
+
+Panel potrafi od dziś sporządzić **umowę powierzenia przetwarzania danych
+osobowych** jako trzeci samodzielny typ dokumentu (obok umowy i NDA). Powstał,
+bo klauzula „Ochrona danych osobowych" w `CONTRACT_CLAUSES` sama odsyła do
+„odrębnej umowy powierzenia", a takiego dokumentu firma nie miała — przy
+wdrożeniach lokalnego asystenta na danych klienta Wykonawca jest podmiotem
+przetwarzającym niemal zawsze.
+
+**Kształt.** Dziesięć klauzul odwzorowujących art. 28 ust. 3 RODO punkt po
+punkcie: role stron, przetwarzanie wyłącznie na udokumentowane polecenie,
+poufność osób upoważnionych, bezpieczeństwo (art. 32), dalsze podmioty
+przetwarzające, pomoc administratorowi (art. 32–36), zgłaszanie naruszeń,
+zwrot albo usunięcie danych, informacje i audyty, odpowiedzialność.
+
+Rodzaj danych, kategorie osób, cel i czas przetwarzania **nie są klauzulami** —
+to pola wypełniane per dokument (`dpa_kategorie_danych`, `dpa_kategorie_osob`,
+przedmiot = zakres prac, czas = okres obowiązywania). Wpisane na sztywno
+dawałyby dokument, który wygląda poprawnie i mówi nieprawdę.
+
+**Pytania do prawnika:**
+
+- Czy dziesięć powyższych klauzul wyczerpuje art. 28 ust. 3, czy czegoś brakuje
+  (np. wyraźnej zgody ogólnej na podpowierzenie z terminem sprzeciwu, klauzuli
+  o transferach poza EOG, standardowych klauzul umownych)?
+- **Termin zgłoszenia naruszenia wpisaliśmy jako 24 godziny** — czy to
+  właściwy standard po stronie procesora (administrator ma 72 h wobec organu),
+  czy lepiej „bez zbędnej zwłoki, nie później niż 24 h"?
+- Czy zapis o audytach („w uzgodnionym terminie, w godzinach pracy, w sposób
+  nieutrudniający działalności") nie ogranicza uprawnień administratora
+  w sposób niedopuszczalny.
+- Czy przy wdrożeniu **całkowicie lokalnym** (dane nie opuszczają serwerowni
+  klienta, Wykonawca ma tylko dostęp serwisowy) DPA jest nadal wymagane —
+  i czy klauzula „Bezpieczeństwo przetwarzania" poprawnie rozdziela
+  odpowiedzialność za infrastrukturę.
+- Czy dokument powinien mieć własną klauzulę o **czasie trwania powiązanym
+  z umową główną** (dziś czas bierze się z pól „obowiązuje od/do").
+- Czy potrzebna jest wersja EN/DE (dziś klauzule tylko po polsku, jak reszta).
+
+## Płatność etapami w umowie (2026-07-27)
+
+Umowa ma teraz pola **zaliczka (%)** i **harmonogram płatności** (opis).
+Drukują się jako osobna sekcja „Warunki płatności" TYLKO gdy wypełnione;
+w pozostałych przypadkach obowiązuje dotychczasowa klauzula „faktura po
+zakończeniu prac, 14 dni".
+
+**Pytania:**
+- Czy sekcja „Warunki płatności" nad klauzulami wystarczy, czy przy zaliczce
+  potrzebna jest osobna klauzula (charakter zaliczki vs zadatek — art. 394 k.c.,
+  skutki odstąpienia, obowiązek wystawienia faktury zaliczkowej).
+- **Zaliczka czy zadatek** — którą konstrukcję rekomendujecie dla wdrożeń
+  i jak ją nazwać na dokumencie, żeby nie było wątpliwości.
+- Czy warto dopisać prawo **wstrzymania prac** przy braku zapłaty zaliczki
+  albo raty etapowej (dziś umowa tego nie przewiduje).

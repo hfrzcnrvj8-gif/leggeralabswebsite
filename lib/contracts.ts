@@ -18,18 +18,19 @@
 
 import { type DocLang, documentYear } from "./documents";
 
-export type ContractTyp = "umowa" | "nda" | "aneks";
+export type ContractTyp = "umowa" | "nda" | "dpa" | "aneks";
 
 /** Typy, które da się utworzyć od zera przyciskiem „+ Nowy dokument".
  *
  * Aneksu **nie ma na tej liście świadomie** — aneks nie istnieje samodzielnie,
  * zawsze powstaje z konkretnej podpisanej umowy (`POST /api/contracts/:id/aneks`).
  * Aneks bez umowy-matki nie miałby czego zmieniać. */
-export const CONTRACT_TYPY: ContractTyp[] = ["umowa", "nda"];
+export const CONTRACT_TYPY: ContractTyp[] = ["umowa", "nda", "dpa"];
 
 export const CONTRACT_TYP_LABEL: Record<ContractTyp, string> = {
   umowa: "Umowa",
   nda: "NDA",
+  dpa: "Powierzenie danych",
   aneks: "Aneks",
 };
 
@@ -37,9 +38,9 @@ export const CONTRACT_TYP_LABEL: Record<ContractTyp, string> = {
  * tylko na publicznym/podglądowym wydruku (ContractPrint.tsx), NIE w panelu
  * admina (tam zawsze po polsku, patrz CONTRACT_TYP_LABEL). */
 export const CONTRACT_TYP_LABEL_LANG: Record<DocLang, Record<ContractTyp, string>> = {
-  pl: { umowa: "Umowa", nda: "NDA", aneks: "Aneks" },
-  en: { umowa: "Agreement", nda: "NDA", aneks: "Amendment" },
-  de: { umowa: "Vertrag", nda: "NDA", aneks: "Nachtrag" },
+  pl: { umowa: "Umowa", nda: "NDA", dpa: "Umowa powierzenia przetwarzania danych osobowych", aneks: "Aneks" },
+  en: { umowa: "Agreement", nda: "NDA", dpa: "Data Processing Agreement", aneks: "Amendment" },
+  de: { umowa: "Vertrag", nda: "NDA", dpa: "Auftragsverarbeitungsvertrag", aneks: "Nachtrag" },
 };
 
 export type ContractStatus = "Szkic" | "Wysłana" | "Podpisana" | "Odrzucona";
@@ -133,6 +134,16 @@ export type Contract = {
   odnawialna: boolean;
   /** Rodzaj umowy — wybiera zestaw stałych klauzul (CONTRACT_TEMPLATES). */
   szablon: string;
+  /** DPA (art. 28 ust. 3 RODO) — bez tych trzech pól umowa powierzenia jest
+   * niekompletna: przepis wymaga wskazania rodzaju danych, kategorii osób
+   * i (przy podpowierzeniu) dalszych podmiotów przetwarzających. */
+  dpa_kategorie_danych: string;
+  dpa_kategorie_osob: string;
+  dpa_podprocesorzy: string;
+  /** Płatność etapami — zaliczka w procentach wynagrodzenia i opis kamieni
+   * płatniczych. 0 = płatność jednorazowo po zakończeniu (jak dotąd). */
+  zaliczka_procent: number;
+  platnosci_opis: string;
   /** Stanowisko osoby podpisującej po drugiej stronie — wpisuje je ONA sama
    * przy składaniu podpisu, nie właściciel za nią. */
   accepted_by_role: string | null;
@@ -349,7 +360,71 @@ export const CONTRACT_MIGAWKA_POLA = [
   "wypowiedzenie_dni",
   "odnawialna",
   "szablon",
+  "dpa_kategorie_danych",
+  "dpa_kategorie_osob",
+  "dpa_podprocesorzy",
+  "zaliczka_procent",
+  "platnosci_opis",
 ] as const;
+
+/** Klauzule umowy powierzenia przetwarzania danych osobowych (DPA).
+ *
+ * **Skąd ta lista.** To nie jest twórczość prawna, tylko odwzorowanie
+ * wymagań art. 28 ust. 3 RODO punkt po punkcie: przetwarzanie wyłącznie na
+ * udokumentowane polecenie, zobowiązanie do poufności, środki bezpieczeństwa
+ * (art. 32), warunki podpowierzenia, pomoc administratorowi przy prawach osób
+ * i przy naruszeniach, usunięcie albo zwrot danych po zakończeniu, oraz
+ * udostępnienie informacji i poddanie się audytom. Brzmienie i tak wymaga
+ * weryfikacji prawnika — dokument nosi LEGAL_PLACEHOLDER_NOTE jak reszta.
+ *
+ * **Czego tu ŚWIADOMIE nie ma:** rodzaju danych, kategorii osób, celu i czasu
+ * przetwarzania. To nie są klauzule stałe — art. 28 wymaga określenia ich
+ * KONKRETNIE dla danego powierzenia, więc mieszkają w polach rekordu
+ * (`dpa_kategorie_danych`, `dpa_kategorie_osob`, `zakres_prac`,
+ * `obowiazuje_od/do`) i drukują się nad klauzulami. Wpisanie ich na sztywno
+ * dałoby dokument, który wygląda poprawnie i mówi nieprawdę. */
+export const DPA_CLAUSES: Clause[] = [
+  {
+    title: "Role stron",
+    text: "Zamawiający jest administratorem danych osobowych w rozumieniu RODO, a Wykonawca podmiotem przetwarzającym. Wykonawca przetwarza dane osobowe wyłącznie w zakresie i w celu niezbędnym do wykonania umowy głównej, wskazanym powyżej.",
+  },
+  {
+    title: "Polecenia administratora",
+    text: "Wykonawca przetwarza dane osobowe wyłącznie na udokumentowane polecenie Zamawiającego, w tym w zakresie przekazywania danych do państwa trzeciego, chyba że obowiązek taki nakłada na niego prawo Unii lub prawo państwa członkowskiego. W takim przypadku Wykonawca informuje Zamawiającego o tym obowiązku przed rozpoczęciem przetwarzania, o ile prawo to nie zabrania takiego informowania.",
+  },
+  {
+    title: "Poufność osób upoważnionych",
+    text: "Wykonawca zapewnia, by osoby upoważnione do przetwarzania danych osobowych zobowiązały się do zachowania poufności lub podlegały odpowiedniemu ustawowemu obowiązkowi zachowania tajemnicy. Wykonawca prowadzi ewidencję osób upoważnionych.",
+  },
+  {
+    title: "Bezpieczeństwo przetwarzania",
+    text: "Wykonawca wdraża środki techniczne i organizacyjne zapewniające stopień bezpieczeństwa odpowiadający ryzyku, zgodnie z art. 32 RODO — w szczególności kontrolę dostępu do systemów, szyfrowanie nośników i kopii zapasowych oraz rozdzielenie środowisk. Wdrożenia realizowane lokalnie w infrastrukturze Zamawiającego pozostają pod jego kontrolą techniczną; Wykonawca odpowiada za środki po swojej stronie.",
+  },
+  {
+    title: "Dalsze podmioty przetwarzające",
+    text: "Wykonawca nie korzysta z usług innego podmiotu przetwarzającego bez uprzedniej szczegółowej lub ogólnej pisemnej zgody Zamawiającego. Podmioty, z których Wykonawca korzysta na dzień zawarcia niniejszej umowy, wskazano powyżej. O zamierzonych zmianach Wykonawca informuje Zamawiającego, dając mu możliwość wyrażenia sprzeciwu. Na dalsze podmioty przetwarzające Wykonawca nakłada te same obowiązki ochrony danych, które wynikają z niniejszej umowy.",
+  },
+  {
+    title: "Pomoc administratorowi",
+    text: "Wykonawca, biorąc pod uwagę charakter przetwarzania, pomaga Zamawiającemu wywiązać się z obowiązku odpowiadania na żądania osób, których dane dotyczą, oraz — uwzględniając charakter przetwarzania i dostępne mu informacje — z obowiązków określonych w art. 32–36 RODO (bezpieczeństwo, zgłaszanie naruszeń, ocena skutków, uprzednie konsultacje).",
+  },
+  {
+    title: "Zgłaszanie naruszeń",
+    text: "Wykonawca zgłasza Zamawiającemu każde naruszenie ochrony danych osobowych bez zbędnej zwłoki, nie później niż w ciągu 24 godzin od jego stwierdzenia, przekazując informacje niezbędne do wykonania przez Zamawiającego obowiązku zgłoszenia organowi nadzorczemu.",
+  },
+  {
+    title: "Zwrot albo usunięcie danych",
+    text: "Po zakończeniu świadczenia usług związanych z przetwarzaniem Wykonawca, zależnie od decyzji Zamawiającego, usuwa lub zwraca mu wszelkie dane osobowe oraz usuwa ich istniejące kopie, chyba że prawo Unii lub prawo państwa członkowskiego nakazuje przechowywanie tych danych.",
+  },
+  {
+    title: "Informacje i audyty",
+    text: "Wykonawca udostępnia Zamawiającemu informacje niezbędne do wykazania spełnienia obowiązków określonych w art. 28 RODO oraz umożliwia Zamawiającemu lub audytorowi przez niego upoważnionemu przeprowadzanie audytów, w tym inspekcji, i przyczynia się do nich. Audyt odbywa się w uzgodnionym terminie, w godzinach pracy i w sposób nieutrudniający bieżącej działalności Wykonawcy.",
+  },
+  {
+    title: "Odpowiedzialność",
+    text: "Wykonawca odpowiada za szkody spowodowane przetwarzaniem, jeśli nie dopełnił obowiązków, które RODO nakłada bezpośrednio na podmioty przetwarzające, lub gdy działał poza zgodnymi z prawem poleceniami Zamawiającego albo wbrew tym poleceniom. W pozostałym zakresie stosuje się ograniczenie odpowiedzialności z umowy głównej.",
+  },
+];
 
 /** Adres klienta jako linie do wydruku — wzorem lib/documents.ts. */
 export function clientAddressLines(
@@ -366,7 +441,7 @@ export function clientAddressLines(
 /** Referencja dokumentu do wydruku (np. "UM-2026-A1B2C3" / "NDA-2026-A1B2C3")
  * — wzorem offerReference, bez formalnej numeracji fiskalnej. */
 export function contractReference(c: Pick<Contract, "id" | "typ" | "created_at">): string {
-  const prefix = c.typ === "nda" ? "NDA" : "UM";
+  const prefix = c.typ === "nda" ? "NDA" : c.typ === "dpa" ? "DPA" : "UM";
   // `documentYear`, NIE `new Date()` — patrz komentarz przy tej funkcji
   // (znacznik czasu z Postgresa jest nieparsowalny dla Safari).
   return `${prefix}-${documentYear(c.created_at)}-${c.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
@@ -612,6 +687,16 @@ const SZABLON_POMIJA: Record<ContractSzablon, string[]> = {
   utrzymaniowa: ["Reklamacje i poprawki", "Odbiór prac", "Wsparcie powdrożeniowe"],
   poc: ["Własność intelektualna", "Wsparcie powdrożeniowe", "Reklamacje i poprawki"],
 };
+
+/** Klauzule dokumentu wg TYPU i rodzaju. Jedno miejsce dla panelu, wydruku
+ * i apki — wcześniej wydruk liczył je lokalnie i drukował klauzulę, której
+ * panel dla tego rodzaju nie pokazywał. */
+export function clausesDokumentu(typ: string, szablon: string | null | undefined): Clause[] {
+  if (typ === "aneks") return [];
+  if (typ === "nda") return NDA_CLAUSES;
+  if (typ === "dpa") return DPA_CLAUSES;
+  return clausesDlaSzablonu(szablon);
+}
 
 /** Klauzule dokumentu wg rodzaju umowy. Dla NDA i aneksu bez zmian. */
 export function clausesDlaSzablonu(szablon: string | null | undefined): Clause[] {
