@@ -16,6 +16,7 @@ import {
 import { formatPlDateTime } from "@/lib/dates";
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
+import { PasekMarkiDokumentu, KwotaGradientem } from "../../../DocGradient";
 import { DocLogoMark } from "../../../DocLogoMark";
 import { LinkRevokedNotice } from "../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../DocumentScale";
@@ -425,7 +426,7 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
           wyłączone na print (patrz komentarz w InvoicePrint.tsx). */}
       <DokumentResponsywny>
       <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
-        <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
+        <PasekMarkiDokumentu id="pasek-oferta" />
 
         <div className="flex flex-1 flex-col p-10">
           {/* Nagłówek: logo + nazwa + tytuł/meta */}
@@ -569,12 +570,14 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
             <div className="w-64 space-y-1.5">
               <div className="flex justify-between border-t border-neutral-200 pt-2 text-[15px] font-semibold">
                 <span className="text-neutral-900">{t.totalAmount}</span>
-                <span
-                  className="tabular-nums"
-                  style={{ background: DOC_GRADIENT, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
-                >
-                  {money(total, lang, offer.waluta)}
-                </span>
+                {/* Kwota gradientem — SVG, nie `background-clip: text`.
+                    Tło nie jest malowane przy druku, więc tamta sztuczka gubiła
+                    najważniejszą liczbę na dokumencie. Patrz admin/DocGradient.tsx. */}
+                <KwotaGradientem
+                  id="kwota-oferta"
+                  rozmiar={15}
+                  tekst={money(total, lang, offer.waluta)}
+                />
               </div>
             </div>
           </div>

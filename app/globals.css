@@ -656,34 +656,21 @@
 
    ZGŁOSZENIE (2026-07-27): „nie generują się treści w gradiencie poza logo LL"
    — na wydruku i w PDF znikał górny pasek marki ORAZ kwota dokumentu, czyli
-   najważniejsza liczba na kartce. Na ekranie wszystko było widać. To samo na
-   telefonie i iPadzie, bo apka renderuje PDF tą samą ścieżką drukowania.
+   najważniejsza liczba na kartce. Panel, iPhone i iPad tak samo.
 
-   DLACZEGO. Oba elementy stoją na TLE: pasek to `background: <gradient>`,
-   a kwota to sztuczka „gradient jako tekst" (`background-clip: text` +
-   `color: transparent`). Silniki wydruku domyślnie **nie malują teł** —
-   traktują je jako dekorację i oszczędzają tusz. Tło nie powstaje, więc pasek
-   jest pusty, a tekst zostaje przezroczysty i **znika zupełnie**. Logo
-   przeżywa, bo to inline SVG z prawdziwym `fill`, nie tło.
+   PRZYCZYNA: oba stały na TLE (pasek to `background`, kwota to sztuczka
+   `background-clip: text` + `color: transparent`), a silniki wydruku domyślnie
+   NIE malują teł. Logo przeżywało, bo jako jedyne było SVG-iem z `fill`.
 
-   ZASADA, KTÓRA Z TEGO WYNIKA: na dokumencie nic, co niesie TREŚĆ, nie może
-   zależeć od pomalowania tła. Kwota dostaje pełny kolor, pasek rysuje się
-   obramowaniem. Gradient zostaje tam, gdzie silnik zechce go namalować
-   (print-color-adjust niżej), ale jego brak nie może niczego ukryć.
-
-   O SELEKTORACH. Elementy są stylowane inline w czterech komponentach
-   wydruku, więc reguła łapie je po atrybucie `style` — dzięki temu działa dla
-   WSZYSTKICH dokumentów naraz, także tych, które dopiero powstaną, bez zmiany
-   w żadnym komponencie. UWAGA na pułapkę, która przewróciła pierwszą wersję
-   tej poprawki: przeglądarka ZWIJA skrót, więc w atrybucie NIE MA napisu
-   `background-clip` — jest `background: linear-gradient(…) text; color:
-   transparent;`. Selektor po `background-clip` nie pasował do niczego i
-   milczał. Rozróżnienie idzie więc po `transparent`: ma je tekst malowany
-   gradientem, nie ma go zwykłe tło gradientowe. Sprawdzone pomiarem
-   (`document.querySelectorAll`) na stronie wydruku oferty.
+   ROZWIĄZANIE JEST W KOMPONENCIE, NIE TUTAJ. Pasek i kwota rysują się teraz
+   SVG-iem (`app/[lang]/admin/DocGradient.tsx`) — `fill` to treść, maluje się
+   zawsze, więc wydruk wygląda identycznie jak podgląd, z prawdziwym
+   gradientem. Ten blok został wyłącznie po to, żeby POZOSTAŁE kolory
+   dokumentu (płyta „szacowanego zwrotu", ramka ostrzeżenia prawnego, tło
+   pigułek) też trafiły na papier, a nie zniknęły z tego samego powodu.
    --------------------------------------------------------------------------- */
 @media print {
-  /* 1. Kolory dokumentu są TREŚCIĄ, nie dekoracją — mają wyjść na papier.
+  /* Kolory dokumentu są TREŚCIĄ, nie dekoracją — mają wyjść na papier.
      Zakres przez pasek ekranowy, który mają wszystkie strony wydruku
      (`data-chrome="ekran"`), żeby nie zmuszać do drukowania teł na całej
      reszcie serwisu. Ta sama sztuczka co przy wydruku kalkulatora wyżej. */
@@ -693,12 +680,9 @@
     print-color-adjust: exact !important;
   }
 
-  /* 2. TEKST malowany gradientem → pełny kolor marki.
-     Świadomie bezwarunkowo, także poza dokumentami: `background-clip: text`
-     to najbardziej zawodny element układanki (zależy i od malowania tła,
-     i od przycinania go do liter). Kwota na dokumencie finansowym nie może
-     zależeć od tego, czy się uda. Traci gradient, ale jest ZAWSZE widoczna. */
-  [style*="linear-gradient"][style*="transparent"],
+  /* Gradientowy tekst POZA dokumentami (nagłówki panelu, strona publiczna)
+     dostaje na wydruku pełny kolor — tam nie ma SVG-a, a niewidoczny nagłówek
+     jest gorszy niż nagłówek bez gradientu. */
   .text-liquid,
   .text-liquid-outline {
     background-image: none !important;
@@ -706,18 +690,5 @@
     -webkit-text-fill-color: #7c3aed !important;
     -webkit-text-stroke: 0 !important;
     animation: none !important;
-  }
-
-  /* 3. Pasek marki u góry dokumentu → linia rysowana OBRAMOWANIEM.
-     Obramowanie jest rysowane zawsze, niezależnie od ustawienia „grafika
-     tła" — w przeciwieństwie do tła. `height: 0` + `border-top: 3px` daje
-     dokładnie tę samą grubość co `h-[3px]`, więc reszta układu nie drgnie.
-     Tylko w obrębie dokumentu: gradientowe tła gdzie indziej (np. pigułka
-     z białym tekstem w kalkulatorze) zamienione w obramowanie straciłyby
-     sens. */
-  body:has([data-chrome="ekran"]) [style*="linear-gradient"]:not([style*="transparent"]) {
-    background-image: none !important;
-    border-top: 3px solid #7c3aed !important;
-    height: 0 !important;
   }
 }

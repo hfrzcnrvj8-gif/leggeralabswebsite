@@ -17,6 +17,7 @@ import {
 } from "@/lib/contracts";
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT, type DocLang } from "@/lib/documents";
+import { PasekMarkiDokumentu, KwotaGradientem } from "../../../DocGradient";
 import { DocLogoMark } from "../../../DocLogoMark";
 import { LinkRevokedNotice } from "../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../DocumentScale";
@@ -382,7 +383,7 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
 
       <DokumentResponsywny>
       <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
-        <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
+        <PasekMarkiDokumentu id="pasek-umowa" />
 
         <div className="flex flex-1 flex-col p-10">
           <div className="flex items-start justify-between">
@@ -499,12 +500,14 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
               {contract.cena > 0 && (
                 <div className="mt-3 flex justify-between border-t border-neutral-100 pt-2 text-[14px] font-semibold">
                   <span className="text-neutral-900">{t.fee}</span>
-                  <span
-                    className="tabular-nums"
-                    style={{ background: DOC_GRADIENT, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
-                  >
-                    {docMoney(contract.cena, lang, contract.waluta || "PLN")}
-                  </span>
+                  {/* Kwota gradientem — SVG, nie `background-clip: text`.
+                      Tło nie jest malowane przy druku, więc tamta sztuczka gubiła
+                      najważniejszą liczbę na dokumencie. Patrz admin/DocGradient.tsx. */}
+                  <KwotaGradientem
+                    id="kwota-umowa"
+                    rozmiar={14}
+                    tekst={docMoney(contract.cena, lang, contract.waluta || "PLN")}
+                  />
                 </div>
               )}
             </div>

@@ -15,6 +15,7 @@ import {
   DUNNING_LEGAL_NOTE,
 } from "@/lib/invoices";
 import { docDate, DOC_GRADIENT } from "@/lib/documents";
+import { PasekMarkiDokumentu, KwotaGradientem } from "../../../../DocGradient";
 import { DocLogoMark } from "../../../../DocLogoMark";
 import { LinkRevokedNotice } from "../../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../../DocumentScale";
@@ -115,7 +116,7 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
 
       <DokumentResponsywny>
       <div className="mx-auto flex min-h-[1123px] max-w-[794px] flex-col bg-white text-[13px] text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)] print:min-h-0 print:max-w-none print:shadow-none">
-        <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
+        <PasekMarkiDokumentu id="pasek-wezwanie" />
 
         <div className="flex flex-1 flex-col p-10">
           <div className="flex items-start justify-between">
@@ -175,12 +176,14 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
 
           <div className="mt-6 flex items-center justify-between border-t border-neutral-100 pt-4 text-[14px] font-semibold">
             <span className="text-neutral-900">Kwota należności głównej</span>
-            <span
-              className="tabular-nums"
-              style={{ background: DOC_GRADIENT, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}
-            >
-              {formatMoney(invoice.brutto, invoice.waluta || "PLN")}
-            </span>
+            {/* Kwota gradientem — SVG, nie `background-clip: text`.
+                Tło nie jest malowane przy druku, więc tamta sztuczka gubiła
+                najważniejszą liczbę na dokumencie. Patrz admin/DocGradient.tsx. */}
+            <KwotaGradientem
+              id="kwota-wezwanie"
+              rozmiar={14}
+              tekst={formatMoney(invoice.brutto, invoice.waluta || "PLN")}
+            />
           </div>
           {odsetki > 0 && (
             <div className="mt-2 flex items-center justify-between text-[13px] text-neutral-600">
