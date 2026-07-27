@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { blokadaFaktury } from "@/lib/blokadaDokumentu";
 import { VAT_RATES } from "@/lib/invoices";
 
 export const runtime = "nodejs";
@@ -18,8 +19,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await ensureInvoicesSchema();
   const sql = getSql();
 
-  const inv = await sql`SELECT jezyk FROM invoices WHERE id = ${id};`;
+  const inv = await sql`SELECT jezyk, numer FROM invoices WHERE id = ${id};`;
   if (!inv[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // Wystawionej faktury nie dopisujemy — patrz lib/blokadaDokumentu.ts i
+  // komentarz w trasie pozycji obok (audyt Modułu 57, 2026-07-27).
+  const blokada = blokadaFaktury(inv[0].numer as string | null);
+  if (blokada.zablokowane) return NextResponse.json({ error: blokada.komunikat }, { status: 409 });
+
   const unit = DEFAULT_UNIT[String(inv[0].jezyk)] ?? DEFAULT_UNIT.pl;
 
   const posRows = await sql`SELECT COALESCE(MAX(position), -1) + 1 AS pos FROM invoice_items WHERE invoice_id = ${id};`;
