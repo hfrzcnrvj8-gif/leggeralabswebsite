@@ -106,6 +106,19 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
 
 ## Design system (trzymaj się tego)
 
+- **DOKUMENT DO DRUKU (oferta, faktura, umowa, aneks, wezwanie, rekomendacja
+  kalkulatora): nic, co niesie TREŚĆ, nie może stać na TLE.** Silniki wydruku
+  domyślnie nie malują teł, więc `background: <gradient>` i sztuczka
+  `background-clip: text` **znikają na papierze i w PDF** — bez błędu, bez
+  śladu (zgłoszenie 2026-07-27: przepadał pasek marki, kwota dokumentu
+  i logo). Gradient rysuj **SVG-iem**: `PasekMarkiDokumentu` i
+  `KwotaGradientem` z `app/[lang]/admin/DocGradient.tsx` — `fill` to treść,
+  maluje się zawsze. Kolory dobrane też pod druk czarno-biały (brandowe złoto
+  w szarości ma ~2:1, dlatego tekst dostaje ciemniejszy bursztyn).
+  Pasek ekranowy („Zamknij / Drukuj") oznaczaj `data-chrome="ekran"` — po tym
+  znaczniku apka go chowa (w WKWebView `window.print()` nic nie robi) i po nim
+  `globals.css` rozpoznaje stronę dokumentu. **Nowy wydruk = te komponenty
+  + ten znacznik**, inaczej wypadnie poza tę ochronę.
 - `.card-paper` — gęste karty z treścią (większość UI)
 - `.card-inset` — płyta WEWNĄTRZ `.card-paper` (o włos jaśniejsza), pod grupę
   pól albo formularz. Używaj przez `SekcjaProfilu`/`WierszPola`

@@ -41,11 +41,12 @@ export const DOC_GRAD_DO_TEKST = "#B4761C";
  * `preserveAspectRatio="none"` — prostokąt ma się rozciągnąć na szerokość
  * kartki bez zachowywania proporcji; bez tego SVG skalowałby wysokość razem
  * z szerokością i pasek urósłby do kilkudziesięciu pikseli. */
-export function PasekMarkiDokumentu({ id = "pasekMarki" }: { id?: string }) {
+export function PasekMarkiDokumentu({ id = "pasekMarki", wysokosc = 3 }: { id?: string; wysokosc?: number }) {
   return (
     <svg
-      className="block h-[3px] w-full shrink-0"
-      viewBox="0 0 100 3"
+      className="block w-full shrink-0"
+      style={{ height: wysokosc }}
+      viewBox={`0 0 100 ${wysokosc}`}
       preserveAspectRatio="none"
       aria-hidden="true"
       focusable="false"
@@ -56,7 +57,7 @@ export function PasekMarkiDokumentu({ id = "pasekMarki" }: { id?: string }) {
           <stop offset="100%" stopColor={DOC_GRAD_DO_PASEK} />
         </linearGradient>
       </defs>
-      <rect x="0" y="0" width="100" height="3" fill={`url(#${id})`} />
+      <rect x="0" y="0" width="100" height={wysokosc} fill={`url(#${id})`} />
     </svg>
   );
 }

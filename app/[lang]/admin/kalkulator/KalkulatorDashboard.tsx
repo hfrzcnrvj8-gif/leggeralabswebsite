@@ -16,6 +16,7 @@ import {
   type NotatkaTyp,
 } from "@/lib/dobor";
 import { DOC_GRADIENT } from "@/lib/documents";
+import { PasekMarkiDokumentu } from "../DocGradient";
 
 const ZADANIA: { id: Zadanie; label: string }[] = [
   { id: "chat", label: "Czat / asystent" },
@@ -291,7 +292,12 @@ function WydrukSpecyfikacji({ rek, w }: { rek: Rekomendacja; w: Wejscie }) {
   ];
   return (
     <div className="wydruk-doboru" style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: atrament, background: "#fff" }}>
-      <div style={{ height: 6, background: DOC_GRADIENT }} />
+      {/* Ten sam pasek co na dokumentach — SVG, nie tło. Wydruk kalkulatora
+          bronił się dotąd własną regułą `print-color-adjust: exact` (niżej
+          w globals.css) i to działało, ale było DRUGIM, równoległym
+          rozwiązaniem tego samego problemu. Jedno źródło znaczy, że kolejna
+          poprawka gradientu nie ominie tego wydruku. */}
+      <PasekMarkiDokumentu id="pasek-dobor" wysokosc={6} />
       <div style={{ padding: "34px 44px", maxWidth: 760, margin: "0 auto" }}>
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: szary }}>LEGGERA LABS</div>

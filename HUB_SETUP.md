@@ -9070,3 +9070,91 @@ inaczej dokument powtarzałby to, co i tak stoi w klauzuli.
 **Do zrobienia dalej (nie zbudowane):** wystawienie faktury zaliczkowej wprost
 z umowy. Panel ma faktury zaliczkowe od Fazy 2 KSeF, ale nic nie łączy ich
 z polem `zaliczka_procent` — dziś fakturę zaliczkową wystawia się ręcznie.
+
+## Wydruk dokumentu — jedna szata dla wszystkich (2026-07-27)
+
+Zgłoszenia właściciela z jednego dnia, wszystkie o tym samym: „to wygląda jak
+zrzut ekranu, nie PDF", „nie generują się treści w gradiencie poza logo LL",
+„logo i nazwa firmy się nie drukują". Trzy objawy, jedna przyczyna rodzinna.
+
+### Reguła
+
+**Nic, co niesie TREŚĆ, nie może stać na TLE.** Silniki wydruku (przeglądarka
+z domyślnie wyłączoną „grafiką tła", generator PDF w iOS) teł nie malują —
+traktują je jako dekorację i oszczędzają tusz. Wszystko, co było zbudowane na
+`background`, znikało **bez błędu i bez śladu**:
+
+| Element | Było | Objaw na papierze |
+|---|---|---|
+| Pasek marki u góry | `background: <gradient>` | pusty pasek |
+| Kwota dokumentu | `background-clip: text` + `color: transparent` | **litery przezroczyste — kwota znikała** |
+| Logo LL | gradient kończący się `#FFF7E8` | dolna część znaku biała na białym |
+
+Logo przeżywało częściowo, bo jako jedyne było SVG-iem — i to była wskazówka:
+**`fill` w SVG to treść, `background` to dekoracja.**
+
+### Czym to jest zastąpione
+
+`app/[lang]/admin/DocGradient.tsx` — dwa komponenty i trzy stałe koloru:
+
+- `PasekMarkiDokumentu` (SVG `<rect>` z gradientem, `wysokosc` domyślnie 3 px),
+- `KwotaGradientem` (SVG `<text>` — **prawdziwy tekst**, da się zaznaczyć,
+  skopiować i wyszukać w PDF; nie obrazek),
+- `DOC_GRAD_OD` / `DOC_GRAD_DO_PASEK` / `DOC_GRAD_DO_TEKST`.
+
+`DocLogoMark` używa tych samych stałych; stracił kremowobiały ogon.
+
+### Druk czarno-biały (wymóg właściciela)
+
+Złoto marki `#E0A93B` po konwersji na szarość daje ~2:1 wobec bieli — dla
+tekstu za mało. Dlatego **kwota kończy się ciemniejszym bursztynem**
+(`DOC_GRAD_DO_TEKST`), a pasek zostaje na pełnym złocie: to dekoracja, jego
+czytelność nie zależy od kontrastu liter. Zmierzone na wydruku:
+
+| Element | Kontrast w szarości |
+|---|---|
+| Kwota dokumentu | 7,2 : 1 |
+| Pasek — koniec fioletowy / złoty | 7,6 : 1 / 2,8 : 1 |
+| Logo (było → jest) | 2,46 : 1 → 4,06 : 1 |
+
+### Znacznik `data-chrome="ekran"`
+
+Pasek z przyciskami „Zamknij / Drukuj" ma go na **każdej** stronie wydruku.
+Dwie role: apka po nim chowa pasek (w WKWebView `window.close()` i
+`window.print()` **nie robią nic**, więc były to dwa martwe przyciski nad
+dokumentem), a `globals.css` po nim rozpoznaje stronę dokumentu i wymusza
+druk pozostałych kolorów (`print-color-adjust: exact`).
+
+Świadomie NIE `print:hidden` — tej klasy używa też pigułka „DO WYBORU" przy
+pozycji oferty i podpowiedź nad tabelą, czyli treść, którą właściciel MA
+widzieć w podglądzie. Chowamy chrome, nie treść.
+
+### Objęte (sprawdzone wydrukiem do PDF z wyłączonym malowaniem teł)
+
+Oferta, faktura, umowa + aneks, wezwanie do zapłaty, rekomendacja kalkulatora.
+Kalkulator bronił się wcześniej **własną** regułą `print-color-adjust` — to
+działało, ale było drugim, równoległym rozwiązaniem tego samego problemu;
+przeszedł na wspólny komponent, żeby kolejna poprawka gradientu go nie ominęła.
+
+**Nowy wydruk NIE jest objęty automatycznie** — musi użyć tych komponentów
+i tego znacznika. Reguła jest w `CLAUDE.md` → „Design system", żeby trafiła
+do każdej następnej sesji.
+
+### Pułapki, które po drodze milczały
+
+1. **Escapowanie przez dwa języki.** Selektor `.print\\:hidden` w Swifcie
+   dawał JS-owi `.print\:hidden`, a tam `\:` to nieznana sekwencja ucieczki —
+   zostawało `.print:hidden`, pseudoklasa niepasująca do niczego.
+   Przeglądarka odrzuca taką regułę w CAŁOŚCI (`cssRules.length === 0`) i nie
+   mówi ani słowa. Ten sam błąd przeszedł **dwa razy** jako „naprawione".
+2. **Przeglądarka zwija skrót CSS.** W atrybucie `style` nie ma napisu
+   `background-clip` — jest `background: linear-gradient(…) text; color:
+   transparent`. Selektor po `background-clip` nie miał czego dopasować.
+3. **`createPDF()` renderuje EKRAN, nie wydruk** — stąd szare tło, cień karty
+   i strona wielkości webview zamiast A4. Eksport w apce idzie teraz
+   `viewPrintFormatter` + `UIPrintPageRenderer` (A4, 16 mm, stronicowanie).
+
+**Wniosek metodyczny:** każdy z tych trzech błędów wyglądał poprawnie w kodzie
+i nie zostawiał śladu w konsoli. Wszystkie trzy złapał dopiero POMIAR —
+wydruk do PDF z `printBackground: false`, konwersja do szarości i policzenie
+luminancji pikseli. Sprawdzając wydruk, mierz; nie oglądaj.
