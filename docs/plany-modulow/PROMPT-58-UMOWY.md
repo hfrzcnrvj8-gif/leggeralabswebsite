@@ -28,7 +28,32 @@ w kolejności lejka sprzedaży. **Pulpit, Leady, Klienci i Oferty są zrobione.*
 Sprawdź i oceń, a potem zaproponuj właścicielowi KONKRETNE poprawki — nie
 pytaj ogólnie „co zmienić".
 
-## NAJWAŻNIEJSZY BRAK: aneks nie istnieje jako dokument
+## ⚠️ ANEKS JEST JUŻ ZBUDOWANY (2026-07-27) — sekcja niżej jest HISTORIĄ
+
+Właściciel poprosił o wdrożenie wniosków audytu od razu, więc aneks powstał
+poza tym modułem. **Nie buduj go drugi raz.** Stan: `HUB_SETUP.md` →
+„Moduł 58 — Aneks do umowy". Zbudowane też wszystkie wnioski otwarte
+z audytu (hamulec publicznych tras, retencja e-podpisu, licznik otwarć,
+kolor „Odrzucona") — patrz „Poprawki po audycie Modułu 57" tamże.
+
+**Co z tego zostaje dla Ciebie:**
+
+1. **Sprawdź aneks sondą, tak jak audyt sprawdził oferty.** Powstał
+   w jednej sesji i przeszedł testy jednostkowe + przebieg end-to-end, ale
+   nie przeszedł osobnego audytu. Pytania kontrolne: czy da się wysłać aneks
+   po jego podpisaniu; czy `share-links` (Moduł 40) obsługuje typ `aneks`;
+   czy aneks pokazuje się wszędzie tam, gdzie panel liczy umowy (Pulpit,
+   oś czasu klienta, `signedContractRate`, dzienny mail) i czy POWINIEN.
+2. **Treść prawna aneksu czeka na prawnika** —
+   `docs/DO-PRAWNIKA-I-TLUMACZA.md` → „Aneks do umowy". Kluczowe pytanie:
+   czy aneks wolno w ogóle zawrzeć e-podpisem, skoro dziedziczy formę umowy.
+3. **Layout modułu Umowy dalej otwarty** — zgłoszenie właściciela z 26.07
+   (niżej) nie zostało ruszone.
+
+Reszta tej sekcji opisuje, DLACZEGO aneks powstał i jak jest zrobiony —
+zostaje jako uzasadnienie decyzji, nie jako zadanie.
+
+## Tło: dlaczego aneks musiał powstać
 
 `lib/blokadaDokumentu.ts` odmawia zmiany podpisanej umowy zdaniem: **„Zmiana
 wymaga aneksu."** Aneksu w systemie NIE MA. Panel wysyła właściciela po coś,

@@ -310,3 +310,73 @@ Zdanie o odwrotnym obciążeniu jest celowo WARUNKOWE („może nastąpić",
 „zostanie potwierdzona na fakturze") — oferta nie przesądza stawki, bo zależy
 ona od statusu VAT-UE kontrahenta i rodzaju usługi. Jeśli to za mało ostrożne
 albo przeciwnie, zbyt zachowawcze — proszę o poprawione brzmienie.
+
+## Aneks do umowy — nowy dokument (dodane 2026-07-27, DO SPRAWDZENIA)
+
+Panel potrafi od dziś sporządzić **aneks do podpisanej umowy** (Moduł 58).
+Powstał, bo blokada edycji odsyłała po aneks, którego system nie miał —
+podpisana umowa nie miała żadnej drogi zmiany.
+
+**Kształt dokumentu.** Aneks NIE powtarza treści umowy ani jej klauzul.
+Pokazuje wyłącznie warunki, które się zmieniają, w układzie „dotychczasowe
+brzmienie → nowe brzmienie", i kończy klauzulą o pozostałych postanowieniach.
+Zmienić da się cztery rzeczy: przedmiot umowy, wynagrodzenie, walutę,
+termin realizacji. Danych stron aneks nie zmienia (to byłaby nowa umowa).
+
+**Do weryfikacji — zdania wygenerowane przez panel, w trzech językach**
+(`DICT` w `ContractPrint.tsx`, klucze `amendment*`). Powstały z praktyki
+redakcyjnej, NIE z porady prawnej:
+
+1. Zdanie wprowadzające:
+   - PL: „Strony zgodnie postanawiają, że umowa wskazana powyżej ulega zmianie
+     w następującym zakresie:"
+   - EN: „The parties agree that the agreement referred to above is amended as
+     follows:"
+   - DE: „Die Parteien vereinbaren, dass der oben genannte Vertrag wie folgt
+     geändert wird:"
+2. Klauzula zamykająca (ostatni paragraf aneksu):
+   - PL: „Pozostałe postanowienia umowy pozostają bez zmian."
+   - EN: „All remaining provisions of the agreement remain unchanged."
+   - DE: „Die übrigen Bestimmungen des Vertrages bleiben unverändert."
+
+**Pytania do prawnika:**
+
+- Czy powyższe dwa zdania wystarczą, czy aneks powinien mieć własny komparycję
+  (oznaczenie stron, miejsce i datę zawarcia) ponad to, co już drukujemy
+  (numer aneksu, referencja i data umowy-matki, obie strony, data
+  przygotowania, e-podpis)?
+- **Czy aneks może być zawarty elektronicznie tak samo jak umowa.** Panel
+  używa dla aneksu dokładnie tego samego mechanizmu e-podpisu co dla umowy
+  (imię i nazwisko + IP + przeglądarka + znacznik czasu). Jeśli umowa
+  wymagałaby formy pisemnej pod rygorem nieważności, aneks dziedziczy ten
+  wymóg — proszę o jednoznaczną odpowiedź, bo od niej zależy, czy e-podpis
+  aneksu jest w ogóle wystarczający.
+- Czy klauzula „Zmiana zakresu" w `CONTRACT_CLAUSES` (mówi o „odrębnej wycenie
+  lub aneksie") jest spójna z tym, co aneks faktycznie robi.
+- Czy przy zmianie wynagrodzenia aneks powinien wprost odnosić się do
+  rozliczenia prac już wykonanych.
+
+**Uwaga o numeracji.** Aneksy numerowane są w obrębie jednej umowy
+(„Aneks nr 1", „nr 2"), referencja to `ANEKS-{nr}-{referencja umowy}`.
+Kolejny aneks pokazuje jako „dotychczasowe brzmienie" warunki z ostatniego
+PODPISANEGO aneksu, nie z pierwotnej umowy — proszę potwierdzić, że to
+poprawne ujęcie („umowa w brzmieniu nadanym aneksem nr 1").
+
+## Retencja dowodu e-podpisu — decyzja do potwierdzenia (2026-07-27)
+
+Przy e-podpisie oferty, umowy, NDA i aneksu zapisujemy imię i nazwisko,
+**adres IP i przeglądarkę** oraz znacznik czasu. Do tej pory te dane leżały
+**bezterminowo** — Audyt 2 objął retencją leady i korespondencję, e-podpisu
+nikt nie rozstrzygnął.
+
+**Decyzja właściciela: 6 lat od podpisu** (`ESIGN_PROOF_RETENTION_MONTHS = 72`
+w `lib/leadRetention.ts`), po czym dzienny cron zeruje **IP i przeglądarkę**.
+Imię, nazwisko i data podpisu ZOSTAJĄ — to treść drukowana pod dokumentem,
+a ich usunięcie zostawiłoby podpisany dokument z pustą rubryką.
+
+**Do potwierdzenia przez prawnika:**
+- Czy 6 lat (ogólny termin przedawnienia roszczeń majątkowych) to właściwy
+  okres, czy dla tej kategorii danych powinien być inny.
+- **Ten okres musi trafić do polityki prywatności** — dziś polityka nie mówi
+  o retencji danych e-podpisu w ogóle (patrz sekcja 2.1a, gdzie wymieniono
+  e-podpis jako kategorię danych bez podanego okresu).

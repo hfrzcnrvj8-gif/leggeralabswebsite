@@ -8678,3 +8678,129 @@ albo co jest sterowaniem dokumentem (status, ważność, unieważnienie linku).
 8. **`Odrzucona` dalej jest czerwona w panelu, szara w apce.** Rozstrzygnięcie
    z 2026-07-27 („wygrywa paleta apki") objęło tylko „Wysłaną". Świadomie
    nietknięte w audycie — kolory statusów są zamknięte decyzją właściciela.
+
+## Moduł 58 — Aneks do umowy (2026-07-27)
+
+Domknięcie najcięższego wniosku z audytu Modułu 57.
+`lib/blokadaDokumentu.ts` odmawiał zmiany podpisanej umowy zdaniem **„Zmiana
+wymaga aneksu."**, a aneksu system nie znał. Faktura miała korektę, oferta
+nową wersję, umowa — nic. Blokada bez drogi wyjścia to nie ochrona, tylko
+ślepy zaułek.
+
+### Kształt (decyzja właściciela)
+
+**„Było → jest", nie pełna kopia umowy.** Aneks pokazuje WYŁĄCZNIE warunki,
+które się zmieniają, i kończy klauzulą „Pozostałe postanowienia umowy
+pozostają bez zmian" — czyli tak, jak wygląda aneks papierowy. Pełna kopia
+kazałaby klientowi czytać dziesięć stron po raz drugi, żeby znaleźć jedną
+datę.
+
+Aneks zmienia cztery rzeczy (`POLA_ANEKSU`): przedmiot umowy, wynagrodzenie,
+walutę, termin. Danych stron NIE — zmiana strony umowy to nowa umowa, nie
+aneks. Stałych klauzul też nie: obowiązują dalej z umowy-matki, a przedruk
+sugerowałby, że aneks je zastępuje.
+
+### Gdzie mieszka
+
+Zwykły wiersz `contracts` z `typ = 'aneks'`, kolumny `parent_contract_id`,
+`aneks_nr`, `poprzednie` (JSONB). **Świadomie BEZ osobnej tabeli** — aneks
+dzieli z umową komplet mechaniki: e-podpis, `share_token`, wysyłkę mailem,
+blokadę po podpisie, publiczny wydruk. Osobna tabela kazałaby to wszystko
+zdublować. Trasa: `POST /api/contracts/:id/aneks`, przycisk „Sporządź aneks"
+pojawia się na liście Umów **tylko** przy podpisanej umowie.
+
+### Cztery rzeczy, które łatwo zrobić źle
+
+1. **Oryginał NIE schodzi z afisza.** To główna różnica wobec nowej wersji
+   oferty: zastąpiona oferta dostaje `superseded_at` i wypada z liczników, bo
+   nie jest ani wygrana, ani przegrana. Aneksowana umowa **dalej obowiązuje**
+   — obie strony ją podpisały. Zostaje „Podpisana" i liczy się wszędzie, gdzie
+   się liczyła (m.in. `signedContractRate`).
+2. **„Było" to warunki OBOWIĄZUJĄCE, nie pierwotne.** Drugi aneks czyta
+   ostatni **podpisany** aneks, nie umowę-matkę. Liczony od pierwotnej ceny
+   twierdziłby, że zmienia coś, na co strony dawno się nie umawiają. Szkice
+   i aneksy wysłane bez podpisu jeszcze niczego nie zmieniły, więc się nie
+   liczą.
+3. **„Było" to migawka (`poprzednie`), nie odczyt z umowy-matki.** Oryginał
+   jest wprawdzie zablokowany, ale dokładnie to założenie audyt Modułu 57
+   obalił w ofertach. Migawka przeżyje też usunięcie umowy-matki
+   (`ON DELETE SET NULL`, nie CASCADE — podpisanego aneksu nie kasuje się
+   kaskadą).
+4. **Porównanie musi być ZNORMALIZOWANE.** `roznicaAneksu` porównuje cenę
+   liczbowo (Postgres oddaje NUMERIC jako `"5000.00"`), daty po pierwszych
+   10 znakach (kolumna DATE potrafi wrócić jako `"2026-09-30T00:00:00.000Z"`),
+   teksty po `trim()`. Bez tego wydruk pokazywałby „było 5000, jest 5000"
+   na dokumencie idącym do podpisu. 10 testów jednostkowych (`test/aneks.test.ts`).
+
+### Aneks bez zmian
+
+Świeżo sporządzony aneks startuje z warunkami umowy, więc **nie zmienia
+niczego** — to stan poprawny, nie błąd. Wydruk mówi wtedy wprost, że nie ma
+treści, panel pokazuje ostrzeżenie w sekcji „Co zmienia ten aneks",
+a `POST /api/contracts/:id/send` **odmawia wysyłki (409)**. Reguła stoi
+w TRASIE, nie w przycisku — wprost wniosek z audytu Modułu 57.
+
+### Czego aneks nie robi
+
+- **Aneksu do aneksu nie ma** (409). Kolejny aneks robi się zawsze do umowy;
+  łańcuch aneksów wskazywałby na dokument, którego klient może nie mieć pod
+  ręką.
+- **NDA nie da się aneksować** (409) — nie ma warunków handlowych, więc nie ma
+  czego zmieniać.
+- **Apka aneksu nie tworzy** — poziom 3, ta sama granica co przy pozycjach
+  oferty. Apka ma go tylko poprawnie NAZWAĆ (przed Modułem 58 gałąź
+  `typ == "nda" ? "NDA" : "Umowa"` podpisywała aneks jako „Umowa”: bez awarii,
+  bez śladu w raportach, po prostu zły podpis na liście).
+
+### Przy okazji: komunikat blokady zależy od typu
+
+`blokadaUmowy(status, typ)` — nad podpisanym **aneksem** zdanie „Zmiana wymaga
+aneksu" byłoby złą radą, a nad NDA odsyłałoby w miejsce, którego nie ma. Trzy
+typy, trzy zdania. Treść prawna aneksu i pytania do prawnika (m.in. czy aneks
+w ogóle wolno zawrzeć e-podpisem): `docs/DO-PRAWNIKA-I-TLUMACZA.md`.
+
+## Poprawki po audycie Modułu 57 (2026-07-27)
+
+Wnioski otwarte z audytu, wykonane na wyraźną prośbę właściciela.
+
+**Licznik otwarć nie liczy automatów** (`lib/publicVisit.ts`). Publiczny
+podgląd oferty inkrementował licznik przy KAŻDYM żądaniu i przy pierwszym
+dzwonił „to jest moment, żeby zadzwonić". Link w mailu odwiedza jednak pół
+drogi zanim ktokolwiek go kliknie: zabezpieczenie poczty firmy klienta,
+podgląd linku w komunikatorze, prefetch przeglądarki. Właściciel dostawał
+„przeczytał" i dzwonił w próżnię. Dwa deterministyczne testy nagłówków
+(`Sec-Purpose` i pokrewne + podpisy w `User-Agent`), zero usług zewnętrznych,
+nic o odwiedzającym nie jest zapisywane. **Przy wątpliwości liczymy jak
+człowieka** — przeoczony robot zawyża licznik o jeden, przeoczony klient gubi
+jedyne powiadomienie w całym lejku.
+
+**Hamulec na publicznych trasach dokumentów** (`HAMULEC_DOKUMENT_PUBLICZNY`,
+5/60 min). Trzy trasy bez `isAuthed()` — e-podpis oferty, e-podpis umowy,
+„proszę o zmianę" — nie miały żadnego limitu; każda prośba dzwoni
+powiadomieniem, dopisuje się na oś czasu i wysyła maila. **Liczymy KAŻDĄ
+próbę, nie tylko nieudaną**: inaczej limit nie dotknąłby tego nadużycia,
+w którym wszystkie próby kończą się sukcesem (różnica wobec logowania).
+
+**Retencja dowodu e-podpisu — 6 lat** (`ESIGN_PROOF_RETENTION_MONTHS`,
+decyzja właściciela). Dzienny cron zeruje `accepted_ip` i
+`accepted_user_agent` na ofertach i umowach podpisanych dawniej niż termin
+przedawnienia roszczeń z umowy. **Czyścimy metryczkę, NIE podpis** —
+`accepted_by_name` i `accepted_at` zostają, bo to treść drukowana pod
+dokumentem; usunięcie ich zostawiłoby podpisany dokument z pustą rubryką,
+czyli zniszczyło dowód zamiast go ograniczyć. Okres musi trafić do polityki
+prywatności (`docs/DO-PRAWNIKA-I-TLUMACZA.md`).
+
+**Pozycja oferty przyjmuje ilość i zna język.** `POST` pozycji wstawiał
+zawsze `ilosc = 1`, ignorując ciało żądania (panel robi zaraz `PATCH`, więc
+nikt tego nie widział — ale trasa wołana z zewnątrz gubiła ilość bez błędu),
+a domyślna jednostka szła na sztywno „szt." także na ofercie niemieckiej
+(„EINHEIT: szt." na wydruku). Faktury miały słownik jednostek per język od
+dawna; oferty dostały ten sam.
+
+**„Odrzucona" zeszła z czerwieni** w Ofertach i Umowach — domknięcie decyzji
+z 27.07 („wygrywa paleta apki"), która objęła wtedy tylko „Wysłaną".
+Odrzucony dokument nie jest awarią, tylko zamkniętą sprawą, a czerwień
+w palecie apki jest zarezerwowana dla błędów.
+
+**Świadomie NIE zrobione:** pozycje oferty na telefonie (decyzja właściciela —
+wycena zostaje przy biurku, poziom 2/3 bez zmian).

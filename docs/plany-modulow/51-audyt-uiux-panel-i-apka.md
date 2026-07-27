@@ -306,6 +306,25 @@ twierdziła, że blokady są kompletne.
 właściciel; żywe zostaje to, co ZROBIŁ klient (wybór, podpis) albo co jest
 sterowaniem dokumentem (status, ważność, unieważnienie linku).
 
+### Runda 7 — wnioski audytu wykonane + ANEKS (2026-07-27)
+
+Właściciel poprosił o wdrożenie wszystkich wniosków z audytu. Wykonane:
+licznik otwarć nie liczy skanerów poczty ani prefetchu, hamulec na trzech
+publicznych trasach dokumentów, retencja dowodu e-podpisu (6 lat, czyści
+metryczkę techniczną a nie podpis), ilość i jednostka w pozycjach oferty,
+„Odrzucona" na neutralnym kolorze w Ofertach i Umowach. Świadomie pominięte:
+pozycje oferty na telefonie (wycena zostaje przy biurku).
+
+**ANEKS zbudowany** (Moduł 58) — łańcuch dokumentów jest domknięty: faktura
+ma korektę, oferta nową wersję, umowa aneks. Kształt „było → jest", wiersz
+w `contracts` z `typ='aneks'`, bez osobnej tabeli. Szczegóły i cztery
+pułapki: `HUB_SETUP.md` → „Moduł 58".
+
+**Wniosek metodyczny z całej tej sesji:** trzy z czterech dziur w blokadach
+i obie w migawce znalazła **sonda po realnych trasach**, nie przegląd kodu —
+a wszystkie były w miejscach, o których dokumentacja twierdziła, że są
+domknięte. Przy Umowach zaczynaj od sondy.
+
 ### Runda 5 — dokument i jego nienaruszalność (2026-07-27)
 
 - **Kalendarz zamiast koła dat** we WSZYSTKICH polach daty panelu: tydzień od
