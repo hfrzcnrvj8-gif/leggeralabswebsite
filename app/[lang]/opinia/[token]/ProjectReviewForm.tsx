@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
-import type { DocLang } from "@/lib/documents";
+import { DOC_GRADIENT, type DocLang } from "@/lib/documents";
 import { LinkRevokedNotice } from "../../admin/LinkRevokedNotice";
-
-const DOC_GRADIENT = "linear-gradient(120deg, #7C3AED 0%, #E0A93B 100%)";
+import { PasekMarkiDokumentu } from "../../admin/DocGradient";
 
 type PublicProject = {
   tytul: string;
@@ -197,7 +196,12 @@ export function ProjectReviewForm({ token }: { token: string }) {
   return (
     <div className="min-h-screen bg-neutral-100 py-10">
       <div className="mx-auto flex max-w-[560px] flex-col overflow-hidden rounded-2xl bg-white text-neutral-900 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_20px_40px_-16px_rgba(0,0,0,0.12)]">
-        <div className="h-[3px] w-full shrink-0" style={{ background: DOC_GRADIENT }} />
+        {/* Ten sam pasek co na dokumentach — SVG, nie tło (patrz
+            admin/DocGradient.tsx). Ta strona nie ma przycisku drukowania, ale
+            klient może ją wydrukować albo zapisać z przeglądarki, a wtedy tło
+            gradientu nie zostaje pomalowane i pasek znika. Jedno źródło
+            znaczy też, że kolejna poprawka gradientu tego miejsca nie ominie. */}
+        <PasekMarkiDokumentu id="pasek-opinia" />
         <div className="p-8">
           <h1 className="text-lg font-semibold">{t.title}</h1>
           <p className="mt-1.5 text-sm text-neutral-500">
