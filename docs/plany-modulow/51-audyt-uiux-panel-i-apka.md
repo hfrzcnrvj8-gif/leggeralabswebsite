@@ -413,6 +413,35 @@ sonda po realnych trasach, nie przegląd kodu — i wszystkie były w module, kt
 audyt Ofert opisał zdaniem „Umowy: bez zarzutu". Tamto sprawdzenie objęło
 `PATCH` i ponowny e-podpis, a nie `DELETE`, `send` ani przejścia statusu.
 
+
+### Runda 2 — sześć dodatków z rynku (2026-07-27)
+
+Po audycie właściciel zapytał, do jakiego rozwiązania rynkowego można się
+porównać. Punkt odniesienia: **DocuSign / Dropbox Sign** po stronie podpisu
+i **Juro / Concord** po stronie cyklu życia umowy (CLM); PandaDoc jako
+najbliższy kształtem all-in-one. Wniosek: pod względem obiegu panel był już
+blisko Dropbox Sign, brakowało sześciu rzeczy — wszystkie zbudowane
+(szczegóły: `HUB_SETUP.md` → „Umowy — paczka «koniec czarnej skrzynki»"):
+
+1. **Przypomnienie o podpisie** (`/remind`) — Pulpit mówił „cisza od 12 dni"
+   i zostawiał właściciela z pustą skrzynką. Przy okazji: „Przypomnij" na
+   Pulpicie APKI wołało `send`, czyli wysyłało dokument ponownie.
+2. **Ślad otwarcia** — po wysyłce umowy zapadała cisza absolutna; „nie
+   przeczytał" i „czyta trzeci raz" wyglądały tak samo.
+3. **Okres obowiązywania + alert odnowienia** — rdzeń CLM. Alert liczy się do
+   terminu WYPOWIEDZENIA, nie do daty końca: po nim umowa odnawialna przedłuża
+   się sama i ostrzeżenie jest bezużyteczne.
+4. **Rodzaje umowy** (wdrożeniowa / utrzymaniowa / PoC) — szablon wybiera
+   PODZBIÓR istniejących klauzul i nie dopisuje ani jednego nowego zdania
+   prawnego. Brakujące klauzule (SLA, prawa do materiałów PoC) wypisane
+   w `docs/DO-PRAWNIKA-I-TLUMACZA.md`.
+5. **Stanowisko podpisującego** — opcjonalne, wpisuje je sama osoba podpisująca.
+6. **Podpis po naszej stronie** — dokument ma wreszcie dwie rubryki.
+
+**Świadomie NIE kopiowane** (funkcje dla zespołu, nie dla jednej osoby):
+negocjacje z komentarzami i wersjonowaniem w dokumencie, obiegi zatwierdzeń,
+integracje z CRM-ami korporacyjnymi, „AI review klauzul".
+
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`
