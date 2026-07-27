@@ -3,6 +3,7 @@ import { getSql, ensureOffersSchema, logClientEvent } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
+import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,21 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+
+  // Hamulec (audyt Modułu 57). To jest trasa, na której nadużycie boli
+  // najbardziej: każda prośba dzwoni powiadomieniem, dopisuje się na oś czasu
+  // klienta i wysyła maila do właściciela. Bez limitu wystarczyło mieć link.
+  const odcisk = odciskZadania(req.headers);
+  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+  if (!limit.dozwolone) {
+    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+    return NextResponse.json(
+      { error: `Wysłano już kilka wiadomości. Spróbuj ponownie za ${limit.zaMinut} min.` },
+      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+    );
+  }
+  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const tresc = typeof body?.tresc === "string" ? body.tresc.trim().slice(0, 4000) : "";
   const kto = typeof body?.name === "string" ? body.name.trim().slice(0, 200) : "";

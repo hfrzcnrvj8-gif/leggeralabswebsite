@@ -76,6 +76,27 @@ export const HAMULEC_FORMULARZ: Hamulec = {
   oknoMinut: 60,
 };
 
+/** Publiczne trasy DOKUMENTÓW, które coś zapisują: e-podpis oferty i umowy
+ * oraz „proszę o zmianę" pod ofertą (audyt Modułu 57, 2026-07-27).
+ *
+ * Te trasy świadomie nie mają `isAuthed()` — token w linku pełni rolę hasła.
+ * Dopóki nie miały też hamulca, każdy, kto raz dostał link (albo komu klient
+ * go przesłał dalej), mógł zalać skrzynkę właściciela prośbami o zmianę:
+ * każda woła `notify()`, dopisuje się na oś czasu klienta i wysyła maila.
+ *
+ * **Liczymy KAŻDĄ próbę, nie tylko nieudaną** — inaczej hamulec nie dotknąłby
+ * właśnie tego nadużycia, w którym wszystkie próby kończą się sukcesem. To
+ * różnica wobec logowania, gdzie zliczamy pomyłki.
+ *
+ * Próg 5/60 min mieści prawdziwy ruch z zapasem: klient podpisuje raz,
+ * a prośbę o zmianę pisze najwyżej dwa–trzy razy w jednym posiedzeniu. */
+export const HAMULEC_DOKUMENT_PUBLICZNY: Hamulec = {
+  akcja: "dokument-publiczny",
+  prog: 5,
+  progGlobalny: 60,
+  oknoMinut: 60,
+};
+
 /** Ile godzin trzymamy wiersze. Hamulec potrzebuje minut; resztę zostawiamy
  * wyłącznie po to, żeby dało się zobaczyć „ktoś próbował w nocy". */
 const RETENCJA_GODZIN = 24;

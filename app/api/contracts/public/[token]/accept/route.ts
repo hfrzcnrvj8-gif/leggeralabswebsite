@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
+import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,20 @@ export const runtime = "nodejs";
  * "claim"-style UPDATE bez transakcji na wielu tabelach. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+
+  // Hamulec (audyt Modułu 57) — ten sam co przy e-podpisie oferty. Tu stawka
+  // jest najwyższa z trzech: to jest złożenie podpisu pod umową.
+  const odcisk = odciskZadania(req.headers);
+  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+  if (!limit.dozwolone) {
+    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+    return NextResponse.json(
+      { error: `Zbyt wiele prób. Spróbuj ponownie za ${limit.zaMinut} min.` },
+      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+    );
+  }
+  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 200) : "";
   if (!name) return NextResponse.json({ error: "Podaj imię i nazwisko." }, { status: 400 });

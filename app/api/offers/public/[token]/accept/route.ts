@@ -5,6 +5,7 @@ import { notify } from "@/lib/notificationLog";
 import { sendEmail } from "@/lib/email";
 import { offerReference } from "@/lib/offers";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
+import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
 import type { Offer } from "@/lib/offers";
 
 export const runtime = "nodejs";
@@ -16,6 +17,21 @@ export const runtime = "nodejs";
  * może samodzielnie "ożywić" starej oferty jednym kliknięciem. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+
+  // Hamulec (audyt Modułu 57) — patrz HAMULEC_DOKUMENT_PUBLICZNY. Prawdziwy
+  // klient podpisuje raz; sama akceptacja jest zabezpieczona „claimem", ale
+  // limit obejmuje też próby, które nie doszły do skutku.
+  const odcisk = odciskZadania(req.headers);
+  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+  if (!limit.dozwolone) {
+    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+    return NextResponse.json(
+      { error: `Zbyt wiele prób. Spróbuj ponownie za ${limit.zaMinut} min.` },
+      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+    );
+  }
+  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 200) : "";
   if (!name) return NextResponse.json({ error: "Podaj imię i nazwisko." }, { status: 400 });
