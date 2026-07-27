@@ -40,7 +40,7 @@ import { sendEmail } from "@/lib/email";
 import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
 import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
-import { purgeStaleLeads } from "@/lib/leadRetention";
+import { purgeStaleLeads, purgeStareDowodyPodpisu, ESIGN_PROOF_RETENTION_MONTHS } from "@/lib/leadRetention";
 import {
   purgeStareKandydaty,
   KANDYDACI_RETENCJA_DNI,
@@ -476,6 +476,20 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   });
   if (purgedLeads.purged > 0) {
     console.log(`[cron] usunięto ${purgedLeads.purged} leadów starszych niż ${LEADS_RETENTION_MONTHS} mies. bez konwersji`);
+  }
+
+  // Retencja dowodu e-podpisu (audyt Modułu 57, 6 lat). Nie usuwa dokumentów
+  // ani podpisów — zeruje IP i przeglądarkę pod ofertami/umowami podpisanymi
+  // dawniej niż termin przedawnienia roszczeń z umowy.
+  const purgedProofs = await purgeStareDowodyPodpisu().catch(async (e) => {
+    console.error("[cron] czyszczenie starych dowodów e-podpisu nie powiodło się", e);
+    await zapiszWyjatek("retencja", "Nie udało się wyczyścić metryczek e-podpisu (retencja RODO)", e);
+    return { oferty: 0, umowy: 0 };
+  });
+  if (purgedProofs.oferty + purgedProofs.umowy > 0) {
+    console.log(
+      `[cron] wyczyszczono metryczkę e-podpisu: ${purgedProofs.oferty} ofert, ${purgedProofs.umowy} umów starszych niż ${ESIGN_PROOF_RETENTION_MONTHS} mies.`
+    );
   }
 
   // Retencja kandydatów „Łowcy leadów" (Moduł 52, 30 dni). Osobna od retencji

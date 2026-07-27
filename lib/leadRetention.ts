@@ -64,3 +64,59 @@ export async function purgeStaleLeads(): Promise<{ purged: number }> {
 
   return { purged: ids.length };
 }
+
+/* --------------------------- dowód e-podpisu (audyt Modułu 57, 2026-07-27) -- */
+
+/**
+ * Po ilu miesiącach od podpisu czyścimy TECHNICZNĄ metryczkę e-podpisu.
+ *
+ * Sześć lat = ogólny termin przedawnienia roszczeń majątkowych z umowy
+ * (decyzja właściciela 2026-07-27, po audycie Modułu 57). Do tego czasu adres
+ * IP i przeglądarka mogą się przydać jako dowód, że oświadczenie woli złożyła
+ * ta osoba; po nim nie mają już do czego służyć, a dalsze trzymanie ich jest
+ * gromadzeniem danych bez celu.
+ *
+ * Ta wartość MUSI zgadzać się z polityką prywatności — jeśli zmienisz jedno,
+ * zmień drugie (patrz docs/DO-PRAWNIKA-I-TLUMACZA.md).
+ */
+export const ESIGN_PROOF_RETENTION_MONTHS = 72;
+
+/**
+ * Czyści `accepted_ip` i `accepted_user_agent` na ofertach i umowach
+ * podpisanych dawniej niż `ESIGN_PROOF_RETENTION_MONTHS`.
+ *
+ * **Czyścimy metryczkę, NIE podpis.** `accepted_by_name` i `accepted_at`
+ * zostają — to jest treść dokumentu, drukowana pod nim jako „Zaakceptowano
+ * przez … dnia …". Usunięcie ich zostawiłoby podpisany dokument z pustą
+ * rubryką podpisu, czyli zniszczyłoby dowód zamiast go ograniczyć. Znikają
+ * wyłącznie dwie dane techniczne, których na dokumencie nigdy nie było
+ * (`CONTRACT_PUBLIC_FIELDS` i `OFFER_PUBLIC_FIELDS` ich nie wypuszczają —
+ * Audyt 1, ustalenie 5).
+ *
+ * Świadomie bez `updated_at = now()`: czyszczenie retencyjne nie jest edycją
+ * dokumentu i nie ma podbijać go na listach „ostatnio zmienione".
+ */
+export async function purgeStareDowodyPodpisu(): Promise<{ oferty: number; umowy: number }> {
+  await ensureOffersSchema();
+  await ensureContractsSchema();
+  const sql = getSql();
+  const okno = `${ESIGN_PROOF_RETENTION_MONTHS} months`;
+
+  const oferty = (await sql`
+    UPDATE offers SET accepted_ip = NULL, accepted_user_agent = NULL
+    WHERE accepted_at IS NOT NULL
+      AND accepted_at < now() - ${okno}::interval
+      AND (accepted_ip IS NOT NULL OR accepted_user_agent IS NOT NULL)
+    RETURNING id;
+  `) as unknown as { id: string }[];
+
+  const umowy = (await sql`
+    UPDATE contracts SET accepted_ip = NULL, accepted_user_agent = NULL
+    WHERE accepted_at IS NOT NULL
+      AND accepted_at < now() - ${okno}::interval
+      AND (accepted_ip IS NOT NULL OR accepted_user_agent IS NOT NULL)
+    RETURNING id;
+  `) as unknown as { id: string }[];
+
+  return { oferty: oferty.length, umowy: umowy.length };
+}
