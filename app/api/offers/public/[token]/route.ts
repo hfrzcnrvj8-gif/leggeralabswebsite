@@ -3,6 +3,7 @@ import { getSql, ensureOffersSchema, logClientEvent } from "@/lib/db";
 import { notify } from "@/lib/notificationLog";
 import { CLOSED_OFFER_STATUSES, type OfferStatus } from "@/lib/offers";
 import { pickFields, OFFER_PUBLIC_FIELDS, COMPANY_SETTINGS_PUBLIC_FIELDS } from "@/lib/publicFields";
+import { czyLiczycJakoOtwarcie } from "@/lib/publicVisit";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 
 export const runtime = "nodejs";
@@ -15,7 +16,7 @@ function numItems(rows: Row[]): Row[] {
 /** GET /api/offers/public/:token — podgląd oferty dla KLIENTA, bez logowania
  * (link wysyłany mailem). Świadomie brak isAuthed() — token jest losowy (32
  * znaki hex) i pełni rolę hasła-w-linku; wzorem app/api/invoices/public. */
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   await ensureOffersSchema();
   const sql = getSql();
@@ -87,41 +88,49 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   //
   // Zapis w GET jest tu świadomy: to jedyny moment, w którym klient dotyka
   // systemu. Nie blokuje odpowiedzi — gdyby padł, oferta i tak się pokaże.
+  //
+  // Automaty NIE liczą się jako otwarcie (audyt Modułu 57): skaner bramki
+  // pocztowej klienta i podgląd linku w komunikatorze odwiedzają ten adres
+  // zanim człowiek go kliknie, a właściciel dostawał wtedy „przeczytał" i
+  // dzwonił w próżnię. Patrz lib/publicVisit.ts. Dokument oddajemy normalnie
+  // — nie liczymy ich, nie blokujemy.
   const pierwszeOtwarcie = !offer.otwarta_at;
   const zamknieta = CLOSED_OFFER_STATUSES.has(String(offer.status) as OfferStatus);
-  try {
-    await sql`
-      UPDATE offers SET
-        otwarta_at = COALESCE(otwarta_at, now()),
-        ostatnio_otwarta_at = now(),
-        liczba_otwarc = liczba_otwarc + 1
-      WHERE id = ${offer.id};
-    `;
-    // Powiadomienie i wpis na osi TYLKO przy pierwszym otwarciu i tylko dla
-    // oferty wciąż w grze — dziesiąte wejście klienta w zaakceptowaną ofertę
-    // nie jest wiadomością, tylko szumem. `dedupeKey` domyka to po stronie
-    // dzwonka nawet przy wyścigu dwóch żądań.
-    if (pierwszeOtwarcie && !zamknieta) {
-      const tytul = String(offer.tytul || "(bez tytułu)");
-      await notify({
-        kind: "offer_opened",
-        title: `Klient otworzył ofertę: ${tytul}`,
-        body: "To jest moment, w którym warto zadzwonić — oferta jest właśnie na wierzchu.",
-        entity: "offer",
-        entityId: String(offer.id),
-        dedupeKey: `offer_opened:${offer.id}`,
-      });
-      await logClientEvent(
-        sql,
-        typeof offer.client_id === "string" ? offer.client_id : null,
-        "offer_opened",
-        `Klient otworzył ofertę „${tytul}”`,
-        null,
-        String(offer.id)
-      );
+  if (czyLiczycJakoOtwarcie(req.headers)) {
+    try {
+      await sql`
+        UPDATE offers SET
+          otwarta_at = COALESCE(otwarta_at, now()),
+          ostatnio_otwarta_at = now(),
+          liczba_otwarc = liczba_otwarc + 1
+        WHERE id = ${offer.id};
+      `;
+      // Powiadomienie i wpis na osi TYLKO przy pierwszym otwarciu i tylko dla
+      // oferty wciąż w grze — dziesiąte wejście klienta w zaakceptowaną ofertę
+      // nie jest wiadomością, tylko szumem. `dedupeKey` domyka to po stronie
+      // dzwonka nawet przy wyścigu dwóch żądań.
+      if (pierwszeOtwarcie && !zamknieta) {
+        const tytul = String(offer.tytul || "(bez tytułu)");
+        await notify({
+          kind: "offer_opened",
+          title: `Klient otworzył ofertę: ${tytul}`,
+          body: "To jest moment, w którym warto zadzwonić — oferta jest właśnie na wierzchu.",
+          entity: "offer",
+          entityId: String(offer.id),
+          dedupeKey: `offer_opened:${offer.id}`,
+        });
+        await logClientEvent(
+          sql,
+          typeof offer.client_id === "string" ? offer.client_id : null,
+          "offer_opened",
+          `Klient otworzył ofertę „${tytul}”`,
+          null,
+          String(offer.id)
+        );
+      }
+    } catch (err) {
+      console.error("[GET /api/offers/public/:token] nie udało się zapisać otwarcia", err);
     }
-  } catch (err) {
-    console.error("[GET /api/offers/public/:token] nie udało się zapisać otwarcia", err);
   }
   // Biała lista pól — patrz lib/publicFields.ts.
   return NextResponse.json({
