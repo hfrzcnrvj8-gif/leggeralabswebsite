@@ -660,6 +660,10 @@ export function OfferEditor({
   const expired = isOfferExpired(offer);
   const waluta = offer.waluta || DEFAULT_OFFER_CURRENCY;
   const powodOdrzucenia = rejectReasonLabel(offer.powod_odrzucenia ?? "", offer.komentarz_odrzucenia ?? "");
+  // Treść wysłanej oferty jest zamknięta (decyzja właściciela 2026-07-27) —
+  // regułę egzekwuje serwer (lib/blokadaDokumentu.ts), a edytor ma o niej
+  // MÓWIĆ, zamiast pozwalać pisać w pola, które i tak odbiją się od trasy.
+  const zablokowana = offer.status !== "Szkic";
   const dniDoWaznosci = offer.wazna_do ? daysBetweenISO(todayLocalISO(), offer.wazna_do) : null;
   const zwrot = obliczZwrot(offer, total);
 
@@ -753,6 +757,13 @@ export function OfferEditor({
               />
             </div>
             {linkHint && <LinkHint text={linkHint} />}
+            {zablokowana && (
+              <div className="mb-3 rounded-xl border border-brand-gold/40 bg-brand-gold/10 px-3 py-2 text-[12px] text-brand-gold">
+                {accepted
+                  ? "Oferta zaakceptowana — powstały z niej projekt i faktura, więc treść jest zamknięta na stałe."
+                  : "Oferta jest u klienta pod tym samym linkiem, więc treści nie da się już zmienić. Potrzebujesz poprawki? Zrób nową wersję — poprzednia zostanie oznaczona jako zastąpiona."}
+              </div>
+            )}
             {/* Etykieta po lewej, wartość po prawej (Moduł 54, krok 6). Wcześniej
                 było tu siedem pól rozpoznawalnych WYŁĄCZNIE po placeholderze —
                 a placeholder znika, gdy pole ma treść, więc wypełniona oferta
@@ -764,6 +775,7 @@ export function OfferEditor({
                   onLocal={(v) => setOffer((p) => (p ? { ...p, tytul: v } : p))}
                   onSave={(v) => patchOffer({ tytul: v })}
                   placeholder="np. Oferta — wdrożenie asystenta AI"
+                  disabled={zablokowana}
                 />
               </WierszPola>
             </SekcjaProfilu>
@@ -774,6 +786,7 @@ export function OfferEditor({
                   onLocal={(v) => setOffer((p) => (p ? { ...p, klient_nazwa: v } : p))}
                   onSave={(v) => patchOffer({ klient_nazwa: v })}
                   placeholder="Nazwa firmy"
+                  disabled={zablokowana}
                 />
               </WierszPola>
               <WierszPola
@@ -796,6 +809,7 @@ export function OfferEditor({
                   onLocal={(v) => setOffer((p) => (p ? { ...p, klient_nip: v } : p))}
                   onSave={(v) => patchOffer({ klient_nip: v })}
                   placeholder="np. DE123456789"
+                  disabled={zablokowana}
                 />
               </WierszPola>
               <WierszPola etykieta="Email" title="Adres, na który idzie link do oferty">
@@ -804,6 +818,7 @@ export function OfferEditor({
                   onLocal={(v) => setOffer((p) => (p ? { ...p, klient_email: v } : p))}
                   onSave={(v) => patchOffer({ klient_email: v })}
                   placeholder="do wysyłki oferty"
+                  disabled={zablokowana}
                 />
               </WierszPola>
               <WierszPola etykieta="Ulica">
@@ -812,6 +827,7 @@ export function OfferEditor({
                   onLocal={(v) => setOffer((p) => (p ? { ...p, klient_ulica: v } : p))}
                   onSave={(v) => patchOffer({ klient_ulica: v })}
                   placeholder="ulica i numer"
+                  disabled={zablokowana}
                 />
               </WierszPola>
               <WierszPola etykieta="Kod / Miasto">
@@ -821,12 +837,14 @@ export function OfferEditor({
                   onSave={(v) => patchOffer({ klient_kod: v })}
                   placeholder="00-000"
                   className="w-[86px] shrink-0"
+                  disabled={zablokowana}
                 />
                 <PoleTekstowe
                   value={offer.klient_miasto}
                   onLocal={(v) => setOffer((p) => (p ? { ...p, klient_miasto: v } : p))}
                   onSave={(v) => patchOffer({ klient_miasto: v })}
                   placeholder="miasto"
+                  disabled={zablokowana}
                 />
               </WierszPola>
               <WierszPola etykieta="Kraj" title="Wypełnij dla klienta zagranicznego — stąd bierze się stawka VAT szkicu faktury po akceptacji">
@@ -835,6 +853,7 @@ export function OfferEditor({
                   onLocal={(v) => setOffer((p) => (p ? { ...p, klient_kraj: v } : p))}
                   onSave={(v) => patchOffer({ klient_kraj: v })}
                   placeholder="pusty = Polska"
+                  disabled={zablokowana}
                 />
               </WierszPola>
             </SekcjaProfilu>
@@ -854,7 +873,7 @@ export function OfferEditor({
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-[13px] font-medium">Treść oferty</h2>
-              <div className="flex items-center gap-1.5">
+              <div className={`flex items-center gap-1.5 ${zablokowana ? "hidden" : ""}`}>
                 <Popover
                   align="right"
                   width={220}
@@ -934,7 +953,7 @@ export function OfferEditor({
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-[13px] font-medium">Pozycje</h2>
               <div className="flex items-center gap-1.5">
-                {templates.length > 0 && (
+                {!zablokowana && templates.length > 0 && (
                   <Popover
                     align="right"
                     width={260}
@@ -965,7 +984,7 @@ export function OfferEditor({
                     )}
                   </Popover>
                 )}
-                {catalog.length > 0 && (
+                {!zablokowana && catalog.length > 0 && (
                   <Popover
                     align="right"
                     width={300}
@@ -989,9 +1008,11 @@ export function OfferEditor({
                     )}
                   </Popover>
                 )}
-                <button onClick={addItem} className="rounded-full border hairline px-3 py-1 text-xs">
-                  + Pozycja
-                </button>
+                {!zablokowana && (
+                  <button onClick={addItem} className="rounded-full border hairline px-3 py-1 text-xs">
+                    + Pozycja
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1098,6 +1119,7 @@ export function OfferEditor({
               onChange={(e) => setOffer((p) => (p ? { ...p, uwagi: e.target.value } : p))}
               onBlur={(e) => patchOffer({ uwagi: e.target.value })}
               rows={2}
+              disabled={zablokowana}
               placeholder="np. Zakres, warunki płatności, uwagi dla klienta."
               className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
@@ -1470,12 +1492,14 @@ function PoleTekstowe({
   onSave,
   placeholder,
   className = "",
+  disabled = false,
 }: {
   value: string;
   onLocal: (v: string) => void;
   onSave: (v: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -1483,6 +1507,7 @@ function PoleTekstowe({
       onChange={(e) => onLocal(e.target.value)}
       onBlur={(e) => onSave(e.target.value)}
       placeholder={placeholder}
+      disabled={disabled}
       className={`min-w-0 flex-1 rounded-md border border-transparent bg-transparent py-1 text-[var(--fg)] placeholder:text-muted hover:border-[var(--hairline)] focus:border-[var(--hairline)] focus:outline-none ${className}`}
     />
   );

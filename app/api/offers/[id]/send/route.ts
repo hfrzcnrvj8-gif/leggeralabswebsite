@@ -21,6 +21,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (offer.share_revoked_at) return NextResponse.json({ error: "Link do tej oferty jest unieważniony — wygeneruj nowy przed wysyłką." }, { status: 409 });
     if (!offer.klient_email) return NextResponse.json({ error: "Brak adresu e-mail klienta — uzupełnij go w edytorze." }, { status: 400 });
 
+    // MIGAWKA — robimy ją PRZED wysyłką maila, żeby link w mailu od pierwszej
+    // sekundy prowadził do treści, która właśnie poszła. Kolejność ma tu
+    // znaczenie: mail wychodzi raz, migawkę da się powtórzyć.
+    const pozycjeDoMigawki = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
+    const sekcjeDoMigawki = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
+    await sql`
+      UPDATE offers SET
+        migawka = ${JSON.stringify({ offer, items: pozycjeDoMigawki, sections: sekcjeDoMigawki })},
+        migawka_at = now()
+      WHERE id = ${id};
+    `;
+
     const token = await ensureOfferShareToken(sql, id, typeof offer.share_token === "string" ? offer.share_token : null);
     const url = `${req.nextUrl.origin}/pl/oferta/${token}`;
     const tytul = typeof offer.tytul === "string" && offer.tytul ? offer.tytul : "oferta";

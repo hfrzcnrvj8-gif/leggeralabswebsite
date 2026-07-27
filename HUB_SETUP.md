@@ -8526,3 +8526,47 @@ informację zamiast ujednolicić znaczenie.
 
 Cyjan zostaje wolny dla akcentów niebędących statusem (np. licznik otwarć
 oferty, podpowiedzi) — i tam nie kłóci się z niczym.
+
+## Blokada dokumentów po wysłaniu (2026-07-27)
+
+Pytanie właściciela: „czy jak coś się zrobiło, to można to edytować, czy
+zawsze musi być nowe albo korekta — żeby mieć od początku zbudowany system
+zgodnie z prawem". Stan przed tą rundą był gorszy, niż wyglądał:
+
+| Dokument | Ochrona PRZED | Ochrona PO |
+|---|---|---|
+| Faktura wystawiona | tylko edytor (`const locked = !isDraft`); trasa `PATCH` przyjmowała wszystko | trasa odmawia (409) zmiany treści; poprawka korektą |
+| Umowa podpisana | żadna | trasa odmawia; zmiana wymaga aneksu |
+| Oferta wysłana | żadna, a publiczny link renderował ŻYWE dane | trasa odmawia; zmiana przez „Nową wersję" |
+
+**Blokada w interfejsie nie jest blokadą — jest podpowiedzią.** Reguły żyją
+w `lib/blokadaDokumentu.ts` i są egzekwowane w trasach, bo tras używa też apka,
+druga karta przeglądarki i każdy przyszły ekran.
+
+**Co ZOSTAJE wolne mimo blokady** (`POLA_MIMO_BLOKADY_*`): status, powód
+odrzucenia, data ważności, powiązania. To praca handlowa albo ustępstwo wobec
+klienta — żadne z tego nie zmienia tego, co klient przeczytał. Rozdzielenie
+jest istotne: „zablokowana oferta" nie może znaczyć „nie da się jej zamknąć".
+
+Oferta ZAAKCEPTOWANA jest zamknięta w całości — powstały z niej projekt
+i szkic faktury, więc każda zmiana rozjeżdżałaby trzy dokumenty naraz.
+
+### Migawka: klient widzi to, co dostał
+
+`offers.migawka` (JSONB) + `migawka_at`. Przy wysyłce zapisujemy pełną kopię
+treści (nagłówek, pozycje, sekcje), a publiczna trasa renderuje **ją**, nie
+żywe dane. Powód: bez tego dokument „u klienta" zmieniał się razem z bazą
+i przy sporze nie było czego pokazać.
+
+Żywe zostają tylko `status`, `accepted_at`, `accepted_by_name`,
+`share_revoked_at` — inaczej klient po podpisaniu dalej widziałby przycisk
+„Akceptuję".
+
+**Pułapka, na której to poległo za pierwszym razem:** kolejność scalania.
+`{ ...migawka, ...offer }` sprawia, że żywe dane nadpisują migawkę w komplecie
+i cała funkcja nic nie daje. Złapane testem end-to-end (zmiana tytułu w bazie
+→ klient widział nowy), nie przeglądem kodu. Teraz migawka jest podstawą,
+a z bazy dokładana jest wyłącznie wymieniona lista pól.
+
+Oferty wysłane przed tą zmianą migawki nie mają — dla nich publiczna trasa
+dalej czyta dane żywe (fallback).

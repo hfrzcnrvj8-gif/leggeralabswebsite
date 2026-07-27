@@ -3,6 +3,7 @@ import { getSql, ensureOffersSchema, ensureContractsSchema, logClientEvent } fro
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { OFFER_LANGS, isOfferStatus, isOfferCurrency, isOfferRejectReason, rejectReasonLabel } from "@/lib/offers";
+import { blokadaOferty, POLA_MIMO_BLOKADY_OFERTY, ruszaTresc } from "@/lib/blokadaDokumentu";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     await ensureOffersSchema();
     const sql = getSql();
+
+    // Blokada treści po wysłaniu (decyzja właściciela 2026-07-27) — patrz
+    // lib/blokadaDokumentu.ts. Stoi TUTAJ, nie w edytorze: tras używa też
+    // apka i każdy przyszły ekran.
+    const stan = (await sql`SELECT status FROM offers WHERE id = ${id};`)[0];
+    if (!stan) return NextResponse.json({ error: "not found" }, { status: 404 });
+    const blokada = blokadaOferty(String(stan.status ?? ""));
+    if (blokada.zablokowane && ruszaTresc(body, POLA_MIMO_BLOKADY_OFERTY)) {
+      return NextResponse.json({ error: blokada.komunikat }, { status: 409 });
+    }
+    // Zaakceptowana zamyka nawet ważność i status — dokument jest domknięty.
+    const domkniete = blokadaOferty("Zaakceptowana");
+    if (String(stan.status ?? "") === "Zaakceptowana" && domkniete.zablokowane) {
+      return NextResponse.json({ error: domkniete.komunikat }, { status: 409 });
+    }
+
     const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
     const dateOrNull = (v: unknown): string | null | undefined => {
       if (typeof v !== "string") return undefined;

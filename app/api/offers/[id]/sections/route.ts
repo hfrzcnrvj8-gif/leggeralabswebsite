@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { blokadaOferty } from "@/lib/blokadaDokumentu";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   await ensureOffersSchema();
   const sql = getSql();
+
+  // Treść wysłanej oferty jest zamknięta — patrz lib/blokadaDokumentu.ts.
+  const stanOferty = (await sql`SELECT status FROM offers WHERE id = ${id};`)[0];
+  if (!stanOferty) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const blokadaTresci = blokadaOferty(String(stanOferty.status ?? ""));
+  if (blokadaTresci.zablokowane) {
+    return NextResponse.json({ error: blokadaTresci.komunikat }, { status: 409 });
+  }
 
   const offer = await sql`SELECT id FROM offers WHERE id = ${id};`;
   if (!offer[0]) return NextResponse.json({ error: "not found" }, { status: 404 });

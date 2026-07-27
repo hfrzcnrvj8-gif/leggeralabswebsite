@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { blokadaOferty } from "@/lib/blokadaDokumentu";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!body) return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   await ensureOffersSchema();
   const sql = getSql();
+
+  // Treść wysłanej oferty jest zamknięta — patrz lib/blokadaDokumentu.ts.
+  const stanOferty = (await sql`SELECT status FROM offers WHERE id = ${id};`)[0];
+  if (!stanOferty) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const blokadaTresci = blokadaOferty(String(stanOferty.status ?? ""));
+  if (blokadaTresci.zablokowane) {
+    return NextResponse.json({ error: blokadaTresci.komunikat }, { status: 409 });
+  }
 
   if ("tytul" in body) {
     const v = typeof body.tytul === "string" ? body.tytul.slice(0, 200) : "";

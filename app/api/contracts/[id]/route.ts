@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { isPlausibleDateString } from "@/lib/projects";
 import { DOC_LANGS } from "@/lib/documents";
 import { CONTRACT_CLAUSES, NDA_CLAUSES } from "@/lib/contracts";
@@ -37,6 +38,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     await ensureContractsSchema();
     const sql = getSql();
+
+  // Podpisanej umowy nie edytujemy — obie strony mają kopię (decyzja
+  // właściciela 2026-07-27, patrz lib/blokadaDokumentu.ts). Zmiana wymaga
+  // aneksu, czyli nowego dokumentu.
+  const stanUmowy = (await sql`SELECT status FROM contracts WHERE id = ${id};`)[0];
+  if (!stanUmowy) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const blokada = blokadaUmowy(String(stanUmowy.status ?? ""));
+  if (blokada.zablokowane && ruszaTresc(body ?? {}, POLA_MIMO_BLOKADY_UMOWY)) {
+    return NextResponse.json({ error: blokada.komunikat }, { status: 409 });
+  }
     const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
     const dateOrNull = (v: unknown): string | null | undefined => {
       if (typeof v !== "string") return undefined;

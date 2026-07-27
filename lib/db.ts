@@ -1244,6 +1244,13 @@ async function createOffersSchema(): Promise<void> {
   // się z kwoty oferty, więc nie ma czego trzymać w bazie.
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS roi_godziny NUMERIC NOT NULL DEFAULT 0;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS roi_stawka NUMERIC NOT NULL DEFAULT 0;`;
+  // Migawka wysłanej oferty (decyzja właściciela 2026-07-27): pełna kopia
+  // treści z chwili wysyłki. Publiczny link renderuje JĄ, nie żywe dane —
+  // dzięki temu dokument „u klienta" jest tym, co klient dostał, nawet gdyby
+  // ktoś kiedyś odblokował edycję albo poprawił coś wyjątkiem. Przy sporze
+  // jest czym się posłużyć.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS migawka JSONB;`;
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS migawka_at TIMESTAMPTZ;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (

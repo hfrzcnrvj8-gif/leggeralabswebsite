@@ -16,6 +16,13 @@ import {
   obliczZwrot,
 } from "../lib/offers.ts";
 import { podstawPola } from "../lib/offerTemplates.ts";
+import {
+  blokadaOferty,
+  blokadaFaktury,
+  blokadaUmowy,
+  ruszaTresc,
+  POLA_MIMO_BLOKADY_OFERTY,
+} from "../lib/blokadaDokumentu.ts";
 import { contractReference } from "../lib/contracts.ts";
 import { domyslnaStawkaVat } from "../lib/offerAccept.ts";
 
@@ -153,4 +160,33 @@ test("pola scalane podstawiają się, nieznane zostają widoczne", () => {
   assert.equal(podstawPola("Ważna do {{ wazna_do }}", w), "Ważna do 09.08.2026");
   // Literówka ma być WIDOCZNA, nie zamieniona w pustkę w ofercie do klienta.
   assert.equal(podstawPola("Cześć {{klientt}}", w), "Cześć {{klientt}}");
+});
+
+// ── Blokada dokumentów (2026-07-27) ───────────────────────────────────────
+
+test("oferta: szkic wolny, wysłana zamknięta, zaakceptowana zamknięta na stałe", () => {
+  assert.equal(blokadaOferty("Szkic").zablokowane, false);
+  const wyslana = blokadaOferty("Wysłana");
+  assert.equal(wyslana.zablokowane, true);
+  assert.match(wyslana.zablokowane ? wyslana.komunikat : "", /Nowej wersji/);
+  const zaakceptowana = blokadaOferty("Zaakceptowana");
+  assert.equal(zaakceptowana.zablokowane, true);
+  assert.match(zaakceptowana.zablokowane ? zaakceptowana.komunikat : "", /projekt i faktura/);
+});
+
+test("faktura zamyka się numerem, umowa podpisem", () => {
+  assert.equal(blokadaFaktury(null).zablokowane, false);
+  assert.equal(blokadaFaktury("   ").zablokowane, false);
+  assert.equal(blokadaFaktury("FV 3/2026").zablokowane, true);
+  assert.equal(blokadaUmowy("Wysłana").zablokowane, false);
+  assert.equal(blokadaUmowy("Podpisana").zablokowane, true);
+});
+
+test("blokada nie zamyka pól, które nie są treścią dokumentu", () => {
+  // Zamknięcie oferty statusem i przedłużenie ważności to praca handlowa,
+  // nie zmiana tego, co klient przeczytał.
+  assert.equal(ruszaTresc({ status: "Odrzucona", powod_odrzucenia: "Za drogo" }, POLA_MIMO_BLOKADY_OFERTY), false);
+  assert.equal(ruszaTresc({ wazna_do: "2026-09-01" }, POLA_MIMO_BLOKADY_OFERTY), false);
+  assert.equal(ruszaTresc({ tytul: "Nowy" }, POLA_MIMO_BLOKADY_OFERTY), true);
+  assert.equal(ruszaTresc({ status: "Wysłana", tytul: "Nowy" }, POLA_MIMO_BLOKADY_OFERTY), true);
 });

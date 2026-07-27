@@ -24,8 +24,31 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
   // 410 Gone, nie 404 (Moduł 40) — dokument istnieje, dostęp odebrany.
   if (offer.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
-  const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
-  const sections = await sql`SELECT id, tytul, tresc, position FROM offer_sections WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
+  // Klient dostaje MIGAWKĘ z chwili wysyłki, nie żywe dane (decyzja
+  // właściciela 2026-07-27). Bez tego dokument „u klienta" zmieniał się razem
+  // z bazą, a przy sporze nie było czego pokazać. Fallback na dane żywe
+  // dotyczy ofert wysłanych przed tą zmianą — te migawki nie mają.
+  const migawka = (offer.migawka ?? null) as { offer?: Record<string, unknown>; items?: unknown[]; sections?: unknown[] } | null;
+  const zMigawki = migawka && Array.isArray(migawka.items);
+  const items = zMigawki
+    ? (migawka.items as Record<string, unknown>[])
+    : await sql`SELECT * FROM offer_items WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
+  const sections = zMigawki && Array.isArray(migawka.sections)
+    ? (migawka.sections as Record<string, unknown>[])
+    : await sql`SELECT id, tytul, tresc, position FROM offer_sections WHERE offer_id = ${offer.id} ORDER BY position ASC;`;
+  // Nagłówek (tytuł, dane klienta, waluta, ROI) z MIGAWKI, ale wąska lista
+  // pól musi zostać ŻYWA: status i ślady akceptacji. Inaczej klient po
+  // podpisaniu dalej widziałby przycisk „Akceptuję".
+  //
+  // Kolejność scalania jest tu całą różnicą. Pierwsza wersja robiła
+  // `{ ...migawka, ...offer }` — czyli żywe dane nadpisywały migawkę w
+  // KOMPLECIE i cała ta funkcja nic nie dawała (złapane testem: po zmianie
+  // tytułu w bazie klient widział nowy). Teraz migawka jest podstawą,
+  // a z bazy dokładamy tylko to, co wymienione.
+  const ZAWSZE_ZYWE = ["status", "accepted_at", "accepted_by_name", "share_revoked_at", "id", "created_at"] as const;
+  const naglowek = zMigawki && migawka?.offer
+    ? { ...migawka.offer, ...Object.fromEntries(ZAWSZE_ZYWE.map((k) => [k, (offer as Record<string, unknown>)[k]])) }
+    : offer;
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
 
   // Ślad otwarcia (runda 2 Modułu 57). Do tej pory po wysłaniu maila zapadała
@@ -73,7 +96,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   }
   // Biała lista pól — patrz lib/publicFields.ts.
   return NextResponse.json({
-    offer: pickFields(offer, OFFER_PUBLIC_FIELDS),
+    offer: pickFields(naglowek, OFFER_PUBLIC_FIELDS),
     items: numItems(items),
     // Sekcje idą w całości — to treść napisana przez właściciela DLA klienta,
     // nie kolumny rekordu, więc nie ma tu czego przesiewać białą listą.

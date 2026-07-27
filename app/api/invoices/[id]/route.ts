@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { blokadaFaktury, POLA_MIMO_BLOKADY_FAKTURY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { isPlausibleDateString } from "@/lib/projects";
 import { INVOICE_LANGS, PAYMENT_METHODS, invoiceTotals, type InvoiceItem } from "@/lib/invoices";
 
@@ -70,6 +71,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     await ensureInvoicesSchema();
     const sql = getSql();
+
+  // Wystawionej faktury nie wolno zmieniać — poprawka idzie korektą.
+  // Ta reguła istniała TYLKO w edytorze (`const locked = !isDraft`), więc
+  // ochrona kończyła się na interfejsie: trasa przyjmowała wszystko. Usunięcie
+  // numerowanej faktury było blokowane serwerowo od dawna — edycja nie.
+  const stanFaktury = (await sql`SELECT numer FROM invoices WHERE id = ${id};`)[0];
+  if (!stanFaktury) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const blokadaFV = blokadaFaktury(stanFaktury.numer as string | null);
+  if (blokadaFV.zablokowane && ruszaTresc(body ?? {}, POLA_MIMO_BLOKADY_FAKTURY)) {
+    return NextResponse.json({ error: blokadaFV.komunikat }, { status: 409 });
+  }
     const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
     const dateOrNull = (v: unknown): string | null | undefined => {
       if (typeof v !== "string") return undefined;
