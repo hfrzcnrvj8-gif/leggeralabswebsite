@@ -126,6 +126,23 @@ type FeedItem = {
  * właściciel), plus powiązane oferty/faktury/projekty w jednym miejscu.
  * Wzorem LeadDetailPanel.tsx: ten sam kształt panelu/podstrony.
  */
+/** Jeden krok ścieżki dokumentów — kształt 1:1 z `KrokSciezki` po stronie
+ * trasy (app/api/clients/[id]). */
+type KrokSciezki = {
+  rodzaj: "offer" | "contract" | "invoice";
+  id: string;
+  prefiks: string;
+  etykieta: string;
+  status: string;
+  created_at: string;
+};
+
+const SEGMENT_KROKU: Record<KrokSciezki["rodzaj"], string> = {
+  offer: "offers",
+  contract: "contracts",
+  invoice: "invoices",
+};
+
 export function ClientDetailPanel({
   id,
   lang,
@@ -162,6 +179,7 @@ export function ClientDetailPanel({
   const [followups, setFollowups] = useState<ClientFollowupItem[]>([]);
   const [contacts, setContacts] = useState<ClientContact[]>([]);
   const [creatingDoc, setCreatingDoc] = useState<"offers" | "invoices" | null>(null);
+  const [sciezki, setSciezki] = useState<KrokSciezki[][]>([]);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const [focusNote, setFocusNote] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -197,6 +215,7 @@ export function ClientDetailPanel({
       mail: ClientMail[];
       followups: ClientFollowupItem[];
       contacts: ClientContact[];
+      sciezki?: KrokSciezki[][];
     };
     setClient(data.client);
     setFeed(data.feed);
@@ -207,6 +226,7 @@ export function ClientDetailPanel({
     setMail(data.mail ?? []);
     setFollowups(data.followups ?? []);
     setContacts(data.contacts ?? []);
+    setSciezki(data.sciezki ?? []);
     setNoteFollowup(data.client.next_followup ?? "");
     setNoteAction(data.client.next_action ?? "");
   }, [id]);
@@ -790,6 +810,36 @@ export function ClientDetailPanel({
                     </>
                   }
                 >
+                  {/* ŚCIEŻKA DOKUMENTÓW (2026-07-27) — prośba właściciela:
+                      „widzieć, że z oferty 21 powstała umowa 32, a z niej
+                      faktura 765". Listy niżej mówią, CO jest przypięte;
+                      ścieżka mówi, co z czego WYNIKA — przy dwóch równoległych
+                      wątkach sprzedaży to dwie różne historie, których sama
+                      chronologia nie rozdziela. Wątki liczy serwer
+                      (`zbudujSciezki`), z jawnych powiązań, nie ze zgadywania
+                      po projekcie. */}
+                  {sciezki.length > 0 && (
+                    <div className="mb-4 space-y-2">
+                      {sciezki.map((sciezka, i) => (
+                        <div key={i} className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg card-inset px-3 py-2">
+                          {sciezka.map((krok, j) => (
+                            <span key={krok.id} className="flex items-center gap-1.5">
+                              {j > 0 && <span className="text-muted opacity-50">→</span>}
+                              <Link
+                                href={`/${lang}/admin/${SEGMENT_KROKU[krok.rodzaj]}/${krok.id}`}
+                                className="rounded-md px-1.5 py-0.5 text-[12px] text-[var(--fg)] hover:bg-[var(--hairline)]"
+                                title={`${krok.prefiks} — ${krok.status}`}
+                              >
+                                <span className="text-muted">{krok.prefiks} </span>
+                                {krok.etykieta}
+                              </Link>
+                              <span className="text-[10.5px] text-muted opacity-70">{krok.status}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {linkedCount === 0 && (
                     <p className="text-sm text-muted opacity-60">
                       Nic jeszcze nie jest przypięte do tego klienta — zacznij od oferty.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconX, IconCheck, IconLoader2, IconExternalLink, IconMail } from "@tabler/icons-react";
+import { IconX, IconCheck, IconLoader2, IconExternalLink, IconMail, IconReceipt } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Contract,
@@ -66,6 +66,7 @@ export function ContractEditor({
   const [sending, setSending] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [reminding, setReminding] = useState(false);
+  const [zaliczkaWTrakcie, setZaliczkaWTrakcie] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/contracts/${id}`);
@@ -235,6 +236,21 @@ export function ContractEditor({
     }
     await load();
   }, [id, toast, load]);
+
+  /** Szkic faktury zaliczkowej z tej umowy. Drugie kliknięcie otwiera
+   * istniejącą fakturę zamiast wystawiać drugą (dedupe po stronie trasy). */
+  const wystawZaliczke = useCallback(async () => {
+    setZaliczkaWTrakcie(true);
+    const res = await fetch(`/api/contracts/${id}/faktura-zaliczkowa`, { method: "POST" });
+    setZaliczkaWTrakcie(false);
+    const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string; existing?: boolean; kwota?: number };
+    if (!res.ok || !data.id) {
+      toast(data.error ?? "Nie udało się wystawić faktury.", "error");
+      return;
+    }
+    toast(data.existing ? "Zaliczka do tej umowy już istnieje — otwieram ją." : "Szkic faktury zaliczkowej gotowy.");
+    window.open(`/${lang}/admin/invoices/${data.id}`, "_blank");
+  }, [id, lang, toast]);
 
   const remove = useCallback(async () => {
     if (!contract) return;
@@ -799,6 +815,21 @@ export function ContractEditor({
                 <p className="mt-1 text-right text-[11px] text-muted">
                   {formatMoney((contract.cena * contract.zaliczka_procent) / 100, contract.waluta || "PLN")} z góry
                 </p>
+              )}
+              {/* Faktura zaliczkowa wprost z umowy — kwotę liczy serwer
+                  z pola wyżej, żeby nie przepisywać jej ręcznie do modułu
+                  Faktury (tam literówka wychodzi dopiero u klienta).
+                  Widoczna dopiero po podpisie: przed nim to prośba o przelew
+                  pod dokument, którego druga strona nie zaakceptowała. */}
+              {signed && contract.zaliczka_procent > 0 && contract.cena > 0 && (
+                <button
+                  onClick={wystawZaliczke}
+                  disabled={zaliczkaWTrakcie}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-[var(--fg)] hover:bg-[var(--hairline)] disabled:opacity-50"
+                >
+                  {zaliczkaWTrakcie ? <IconLoader2 size={13} className="animate-spin" /> : <IconReceipt size={13} />}
+                  Wystaw fakturę zaliczkową
+                </button>
               )}
               <textarea
                 value={contract.platnosci_opis}

@@ -901,6 +901,15 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS klient_kraj TEXT NOT NULL DEFAULT '';`;
   // Odbiorca — opcjonalny, osobny od nabywcy (np. faktura na centralę, towar
   // fizycznie dla oddziału), jak w Fakturowni/inFakt. Puste pola = brak.
+  // Skąd wzięła się ta faktura (2026-07-27) — łańcuch dokumentów na karcie
+  // klienta. Do tej pory powiązanie oferta→umowa→faktura było WYŁĄCZNIE
+  // domyślne przez wspólny `project_id`, więc faktura zaliczkowa wystawiona
+  // przed założeniem projektu nie miała jak wskazać, z czego wynika. Kolumny
+  // są luźne (bez FK ON DELETE CASCADE) — usunięcie oferty nie może zabrać
+  // faktury, ona żyje własnym, pięcioletnim życiem.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS offer_id TEXT;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS contract_id TEXT;`;
+  await sql`CREATE INDEX IF NOT EXISTS invoices_contract_idx ON invoices(contract_id);`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_nazwa TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_ulica TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS odbiorca_kod TEXT NOT NULL DEFAULT '';`;

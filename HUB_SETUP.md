@@ -9158,3 +9158,41 @@ do każdej następnej sesji.
 i nie zostawiał śladu w konsoli. Wszystkie trzy złapał dopiero POMIAR —
 wydruk do PDF z `printBackground: false`, konwersja do szarości i policzenie
 luminancji pikseli. Sprawdzając wydruk, mierz; nie oglądaj.
+
+### Ścieżka dokumentów i faktura zaliczkowa z umowy (2026-07-27)
+
+**Faktura zaliczkowa wprost z umowy** (`POST /api/contracts/:id/faktura-zaliczkowa`).
+Pola zaliczki pojawiły się rano, ale nic ich nie łączyło z modułem Faktury —
+kwotę trzeba było przepisać ręcznie, czyli dokładnie ta sytuacja, w której
+literówka wychodzi dopiero u klienta. Trasa zakłada SZKIC (numer nadaje moduł
+Faktury przy wystawieniu, bo to on pilnuje ciągłości numeracji), w trybie
+`ceny_brutto` (zaliczka to tyle, ile klient przelewa), ze stawką VAT z kraju
+klienta i jedną pozycją „Zaliczka N% do umowy UM-2026-…" — numer umowy jest
+w TREŚCI pozycji, żeby dało się dopasować przelew bez otwierania panelu.
+Odmawia (409) dla NDA/DPA, dla umowy niepodpisanej (od tego jest proforma)
+i przy zerowej zaliczce. Dedupe po `contract_id`: drugie kliknięcie otwiera
+istniejącą fakturę.
+
+**Ścieżka dokumentów na karcie klienta** (prośba właściciela: „widzieć, że
+z oferty 21 powstała umowa 32, a z niej faktura 765"). Oś czasu pokazuje
+zdarzenia po kolei, ale nie mówi, co z czego WYNIKA — przy dwóch równoległych
+wątkach sprzedaży to dwie historie przeplecione datami.
+
+Wątki liczy serwer (`zbudujSciezki` w `app/api/clients/[id]`), z **jawnych**
+powiązań: `contracts.offer_id`, `contracts.parent_contract_id`, nowe
+`invoices.offer_id` i `invoices.contract_id`. Aneks idzie zaraz za swoją
+umową, nie na końcu wątku. Dokumenty bez oferty (NDA, DPA, umowa
+wolnostojąca, faktura wpisana ręcznie) dostają własny, jednoelementowy wątek —
+**ukryty dokument jest gorszy niż samotny**.
+
+**Czego świadomie NIE robimy: nie zgadujemy powiązań po `project_id`.**
+Faktury sprzed tej zmiany nie mają `offer_id`/`contract_id` i zostają w wątku
+„bez źródła". Fałszywe powiązanie na dokumencie finansowym jest gorsze niż
+jego brak. Nowe dokumenty (akceptacja oferty, zaliczka z umowy) niosą je od
+razu.
+
+`prefiks` jest osobnym polem od `etykieta` — inaczej UI sklejało „Faktura
+Zaliczka (szkic)" i „Umowa Aneks nr 1".
+
+Apka pokazuje tę samą ścieżkę w karcie klienta, pionowo z wcięciem (poziomy
+łańcuch zawijałby się na telefonie w plątaninę).

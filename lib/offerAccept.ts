@@ -140,11 +140,11 @@ export async function acceptOffer(
       const invoiceId = randomUUID();
       await sql`
         INSERT INTO invoices (
-          id, lead_id, project_id, client_id, klient_nazwa, klient_nip, klient_adres,
+          id, lead_id, project_id, client_id, offer_id, klient_nazwa, klient_nip, klient_adres,
           klient_ulica, klient_kod, klient_miasto, klient_kraj, waluta
         )
         VALUES (
-          ${invoiceId}, ${leadId}, ${projectId}, ${clientId}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres},
+          ${invoiceId}, ${leadId}, ${projectId}, ${clientId}, ${offer.id}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres},
           ${offer.klient_ulica ?? ""}, ${offer.klient_kod ?? ""}, ${offer.klient_miasto ?? ""}, ${offer.klient_kraj ?? ""},
           ${offer.waluta || DEFAULT_OFFER_CURRENCY}
         );

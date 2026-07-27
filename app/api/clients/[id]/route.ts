@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureClientsSchema, ensureContractsSchema, ensureFollowupsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { offerReference } from "@/lib/offers";
+import { contractReference, type ContractTyp } from "@/lib/contracts";
 import { isPlausibleDateString } from "@/lib/projects";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
@@ -14,6 +16,119 @@ export const runtime = "nodejs";
  * na klienta + zdarzenia systemowe jak wysłanie oferty/wystawienie
  * faktury/wpłata) + powiązane oferty/faktury/projekty (szybkie linki do
  * aktualnego stanu). */
+type OfferRow = { id: string; tytul: string; status: string; waluta?: string | null; created_at: string };
+type ContractRow = {
+  id: string;
+  typ: string;
+  status: string;
+  offer_id: string | null;
+  parent_contract_id: string | null;
+  aneks_nr: number;
+  created_at: string;
+};
+type InvoiceRow = {
+  id: string;
+  numer: string | null;
+  status: string;
+  typ_dokumentu: string;
+  offer_id: string | null;
+  contract_id: string | null;
+  created_at: string;
+};
+
+/** Jeden krok ścieżki — tyle, ile potrzeba, żeby narysować wiersz i kliknąć. */
+export type KrokSciezki = {
+  rodzaj: "offer" | "contract" | "invoice";
+  id: string;
+  /** Co to za dokument („Oferta", „Aneks", „Zaliczka") — osobno od numeru,
+   * żeby UI nie sklejało „Faktura Zaliczka (szkic)". */
+  prefiks: string;
+  etykieta: string;
+  status: string;
+  created_at: string;
+};
+
+/** Łączy dokumenty w wątki „oferta → umowa (→ aneks) → faktura".
+ *
+ * Zasada: wątek zaczyna OFERTA, bo od niej zaczyna się sprzedaż. Dokumenty bez
+ * oferty (NDA, powierzenie danych, umowa wolnostojąca, faktura wpisana ręcznie)
+ * dostają własny, jednoelementowy wątek — zamiast być doklejone do przypadkowej
+ * oferty albo zniknąć z widoku. Ukryty dokument jest gorszy niż samotny.
+ */
+function zbudujSciezki(offers: OfferRow[], contracts: ContractRow[], invoices: InvoiceRow[]): KrokSciezki[][] {
+  const uzyteUmowy = new Set<string>();
+  const uzyteFaktury = new Set<string>();
+
+  const krokOferty = (o: OfferRow): KrokSciezki => ({
+    rodzaj: "offer",
+    id: o.id,
+    prefiks: "Oferta",
+    etykieta: offerReference(o),
+    status: o.status,
+    created_at: o.created_at,
+  });
+  const krokUmowy = (c: ContractRow): KrokSciezki => ({
+    rodzaj: "contract",
+    id: c.id,
+    prefiks: c.typ === "aneks" ? "Aneks" : c.typ === "nda" ? "NDA" : c.typ === "dpa" ? "Powierzenie" : "Umowa",
+    etykieta:
+      c.typ === "aneks"
+        ? `nr ${c.aneks_nr}`
+        : contractReference({ id: c.id, typ: c.typ as ContractTyp, created_at: c.created_at }),
+    status: c.status,
+    created_at: c.created_at,
+  });
+  const krokFaktury = (i: InvoiceRow): KrokSciezki => ({
+    rodzaj: "invoice",
+    id: i.id,
+    prefiks: i.typ_dokumentu === "zaliczkowa" ? "Zaliczka" : i.typ_dokumentu === "proforma" ? "Proforma" : "Faktura",
+    etykieta: i.numer || "(szkic)",
+    status: i.status,
+    created_at: i.created_at,
+  });
+
+  const sciezki: KrokSciezki[][] = [];
+
+  for (const o of offers) {
+    const krok = [krokOferty(o)];
+    // Umowy z tej oferty + ich aneksy (aneks idzie ZARAZ za swoją umową, nie
+    // na końcu wątku — inaczej „nr 1" wisiałby pod fakturą i nie było widać,
+    // czego dotyczy).
+    for (const c of contracts.filter((x) => x.offer_id === o.id && x.typ !== "aneks")) {
+      krok.push(krokUmowy(c));
+      uzyteUmowy.add(c.id);
+      for (const a of contracts.filter((x) => x.parent_contract_id === c.id)) {
+        krok.push(krokUmowy(a));
+        uzyteUmowy.add(a.id);
+      }
+      for (const f of invoices.filter((x) => x.contract_id === c.id)) {
+        krok.push(krokFaktury(f));
+        uzyteFaktury.add(f.id);
+      }
+    }
+    for (const f of invoices.filter((x) => x.offer_id === o.id && !uzyteFaktury.has(x.id))) {
+      krok.push(krokFaktury(f));
+      uzyteFaktury.add(f.id);
+    }
+    sciezki.push(krok);
+  }
+
+  for (const c of contracts.filter((x) => !uzyteUmowy.has(x.id) && x.typ !== "aneks")) {
+    const krok = [krokUmowy(c)];
+    for (const a of contracts.filter((x) => x.parent_contract_id === c.id && !uzyteUmowy.has(x.id))) krok.push(krokUmowy(a));
+    for (const f of invoices.filter((x) => x.contract_id === c.id && !uzyteFaktury.has(x.id))) {
+      krok.push(krokFaktury(f));
+      uzyteFaktury.add(f.id);
+    }
+    sciezki.push(krok);
+  }
+
+  const osierocone = invoices.filter((f) => !uzyteFaktury.has(f.id));
+  if (osierocone.length > 0) sciezki.push(osierocone.map(krokFaktury));
+
+  return sciezki;
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -48,8 +163,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
       : Promise.resolve([] as RawActivity[]),
     sql`SELECT id, kind, text, amount, related_id, created_at FROM client_events WHERE client_id = ${id};`,
-    sql`SELECT id, tytul, status, wazna_do, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
-    sql`SELECT id, numer, status, typ_dokumentu, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    sql`SELECT id, tytul, status, wazna_do, waluta, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    sql`SELECT id, numer, status, typ_dokumentu, offer_id, contract_id, project_id, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
     // Pola opinii (Moduł 15) jadą razem z projektem: gwiazdka z listy klientów
     // mówiła TYLE, że jakaś opinia jest, ale profil klienta milczał o tym, KTÓRY
     // projekt ją przyniósł i czy klient zgodził się na referencję — a to jedyne
@@ -60,7 +175,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         review_comment, review_submitted_at, review_consent_case_study
       FROM projects WHERE client_id = ${id} ORDER BY created_at DESC;
     `,
-    sql`SELECT id, typ, status, project_id, accepted_at, created_at FROM contracts WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    sql`SELECT id, typ, status, project_id, offer_id, parent_contract_id, aneks_nr, accepted_at, created_at FROM contracts WHERE client_id = ${id} ORDER BY created_at DESC;`,
     // Kartoteka korespondencji (04d pkt 2) — osobny rejestr obok scalonego
     // feedu, na wyraźną prośbę właściciela (nadpisuje wcześniejszą decyzję z
     // 04-skrzynka-mailowa.md o braku osobnej sekcji).
@@ -130,7 +245,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail, followups, contacts });
+  // ŚCIEŻKI DOKUMENTÓW (2026-07-27, prośba właściciela) — „z oferty powstała
+  // umowa, a z niej faktura". Oś czasu pokazuje zdarzenia po kolei, ale nie
+  // mówi, co z czego WYNIKA: przy dwóch równoległych wątkach sprzedaży to
+  // dwie różne historie przeplecione datami.
+  //
+  // Budujemy je z JAWNYCH powiązań (`contracts.offer_id`, `invoices.offer_id`,
+  // `invoices.contract_id`, `parent_contract_id`), nie ze zgadywania po
+  // projekcie — starsze faktury tych kolumn nie mają i świadomie NIE próbujemy
+  // ich dopisać wstecz: fałszywe powiązanie na dokumencie finansowym jest
+  // gorsze niż jego brak. Trafiają do wątku „bez źródła".
+  const sciezki = zbudujSciezki(
+    offers as OfferRow[],
+    contracts as ContractRow[],
+    invoices as InvoiceRow[]
+  );
+
+  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail, followups, contacts, sciezki });
 }
 
 /** PATCH /api/clients/:id — aktualizacja pól karty klienta. */
