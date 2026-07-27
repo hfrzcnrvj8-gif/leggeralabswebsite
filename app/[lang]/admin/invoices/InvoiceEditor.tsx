@@ -62,6 +62,7 @@ import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { invalidateLinkTargets } from "../LinkPicker";
 import { DocLinkPicker } from "../DocLinkPicker";
 import { ShareLinkControl } from "../ShareLinkControl";
+import { MiniSciezka } from "../MiniSciezka";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 
 export function InvoiceEditor({
@@ -652,6 +653,8 @@ export function InvoiceEditor({
           </span>
         </div>
       )}
+
+      <MiniSciezka rodzaj="invoice" id={id} lang={lang} />
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         {/* Główna kolumna: klient + pozycje */}

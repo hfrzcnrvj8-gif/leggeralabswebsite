@@ -37,6 +37,7 @@ import { type TimeEntry, formatDuration, sumMinutes, effectiveHourlyRate } from 
 import { todayLocalISO } from "@/lib/dates";
 import { TIMER_CHANGED_EVENT } from "../AppShell";
 import { ShareLinkControl } from "../ShareLinkControl";
+import { MiniSciezka } from "../MiniSciezka";
 
 /** Rdzeń widoku szczegółów projektu, w stylu Linear: treść + kamienie
  * milowe + log aktywności po lewej, metadane (zdrowie/status/terminy/
@@ -838,6 +839,8 @@ export function ProjectDetailPanel({
             )}
           </div>
       </div>
+
+      <MiniSciezka rodzaj="project" id={id} lang={langPrefix as Locale} />
 
       <div className="mt-5 flex h-9 items-center gap-4 border-b hairline">
         <ViewTabs

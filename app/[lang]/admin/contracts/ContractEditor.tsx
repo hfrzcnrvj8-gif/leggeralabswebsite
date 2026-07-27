@@ -33,6 +33,7 @@ import { ClientLinkChip, EditableText } from "../components";
 import { PropertyMenu } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
 import { DocLinkPicker } from "../DocLinkPicker";
+import { MiniSciezka } from "../MiniSciezka";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { Modal } from "../Modal";
@@ -512,6 +513,8 @@ export function ContractEditor({
           )}
         </div>
       )}
+
+      <MiniSciezka rodzaj="contract" id={id} lang={lang} />
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="min-w-0 space-y-4">

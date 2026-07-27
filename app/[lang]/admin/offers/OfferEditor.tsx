@@ -40,6 +40,7 @@ import { Tooltip } from "../Tooltip";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { invalidateLinkTargets } from "../LinkPicker";
+import { MiniSciezka } from "../MiniSciezka";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 import type { Client } from "@/lib/clients";
 import { lookupClientByNip } from "@/lib/vies";
@@ -739,6 +740,8 @@ export function OfferEditor({
           OSOBNO — ten sam wzorzec co profil klienta (Moduł 54, krok 6).
           Bez tego pełna szerokość dawała bardzo długą stronę, w której akcje
           po prawej uciekały poza ekran przy dłuższej liście pozycji. */}
+      <MiniSciezka rodzaj="offer" id={id} lang={lang} />
+
       <div className="mt-4 grid gap-5 lg:h-[calc(85vh-88px)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Na bardzo szerokim ekranie kolumna treści dzieli się na dwie:
             dane klienta stoją obok treści i cennika, zamiast rozciągać pola

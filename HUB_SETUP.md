@@ -9288,3 +9288,37 @@ powiązanych rekordów, bez zależności.
 
 Apka pokazuje tę samą ścieżkę tekstowo (pionowo, z wcięciem) — na telefonie
 drzewko z krawędziami wymagałoby przewijania w dwóch osiach naraz.
+
+#### Mini-mapa w profilu dokumentu (2026-07-27)
+
+`GET /api/sciezka/:rodzaj/:id` + `app/[lang]/admin/MiniSciezka.tsx` — to samo
+drzewko, ale w profilu oferty, umowy, faktury i projektu, pod nagłówkiem
+„Skąd i dokąd", z **podświetlonym kafelkiem otwartego dokumentu**.
+
+Logika wyprowadzona do `lib/sciezkaDokumentow.ts`: karta klienta i profil liczą
+wątek TĄ SAMĄ funkcją. Dwie kopie tej reguły rozjechałyby się przy pierwszej
+zmianie i profil pokazywałby inne zależności niż karta.
+
+**Dociągane osobnym żądaniem, po otwarciu profilu** — wątek wymaga dokumentów
+całego klienta; doklejenie go do `GET` każdego dokumentu kosztowałoby cztery
+zapytania przy każdym wejściu w edytor, także gdy nikt na mapę nie patrzy.
+Mini-mapa milczy, gdy wątek ma mniej niż dwa węzły.
+
+**Pułapka po drodze:** pierwsza wersja brała nazwę tabeli z mapy i wstrzykiwała
+ją przez `sql.unsafe` — klient `neon()` (i PGlite w dev) tego nie mają, więc
+każda mini-mapa kończyła się 500. Teraz zwykły `switch` z czterema zapytaniami.
+
+#### Drzewko na iPadzie (`DrzewkoSciezki.swift`)
+
+Ten sam kształt co w panelu, ale **układ liczony, nie mierzony**: wszystkie
+wymiary są stałe (kafelek 150×58, odstępy 20/8), więc pozycje znam z góry
+i krawędzie rysują się w tym samym kadrze co kafelki, bez migotania. W panelu
+mierzę po ułożeniu, bo tam szerokość kafelka zależy od treści i okna.
+
+Rozgałęzienie po `horizontalSizeClass`, nie po idiomie urządzenia — iPad
+w wąskim Split View dostaje listę z wcięciem, jak iPhone. Dotknięcie kafelka
+otwiera dokument w arkuszu (tym samym, co „Powiązane"), więc drzewko jest
+miejscem pracy, nie obrazkiem.
+
+Pierwsze wymiary (168×62, odstęp 28) ucinały ostatnią kolumnę w kolumnie
+szczegółów iPada — wyglądały dobrze na pustym ekranie, źle w realnym układzie.

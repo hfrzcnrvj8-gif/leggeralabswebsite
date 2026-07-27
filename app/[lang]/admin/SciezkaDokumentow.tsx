@@ -99,7 +99,17 @@ function ulozDrzewo(wezly: WezelSciezki[]): Ulozony[] {
   return wynik;
 }
 
-export function SciezkaDokumentow({ wezly, lang }: { wezly: WezelSciezki[]; lang: Locale }) {
+export function SciezkaDokumentow({
+  wezly,
+  lang,
+  aktywny,
+}: {
+  wezly: WezelSciezki[];
+  lang: Locale;
+  /** Węzeł „tu jesteś" — profil dokumentu podaje własne id. Bez tego mini-mapa
+   * w profilu każe szukać wzrokiem, który kafelek to ten otwarty. */
+  aktywny?: string;
+}) {
   // useMemo, NIE gołe wywołanie: `ulozDrzewo` zwraca nową tablicę przy każdym
   // renderze, więc `przelicz` (zależny od niej) też był nowy, efekt strzelał
   // ponownie, `setKrawedzie` renderowało — i tak w kółko, aż React przerywał
@@ -239,9 +249,9 @@ export function SciezkaDokumentow({ wezly, lang }: { wezly: WezelSciezki[]; lang
               onClick={() => otworz(u.wezel)}
               onContextMenu={(e) => ctx.openAt(e, u.wezel)}
               title={`${u.wezel.prefiks} ${u.wezel.etykieta} — ${u.wezel.status}`}
-              className={`relative z-[1] w-[150px] cursor-pointer rounded-lg border hairline bg-[var(--bg)] px-2.5 py-1.5 transition-colors hover:bg-[var(--hairline)]/50 ${
-                przygaszony ? "opacity-60" : ""
-              }`}
+              className={`relative z-[1] w-[150px] cursor-pointer rounded-lg border bg-[var(--bg)] px-2.5 py-1.5 transition-colors hover:bg-[var(--hairline)]/50 ${
+                u.wezel.id === aktywny ? "border-brand-purple/60 ring-1 ring-brand-purple/40" : "hairline"
+              } ${przygaszony ? "opacity-60" : ""}`}
             >
               <div className="flex items-center gap-1.5">
                 <Ikona size={13} className={AKCENT[u.wezel.rodzaj]} />
