@@ -37,9 +37,12 @@ export const CONTRACT_TYP_LABEL_LANG: Record<DocLang, Record<ContractTyp, string
 export type ContractStatus = "Szkic" | "Wysłana" | "Podpisana" | "Odrzucona";
 export const CONTRACT_STATUSES: ContractStatus[] = ["Szkic", "Wysłana", "Podpisana", "Odrzucona"];
 
+/* „Wysłana" fioletem — patrz komentarz przy OFFER_STATUS_CLASS (lib/offers.ts).
+ * Umowa wysłana do podpisu to dokładnie ta sama sytuacja co oferta wysłana do
+ * decyzji, więc ma ten sam kolor po obu stronach. */
 export const CONTRACT_STATUS_CLASS: Record<string, string> = {
   Szkic: "bg-[var(--hairline)] text-muted",
-  Wysłana: "bg-brand-cyan/15 text-brand-cyan",
+  Wysłana: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
   Podpisana: "bg-emerald-500/20 text-emerald-400 font-semibold",
   Odrzucona: "bg-red-500/15 text-red-400",
 };

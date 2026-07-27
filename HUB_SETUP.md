@@ -8504,3 +8504,25 @@ bez ostrzeżeń i nie działało wcale. Wyszło dopiero przy klikaniu.
 - Mapa `CelWpisuOsi` musi nadążać za `CLIENT_EVENT_TARGET`: wpisy
   `offer_opened`/`offer_rejected`/`offer_expired`/`offer_change_requested`
   wyglądały na klikalne i prowadziły donikąd.
+
+
+## Kolor „dokument wysłany" — rozstrzygnięte (2026-07-27)
+
+Panel malował „Wysłaną" ofertę i umowę **cyjanem**, apka **fioletem marki**.
+To nie była usterka jednego modułu, tylko dwie spójne palety na tej samej osi
+znaczeniowej — dlatego przez trzy rundy świadomie tego nie ruszaliśmy.
+
+**Decyzja właściciela: wygrywa apka.** Panel przeszedł na fiolet w Ofertach
+i Umowach (`OFFER_STATUS_CLASS`, `CONTRACT_STATUS_CLASS`), tym samym
+precedensem co przy statusie klienta w Module 51: paleta apki przeszła osobny
+audyt koloru, a zieleń jest w niej zarezerwowana dla „zrobione/sukces".
+Odcień tekstu (`#c4a5ff`) ten sam co w `CLIENT_STATUS_CLASS` — czysty `#7C3AED`
+na ciemnym tle jest za ciemny do czytania.
+
+**Faktury zostają bez zmian.** „Wystawiona" to nie to samo co „wysłana do
+decyzji": faktura po wystawieniu czeka na PIENIĄDZE, nie na podpis, a apka
+maluje ją neutralnie (`.secondary`). Rozciągnięcie decyzji na faktury zabrałoby
+informację zamiast ujednolicić znaczenie.
+
+Cyjan zostaje wolny dla akcentów niebędących statusem (np. licznik otwarć
+oferty, podpowiedzi) — i tam nie kłóci się z niczym.

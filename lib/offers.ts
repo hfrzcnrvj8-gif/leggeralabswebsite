@@ -65,9 +65,16 @@ export function rejectReasonLabel(powod: string, komentarz: string): string {
   return `${p} — ${k}`;
 }
 
+/* Kolor „Wysłana" ujednolicony z apką 2026-07-27 (decyzja właściciela): fiolet
+ * marki = dokument poszedł do klienta i czeka na jego ruch. Panel malował to
+ * cyjanem, apka fioletem — dwie spójne palety, jedna oś znaczeniowa. Wygrała
+ * apka, tym samym precedensem co przy statusie klienta (Moduł 51): jej paleta
+ * przeszła osobny audyt koloru. Odcień tekstu ten sam co w CLIENT_STATUS_CLASS,
+ * bo czysty #7C3AED na ciemnym tle jest za ciemny do czytania.
+ * Bliźniak: `kolorStatusuOferty` w OfertyView.swift. */
 export const OFFER_STATUS_CLASS: Record<string, string> = {
   Szkic: "bg-[var(--hairline)] text-muted",
-  Wysłana: "bg-brand-cyan/15 text-brand-cyan",
+  Wysłana: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
   Zaakceptowana: "bg-emerald-500/20 text-emerald-400 font-semibold",
   Odrzucona: "bg-red-500/15 text-red-400",
   Wygasła: "bg-[var(--hairline)] text-muted opacity-70",
