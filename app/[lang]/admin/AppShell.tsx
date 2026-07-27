@@ -159,12 +159,16 @@ const GO_CHORDS: Record<string, string> = {
  * samo zdjęcie limitu by mu nie wystarczyło — jego kolumny rozciągają się
  * teraz na dostępną szerokość (patrz clients/KanbanBoard.tsx).
  *
+ * Umowy dołączyły 2026-07-27 (zgłoszenie właściciela: „czarne pasy po bokach").
+ * Tabela ma sześć kolumn i profil na pełną szerokość karty — limit zostawiał
+ * puste pasy dokładnie tak, jak wcześniej przy Ofertach.
+ *
  * Reszta panelu (formularze, Statystyki, Pulpit) ZOSTAJE przy limicie: tam
  * pełna szerokość dałaby linie tekstu ciągnące się przez cały monitor, czyli
  * dokładnie odwrotny efekt. Dopisuj tu moduł dopiero wtedy, gdy realnie
  * brakuje mu miejsca — nie „dla spójności".
  */
-const PELNA_SZEROKOSC = ["mail", "leads", "clients", "offers"];
+const PELNA_SZEROKOSC = ["mail", "leads", "clients", "offers", "contracts"];
 
 export function AppShell({
   lang,

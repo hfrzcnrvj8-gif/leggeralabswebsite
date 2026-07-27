@@ -1,7 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPlus, IconX, IconExternalLink, IconFileText, IconFilePlus, IconSearch } from "@tabler/icons-react";
+import {
+  IconPlus,
+  IconX,
+  IconExternalLink,
+  IconFileText,
+  IconFilePlus,
+  IconSearch,
+  IconMail,
+  IconBell,
+  IconLink,
+  IconSignature,
+  IconThumbDown,
+  IconTrash,
+} from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Contract,
@@ -14,7 +27,7 @@ import {
 } from "@/lib/contracts";
 import { formatMoney } from "@/lib/invoices";
 import { useUI, useRegisterActions } from "../ui";
-import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { Popover, MenuRow, MenuDivider, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { ContractEditor } from "./ContractEditor";
 import { Modal } from "../Modal";
@@ -26,6 +39,11 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [rejectFor, setRejectFor] = useState<string | null>(null);
+  /** Menu pod prawym przyciskiem myszy (zgłoszenie właściciela 2026-07-27) —
+   * Oferty mają je od Modułu 57, Umowy nie miały żadnego: prawy przycisk
+   * otwierał menu przeglądarki. Wszystko, co tu jest, da się zrobić też
+   * widocznym przyciskiem albo w profilu — to skrót, nie jedyna droga. */
+  const ctx = useContextMenu<Contract>();
   const [szukaj, setSzukaj] = useState("");
   const szukajRef = useRef<HTMLInputElement>(null);
   const [kursor, setKursor] = useState(0);
@@ -159,6 +177,68 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
       await updateStatus(id, status);
     },
     [updateStatus]
+  );
+
+  /** Wysyłka mailem — ta sama trasa co w profilu. */
+  const wyslijDokument = useCallback(
+    async (c: Contract) => {
+      const res = await fetch(`/api/contracts/${c.id}/send`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast(data.error ?? "Nie udało się wysłać.", "error");
+        return;
+      }
+      toast("Wysłano mailem.");
+      await load();
+    },
+    [toast, load]
+  );
+
+  const przypomnij = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/contracts/${id}/remind`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast(data.error ?? "Nie udało się wysłać przypomnienia.", "error");
+        return;
+      }
+      toast("Przypomnienie wysłane.");
+      await load();
+    },
+    [toast, load]
+  );
+
+  /** Link dla drugiej strony — wzorem Ofert. Szkicu publiczna strona nie
+   * pokazuje (trasa odrzuca `status = 'Szkic'`), więc pytamy PRZED
+   * skopiowaniem, zamiast dawać link prowadzący do „nie znaleziono". */
+  const kopiujLink = useCallback(
+    async (c: Contract) => {
+      if (c.status === "Szkic") {
+        toast("To szkic — publiczna strona go nie pokazuje. Wyślij dokument, wtedy link zacznie działać.", "error");
+        return;
+      }
+      const res = await fetch(`/api/share-links/contract/${c.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ensure" }),
+      });
+      if (!res.ok) {
+        toast("Nie udało się przygotować linku.", "error");
+        return;
+      }
+      const data = (await res.json()) as { url: string; revokedAt: string | null };
+      if (data.revokedAt) {
+        toast("Ten link jest unieważniony — wygeneruj nowy w profilu dokumentu.", "error");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(data.url);
+        toast("Link dla drugiej strony skopiowany.");
+      } catch {
+        await prompt("Skopiuj link ręcznie (Cmd/Ctrl+C):", { placeholder: data.url });
+      }
+    },
+    [toast, prompt]
   );
 
   useRegisterActions(
@@ -340,6 +420,7 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                   <tr
                     key={c.id}
                     onClick={() => setOpenId(c.id)}
+                    onContextMenu={(e) => ctx.openAt(e, c)}
                     className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                       i === kursor ? "ring-1 ring-inset ring-brand-purple/50" : ""
                     }`}
@@ -432,6 +513,97 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
           />
         )}
       </Modal>
+
+      <ContextMenu ctl={ctx} width={240}>
+        {(c, close) => (
+          <>
+            <ContextMenuItem
+              icon={<IconFileText size={14} />}
+              label="Otwórz dokument"
+              onClick={() => {
+                close();
+                setOpenId(c.id);
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconExternalLink size={14} />}
+              label="Podgląd / wydruk"
+              onClick={() => {
+                close();
+                window.open(`/${lang}/admin/contracts/${c.id}/print`, "_blank");
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconLink size={14} />}
+              label="Kopiuj link dla drugiej strony"
+              onClick={() => {
+                close();
+                kopiujLink(c);
+              }}
+            />
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconMail size={14} />}
+              label={c.status === "Szkic" ? "Wyślij do podpisu" : "Wyślij ponownie"}
+              disabled={!c.klient_email || c.status === "Podpisana" || c.status === "Odrzucona"}
+              onClick={() => {
+                close();
+                wyslijDokument(c);
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconBell size={14} />}
+              label="Przypomnij o podpisie"
+              disabled={c.status !== "Wysłana" || !c.klient_email}
+              onClick={() => {
+                close();
+                przypomnij(c.id);
+              }}
+            />
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconSignature size={14} />}
+              label="Oznacz jako podpisaną"
+              disabled={c.status === "Podpisana"}
+              onClick={() => {
+                close();
+                updateStatus(c.id, "Podpisana");
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconThumbDown size={14} />}
+              label="Nie podpisali…"
+              disabled={c.status === "Odrzucona" || c.status === "Podpisana"}
+              onClick={() => {
+                close();
+                setRejectFor(c.id);
+              }}
+            />
+            {/* Aneks tylko tam, gdzie trasa go zrobi: podpisana UMOWA
+                (nie NDA, nie inny aneks) — patrz api/contracts/[id]/aneks. */}
+            {c.typ === "umowa" && c.status === "Podpisana" && (
+              <ContextMenuItem
+                icon={<IconFilePlus size={14} />}
+                label="Sporządź aneks"
+                onClick={() => {
+                  close();
+                  createAneks(c.id);
+                }}
+              />
+            )}
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconTrash size={14} />}
+              label="Usuń dokument"
+              danger
+              onClick={() => {
+                close();
+                deleteContract(c.id, c.klient_nazwa);
+              }}
+            />
+          </>
+        )}
+      </ContextMenu>
 
       <Modal
         open={!!rejectFor}

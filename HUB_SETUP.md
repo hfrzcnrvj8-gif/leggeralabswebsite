@@ -9024,3 +9024,18 @@ strony) oraz `podpis_nasz_at`/`podpis_nasz_osoba`, bo nasz podpis bywa
 dopisywany PO wysyłce, a druga strona ma widzieć aktualny stan obu rubryk.
 Test `test/blokadaUmowy.test.ts` pilnuje, żeby żadne pole nie było na obu
 listach naraz — kolejność scalania decydowałaby wtedy po cichu.
+
+### Poprawki po pierwszej ocenie właściciela (2026-07-27, panel)
+
+- **Umowy na pełną szerokość.** Moduł nie był na liście `PELNA_SZEROKOSC`
+  (`AppShell.tsx`), więc globalny limit `max-w-[1800px]` zostawiał czarne pasy
+  po bokach — ten sam objaw, co wcześniej przy Leadach, Klientach i Ofertach.
+  Zmierzone po zmianie: przy oknie 2560 px tabela ma 2286 px, po prawej zostaje
+  25 px paddingu zamiast kilkuset pustki.
+- **Menu pod prawym przyciskiem myszy** na liście Umów (`useContextMenu`,
+  wzorem Ofert): otwórz, podgląd/wydruk, kopiuj link dla drugiej strony,
+  wyślij / wyślij ponownie, przypomnij o podpisie, oznacz jako podpisaną,
+  „nie podpisali…", sporządź aneks (tylko przy podpisanej UMOWIE — tam, gdzie
+  trasa go zrobi) i usunięcie. Pozycje niedostępne w danym stanie są wyszarzone,
+  nie ukryte — inaczej menu zmienia kształt przy każdym wierszu i nie da się go
+  zapamiętać. Prawy przycisk otwierał dotąd menu przeglądarki.
