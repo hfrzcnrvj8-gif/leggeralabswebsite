@@ -14,6 +14,20 @@ import { Popover } from "./Menu";
  * środka). Renderowany w Popoverze (portal do body).
  */
 
+const MIESIACE_PELNE = [
+  "Styczeń",
+  "Luty",
+  "Marzec",
+  "Kwiecień",
+  "Maj",
+  "Czerwiec",
+  "Lipiec",
+  "Sierpień",
+  "Wrzesień",
+  "Październik",
+  "Listopad",
+  "Grudzień",
+];
 const MONTHS_PL = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"];
 const ITEM_H = 40;
 const VISIBLE = 5; // nieparzyste — środek = zaznaczenie
@@ -290,6 +304,133 @@ function WheelColumn({
  * „Zapisz"; zamknięcie bez zapisu (klik poza / Esc / X) porzuca zmiany. Dzięki
  * temu przycisk „Zapisz" ma realne znaczenie i nie ma serii zapisów przy kręceniu.
  */
+
+/** Siatka miesiąca — domyślny wybór daty w panelu (zgłoszenie właściciela
+ * 2026-07-27: „bez sprawdzania dzisiejszej daty nie wiadomo, ile upłynie
+ * czasu").
+ *
+ * Koło dat (`WheelPicker` niżej) zostaje w kodzie i dalej działa na dotyku,
+ * ale przy biurku było ślepe: pokazywało trzy liczby bez kontekstu tygodnia,
+ * bez „dziś" i bez odpowiedzi na jedyne pytanie, które przy dacie ważności ma
+ * znaczenie — ile to dni od teraz. Kalendarz odpowiada na to wprost:
+ * zaznacza dziś, a pod siatką pisze „za N dni".
+ */
+function KalendarzMiesiaca({ value, onCommit, onClear }: { value: string; onCommit: (v: string) => void; onClear: () => void }) {
+  const wybrana = parse(value || "");
+  const [rok, setRok] = useState(wybrana.y);
+  const [miesiac, setMiesiac] = useState(wybrana.m);
+
+  const dzisiaj = new Date();
+  const dzisISO = `${dzisiaj.getFullYear()}-${pad2(dzisiaj.getMonth() + 1)}-${pad2(dzisiaj.getDate())}`;
+  const wybranaISO = value ? `${wybrana.y}-${pad2(wybrana.m + 1)}-${pad2(wybrana.d)}` : "";
+
+  // Poniedziałek jako pierwszy dzień tygodnia — polski kalendarz, nie
+  // amerykański (`getDay()` zwraca 0 dla niedzieli).
+  const pierwszy = new Date(rok, miesiac, 1);
+  const przesuniecie = (pierwszy.getDay() + 6) % 7;
+  const dni = daysInMonth(rok, miesiac);
+  const komorki: (number | null)[] = [
+    ...Array.from({ length: przesuniecie }, () => null),
+    ...Array.from({ length: dni }, (_, i) => i + 1),
+  ];
+
+  const przesun = (o: number) => {
+    const d = new Date(rok, miesiac + o, 1);
+    setRok(d.getFullYear());
+    setMiesiac(d.getMonth());
+  };
+
+  const dniOdDzis = (iso: string): number => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const cel = Date.UTC(y, m - 1, d);
+    const dzis = Date.UTC(dzisiaj.getFullYear(), dzisiaj.getMonth(), dzisiaj.getDate());
+    return Math.round((cel - dzis) / 86400000);
+  };
+
+  const opisRoznicy = (iso: string): string => {
+    const n = dniOdDzis(iso);
+    if (n === 0) return "dzisiaj";
+    if (n === 1) return "jutro";
+    if (n === -1) return "wczoraj";
+    return n > 0 ? `za ${n} dni` : `${Math.abs(n)} dni temu`;
+  };
+
+  return (
+    <div className="p-2.5">
+      <div className="mb-1.5 flex items-center gap-1">
+        <button
+          onClick={() => przesun(-1)}
+          className="rounded-md px-2 py-1 text-[13px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          aria-label="Poprzedni miesiąc"
+        >
+          ‹
+        </button>
+        <span className="flex-1 text-center text-[12.5px] font-medium text-[var(--fg)]">
+          {MIESIACE_PELNE[miesiac]} {rok}
+        </span>
+        <button
+          onClick={() => przesun(1)}
+          className="rounded-md px-2 py-1 text-[13px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          aria-label="Następny miesiąc"
+        >
+          ›
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] uppercase tracking-wide text-muted">
+        {["pn", "wt", "śr", "cz", "pt", "sb", "nd"].map((d) => (
+          <span key={d} className="py-1">
+            {d}
+          </span>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-0.5">
+        {komorki.map((dzien, i) => {
+          if (dzien === null) return <span key={`p${i}`} />;
+          const iso = `${rok}-${pad2(miesiac + 1)}-${pad2(dzien)}`;
+          const jestDzis = iso === dzisISO;
+          const jestWybrana = iso === wybranaISO;
+          return (
+            <button
+              key={iso}
+              onClick={() => onCommit(iso)}
+              title={opisRoznicy(iso)}
+              className={`h-8 rounded-md text-[12.5px] tabular-nums transition-colors ${
+                jestWybrana
+                  ? "bg-brand-purple/30 font-semibold text-[var(--fg)]"
+                  : jestDzis
+                    ? "text-brand-gold hover:bg-[var(--hairline)]"
+                    : "text-[var(--fg)] hover:bg-[var(--hairline)]"
+              }`}
+            >
+              {dzien}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 border-t border-[#2a2b2f] pt-2">
+        <button
+          onClick={() => onCommit(dzisISO)}
+          className="rounded-md px-2 py-1 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+        >
+          Dziś
+        </button>
+        <button
+          onClick={onClear}
+          className="rounded-md px-2 py-1 text-[12px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+        >
+          Wyczyść
+        </button>
+        <span className="flex-1" />
+        {/* Odpowiedź na pytanie, dla którego ten kalendarz powstał. */}
+        {wybranaISO && <span className="text-[11.5px] text-muted">{opisRoznicy(wybranaISO)}</span>}
+      </div>
+    </div>
+  );
+}
+
 function WheelPicker({ value, onCommit, onClear }: { value: string; onCommit: (v: string) => void; onClear: () => void }) {
   const [draft, setDraft] = useState(value);
   const { y, m, d } = parse(draft || value);
@@ -360,16 +501,20 @@ export function DateField({
   value,
   onChange,
   placeholder = "Ustaw datę",
+  wariant = "kalendarz",
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /** `kalendarz` (domyślnie) — siatka miesiąca z „dziś" i licznikiem dni.
+   * `kolo` — dawne koło w stylu iOS; zostaje dla ekranów dotykowych. */
+  wariant?: "kalendarz" | "kolo";
 }) {
   const label = value ? formatDisplay(value) : placeholder;
   return (
     <Popover
       align="right"
-      width={256}
+      width={272}
       trigger={(open, isOpen) => (
         <button
           onClick={open}
@@ -381,19 +526,33 @@ export function DateField({
         </button>
       )}
     >
-      {(close) => (
-        <WheelPicker
-          value={value}
-          onCommit={(v) => {
-            onChange(v);
-            close();
-          }}
-          onClear={() => {
-            onChange("");
-            close();
-          }}
-        />
-      )}
+      {(close) =>
+        wariant === "kolo" ? (
+          <WheelPicker
+            value={value}
+            onCommit={(v) => {
+              onChange(v);
+              close();
+            }}
+            onClear={() => {
+              onChange("");
+              close();
+            }}
+          />
+        ) : (
+          <KalendarzMiesiaca
+            value={value}
+            onCommit={(v) => {
+              onChange(v);
+              close();
+            }}
+            onClear={() => {
+              onChange("");
+              close();
+            }}
+          />
+        )
+      }
     </Popover>
   );
 }
