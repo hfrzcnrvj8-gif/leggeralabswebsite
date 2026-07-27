@@ -8804,3 +8804,37 @@ w palecie apki jest zarezerwowana dla błędów.
 
 **Świadomie NIE zrobione:** pozycje oferty na telefonie (decyzja właściciela —
 wycena zostaje przy biurku, poziom 2/3 bez zmian).
+
+### Retencja ofert — domknięcie luki (2026-07-27)
+
+Ostatni otwarty wniosek audytu Modułu 57. Leady znikały po 24 miesiącach,
+poczta po 24, dowód e-podpisu po 6 latach — a **oferta z danymi klienta
+i migawką tych danych leżała bezterminowo**. Faktura ma to uzasadnione
+pięcioletnim obowiązkiem podatkowym; oferta nie podlega żadnemu.
+
+`purgeStareOferty()` w `lib/leadRetention.ts`, w tym samym dziennym cronie co
+reszta retencji. Próg 24 mies. (`OFFERS_RETENTION_MONTHS`) — ta sama liczba co
+`LEADS_RETENTION_MONTHS`, świadomie: to zamknięta rozmowa z tym samym leadem,
+a dwie różne liczby na to samo znaczyłyby dwa zdania w polityce prywatności
+i pierwszą okazję do rozjazdu.
+
+**Zakres jest wąski i zachowawczy** (usunięcie jest nieodwracalne). Znikają
+tylko oferty „Odrzucona"/„Wygasła" BEZ projektu, BEZ faktury, BEZ umowy
+wskazującej na nie i BEZ nowszych wersji. Zegar od `updated_at` — inaczej niż
+przy leadach, gdzie `updated_at` odpadło, bo dotknięcie karty resetowałoby
+zegar RODO; zamkniętej oferty nikt już nie dotyka.
+
+Jawnie kasujemy wpisy osi czasu klienta wskazujące na usuwaną ofertę:
+`client_events.related_id` nie ma klucza obcego, więc baza sama by ich nie
+ruszyła i oś czasu zostałaby z linkami donikąd. Pozycje, sekcje i migawka lecą
+kaskadą.
+
+**Sprawdzone pomiarem, nie przeglądem** (`tsc` nie sprawdza SQL): sześć ofert
+w różnych stanach, próg tymczasowo zerowany, cron uruchomiony. Zniknęła
+DOKŁADNIE jedna — odrzucona i bezpotomna. Przeżyły: wygasła matka wersji,
+jej potomek, dwie zaakceptowane i wysłana.
+
+**Uwaga:** warunek „oferta, na którą wskazuje umowa" jest dziś nieosiągalny —
+umowę da się wygenerować wyłącznie z oferty ZAAKCEPTOWANEJ, a zaakceptowanej
+nie da się już przestawić na inny status. Zostaje jako zabezpieczenie na
+wypadek, gdyby któraś z tych dwóch reguł kiedyś się zmieniła.

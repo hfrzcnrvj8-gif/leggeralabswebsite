@@ -362,6 +362,29 @@ Kolejny aneks pokazuje jako „dotychczasowe brzmienie" warunki z ostatniego
 PODPISANEGO aneksu, nie z pierwotnej umowy — proszę potwierdzić, że to
 poprawne ujęcie („umowa w brzmieniu nadanym aneksem nr 1").
 
+## Retencja ofert — nowa, do potwierdzenia (2026-07-27)
+
+Luka znaleziona przy domykaniu audytu Modułu 57: leady znikały po 24
+miesiącach, korespondencja po 24 — a **oferta z nazwą firmy, NIP-em, adresem,
+e-mailem i migawką tych danych leżała bezterminowo**. Faktury mają swój
+bezterminowy byt uzasadniony pięcioletnim obowiązkiem podatkowym; oferta nie
+podlega żadnemu.
+
+**Wdrożone: 24 miesiące** (`OFFERS_RETENTION_MONTHS`), ta sama liczba co przy
+leadach i poczcie — świadomie, żeby polityka prywatności nie musiała mówić
+trzech różnych zdań o tym samym.
+
+**Usuwane są WYŁĄCZNIE oferty przegrane i bezpotomne:** status „Odrzucona"
+albo „Wygasła", bez projektu, bez faktury, bez umowy, która by na nie
+wskazywała, i bez nowszych wersji. Wszystko inne zostaje. Zegar liczy się od
+ostatniej zmiany przy ofercie.
+
+**Do potwierdzenia przez prawnika:**
+- Czy 24 miesiące to właściwy okres dla odrzuconej oferty handlowej, czy
+  powinien być krótszy (nic nie zostało zawarte) albo dłuższy.
+- **Musi trafić do polityki prywatności** — dziś polityka nie wspomina
+  o ofertach jako osobnej kategorii danych ani o ich retencji.
+
 ## Retencja dowodu e-podpisu — decyzja do potwierdzenia (2026-07-27)
 
 Przy e-podpisie oferty, umowy, NDA i aneksu zapisujemy imię i nazwisko,

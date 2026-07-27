@@ -40,7 +40,13 @@ import { sendEmail } from "@/lib/email";
 import { syncMailbox, purgeOldMail } from "@/lib/mailSync";
 import { isMailboxConfigured } from "@/lib/mailbox";
 import { MAIL_RETENTION_MONTHS } from "@/lib/mail";
-import { purgeStaleLeads, purgeStareDowodyPodpisu, ESIGN_PROOF_RETENTION_MONTHS } from "@/lib/leadRetention";
+import {
+  purgeStaleLeads,
+  purgeStareDowodyPodpisu,
+  purgeStareOferty,
+  ESIGN_PROOF_RETENTION_MONTHS,
+  OFFERS_RETENTION_MONTHS,
+} from "@/lib/leadRetention";
 import {
   purgeStareKandydaty,
   KANDYDACI_RETENCJA_DNI,
@@ -476,6 +482,19 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   });
   if (purgedLeads.purged > 0) {
     console.log(`[cron] usunięto ${purgedLeads.purged} leadów starszych niż ${LEADS_RETENTION_MONTHS} mies. bez konwersji`);
+  }
+
+  // Retencja PRZEGRANYCH ofert (24 mies.) — luka znaleziona przy domykaniu
+  // wniosków audytu Modułu 57: leady i poczta miały swój zegar, a oferta
+  // z danymi klienta i migawką tych danych leżała bezterminowo. Zakres jest
+  // wąski i zachowawczy — patrz purgeStareOferty.
+  const purgedOffers = await purgeStareOferty().catch(async (e) => {
+    console.error("[cron] czyszczenie starych ofert nie powiodło się", e);
+    await zapiszWyjatek("retencja", "Nie udało się usunąć starych ofert (retencja RODO)", e);
+    return { purged: 0 };
+  });
+  if (purgedOffers.purged > 0) {
+    console.log(`[cron] usunięto ${purgedOffers.purged} przegranych ofert starszych niż ${OFFERS_RETENTION_MONTHS} mies.`);
   }
 
   // Retencja dowodu e-podpisu (audyt Modułu 57, 6 lat). Nie usuwa dokumentów
