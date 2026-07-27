@@ -9,6 +9,8 @@ import {
   CONTRACT_CLAUSES,
   NDA_CLAUSES,
   LEGAL_PLACEHOLDER_NOTE,
+  POLE_ANEKSU_LABEL,
+  roznicaAneksu,
 } from "@/lib/contracts";
 import { DOC_LANGS, DOC_LANG_LABEL } from "@/lib/documents";
 import { formatMoney } from "@/lib/invoices";
@@ -145,8 +147,16 @@ export function ContractEditor({
   }
 
   const isUmowa = contract.typ === "umowa";
+  const isAneks = contract.typ === "aneks";
   const clauses = isUmowa ? CONTRACT_CLAUSES : NDA_CLAUSES;
   const signed = contract.status === "Podpisana";
+
+  // Aneks edytuje DOKŁADNIE te same warunki co umowa (zakres, kwota, termin) —
+  // tyle że jego treścią jest RÓŻNICA wobec umowy-matki, nie same wartości.
+  // Stąd wspólny warunek na pola i osobny panel „co zmienia ten aneks" niżej.
+  const edytowalneWarunki = isUmowa || isAneks;
+  const poprzednie = contract.poprzednie ?? null;
+  const zmianyAneksu = isAneks && poprzednie ? roznicaAneksu(poprzednie, contract) : [];
 
   return (
     <div>
@@ -207,6 +217,44 @@ export function ContractEditor({
         ⚠ {LEGAL_PLACEHOLDER_NOTE}
       </div>
 
+      {/* CO ZMIENIA TEN ANEKS — jedyna informacja, której nie da się wyczytać
+          z pól niżej. Pola pokazują wartości DOCELOWE, a treścią aneksu jest
+          różnica: bez tego panelu właściciel patrzy na coś nie do odróżnienia
+          od drugiej umowy i nie wie, czy jego zmiana w ogóle weszła.
+          Pusta lista jest tu ostrzeżeniem, nie brakiem — trasa wysyłki
+          odmówi wysłania aneksu bez zmian. */}
+      {isAneks && poprzednie && (
+        <div className="mt-3 rounded-lg border hairline card-inset px-3 py-2.5">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-[11px] uppercase tracking-wide text-muted">Co zmienia ten aneks</h3>
+            <span className="text-[11px] text-muted">
+              do umowy {poprzednie.reference}
+            </span>
+          </div>
+          {zmianyAneksu.length === 0 ? (
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-brand-gold">
+              Na razie nic. Zmień zakres, kwotę, walutę albo termin — dopóki wszystko zgadza się
+              z umową, aneks nie ma treści i nie da się go wysłać.
+            </p>
+          ) : (
+            <ul className="mt-1.5 space-y-1">
+              {zmianyAneksu.map((z) => (
+                <li key={z.pole} className="flex flex-wrap items-baseline gap-x-2 text-[12.5px]">
+                  <span className="text-muted">{POLE_ANEKSU_LABEL.pl[z.pole]}:</span>
+                  <span className="text-muted line-through decoration-[var(--hairline)]">
+                    {z.bylo === null || z.bylo === "" ? "—" : String(z.bylo)}
+                  </span>
+                  <span className="text-muted">→</span>
+                  <span className="font-medium text-[var(--fg)]">
+                    {z.jest === null || z.jest === "" ? "—" : String(z.jest)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="min-w-0 space-y-4">
           <div className="card-paper rounded-xl border hairline p-4">
@@ -257,7 +305,7 @@ export function ContractEditor({
             </div>
           </div>
 
-          {isUmowa && (
+          {edytowalneWarunki && (
             <div className="card-paper rounded-xl border hairline p-4">
               <h2 className="mb-2 text-[13px] font-medium">Przedmiot umowy (zakres prac)</h2>
               <textarea
@@ -271,6 +319,10 @@ export function ContractEditor({
             </div>
           )}
 
+          {/* Aneks nie powtarza klauzul — obowiązują dalej z umowy-matki,
+              a przedruk sugerowałby, że aneks je zastępuje (tak samo na
+              wydruku, patrz ContractPrint.tsx). */}
+          {!isAneks && (
           <div className="card-paper rounded-xl border hairline p-4">
             <h2 className="mb-2 text-[13px] font-medium">Stałe klauzule ({CONTRACT_TYP_LABEL[contract.typ]})</h2>
             <div className="space-y-3">
@@ -282,6 +334,7 @@ export function ContractEditor({
               ))}
             </div>
           </div>
+          )}
 
           <div className="card-paper rounded-xl border hairline p-4">
             <h2 className="mb-2 text-[13px] font-medium">Uwagi</h2>
@@ -318,7 +371,7 @@ export function ContractEditor({
             </p>
           </div>
 
-          {isUmowa && (
+          {edytowalneWarunki && (
             <div className="card-paper rounded-xl border hairline p-4">
               <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Wynagrodzenie</h3>
               <div className="flex items-center gap-2 py-0.5">

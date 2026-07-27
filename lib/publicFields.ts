@@ -166,4 +166,10 @@ export const CONTRACT_PUBLIC_FIELDS = [
   "klient_kod",
   "klient_miasto",
   "klient_kraj",
+  // Aneks (Moduł 58): numer i migawka warunków umowy-matki. Bez nich wydruk
+  // aneksu nie ma z czym porównać nowych warunków — cała kolumna „było"
+  // stałaby pusta. `poprzednie` nie zawiera nic, czego nie ma na samym
+  // dokumencie: to warunki handlowe, które druga strona już podpisała.
+  "aneks_nr",
+  "poprzednie",
 ] as const;

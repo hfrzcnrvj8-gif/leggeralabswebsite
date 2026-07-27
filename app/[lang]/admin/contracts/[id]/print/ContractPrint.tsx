@@ -6,6 +6,11 @@ import {
   CONTRACT_TYP_LABEL_LANG,
   CONTRACT_CLAUSES,
   NDA_CLAUSES,
+  POLE_ANEKSU_LABEL,
+  aneksReference,
+  roznicaAneksu,
+  type PoprzednieWarunki,
+  type ZmianaAneksu,
   LEGAL_PLACEHOLDER_NOTE_LANG,
   CLAUSES_UNTRANSLATED_NOTE,
   clientAddressLines,
@@ -47,6 +52,16 @@ type Dict = {
   signedNoNameLabel: string;
   privacyNote: string;
   privacyLink: string;
+  /* Aneks (Moduł 58) */
+  amendmentNo: string;
+  amendmentTo: string;
+  amendmentConcluded: string;
+  amendmentIntro: string;
+  amendmentWas: string;
+  amendmentIs: string;
+  amendmentRest: string;
+  amendmentEmpty: string;
+  amendmentNone: string;
 };
 
 const DICT: Record<DocLang, Dict> = {
@@ -73,6 +88,15 @@ const DICT: Record<DocLang, Dict> = {
     privacyNote:
       "Akceptując, zapisujemy Twoje imię i nazwisko, adres IP oraz datę i godzinę — jako dowód złożenia oświadczenia woli. Szczegóły przetwarzania danych: ",
     privacyLink: "Polityka Prywatności",
+    amendmentNo: "Aneks nr",
+    amendmentTo: "do umowy",
+    amendmentConcluded: "zawartej dnia",
+    amendmentIntro: "Strony zgodnie postanawiają, że umowa wskazana powyżej ulega zmianie w następującym zakresie:",
+    amendmentRest: "Pozostałe postanowienia umowy pozostają bez zmian.",
+    amendmentWas: "Dotychczasowe brzmienie",
+    amendmentIs: "Nowe brzmienie",
+    amendmentEmpty: "(brak)",
+    amendmentNone: "W tym aneksie nie zmieniono jeszcze żadnego z warunków umowy. Zmień zakres, wynagrodzenie, walutę albo termin — dopiero wtedy aneks będzie miał treść.",
   },
   en: {
     notFound: "Document not found.",
@@ -97,6 +121,15 @@ const DICT: Record<DocLang, Dict> = {
     privacyNote:
       "By accepting, we record your full name, IP address, and timestamp — as proof of your declaration of intent. Data processing details: ",
     privacyLink: "Privacy Policy",
+    amendmentNo: "Amendment no.",
+    amendmentTo: "to the agreement",
+    amendmentConcluded: "concluded on",
+    amendmentIntro: "The parties agree that the agreement referred to above is amended as follows:",
+    amendmentRest: "All remaining provisions of the agreement remain unchanged.",
+    amendmentWas: "Previous wording",
+    amendmentIs: "New wording",
+    amendmentEmpty: "(none)",
+    amendmentNone: "No terms have been changed in this amendment yet.",
   },
   de: {
     notFound: "Dokument nicht gefunden.",
@@ -121,6 +154,15 @@ const DICT: Record<DocLang, Dict> = {
     privacyNote:
       "Bei der Annahme speichern wir Ihren Namen, Ihre IP-Adresse sowie Datum und Uhrzeit als Nachweis Ihrer Willenserklärung. Einzelheiten zur Datenverarbeitung: ",
     privacyLink: "Datenschutzerklärung",
+    amendmentNo: "Nachtrag Nr.",
+    amendmentTo: "zum Vertrag",
+    amendmentConcluded: "geschlossen am",
+    amendmentIntro: "Die Parteien vereinbaren, dass der oben genannte Vertrag wie folgt geändert wird:",
+    amendmentRest: "Die übrigen Bestimmungen des Vertrages bleiben unverändert.",
+    amendmentWas: "Bisherige Fassung",
+    amendmentIs: "Neue Fassung",
+    amendmentEmpty: "(keine)",
+    amendmentNone: "In diesem Nachtrag wurden noch keine Vertragsbedingungen geändert.",
   },
 };
 
@@ -176,9 +218,25 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
   if (notFound) return <div className="p-10 text-center text-gray-600">{DICT.pl.notFound}</div>;
   if (!contract) return <div className="p-10 text-center text-gray-400">{DICT.pl.loading}</div>;
 
+  // Aneks (Moduł 58) ma inny kształt niż umowa i NDA: nie powtarza całego
+  // dokumentu, tylko pokazuje, co się w nim zmienia. Klauzul NIE drukuje —
+  // one obowiązują dalej z umowy-matki i przepisanie ich sugerowałoby, że
+  // aneks je zastępuje. Zamiast nich idzie zdanie „pozostałe postanowienia
+  // pozostają bez zmian", które mówi to samo, a jest prawdą.
+  const isAneks = contract.typ === "aneks";
   const isUmowa = contract.typ === "umowa";
   const clauses = isUmowa ? CONTRACT_CLAUSES : NDA_CLAUSES;
   const docLabel = CONTRACT_TYP_LABEL_LANG[lang][contract.typ];
+  const poprzednie = (contract.poprzednie ?? null) as PoprzednieWarunki | null;
+  const zmiany = isAneks && poprzednie ? roznicaAneksu(poprzednie, contract) : [];
+
+  /** Wartość pola do wydruku — kwota z walutą, data wg locale, tekst jak jest. */
+  const wartoscZmiany = (pole: ZmianaAneksu["pole"], v: string | number | null) => {
+    if (v === null || v === "") return t.amendmentEmpty;
+    if (pole === "cena") return docMoney(Number(v), lang, contract.waluta || "PLN");
+    if (pole === "termin_realizacji") return docDate(String(v), lang);
+    return String(v);
+  };
 
   const submitAcceptance = async () => {
     if (!token || !signName.trim() || !signConfirm || accepting) return;
@@ -233,10 +291,25 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
               {settings?.nazwa && <span className="text-[15px] font-semibold tracking-tight text-neutral-900">{settings.nazwa}</span>}
             </div>
             <div className="text-right">
-              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">{docLabel}</div>
-              <div className="mt-0.5 text-xl font-semibold tracking-tight text-neutral-900">
-                {contract.status === "Szkic" ? `(${t.draft})` : contractReference(contract)}
+              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-400">
+                {isAneks ? `${t.amendmentNo} ${contract.aneks_nr}` : docLabel}
               </div>
+              <div className="mt-0.5 text-xl font-semibold tracking-tight text-neutral-900">
+                {contract.status === "Szkic"
+                  ? `(${t.draft})`
+                  : isAneks && poprzednie
+                    ? aneksReference(contract.aneks_nr, poprzednie.reference)
+                    : contractReference(contract)}
+              </div>
+              {/* Do czego ten aneks się odnosi — na dokumencie, nie tylko w bazie.
+                  Bez tej linijki podpisana kartka nie mówi, którą umowę zmienia. */}
+              {isAneks && poprzednie && (
+                <div className="mt-1 text-[11px] text-neutral-500">
+                  {t.amendmentTo} {poprzednie.reference}
+                  <br />
+                  {t.amendmentConcluded} {docDate(poprzednie.zawarta, lang)}
+                </div>
+              )}
             </div>
           </div>
 
@@ -273,6 +346,52 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
             </div>
           </div>
 
+          {/* KORPUS ANEKSU — wyłącznie to, co się zmienia. Kolumna „było"
+              pochodzi z migawki (`poprzednie`), zrobionej w chwili sporządzenia
+              aneksu, nie z odczytu umowy-matki: dokument ma pokazywać to, co
+              strony przeczytały, także gdyby oryginał kiedyś zniknął. */}
+          {isAneks && (
+            <div className="mt-8">
+              {zmiany.length === 0 ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 leading-relaxed text-amber-800">
+                  {t.amendmentNone}
+                </p>
+              ) : (
+                <>
+                  <p className="leading-relaxed text-neutral-700">{t.amendmentIntro}</p>
+                  <div className="mt-5 space-y-5">
+                    {zmiany.map((z, i) => (
+                      <div key={z.pole}>
+                        <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+                          § {i + 1} {POLE_ANEKSU_LABEL[lang][z.pole]}
+                        </div>
+                        <div className="mt-1.5 grid grid-cols-2 gap-4 border-t border-neutral-100 pt-2">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-neutral-400">{t.amendmentWas}</div>
+                            {/* Przekreślenie, nie sam kolor — dokument bywa
+                                drukowany na czarno-białej drukarce. */}
+                            <div className="mt-0.5 whitespace-pre-line text-neutral-500 line-through decoration-neutral-300">
+                              {wartoscZmiany(z.pole, z.bylo)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-neutral-400">{t.amendmentIs}</div>
+                            <div className="mt-0.5 whitespace-pre-line font-medium text-neutral-900">
+                              {wartoscZmiany(z.pole, z.jest)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-6 border-t border-neutral-100 pt-3 leading-relaxed text-neutral-700">
+                    § {zmiany.length + 1} {t.amendmentRest}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
           {isUmowa && (
             <div className="mt-8">
               <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.subject}</div>
@@ -291,20 +410,25 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
             </div>
           )}
 
-          {lang !== "pl" && (
+          {/* Aneks NIE powtarza klauzul umowy-matki — one obowiązują dalej,
+              a przedruk sugerowałby, że aneks je zastępuje. Mówi to wprost
+              zdanie „pozostałe postanowienia bez zmian" wyżej. */}
+          {!isAneks && lang !== "pl" && (
             <div className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-[10.5px] leading-relaxed text-neutral-500">
               {CLAUSES_UNTRANSLATED_NOTE[lang]}
             </div>
           )}
 
-          <div className="mt-8 space-y-5">
-            {clauses.map((c) => (
-              <div key={c.title}>
-                <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{c.title}</div>
-                <p className="mt-0.5 leading-relaxed text-neutral-700">{c.text}</p>
-              </div>
-            ))}
-          </div>
+          {!isAneks && (
+            <div className="mt-8 space-y-5">
+              {clauses.map((c) => (
+                <div key={c.title}>
+                  <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{c.title}</div>
+                  <p className="mt-0.5 leading-relaxed text-neutral-700">{c.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           {contract.uwagi && <div className="mt-6 whitespace-pre-line text-neutral-600">{contract.uwagi}</div>}
 

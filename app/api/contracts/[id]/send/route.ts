@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
-import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
+import { CONTRACT_TYP_LABEL, roznicaAneksu, type Contract, type ContractTyp, type PoprzednieWarunki } from "@/lib/contracts";
 
 export const runtime = "nodejs";
 
@@ -23,6 +23,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!contract.klient_email) return NextResponse.json({ error: "Brak adresu e-mail — uzupełnij go w edytorze." }, { status: 400 });
 
     const typ = contract.typ as ContractTyp;
+
+    // Aneks bez ani jednej zmiany to kartka ze zdaniem „pozostałe postanowienia
+    // pozostają bez zmian" i niczym więcej — wysłanie go klientowi do podpisu
+    // byłoby proszeniem o podpis pod pustką. Reguła stoi TUTAJ, w trasie, a nie
+    // tylko w przycisku: to jest wprost wniosek z audytu Modułu 57 (blokada
+    // w interfejsie nie jest blokadą).
+    if (typ === "aneks") {
+      const poprzednie = contract.poprzednie as PoprzednieWarunki | null;
+      const zmiany = poprzednie
+        ? roznicaAneksu(poprzednie, contract as unknown as Contract)
+        : [];
+      if (zmiany.length === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Ten aneks nie zmienia jeszcze żadnego warunku umowy — nie ma czego wysyłać. Zmień zakres, wynagrodzenie, walutę albo termin.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const token = await ensureContractShareToken(sql, id, typeof contract.share_token === "string" ? contract.share_token : null);
     const segment = typ === "nda" ? "nda" : "umowa";
     const url = `${req.nextUrl.origin}/pl/${segment}/${token}`;

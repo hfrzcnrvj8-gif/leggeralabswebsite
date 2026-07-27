@@ -18,20 +18,28 @@
 
 import { type DocLang, documentYear } from "./documents";
 
-export type ContractTyp = "umowa" | "nda";
+export type ContractTyp = "umowa" | "nda" | "aneks";
+
+/** Typy, które da się utworzyć od zera przyciskiem „+ Nowy dokument".
+ *
+ * Aneksu **nie ma na tej liście świadomie** — aneks nie istnieje samodzielnie,
+ * zawsze powstaje z konkretnej podpisanej umowy (`POST /api/contracts/:id/aneks`).
+ * Aneks bez umowy-matki nie miałby czego zmieniać. */
 export const CONTRACT_TYPY: ContractTyp[] = ["umowa", "nda"];
+
 export const CONTRACT_TYP_LABEL: Record<ContractTyp, string> = {
   umowa: "Umowa",
   nda: "NDA",
+  aneks: "Aneks",
 };
 
 /** Etykieta typu dokumentu wg języka wydruku (`contract.jezyk`) — używana
  * tylko na publicznym/podglądowym wydruku (ContractPrint.tsx), NIE w panelu
  * admina (tam zawsze po polsku, patrz CONTRACT_TYP_LABEL). */
 export const CONTRACT_TYP_LABEL_LANG: Record<DocLang, Record<ContractTyp, string>> = {
-  pl: { umowa: "Umowa", nda: "NDA" },
-  en: { umowa: "Agreement", nda: "NDA" },
-  de: { umowa: "Vertrag", nda: "NDA" },
+  pl: { umowa: "Umowa", nda: "NDA", aneks: "Aneks" },
+  en: { umowa: "Agreement", nda: "NDA", aneks: "Amendment" },
+  de: { umowa: "Vertrag", nda: "NDA", aneks: "Nachtrag" },
 };
 
 export type ContractStatus = "Szkic" | "Wysłana" | "Podpisana" | "Odrzucona";
@@ -90,6 +98,12 @@ export type Contract = {
   accepted_user_agent: string | null;
   created_at: string;
   updated_at: string;
+  /** Aneks (Moduł 58) — umowa-matka, numer aneksu w jej obrębie i migawka
+   * warunków, które aneks zmienia. Dla umowy/NDA: `null`, 0, `null`.
+   * Szczegóły i uzasadnienie: sekcja „Aneks" na dole tego pliku. */
+  parent_contract_id: string | null;
+  aneks_nr: number;
+  poprzednie: PoprzednieWarunki | null;
   /** Język wydruku/publicznego linku (pl/en/de) — dla typ="umowa" dziedziczony
    * z języka oferty przy generowaniu (app/api/contracts POST), dla typ="nda"
    * zawsze 'pl' (NDA nie ma powiązanej oferty, z której można by dziedziczyć).
@@ -308,4 +322,134 @@ export function signedContractRate(
   );
   const withContract = clientProjects.filter((p) => signedFor.has(p.id)).length;
   return { rate: withContract / clientProjects.length, withContract, total: clientProjects.length };
+}
+
+/* ------------------------------------------- Aneks (Moduł 58, 2026-07-27) -- */
+
+/**
+ * **Dlaczego aneks w ogóle powstał.** `lib/blokadaDokumentu.ts` odmawia zmiany
+ * podpisanej umowy zdaniem „Zmiana wymaga aneksu." — a aneksu w systemie nie
+ * było. Panel odsyłał właściciela po coś, czego nie potrafił zrobić, więc
+ * podpisana umowa była ślepym zaułkiem. Audyt Modułu 57 nazwał to najcięższym
+ * brakiem w całym łańcuchu dokumentów: faktura ma korektę, oferta ma nową
+ * wersję, umowa nie miała nic.
+ *
+ * **Czym aneks NIE jest.** Nie jest nową wersją umowy w rozumieniu ofert.
+ * Zastąpiona oferta dostaje `superseded_at` i wypada z liczników, bo nie jest
+ * ani wygrana, ani przegrana. Aneksowana umowa **dalej obowiązuje** — obie
+ * strony ją podpisały i nic tego nie cofa. Dlatego oryginał zostaje
+ * nietknięty, w statusie „Podpisana", i liczy się dalej wszędzie, gdzie się
+ * liczył. Aneks jest dokumentem OBOK, nie ZAMIAST.
+ *
+ * **Dlaczego „było → jest", a nie pełna kopia umowy** (decyzja właściciela
+ * 2026-07-27): przy zmianie samego terminu pełna kopia kazałaby klientowi
+ * czytać dziesięć stron po raz drugi, żeby znaleźć jedno zdanie. Aneks pokazuje
+ * WYŁĄCZNIE to, co się zmienia, i kończy zdaniem „pozostałe postanowienia
+ * pozostają bez zmian" — czyli dokładnie tak, jak wygląda aneks papierowy.
+ */
+
+/** Pola umowy, które aneks potrafi zmienić.
+ *
+ * Świadomie WĄSKA lista: to są warunki handlowe, o które toczy się rozmowa po
+ * podpisaniu (zakres wzrósł, cena za nim, termin się przesunął). Danych stron
+ * (nazwa, NIP, adres) aneks NIE zmienia — zmiana strony umowy to nie aneks,
+ * tylko nowa umowa z innym podmiotem. Stałe klauzule też nie: są identyczne
+ * dla każdej umowy i żyją w kodzie, nie w wierszu. */
+export const POLA_ANEKSU = ["zakres_prac", "cena", "waluta", "termin_realizacji"] as const;
+export type PoleAneksu = (typeof POLA_ANEKSU)[number];
+
+/** Nagłówki zmienianych pól na wydruku aneksu, per język dokumentu. */
+export const POLE_ANEKSU_LABEL: Record<DocLang, Record<PoleAneksu, string>> = {
+  pl: {
+    zakres_prac: "Przedmiot umowy",
+    cena: "Wynagrodzenie",
+    waluta: "Waluta wynagrodzenia",
+    termin_realizacji: "Termin realizacji",
+  },
+  en: {
+    zakres_prac: "Subject of the agreement",
+    cena: "Fee",
+    waluta: "Fee currency",
+    termin_realizacji: "Completion date",
+  },
+  de: {
+    zakres_prac: "Vertragsgegenstand",
+    cena: "Vergütung",
+    waluta: "Währung der Vergütung",
+    termin_realizacji: "Fertigstellungstermin",
+  },
+};
+
+/** Migawka warunków umowy-matki z chwili sporządzenia aneksu — kolumna
+ * `contracts.poprzednie` (JSONB).
+ *
+ * **Migawka, a nie odczyt z umowy-matki przy każdym wyświetleniu.** Oryginał
+ * jest wprawdzie zablokowany (`blokadaUmowy`), więc teoretycznie nie ma czego
+ * pilnować — ale to jest dokładnie ten rodzaj założenia, który audyt Modułu 57
+ * obalił w ofertach. Kolumna „było" ma być tym, co strony przeczytały, nawet
+ * gdyby ktoś kiedyś odblokował edycję albo umowa-matka została usunięta. */
+export type PoprzednieWarunki = {
+  /** Referencja umowy-matki, np. „UM-2026-A1B2C3" — wydrukowana w nagłówku. */
+  reference: string;
+  /** Data zawarcia umowy-matki (jej `created_at`) — „…z dnia 12.07.2026". */
+  zawarta: string;
+  zakres_prac: string;
+  cena: number;
+  waluta: string;
+  termin_realizacji: string | null;
+};
+
+/** Jedna pozycja tabeli „było → jest". */
+export type ZmianaAneksu = {
+  pole: PoleAneksu;
+  bylo: string | number | null;
+  jest: string | number | null;
+};
+
+/** Porównuje warunki z migawki z warunkami aneksu i zwraca WYŁĄCZNIE to, co
+ * się różni.
+ *
+ * Pusta lista to stan poprawny i ważny: aneks, w którym niczego jeszcze nie
+ * zmieniono, jest szkicem bez treści — wydruk i trasa wysyłki mają wtedy
+ * powiedzieć wprost, że nie ma czego wysyłać, zamiast wysłać klientowi kartkę
+ * z samym zdaniem „pozostałe postanowienia bez zmian".
+ *
+ * Porównanie jest ZNORMALIZOWANE: `cena` przez liczbę (żeby „5000" i „5000.00"
+ * z NUMERIC-a Postgresa nie udawały zmiany), daty przez pierwsze 10 znaków
+ * (kolumna DATE potrafi wrócić jako „2026-09-30T00:00:00.000Z"), teksty po
+ * obcięciu białych znaków. Bez tego lista zmian pokazywałaby różnice, których
+ * człowiek nie widzi — a to jest dokument, który idzie do podpisu. */
+export function roznicaAneksu(
+  poprzednie: PoprzednieWarunki,
+  aneks: Pick<Contract, "zakres_prac" | "cena" | "waluta" | "termin_realizacji">
+): ZmianaAneksu[] {
+  const zmiany: ZmianaAneksu[] = [];
+
+  const tekstBylo = (poprzednie.zakres_prac ?? "").trim();
+  const tekstJest = (aneks.zakres_prac ?? "").trim();
+  if (tekstBylo !== tekstJest) zmiany.push({ pole: "zakres_prac", bylo: tekstBylo, jest: tekstJest });
+
+  const cenaBylo = Number(poprzednie.cena) || 0;
+  const cenaJest = Number(aneks.cena) || 0;
+  if (cenaBylo !== cenaJest) zmiany.push({ pole: "cena", bylo: cenaBylo, jest: cenaJest });
+
+  const walutaBylo = (poprzednie.waluta || "PLN").trim();
+  const walutaJest = (aneks.waluta || "PLN").trim();
+  if (walutaBylo !== walutaJest) zmiany.push({ pole: "waluta", bylo: walutaBylo, jest: walutaJest });
+
+  const dzien = (v: string | null | undefined) => (v ? String(v).slice(0, 10) : null);
+  const terminBylo = dzien(poprzednie.termin_realizacji);
+  const terminJest = dzien(aneks.termin_realizacji);
+  if (terminBylo !== terminJest) zmiany.push({ pole: "termin_realizacji", bylo: terminBylo, jest: terminJest });
+
+  return zmiany;
+}
+
+/** Referencja aneksu do wydruku, np. „ANEKS-1-UM-2026-A1B2C3".
+ *
+ * Świadomie zawiera numer aneksu ORAZ referencję umowy-matki: przy sporze
+ * sam identyfikator ma powiedzieć, czego dokument dotyczy i który to z kolei,
+ * bez zaglądania do bazy. */
+export function aneksReference(nr: number, referencjaUmowy: string): string {
+  return `ANEKS-${nr}-${referencjaUmowy}`;
 }

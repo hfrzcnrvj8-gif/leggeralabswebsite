@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconX, IconExternalLink, IconFileText } from "@tabler/icons-react";
+import { IconPlus, IconX, IconExternalLink, IconFileText, IconFilePlus } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Contract,
@@ -60,6 +60,27 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
 
   const createNda = useCallback(() => createDraft("nda"), [createDraft]);
   const createUmowa = useCallback(() => createDraft("umowa"), [createDraft]);
+
+  /** Sporządź aneks do podpisanej umowy i od razu otwórz go do edycji.
+   *
+   * Aneks startuje z warunkami umowy-matki, więc otwarcie edytora jest tu
+   * całym sensem akcji: właściciel ma zmienić to jedno pole, po które sięgnął.
+   * Bez tego dostałby na liście drugi wiersz „Aneks nr 1" wyglądający
+   * identycznie jak umowa i musiał zgadywać, co dalej. */
+  const createAneks = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/contracts/${id}/aneks`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { id?: string; aneks_nr?: number; error?: string };
+      if (!res.ok || !data.id) {
+        toast(data.error ?? "Nie udało się sporządzić aneksu.", "error");
+        return;
+      }
+      await load();
+      setOpenId(data.id);
+      toast(`Aneks nr ${data.aneks_nr} — zmień to, co ma się zmienić, i wyślij do podpisu.`);
+    },
+    [toast, load]
+  );
 
   const deleteContract = useCallback(
     async (id: string, nazwa: string) => {
@@ -187,9 +208,15 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                     onClick={() => setOpenId(c.id)}
                     className="cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40"
                   >
-                    <td className="p-2.5 font-medium text-[var(--fg)]">{CONTRACT_TYP_LABEL[c.typ]}</td>
+                    <td className="p-2.5 font-medium text-[var(--fg)]">
+                      {CONTRACT_TYP_LABEL[c.typ]}
+                      {c.typ === "aneks" && <span className="ml-1 text-muted">nr {c.aneks_nr}</span>}
+                    </td>
                     <td className="p-2.5">{c.klient_nazwa || <span className="text-muted opacity-60">— brak —</span>}</td>
-                    <td className="p-2.5 text-right tabular-nums">{c.typ === "umowa" ? formatMoney(c.cena) : "—"}</td>
+                    {/* Aneks też ma kwotę — to zwykle właśnie ona się w nim zmienia. */}
+                    <td className="p-2.5 text-right tabular-nums">
+                      {c.typ === "nda" ? "—" : formatMoney(c.cena, c.waluta || "PLN")}
+                    </td>
                     <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                       <PropertyMenu value={c.status} options={statusOpts} onChange={(v) => updateStatus(c.id, v)} title="Zmień status">
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${CONTRACT_STATUS_CLASS[c.status] ?? ""}`}>
@@ -199,6 +226,17 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                     </td>
                     <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Jedyna droga wyjścia z podpisanej umowy — patrz
+                            lib/blokadaDokumentu.ts, które właśnie po aneks
+                            odsyła. Pokazujemy TYLKO tam, gdzie trasa go zrobi:
+                            umowa (nie NDA, nie inny aneks) i podpisana. */}
+                        {c.typ === "umowa" && c.status === "Podpisana" && (
+                          <ExpandingIconButton
+                            label="Sporządź aneks"
+                            icon={<IconFilePlus size={15} />}
+                            onClick={() => createAneks(c.id)}
+                          />
+                        )}
                         <ExpandingIconButton
                           label="Podgląd / wydruk"
                           icon={<IconExternalLink size={15} />}

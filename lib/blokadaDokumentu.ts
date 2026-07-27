@@ -59,13 +59,24 @@ export function blokadaFaktury(numer: string | null | undefined): PowodBlokady {
   return WOLNE;
 }
 
-/** Umowa/NDA: podpisana jest nienaruszalna. */
-export function blokadaUmowy(status: string): PowodBlokady {
+/** Umowa/NDA/aneks: podpisany dokument jest nienaruszalny.
+ *
+ * `typ` wpływa WYŁĄCZNIE na to, dokąd odsyłamy — a to jest tu cała wartość
+ * komunikatu. Do Modułu 58 zdanie „Zmiana wymaga aneksu" było obietnicą bez
+ * pokrycia: aneksu system nie znał (audyt Modułu 57). Teraz aneks istnieje,
+ * więc zdanie jest prawdziwe — pod warunkiem, że nie mówimy go nad samym
+ * aneksem, bo aneksu do aneksu świadomie nie robimy (patrz trasa
+ * `api/contracts/[id]/aneks`). */
+export function blokadaUmowy(status: string, typ?: string): PowodBlokady {
   if (status === "Podpisana") {
     return {
       zablokowane: true,
       komunikat:
-        "Umowa jest podpisana — obie strony mają jej kopię, więc treści nie zmieniamy. Zmiana wymaga aneksu.",
+        typ === "aneks"
+          ? "Ten aneks jest podpisany — obie strony mają jego kopię, więc treści nie zmieniamy. Kolejną zmianę wprowadza się następnym aneksem do umowy."
+          : typ === "nda"
+            ? "NDA jest podpisane — obie strony mają jego kopię, więc treści nie zmieniamy. Potrzebujesz innych zapisów? Sporządź nowe NDA."
+            : "Umowa jest podpisana — obie strony mają jej kopię, więc treści nie zmieniamy. Zmiana wymaga aneksu („Sporządź aneks” na liście Umów).",
     };
   }
   return WOLNE;

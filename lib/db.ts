@@ -1518,6 +1518,27 @@ async function createContractsSchema(): Promise<void> {
   // Moduł 40 — ręczne unieważnienie linku (patrz komentarz przy
   // invoices.share_revoked_at). Blokuje i podgląd, i złożenie e-podpisu.
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS share_revoked_at TIMESTAMPTZ;`;
+  // ANEKS (Moduł 58, 2026-07-27) — droga wyjścia z podpisanej umowy, której
+  // do audytu Modułu 57 nie było: blokada odsyłała po aneks, a aneksu system
+  // nie znał. Aneks to zwykły wiersz `contracts` z `typ = 'aneks'`,
+  // wskazujący umowę-matkę. Świadomie BEZ osobnej tabeli — dzieli z umową
+  // komplet mechaniki (e-podpis, share_token, wysyłka, blokada po podpisie),
+  // a osobna tabela kazałaby to wszystko zdublować.
+  //
+  // `ON DELETE SET NULL`, nie CASCADE: usunięcie umowy-matki nie może
+  // skasować podpisanego aneksu. To osobny dokument z własnym podpisem —
+  // zostaje sierotą z migawką warunków w `poprzednie`, i to jest poprawne.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS parent_contract_id TEXT REFERENCES contracts(id) ON DELETE SET NULL;`;
+  // Numer aneksu w obrębie JEDNEJ umowy („Aneks nr 2 do umowy…"), nie
+  // globalny licznik. 0 = dokument nie jest aneksem.
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS aneks_nr INTEGER NOT NULL DEFAULT 0;`;
+  // Migawka warunków umowy-matki z chwili sporządzenia aneksu — z niej bierze
+  // się kolumna „było" na wydruku. Migawka, a nie odczyt z umowy-matki przy
+  // każdym wyświetleniu: oryginał jest wprawdzie zablokowany, ale dokładnie
+  // to założenie audyt Modułu 57 obalił w ofertach (patrz PoprzednieWarunki
+  // w lib/contracts.ts).
+  await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS poprzednie JSONB;`;
+  await sql`CREATE INDEX IF NOT EXISTS contracts_parent_id_idx ON contracts(parent_contract_id);`;
   // Język wydruku (pl/en/de) — dla Umów dziedziczony z języka oferty przy
   // generowaniu (app/api/contracts), dla NDA zawsze 'pl'. Dotyczy tylko
   // "chrome" wydruku — treść klauzul zostaje świadomie tylko po polsku,
