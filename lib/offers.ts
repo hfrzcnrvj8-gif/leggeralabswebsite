@@ -110,39 +110,53 @@ export type OfferSection = {
 };
 
 /** Gotowe bloki treści do wstawienia jednym kliknięciem (runda 2 Modułu 57).
- * Treść jest PUNKTEM STARTOWYM do przepisania pod konkretnego klienta — dlatego
- * krótka i konkretna, a nie „lorem ipsum" ani marketingowa laurka. Kolejność
- * odpowiada temu, jak czyta się ofertę: co rozumiem z Twojej sytuacji → co
- * zrobię → kiedy → na jakich warunkach. */
-export const SEKCJE_STARTOWE: { tytul: string; tresc: string }[] = [
+ *
+ * **`tresc` jest pisana DLA KLIENTA i gotowa do wysłania.** Pierwsza wersja
+ * miała w środku didaskalia w nawiasach („[opisz sytuację klienta]") — czytelne
+ * dla właściciela, ale to jest tekst, który idzie do firmy po drugiej stronie
+ * i nikt nie zdąży wyłapać wszystkich nawiasów przed wysyłką (zgłoszenie
+ * właściciela 2026-07-27). Teraz każdy blok to skończone zdania z konkretnym
+ * przykładem do nadpisania, a wskazówka dla właściciela mieszka osobno,
+ * w `podpowiedz` — widoczna w panelu, nigdy na dokumencie.
+ *
+ * Kolejność odpowiada temu, jak czyta się ofertę: co rozumiem z Twojej
+ * sytuacji → co zrobię → kiedy → na jakich warunkach. */
+export const SEKCJE_STARTOWE: { tytul: string; tresc: string; podpowiedz: string }[] = [
   {
     tytul: "Kontekst",
     tresc:
-      "Z naszej rozmowy rozumiem, że [opisz sytuację klienta jego słowami — co dziś zajmuje czas, co się gubi, gdzie boli]. Ta oferta odpowiada na ten problem, nie na wszystko naraz.",
+      "Z naszej rozmowy wynika, że najwięcej czasu pochłania dziś ręczne przepisywanie danych między systemami, a część zgłoszeń ginie w skrzynce. Ta oferta odpowiada na ten konkretny problem — nie na wszystko naraz.",
+    podpowiedz: "Opisz sytuację klienta jego słowami z rozmowy. Dwa–trzy zdania wystarczą.",
   },
   {
     tytul: "Zakres prac",
     tresc:
-      "Co robię:\n• [krok pierwszy]\n• [krok drugi]\n• [krok trzeci]\n\nCzego ta oferta NIE obejmuje: [wypisz wprost — to skraca późniejsze nieporozumienia bardziej niż jakikolwiek zapis w umowie].",
+      "Oferta obejmuje:\n• analizę obecnego procesu i ustalenie kryteriów odbioru,\n• wdrożenie rozwiązania w Państwa środowisku,\n• testy na Państwa danych oraz przekazanie dokumentacji.\n\nOferta nie obejmuje zmian w systemach zewnętrznych, migracji danych historycznych ani prac wykraczających poza powyższy zakres. Takie prace wyceniamy osobno, po uzgodnieniu.",
+    podpowiedz: "Zostaw akapit o tym, czego oferta NIE obejmuje — skraca późniejsze spory skuteczniej niż zapisy w umowie.",
   },
   {
     tytul: "Jak to przebiega",
     tresc:
-      "1. Start — ustalamy dostępy i osobę kontaktową po Państwa stronie.\n2. Praca — pokazuję działający fragment, zanim zrobię całość.\n3. Odbiór — wspólne sprawdzenie na Państwa danych.\n4. Po wdrożeniu — [wsparcie / szkolenie / przekazanie dokumentacji].",
+      "1. Start — ustalamy dostępy i osobę kontaktową po Państwa stronie.\n2. Praca — pokazujemy działający fragment, zanim powstanie całość.\n3. Odbiór — wspólnie sprawdzamy efekt na Państwa danych.\n4. Po wdrożeniu — szkolenie zespołu i przekazanie dokumentacji.",
+    podpowiedz: "Dopasuj etapy do skali zlecenia; przy krótkim projekcie zostaw dwa.",
   },
   {
     tytul: "Terminy",
-    tresc: "Realizacja zajmuje ok. [X tygodni] od akceptacji oferty i przekazania dostępów.",
+    tresc:
+      "Realizacja zajmuje około czterech tygodni od akceptacji oferty i przekazania dostępów. Dokładny termin potwierdzamy przy starcie prac.",
+    podpowiedz: "Podaj czas realny, nie optymistyczny — termin z oferty klient zapamięta.",
   },
   {
     tytul: "Warunki",
     tresc:
-      "Płatność: [np. 50% zaliczki, 50% po odbiorze].\nOferta jest ważna do daty podanej wyżej.\nOferta nie stanowi umowy — po akceptacji przygotowuję umowę do podpisu.",
+      "Płatność: 50% zaliczki po podpisaniu umowy, 50% po odbiorze.\nOferta jest ważna do daty podanej powyżej.\nOferta nie stanowi umowy — po jej akceptacji przygotowujemy umowę do podpisu.",
+    podpowiedz: "Sprawdź, czy podział płatności zgadza się z tym, co ustaliliście w rozmowie.",
   },
   {
-    tytul: "Dlaczego ja",
+    tytul: "Dlaczego my",
     tresc:
-      "[Jedno–dwa zdania konkretu: co dokładnie zrobiłeś podobnego i z jakim efektem. Bez przymiotników — liczby i fakty przekonują, deklaracje nie.]",
+      "Pracujemy na rozwiązaniach, które zostają u Państwa: dane nie opuszczają Państwa infrastruktury, a za korzystanie z gotowego wdrożenia nie ma opłat licencyjnych. Każdy etap kończy się czymś, co da się sprawdzić — nie prezentacją, tylko działającym fragmentem.",
+    podpowiedz: "Zamień na konkret, gdy masz wdrożenie do pokazania: co dokładnie zrobiłeś i z jakim efektem.",
   },
 ];
 

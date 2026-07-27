@@ -866,15 +866,20 @@ export function OfferEditor({
                 >
                   {(close) => (
                     <div>
-                      {SEKCJE_STARTOWE.map((sekcja: { tytul: string; tresc: string }) => (
-                        <MenuRow
+                      {/* Podpowiedź stoi TU, w panelu — nie w treści, która
+                          idzie do klienta. */}
+                      {SEKCJE_STARTOWE.map((sekcja: { tytul: string; tresc: string; podpowiedz: string }) => (
+                        <button
                           key={sekcja.tytul}
-                          label={sekcja.tytul}
                           onClick={() => {
                             close();
                             addSection(sekcja.tytul, sekcja.tresc);
                           }}
-                        />
+                          className="block w-full px-2.5 py-1.5 text-left hover:bg-[var(--hairline)]"
+                        >
+                          <span className="block text-[13px] text-[var(--fg)]">{sekcja.tytul}</span>
+                          <span className="mt-0.5 block text-[11px] leading-snug text-muted">{sekcja.podpowiedz}</span>
+                        </button>
                       ))}
                     </div>
                   )}

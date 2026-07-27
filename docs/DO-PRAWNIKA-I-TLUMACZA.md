@@ -285,3 +285,28 @@ da się podpisać z klientem bez zarejestrowanej firmy jako strony umowy**
 _Powstało: audyt Modułu 29 (2026-07-17), `docs/plany-modulow/29-audyt-koncowy.md`.
 Pozycje oznaczone „Znalezione w audycie 2026-07-17" to nowe ustalenia — brief
 Modułu 29 ich nie przewidywał._
+
+## Oferta — zapisy podatkowe (dodane 2026-07-27, DO SPRAWDZENIA)
+
+Na dokumencie oferty (`OfferPrint.tsx`, słownik `DICT`) doszły dwa zdania,
+w trzech językach. Powstały z potrzeby produktowej („na ofercie nie jest
+napisane, że cena nie zawiera podatku"), NIE z porady prawnej — proszę
+o weryfikację brzmienia przed pierwszą ofertą dla klienta zagranicznego.
+
+**1. Kwoty netto (zawsze):**
+- PL: „Wszystkie kwoty są kwotami NETTO i nie zawierają podatku VAT. Podatek
+  zostanie doliczony na fakturze zgodnie z obowiązującymi przepisami."
+- EN: „All amounts are NET and exclude VAT. Tax will be added on the invoice
+  in accordance with applicable regulations."
+- DE: „Alle Beträge sind NETTOBETRÄGE und enthalten keine Mehrwertsteuer. Die
+  Steuer wird auf der Rechnung gemäß den geltenden Vorschriften ausgewiesen."
+
+**2. Odwrotne obciążenie (tylko gdy `klient_kraj` ≠ Polska):**
+- PL: „Dla kontrahenta spoza Polski rozliczenie podatku może nastąpić w kraju
+  nabywcy (odwrotne obciążenie) — stawka zostanie potwierdzona na fakturze."
+- EN / DE: odpowiedniki w tym samym duchu (patrz `DICT` w `OfferPrint.tsx`).
+
+Zdanie o odwrotnym obciążeniu jest celowo WARUNKOWE („może nastąpić",
+„zostanie potwierdzona na fakturze") — oferta nie przesądza stawki, bo zależy
+ona od statusu VAT-UE kontrahenta i rodzaju usługi. Jeśli to za mało ostrożne
+albo przeciwnie, zbyt zachowawcze — proszę o poprawione brzmienie.

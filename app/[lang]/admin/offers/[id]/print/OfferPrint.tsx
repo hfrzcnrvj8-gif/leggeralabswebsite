@@ -79,6 +79,10 @@ type Dict = {
   roiPayback: string;
   roiYear: string;
   roiNote: string;
+  /** Zgłoszenie właściciela 2026-07-27: na dokumencie nie było ani słowa
+   * o tym, że kwoty są NETTO. Dla klienta biznesowego to różnica 23%. */
+  netNote: string;
+  reverseChargeNote: string;
 };
 
 const DICT: Record<OfferLang, Dict> = {
@@ -133,6 +137,8 @@ const DICT: Record<OfferLang, Dict> = {
     roiPayback: "Zwrot z inwestycji",
     roiYear: "W skali roku",
     roiNote: "Szacunek na podstawie czasu wskazanego przez Państwa w rozmowie — nie jest gwarancją wyniku.",
+    netNote: "Wszystkie kwoty są kwotami NETTO i nie zawierają podatku VAT. Podatek zostanie doliczony na fakturze zgodnie z obowiązującymi przepisami.",
+    reverseChargeNote: "Dla kontrahenta spoza Polski rozliczenie podatku może nastąpić w kraju nabywcy (odwrotne obciążenie) — stawka zostanie potwierdzona na fakturze.",
   },
   en: {
     doc: "Quote",
@@ -185,6 +191,8 @@ const DICT: Record<OfferLang, Dict> = {
     roiPayback: "Payback period",
     roiYear: "Per year",
     roiNote: "Estimate based on the time you indicated during our conversation — not a guaranteed outcome.",
+    netNote: "All amounts are NET and exclude VAT. Tax will be added on the invoice in accordance with applicable regulations.",
+    reverseChargeNote: "For customers outside Poland, tax may be accounted for in the customer's country (reverse charge) — the rate will be confirmed on the invoice.",
   },
   de: {
     doc: "Angebot",
@@ -237,6 +245,8 @@ const DICT: Record<OfferLang, Dict> = {
     roiPayback: "Amortisationszeit",
     roiYear: "Pro Jahr",
     roiNote: "Schätzung auf Basis der von Ihnen genannten Zeit — keine Garantie für das Ergebnis.",
+    netNote: "Alle Beträge sind NETTOBETRÄGE und enthalten keine Mehrwertsteuer. Die Steuer wird auf der Rechnung gemäß den geltenden Vorschriften ausgewiesen.",
+    reverseChargeNote: "Für Kunden außerhalb Polens kann die Steuer im Land des Erwerbers abgerechnet werden (Reverse-Charge) — der Satz wird auf der Rechnung bestätigt.",
   },
 };
 
@@ -558,6 +568,19 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
               </div>
             </div>
           </div>
+
+          {/* Kwoty NETTO — na dokumencie musi to być napisane wprost, nie
+              domyślne (zgłoszenie właściciela 2026-07-27). Dla klienta
+              zagranicznego dochodzi zdanie o odwrotnym obciążeniu: faktyczną
+              stawkę i tak potwierdza faktura.
+              Pełna szerokość, nie kolumna sumy — w słupku 256 px to zdanie
+              łamało się na sześć linijek. */}
+          <p className="mt-2 text-[10.5px] leading-relaxed text-neutral-500">
+            {t.netNote}
+            {(offer.klient_kraj ?? "").trim() && !["pl", "pol", "polska", "poland"].includes((offer.klient_kraj ?? "").trim().toLowerCase())
+              ? ` ${t.reverseChargeNote}`
+              : ""}
+          </p>
 
           {/* Szacowany zwrot (runda 3). Liczby podaje właściciel w panelu,
               dokument tylko mnoży — i mówi wprost, że to szacunek, nie
