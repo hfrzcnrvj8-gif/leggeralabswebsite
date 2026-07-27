@@ -1,6 +1,8 @@
 # Prompt do wklejenia w nowym czacie — moduł UMOWY
 
 > Powstał 2026-07-26, po domknięciu Ofert (Moduł 57).
+> **Uzupełniony 2026-07-27 o wnioski z audytu Modułu 57** — patrz sekcje
+> „ANEKS", „Blokady", „Co audyt Ofert zostawił Umowom".
 
 Kontynuujemy audyt UI/UX i kompletności panelu (leggeralabs.pl/admin, repo
 bieżące) oraz apki natywnej iPhone/iPad (`leggera-hub-ios`, osobne repo:
@@ -26,17 +28,84 @@ w kolejności lejka sprzedaży. **Pulpit, Leady, Klienci i Oferty są zrobione.*
 Sprawdź i oceń, a potem zaproponuj właścicielowi KONKRETNE poprawki — nie
 pytaj ogólnie „co zmienić".
 
-## Dwie sprawy przekazane wprost z modułu Oferty
+## NAJWAŻNIEJSZY BRAK: aneks nie istnieje jako dokument
 
-1. **Kolor statusu dokumentów — rozstrzygnąć RAZ, dla wszystkich.** Panel
-   konsekwentnie maluje „dokument w obiegu" na cyjanowo (Oferty, Umowy,
-   Faktury), apka równie konsekwentnie na fioletowo. To dwie spójne palety,
-   nie błąd jednego modułu — dlatego w Ofertach świadomie tego nie ruszono.
-   Przy Klientach precedens brzmiał „wygrała apka". Zdecyduj z właścicielem
-   i zrób to w JEDNYM podejściu dla wszystkich trzech modułów, nie po kawałku.
-2. **`contractReference` jest już naprawiona** (rok czytany przez
-   `documentYear()`, nie `new Date()`) — ale sprawdź, czy w Umowach nie ma
-   drugiej takiej linijki. Ta pułapka wyszła w tym projekcie trzy razy.
+`lib/blokadaDokumentu.ts` odmawia zmiany podpisanej umowy zdaniem: **„Zmiana
+wymaga aneksu."** Aneksu w systemie NIE MA. Panel wysyła właściciela po coś,
+czego nie potrafi zrobić — a to jedyna droga wyjścia z zablokowanego
+dokumentu, więc bez niej blokada jest ślepym zaułkiem.
+
+Porównaj z dwoma pozostałymi dokumentami, bo tam ta droga istnieje i ma
+dokładnie ten sam kształt:
+
+| Dokument | Zablokowany bo | Droga wyjścia | Stan |
+|---|---|---|---|
+| Faktura | ma numer | korekta (`/api/invoices/:id/correct`) | ✅ jest |
+| Oferta | wysłana | nowa wersja (`/api/offers/:id/version`) | ✅ jest |
+| Umowa | podpisana | **aneks** | ❌ BRAK |
+
+Kształt do powtórzenia (wzoruj się na `version` i `correct`, NIE wymyślaj
+trzeciego wzorca):
+
+- Aneks to **osobny wiersz** w `contracts` wskazujący na oryginał — jak
+  `parent_offer_id` w ofertach. Oryginał **zostaje podpisany i nietknięty**
+  (to jest cała różnica wobec „cichej edycji", przed którą broni blokada);
+  aneks ma własny numer, własny link i własny e-podpis.
+- **Nie kopiuj wzorca `superseded_at` z ofert.** Zastąpiona oferta wypada
+  z liczników, bo nie jest ani wygrana, ani przegrana. Aneksowana umowa jest
+  dalej obowiązująca — obie strony ją podpisały. Numeruj i licz obie.
+- Zapytaj właściciela, czy aneks ma być pełną kopią treści z zaznaczonymi
+  zmianami, czy samym opisem zmiany („§3 otrzymuje brzmienie…"). To decyzja
+  nietechniczna i **prawna** — brzmienie klauzul aneksu idzie do
+  `docs/DO-PRAWNIKA-I-TLUMACZA.md`, nie pisz go sam.
+- Dopóki aneksu nie ma, komunikat blokady w `lib/blokadaDokumentu.ts` obiecuje
+  coś, czego nie da się zrobić. Albo zbuduj aneks, albo zmień to zdanie.
+
+## Blokady dokumentów — sprawdź je tak, jak sprawdził audyt
+
+Audyt Modułu 57 (2026-07-27) znalazł **siedem otwartych uchwytów HTTP**
+w tym, co dokumentacja opisywała jako „domknięte". Umowy przeszły ten audyt
+czysto, ale mają dziś jeden dokument bez tabel podrzędnych — **każda tabela,
+którą dołożysz (klauzule aneksu, załączniki, strony umowy), to nowy komplet
+tras do zablokowania.**
+
+Metoda, i tylko ta metoda: **sonda `curl` po KAŻDYM uchwycie HTTP osobno**,
+na lokalnym dev-panelu, z odczytem stanu bazy po każdej próbie. Przegląd kodu
+przepuścił wszystkie siedem — bo pliki *importują* blokadę i wołają ją
+w pierwszym uchwycie, więc grep po pliku daje trafienie, a `DELETE` obok jest
+otwarty. Gotowa sonda do przerobienia: `HUB_SETUP.md` → „Audyt Modułu 57".
+
+Sprawdź też **drogę wyjścia**, nie tylko blokadę: czy da się z zablokowanego
+dokumentu przejść dalej, czy właściciel utyka.
+
+## Co audyt Ofert zostawił Umowom
+
+1. **`accepted_ip` / `accepted_user_agent` bez retencji.** Umowy mają ten sam
+   zestaw pól co oferty (e-podpis). Audyt 2 objął retencją leady (24 mies.);
+   dowód złożenia oświadczenia woli żyje bezterminowo i nikt tego nie
+   rozstrzygnął. Rozstrzygnij dla OBU dokumentów naraz — to jedna decyzja.
+2. **Umowa nie ma migawki.** Oferta od 2026-07-27 zamraża treść przy wysyłce,
+   więc klient widzi to, co dostał. Umowa renderuje publicznie dane ŻYWE.
+   Dziś ratuje ją blokada `PATCH`-a, ale to ochrona przez zakaz, nie przez
+   dowód: przy sporze nie ma czego pokazać sprzed podpisu. Zapytaj właściciela,
+   czy umowa ma dostać `migawka` wzorem oferty (te same dwie kolumny).
+   **Jeśli tak — zasada z audytu:** do migawki idzie to, co NAPISAŁ właściciel;
+   żywe zostaje to, co ZROBIŁ klient (podpis, nazwisko) i sterowanie
+   dokumentem (status, unieważnienie linku). Odwrotna kolejność scalania
+   (`{...migawka, ...żywe}`) unieważnia całą funkcję po cichu.
+3. **Publiczne trasy bez hamulca.** `contracts/public/:token/accept` nie ma
+   odpowiednika `lib/rateLimit.ts` — tak samo jak trasy oferty. Jedna decyzja
+   dla wszystkich publicznych tras dokumentów.
+4. **Kolor statusu — zostało pół sprawy.** Rozstrzygnięcie z 2026-07-27
+   („wygrywa paleta apki") objęło WYŁĄCZNIE status „Wysłana". `Odrzucona` jest
+   dalej czerwona w panelu i szara w apce, w Ofertach i w Umowach. Domknij to
+   w jednym podejściu dla obu modułów — i **nie zaczynaj od nowa dyskusji
+   o „Wysłanej"**, ta jest zamknięta (fiolet marki, faktury świadomie
+   neutralne).
+5. **`contractReference` jest już naprawiona** (rok przez `documentYear()`,
+   nie `new Date()`) — ale sprawdź, czy w Umowach nie ma drugiej takiej
+   linijki. Ta pułapka wyszła w tym projekcie trzy razy; w Ofertach audyt
+   przeszedł cały moduł greptem i nie znalazł już ani jednej.
 
 ## Zgłoszenie właściciela do tego modułu (2026-07-26)
 
@@ -89,6 +158,18 @@ czego właściciel realnie potrzebuje przy umowie w terenie — nie zgaduj.
 5. **Symulator: nie trać czasu na kalibrację dotyku.** Zrzut ma inną skalę niż
    przestrzeń współrzędnych `tap` — w module Oferty poszło na to kilka rund.
    Weryfikuj pełnym gestem albo po stanie w bazie, nie precyzyjnym tapem.
+6. **Sprawdzenie per PLIK kłamie — licz UCHWYTY HTTP.** Największe znalezisko
+   audytu Ofert: pliki, które importują blokadę i wołają ją w `PATCH`, mają
+   otwarty `DELETE` tuż niżej. Sprawdzaj `export async function` po kolei.
+7. **Dokumentacja twierdziła, że jest domknięte.** Tabela w `HUB_SETUP.md`
+   mówiła „trasa odmawia" o trasach, które zwracały 200. Nie ufaj opisowi
+   własnej poprzedniej rundy — sprawdź trasę.
+8. **Blokada bez drogi wyjścia to pułapka** (patrz aneks wyżej). Za każdym
+   razem, gdy dokładasz zakaz, sprawdź, dokąd on odsyła i czy to coś istnieje.
+9. **Pole może być „wolne mimo blokady" i niewidoczne dla klienta naraz.**
+   W Ofertach ważność dało się przedłużyć jako ustępstwo wobec klienta,
+   a klient dalej widział starą datę. Jeśli dołożysz Umowom migawkę, przejdź
+   `POLA_MIMO_BLOKADY_UMOWY` pole po polu i zapytaj: czy druga strona to widzi?
 
 ## Czego NIE ruszać
 

@@ -279,6 +279,33 @@ czasu przez `new Date(created_at)` w przeglądarce, a `NoteActivityLog.tsx:120`
 tak samo renderuje datę — na Safari dadzą złą kolejność i „Invalid Date".
 Do zrobienia przy najbliższym dotknięciu tych plików.
 
+### Runda 6 — AUDYT modułu Oferty (2026-07-27)
+
+Osobny czat, zadanie: sprawdzić, co powstało w rundach 1–5, bez dokładania
+funkcji. Pełny raport i wnioski otwarte: `HUB_SETUP.md` → „Audyt Modułu 57".
+
+**Cztery poprawki, każda z dowodem z sondy po realnych trasach:**
+
+1. Trzy trasy oferty (`DELETE` pozycji, `DELETE` sekcji, `apply-template`)
+   nie miały blokady — wysłaną ofertę dało się przebudować innym czasownikiem
+   HTTP niż zablokowany `PATCH`.
+2. Trzy trasy pozycji faktury nie miały blokady. Na wystawionej `FV 5/2026`
+   sonda skasowała pozycję za 1 000 zł i wstawiła 9 999 zł.
+3. `wybrana` (wybór pozycji opcjonalnych) było zamrożone w migawce — klient
+   po akceptacji widział kwotę 1 000 zł przy fakturze na 1 500 zł.
+4. `wazna_do` też było zamrożone, mimo że blokada jawnie pozwala je zmieniać.
+
+**Metoda, która to znalazła — i tylko ona:** sonda `curl` po każdym UCHWYCIE
+HTTP osobno, na lokalnym dev-panelu (PGlite), z odczytem stanu bazy ORAZ
+strony klienta po każdej próbie. Przegląd kodu przepuścił wszystkie cztery:
+pliki *importują* blokadę i wołają ją w pierwszym uchwycie, więc grep po
+pliku daje trafienie, a drugi uchwyt jest otwarty. Dokumentacja rundy 5
+twierdziła, że blokady są kompletne.
+
+**Zasada z migawki, warta zapamiętania:** do migawki należy to, co NAPISAŁ
+właściciel; żywe zostaje to, co ZROBIŁ klient (wybór, podpis) albo co jest
+sterowaniem dokumentem (status, ważność, unieważnienie linku).
+
 ### Runda 5 — dokument i jego nienaruszalność (2026-07-27)
 
 - **Kalendarz zamiast koła dat** we WSZYSTKICH polach daty panelu: tydzień od

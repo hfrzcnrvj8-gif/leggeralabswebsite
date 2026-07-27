@@ -8570,3 +8570,111 @@ a z bazy dokładana jest wyłącznie wymieniona lista pól.
 
 Oferty wysłane przed tą zmianą migawki nie mają — dla nich publiczna trasa
 dalej czyta dane żywe (fallback).
+
+## Audyt Modułu 57 — Oferty (2026-07-27)
+
+Audyt tego, co powstało w pięciu rundach Ofert; **nie** dokładanie funkcji.
+Metoda: sonda `curl` po REALNYCH trasach lokalnego dev-panelu (PGlite), nie
+przegląd kodu — trzy z czterech znalezisk przechodzą przegląd bez zająknięcia.
+
+### Blokady: cztery trasy nie blokowały
+
+Dokumentacja rundy 5 mówiła „trasa odmawia". Sprawdzenie **per uchwyt HTTP**
+(nie per plik) pokazało co innego:
+
+| Trasa | Przed audytem | Po |
+|---|---|---|
+| `DELETE /api/offers/:id/items/:itemId` | 200 na wysłanej ofercie | 409 |
+| `DELETE /api/offers/:id/sections/:sectionId` | 200 | 409 |
+| `POST /api/offers/:id/apply-template` | 200 — dopisywał pozycje, bloki i uwagi | 409 |
+| `POST` / `PATCH` / `DELETE` `/api/invoices/:id/items[...]` | 200 na fakturze z numerem | 409 |
+
+**Dlaczego grep tego nie widział:** oba pliki pozycji i sekcji *importują*
+`blokadaOferty` i wołają ją w pierwszym uchwycie. Plik wygląda na
+zabezpieczony; drugi uchwyt w tym samym pliku jest otwarty.
+
+Najcięższa była faktura. Sonda skasowała pozycję za 1 000 zł na wystawionej
+`FV 5/2026` i wstawiła w to miejsce 9 999 zł — numer fiskalny ten sam. Przy
+okazji trasy pozycji faktury szły po samym `id` pozycji, bez `invoice_id`
+z adresu: blokadę dałoby się ominąć, podając w ścieżce numer dowolnego
+szkicu. **Płatności zostają wolne** — wpłata nie jest treścią faktury.
+
+Umowy: bez zarzutu. `PATCH` odmawia (409), ponowny e-podpis odbija się
+o „claim" (`WHERE status != 'Podpisana'`), a tabeli pozycji umowa nie ma —
+czyli nie ma czwartej trasy, którą można by ją obejść.
+
+### Migawka: trzymała, ale zamrażała dwa pola za dużo
+
+Sam mechanizm działa — po odblokowanych trasach (przed poprawką) baza
+i strona klienta rozjeżdżały się, a klient dalej widział to, co dostał.
+Kolejność scalania jest poprawna. Dwa pola były jednak po złej stronie:
+
+- **`wybrana`** — to decyzja KLIENTA, nie treść dokumentu. Migawka powstaje
+  przy wysyłce, więc zamrażała ją na „nic nie zaznaczono". Efekt (oferta
+  `AUDYT-WYBOR`): klient po akceptacji wraca pod link i widzi certyfikat
+  akceptacji pod kwotą **1 000 zł**, a faktura opiewa na **1 500 zł**.
+- **`wazna_do`** — `POLA_MIMO_BLOKADY_OFERTY` jawnie pozwala przedłużyć
+  ważność i nazywa to „ustępstwem wobec klienta". Ustępstwo, którego klient
+  nie widzi, nie jest ustępstwem. Gorszy był kierunek odwrotny: strona
+  pokazywała ofertę jako ważną, a akceptacja odbijała się o 409, bo
+  `isOfferExpired` liczy z danych ŻYWYCH.
+
+Oba dołączyły do listy pól żywych. **Zasada, która z tego wychodzi:** do
+migawki należy to, co NAPISAŁ właściciel; żywe zostaje to, co ZROBIŁ klient
+albo co jest sterowaniem dokumentem (status, ważność, unieważnienie linku).
+
+### Co sprawdzono i jest w porządku
+
+- **Akceptacja** — pojedyncza (`claim` w transakcji), publiczna nie omija
+  wygaśnięcia, unieważniony link odbija 410 także przy podpisie.
+- **Liczby** — oferty `superseded_at` wypadają z KPI listy
+  (`offerLiczySieDoStatystyk`), z Pulpitu i ze statystyki „dlaczego
+  przegrywamy" (`AND o.superseded_at IS NULL`). Trzyma to jednak **podwójnie**:
+  trasa `version` ustawia też `status = 'Wygasła'`, więc filtry po statusach
+  zamkniętych łapią je nawet tam, gdzie `superseded_at` nikt nie sprawdza
+  (`hub/today`, `pipelineRaw`). Poprawne, ale kruche — kto kiedyś zmieni ten
+  status, urwie połowę ochrony bez żadnego objawu.
+- **Waluty** — nic nie sumuje się po cichu: KPI liczą w liczbach bez
+  przeliczania i **mówią o tym pod spodem** (`obceWaluty`). „Skuteczność"
+  liczy dokładnie to, co obiecuje podpowiedź (zaakceptowane / rozstrzygnięte).
+- **Numer dokumentu** — `documentYear()` czyta rok ze stringa, bez `new Date()`
+  na znaczniku z Postgresa. Sprawdzone na wydruku: `OF-2026-0F8FA5`, nie
+  `OF-NaN-…`. W całym module nie ma ani jednego `new Date()` na danych z bazy.
+- **Wydruk PL/EN/DE** — waluta w locale języka (`12.000,00 €` po niemiecku),
+  zdanie o kwotach netto, odwrotne obciążenie dla klienta spoza Polski, blok
+  zwrotu, certyfikat akceptacji, informacja o zapisie IP przy e-podpisie.
+- **Parytet z apką** — `APIClient.swift` woła listę, profil, `send`, `remind`,
+  `accept`, `version`, `sections` (POST/PATCH/DELETE) i `share-links`. Żadna
+  z nich nie jest martwa. Apka **nie proponuje** akcji, które trasa odrzuci —
+  „Edytuj treść oferty" pokazuje się tylko dla szkicu. `OfertyPanelIpad` jest
+  wołany wyłącznie z `PanelBoczny.swift` (pułapka pustego ekranu z żółtym
+  trójkątem na iPhonie — nie powtórzona).
+
+### Otwarte wnioski (NIE naprawiane w audycie)
+
+1. **Pozycje oferty są niedostępne z telefonu** — apka nie woła żadnej trasy
+   `items`. To świadomy podział poziom 2/3, ale wart potwierdzenia: bloki
+   treści apka edytuje, ceny nie.
+2. **`liczba_otwarc` liczy też roboty.** Publiczny `GET` inkrementuje licznik
+   przy każdym żądaniu — prefetch linku przez klienta pocztowego albo skaner
+   antywirusowy firmy klienta wygląda jak „przeczytał". Powiadomienie
+   „klient otworzył ofertę" może więc dzwonić, zanim ktokolwiek spojrzy.
+3. **Publiczne trasy bez hamulca.** `comment` i `accept` nie mają
+   odpowiednika `lib/rateLimit.ts`. Kto ma link, może zalać skrzynkę
+   właściciela i oś czasu klienta prośbami o zmianę.
+4. **`accepted_ip` / `accepted_user_agent` nie mają retencji.** Audyt 2 objął
+   leady (24 mies.); dowód e-podpisu żyje bezterminowo. Do rozstrzygnięcia
+   razem z Umowami — tam jest ten sam zestaw pól.
+5. **Migawka to druga kopia danych osobowych klienta** (nazwa, NIP, adres)
+   w tym samym wierszu. Usunięcie klienta odpina `client_id`, ale migawki nie
+   rusza — spójnie z fakturami, tyle że oferty NIE podlegają 5-letniemu
+   obowiązkowi podatkowemu, więc uzasadnienie z faktur tu nie działa.
+6. **`POST /api/offers/:id/items` po cichu ignoruje `ilosc`** — wstawia
+   zawsze `1`. Panel zaraz potem robi `PATCH`, więc nikt tego nie widzi; trasa
+   wołana z zewnątrz (apka, skrypt) zgubi ilość bez błędu.
+7. **Domyślna jednostka `szt.` wychodzi na dokument EN/DE.** Faktury mają
+   `DEFAULT_UNIT` per język (`pcs.` / `Stk.`), oferty nie — niemiecki wydruk
+   pokazuje `EINHEIT: szt.`.
+8. **`Odrzucona` dalej jest czerwona w panelu, szara w apce.** Rozstrzygnięcie
+   z 2026-07-27 („wygrywa paleta apki") objęło tylko „Wysłaną". Świadomie
+   nietknięte w audycie — kolory statusów są zamknięte decyzją właściciela.
