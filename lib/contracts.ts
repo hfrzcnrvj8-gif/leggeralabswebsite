@@ -44,7 +44,8 @@ export const CONTRACT_STATUS_CLASS: Record<string, string> = {
   Szkic: "bg-[var(--hairline)] text-muted",
   Wysłana: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
   Podpisana: "bg-emerald-500/20 text-emerald-400 font-semibold",
-  Odrzucona: "bg-red-500/15 text-red-400",
+  // Neutralnie, nie czerwono — patrz OFFER_STATUS_CLASS (lib/offers.ts).
+  Odrzucona: "bg-[var(--hairline)] text-muted",
 };
 
 /** Statusy zamknięte — dokument nie jest już "w grze". */

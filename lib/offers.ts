@@ -71,12 +71,18 @@ export function rejectReasonLabel(powod: string, komentarz: string): string {
  * apka, tym samym precedensem co przy statusie klienta (Moduł 51): jej paleta
  * przeszła osobny audyt koloru. Odcień tekstu ten sam co w CLIENT_STATUS_CLASS,
  * bo czysty #7C3AED na ciemnym tle jest za ciemny do czytania.
- * Bliźniak: `kolorStatusuOferty` w OfertyView.swift. */
+ * Bliźniak: `kolorStatusuOferty` w OfertyView.swift.
+ *
+ * „Odrzucona" zeszła z czerwieni na neutralny 2026-07-27 (audyt Modułu 57,
+ * decyzja właściciela) — tym samym ruchem, co „Wysłana" tydzień wcześniej.
+ * Powód: odrzucona oferta nie jest AWARIĄ, tylko zamkniętą sprawą, a czerwień
+ * w palecie apki jest zarezerwowana dla błędów. Panel malował ją czerwono,
+ * apka szaro; wygrywa apka, tym samym precedensem co przy statusie klienta. */
 export const OFFER_STATUS_CLASS: Record<string, string> = {
   Szkic: "bg-[var(--hairline)] text-muted",
   Wysłana: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
   Zaakceptowana: "bg-emerald-500/20 text-emerald-400 font-semibold",
-  Odrzucona: "bg-red-500/15 text-red-400",
+  Odrzucona: "bg-[var(--hairline)] text-muted",
   Wygasła: "bg-[var(--hairline)] text-muted opacity-70",
 };
 
