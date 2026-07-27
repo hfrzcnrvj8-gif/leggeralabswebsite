@@ -45,7 +45,8 @@ import { ProcessMap, PillPicker } from "../components";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { SOURCE_CATEGORIES } from "@/lib/leads";
 import { formatPlDate } from "@/lib/projects";
-import { CONTRACT_TYP_LABEL } from "@/lib/contracts";
+import { CONTRACT_TYP_LABEL, contractReference, type ContractTyp } from "@/lib/contracts";
+import { offerReference } from "@/lib/offers";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -86,7 +87,9 @@ type ClientFollowupItem = {
  * karty odróżnić umowę odblokowującą start projektu od wolnostojącej. */
 type LinkedContract = {
   id: string;
-  typ: "umowa" | "nda";
+  /** Także „dpa" i „aneks" — lista typów rosła (Moduły 58 i DPA), a ten alias
+   * został przy dwóch. */
+  typ: ContractTyp;
   status: string;
   project_id: string | null;
   accepted_at: string | null;
@@ -129,7 +132,7 @@ type FeedItem = {
 /** Jeden krok ścieżki dokumentów — kształt 1:1 z `KrokSciezki` po stronie
  * trasy (app/api/clients/[id]). */
 type KrokSciezki = {
-  rodzaj: "offer" | "contract" | "invoice";
+  rodzaj: "offer" | "contract" | "project" | "invoice";
   id: string;
   prefiks: string;
   etykieta: string;
@@ -140,6 +143,7 @@ type KrokSciezki = {
 const SEGMENT_KROKU: Record<KrokSciezki["rodzaj"], string> = {
   offer: "offers",
   contract: "contracts",
+  project: "projects",
   invoice: "invoices",
 };
 
@@ -819,7 +823,14 @@ export function ClientDetailPanel({
                       (`zbudujSciezki`), z jawnych powiązań, nie ze zgadywania
                       po projekcie. */}
                   {sciezki.length > 0 && (
-                    <div className="mb-4 space-y-2">
+                    <div className="mb-5 space-y-2">
+                      <div>
+                        <h3 className="text-[11px] uppercase tracking-wide text-muted">Co z czego wynikło</h3>
+                        <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted opacity-70">
+                          Dokumenty połączone w jedną sprawę. Pełny rejestr — także to, co nie ma jeszcze związku
+                          z niczym — jest niżej.
+                        </p>
+                      </div>
                       {sciezki.map((sciezka, i) => (
                         <div key={i} className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg card-inset px-3 py-2">
                           {sciezka.map((krok, j) => (
@@ -840,6 +851,12 @@ export function ClientDetailPanel({
                       ))}
                     </div>
                   )}
+                  {sciezki.length === 0 && linkedCount > 1 && (
+                    <p className="mb-4 rounded-lg card-inset px-3 py-2 text-[11.5px] leading-relaxed text-muted">
+                      Żaden z tych dokumentów nie wynika jeszcze z innego. Połączysz je polem „Wynika z” w fakturze
+                      albo „Z oferty” w umowie — wtedy pojawi się tu ścieżka sprawy.
+                    </p>
+                  )}
                   {linkedCount === 0 && (
                     <p className="text-sm text-muted opacity-60">
                       Nic jeszcze nie jest przypięte do tego klienta — zacznij od oferty.
@@ -847,12 +864,16 @@ export function ClientDetailPanel({
                   )}
                   {linkedCount > 0 && (
                     <div className="space-y-4">
+                      {sciezki.length > 0 && (
+                        <h3 className="text-[11px] uppercase tracking-wide text-muted">Wszystkie dokumenty</h3>
+                      )}
                       {offers.length > 0 && (
                         <LinkedGroup title="Oferty">
                           {offers.map((o) => (
                             <li key={o.id}>
                               <Link href={`/${lang}/admin/offers/${o.id}`} className="hover:underline">
-                                {o.tytul || "(bez tytułu)"}
+                                {offerReference(o)}
+                                {o.tytul ? ` — ${o.tytul}` : ""}
                               </Link>
                               <span className="text-muted"> — {o.status}{o.wazna_do ? `, ważna do ${formatPlDate(o.wazna_do)}` : ""}</span>
                             </li>
@@ -889,8 +910,13 @@ export function ClientDetailPanel({
                         <LinkedGroup title="Umowy i NDA">
                           {contracts.map((c) => (
                             <li key={c.id}>
+                              {/* Numer dokumentu, nie samo „Powierzenie danych"
+                                  — ścieżka wyżej mówi „DPA-2026-E72339", a dwie
+                                  nazwy tego samego dokumentu na jednym ekranie
+                                  każą się domyślać, czy to ten sam (zgłoszenie
+                                  właściciela 2026-07-27). */}
                               <Link href={`/${lang}/admin/contracts/${c.id}`} className="hover:underline">
-                                {CONTRACT_TYP_LABEL[c.typ]}
+                                {CONTRACT_TYP_LABEL[c.typ]} {contractReference(c)}
                               </Link>
                               <span className="text-muted">
                                 {" "}

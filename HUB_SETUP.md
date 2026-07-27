@@ -9220,3 +9220,29 @@ połączyć wyłącznie szkic, czyli ten dokument, który tego nie potrzebuje.
 Sprawdzone sondą: `PATCH {contract_id}` na `FV 2/2026` → 200, `PATCH
 {klient_nazwa}` na tej samej fakturze → 409. Edytor ma bliźniaczy wyjątek
 w `patchInvoice` — bez niego picker po cichu nic by nie zapisał.
+
+#### Czytelność ścieżki — poprawki po ocenie właściciela (2026-07-27)
+
+Zgłoszenie brzmiało: „jak mam to odczytywać? czy to na pewno logiczne na
+pierwszy rzut oka?". Nie było — na jednym ekranie stały trzy różne błędy naraz:
+
+1. **Pojedynczy dokument udawał ścieżkę.** Sekcja pokazywała każdy dokument,
+   także taki, który z niczego nie wynika i z którego nic nie wynikło. Wątek
+   jednoelementowy nie jest ścieżką, tylko powtórzeniem rejestru niżej. Teraz
+   `zbudujSciezki` oddaje **wyłącznie łańcuchy ≥ 2 kroków**; samotne dokumenty
+   zostają tam, gdzie i tak były.
+2. **Ten sam dokument miał dwie różne nazwy** na jednym ekranie: „Powierzenie
+   DPA-2026-E72339" w ścieżce i „Powierzenie danych" w rejestrze. Rejestr mówi
+   teraz tym samym językiem — numerem dokumentu.
+3. **Sekcja nie miała nagłówka**, więc nic nie tłumaczyło, czym różni się od
+   list pod spodem. Doszły dwa nagłówki („Co z czego wynikło" / „Wszystkie
+   dokumenty") i zdanie wyjaśniające.
+
+**Projekt jest teraz krokiem ścieżki** — wcześniej wypadał z historii, mimo że
+jest jej środkiem. Kolejność kroków idzie lejkiem: oferta → umowa (→ aneks) →
+projekt → faktury. Faktury z umów zbierane są na bok i doklejane ZA projektem,
+żeby kolejność czytała się jak proces, a nie jak kolejność pętli w kodzie.
+
+**Gdy nic nie jest połączone, a dokumentów jest kilka**, sekcja mówi wprost,
+czym je połączyć („Wynika z" w fakturze, „Z oferty" w umowie) — zamiast
+milczeć albo pokazywać listę udającą ścieżkę.

@@ -16,16 +16,18 @@ export const runtime = "nodejs";
  * na klienta + zdarzenia systemowe jak wysłanie oferty/wystawienie
  * faktury/wpłata) + powiązane oferty/faktury/projekty (szybkie linki do
  * aktualnego stanu). */
-type OfferRow = { id: string; tytul: string; status: string; waluta?: string | null; created_at: string };
+type OfferRow = { id: string; tytul: string; status: string; project_id: string | null; waluta?: string | null; created_at: string };
 type ContractRow = {
   id: string;
   typ: string;
   status: string;
   offer_id: string | null;
+  project_id: string | null;
   parent_contract_id: string | null;
   aneks_nr: number;
   created_at: string;
 };
+type ProjectRow = { id: string; tytul: string; status: string; created_at: string };
 type InvoiceRow = {
   id: string;
   numer: string | null;
@@ -33,12 +35,13 @@ type InvoiceRow = {
   typ_dokumentu: string;
   offer_id: string | null;
   contract_id: string | null;
+  project_id: string | null;
   created_at: string;
 };
 
 /** Jeden krok ścieżki — tyle, ile potrzeba, żeby narysować wiersz i kliknąć. */
 export type KrokSciezki = {
-  rodzaj: "offer" | "contract" | "invoice";
+  rodzaj: "offer" | "contract" | "project" | "invoice";
   id: string;
   /** Co to za dokument („Oferta", „Aneks", „Zaliczka") — osobno od numeru,
    * żeby UI nie sklejało „Faktura Zaliczka (szkic)". */
@@ -55,9 +58,15 @@ export type KrokSciezki = {
  * dostają własny, jednoelementowy wątek — zamiast być doklejone do przypadkowej
  * oferty albo zniknąć z widoku. Ukryty dokument jest gorszy niż samotny.
  */
-function zbudujSciezki(offers: OfferRow[], contracts: ContractRow[], invoices: InvoiceRow[]): KrokSciezki[][] {
+function zbudujSciezki(
+  offers: OfferRow[],
+  contracts: ContractRow[],
+  invoices: InvoiceRow[],
+  projects: ProjectRow[]
+): KrokSciezki[][] {
   const uzyteUmowy = new Set<string>();
   const uzyteFaktury = new Set<string>();
+  const uzyteProjekty = new Set<string>();
 
   const krokOferty = (o: OfferRow): KrokSciezki => ({
     rodzaj: "offer",
@@ -87,6 +96,15 @@ function zbudujSciezki(offers: OfferRow[], contracts: ContractRow[], invoices: I
     created_at: i.created_at,
   });
 
+  const krokProjektu = (p: ProjectRow): KrokSciezki => ({
+    rodzaj: "project",
+    id: p.id,
+    prefiks: "Projekt",
+    etykieta: p.tytul || "(bez tytułu)",
+    status: p.status,
+    created_at: p.created_at,
+  });
+
   const sciezki: KrokSciezki[][] = [];
 
   for (const o of offers) {
@@ -94,6 +112,10 @@ function zbudujSciezki(offers: OfferRow[], contracts: ContractRow[], invoices: I
     // Umowy z tej oferty + ich aneksy (aneks idzie ZARAZ za swoją umową, nie
     // na końcu wątku — inaczej „nr 1" wisiałby pod fakturą i nie było widać,
     // czego dotyczy).
+    // Faktury z umów zbieramy NA BOK i dokładamy dopiero za projektem —
+    // kolejność ma czytać się jak lejek (oferta → papier → praca → pieniądze),
+    // a nie jak kolejność pętli w kodzie.
+    const fakturyUmow: KrokSciezki[] = [];
     for (const c of contracts.filter((x) => x.offer_id === o.id && x.typ !== "aneks")) {
       krok.push(krokUmowy(c));
       uzyteUmowy.add(c.id);
@@ -102,10 +124,24 @@ function zbudujSciezki(offers: OfferRow[], contracts: ContractRow[], invoices: I
         uzyteUmowy.add(a.id);
       }
       for (const f of invoices.filter((x) => x.contract_id === c.id)) {
-        krok.push(krokFaktury(f));
+        fakturyUmow.push(krokFaktury(f));
         uzyteFaktury.add(f.id);
       }
     }
+    // Projekt wchodzi PO umowie, a przed fakturami — tak biegnie lejek
+    // (papier przed pracą, praca przed rozliczeniem). Tylko raz, nawet gdy
+    // wskazuje na niego i oferta, i umowa.
+    const projektId =
+      contracts.find((c) => c.offer_id === o.id && c.project_id)?.project_id ??
+      o.project_id ??
+      invoices.find((f) => f.offer_id === o.id && f.project_id)?.project_id ??
+      null;
+    const projekt = projektId ? projects.find((p) => p.id === projektId) : undefined;
+    if (projekt && !uzyteProjekty.has(projekt.id)) {
+      krok.push(krokProjektu(projekt));
+      uzyteProjekty.add(projekt.id);
+    }
+    krok.push(...fakturyUmow);
     for (const f of invoices.filter((x) => x.offer_id === o.id && !uzyteFaktury.has(x.id))) {
       krok.push(krokFaktury(f));
       uzyteFaktury.add(f.id);
@@ -116,6 +152,11 @@ function zbudujSciezki(offers: OfferRow[], contracts: ContractRow[], invoices: I
   for (const c of contracts.filter((x) => !uzyteUmowy.has(x.id) && x.typ !== "aneks")) {
     const krok = [krokUmowy(c)];
     for (const a of contracts.filter((x) => x.parent_contract_id === c.id && !uzyteUmowy.has(x.id))) krok.push(krokUmowy(a));
+    const p = c.project_id ? projects.find((x) => x.id === c.project_id) : undefined;
+    if (p && !uzyteProjekty.has(p.id)) {
+      krok.push(krokProjektu(p));
+      uzyteProjekty.add(p.id);
+    }
     for (const f of invoices.filter((x) => x.contract_id === c.id && !uzyteFaktury.has(x.id))) {
       krok.push(krokFaktury(f));
       uzyteFaktury.add(f.id);
@@ -123,10 +164,11 @@ function zbudujSciezki(offers: OfferRow[], contracts: ContractRow[], invoices: I
     sciezki.push(krok);
   }
 
-  const osierocone = invoices.filter((f) => !uzyteFaktury.has(f.id));
-  if (osierocone.length > 0) sciezki.push(osierocone.map(krokFaktury));
-
-  return sciezki;
+  // Pojedynczy dokument NIE jest ścieżką — sam ze sobą nic nie tworzy, a
+  // wyświetlony w tej sekcji wygląda jak powtórzenie listy niżej (zgłoszenie
+  // właściciela 2026-07-27: „jak mam to odczytywać?"). Dokumenty bez związku
+  // zostają tam, gdzie i tak są: w rejestrze pod spodem.
+  return sciezki.filter((s) => s.length >= 2);
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -163,7 +205,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
       : Promise.resolve([] as RawActivity[]),
     sql`SELECT id, kind, text, amount, related_id, created_at FROM client_events WHERE client_id = ${id};`,
-    sql`SELECT id, tytul, status, wazna_do, waluta, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
+    sql`SELECT id, tytul, status, wazna_do, waluta, project_id, created_at FROM offers WHERE client_id = ${id} ORDER BY created_at DESC;`,
     sql`SELECT id, numer, status, typ_dokumentu, offer_id, contract_id, project_id, created_at FROM invoices WHERE client_id = ${id} ORDER BY created_at DESC;`,
     // Pola opinii (Moduł 15) jadą razem z projektem: gwiazdka z listy klientów
     // mówiła TYLE, że jakaś opinia jest, ale profil klienta milczał o tym, KTÓRY
@@ -258,7 +300,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const sciezki = zbudujSciezki(
     offers as OfferRow[],
     contracts as ContractRow[],
-    invoices as InvoiceRow[]
+    invoices as InvoiceRow[],
+    projects as ProjectRow[]
   );
 
   return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail, followups, contacts, sciezki });
