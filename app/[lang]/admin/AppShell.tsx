@@ -163,12 +163,19 @@ const GO_CHORDS: Record<string, string> = {
  * Tabela ma sześć kolumn i profil na pełną szerokość karty — limit zostawiał
  * puste pasy dokładnie tak, jak wcześniej przy Ofertach.
  *
+ * Faktury i Projekty dołączyły 2026-07-28 (Moduł 59, zgłoszenie właściciela:
+ * „są ciasne"). Ten sam kształt co przy Umowach: gęsta tabela dokumentów
+ * (Faktury) i tablica kanban ze statusami plus oś czasu (Projekty). Uwaga na
+ * przyszłość: sam pomiar tego NIE rozstrzygał — tabela Faktur mieściła się
+ * bez ucięć w oknie testowym i dopiero właściciel na swoim monitorze widział
+ * pasy. „Zero uciętych komórek" nie znaczy „nie ciasno".
+ *
  * Reszta panelu (formularze, Statystyki, Pulpit) ZOSTAJE przy limicie: tam
  * pełna szerokość dałaby linie tekstu ciągnące się przez cały monitor, czyli
  * dokładnie odwrotny efekt. Dopisuj tu moduł dopiero wtedy, gdy realnie
  * brakuje mu miejsca — nie „dla spójności".
  */
-const PELNA_SZEROKOSC = ["mail", "leads", "clients", "offers", "contracts"];
+const PELNA_SZEROKOSC = ["mail", "leads", "clients", "offers", "contracts", "invoices", "projects"];
 
 export function AppShell({
   lang,
