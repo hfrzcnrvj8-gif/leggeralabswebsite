@@ -91,6 +91,15 @@ export const INVOICE_LANG_LABEL = DOC_LANG_LABEL;
 export type InvoiceStatus = "Szkic" | "Wystawiona" | "Opłacona" | "Po terminie" | "Anulowana";
 export const INVOICE_STATUSES: InvoiceStatus[] = ["Szkic", "Wystawiona", "Opłacona", "Po terminie", "Anulowana"];
 
+/** Strażnik statusu faktury — patrz `isOfferStatus` (lib/offers.ts). Ta sama
+ * dziura co w Ofertach i Umowach, znaleziona sondą przy Module 59: PATCH
+ * zapisywał „DOWOLNY-STRING-FV" i zwracał 200. Na fakturze boli bardziej niż
+ * gdzie indziej, bo status steruje windykacją (`isOverdue`) i sumami na
+ * Pulpicie. */
+export function isInvoiceStatus(v: unknown): v is InvoiceStatus {
+  return typeof v === "string" && (INVOICE_STATUSES as string[]).includes(v);
+}
+
 // Każdy status ma własny, wyraźnie inny kolor — żeby na liście dało się je
 // rozróżnić rzutem oka. Szkic (bursztyn = w przygotowaniu), Wystawiona (cyan =
 // w obiegu), Opłacona (zieleń = zamknięta pozytywnie), Po terminie (czerwień =

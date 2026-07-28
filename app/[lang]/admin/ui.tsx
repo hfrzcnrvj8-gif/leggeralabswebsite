@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { SPRING } from "@/lib/motion";
+import { SPRING, TWEEN_EXIT } from "@/lib/motion";
 
 type ToastItem = { id: string; message: string; type: "success" | "error" };
 type ConfirmState = { message: string; danger?: boolean; resolve: (v: boolean) => void } | null;
@@ -157,7 +157,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
               layout
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.96, transition: { duration: 0.15 } }}
+              exit={{ opacity: 0, y: -6, scale: 0.96, transition: TWEEN_EXIT }}
               transition={SPRING}
               className={`card-paper pointer-events-auto rounded-xl px-4 py-2.5 text-sm shadow-lg ${
                 t.type === "error" ? "border-red-500/40 text-red-400" : ""

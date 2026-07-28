@@ -26,6 +26,15 @@ export const TWEEN = { duration: 0.18, ease: EASE_LIQUID } as const;
  *  toastów, hoverów. Był już w 12 miejscach „z palca"; teraz jeden import. */
 export const SPRING = { type: "spring", stiffness: 420, damping: 32 } as const;
 
+/** Wyjście elementu (`exit`) — świadomie krótsze niż `TWEEN` (0.15 vs 0.18),
+ *  bo znikanie ma się nie dłużyć, ale na TEJ SAMEJ krzywej. Istnieje, bo
+ *  trzy miejsca (toast, panel zaproszenia, okno pisania maila) nadpisywały
+ *  `exit` gołym `{ duration: 0.15 }` — a `transition` bez `ease` to w
+ *  framer-motion `easeOut`, czyli dokładnie ten dług, który sprzątał Moduł 36:
+ *  element wchodził sprężyście, a wychodził obcą krzywą. Znaleziony pomiarem
+ *  przy Module 59. */
+export const TWEEN_EXIT = { duration: 0.15, ease: EASE_LIQUID } as const;
+
 /** Miękki spring — ŚWIADOMY wyjątek dla wartości, które mają się „doliczać"
  *  powoli i widocznie (licznik `AnimatedNumber`). Standardowy 420/32 skończy
  *  zliczanie zanim oko je zauważy, więc tu niższa sztywność jest poprawna. */

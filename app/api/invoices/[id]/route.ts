@@ -3,7 +3,7 @@ import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaFaktury, POLA_MIMO_BLOKADY_FAKTURY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { isPlausibleDateString } from "@/lib/projects";
-import { INVOICE_LANGS, PAYMENT_METHODS, invoiceTotals, type InvoiceItem } from "@/lib/invoices";
+import { INVOICE_LANGS, PAYMENT_METHODS, invoiceTotals, isInvoiceStatus, type InvoiceItem } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 
@@ -141,7 +141,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const v = typeof body.jezyk === "string" && (INVOICE_LANGS as string[]).includes(body.jezyk) ? body.jezyk : "pl";
       await sql`UPDATE invoices SET jezyk = ${v}, updated_at = now() WHERE id = ${id};`;
     }
-    if ("status" in body) await sql`UPDATE invoices SET status = ${str(body.status, 40)}, updated_at = now() WHERE id = ${id};`;
+    if ("status" in body) {
+      // Wartość ze SŁOWNIKA, nie dowolny string do 40 znaków (Moduł 59).
+      // Na fakturze boli podwójnie: status steruje windykacją (`isOverdue`)
+      // i sumami na Pulpicie, więc literówka cicho wypada z obu.
+      if (!isInvoiceStatus(body.status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
+      await sql`UPDATE invoices SET status = ${body.status}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("lead_id" in body) {
       const v = typeof body.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;
       await sql`UPDATE invoices SET lead_id = ${v}, updated_at = now() WHERE id = ${id};`;

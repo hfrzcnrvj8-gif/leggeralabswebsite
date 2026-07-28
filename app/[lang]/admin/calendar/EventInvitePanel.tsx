@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { SPRING } from "@/lib/motion";
+import { SPRING, TWEEN_EXIT } from "@/lib/motion";
 import { IconCalendarCheck, IconCalendarX, IconTrash } from "@tabler/icons-react";
 import type { HubEvent } from "@/lib/events";
 import { formatPlDate } from "@/lib/projects";
@@ -138,7 +138,7 @@ export function EventInvitePanel({
     <motion.div
       initial={{ opacity: 0, scale: 0.94, y: 12 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92, y: 8, transition: { duration: 0.15 } }}
+      exit={{ opacity: 0, scale: 0.92, y: 8, transition: TWEEN_EXIT }}
       transition={SPRING}
       className="card-paper w-full overflow-hidden rounded-2xl border hairline"
     >

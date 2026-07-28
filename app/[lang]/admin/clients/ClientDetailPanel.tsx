@@ -52,7 +52,7 @@ import { DocLinkPicker } from "../DocLinkPicker";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
-import { todayLocalISO, addDaysLocalISO, daysAgoLabel } from "@/lib/dates";
+import { todayLocalISO, addDaysLocalISO, daysAgoLabel, parsePgTimestamp } from "@/lib/dates";
 import { MailStatusTag, type MailStatus } from "../mail/shared";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { FieldChangesTab } from "../FieldChangesTab";
@@ -466,7 +466,11 @@ export function ClientDetailPanel({
         mail_message_id: m.id,
         source: "system" as const,
       })),
-  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // `parsePgTimestamp`, NIE `new Date()` — baza oddaje „2026-07-26 19:12:44.487+01"
+    // (spacja zamiast „T", strefa bez dwukropka). Chrome to wybacza, Safari nie:
+    // dostaje NaN i sortowanie osi czasu wychodzi w losowej kolejności. Dług
+    // spisany przy Module 57, spłacony w 59.
+  ].sort((a, b) => (parsePgTimestamp(b.created_at)?.getTime() ?? 0) - (parsePgTimestamp(a.created_at)?.getTime() ?? 0));
 
   const filteredFeed = osCzasu.filter((f) => {
     if (feedFilter === "all") return true;

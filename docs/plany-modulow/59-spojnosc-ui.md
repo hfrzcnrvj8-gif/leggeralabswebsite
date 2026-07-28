@@ -162,23 +162,36 @@ Trasy: sonda `curl` po każdym uchwycie HTTP osobno.
 
 Legenda: ✅ zgodne · ⚠️ drobny rozjazd · ❌ wymaga poprawki · — nie dotyczy
 
+### ETAP 1 — inwentarz wypełniony 2026-07-28
+
+Stan: panel `318f24d`, apka `acb1c54` (wydanie 166). Metoda: `getComputedStyle`
+w dev-panelu (PGlite), zrzut z symulatora iPada, sonda `curl` po uchwytach HTTP,
+oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
+
 | Moduł | Kolor | Klikalność | Gesty/menu | Klawiatura | Nawigacja | Stany | Treść | Ruch | Integralność | Dotyk |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Pulpit | | | | | | | | | | |
-| Leady | | | | | | | | | | |
-| Klienci | | | | | | | | | | |
-| Oferty | | | | | | | | | | |
-| Umowy | | | | | | | | | | |
-| Projekty | | | | | | | | | | |
-| Faktury | | | | | | | | | | |
-| Katalog | | | | | | | | | | |
-| Kalkulator | | | | | | | | | | |
-| Koszty | | | | | | | | | | |
-| Poczta | | | | | | | | | | |
-| Kalendarz | | | | | | | | | | |
-| Notatnik | | | | | | | | | | |
-| Przypomnienia | | | | | | | | | | |
-| Statystyki | | | | | | | | | | |
+| Pulpit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Leady | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ✅ | ❌ | ⚠️ |
+| Klienci | ✅ | ❌ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Oferty | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Umowy | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Projekty | ⚠️ | ✅ | ✅ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
+| Faktury | ❌ | ✅ | ⚠️ | ❌ | ⚠️ | ⚠️ | ❌ | ✅ | ❌ | ✅ |
+| Katalog | ✅ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
+| Kalkulator | ✅ | — | — | ❌ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Koszty | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Poczta | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Kalendarz | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
+| Przypomnienia | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
+| Statystyki | ✅ | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+**Czyste w całym produkcie (nie wymagają ruchu):** integralność `isAuthed`
+(260 uchwytów HTTP sprawdzonych po jednym — 20 bez bramki, wszystkie
+świadomie publiczne: tokeny, cron, logowanie), haptyka (45 wywołań `odczuj?`
+w `AppStore`, wyłącznie przy gardłach), brak `window.confirm/alert/prompt`
+(0 trafień), kolejność modułów panel = iPad = iPhone (zweryfikowana pozycja
+po pozycji).
 
 ## Gdzie mieszkają wzorce (jedno źródło każdego)
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureLeadsSchema, ensureClientsSchema, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
+import { isLeadStatus } from "@/lib/leads";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
 
@@ -150,7 +151,11 @@ export async function PATCH(
     await sql`UPDATE leads SET zrodlo = ${applied.zrodlo}, updated_at = now() WHERE id = ${id};`;
   }
   if ("status" in body) {
-    applied.status = str(body.status);
+    // Wartość ze SŁOWNIKA, nie dowolny string (Moduł 59, ta sama poprawka co
+    // w Ofertach i Umowach). Literówka przechodziła cicho i wypadała naraz
+    // z filtra, z kanbanu, z koloru pigułki i z liczników Pulpitu.
+    if (!isLeadStatus(body.status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
+    applied.status = body.status;
     await sql`UPDATE leads SET status = ${applied.status}, updated_at = now() WHERE id = ${id};`;
   }
   if ("notatki" in body) {

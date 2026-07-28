@@ -9,6 +9,8 @@ import {
   type ProjectRow,
 } from "@/lib/sciezkaDokumentow";
 import { isPlausibleDateString } from "@/lib/projects";
+import { contractReference, type ContractTyp } from "@/lib/contracts";
+import { offerReference } from "@/lib/offers";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
@@ -174,7 +176,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     projects as ProjectRow[]
   );
 
-  return NextResponse.json({ client, feed, offers, invoices, projects, contracts, mail, followups, contacts, sciezki });
+  // NUMER dokumentu liczony TU, nie w apce (Moduł 59). Mini-mapa wyżej mówiła
+  // „UM-2026-F57862", a płaski rejestr pod nią trzy razy „Umowa" — bo apka
+  // dostawała `typ` i budowała z niego etykietę słowną, a numer istnieje
+  // wyłącznie jako funkcja panelu (`contractReference`). Przepisanie tej
+  // arytmetyki do Swifta dałoby DRUGIE źródło numeru dokumentu; zamiast tego
+  // trasa dokłada gotowe pole, a apka je tylko wyświetla.
+  const contractsZNumerem = (contracts as ContractRow[]).map((c) => ({
+    ...c,
+    numer: contractReference({ id: c.id, typ: c.typ as ContractTyp, created_at: c.created_at }),
+  }));
+  const offersZNumerem = (offers as OfferRow[]).map((o) => ({ ...o, numer: offerReference(o) }));
+
+  return NextResponse.json({
+    client,
+    feed,
+    offers: offersZNumerem,
+    invoices,
+    projects,
+    contracts: contractsZNumerem,
+    mail,
+    followups,
+    contacts,
+    sciezki,
+  });
 }
 
 /** PATCH /api/clients/:id — aktualizacja pól karty klienta. */

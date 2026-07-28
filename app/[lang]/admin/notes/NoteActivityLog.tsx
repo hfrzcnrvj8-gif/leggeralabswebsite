@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { type NoteActivity } from "@/lib/notes";
+import { parsePgTimestamp } from "@/lib/dates";
 import { useUI } from "../ui";
 
 export function NoteActivityLog({
@@ -117,12 +118,15 @@ export function NoteActivityLog({
                     </button>
                   </div>
                   <span className="text-muted opacity-70">
-                    {new Date(a.created_at).toLocaleString("pl-PL", {
+                    {/* `parsePgTimestamp`, NIE `new Date()` — znacznik z Postgresa
+                        ma spację zamiast „T" i strefę bez dwukropka, więc na
+                        Safari wychodziło „Invalid Date" (dług z Modułu 57). */}
+                    {parsePgTimestamp(a.created_at)?.toLocaleString("pl-PL", {
                       day: "2-digit",
                       month: "2-digit",
                       hour: "2-digit",
                       minute: "2-digit",
-                    })}
+                    }) ?? "—"}
                   </span>
                 </li>
               ))}

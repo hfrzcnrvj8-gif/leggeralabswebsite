@@ -94,6 +94,16 @@ export const STATUSES = [
   "Odrzucone / brak zainteresowania",
 ] as const;
 
+/** Strażnik statusu leada — ten sam wzorzec i ten sam powód co `isOfferStatus`
+ * (lib/offers.ts) i `isContractStatus` (lib/contracts.ts). `PATCH /api/leads/:id`
+ * przyjmował do Modułu 59 dowolny string; sonda zapisała
+ * „ZUPELNIE-DOWOLNY-STRING" i dostała 200. Literówka nie daje żadnego objawu
+ * poza tym, że lead wypada naraz z filtra, z koloru pigułki (brak wpisu
+ * w STATUS_CLASS), z kolumny kanbanu i z liczników Pulpitu. */
+export function isLeadStatus(v: unknown): v is (typeof STATUSES)[number] {
+  return typeof v === "string" && (STATUSES as readonly string[]).includes(v);
+}
+
 // Odznaki statusu — półprzezroczyste na kolorze marki, czytelne w obu
 // motywach (jasnym i ciemnym) dzięki alpha-blend zamiast litych barw.
 export const STATUS_CLASS: Record<string, string> = {
