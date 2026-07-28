@@ -259,7 +259,7 @@ function TemplateForm({
               setT((p) => ({ ...p, active: e.target.checked }));
               patch({ active: e.target.checked });
             }}
-            className="h-4 w-4 cursor-pointer accent-[#4ea7fc]"
+            className="h-4 w-4 cursor-pointer accent-[var(--zaznaczenie)]"
           />
           Aktywny
         </label>

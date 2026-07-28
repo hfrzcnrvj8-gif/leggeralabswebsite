@@ -87,8 +87,8 @@ export function KanbanBoard({
           // tylko pustkę z boków na prawą stronę tablicy. `min-w-72` pilnuje,
           // żeby na wąskim ekranie kolumny nie ścisnęły się do nieczytelności,
           // tylko wróciły do przewijania w poziomie jak dotąd.
-          className={`flex min-w-72 flex-1 shrink-0 flex-col rounded-lg p-2 transition-colors ${
-            dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.08] ring-1 ring-[#4ea7fc]/40" : ""
+          className={`kolumna-tablicy flex min-w-72 flex-1 shrink-0 flex-col rounded-xl p-2 transition-colors ${
+            dragOverStatus === col.status ? "bg-[var(--zaznaczenie)]/[0.08] ring-1 ring-[var(--zaznaczenie)]/40" : ""
           }`}
         >
           <div className="mb-2 flex items-center gap-2 px-1">
@@ -132,10 +132,10 @@ export function KanbanBoard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onOpen(client.id);
                   }}
-                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-[#4ea7fc]/30 active:cursor-grabbing ${
+                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-[var(--zaznaczenie)]/30 active:cursor-grabbing ${
                     draggingId === client.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""} ${
-                    selectedIds.has(client.id) ? "border-[#4ea7fc]/50 bg-[#4ea7fc]/[0.06]" : ""
+                    selectedIds.has(client.id) ? "border-[var(--zaznaczenie)]/50 bg-[var(--zaznaczenie)]/[0.06]" : ""
                   }`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
@@ -148,7 +148,7 @@ export function KanbanBoard({
                           onToggleSelect(client.id);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--zaznaczenie)]"
                         aria-label={`Zaznacz ${client.nazwa}`}
                       />
                       <span className="text-xs font-medium leading-snug">{client.nazwa || "(bez nazwy)"}</span>
@@ -223,7 +223,7 @@ export function KanbanBoard({
                             aria-label={`Filtruj: ${CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}`}
                             className={`flex h-4 w-4 items-center justify-center rounded-full transition-transform hover:scale-110 ${
                               CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
-                            } ${activeChannel === kanal ? "ring-1 ring-[#4ea7fc]" : ""}`}
+                            } ${activeChannel === kanal ? "ring-1 ring-[var(--zaznaczenie)]" : ""}`}
                           >
                             <ContactChannelIcon kind={kanal} size={10} />
                           </button>

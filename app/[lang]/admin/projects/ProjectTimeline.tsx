@@ -521,7 +521,7 @@ export function ProjectTimeline({
                   {/* PASEK (solidna część) — ciało przeciąga, krawędzie zmieniają start/termin */}
                   <div
                     className={`absolute rounded-md border ${estimated ? "border-dashed opacity-80" : ""} ${
-                      dg ? "ring-1 ring-[#4ea7fc]/60" : ""
+                      dg ? "ring-1 ring-[var(--zaznaczenie)]/60" : ""
                     }`}
                     style={{ left: `${startPct}%`, width: `${Math.max((hasTrail ? solidEndPct : endPct) - startPct, 0.4)}%`, top: BAR_TOP, height: BAR_H, minWidth: 10, background: barFill, borderColor: statusHex }}
                     title={
@@ -586,8 +586,8 @@ export function ProjectTimeline({
 
           {/* Linia „dziś" — przez cały obszar */}
           {todayPct !== null && (
-            <div className="pointer-events-none absolute inset-y-0 z-40 w-px -translate-x-1/2 bg-[#4ea7fc]" style={{ left: `${todayPct}%` }}>
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-md bg-[#4ea7fc] px-1.5 py-0.5 text-[9px] font-semibold text-white shadow">dziś</span>
+            <div className="pointer-events-none absolute inset-y-0 z-40 w-px -translate-x-1/2 bg-[var(--zaznaczenie)]" style={{ left: `${todayPct}%` }}>
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-b-md bg-[var(--zaznaczenie)] px-1.5 py-0.5 text-[9px] font-semibold text-white shadow">dziś</span>
             </div>
           )}
         </div>

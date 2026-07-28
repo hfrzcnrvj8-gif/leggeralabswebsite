@@ -70,7 +70,7 @@ export function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Hasło"
             autoFocus
-            className="w-full rounded-lg border hairline bg-transparent px-4 py-3 text-sm text-[var(--fg)] outline-none transition-colors focus:border-[#4ea7fc]/60"
+            className="w-full rounded-lg border hairline bg-transparent px-4 py-3 text-sm text-[var(--fg)] outline-none transition-colors focus:border-[var(--zaznaczenie)]/60"
           />
         ) : (
           <>
@@ -81,7 +81,7 @@ export function LoginForm() {
               inputMode="numeric"
               autoComplete="one-time-code"
               autoFocus
-              className="w-full rounded-lg border hairline bg-transparent px-4 py-3 text-center text-lg tracking-[0.3em] text-[var(--fg)] outline-none transition-colors focus:border-[#4ea7fc]/60"
+              className="w-full rounded-lg border hairline bg-transparent px-4 py-3 text-center text-lg tracking-[0.3em] text-[var(--fg)] outline-none transition-colors focus:border-[var(--zaznaczenie)]/60"
             />
             <p className="text-xs text-muted">
               Nie masz telefonu pod ręką? Wpisz tutaj jeden ze swoich kodów zapasowych z wydruku.

@@ -428,7 +428,7 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                     onClick={() => setOpenId(c.id)}
                     onContextMenu={(e) => ctx.openAt(e, c)}
                     className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
-                      i === kursor ? "ring-1 ring-inset ring-brand-purple/50" : ""
+                      i === kursor ? "ring-1 ring-inset ring-[var(--zaznaczenie)]/60" : ""
                     }`}
                   >
                     <td className="p-2.5 font-medium text-[var(--fg)]">

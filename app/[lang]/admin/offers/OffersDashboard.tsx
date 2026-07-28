@@ -607,7 +607,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       type="checkbox"
                       checked={rows.length > 0 && rows.every((r) => selectedIds.has(r.id))}
                       onChange={(e) => toggleSelectAll(e.target.checked, rows.map((r) => r.id))}
-                      className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                      className="h-3.5 w-3.5 cursor-pointer accent-[var(--zaznaczenie)]"
                       aria-label="Zaznacz wszystkie"
                     />
                   </th>
@@ -629,8 +629,8 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       onContextMenu={(e) => ctx.openAt(e, o)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                         expired ? "bg-red-500/[0.04]" : ""
-                      } ${selectedIds.has(o.id) ? "bg-[#4ea7fc]/[0.08]" : ""} ${
-                        i === kursor ? "ring-1 ring-inset ring-brand-purple/50" : ""
+                      } ${selectedIds.has(o.id) ? "bg-[var(--zaznaczenie)]/[0.08]" : ""} ${
+                        i === kursor ? "ring-1 ring-inset ring-[var(--zaznaczenie)]/60" : ""
                       }`}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
@@ -638,7 +638,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                           type="checkbox"
                           checked={selectedIds.has(o.id)}
                           onChange={() => toggleSelect(o.id)}
-                          className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                          className="h-3.5 w-3.5 cursor-pointer accent-[var(--zaznaczenie)]"
                           aria-label={`Zaznacz ${o.tytul || "(bez tytułu)"}`}
                         />
                       </td>

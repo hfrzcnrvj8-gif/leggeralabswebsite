@@ -213,12 +213,23 @@
      krzyczało głośniej niż jedno CTA na widok (`.btn-primary`). Do audytu
      2026-07-16 każdy moduł malował aktywną pigułkę po swojemu — Poczta
      płaskim `--hairline`, Notatnik odwróconą bielą `--fg`. */
+  /* Zaznaczona pigułka filtra — NEUTRALNA płyta, nie gradient (Moduł 59,
+     2026-07-28, zgłoszenie właściciela).
+
+     Do tej daty było tu tło gradientowe purpura→złoto, i to samo widać było
+     w czterech miejscach naraz: wybrana skrzynka w Poczcie, kategoria
+     w Katalogu, zakładka i tag w Notatniku, wybór grupy/zakresu w Osi czasu
+     projektów. Łamie to Regułę 4 słownika koloru (`lib/kolorStanu.ts`):
+     GRADIENT NIESIE MARKĘ, NIGDY ZNACZENIE — a „ta pigułka jest wybrana" jest
+     znaczeniem. Gradient w tej roli robił też drugi akcent na ekranie, który
+     ma już swój (nagłówek albo znak LL).
+
+     Zaznaczenie to teraz to samo, czym jest wszędzie indziej w panelu:
+     wyraźniejsza płyta plus mocniejszy tekst. Segmentowany przełącznik
+     w Linear/iOS wygląda dokładnie tak. */
+
   .pill-active {
-    background-image: linear-gradient(
-      100deg,
-      rgba(124, 58, 237, 0.3) 0%,
-      rgba(224, 169, 59, 0.3) 100%
-    );
+    background-color: var(--hairline);
     color: var(--fg);
     border: 1px solid transparent;
   }
@@ -393,6 +404,16 @@
   --fg: #f7f8f8;
   --fg-muted: #8a8f98;
   --hairline: #1f2023;
+  /* ZAZNACZENIE — „tu jesteś" / „to wybrałeś" (Moduł 59, 2026-07-28).
+     Neutralne, celowo: zaznaczenie nie jest STANEM rekordu ani jego RODZAJEM,
+     tylko chrome interfejsu, więc nie ma prawa sięgać po barwy ze skali stanu
+     ani po gradient marki.
+     Zastępuje dwa zwyczaje naraz: twardy błękit `#4ea7fc` (spoza palety marki,
+     40+ wystąpień w dziesięciu plikach — kanbany, tabele, oś czasu) i fioletową
+     obwódkę kursora `j/k`. Zgłoszenie właściciela: „lepszy byłby neutralniejszy
+     kolor" — fiolet w skali stanu znaczy „u drugiej strony", więc zaznaczony
+     wiersz wyglądał jak wiersz o konkretnym statusie. */
+  --zaznaczenie: #8f96a3;
   /* Bez tych nadpisań `.glass` (globals.css wyżej) dziedziczyłby jasne,
      białe wartości z :root — panel /admin nigdy nie dostaje klasy `.dark`
      (własna, neutralna paleta Linear, patrz komentarz wyżej), więc bez tego
@@ -430,6 +451,36 @@
    Odcień dobrany o włos jaśniej niż `--bg-soft` karty (#0d0e10): ma się
    odcinać, gdy się na to patrzy, i nie rzucać w oczy, gdy się czyta. Mocniejszy
    kontrast robił z profilu szachownicę — sprawdzone na żywo. */
+/* KOLUMNA TABLICY (kanban) — Moduł 59, zgłoszenie właściciela: „kanban jest
+   taki jakiś zbyt płaski, ciężko na pierwszy rzut oka rozróżnić sekcje".
+
+   Do tej zmiany kolumny nie miały ŻADNEGO tła ani ramki — decyzja z czasów
+   naśladowania Linear („karty pływają, kolumny są niewidzialne"). Przy trzech
+   kolumnach to działa; przy ośmiu statusach leada tablica robi się jednym
+   pasem kart, w którym granice trzeba odgadywać z odstępu.
+
+   Ta sama zasada, co przy `.card-inset`: treść bez KRAWĘDZI czyta się jak jedna
+   plama, choćby odstępy były poprawne. Płyta jest o włos ciemniejsza od karty,
+   nie jaśniejsza — kolumna ma być zagłębieniem, w którym leżą karty, a nie
+   trzecią warstwą nad nimi. Dotyczy Leadów, Klientów i Projektów naraz. */
+.admin-linear .kolumna-tablicy {
+  /* Wartości dobrane POMIAREM, nie na oko — to jest ta sama pułapka, przez
+     którą `.card-inset` przechodził trzy razy („nie widzę różnicy").
+     Pierwsza próba (#0a0b0d) dała kontrast 1.012 wobec tła panelu, czyli
+     dosłownie niewidoczny. Tutaj: płyta 1.10 wobec panelu, karta na niej 1.14
+     wobec płyty, ramka 1.66 wobec płyty — czyli kolumna czyta się jako
+     zagłębienie, a karty jako leżące w nim obiekty. */
+  background: #13161c;
+  border: 1px solid #383e4d;
+}
+
+/* Karta na tablicy leży W kolumnie, więc musi być od niej JAŚNIEJSZA — inaczej
+   wygląda jak dziura, nie jak obiekt. Ta sama jasność co `.card-inset`. */
+.admin-linear .kolumna-tablicy .card-paper {
+  background: #1e222a;
+  border-color: #333844;
+}
+
 .admin-linear .card-inset {
   /* Płyta z danymi STAŁYMi rekordu (kontakt, firma, adres) ma być widocznie
      jaśniejsza od karty, na której leży — zgłoszenie właściciela 2026-07-27:

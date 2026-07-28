@@ -830,7 +830,7 @@ export function ProjectDetailPanel({
             {overall.total > 0 && (
               <div className="mt-3 flex items-center gap-2.5">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
-                  <div className="h-full rounded-full bg-[#4ea7fc] transition-all" style={{ width: `${overall.pct}%` }} />
+                  <div className="h-full rounded-full bg-[var(--zaznaczenie)] transition-all" style={{ width: `${overall.pct}%` }} />
                 </div>
                 <span className="shrink-0 text-[11px] text-muted tabular-nums">
                   {overall.pct}% · {overall.done}/{overall.total}
@@ -888,7 +888,7 @@ export function ProjectDetailPanel({
               <>
                 <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--hairline)]">
                   <div
-                    className="h-full rounded-full bg-[#4ea7fc] transition-all"
+                    className="h-full rounded-full bg-[var(--zaznaczenie)] transition-all"
                     style={{ width: `${progressOf(onboarding.map((o) => ({ done: o.done }))).pct}%` }}
                   />
                 </div>
@@ -899,7 +899,7 @@ export function ProjectDetailPanel({
                         type="checkbox"
                         checked={it.done}
                         onChange={(e) => toggleOnboardingItem(it.id, e.target.checked)}
-                        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
+                        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--zaznaczenie)]"
                       />
                       <div className={`min-w-0 flex-1 text-sm ${it.done ? "text-muted line-through" : ""}`}>
                         <EditableText value={it.tekst} onSave={(v) => updateOnboardingItemText(it.id, v)} />
@@ -1359,7 +1359,7 @@ export function ProjectDetailPanel({
                           >
                             <IconGripVertical size={14} />
                           </span>
-                          <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-[#4ea7fc]" />
+                          <span className="h-2 w-2 shrink-0 rotate-45 border border-[var(--bg)] bg-[var(--zaznaczenie)]" />
                           <div className="min-w-0 flex-1">
                             <EditableText value={m.nazwa} onSave={(v) => updateMilestone(m.id, "nazwa", v)} />
                           </div>
@@ -1379,7 +1379,7 @@ export function ProjectDetailPanel({
                       </div>
                       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--hairline)]">
                         <div
-                          className="h-full rounded-full bg-[#4ea7fc] transition-all"
+                          className="h-full rounded-full bg-[var(--zaznaczenie)] transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -1533,7 +1533,7 @@ export function ProjectDetailPanel({
               <ul className="mb-2 space-y-1">
                 {resources.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                    <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-[#4ea7fc] hover:underline">
+                    <a href={r.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 truncate text-[var(--zaznaczenie)] hover:underline">
                       <IconLink size={13} className="shrink-0 opacity-70" />
                       <span className="truncate">{r.etykieta}</span>
                     </a>
@@ -1687,7 +1687,7 @@ function TaskList({
               type="checkbox"
               checked={t.done}
               onChange={(e) => onToggle(t.id, e.target.checked)}
-              className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#4ea7fc]"
+              className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--zaznaczenie)]"
             />
             <span className={`flex-1 text-sm ${t.done ? "text-muted line-through" : ""}`}>{t.text}</span>
             {minutes > 0 && <span className="shrink-0 text-[11px] tabular-nums text-muted">{formatDuration(minutes)}</span>}

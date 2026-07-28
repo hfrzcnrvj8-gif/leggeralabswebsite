@@ -81,7 +81,7 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
               type="checkbox"
               checked={s.vat_payer}
               onChange={(e) => patch({ vat_payer: e.target.checked })}
-              className="h-4 w-4 cursor-pointer accent-[#4ea7fc]"
+              className="h-4 w-4 cursor-pointer accent-[var(--zaznaczenie)]"
             />
           </label>
           {!s.vat_payer && (

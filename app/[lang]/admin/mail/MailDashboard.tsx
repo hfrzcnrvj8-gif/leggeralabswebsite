@@ -1068,7 +1068,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     // przejście zamiast skoku.
                     className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-[var(--ease-liquid)] hover:bg-[var(--hairline)]/40 ${
                       openId === m.id ? "bg-brand-purple/[0.07]" : ""
-                    } ${focusedIndex === i ? "ring-1 ring-inset ring-brand-purple/25" : ""}`}
+                    } ${focusedIndex === i ? "ring-1 ring-inset ring-[var(--zaznaczenie)]/40" : ""}`}
                   >
                     <span onClick={(e) => e.stopPropagation()} className="mt-1 shrink-0">
                       <input

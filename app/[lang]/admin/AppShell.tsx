@@ -141,42 +141,32 @@ const GO_CHORDS: Record<string, string> = {
   s: "/stats",
 };
 
+/**
+ * Szerokość treści. **Domyślnie PEŁNA — lista niżej to WYJĄTKI** (Moduł 59,
+ * 2026-07-28).
+ *
+ * Do tej daty było odwrotnie: limit `max-w-[1800px]` obowiązywał wszystkich,
+ * a moduły dopisywało się do listy „pełnej szerokości" pojedynczo, w miarę jak
+ * właściciel je zgłaszał. Przez pół roku uzbierało się siedem zgłoszeń tego
+ * samego kształtu („czarne pasy po bokach", „nie korzysta z pełnej szerokości")
+ * i ósme, w którym padło zdanie rozstrzygające: *„to już wielokrotnie było
+ * poprawiane"*. Reguła, która wymaga zgłoszenia dla każdego modułu z osobna,
+ * nie jest regułą — jest kolejką.
+ *
+ * Wyjątkiem zostaje to, co jest FORMULARZEM albo CIĄGŁYM TEKSTEM: tam pełna
+ * szerokość rozciąga linie na cały monitor, czyli szkodzi zamiast pomagać.
+ * Reszta — listy, tabele, tablice kanban, siatki, wykresy — bierze całą
+ * dostępną szerokość.
+ */
+const WASKA_TRESC = [
+  // Podręcznik — ciągły tekst do czytania, linia dłuższa niż ~90 znaków
+  // męczy oko niezależnie od tego, ile jest monitora.
+  "instrukcje",
+];
+
 /** Wspólna rama dla całego panelu /admin — lewy sidebar (styl Linear),
  * globalna paleta poleceń (Cmd+K) z wyszukiwaniem po wszystkich modułach,
  * i płynne przejście między stronami. */
-/**
- * Moduły renderujące GĘSTE, szerokie widoki, którym globalny limit
- * `max-w-[1800px]` odbiera miejsce zamiast poprawiać czytelność.
- *
- * Poczta trafiła tu przy Module 4e (trójkolumnowy dashboard). Leady dołączyły
- * 2026-07-26 na zgłoszenie właściciela: kanban ma osiem kolumn statusów, a
- * tabela dwanaście kolumn — na szerokim monitorze limit zostawiał puste pasy
- * po bokach i ściskał to, co ma być czytelne.
- *
- * Klienci dołączyli tego samego dnia, z tego samego zgłoszenia i po pomiarze:
- * przy oknie 2560 px treść kończyła się na 1800 px, zostawiając 492 i 268 px
- * pustki. Tabela ma jedenaście kolumn. Kanban ma tylko cztery statusy, więc
- * samo zdjęcie limitu by mu nie wystarczyło — jego kolumny rozciągają się
- * teraz na dostępną szerokość (patrz clients/KanbanBoard.tsx).
- *
- * Umowy dołączyły 2026-07-27 (zgłoszenie właściciela: „czarne pasy po bokach").
- * Tabela ma sześć kolumn i profil na pełną szerokość karty — limit zostawiał
- * puste pasy dokładnie tak, jak wcześniej przy Ofertach.
- *
- * Faktury i Projekty dołączyły 2026-07-28 (Moduł 59, zgłoszenie właściciela:
- * „są ciasne"). Ten sam kształt co przy Umowach: gęsta tabela dokumentów
- * (Faktury) i tablica kanban ze statusami plus oś czasu (Projekty). Uwaga na
- * przyszłość: sam pomiar tego NIE rozstrzygał — tabela Faktur mieściła się
- * bez ucięć w oknie testowym i dopiero właściciel na swoim monitorze widział
- * pasy. „Zero uciętych komórek" nie znaczy „nie ciasno".
- *
- * Reszta panelu (formularze, Statystyki, Pulpit) ZOSTAJE przy limicie: tam
- * pełna szerokość dałaby linie tekstu ciągnące się przez cały monitor, czyli
- * dokładnie odwrotny efekt. Dopisuj tu moduł dopiero wtedy, gdy realnie
- * brakuje mu miejsca — nie „dla spójności".
- */
-const PELNA_SZEROKOSC = ["mail", "leads", "clients", "offers", "contracts", "invoices", "projects"];
-
 export function AppShell({
   lang,
   children,
@@ -678,7 +668,7 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
           // (wysokość kapsuły + jej odsunięcie od dołu + safe-area). Od md
           // kapsuły nie ma → zwykłe pb-5.
           className={`mx-auto flex w-full flex-1 flex-col px-4 pt-5 pb-[calc(1.25rem+5.25rem+env(safe-area-inset-bottom))] sm:px-6 md:min-h-0 md:overflow-y-auto md:pb-5 ${
-            PELNA_SZEROKOSC.some((m) => pathname.startsWith(`${base}/${m}`)) ? "max-w-none" : "max-w-[1800px]"
+            WASKA_TRESC.some((m) => pathname.startsWith(`${base}/${m}`)) ? "max-w-[1100px]" : "max-w-none"
           }`}
         >
           <AnimatePresence mode="wait">

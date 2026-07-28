@@ -409,7 +409,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                       type="checkbox"
                       checked={rows.length > 0 && rows.every((r) => selectedIds.has(r.id))}
                       onChange={(e) => toggleSelectAll(e.target.checked, rows.map((r) => r.id))}
-                      className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                      className="h-3.5 w-3.5 cursor-pointer accent-[var(--zaznaczenie)]"
                       aria-label="Zaznacz wszystkie"
                     />
                   </th>
@@ -435,14 +435,14 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                       onContextMenu={(e) => ctl.openAt(e, inv)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
                         PILNOSC_ROW[pilnosc]
-                      } ${selectedIds.has(inv.id) ? "bg-[#4ea7fc]/[0.08]" : ""}`}
+                      } ${selectedIds.has(inv.id) ? "bg-[var(--zaznaczenie)]/[0.08]" : ""}`}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedIds.has(inv.id)}
                           onChange={() => toggleSelect(inv.id)}
-                          className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                          className="h-3.5 w-3.5 cursor-pointer accent-[var(--zaznaczenie)]"
                           aria-label={`Zaznacz ${inv.numer ?? "szkic"}`}
                         />
                       </td>

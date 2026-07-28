@@ -432,7 +432,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
           trigger={(open) => (
             <button onClick={open} className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
               <IconFilter size={14} /> Filtry
-              {activeFilterCount > 0 && <span className="ml-0.5 rounded-full bg-[#4ea7fc]/20 px-1.5 text-[10px] font-medium text-[#4ea7fc]">{activeFilterCount}</span>}
+              {activeFilterCount > 0 && <span className="ml-0.5 rounded-full bg-[var(--zaznaczenie)]/20 px-1.5 text-[10px] font-medium text-[var(--zaznaczenie)]">{activeFilterCount}</span>}
             </button>
           )}
         >

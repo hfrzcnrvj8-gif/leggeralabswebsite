@@ -149,7 +149,7 @@ export function NoteDetailPanel({
             defaultValue={note.tagi}
             onBlur={(e) => patch(note.id, { tagi: e.target.value })}
             placeholder="tagi, po przecinku"
-            className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
+            className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
           />
         </div>
       </div>
@@ -164,7 +164,7 @@ export function NoteDetailPanel({
         {!note.project_id && (
           <button
             onClick={() => promote(note, lang)}
-            className="rounded-md border hairline px-2.5 py-1 text-[11px] text-[#4ea7fc]"
+            className="rounded-md border hairline px-2.5 py-1 text-[11px] text-[var(--zaznaczenie)]"
           >
             → Przekuj w projekt
           </button>

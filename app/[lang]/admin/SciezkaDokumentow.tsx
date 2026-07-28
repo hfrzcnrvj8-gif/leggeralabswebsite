@@ -251,7 +251,7 @@ export function SciezkaDokumentow({
               onContextMenu={(e) => ctx.openAt(e, u.wezel)}
               title={`${u.wezel.prefiks} ${u.wezel.etykieta} — ${u.wezel.status}`}
               className={`relative z-[1] w-[150px] cursor-pointer rounded-lg border bg-[var(--bg)] px-2.5 py-1.5 transition-colors hover:bg-[var(--hairline)]/50 ${
-                u.wezel.id === aktywny ? "border-brand-purple/60 ring-1 ring-brand-purple/40" : "hairline"
+                u.wezel.id === aktywny ? "border-[var(--zaznaczenie)]/60 ring-1 ring-[var(--zaznaczenie)]/40" : "hairline"
               } ${przygaszony ? "opacity-60" : ""}`}
             >
               <div className="flex items-center gap-1.5">

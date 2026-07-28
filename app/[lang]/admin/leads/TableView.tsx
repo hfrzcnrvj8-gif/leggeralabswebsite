@@ -235,7 +235,7 @@ export function TableView({
                   type="checkbox"
                   checked={leads.length > 0 && leads.every((l) => selectedIds.has(l.id))}
                   onChange={(e) => onToggleSelectAll(e.target.checked)}
-                  className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                  className="h-3.5 w-3.5 cursor-pointer accent-[var(--zaznaczenie)]"
                   aria-label="Zaznacz wszystkie"
                 />
               </th>
@@ -282,14 +282,14 @@ export function TableView({
                   onContextMenu={(e) => ctl.openAt(e, lead)}
                   className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-[var(--hairline)]/40 ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
-                  } ${selected ? "bg-[#4ea7fc]/[0.08]" : ""} ${checked ? "bg-[#4ea7fc]/[0.08]" : ""}`}
+                  } ${selected ? "bg-[var(--zaznaczenie)]/[0.08]" : ""} ${checked ? "bg-[var(--zaznaczenie)]/[0.08]" : ""}`}
                 >
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => onToggleSelect(lead.id)}
-                      className="h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc]"
+                      className="h-3.5 w-3.5 cursor-pointer accent-[var(--zaznaczenie)]"
                       aria-label={`Zaznacz ${lead.firma}`}
                     />
                   </td>
@@ -333,7 +333,7 @@ export function TableView({
                             aria-label={`Filtruj: ${CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}`}
                             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 ${
                               CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
-                            } ${activeChannel === kanal ? "ring-1 ring-[#4ea7fc]" : ""}`}
+                            } ${activeChannel === kanal ? "ring-1 ring-[var(--zaznaczenie)]" : ""}`}
                           >
                             <ContactChannelIcon kind={kanal} size={10} />
                           </button>

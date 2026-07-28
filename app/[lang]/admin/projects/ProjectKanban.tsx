@@ -153,8 +153,8 @@ export function ProjectKanban({
             // Ten sam stan `dragOver` co w Leadach/Klientach (audyt
             // 2026-07-16) — wcześniej samo bledziutkie tło 0.04 bez obrysu,
             // ledwo widoczne przy przeciąganiu.
-            className={`flex w-[300px] shrink-0 flex-col rounded-lg transition-colors ${
-              dragOverStatus === col.status ? "bg-[#4ea7fc]/[0.08] ring-1 ring-[#4ea7fc]/40" : ""
+            className={`kolumna-tablicy flex w-[300px] shrink-0 flex-col overflow-hidden rounded-xl transition-colors ${
+              dragOverStatus === col.status ? "bg-[var(--zaznaczenie)]/[0.08] ring-1 ring-[var(--zaznaczenie)]/40" : ""
             }`}
           >
             {/* Nagłówek kolumny — ikona statusu + nazwa + licznik, bez ramki */}
@@ -197,7 +197,7 @@ export function ProjectKanban({
                       className={`group relative cursor-pointer rounded-lg border bg-[var(--bg-soft)] px-3 py-2.5 transition-colors hover:border-[#3a3b40] active:cursor-grabbing ${
                         draggingId === p.id ? "opacity-40" : ""
                       } ${
-                        selected ? "border-[#4ea7fc]/60 bg-[#4ea7fc]/[0.06]" : "border-[var(--hairline)]"
+                        selected ? "border-[var(--zaznaczenie)]/60 bg-[var(--zaznaczenie)]/[0.06]" : "border-[var(--hairline)]"
                       }`}
                     >
                       {/* Checkbox — na hover (lub gdy coś zaznaczone), lewy górny róg */}
@@ -210,7 +210,7 @@ export function ProjectKanban({
                         }}
                         onClick={(e) => e.stopPropagation()}
                         aria-label={`Zaznacz ${p.tytul}`}
-                        className={`absolute left-2 top-2.5 h-3.5 w-3.5 cursor-pointer accent-[#4ea7fc] transition-opacity ${
+                        className={`absolute left-2 top-2.5 h-3.5 w-3.5 cursor-pointer accent-[var(--zaznaczenie)] transition-opacity ${
                           anySelected || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                         }`}
                       />
@@ -264,7 +264,7 @@ export function ProjectKanban({
                           <span className="flex items-center gap-1">
                             <span className="h-1 w-8 overflow-hidden rounded-full bg-[#2a2b2f]">
                               <span
-                                className="block h-full rounded-full bg-[#4ea7fc]"
+                                className="block h-full rounded-full bg-[var(--zaznaczenie)]"
                                 style={{ width: `${Math.round(((p.task_done ?? 0) / (p.task_total ?? 1)) * 100)}%` }}
                               />
                             </span>

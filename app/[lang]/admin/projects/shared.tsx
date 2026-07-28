@@ -122,7 +122,7 @@ export function ProjectIconPicker({
                 key={ic}
                 onClick={() => onChange({ ikona: ic })}
                 className={`flex h-6 w-6 items-center justify-center rounded-md text-[14px] hover:bg-[#232327] ${
-                  curIcon === ic ? "bg-[#232327] ring-1 ring-[#4ea7fc]/60" : ""
+                  curIcon === ic ? "bg-[#232327] ring-1 ring-[var(--zaznaczenie)]/60" : ""
                 }`}
               >
                 {ic}

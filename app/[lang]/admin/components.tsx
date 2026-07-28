@@ -93,7 +93,7 @@ export function EditableText({
         if (!readOnly && v !== value) onSave(v);
       }}
       className={`w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors placeholder:text-muted placeholder:opacity-60 focus:outline-none ${
-        readOnly ? "cursor-default opacity-70" : "hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60"
+        readOnly ? "cursor-default opacity-70" : "hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60"
       }`}
     />
   );
@@ -149,7 +149,7 @@ export function EditableTextarea({ value, onSave }: { value: string; onSave: (v:
         if (v !== value) onSave(v);
       }}
       rows={1}
-      className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-[#4ea7fc]/60 focus:outline-none"
+      className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
     />
   );
 }
@@ -311,7 +311,9 @@ export function ProcessMap({ currentStep }: { currentStep: number }) {
             czyli dokładnie to, co dawał ciąg wyszarzonych pigułek. */}
         <span className="h-1 min-w-[40px] flex-1 overflow-hidden rounded-full bg-[var(--hairline)]">
           <span
-            className="block h-full rounded-full bg-gradient-to-r from-brand-purple to-brand-pink"
+            // Miernik postępu procesu — chrome, nie stan rekordu, więc bez
+            // gradientu i bez barwy ze skali (Moduł 59).
+            className="block h-full rounded-full bg-[var(--fg-muted)]"
             style={{ width: `${postep}%` }}
           />
         </span>
@@ -329,7 +331,10 @@ export function ProcessMap({ currentStep }: { currentStep: number }) {
                   title={label}
                   className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ${
                     isCurrent
-                      ? "bg-gradient-to-r from-brand-purple to-brand-pink font-semibold text-white"
+                      // Neutralna płyta, nie gradient (Moduł 59) — to samo, co
+                      // `.pill-active`. „Ten krok jest bieżący" to znaczenie,
+                      // a gradient niesie wyłącznie markę.
+                      ? "bg-[var(--hairline)] font-semibold text-[var(--fg)]"
                       : isDone
                         ? "text-muted opacity-60"
                         : "text-muted opacity-35"
