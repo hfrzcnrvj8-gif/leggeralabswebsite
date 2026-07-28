@@ -436,12 +436,14 @@
      „te dane stałe powinny się lekko odznaczać, żeby było widać granicę
      między nimi a kartami zmiennymi".
      Było #101114, czyli 3 punkty jasności nad `.card-paper` (#0d0e10) —
-     różnica mieszcząca się w szumie panelu na ciemnym tle. Teraz #16181d
-     (+9 punktów) plus własna, jaśniejsza krawędź: płyta czyta się jak
+     różnica mieszcząca się w szumie panelu na ciemnym tle. Pierwsze podbicie
+     (#16181d) właściciel dalej ocenił jako „nie widzę różnicy", więc płyta
+     poszła wyżej: #1e222a (+17 punktów wobec karty) z krawędzią #333844.
+     Zmierzony kontrast płyta/karta: 1.09 → 1.24. Płyta ma się czytać jak
      wypukła, a nie jak przypadkowy cień. Zmiana jest GLOBALNA — `.card-inset`
      działa w profilu leada, klienta, oferty i umowy. */
-  background: #16181d;
-  border: 1px solid #262930;
+  background: #1e222a;
+  border: 1px solid #333844;
 }
 
 /* ─── Moduł 5, Paczka 4: „odwebowienie" panelu ──────────────────────────────
