@@ -6,6 +6,7 @@ import { Modal } from "../Modal";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { useUI, useRegisterActions } from "../ui";
 import { CatalogCategoryIcon } from "../icons";
+import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
 import { VAT_RATES } from "@/lib/invoices";
 import {
   CATALOG_CATEGORIES,
@@ -317,30 +318,25 @@ function CatalogFormModal({
       <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl p-5">
         <h2 className="mb-4 text-[15px] font-semibold">{initial ? "Edytuj komponent" : "Nowy komponent"}</h2>
 
-        <div className="space-y-3">
-          <Pole label="Nazwa">
-            <input
-              autoFocus
-              value={nazwa}
-              onChange={(e) => setNazwa(e.target.value)}
-              placeholder="np. Serwer 1× RTX 4090, 128 GB RAM"
-              className={inputCls}
-            />
-          </Pole>
-
-          <Pole label="Kategoria">
-            <select value={kat} onChange={(e) => setKat(e.target.value)} className={inputCls}>
-              {CATALOG_CATEGORIES.map((k) => (
-                <option key={k} value={k}>
-                  {CATALOG_CATEGORY_LABELS[k]}
-                </option>
-              ))}
-            </select>
-          </Pole>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Pole label="Cena bazowa (netto)" hint="Ta kwota wpada na pozycję oferty/faktury.">
-              <input value={cena} onChange={(e) => setCena(e.target.value)} inputMode="decimal" placeholder="0" className={inputCls} />
+        <div className="space-y-4">
+          <SekcjaProfilu tytul="Komponent">
+            <Pole label="Nazwa">
+              <input
+                autoFocus
+                value={nazwa}
+                onChange={(e) => setNazwa(e.target.value)}
+                placeholder="np. Serwer 1× RTX 4090, 128 GB RAM"
+                className={inputCls}
+              />
+            </Pole>
+            <Pole label="Kategoria">
+              <select value={kat} onChange={(e) => setKat(e.target.value)} className={inputCls}>
+                {CATALOG_CATEGORIES.map((k) => (
+                  <option key={k} value={k}>
+                    {CATALOG_CATEGORY_LABELS[k]}
+                  </option>
+                ))}
+              </select>
             </Pole>
             <Pole label="Jednostka">
               <input value={jednostka} onChange={(e) => setJednostka(e.target.value)} list="catalog-jednostki" className={inputCls} />
@@ -350,50 +346,52 @@ function CatalogFormModal({
                 ))}
               </datalist>
             </Pole>
-          </div>
+          </SekcjaProfilu>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Pole label="Widełki od (netto)" hint="Opcjonalne — dolna granica.">
+          <SekcjaProfilu tytul="Cena">
+            <Pole label="Cena bazowa" hint="Ta kwota (netto) wpada na pozycję oferty/faktury.">
+              <input value={cena} onChange={(e) => setCena(e.target.value)} inputMode="decimal" placeholder="0" className={inputCls} />
+            </Pole>
+            <Pole label="Widełki od">
               <input value={cenaMin} onChange={(e) => setCenaMin(e.target.value)} inputMode="decimal" placeholder="—" className={inputCls} />
             </Pole>
-            <Pole label="Widełki do (netto)" hint="Opcjonalne — górna granica.">
+            <Pole label="Widełki do" hint="Widełki są opcjonalne — dolna i górna granica netto.">
               <input value={cenaMax} onChange={(e) => setCenaMax(e.target.value)} inputMode="decimal" placeholder="—" className={inputCls} />
             </Pole>
-          </div>
+            <Pole label="Stawka VAT">
+              <select value={vat} onChange={(e) => setVat(e.target.value)} className={inputCls}>
+                {VAT_RATES.map((v) => (
+                  <option key={v} value={v}>
+                    {v === "zw" ? "zw." : v === "np" ? "np." : `${v}%`}
+                  </option>
+                ))}
+              </select>
+            </Pole>
+          </SekcjaProfilu>
 
-          <Pole label="Stawka VAT">
-            <select value={vat} onChange={(e) => setVat(e.target.value)} className={inputCls}>
-              {VAT_RATES.map((v) => (
-                <option key={v} value={v}>
-                  {v === "zw" ? "zw." : v === "np" ? "np." : `${v}%`}
-                </option>
-              ))}
-            </select>
-          </Pole>
-
-          {/* Blok wrażliwy — wizualnie oddzielony, żeby było jasne, że to
-              dane wewnętrzne (nie dla klienta). */}
-          <div className="rounded-xl border hairline bg-[var(--hairline)]/20 p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-[11.5px] text-muted">
-              <IconInfoCircle size={13} /> Tylko dla Ciebie — nie trafia na wydruk oferty/faktury.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <Pole label="Koszt zakupu (netto)">
-                <input value={koszt} onChange={(e) => setKoszt(e.target.value)} inputMode="decimal" placeholder="—" className={inputCls} />
-              </Pole>
-              <Pole label="Dostawca">
-                <input value={dostawca} onChange={(e) => setDostawca(e.target.value)} placeholder="—" className={inputCls} />
-              </Pole>
-            </div>
+          {/* Blok wrażliwy — własna sekcja z jawnym ostrzeżeniem w pierwszym
+              wierszu, żeby było jasne, że to dane wewnętrzne (nie dla klienta). */}
+          <SekcjaProfilu tytul="Tylko dla Ciebie">
+            <WierszUwaga>
+              <IconInfoCircle size={13} className="mt-0.5 shrink-0" /> Nie trafia na wydruk oferty ani faktury.
+            </WierszUwaga>
+            <Pole label="Koszt zakupu">
+              <input value={koszt} onChange={(e) => setKoszt(e.target.value)} inputMode="decimal" placeholder="—" className={inputCls} />
+            </Pole>
+            <Pole label="Dostawca">
+              <input value={dostawca} onChange={(e) => setDostawca(e.target.value)} placeholder="—" className={inputCls} />
+            </Pole>
             {marza != null && (
-              <p className="mt-2 text-[12px] text-muted">
-                Marża: <span className="text-[var(--fg)]">{formatMoney(marza)}</span>
-                {marzaProc != null && ` (${marzaProc.toFixed(0)}% ceny)`}
-              </p>
+              <WierszPola etykieta="Marża">
+                <span className="text-[13px] text-[var(--fg)]">
+                  {formatMoney(marza)}
+                  {marzaProc != null && <span className="text-muted"> ({marzaProc.toFixed(0)}% ceny)</span>}
+                </span>
+              </WierszPola>
             )}
-          </div>
+          </SekcjaProfilu>
 
-          <Pole label="Opis" hint="Krótka notatka — co zawiera, dla kogo.">
+          <SekcjaProfilu tytul="Opis" wiersze={false}>
             <textarea
               value={opis}
               onChange={(e) => setOpis(e.target.value)}
@@ -401,7 +399,8 @@ function CatalogFormModal({
               placeholder="np. Stacja pod lokalny model 7–14B, RAG dla 1–5 osób."
               className={`${inputCls} resize-none`}
             />
-          </Pole>
+            <p className="mt-1 text-[11px] text-muted">Krótka notatka — co zawiera, dla kogo.</p>
+          </SekcjaProfilu>
         </div>
 
         <div className="mt-5 flex items-center justify-end gap-2">
@@ -424,12 +423,15 @@ function CatalogFormModal({
 const inputCls =
   "w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] placeholder:text-muted focus:border-brand-purple focus:outline-none";
 
+/** Wiersz formularza komponentu — wspólny `WierszPola`, ten sam co w profilach
+ *  (Moduł 59, paczka F+, decyzja właściciela 2026-07-29). Podpowiedź idzie
+ *  OSOBNYM wierszem: fragment daje sekcji dwoje dzieci, więc kreska między nimi
+ *  rysuje się sama, a wiersz zachowuje stałą wysokość. */
 function Pole({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-[11.5px] font-medium text-muted">{label}</span>
-      {children}
-      {hint && <span className="mt-0.5 block text-[11px] text-muted opacity-70">{hint}</span>}
-    </label>
+    <>
+      <WierszPola etykieta={label}>{children}</WierszPola>
+      {hint && <WierszUwaga>{hint}</WierszUwaga>}
+    </>
   );
 }

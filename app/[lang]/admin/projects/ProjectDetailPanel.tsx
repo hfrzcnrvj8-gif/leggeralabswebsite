@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { IconHeartbeat, IconChartBar, IconCalendar, IconTargetArrow, IconUsers, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical, IconPlayerPlay, IconPlayerStop, IconClock, IconTrash, IconPencil } from "@tabler/icons-react";
+import { IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical, IconPlayerPlay, IconPlayerStop, IconClock, IconTrash, IconPencil } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -38,6 +38,7 @@ import { todayLocalISO } from "@/lib/dates";
 import { TIMER_CHANGED_EVENT } from "../AppShell";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { MiniSciezka } from "../MiniSciezka";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 
 /** Rdzeń widoku szczegółów projektu, w stylu Linear: treść + kamienie
  * milowe + log aktywności po lewej, metadane (zdrowie/status/terminy/
@@ -1435,42 +1436,51 @@ export function ProjectDetailPanel({
           </div>
             </div>
 
-            {/* Prawa kolumna Podglądu: metadane (styl Linear — płaskie wiersze
-                z ikoną), zależności, zasoby, usuwanie. */}
-            <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
-          <div>
-            <MetaRow icon={<IconHeartbeat size={15} />} title="Zdrowie">
+            {/* Prawa kolumna Podglądu: właściwości, zależności, zasoby, usuwanie.
+                Moduł 59, paczka F — wiersze przeszły z lokalnego `MetaRow`
+                (płaski wiersz z ikoną na tle karty) na wspólne
+                `SekcjaProfilu`/`WierszPola`, te same, co profil leada i klienta.
+                Sam układ „etykieta po lewej" był tu od zawsze poprawny; brakowało
+                PŁYTY i kresek między wierszami, czyli tego, co robi z listy
+                atrybutów jeden obiekt zamiast pięciu luźnych linijek. */}
+            <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <SekcjaProfilu tytul="Właściwości">
+            <WierszPola etykieta="Zdrowie">
               <PropertyMenu value={project.zdrowie} options={HEALTH_OPTS} onChange={(v) => updateProject("zdrowie", v)} title="Zdrowie" full>
                 <PropTrigger icon={<IconPointFilled size={10} className={HEALTH_COLOR[project.zdrowie] ?? "text-muted"} />} label={project.zdrowie} />
               </PropertyMenu>
-            </MetaRow>
-            <MetaRow icon={statusIconEl(project.status, 15)} title="Status">
+            </WierszPola>
+            <WierszPola etykieta="Status">
               <PropertyMenu value={project.status} options={STATUS_OPTS} onChange={(v) => updateProject("status", v)} title="Status" full>
                 <PropTrigger icon={statusIconEl(project.status, 14)} label={project.status} />
               </PropertyMenu>
-            </MetaRow>
-            <MetaRow icon={<IconChartBar size={15} />} title="Priorytet">
+            </WierszPola>
+            <WierszPola etykieta="Priorytet">
               <PropertyMenu value={project.priorytet} options={PRIORITY_OPTS} onChange={(v) => updateProject("priorytet", v)} title="Priorytet" full>
                 <PropTrigger icon={<PriorityIcon priorytet={project.priorytet} />} label={project.priorytet} />
               </PropertyMenu>
-            </MetaRow>
-            <MetaRow icon={<IconCalendar size={15} />} title="Daty">
-              <div>
-                <DateRangeField
-                  start={project.start ?? ""}
-                  termin={project.termin ?? ""}
-                  onSave={(field, value) => updateProject(field, value)}
-                />
-                <DeadlineHint termin={project.termin} closed={project.status === "Wdrożone"} />
-              </div>
-            </MetaRow>
+            </WierszPola>
+            {/* Podpowiedź terminu („za 3 dni", „2 dni po terminie") idzie
+                SUFIKSEM obok wartości, nie drugą linijką pod nią — dokładnie ta
+                pułapka, przez którą wiersze profilu leada skakały o 70 px
+                (`../ProfileSection.tsx`, punkt 1). */}
+            <WierszPola
+              etykieta="Daty"
+              sufiks={<DeadlineHint termin={project.termin} closed={project.status === "Wdrożone"} />}
+            >
+              <DateRangeField
+                start={project.start ?? ""}
+                termin={project.termin ?? ""}
+                onSave={(field, value) => updateProject(field, value)}
+              />
+            </WierszPola>
             {/* Moduł 22 — dwa osobne selecty ("Lead" i "Klient") zastąpione
                 jednym polem: relacja jest wyłączna (decyzja właściciela
                 2026-07-16), więc drugie pole i tak zawsze zostawało puste.
                 Projekt z ZAAKCEPTOWANEJ oferty ma w bazie oba pola (dziedziczy
                 je z oferty, lib/offerAccept.ts) — wtedy pokazujemy klienta
                 (aktualniejsza relacja), a ręczna zmiana czyści leada. */}
-            <MetaRow icon={<IconUsers size={15} />} title="Powiązanie">
+            <WierszPola etykieta="Powiązanie">
               <LinkPicker
                 kinds={["client", "lead"]}
                 value={{ client_id: project.client_id, lead_id: project.lead_id }}
@@ -1481,11 +1491,10 @@ export function ProjectDetailPanel({
                   </button>
                 )}
               />
-            </MetaRow>
-          </div>
+            </WierszPola>
+          </SekcjaProfilu>
 
-          <div className="border-t hairline pt-4">
-            <h3 className="mb-2 text-[11px] text-muted opacity-70">Zależy od</h3>
+          <SekcjaProfilu tytul="Zależy od" wiersze={false}>
             {dependencies.length > 0 && (
               <ul className="mb-2 space-y-1">
                 {dependencies.map((depId) => (
@@ -1525,10 +1534,9 @@ export function ProjectDetailPanel({
                 );
               }}
             </Popover>
-          </div>
+          </SekcjaProfilu>
 
-          <div className="border-t hairline pt-4">
-            <h3 className="mb-2 text-[11px] text-muted opacity-70">Zasoby</h3>
+          <SekcjaProfilu tytul="Zasoby" wiersze={false}>
             {resources.length > 0 && (
               <ul className="mb-2 space-y-1">
                 {resources.map((r) => (
@@ -1570,7 +1578,7 @@ export function ProjectDetailPanel({
                 + Dodaj link
               </button>
             </div>
-          </div>
+          </SekcjaProfilu>
 
           <button
             onClick={deleteProject}
@@ -1792,7 +1800,9 @@ function DeadlineHint({ termin, closed }: { termin: string | null | undefined; c
       : !closed && d != null && d <= 2
       ? "text-amber-400"
       : "text-muted";
-  return <div className={`mt-0.5 pl-1.5 text-[11px] ${color}`}>{label}</div>;
+  // Stoi SUFIKSEM w wierszu „Daty" (Moduł 59, paczka F), więc bez własnego
+  // marginesu górnego — inaczej rozpychałby wiersz i psuł jego stałą wysokość.
+  return <span className={`shrink-0 whitespace-nowrap text-[11px] ${color}`}>{label}</span>;
 }
 
 /** Wybór oceny 1-5 gwiazdkami — wersja dla ciemnego panelu admina (wzorem
@@ -1815,18 +1825,6 @@ function StarPicker({ value, onChange, label }: { value: number; onChange: (v: n
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-function MetaRow({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 py-0.5">
-      <span className="flex w-24 shrink-0 items-center gap-2 text-[12.5px] text-muted" title={title}>
-        <span className="flex w-4 justify-center">{icon}</span>
-        <span className="truncate">{title}</span>
-      </span>
-      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

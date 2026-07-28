@@ -21,7 +21,8 @@ import { TableView } from "./TableView";
 import { DiscoverPanel } from "./DiscoverPanel";
 import { LeadDetailPanel } from "./LeadDetailPanel";
 import { CandidatesView, type DaneLowcy, type Polowanie, type WpisCzarnejListy } from "./CandidatesView";
-import { SavedViews } from "../components";
+import { SavedViews, PillPicker } from "../components";
+import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { Popover, MenuRow, MenuLabel, MenuDivider, ContextMenu, ContextMenuItem, useContextMenu } from "../Menu";
@@ -826,19 +827,22 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           }}
           className="mt-4 space-y-4"
         >
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">Nazwa firmy</label>
-            <input
-              autoFocus
-              value={addFirma}
-              onChange={(e) => setAddFirma(e.target.value)}
-              placeholder="np. Kancelaria Kowalski"
-              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">Skąd go masz</label>
-            <div className="flex flex-wrap gap-1.5">
+          {/* Moduł 59, paczka F+ — formularz „nowy" ma ten sam wiersz, co profil
+              rekordu (decyzja właściciela 2026-07-29: „ma być spójne").
+              „Skąd go masz" jest tym samym `PillPicker`, co pole „Skąd przyszedł"
+              w profilu leada — wcześniej były to dwie różne kontrolki na to samo
+              pole: tu rozsypane pigułki, tam menu. */}
+          <SekcjaProfilu tytul="Dane">
+            <WierszPola etykieta="Firma">
+              <input
+                autoFocus
+                value={addFirma}
+                onChange={(e) => setAddFirma(e.target.value)}
+                placeholder="np. Kancelaria Kowalski"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszPola etykieta="Skąd przyszedł" title="Skąd go masz">
               {/* Bez „Formularz na stronie" i „Automatyczne wyszukiwanie" —
                   te dwie ustawia sama ścieżka, którą lead wchodzi (formularz
                   publiczny, auto-wyszukiwanie OSM), a pierwsza dodatkowo
@@ -846,37 +850,31 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
                   żadną z nich. Apka filtruje je tak samo
                   (`KategoriaZrodla.doWyboru`). W profilu leada zostaje pełna
                   lista — tam się je POPRAWIA, nie tworzy. */}
-              {SOURCE_CATEGORIES.filter(
-                (s) =>
-                  s !== "Formularz na stronie" &&
-                  s !== "Automatyczne wyszukiwanie" &&
-                  s !== "Wyszukiwanie na mapie" &&
-                  s !== "Zapytanie mailem"
-              ).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setAddKategoria(s)}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                    addKategoria === s
-                      ? "border-brand-purple/50 bg-brand-purple/15 text-[var(--fg)]"
-                      : "hairline text-muted hover:text-[var(--fg)]"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">Szczegóły źródła (opcjonalnie)</label>
-            <input
-              value={addSzczegoly}
-              onChange={(e) => setAddSzczegoly(e.target.value)}
-              placeholder="np. polecił Kowalski, spotkanie w izbie gospodarczej"
-              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
-            />
-          </div>
+              <span className="shrink-0 whitespace-nowrap">
+                <PillPicker
+                value={addKategoria}
+                options={SOURCE_CATEGORIES.filter(
+                  (s) =>
+                    s !== "Formularz na stronie" &&
+                    s !== "Automatyczne wyszukiwanie" &&
+                    s !== "Wyszukiwanie na mapie" &&
+                    s !== "Zapytanie mailem"
+                )}
+                onChange={setAddKategoria}
+                  title="Skąd masz tego leada"
+                />
+              </span>
+              <input
+                value={addSzczegoly}
+                onChange={(e) => setAddSzczegoly(e.target.value)}
+                placeholder="szczegóły (opcjonalnie)"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszUwaga>
+              Szczegóły źródła to jedno zdanie dla Ciebie — np. „polecił Kowalski", „spotkanie w izbie gospodarczej".
+            </WierszUwaga>
+          </SekcjaProfilu>
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"

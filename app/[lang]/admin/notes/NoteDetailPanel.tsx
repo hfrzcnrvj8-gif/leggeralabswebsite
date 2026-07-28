@@ -17,6 +17,7 @@ import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from "@tabler/ico
 import type { Locale } from "@/i18n/config";
 import { EditableText, EditableTextarea } from "../components";
 import { LinkPicker } from "../LinkPicker";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { useUI } from "../ui";
 import { formatPlDate } from "@/lib/projects";
 import { noteLinkValue, type Note, NoteBadges, NoteScheduleForm, useNoteActions } from "./shared";
@@ -134,24 +135,28 @@ export function NoteDetailPanel({
         </div>
       )}
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="mb-1 text-[10.5px] uppercase tracking-wide text-muted opacity-70">Powiązanie</p>
-          <LinkPicker
-            kinds={["client", "lead"]}
-            value={noteLinkValue(note)}
-            onPick={(next) => patch(note.id, next)}
-          />
-        </div>
-        <div>
-          <p className="mb-1 text-[10.5px] uppercase tracking-wide text-muted opacity-70">Tagi</p>
-          <input
-            defaultValue={note.tagi}
-            onBlur={(e) => patch(note.id, { tagi: e.target.value })}
-            placeholder="tagi, po przecinku"
-            className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
-          />
-        </div>
+      {/* Atrybuty notatki w tych samych wierszach „etykieta po lewej", co profil
+          leada i klienta (Moduł 59, paczka F). Wcześniej stały w dwukolumnowej
+          siatce z etykietą NAD wartością — ten sam rodzaj treści, trzeci układ
+          w panelu. Powód wzorca: `../ProfileSection.tsx`. */}
+      <div className="mt-4">
+        <SekcjaProfilu tytul="Atrybuty">
+          <WierszPola etykieta="Powiązanie">
+            <LinkPicker
+              kinds={["client", "lead"]}
+              value={noteLinkValue(note)}
+              onPick={(next) => patch(note.id, next)}
+            />
+          </WierszPola>
+          <WierszPola etykieta="Tagi">
+            <input
+              defaultValue={note.tagi}
+              onBlur={(e) => patch(note.id, { tagi: e.target.value })}
+              placeholder="tagi, po przecinku"
+              className="w-full rounded-lg border border-transparent bg-transparent py-0.5 text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
+            />
+          </WierszPola>
+        </SekcjaProfilu>
       </div>
 
       <NoteBadges note={note} lang={lang} />

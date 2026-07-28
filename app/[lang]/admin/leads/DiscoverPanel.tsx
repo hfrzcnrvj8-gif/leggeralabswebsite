@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 
 const BRANZE = [
   "Kancelaria prawna",
@@ -78,13 +79,14 @@ export function DiscoverPanel({
           Zamknij
         </button>
       </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Branża</label>
+      {/* Moduł 59, paczka F+ — te same wiersze, co w profilach i pozostałych
+          formularzach panelu (decyzja właściciela 2026-07-29). */}
+      <SekcjaProfilu tytul="Czego szukać">
+        <WierszPola etykieta="Branża">
           <select
             value={branza}
             onChange={(e) => setBranza(e.target.value)}
-            className="rounded-lg border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
+            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[13px] text-[var(--fg)]"
           >
             {BRANZE.map((b) => (
               <option key={b} value={b} className="bg-[var(--bg-soft)] text-[var(--fg)]">
@@ -92,26 +94,27 @@ export function DiscoverPanel({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Lokalizacja</label>
+        </WierszPola>
+        <WierszPola etykieta="Lokalizacja">
           <input
             value={lokalizacja}
             onChange={(e) => setLokalizacja(e.target.value)}
-            className="rounded-lg border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
+            className="w-full rounded-lg border hairline bg-transparent py-1 text-[var(--fg)]"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Ile firm (max 15)</label>
+        </WierszPola>
+        <WierszPola etykieta="Ile firm" title="Najwyżej 15 na jedno wyszukanie">
           <input
             type="number"
             min={1}
             max={15}
             value={ile}
             onChange={(e) => setIle(Math.max(1, Math.min(15, Number(e.target.value) || 1)))}
-            className="w-20 rounded-lg border hairline bg-transparent px-2 py-1.5 text-xs text-[var(--fg)]"
+            className="w-20 rounded-lg border hairline bg-transparent py-1 text-[var(--fg)]"
           />
-        </div>
+          <span className="text-[12px] text-muted">max 15</span>
+        </WierszPola>
+      </SekcjaProfilu>
+      <div className="mt-2 flex justify-end">
         <button
           onClick={run}
           disabled={loading}

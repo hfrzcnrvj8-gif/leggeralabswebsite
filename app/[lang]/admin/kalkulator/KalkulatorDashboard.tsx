@@ -17,6 +17,7 @@ import {
 } from "@/lib/dobor";
 import { DOC_GRADIENT } from "@/lib/documents";
 import { PasekMarkiDokumentu } from "../DocGradient";
+import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
 
 const ZADANIA: { id: Zadanie; label: string }[] = [
   { id: "chat", label: "Czat / asystent" },
@@ -104,16 +105,14 @@ export function KalkulatorDashboard() {
         {/* ── Ankieta ── */}
         <div className="space-y-4">
           <Sekcja tytul="Skala i użytkownicy">
-            <div className="grid grid-cols-2 gap-3">
-              <Pole label="Użytkownicy łącznie">
-                <input type="number" min={1} max={1000} value={w.uzytkownicy}
-                  onChange={(e) => set("uzytkownicy", Math.max(1, +e.target.value || 1))} className={inputCls} />
-              </Pole>
-              <Pole label="Szczyt równoczesnych" hint="Napędza liczbę/moc GPU.">
-                <input type="number" min={1} max={500} value={w.szczyt}
-                  onChange={(e) => set("szczyt", Math.max(1, +e.target.value || 1))} className={inputCls} />
-              </Pole>
-            </div>
+            <Pole label="Użytkownicy łącznie">
+              <input type="number" min={1} max={1000} value={w.uzytkownicy}
+                onChange={(e) => set("uzytkownicy", Math.max(1, +e.target.value || 1))} className={inputCls} />
+            </Pole>
+            <Pole label="Szczyt" hint="Ilu użytkowników naraz w szczycie — to napędza liczbę i moc GPU.">
+              <input type="number" min={1} max={500} value={w.szczyt}
+                onChange={(e) => set("szczyt", Math.max(1, +e.target.value || 1))} className={inputCls} />
+            </Pole>
           </Sekcja>
 
           <Sekcja tytul="Model i zadania">
@@ -138,39 +137,35 @@ export function KalkulatorDashboard() {
                 ))}
               </div>
             </Pole>
-            <div className="grid grid-cols-2 gap-3">
-              <Pole label="Rozmiar modelu">
-                <select value={w.rozmiarModelu ?? "auto"}
-                  onChange={(e) => set("rozmiarModelu", e.target.value === "auto" ? null : +e.target.value)} className={inputCls}>
-                  {MODELE.map((m) => (
-                    <option key={m.label} value={m.v ?? "auto"}>{m.label}</option>
-                  ))}
-                </select>
-              </Pole>
-              <Pole label="Długość kontekstu">
-                <select value={w.kontekst} onChange={(e) => set("kontekst", e.target.value as Kontekst)} className={inputCls}>
-                  {KONTEKSTY.map((k) => (
-                    <option key={k.v} value={k.v}>{k.label}</option>
-                  ))}
-                </select>
-              </Pole>
-            </div>
+            <Pole label="Rozmiar modelu">
+              <select value={w.rozmiarModelu ?? "auto"}
+                onChange={(e) => set("rozmiarModelu", e.target.value === "auto" ? null : +e.target.value)} className={inputCls}>
+                {MODELE.map((m) => (
+                  <option key={m.label} value={m.v ?? "auto"}>{m.label}</option>
+                ))}
+              </select>
+            </Pole>
+            <Pole label="Długość kontekstu">
+              <select value={w.kontekst} onChange={(e) => set("kontekst", e.target.value as Kontekst)} className={inputCls}>
+                {KONTEKSTY.map((k) => (
+                  <option key={k.v} value={k.v}>{k.label}</option>
+                ))}
+              </select>
+            </Pole>
           </Sekcja>
 
           <Sekcja tytul="Dane i RAG">
-            <div className="grid grid-cols-2 gap-3">
-              <Pole label="Dane do RAG (GB)" hint="0 = bez RAG.">
-                <input type="number" min={0} value={w.ragGB}
-                  onChange={(e) => set("ragGB", Math.max(0, +e.target.value || 0))} className={inputCls} />
-              </Pole>
-              <Pole label="Wzrost 12–24 mies.">
-                <select value={w.wzrost} onChange={(e) => set("wzrost", +e.target.value)} className={inputCls}>
-                  {WZROSTY.map((g) => (
-                    <option key={g.v} value={g.v}>{g.label}</option>
-                  ))}
-                </select>
-              </Pole>
-            </div>
+            <Pole label="Dane do RAG (GB)" hint="0 = bez RAG.">
+              <input type="number" min={0} value={w.ragGB}
+                onChange={(e) => set("ragGB", Math.max(0, +e.target.value || 0))} className={inputCls} />
+            </Pole>
+            <Pole label="Wzrost 12–24 mies.">
+              <select value={w.wzrost} onChange={(e) => set("wzrost", +e.target.value)} className={inputCls}>
+                {WZROSTY.map((g) => (
+                  <option key={g.v} value={g.v}>{g.label}</option>
+                ))}
+              </select>
+            </Pole>
             <Pole label="Kopie i retencja">
               <select value={w.retencja} onChange={(e) => set("retencja", e.target.value as Retencja)} className={inputCls}>
                 {RETENCJE.map((r) => (
@@ -181,20 +176,20 @@ export function KalkulatorDashboard() {
           </Sekcja>
 
           <Sekcja tytul="Niezawodność i dostęp">
-            <Pole label="Tryb pracy / krytyczność">
+            <Pole label="Tryb pracy" hint="Jak krytyczna jest ciągłość pracy.">
               <select value={w.uptime} onChange={(e) => set("uptime", e.target.value as Uptime)} className={inputCls}>
                 {UPTIMY.map((u) => (
                   <option key={u.v} value={u.v}>{u.label}</option>
                 ))}
               </select>
             </Pole>
-            <div className="mt-1 flex flex-wrap gap-2">
+            <Pole label="Dostęp">
               <Chip aktywny={w.vpn} onClick={() => set("vpn", !w.vpn)}>Zdalny dostęp (VPN)</Chip>
-            </div>
+            </Pole>
           </Sekcja>
 
           <Sekcja tytul="Co klient już ma (reużycie)">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 px-3 py-2">
               <Chip aktywny={w.maNas} onClick={() => set("maNas", !w.maNas)}>NAS</Chip>
               <Chip aktywny={w.maSiec} onClick={() => set("maSiec", !w.maSiec)}>Sieć / switch</Chip>
               <Chip aktywny={w.maUps} onClick={() => set("maUps", !w.maUps)}>UPS</Chip>
@@ -369,22 +364,23 @@ function WydrukSpecyfikacji({ rek, w }: { rek: Rekomendacja; w: Wejscie }) {
   );
 }
 
+/* Moduł 59, paczka F+ (decyzja właściciela 2026-07-29: „ma być spójne") —
+   ankieta kalkulatora stoi na tych samych sekcjach i wierszach, co profil
+   rekordu. `Sekcja` i `Pole` zostają jako cienkie aliasy: mają po kilkanaście
+   wywołań, a zmiana nazwy dodałaby dyf bez wartości. */
 function Sekcja({ tytul, children }: { tytul: string; children: React.ReactNode }) {
-  return (
-    <section className="card-paper rounded-xl p-4">
-      <h2 className="mb-3 font-mono text-[11px] font-medium uppercase tracking-wider text-muted">{tytul}</h2>
-      <div className="space-y-3">{children}</div>
-    </section>
-  );
+  return <SekcjaProfilu tytul={tytul}>{children}</SekcjaProfilu>;
 }
 
+/** Podpowiedź idzie OSOBNYM wierszem (fragment → dwoje dzieci sekcji, więc
+ *  kreska między nimi rysuje się sama), a nie drugą linijką pod polem —
+ *  `WierszPola` ma stałą wysokość i to ona robi rytm listy. */
 function Pole({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-[11.5px] font-medium text-muted">{label}</span>
-      {children}
-      {hint && <span className="mt-0.5 block text-[11px] text-muted opacity-70">{hint}</span>}
-    </label>
+    <>
+      <WierszPola etykieta={label}>{children}</WierszPola>
+      {hint && <WierszUwaga>{hint}</WierszUwaga>}
+    </>
   );
 }
 

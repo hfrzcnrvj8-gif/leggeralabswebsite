@@ -513,6 +513,16 @@
      ta sama płyta obsługuje sekcje Pulpitu (`.plyta-sekcji`). */
   background: var(--plyta);
   border: 1px solid var(--plyta-krawedz);
+  /* Ta sama pułapka, którą Pulpit zamknął u siebie (`.plyta-sekcji` niżej),
+     tylko w profilach — i przez dwa dni niezauważona, bo płyta wyglądała
+     dobrze. Zmierzone na profilu leada (2026-07-28): 14 krawędzi WEWNĄTRZ
+     płyty miało kontrast 1,022 wobec podłoża, czyli zero. Wśród nich kreski
+     rozdzielające wiersze pól („Email", „WWW", „LinkedIn", „Kod / Miasto",
+     „Kraj") — dokładnie to, co ma robić rytm listy `insetGrouped`. Jedna
+     linia naprawia wszystkich potomków naraz, bo `.hairline`,
+     `divide-[var(--hairline)]` i `bg-[var(--hairline)]` czytają tę samą
+     zmienną. Dotyczy profilu leada, klienta, oferty i umowy jednocześnie. */
+  --hairline: var(--plyta-krawedz);
 }
 
 /* SEKCJA PULPITU — Moduł 59, zgłoszenie właściciela 2026-07-28: „Pulpit na

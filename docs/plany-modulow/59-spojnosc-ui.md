@@ -216,7 +216,8 @@ iPhonie i iPadzie.
 | paczka | zakres | skala |
 |---|---|---|
 | ~~**Pulpit**~~ | ~~sekcje bez płyt~~ — **ZROBIONE 28.07**, patrz „Paczka Pulpit" niżej | — |
-| **F** | etykietowane wiersze profilu (`SekcjaProfilu`) — 11 modułów bez nich | największa |
+| ~~**F**~~ | ~~etykietowane wiersze profilu~~ — **ZROBIONE 28.07**, patrz „Paczka F" niżej | — |
+| ~~**F+**~~ | ~~to samo w formularzach~~ — **ZROBIONE 29.07** na prośbę właściciela | — |
 | **E** | puste stany wg A1 · nazwy zakładek · adresy rekordów (Koszty, Przypomnienia, Katalog, Kalendarz) | średnia |
 | **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
 | **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
@@ -331,3 +332,146 @@ w 100 % opisowa — ani jednej deklaracji CSS — więc nikt jej nie sprawdził,
 a `npx tsc --noEmit` (jedyna weryfikacja, jaką ten projekt ma w sandboksie)
 **nie widzi CSS-a w ogóle**. Po każdej zmianie w `globals.css`, choćby
 kosmetycznej, załaduj `/pl/admin` w podglądzie.
+
+---
+
+## Paczka „F" — etykietowane wiersze profilu, wykonana 2026-07-28
+
+**Definicja „gotowe" ustalona PRZED kodem:** każdy profil rekordu pokazuje pola
+przez `SekcjaProfilu`/`WierszPola` · zero lokalnych kopii wiersza „etykieta —
+wartość" w panelu · kreski wewnątrz płyt zmierzone ≥ 1,35 wobec płyty ·
+rytm wierszy bez skoków (rozrzut wysokości < 10 px) · granica „profil vs
+formularz" zapisana w `HUB_SETUP.md` z powodem · zero regresji w Leadach,
+Klientach, Ofertach i Umowach, sprawdzone pomiarem · `tsc` i `npm test` czyste.
+
+### Co zostało zamienione
+
+Sześć własnych wersji tego samego wiersza, każda z innego modułu:
+
+| moduł | plik | co było |
+|---|---|---|
+| Projekty | `ProjectDetailPanel.tsx` | `MetaRow` — ikona + nazwa, płasko na karcie, bez płyty i bez kresek |
+| Faktury | `InvoiceEditor.tsx` | `Field` (96 px, bez ikony) + trzy karty `card-paper` z własnym `h3` |
+| Koszty | `CostEditor.tsx` | siatka dwukolumnowa, etykieta NAD polem |
+| Przypomnienia | `ReminderDetail.tsx` | `Pole` — etykieta kapitalikami NAD wartością |
+| Notatnik | `NoteDetailPanel.tsx` | siatka 2×1, etykieta NAD wartością |
+| Ustawienia sprzedawcy | `CompanySettingsPanel.tsx` | `SField` — etykieta NAD polem |
+
+`MetaRow` i `Pole` **usunięte**. `Field` i `SField` zostały jako cienkie aliasy
+`WierszPola` — mają po kilkanaście wywołań, a zmiana nazwy dodałaby dyf bez
+wartości. `POLE_PROFILU` w `icons.tsx` urosło z 14 do 60 pozycji (klucz = etykieta
+z ekranu; pole spoza mapy renderuje się bez ikony, nie pusto).
+
+### Pomiar przed → po
+
+| element | przed | po | próg |
+|---|---|---|---|
+| kreski między wierszami pól (profil leada, 14 krawędzi) | **1,022** | **1,359** | ≥ 1,35 |
+| płyta sekcji wobec karty profilu | 1,21 | 1,21 (bez zmian) | ≥ 1,10 |
+| rozrzut wysokości wierszy (profil kosztu) | — | 38–43 px | < 10 px |
+
+Zmiana krawędzi to **jedna linia** — `--hairline: var(--plyta-krawedz)`
+w `.card-inset` — czyli dokładnie ta poprawka, którą Paczka Pulpit odłożyła do
+backlogu (punkt 1). Wartości samej płyty NIE ruszone: `rgb(30,34,42)` /
+`rgb(51,56,68)` przed i po.
+
+### Granica „profil vs formularz" — postawiona i ZNIESIONA tego samego dnia
+
+Backlog mówił „11 modułów bez wierszy". Po obejrzeniu każdego okazało się, że
+lista miesza dwie różne rzeczy, i **pięć z nich to nie są profile**:
+
+- **formularze TWORZENIA z „Anuluj / Zapisz"** — nowy komponent katalogu, nowe
+  i edytowane polowanie łowcy, `AddEventForm` kalendarza,
+- **kalkulator** (wprowadzanie danych do wyliczenia, nie rekord),
+- **Poczta** — `MailDetailPanel` to czytnik wiadomości w układzie Apple Mail,
+  a nie lista atrybutów.
+
+Powód nie jest kosmetyczny: formularze mają podpowiedzi pod polami, `autoFocus`,
+pary pól w jednym rzędzie i walidację przed zapisem — czyli wszystko, czego
+wiersz o stałej wysokości nie mieści. Apka rozdziela to tak samo (`List` dla
+profilu, `Form` dla arkusza „nowy"). Reguła i test rozstrzygający („czy zapis
+idzie na blur, czy dopiero po kliknięciu Zapisz?") są w `HUB_SETUP.md` →
+„Moduł 59, paczka F". **Jeśli właściciel uzna, że formularze też mają wyglądać
+jak profil — to jest osobna decyzja i osobna paczka, nie przeoczenie.**
+
+### Co wyszło przy okazji i zostało naprawione w tej samej paczce
+
+- **Podpowiedź terminu projektu** („za 3 dni") stała drugą linijką pod polem dat
+  i rozdymała wiersz — przeszła na `sufiks`.
+- **Skróty terminu płatności faktury** (7/14/30 dni) miały wcięcie 104 px pod
+  starą, węższą etykietę — po ujednoliceniu wisiałyby w połowie nazwy. Teraz
+  129 px (118 etykiety + 8 odstępu) i zawijają się całymi przyciskami.
+- **Pasy ostrzegawcze w Kosztach** (Biała Lista MF, próg amortyzacji) stały pod
+  polem — teraz są własnym wierszem sekcji, bez etykiety.
+
+### Wciąż otwarte z pierwotnego planu
+
+| paczka | zakres | skala |
+|---|---|---|
+| **E** | puste stany wg A1 · nazwy zakładek · adresy rekordów (Koszty, Przypomnienia, Katalog, Kalendarz) | średnia |
+| **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
+| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
+
+**Apka nie była w zakresie tej paczki** — jej ekrany profili od początku stoją
+na `List(.insetGrouped)`, czyli na wzorcu, do którego panel się właśnie
+dociągnął. To była różnica panel→apka, nie apka→panel.
+
+---
+
+## Paczka „F+" — formularze dostają ten sam wiersz (2026-07-29)
+
+Bezpośrednia decyzja właściciela po obejrzeniu paczki F: *„chcę, żeby wyglądały
+jak te moduły, które już poszerzaliśmy, ma być spójne"*. Granica „profil vs
+formularz" z paczki F **przestała obowiązywać** — powód i lekcja wyżej.
+
+### Przerobione (11 miejsc, jeden commit)
+
+| moduł | miejsce | co było |
+|---|---|---|
+| Leady | okno „Nowy lead" | etykieta nad polem; kategoria źródła jako rozsypane pigułki |
+| Klienci | okno „Nowy klient" | jw. + siatka 2-kolumnowa |
+| Klienci | formularz osoby kontaktowej | **żadnych etykiet** — tylko placeholdery |
+| Katalog | nowy/edytowany komponent | etykieta nad polem, hinty pod polem |
+| Kalkulator | cała ankieta (10 pól) | własne `Sekcja` + `Pole` |
+| Kalendarz | `AddEventForm` | **żadnych etykiet** — znaczenie tylko w tooltipie |
+| Łowca | nowe polowanie + edycja | etykieta nad polem, trójkolumnowa siatka |
+| Łowca | wyszukiwarka firm (`DiscoverPanel`) | pasek trzech kontrolek |
+| Faktury | szablony cykliczne | własny `TField` (96 px, bez kreski) |
+| Koszty | szablony cykliczne | jw. |
+| Oferty | szablony ofert | jw. |
+
+Kategoria źródła w „Nowym leadzie" i „Nowym kliencie" to teraz ten sam
+`PillPicker`, co pole „Skąd przyszedł" w profilu — wcześniej **to samo pole
+miało dwie różne kontrolki** zależnie od tego, czy rekord się tworzyło, czy
+poprawiało.
+
+### Co wyszło przy okazji
+
+- **Formularz osoby kontaktowej nazywał pola wyłącznie placeholderem** — nazwa
+  pola znikała w chwili, gdy coś w nim wpisano (łamie punkt 7 listy kontrolnej,
+  „placeholder nie zastępuje etykiety"). To nie był problem estetyczny: przy
+  wypełnionym formularzu nie dało się sprawdzić, co jest czym.
+- **`AddEventForm` kalendarza nie miał ANI JEDNEJ etykiety** — „godzina", „czas
+  trwania", „wielodniowe" tłumaczyły się tylko po najechaniu myszą. Na iPadzie
+  z palcem tooltipa nie ma.
+- **`CyklPicker` mówił „Powtarzaj:" własną etykietą** — w wierszu o etykiecie
+  „Powtarzanie" to samo słowo padało dwa razy obok siebie. Stąd
+  `wlasnaEtykieta={false}`.
+- **`WierszUwaga` wylądował we wspólnym pliku** — w paczce F napisałem tę samą
+  rzecz lokalnie dwa razy w jeden wieczór (Przypomnienia, Koszty), czyli
+  powtórzyłem błąd, który ten moduł sprząta.
+
+### Pomiar
+
+Etykiety mierzone `scrollWidth > clientWidth` na każdej przerobionej stronie —
+dwie za długie na kolumnę 118 px („Szczyt równoczesnych", „Tryb pracy /
+krytyczność”) skrócone, pełne znaczenie zeszło do `title`. Rytm wierszy po
+zmianie: **38–43 px** na wszystkich sprawdzonych formularzach (próg: rozrzut
+< 10 px). `tsc` i `npm test` (141) czyste.
+
+### Poza wzorcem — świadomie
+
+**Kompozytor poczty** (`MailComposeForm`). Ma etykiety po lewej („Do:", „DW:",
+„Temat:"), tylko w wąskiej kolumnie — układ każdego klienta pocztowego. Kolumna
+118 px zabrałaby miejsce adresom i upodobniła okno pisania maila do formularza
+rekordu, którym nie jest.

@@ -133,6 +133,33 @@ function useZapamietaneZwiniecie(tytul: string, wlaczone: boolean): [boolean, (v
 }
 
 /**
+ * Wiersz-uwaga: pełna szerokość sekcji, bez etykiety.
+ *
+ * Mówi, co wynika z pola wyżej albo dlaczego wygląda ono tak, jak wygląda —
+ * werdykt Białej Listy, próg amortyzacji, „przypomnienie bez terminu jest
+ * w porządku", podpowiedź w formularzu. Osobny wiersz, a NIE druga linijka pod
+ * wartością: `WierszPola` ma stałą wysokość i to ona robi rytm listy (patrz
+ * punkt 1 niżej — wiersze skaczące o 70 px czytają się jak krzywy stół).
+ *
+ * Powstał w paczce F Modułu 59, gdy ta sama funkcja została napisana lokalnie
+ * dwa razy w jeden wieczór (Przypomnienia, Koszty) — czyli dokładnie tak, jak
+ * powstało sześć wersji samego wiersza, które ta paczka sprzątała.
+ */
+export function WierszUwaga({
+  children,
+  ton = "cichy",
+}: {
+  children: ReactNode;
+  /** `ostrzezenie` i `ok` tylko tam, gdzie treść naprawdę jest werdyktem —
+   *  zwykła podpowiedź zostaje cicha, żeby kolor dalej znaczył jedną rzecz
+   *  (reguła słownika koloru). */
+  ton?: "cichy" | "ostrzezenie" | "ok";
+}) {
+  const kolor = ton === "ostrzezenie" ? "text-amber-400" : ton === "ok" ? "text-emerald-400" : "text-muted";
+  return <p className={`flex items-start gap-1.5 px-3 py-2 text-[11.5px] leading-snug ${kolor}`}>{children}</p>;
+}
+
+/**
  * Wiersz „etykieta — wartość" wewnątrz `SekcjaProfilu`.
  *
  * Etykieta stoi PO LEWEJ w stałej kolumnie, nie nad wartością — to daje pionową

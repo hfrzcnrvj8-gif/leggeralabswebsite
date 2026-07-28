@@ -21,6 +21,11 @@ import { POWODY_ODRZUCENIA, POWODY_SITA, type Sygnal } from "@/lib/leadHunter";
 import { Modal } from "../Modal";
 import { Popover, MenuLabel, MenuRow } from "../Menu";
 import { useUI, isTypingTarget } from "../ui";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
+
+/** Pole formularza łowcy w wierszu profilu. `WierszPola` narzuca `input`-om
+ *  wspólne wcięcie i rozmiar, więc zostaje sama ramka. */
+const poleLowcyCls = "w-full rounded-lg border hairline bg-transparent py-1.5";
 
 /* ────────────────────────── typy z API ────────────────────────── */
 
@@ -977,30 +982,26 @@ function FormularzPolowania({
             setZapisuje(false);
           }
         }}
-        className="mt-4 space-y-3 text-[13px]"
+        className="mt-4 space-y-4 text-[13px]"
       >
-        <label className="block">
-          <span className="text-[12px] text-muted">Nazwa</span>
-          <input value={nazwa} onChange={(e) => setNazwa(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" autoFocus />
-        </label>
-        <label className="block">
-          <span className="text-[12px] text-muted">Kody PKD (po przecinku)</span>
-          <input value={pkd} onChange={(e) => setPkd(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2 font-mono text-[12.5px]" />
-        </label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <label className="block">
-            <span className="text-[12px] text-muted">Województwo</span>
-            <input value={wojewodztwo} onChange={(e) => setWojewodztwo(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="text-[12px] text-muted">Powiat</span>
-            <input value={powiat} onChange={(e) => setPowiat(e.target.value)} placeholder="dowolny" className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="text-[12px] text-muted">Miasto</span>
-            <input value={miasto} onChange={(e) => setMiasto(e.target.value)} placeholder="dowolne" className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
-          </label>
-        </div>
+        {/* Moduł 59, paczka F+ — te same wiersze, co w profilach rekordów. */}
+        <SekcjaProfilu tytul="Kryteria">
+          <WierszPola etykieta="Nazwa">
+            <input value={nazwa} onChange={(e) => setNazwa(e.target.value)} className={poleLowcyCls} autoFocus />
+          </WierszPola>
+          <WierszPola etykieta="Kody PKD" title="Po przecinku, wystarczą pierwsze cyfry">
+            <input value={pkd} onChange={(e) => setPkd(e.target.value)} className={`${poleLowcyCls} font-mono`} />
+          </WierszPola>
+          <WierszPola etykieta="Województwo">
+            <input value={wojewodztwo} onChange={(e) => setWojewodztwo(e.target.value)} className={poleLowcyCls} />
+          </WierszPola>
+          <WierszPola etykieta="Powiat">
+            <input value={powiat} onChange={(e) => setPowiat(e.target.value)} placeholder="dowolny" className={poleLowcyCls} />
+          </WierszPola>
+          <WierszPola etykieta="Miasto">
+            <input value={miasto} onChange={(e) => setMiasto(e.target.value)} placeholder="dowolne" className={poleLowcyCls} />
+          </WierszPola>
+        </SekcjaProfilu>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="rounded-full border hairline px-4 py-1.5 text-[12.5px] text-muted">
             Anuluj
@@ -1051,36 +1052,31 @@ function NowePolowanieModal({
             setZapisuje(false);
           }
         }}
-        className="mt-4 space-y-3 text-[13px]"
+        className="mt-4 space-y-4 text-[13px]"
       >
-        <label className="block">
-          <span className="text-[12px] text-muted">Nazwa (tylko dla Ciebie)</span>
-          <input
-            value={nazwa}
-            onChange={(e) => setNazwa(e.target.value)}
-            placeholder="Biura rachunkowe — Mazowsze"
-            className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2"
-            autoFocus
-          />
-        </label>
-        <label className="block">
-          <span className="text-[12px] text-muted">Kody PKD (po przecinku, wystarczą pierwsze cyfry)</span>
-          <input value={pkd} onChange={(e) => setPkd(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2 font-mono text-[12.5px]" />
-        </label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <label className="block">
-            <span className="text-[12px] text-muted">Województwo</span>
-            <input value={wojewodztwo} onChange={(e) => setWojewodztwo(e.target.value)} className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="text-[12px] text-muted">Powiat</span>
-            <input value={powiat} onChange={(e) => setPowiat(e.target.value)} placeholder="dowolny" className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
-          </label>
-          <label className="block">
-            <span className="text-[12px] text-muted">Miasto</span>
-            <input value={miasto} onChange={(e) => setMiasto(e.target.value)} placeholder="dowolne" className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2" />
-          </label>
-        </div>
+        <SekcjaProfilu tytul="Kryteria">
+          <WierszPola etykieta="Nazwa" title="Tylko dla Ciebie — nie wychodzi na zewnątrz">
+            <input
+              value={nazwa}
+              onChange={(e) => setNazwa(e.target.value)}
+              placeholder="Biura rachunkowe — Mazowsze"
+              className={poleLowcyCls}
+              autoFocus
+            />
+          </WierszPola>
+          <WierszPola etykieta="Kody PKD" title="Po przecinku, wystarczą pierwsze cyfry">
+            <input value={pkd} onChange={(e) => setPkd(e.target.value)} className={`${poleLowcyCls} font-mono`} />
+          </WierszPola>
+          <WierszPola etykieta="Województwo">
+            <input value={wojewodztwo} onChange={(e) => setWojewodztwo(e.target.value)} className={poleLowcyCls} />
+          </WierszPola>
+          <WierszPola etykieta="Powiat">
+            <input value={powiat} onChange={(e) => setPowiat(e.target.value)} placeholder="dowolny" className={poleLowcyCls} />
+          </WierszPola>
+          <WierszPola etykieta="Miasto">
+            <input value={miasto} onChange={(e) => setMiasto(e.target.value)} placeholder="dowolne" className={poleLowcyCls} />
+          </WierszPola>
+        </SekcjaProfilu>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="rounded-full border hairline px-4 py-1.5 text-[12.5px] text-muted">
             Anuluj

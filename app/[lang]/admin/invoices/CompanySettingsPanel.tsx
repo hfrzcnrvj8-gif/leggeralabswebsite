@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IconX } from "@tabler/icons-react";
 import { type CompanySettings, DEFAULT_COMPANY_SETTINGS } from "@/lib/invoices";
 import { useUI } from "../ui";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 
 export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
   const { toast } = useUI();
@@ -39,28 +40,14 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
       </div>
       <p className="mt-1 text-[12px] text-muted">Te dane trafiają na każdą fakturę. Możesz je zmienić w każdej chwili.</p>
 
-      <div className="mt-4 space-y-2.5">
-        <SField label="Nazwa firmy" value={s.nazwa} onSave={(v) => patch({ nazwa: v })} placeholder="np. Leggera Labs Patryk Piecyk" />
-        <div className="grid grid-cols-2 gap-2.5">
+      {/* Moduł 59, paczka F — ustawienia sprzedawcy w tych samych wierszach
+          „etykieta po lewej", co profile rekordów. To najbliższy odpowiednik
+          ekranu Ustawień z apki (`List(.insetGrouped)`): grupy pól na płytach
+          z nagłówkiem, a nie jedna kolumna etykiet nad polami. */}
+      <div className="mt-4 space-y-4">
+        <SekcjaProfilu tytul="Firma">
+          <SField label="Nazwa firmy" value={s.nazwa} onSave={(v) => patch({ nazwa: v })} placeholder="np. Leggera Labs Patryk Piecyk" />
           <SField label="NIP" value={s.nip} onSave={(v) => patch({ nip: v })} placeholder="0000000000" />
-          <SField label="Telefon" value={s.telefon} onSave={(v) => patch({ telefon: v })} placeholder="+48 …" />
-        </div>
-        <SField label="Ulica i numer" value={s.ulica} onSave={(v) => patch({ ulica: v })} placeholder="ul. Przykładowa 12/3" />
-        <div className="grid grid-cols-[110px_1fr] gap-2.5">
-          <SField label="Kod pocztowy" value={s.kod} onSave={(v) => patch({ kod: v })} placeholder="00-000" />
-          <SField label="Miasto" value={s.miasto} onSave={(v) => patch({ miasto: v })} placeholder="Warszawa" />
-        </div>
-        <SField label="Kraj" value={s.kraj} onSave={(v) => patch({ kraj: v })} placeholder="PL" />
-        {s.adres.trim() && !s.ulica && !s.miasto && (
-          <p className="rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
-            Stary, jednoliniowy adres: <span className="text-[var(--fg)]">{s.adres}</span> — przepisz go do pól powyżej, żeby poprawnie trafił na fakturę i do KSeF.
-          </p>
-        )}
-        <SField label="E-mail" value={s.email} onSave={(v) => patch({ email: v })} placeholder="kontakt@…" />
-        <SField label="Nr konta (do przelewu)" value={s.konto} onSave={(v) => patch({ konto: v })} placeholder="PL00 0000 0000 0000 0000 0000 0000" />
-        <div className="grid grid-cols-2 gap-2.5">
-          <SField label="Nazwa banku" value={s.bank_nazwa} onSave={(v) => patch({ bank_nazwa: v })} placeholder="np. mBank" />
-          <SField label="BIC / SWIFT" value={s.swift} onSave={(v) => patch({ swift: v })} placeholder="np. BREXPLPWMBK" />
           {/* Kto podpisuje umowy po naszej stronie — wchodzi w rubrykę podpisu
               na wydruku umowy/NDA/aneksu (2026-07-27). Puste = nazwa firmy. */}
           <SField
@@ -69,10 +56,36 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
             onSave={(v) => patch({ osoba_podpisujaca: v })}
             placeholder="imię i nazwisko — trafia do rubryki podpisu"
           />
-        </div>
+        </SekcjaProfilu>
 
-        <div className="mt-3 rounded-lg border hairline p-3">
-          <label className="flex cursor-pointer items-center justify-between gap-3">
+        <SekcjaProfilu tytul="Adres">
+          <SField label="Ulica" value={s.ulica} onSave={(v) => patch({ ulica: v })} placeholder="ul. Przykładowa 12/3" />
+          <WierszPola etykieta="Kod / Miasto">
+            {/* Wąski kod, szerokie miasto — ten sam podział, co w profilu leada
+                i klienta, żeby adres wyglądał wszędzie tak samo. */}
+            <div className="w-[84px] shrink-0">
+              <SFieldInput value={s.kod} onSave={(v) => patch({ kod: v })} placeholder="00-000" />
+            </div>
+            <SFieldInput value={s.miasto} onSave={(v) => patch({ miasto: v })} placeholder="Warszawa" />
+          </WierszPola>
+          <SField label="Kraj" value={s.kraj} onSave={(v) => patch({ kraj: v })} placeholder="PL" />
+          {s.adres.trim() && !s.ulica && !s.miasto && (
+            <p className="px-3 py-2 text-[11px] leading-snug text-muted">
+              Stary, jednoliniowy adres: <span className="text-[var(--fg)]">{s.adres}</span> — przepisz go do pól powyżej, żeby poprawnie trafił na fakturę i do KSeF.
+            </p>
+          )}
+        </SekcjaProfilu>
+
+        <SekcjaProfilu tytul="Kontakt i konto">
+          <SField label="Telefon" value={s.telefon} onSave={(v) => patch({ telefon: v })} placeholder="+48 …" />
+          <SField label="E-mail" value={s.email} onSave={(v) => patch({ email: v })} placeholder="kontakt@…" />
+          <SField label="Konto" value={s.konto} onSave={(v) => patch({ konto: v })} placeholder="PL00 0000 0000 0000 0000 0000 0000" />
+          <SField label="Nazwa banku" value={s.bank_nazwa} onSave={(v) => patch({ bank_nazwa: v })} placeholder="np. mBank" />
+          <SField label="BIC / SWIFT" value={s.swift} onSave={(v) => patch({ swift: v })} placeholder="np. BREXPLPWMBK" />
+        </SekcjaProfilu>
+
+        <SekcjaProfilu tytul="VAT">
+          <label className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2">
             <span>
               <span className="block text-sm text-[var(--fg)]">Płatnik VAT</span>
               <span className="block text-[11px] text-muted">Wyłącz, jeśli korzystasz ze zwolnienia z VAT.</span>
@@ -85,79 +98,76 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
             />
           </label>
           {!s.vat_payer && (
-            <div className="mt-2.5">
-              <SField
-                label="Podstawa zwolnienia"
-                value={s.zwolnienie_podstawa}
-                onSave={(v) => patch({ zwolnienie_podstawa: v })}
-                placeholder="np. art. 113 ust. 1 ustawy o VAT"
-              />
-            </div>
+            <SField
+              label="Podstawa zwolnienia"
+              value={s.zwolnienie_podstawa}
+              onSave={(v) => patch({ zwolnienie_podstawa: v })}
+              placeholder="np. art. 113 ust. 1 ustawy o VAT"
+            />
           )}
-        </div>
+        </SekcjaProfilu>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">Domyślny termin płatności (dni)</label>
+        <SekcjaProfilu tytul="Domyślne na nowej fakturze">
+          <WierszPola etykieta="Termin płatności" title="Domyślny termin płatności w dniach">
             <input
               type="number"
               value={s.domyslny_termin_dni}
               onChange={(e) => setS((prev) => (prev ? { ...prev, domyslny_termin_dni: Number(e.target.value) } : prev))}
               onBlur={(e) => patch({ domyslny_termin_dni: Number(e.target.value) })}
-              className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)]"
+              className="w-[90px] rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)]"
             />
+            <span className="text-[12px] text-muted">dni</span>
+          </WierszPola>
+          {/* Uwagi to treść wielolinijkowa — poza wierszem o stałej wysokości. */}
+          <div className="space-y-1 px-3 py-2">
+            <label className="block text-[11px] text-muted">Uwagi</label>
+            <SFieldTextarea
+              value={s.domyslne_uwagi}
+              onSave={(v) => patch({ domyslne_uwagi: v })}
+              placeholder="np. Dziękuję za współpracę. Płatność przelewem."
+            />
+            <p className="text-[11px] text-muted">Wstawiane automatycznie przy tworzeniu nowej faktury — nadal można je zmienić na konkretnej fakturze.</p>
           </div>
-        </div>
+        </SekcjaProfilu>
 
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Domyślne uwagi na nowej fakturze</label>
-          <SField
-            textarea
-            label=""
-            value={s.domyslne_uwagi}
-            onSave={(v) => patch({ domyslne_uwagi: v })}
-            placeholder="np. Dziękuję za współpracę. Płatność przelewem."
-          />
-          <p className="mt-1 text-[11px] text-muted">Wstawiana automatycznie przy tworzeniu nowej faktury — nadal można ją zmienić na konkretnej fakturze.</p>
-        </div>
-
-        <div className="mt-3 rounded-lg border hairline p-3">
-          <h3 className="text-sm text-[var(--fg)]">Windykacja — odsetki ustawowe</h3>
-          <p className="mt-0.5 text-[11px] text-muted">
+        <SekcjaProfilu tytul="Windykacja — odsetki ustawowe">
+          <p className="px-3 py-2 text-[11px] leading-snug text-muted">
             Roczna stawka w % — wpisz ją ręcznie (zmienia się okresowo, ogłasza NBP/MF). Panel nigdy jej sam nie wylicza ani nie aktualizuje. Puste = wezwania
             do zapłaty nie pokazują kwoty odsetek.
           </p>
-          <div className="mt-2 max-w-[160px]">
-            <NumberField
-              value={s.stawka_odsetek_ustawowych}
-              onSave={(v) => patch({ stawka_odsetek_ustawowych: v })}
-              placeholder="np. 11,25"
-              suffix="%"
-            />
-          </div>
-        </div>
+          <WierszPola etykieta="Stawka roczna">
+            <div className="w-[120px]">
+              <NumberField
+                value={s.stawka_odsetek_ustawowych}
+                onSave={(v) => patch({ stawka_odsetek_ustawowych: v })}
+                placeholder="np. 11,25"
+                suffix="%"
+              />
+            </div>
+          </WierszPola>
+        </SekcjaProfilu>
 
-        <div className="mt-3 rounded-lg border hairline p-3">
-          <h3 className="text-sm text-[var(--fg)]">Rezerwa podatkowa</h3>
-          <p className="mt-0.5 text-[11px] text-muted">
+        <SekcjaProfilu tytul="Rezerwa podatkowa">
+          <p className="px-3 py-2 text-[11px] leading-snug text-muted">
             Ile procent kwoty netto każdej faktury warto odłożyć na każdy z podatków — poglądowy wskaźnik, nie automat księgowy, nie zastępuje wyliczeń
             księgowej.
           </p>
-          <div className="mt-2 grid grid-cols-3 gap-2.5">
-            <div>
-              <label className="mb-1 block text-[11px] text-muted">VAT</label>
+          <WierszPola etykieta="VAT">
+            <div className="w-[120px]">
               <NumberField value={s.rezerwa_vat_procent} onSave={(v) => patch({ rezerwa_vat_procent: v ?? 0 })} placeholder="0" suffix="%" />
             </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-muted">PIT</label>
+          </WierszPola>
+          <WierszPola etykieta="PIT">
+            <div className="w-[120px]">
               <NumberField value={s.rezerwa_pit_procent} onSave={(v) => patch({ rezerwa_pit_procent: v ?? 0 })} placeholder="0" suffix="%" />
             </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-muted">ZUS</label>
+          </WierszPola>
+          <WierszPola etykieta="ZUS">
+            <div className="w-[120px]">
               <NumberField value={s.rezerwa_zus_procent} onSave={(v) => patch({ rezerwa_zus_procent: v ?? 0 })} placeholder="0" suffix="%" />
             </div>
-          </div>
-        </div>
+          </WierszPola>
+        </SekcjaProfilu>
       </div>
     </div>
   );
@@ -204,43 +214,54 @@ function NumberField({
   );
 }
 
+/** Wiersz ustawienia: wspólny `WierszPola` + pole z buforem i zapisem na blur.
+ *  Moduł 59, paczka F — wcześniej rysował własną etykietę NAD polem. */
 function SField({
   label,
   value,
   onSave,
   placeholder,
-  textarea,
 }: {
   label: string;
   value: string;
   onSave: (v: string) => void;
   placeholder?: string;
-  textarea?: boolean;
 }) {
+  return (
+    <WierszPola etykieta={label}>
+      <SFieldInput value={value} onSave={onSave} placeholder={placeholder} />
+    </WierszPola>
+  );
+}
+
+/** Samo pole, bez wiersza — dla miejsc, gdzie w jednym wierszu stoją dwa
+ *  (kod i miasto). Bufor lokalny, żeby pisanie nie strzelało PATCH-em na
+ *  każdą literę; zapis dopiero, gdy wartość naprawdę się zmieniła. */
+function SFieldInput({ value, onSave, placeholder }: { value: string; onSave: (v: string) => void; placeholder?: string }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
-  const className = "w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted";
   return (
-    <div>
-      {label && <label className="mb-1 block text-[11px] text-muted">{label}</label>}
-      {textarea ? (
-        <textarea
-          value={v}
-          onChange={(e) => setV(e.target.value)}
-          onBlur={() => v !== value && onSave(v)}
-          placeholder={placeholder}
-          rows={2}
-          className={className}
-        />
-      ) : (
-        <input
-          value={v}
-          onChange={(e) => setV(e.target.value)}
-          onBlur={() => v !== value && onSave(v)}
-          placeholder={placeholder}
-          className={className}
-        />
-      )}
-    </div>
+    <input
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => v !== value && onSave(v)}
+      placeholder={placeholder}
+      className="w-full rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)] placeholder:text-muted"
+    />
+  );
+}
+
+function SFieldTextarea({ value, onSave, placeholder }: { value: string; onSave: (v: string) => void; placeholder?: string }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return (
+    <textarea
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => v !== value && onSave(v)}
+      placeholder={placeholder}
+      rows={2}
+      className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+    />
   );
 }

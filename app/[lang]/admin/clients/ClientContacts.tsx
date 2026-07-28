@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { IconPlus, IconStar, IconStarFilled, IconTrash, IconPencil } from "@tabler/icons-react";
 import { type ClientContact, clientContactLine, ContactChannelIcon } from "./shared";
-import { SekcjaProfilu } from "../ProfileSection";
+import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
 import { useUI } from "../ui";
 
 /**
@@ -239,55 +239,64 @@ function Formularz({
   onAnuluj: () => void;
   waskaKolumna: boolean;
 }) {
-  const pole = "w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-[12.5px] outline-none";
+  const pole = "w-full rounded-lg border hairline bg-transparent py-1.5 outline-none";
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         onZapisz();
       }}
-      className="card-paper space-y-2 rounded-lg border hairline p-3"
+      className="space-y-2"
     >
-      <div className={`grid gap-2 ${waskaKolumna ? "" : "sm:grid-cols-2"}`}>
-        <input
-          autoFocus
-          value={szkic.imie}
-          onChange={(e) => setSzkic({ ...szkic, imie: e.target.value })}
-          placeholder="Imię i nazwisko"
-          className={pole}
-        />
-        <input
-          value={szkic.rola}
-          onChange={(e) => setSzkic({ ...szkic, rola: e.target.value })}
-          placeholder="Rola (np. księgowość)"
-          className={pole}
-        />
-        <input
-          value={szkic.telefon}
-          onChange={(e) => setSzkic({ ...szkic, telefon: e.target.value })}
-          placeholder="Telefon"
-          className={pole}
-        />
-        <input
-          value={szkic.email}
-          onChange={(e) => setSzkic({ ...szkic, email: e.target.value })}
-          placeholder="E-mail"
-          className={pole}
-        />
-      </div>
-      <input
-        value={szkic.notatka}
-        onChange={(e) => setSzkic({ ...szkic, notatka: e.target.value })}
-        placeholder="O czym pamiętać przy tej osobie (opcjonalnie)"
-        className={pole}
-      />
-      {/* Adres osoby wchodzi do dopasowania poczty — właściciel ma to
-          wiedzieć w chwili wpisywania, nie odkryć po fakcie. */}
-      {szkic.email.trim() && (
-        <p className="text-[11px] text-muted">
-          Mail z tego adresu będzie od teraz dopinany do tej firmy.
-        </p>
-      )}
+      {/* Moduł 59, paczka F+ — etykiety wracają na lewo. Do tej pory formularz
+          osoby nazywał pola WYŁĄCZNIE placeholderem, czyli nazwa pola znikała
+          w chwili, gdy coś w nim wpisano (reguła 7 przeglądu spójności). */}
+      <SekcjaProfilu tytul="Osoba kontaktowa">
+        <WierszPola etykieta="Imię i nazwisko">
+          <input
+            autoFocus
+            value={szkic.imie}
+            onChange={(e) => setSzkic({ ...szkic, imie: e.target.value })}
+            placeholder="np. Anna Kowalska"
+            className={pole}
+          />
+        </WierszPola>
+        <WierszPola etykieta="Rola">
+          <input
+            value={szkic.rola}
+            onChange={(e) => setSzkic({ ...szkic, rola: e.target.value })}
+            placeholder="np. księgowość"
+            className={pole}
+          />
+        </WierszPola>
+        <WierszPola etykieta="Telefon">
+          <input
+            value={szkic.telefon}
+            onChange={(e) => setSzkic({ ...szkic, telefon: e.target.value })}
+            className={pole}
+          />
+        </WierszPola>
+        <WierszPola etykieta="Email">
+          <input
+            value={szkic.email}
+            onChange={(e) => setSzkic({ ...szkic, email: e.target.value })}
+            className={pole}
+          />
+        </WierszPola>
+        <WierszPola etykieta="Notatka">
+          <input
+            value={szkic.notatka}
+            onChange={(e) => setSzkic({ ...szkic, notatka: e.target.value })}
+            placeholder="o czym pamiętać (opcjonalnie)"
+            className={pole}
+          />
+        </WierszPola>
+        {/* Adres osoby wchodzi do dopasowania poczty — właściciel ma to
+            wiedzieć w chwili wpisywania, nie odkryć po fakcie. */}
+        {szkic.email.trim() && (
+          <WierszUwaga>Mail z tego adresu będzie od teraz dopinany do tej firmy.</WierszUwaga>
+        )}
+      </SekcjaProfilu>
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onAnuluj} className="rounded-full border hairline px-3 py-1 text-[11px] text-muted">
           Anuluj

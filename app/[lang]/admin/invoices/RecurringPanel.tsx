@@ -7,6 +7,7 @@ import { RECURRING_CYCLES, RECURRING_CYCLE_LABEL, type RecurringCycle, type Recu
 import { useUI } from "../ui";
 import { PropertyMenu } from "../Menu";
 import { DateField } from "../DatePicker";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 
 export function RecurringPanel({ onClose }: { onClose: () => void }) {
   const { toast, confirm } = useUI();
@@ -153,25 +154,24 @@ function TemplateForm({ template, onSaved, onDelete }: { template: RecurringInvo
   };
 
   return (
-    <div className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-2.5">
-        <TField label="Nazwa szablonu" value={t.nazwa} onSave={(v) => patch({ nazwa: v })} />
-        <TField label="E-mail nabywcy" value={t.klient_email} onSave={(v) => patch({ klient_email: v })} placeholder="klient@…" />
-      </div>
-      <TField label="Nazwa nabywcy" value={t.klient_nazwa} onSave={(v) => patch({ klient_nazwa: v })} />
-      <div className="grid grid-cols-2 gap-2.5">
+    /* Moduł 59, paczka F+ — sekcje i wiersze te same, co w edytorze faktury. */
+    <div className="space-y-4">
+      <SekcjaProfilu tytul="Szablon">
+        <TField label="Nazwa" value={t.nazwa} onSave={(v) => patch({ nazwa: v })} />
+      </SekcjaProfilu>
+
+      <SekcjaProfilu tytul="Nabywca">
+        <TField label="Firma" value={t.klient_nazwa} onSave={(v) => patch({ klient_nazwa: v })} />
         <TField label="NIP" value={t.klient_nip} onSave={(v) => patch({ klient_nip: v })} />
+        <TField label="E-mail" value={t.klient_email} onSave={(v) => patch({ klient_email: v })} placeholder="klient@…" />
         <TField label="Ulica" value={t.klient_ulica} onSave={(v) => patch({ klient_ulica: v })} />
-      </div>
-      <div className="grid grid-cols-3 gap-2.5">
-        <TField label="Kod" value={t.klient_kod} onSave={(v) => patch({ klient_kod: v })} />
+        <TField label="Kod pocztowy" value={t.klient_kod} onSave={(v) => patch({ klient_kod: v })} />
         <TField label="Miasto" value={t.klient_miasto} onSave={(v) => patch({ klient_miasto: v })} />
         <TField label="Kraj" value={t.klient_kraj} onSave={(v) => patch({ klient_kraj: v })} />
-      </div>
+      </SekcjaProfilu>
 
-      <div className="grid grid-cols-4 gap-2.5">
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Waluta</label>
+      <SekcjaProfilu tytul="Dokument">
+        <WierszPola etykieta="Waluta">
           <PropertyMenu
             value={t.waluta}
             options={INVOICE_CURRENCIES.map((c) => ({ value: c, label: c }))}
@@ -180,11 +180,10 @@ function TemplateForm({ template, onSaved, onDelete }: { template: RecurringInvo
               patch({ waluta: v });
             }}
           >
-            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">{t.waluta}</span>
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">{t.waluta}</span>
           </PropertyMenu>
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Język</label>
+        </WierszPola>
+        <WierszPola etykieta="Język">
           <PropertyMenu
             value={t.jezyk}
             options={INVOICE_LANGS.map((l) => ({ value: l, label: INVOICE_LANG_LABEL[l] }))}
@@ -193,21 +192,23 @@ function TemplateForm({ template, onSaved, onDelete }: { template: RecurringInvo
               patch({ jezyk: v });
             }}
           >
-            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">{INVOICE_LANG_LABEL[t.jezyk]}</span>
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">{INVOICE_LANG_LABEL[t.jezyk]}</span>
           </PropertyMenu>
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Termin (dni)</label>
+        </WierszPola>
+        <WierszPola etykieta="Termin płatności" title="Liczony w dniach od wystawienia">
           <input
             type="number"
             value={t.termin_dni}
             onChange={(e) => setT((p) => ({ ...p, termin_dni: Number(e.target.value) }))}
             onBlur={(e) => patch({ termin_dni: Number(e.target.value) })}
-            className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)]"
+            className="w-[90px] rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)]"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Cykl</label>
+          <span className="text-[12px] text-muted">dni</span>
+        </WierszPola>
+      </SekcjaProfilu>
+
+      <SekcjaProfilu tytul="Rytm">
+        <WierszPola etykieta="Cykl">
           <PropertyMenu
             value={t.cykl}
             options={RECURRING_CYCLES.map((c) => ({ value: c, label: RECURRING_CYCLE_LABEL[c] }))}
@@ -216,17 +217,13 @@ function TemplateForm({ template, onSaved, onDelete }: { template: RecurringInvo
               patch({ cykl: v });
             }}
           >
-            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">{RECURRING_CYCLE_LABEL[t.cykl]}</span>
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">{RECURRING_CYCLE_LABEL[t.cykl]}</span>
           </PropertyMenu>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2.5">
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Najbliższe wystawienie</label>
+        </WierszPola>
+        <WierszPola etykieta="Najbliższe" title="Najbliższe wystawienie">
           <DateField value={t.next_run} onChange={(v) => { setT((p) => ({ ...p, next_run: v })); patch({ next_run: v }); }} />
-        </div>
-        <label className="mt-5 flex cursor-pointer items-center gap-2 text-sm">
+        </WierszPola>
+        <WierszPola etykieta="Aktywny">
           <input
             type="checkbox"
             checked={t.active}
@@ -236,17 +233,18 @@ function TemplateForm({ template, onSaved, onDelete }: { template: RecurringInvo
             }}
             className="h-4 w-4 cursor-pointer accent-[var(--zaznaczenie)]"
           />
-          Aktywny
-        </label>
-      </div>
+        </WierszPola>
+      </SekcjaProfilu>
 
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <h3 className="text-[11px] uppercase tracking-wide text-muted">Pozycje</h3>
+      <SekcjaProfilu
+        tytul="Pozycje"
+        wiersze={false}
+        akcje={
           <button onClick={addItem} className="rounded-full border hairline px-2.5 py-0.5 text-[11px]">
             + Pozycja
           </button>
-        </div>
+        }
+      >
         {t.pozycje.length === 0 ? (
           <p className="py-2 text-center text-xs text-muted opacity-60">Brak pozycji.</p>
         ) : (
@@ -294,7 +292,7 @@ function TemplateForm({ template, onSaved, onDelete }: { template: RecurringInvo
             ))}
           </div>
         )}
-      </div>
+      </SekcjaProfilu>
 
       <button onClick={onDelete} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
         Usuń szablon
@@ -303,19 +301,19 @@ function TemplateForm({ template, onSaved, onDelete }: { template: RecurringInvo
   );
 }
 
+/** Wiersz szablonu — wspólny `WierszPola` (Moduł 59, paczka F+). */
 function TField({ label, value, onSave, placeholder }: { label: string; value: string; onSave: (v: string) => void; placeholder?: string }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return (
-    <div>
-      <label className="mb-1 block text-[11px] text-muted">{label}</label>
+    <WierszPola etykieta={label}>
       <input
         value={v}
         onChange={(e) => setV(e.target.value)}
         onBlur={() => v !== value && onSave(v)}
         placeholder={placeholder}
-        className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+        className="w-full rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)] placeholder:text-muted"
       />
-    </div>
+    </WierszPola>
   );
 }

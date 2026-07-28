@@ -21,6 +21,7 @@ import { RECURRING_CYCLES, RECURRING_CYCLE_LABEL, type RecurringCycle } from "@/
 import { useUI } from "../ui";
 import { PropertyMenu } from "../Menu";
 import { DateField } from "../DatePicker";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 
 type ProjectOption = { id: string; tytul: string };
 
@@ -161,19 +162,17 @@ function TemplateForm({
   const projectLabel = projects.find((p) => p.id === t.project_id)?.tytul ?? "Brak";
 
   return (
-    <div className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-2.5">
+    /* Moduł 59, paczka F+ — sekcje i wiersze te same, co w profilu kosztu. */
+    <div className="space-y-4">
+      <SekcjaProfilu tytul="Dostawca">
         <TField label="Nazwa szablonu" value={t.nazwa} onSave={(v) => patch({ nazwa: v })} placeholder="np. Netflix, hosting…" />
         <TField label="Dostawca" value={t.dostawca_nazwa} onSave={(v) => patch({ dostawca_nazwa: v })} />
-      </div>
-      <div className="grid grid-cols-2 gap-2.5">
         <TField label="NIP dostawcy" value={t.dostawca_nip} onSave={(v) => patch({ dostawca_nip: v })} placeholder="opcjonalnie" />
-        <TField label="Numer konta dostawcy" value={t.dostawca_konto} onSave={(v) => patch({ dostawca_konto: v })} placeholder="opcjonalnie" />
-      </div>
+        <TField label="Numer konta" value={t.dostawca_konto} onSave={(v) => patch({ dostawca_konto: v })} placeholder="opcjonalnie" />
+      </SekcjaProfilu>
 
-      <div className="grid grid-cols-4 gap-2.5">
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Kategoria</label>
+      <SekcjaProfilu tytul="Kwoty">
+        <WierszPola etykieta="Kategoria">
           <PropertyMenu
             value={t.kategoria}
             options={COST_CATEGORIES.map((c) => ({ value: c, label: c }))}
@@ -182,22 +181,20 @@ function TemplateForm({
               patch({ kategoria: v });
             }}
           >
-            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">{t.kategoria}</span>
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">{t.kategoria}</span>
           </PropertyMenu>
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Kwota netto</label>
+        </WierszPola>
+        <WierszPola etykieta="Kwota netto">
           <input
             type="number"
             step="0.01"
             value={t.kwota_netto}
             onChange={(e) => setT((p) => ({ ...p, kwota_netto: Number(e.target.value) }))}
             onBlur={(e) => patch({ kwota_netto: Number(e.target.value) })}
-            className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)]"
+            className="w-full rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)]"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">VAT</label>
+        </WierszPola>
+        <WierszPola etykieta="Stawka VAT">
           <PropertyMenu
             value={t.vat_stawka}
             options={VAT_RATES.map((r) => ({ value: r, label: r === "zw" || r === "np" ? r : `${r}%` }))}
@@ -206,36 +203,32 @@ function TemplateForm({
               patch({ vat_stawka: v });
             }}
           >
-            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">
               {t.vat_stawka === "zw" || t.vat_stawka === "np" ? t.vat_stawka : `${t.vat_stawka}%`}
             </span>
           </PropertyMenu>
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Brutto</label>
-          <div className="px-2.5 py-1.5 text-sm font-medium text-[var(--fg)]">{formatMoney(costBrutto(t.kwota_netto, t.vat_stawka))}</div>
-        </div>
-      </div>
+        </WierszPola>
+        <WierszPola etykieta="Kwota brutto">
+          <div className="text-[13px] font-medium text-[var(--fg)]">{formatMoney(costBrutto(t.kwota_netto, t.vat_stawka))}</div>
+        </WierszPola>
+        <WierszPola etykieta="Sposób płatności">
+          <PropertyMenu
+            value={(t.metoda_platnosci as PaymentMethod) ?? ""}
+            options={[{ value: "" as PaymentMethod, label: "Brak" }, ...PAYMENT_METHODS.map((m) => ({ value: m, label: PAYMENT_METHOD_LABEL[m] }))]}
+            onChange={(v) => {
+              setT((p) => ({ ...p, metoda_platnosci: v || null }));
+              patch({ metoda_platnosci: v || null });
+            }}
+          >
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">
+              {t.metoda_platnosci ? PAYMENT_METHOD_LABEL[t.metoda_platnosci as PaymentMethod] ?? t.metoda_platnosci : "Brak"}
+            </span>
+          </PropertyMenu>
+        </WierszPola>
+      </SekcjaProfilu>
 
-      <div>
-        <label className="mb-1 block text-[11px] text-muted">Metoda płatności</label>
-        <PropertyMenu
-          value={(t.metoda_platnosci as PaymentMethod) ?? ""}
-          options={[{ value: "" as PaymentMethod, label: "Brak" }, ...PAYMENT_METHODS.map((m) => ({ value: m, label: PAYMENT_METHOD_LABEL[m] }))]}
-          onChange={(v) => {
-            setT((p) => ({ ...p, metoda_platnosci: v || null }));
-            patch({ metoda_platnosci: v || null });
-          }}
-        >
-          <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">
-            {t.metoda_platnosci ? PAYMENT_METHOD_LABEL[t.metoda_platnosci as PaymentMethod] ?? t.metoda_platnosci : "Brak"}
-          </span>
-        </PropertyMenu>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2.5">
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Cykl</label>
+      <SekcjaProfilu tytul="Rytm">
+        <WierszPola etykieta="Cykl">
           <PropertyMenu
             value={t.cykl}
             options={RECURRING_CYCLES.map((c) => ({ value: c, label: RECURRING_CYCLE_LABEL[c] }))}
@@ -244,14 +237,13 @@ function TemplateForm({
               patch({ cykl: v });
             }}
           >
-            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">{RECURRING_CYCLE_LABEL[t.cykl]}</span>
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">{RECURRING_CYCLE_LABEL[t.cykl]}</span>
           </PropertyMenu>
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted">Najbliższe wystawienie</label>
+        </WierszPola>
+        <WierszPola etykieta="Najbliższe" title="Najbliższe wystawienie">
           <DateField value={t.next_run} onChange={(v) => { setT((p) => ({ ...p, next_run: v })); patch({ next_run: v }); }} />
-        </div>
-        <label className="mt-5 flex cursor-pointer items-center gap-2 text-sm">
+        </WierszPola>
+        <WierszPola etykieta="Aktywny">
           <input
             type="checkbox"
             checked={t.active}
@@ -261,23 +253,20 @@ function TemplateForm({
             }}
             className="h-4 w-4 cursor-pointer accent-[var(--zaznaczenie)]"
           />
-          Aktywny
-        </label>
-      </div>
-
-      <div>
-        <label className="mb-1 block text-[11px] text-muted">Projekt</label>
-        <PropertyMenu
-          value={t.project_id ?? ""}
-          options={[{ value: "", label: "Brak" }, ...projects.map((p) => ({ value: p.id, label: p.tytul }))]}
-          onChange={(v) => {
-            setT((p) => ({ ...p, project_id: v || null }));
-            patch({ project_id: v || null });
-          }}
-        >
-          <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-sm text-[var(--fg)]">{projectLabel}</span>
-        </PropertyMenu>
-      </div>
+        </WierszPola>
+        <WierszPola etykieta="Projekt">
+          <PropertyMenu
+            value={t.project_id ?? ""}
+            options={[{ value: "", label: "Brak" }, ...projects.map((p) => ({ value: p.id, label: p.tytul }))]}
+            onChange={(v) => {
+              setT((p) => ({ ...p, project_id: v || null }));
+              patch({ project_id: v || null });
+            }}
+          >
+            <span className="block w-full rounded-lg border hairline px-2.5 py-1.5 text-[13px] text-[var(--fg)]">{projectLabel}</span>
+          </PropertyMenu>
+        </WierszPola>
+      </SekcjaProfilu>
 
       <button onClick={onDelete} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
         Usuń szablon
@@ -286,19 +275,20 @@ function TemplateForm({
   );
 }
 
+/** Wiersz szablonu — wspólny `WierszPola` (Moduł 59, paczka F+). Bufor lokalny
+ *  i zapis na blur zostają: pisanie nie może strzelać PATCH-em na każdą literę. */
 function TField({ label, value, onSave, placeholder }: { label: string; value: string; onSave: (v: string) => void; placeholder?: string }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return (
-    <div>
-      <label className="mb-1 block text-[11px] text-muted">{label}</label>
+    <WierszPola etykieta={label}>
       <input
         value={v}
         onChange={(e) => setV(e.target.value)}
         onBlur={() => v !== value && onSave(v)}
         placeholder={placeholder}
-        className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+        className="w-full rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)] placeholder:text-muted"
       />
-    </div>
+    </WierszPola>
   );
 }

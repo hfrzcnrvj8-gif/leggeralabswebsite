@@ -45,6 +45,7 @@ export function CyklPicker({
   odDnia,
   onChange,
   className = "",
+  wlasnaEtykieta = true,
 }: {
   cykl: string | null;
   doDnia: string;
@@ -52,13 +53,18 @@ export function CyklPicker({
   odDnia: string;
   onChange: (next: { cykl: string | null; doDnia: string }) => void;
   className?: string;
+  /** Wyłącz, gdy picker stoi w `WierszPola` o etykiecie „Powtarzanie" —
+   *  inaczej to samo słowo pada dwa razy obok siebie (Moduł 59, paczka F+). */
+  wlasnaEtykieta?: boolean;
 }) {
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-      <span className="flex items-center gap-1 text-[11px] text-muted">
-        <IconRepeat size={12} />
-        Powtarzaj:
-      </span>
+      {wlasnaEtykieta && (
+        <span className="flex items-center gap-1 text-[11px] text-muted">
+          <IconRepeat size={12} />
+          Powtarzaj:
+        </span>
+      )}
       <select
         value={cykl ?? ""}
         onChange={(e) => onChange({ cykl: e.target.value || null, doDnia: e.target.value ? doDnia : "" })}

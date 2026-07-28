@@ -62,6 +62,7 @@ import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { invalidateLinkTargets } from "../LinkPicker";
 import { DocLinkPicker } from "../DocLinkPicker";
 import { ShareLinkControl } from "../ShareLinkControl";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { MiniSciezka } from "../MiniSciezka";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 
@@ -1049,17 +1050,20 @@ export function InvoiceEditor({
           </div>
         </div>
 
-        {/* Boczny pasek: daty, status, akcje */}
+        {/* Boczny pasek: daty, status, akcje.
+            Moduł 59, paczka F — karty paska przeszły z `card-paper` + własnego
+            `h3` na wspólną `SekcjaProfilu` (płyta + nagłówek kapitalikami +
+            kreski między wierszami), tę samą, co profil leada, klienta,
+            projektu i kosztu. */}
         <div className="space-y-4">
-          <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
-            <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Dokument</h3>
+          <SekcjaProfilu tytul="Dokument" className={lockCls}>
             {koryguje ? (
               <button
                 type="button"
                 onClick={() => onOpenInvoice?.(koryguje.id)}
                 disabled={!onOpenInvoice}
                 title={onOpenInvoice ? "Otwórz fakturę pierwotną" : undefined}
-                className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11.5px] text-muted enabled:hover:bg-[var(--hairline)] disabled:cursor-default"
+                className="flex w-full items-center justify-between gap-2 bg-[var(--hairline)]/40 px-3 py-2 text-[11.5px] text-muted enabled:hover:bg-[var(--hairline)] disabled:cursor-default"
               >
                 <span>
                   Korekta faktury <span className="font-medium text-[var(--fg)]">{koryguje.numer ?? "…"}</span>
@@ -1126,15 +1130,20 @@ export function InvoiceEditor({
             </Field>
 
             {koryguje && (
-              <div className="mt-2 space-y-2">
-                <textarea
-                  value={invoice.przyczyna_korekty}
-                  onChange={(e) => setInvoice((p) => (p ? { ...p, przyczyna_korekty: e.target.value } : p))}
-                  onBlur={(e) => patchInvoice({ przyczyna_korekty: e.target.value })}
-                  rows={2}
-                  placeholder="Przyczyna korekty (wymagana przez KSeF)"
-                  className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-                />
+              <>
+                {/* Blok wielolinijkowy dostaje własne wcięcie — `WierszPola`
+                    nosi swoje `px-3` samo, więc opakowanie obu w jeden padded
+                    div dawałoby podwójny margines. */}
+                <div className="p-3">
+                  <textarea
+                    value={invoice.przyczyna_korekty}
+                    onChange={(e) => setInvoice((p) => (p ? { ...p, przyczyna_korekty: e.target.value } : p))}
+                    onBlur={(e) => patchInvoice({ przyczyna_korekty: e.target.value })}
+                    rows={2}
+                    placeholder="Przyczyna korekty (wymagana przez KSeF)"
+                    className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                  />
+                </div>
                 <Field label="Typ korekty (KSeF)">
                   <PropertyMenu
                     value={invoice.typ_korekty || "1"}
@@ -1148,11 +1157,11 @@ export function InvoiceEditor({
                     </span>
                   </PropertyMenu>
                 </Field>
-              </div>
+              </>
             )}
 
             {invoice.typ_dokumentu === "zaliczkowa" && (
-              <div className="mt-2 space-y-2">
+              <>
                 <Field label="Zamówienie">
                   <input
                     type="number"
@@ -1167,19 +1176,21 @@ export function InvoiceEditor({
                     className="w-full bg-transparent text-[13px] text-[var(--fg)] placeholder:text-muted outline-none"
                   />
                 </Field>
-                <textarea
-                  value={invoice.zamowienie_opis}
-                  onChange={(e) => setInvoice((p) => (p ? { ...p, zamowienie_opis: e.target.value } : p))}
-                  onBlur={(e) => patchInvoice({ zamowienie_opis: e.target.value })}
-                  rows={2}
-                  placeholder='Opis zamówienia/umowy (np. "Wdrożenie systemu CRM") — zalecane dla KSeF, całość widoczna dopiero na fakturze rozliczeniowej'
-                  className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-                />
-              </div>
+                <div className="p-3">
+                  <textarea
+                    value={invoice.zamowienie_opis}
+                    onChange={(e) => setInvoice((p) => (p ? { ...p, zamowienie_opis: e.target.value } : p))}
+                    onBlur={(e) => patchInvoice({ zamowienie_opis: e.target.value })}
+                    rows={2}
+                    placeholder='Opis zamówienia/umowy (np. "Wdrożenie systemu CRM") — zalecane dla KSeF, całość widoczna dopiero na fakturze rozliczeniowej'
+                    className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                  />
+                </div>
+              </>
             )}
 
             {invoice.typ_dokumentu === "faktura" && !koryguje && (
-              <div className="mt-2">
+              <div className="p-3">
                 <Popover
                   width={260}
                   trigger={(open) => (
@@ -1232,32 +1243,34 @@ export function InvoiceEditor({
                 </Popover>
               </div>
             )}
-          </div>
+          </SekcjaProfilu>
 
-          <div className={`card-paper rounded-xl border hairline p-4 ${lockCls}`}>
-            <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Daty</h3>
+          <SekcjaProfilu tytul="Daty" className={lockCls}>
             <Field label="Wystawienia">
               <DateField value={invoice.data_wystawienia ?? ""} onChange={(v) => patchInvoice({ data_wystawienia: v || null })} placeholder="—" />
             </Field>
             <Field label="Sprzedaży">
               <DateField value={invoice.data_sprzedazy ?? ""} onChange={(v) => patchInvoice({ data_sprzedazy: v || null })} placeholder="—" />
             </Field>
-            <Field label="Termin płat.">
+            <Field label="Termin płatności">
               <DateField value={invoice.termin_platnosci ?? ""} onChange={(v) => patchInvoice({ termin_platnosci: v || null })} placeholder="—" />
             </Field>
-            <div className="mt-1.5 flex gap-1.5 pl-[104px]">
+            {/* Skróty terminu wyrównane do KOLUMNY WARTOŚCI: 118 px etykiety
+                `WierszPola` + 8 px odstępu. Wcześniej było 104 px pod własną,
+                węższą etykietę — po ujednoliceniu wisiałyby w połowie nazwy. */}
+            <div className="flex flex-wrap gap-1 px-3 py-2 pl-[129px]">
               {[7, 14, 30].map((days) => (
                 <button
                   key={days}
                   onClick={() => patchInvoice({ termin_platnosci: addDaysISO(invoice.data_wystawienia, days) })}
-                  className="rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+                  className="whitespace-nowrap rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
                   title={`Ustaw termin na ${days} dni od daty wystawienia (lub od dziś, jeśli nie ustawiono)`}
                 >
                   {days} dni
                 </button>
               ))}
             </div>
-          </div>
+          </SekcjaProfilu>
 
           {isDraft ? (
             <div className="space-y-1.5">
@@ -1292,8 +1305,10 @@ export function InvoiceEditor({
           )}
 
           {!isDraft && (
-            <div className="card-paper rounded-xl border hairline p-4">
-              <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Płatności</h3>
+            /* Płatności, Windykacja, KSeF i Korekty mają WŁASNĄ treść (listy,
+               formularze, przyciski), nie wiersze pól — stąd `wiersze={false}`:
+               kreska co element rysowałaby siatkę zamiast grupy. */
+            <SekcjaProfilu tytul="Płatności" wiersze={false}>
               {payments.length > 0 && (
                 <div className="mb-2 space-y-1">
                   {payments.map((p) => (
@@ -1327,19 +1342,21 @@ export function InvoiceEditor({
                   + Wpłata
                 </button>
               </div>
-            </div>
+            </SekcjaProfilu>
           )}
 
           {!isDraft && (overdue || reminders.length > 0) && (
-            <div className="card-paper rounded-xl border hairline p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-[11px] uppercase tracking-wide text-muted">Windykacja</h3>
-                {invoice.reminder_level > 0 && (
+            <SekcjaProfilu
+              tytul="Windykacja"
+              wiersze={false}
+              akcje={
+                invoice.reminder_level > 0 ? (
                   <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-[11px] font-medium text-orange-400">
                     {REMINDER_LEVEL_LABEL[invoice.reminder_level] ?? `Poziom ${invoice.reminder_level}`}
                   </span>
-                )}
-              </div>
+                ) : undefined
+              }
+            >
               {reminders.length > 0 ? (
                 <div className="mb-2 space-y-1">
                   {reminders.map((r) => (
@@ -1375,20 +1392,19 @@ export function InvoiceEditor({
                   onChanged={(revokedAt) => setInvoice((p) => (p ? { ...p, wezwanie_share_revoked_at: revokedAt } : p))}
                 />
               </div>
-            </div>
+            </SekcjaProfilu>
           )}
 
           {!isDraft && (invoice.typ_dokumentu === "faktura" || invoice.typ_dokumentu === "zaliczkowa") && (
-            <div className="card-paper rounded-xl border hairline p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-[11px] uppercase tracking-wide text-muted">
-                  KSeF
-                  {koryguje ? " — korekta" : invoice.typ_dokumentu === "zaliczkowa" ? " — zaliczkowa" : invoice.rozlicza_zaliczke_id ? " — rozliczeniowa" : ""}
-                </h3>
+            <SekcjaProfilu
+              tytul={`KSeF${koryguje ? " — korekta" : invoice.typ_dokumentu === "zaliczkowa" ? " — zaliczkowa" : invoice.rozlicza_zaliczke_id ? " — rozliczeniowa" : ""}`}
+              wiersze={false}
+              akcje={
                 <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-brand-gold">
                   Środowisko testowe
                 </span>
-              </div>
+              }
+            >
               <div className="mb-2 flex flex-wrap items-center gap-1.5">
                 <span className={`rounded-full px-2 py-0.5 text-[11px] ${KSEF_STATUS_CLASS[invoice.ksef_status]}`}>
                   {KSEF_STATUS_LABEL[invoice.ksef_status]}
@@ -1419,12 +1435,11 @@ export function InvoiceEditor({
                     ? "Wyślij do KSeF (test)"
                     : "Wyślij ponownie do KSeF"}
               </button>
-            </div>
+            </SekcjaProfilu>
           )}
 
           {korekty.length > 0 && (
-            <div className="card-paper rounded-xl border hairline p-4">
-              <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Korekty tej faktury</h3>
+            <SekcjaProfilu tytul="Korekty tej faktury" wiersze={false}>
               <div className="space-y-1">
                 {korekty.map((k) => (
                   <button
@@ -1444,7 +1459,7 @@ export function InvoiceEditor({
                   </button>
                 ))}
               </div>
-            </div>
+            </SekcjaProfilu>
           )}
 
           {!isDraft && (
@@ -1592,13 +1607,15 @@ function CatalogPicker({
   );
 }
 
+/** Wiersz „etykieta — wartość" w bocznym pasku faktury.
+ *
+ * Moduł 59, paczka F: to był WŁASNY wiersz o własnej szerokości etykiety
+ * (96 px) i bez kreski między pozycjami — czyli szósta wersja tego samego
+ * elementu w panelu. Teraz to cienki alias wspólnego `WierszPola`; nazwa
+ * `Field` zostaje, bo ma tu ~20 wywołań, a zmiana nazwy nie dodaje niczego
+ * poza dyfem. Powód wzorca i pomiary: `../ProfileSection.tsx`. */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 py-0.5">
-      <span className="w-24 shrink-0 text-[12.5px] text-muted">{label}</span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
+  return <WierszPola etykieta={label}>{children}</WierszPola>;
 }
 
 function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {

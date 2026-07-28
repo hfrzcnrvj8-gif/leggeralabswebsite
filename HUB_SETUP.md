@@ -9581,3 +9581,96 @@ Siatka sekcji dostała `items-start`. Bez tego dwie sekcje w wierszu rozciągaj�
 się do wysokości wyższej — przy niewidocznej płycie nie było tego widać, po
 jej wprowadzeniu pusta sekcja („Kamienie po terminie: nic") stawała się płytą
 w połowie wypełnioną powietrzem, sugerując treść, której nie ma.
+
+## Moduł 59, paczka F — wiersz profilu jest jeden dla całego panelu (2026-07-28)
+
+Do tej paczki `SekcjaProfilu`/`WierszPola` (`app/[lang]/admin/ProfileSection.tsx`)
+były przywilejem Leadów, Klientów, Ofert i Umów. Reszta panelu miała **sześć
+własnych wersji tego samego wiersza**, każda pisana przy okazji swojego modułu:
+
+| gdzie | co było | szerokość etykiety |
+|---|---|---|
+| Projekty | `MetaRow` (ikona + nazwa, płasko na karcie) | 96 px |
+| Faktury | `Field` (nazwa bez ikony, bez kreski) | 96 px |
+| Koszty | dwukolumnowa siatka, etykieta NAD polem | — |
+| Przypomnienia | `Pole` — etykieta kapitalikami NAD wartością | — |
+| Notatnik | siatka 2×1, etykieta NAD wartością | — |
+| Ustawienia sprzedawcy | `SField` — etykieta NAD polem | — |
+
+Wszystkie sześć zastąpił wspólny komponent. `MetaRow` i `Pole` usunięte,
+`Field` i `SField` zostały jako cienkie aliasy (mają po kilkanaście wywołań —
+zmiana nazwy dodałaby dyf, nie wartość).
+
+### Reguła (domyślna, z wyjątkiem nazwanym niżej)
+
+**Rekord, na który PATRZYSZ i który poprawiasz w miejscu, pokazuje pola przez
+`SekcjaProfilu` + `WierszPola`.** Etykieta po lewej w stałej kolumnie 118 px,
+wartość po prawej, kreska między wierszami, grupy na płycie `.card-inset`
+z nagłówkiem kapitalikami. To jest odpowiednik `List(.insetGrouped)` z apki.
+
+**Formularze też — bez wyjątku (rozstrzygnięcie właściciela 2026-07-29).**
+Pierwsza wersja tej reguły zostawiała formularze tworzenia („Anuluj / Zapisz")
+z etykietą nad polem, argumentując podpowiedziami i parami pól w rzędzie.
+Właściciel odrzucił ten podział jednym zdaniem: *„ma być spójne"*. Ma rację —
+„formularz" i „profil" to podział widoczny dla kogoś, kto czyta kod, a nie dla
+kogoś, kto ma się nauczyć JEDNEGO schematu. Przerobione tym samym ruchem:
+nowy lead, nowy klient, komponent katalogu, polowanie łowcy (nowe i edycja),
+`AddEventForm` kalendarza, kalkulator doboru, szablony faktur cyklicznych,
+szablony kosztów cyklicznych, szablony ofert, wyszukiwarka firm, osoba
+kontaktowa klienta.
+
+Rozwiązania problemów, które ten podział miał usprawiedliwiać:
+
+- **podpowiedź pod polem** → `WierszUwaga`, czyli własny wiersz sekcji bez
+  etykiety (kreska między nim a polem rysuje się sama);
+- **para pól w jednym rzędzie** → dwa osobne wiersze, albo dwa pola w jednym
+  wierszu, gdy naprawdę są jedną wartością („Kod / Miasto");
+- **`autoFocus` i walidacja** → działają bez zmian, to nie ma nic wspólnego
+  z układem etykiety.
+
+Jedyne, co ZOSTAJE poza tym wzorcem, i to z powodu, nie z rozpędu:
+**kompozytor poczty** (`MailComposeForm`). On już ma etykiety po lewej
+(„Do:", „DW:", „Temat:") w wąskiej kolumnie — układ każdego klienta pocztowego
+od trzydziestu lat. Rozepchanie tej kolumny do 118 px zabrałoby miejsce
+adresom i upodobniłoby okno pisania maila do formularza rekordu, którym nie
+jest.
+
+### Czego wiersz NIE przyjmuje
+
+- **Treści wyższej niż jedna linijka** — textarea, lista, blok przycisków.
+  Idą do własnej sekcji z `wiersze={false}`.
+- **Drugiej linijki pod wartością** (podpowiedź, werdykt, ostrzeżenie). Krótka
+  wchodzi w `sufiks` (np. „za 3 dni" przy terminie projektu), dłuższa staje się
+  WŁASNYM wierszem sekcji bez etykiety. To nie jest estetyka: rytm skaczący
+  o 70 px czyta się jak krzywy stół, i to była pierwotna przyczyna zgłoszenia
+  „nadal jakoś koślawo" z 2026-07-26.
+- **Etykiety dłuższej niż ~16 znaków** — kolumna ma 118 px i utnie ją. Nazwę
+  skróć, a pełne znaczenie daj w `title` (tak zrobiły „Data wystawienia",
+  „Odliczenie VAT", „Numer konta").
+
+Wiersz-uwaga (`WierszUwaga`) mieszka w tym samym pliku, co sekcja i wiersz.
+Powstał, bo tę samą funkcję napisano lokalnie dwa razy w jeden wieczór
+(Przypomnienia, Koszty) — czyli dokładnie tak, jak wcześniej powstało sześć
+wersji samego wiersza.
+
+Ikona przed nazwą pola bierze się z `POLE_PROFILU` w `admin/icons.tsx` — klucz
+to etykieta z ekranu. Pole spoza mapy renderuje się BEZ ikony, nie pusto, więc
+brak wpisu nie psuje układu; dokładając wiersz, dopisz tam ikonę.
+
+### Pułapka domknięta przy okazji: `.card-inset` nie podnosił `--hairline`
+
+Dokładnie ta sama, którą Pulpit zamknął u siebie dzień wcześniej
+(`.plyta-sekcji`), tylko w profilach — i przez dwa dni niewidoczna, bo płyta
+wyglądała dobrze. Zmierzone na profilu leada: **14 krawędzi wewnątrz płyty
+miało kontrast 1,022**, czyli zero. Wśród nich kreski rozdzielające wiersze
+pól („Email", „WWW", „LinkedIn", „Kod / Miasto", „Kraj") — czyli to, co ma
+robić rytm listy. Poprawka to jedna linia w `.card-inset`:
+
+```css
+.admin-linear .card-inset { --hairline: var(--plyta-krawedz); }
+```
+
+Po: **1,359** (próg krawędzi na płycie wypukłej: ≥ 1,35), przy niezmienionych
+wartościach samej płyty (`rgb(30,34,42)` / `rgb(51,56,68)` przed i po).
+Zasada ogólna: **dokładając płytę gdziekolwiek, zmierz też to, co na niej
+leży** — inaczej naprawiasz jedną warstwę, psując następną.

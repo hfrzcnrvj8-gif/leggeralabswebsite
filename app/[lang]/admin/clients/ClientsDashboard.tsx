@@ -19,7 +19,8 @@ import { KanbanBoard } from "./KanbanBoard";
 import { TableView } from "./TableView";
 import { ClientDetailPanel } from "./ClientDetailPanel";
 import { OrphanLinksPanel } from "./OrphanLinksPanel";
-import { SavedViews } from "../components";
+import { SavedViews, PillPicker } from "../components";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { Modal } from "../Modal";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { ExpandingIconButton } from "../ExpandingIconButton";
@@ -669,80 +670,66 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
           }}
           className="mt-4 space-y-4"
         >
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">Nazwa firmy</label>
-            <input
-              autoFocus
-              value={addNazwa}
-              onChange={(e) => setAddNazwa(e.target.value)}
-              placeholder="np. Kancelaria Kowalski"
-              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
-            />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-[11px] text-muted">Osoba kontaktowa</label>
+          {/* Moduł 59, paczka F+ — wiersze te same, co w profilu klienta
+              i w oknie „Nowy lead" (decyzja właściciela 2026-07-29). */}
+          <SekcjaProfilu tytul="Dane">
+            <WierszPola etykieta="Firma">
+              <input
+                autoFocus
+                value={addNazwa}
+                onChange={(e) => setAddNazwa(e.target.value)}
+                placeholder="np. Kancelaria Kowalski"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszPola etykieta="Osoba kontaktowa">
               <input
                 value={addOsoba}
                 onChange={(e) => setAddOsoba(e.target.value)}
                 placeholder="np. Anna Kowalska"
-                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
               />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] text-muted">Telefon</label>
+            </WierszPola>
+            <WierszPola etykieta="Telefon">
               <input
                 value={addTelefon}
                 onChange={(e) => setAddTelefon(e.target.value)}
-                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
               />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">E-mail</label>
-            <input
-              value={addEmail}
-              onChange={(e) => setAddEmail(e.target.value)}
-              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">Skąd go masz</label>
-            <div className="flex flex-wrap gap-1.5">
+            </WierszPola>
+            <WierszPola etykieta="Email">
+              <input
+                value={addEmail}
+                onChange={(e) => setAddEmail(e.target.value)}
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszPola etykieta="Skąd przyszedł" title="Skąd go masz">
               {/* Ta sama filtrowana lista, co przy „Nowym leadzie": kategorie
                   ustawiane przez samą ścieżkę wejścia (formularz, Łowca, mapa,
                   mail) nie mają sensu przy ręcznym dodaniu. */}
-              {SOURCE_CATEGORIES.filter(
-                (s) =>
-                  s !== "Formularz na stronie" &&
-                  s !== "Automatyczne wyszukiwanie" &&
-                  s !== "Wyszukiwanie na mapie" &&
-                  s !== "Zapytanie mailem"
-              ).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setAddKategoria(s)}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                    addKategoria === s
-                      ? "border-brand-purple/50 bg-brand-purple/15 text-[var(--fg)]"
-                      : "hairline text-muted hover:text-[var(--fg)]"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] text-muted">Szczegóły źródła (opcjonalnie)</label>
-            <input
-              value={addSzczegoly}
-              onChange={(e) => setAddSzczegoly(e.target.value)}
-              placeholder="np. polecił Kowalski, spotkanie w izbie gospodarczej"
-              className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm outline-none"
-            />
-          </div>
+              <span className="shrink-0 whitespace-nowrap">
+                <PillPicker
+                value={addKategoria}
+                options={SOURCE_CATEGORIES.filter(
+                  (s) =>
+                    s !== "Formularz na stronie" &&
+                    s !== "Automatyczne wyszukiwanie" &&
+                    s !== "Wyszukiwanie na mapie" &&
+                    s !== "Zapytanie mailem"
+                )}
+                onChange={setAddKategoria}
+                  title="Skąd masz tego klienta"
+                />
+              </span>
+              <input
+                value={addSzczegoly}
+                onChange={(e) => setAddSzczegoly(e.target.value)}
+                placeholder="szczegóły (opcjonalnie)"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+          </SekcjaProfilu>
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={() => setAddOpen(false)} className="rounded-full border hairline px-4 py-1.5 text-xs text-muted">
               Anuluj

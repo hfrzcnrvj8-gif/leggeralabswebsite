@@ -36,6 +36,7 @@ import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
+import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
 import { StatusTag, PaymentMethodIcon } from "./shared";
 
 type ProjectOption = { id: string; tytul: string };
@@ -419,28 +420,32 @@ export function CostEditor({
         </div>
       )}
 
-      <div key={cost.updated_at} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* Profil kosztu w tych samych wierszach „etykieta po lewej", co Leady,
+          Klienci i Projekty (Moduł 59, paczka F). Wcześniej była tu
+          dwukolumnowa siatka z etykietą NAD polem — ten sam rodzaj treści,
+          czwarty układ w panelu. Sekcje przejmują też grupowanie, które
+          wcześniej niosła wyłącznie kolejność: kto → za co → ile → kiedy.
+          Powód wzorca i pomiary: `../ProfileSection.tsx`. */}
+      <div key={cost.updated_at} className="space-y-4">
         {/* key={cost.updated_at}: pola tekstowe niżej są nieskontrolowane
          * (defaultValue), żeby nie gubić kursora przy pisaniu — ale to
          * znaczy, że nie odświeżają się same, gdy wartość zmienia się
          * programowo (np. po OCR), tylko przy ponownym montowaniu. Klucz
          * na updated_at wymusza remount po każdym patchu z zewnątrz. */}
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Dostawca</span>
+        <SekcjaProfilu tytul="Dostawca">
+        <WierszPola etykieta="Dostawca">
           <input
             defaultValue={cost.dostawca_nazwa}
             onBlur={(e) => e.target.value !== cost.dostawca_nazwa && patch({ dostawca_nazwa: e.target.value })}
-            className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
+            className={poleCls}
             placeholder="Nazwa dostawcy"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">NIP dostawcy</span>
-          <div className="flex items-center gap-1.5">
+        </WierszPola>
+        <WierszPola etykieta="NIP dostawcy">
             <input
               defaultValue={cost.dostawca_nip}
               onBlur={(e) => e.target.value !== cost.dostawca_nip && patch({ dostawca_nip: e.target.value })}
-              className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
+              className={poleCls}
               placeholder="opcjonalnie"
             />
             <button
@@ -451,26 +456,22 @@ export function CostEditor({
             >
               {nipLoading ? <IconLoader2 size={13} className="animate-spin" /> : <IconSearch size={13} />}
             </button>
-          </div>
-        </label>
+        </WierszPola>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Numer faktury</span>
+        <WierszPola etykieta="Numer faktury">
           <input
             defaultValue={cost.numer_faktury}
             onBlur={(e) => e.target.value !== cost.numer_faktury && patch({ numer_faktury: e.target.value })}
-            className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
+            className={poleCls}
             placeholder="np. FV/123/2026"
           />
-        </label>
+        </WierszPola>
 
-        <label className="col-span-full block sm:col-span-1">
-          <span className="mb-1 block text-[11px] text-muted">Numer konta dostawcy</span>
-          <div className="flex items-center gap-1.5">
+        <WierszPola etykieta="Numer konta" title="Numer konta dostawcy — sprawdzany z Białą Listą MF">
             <input
               defaultValue={cost.dostawca_konto}
               onBlur={(e) => e.target.value !== cost.dostawca_konto && patch({ dostawca_konto: e.target.value.replace(/\s+/g, " ").trim() })}
-              className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
+              className={poleCls}
               placeholder="PL00 0000 0000 0000 0000 0000 0000"
             />
             <button
@@ -487,28 +488,31 @@ export function CostEditor({
             >
               <IconCopy size={13} /> Kopiuj
             </button>
-          </div>
-          {companyKonto && cost.dostawca_konto && normalizeAccountNumber(companyKonto) === normalizeAccountNumber(cost.dostawca_konto) ? (
-            <p className="mt-1 flex items-center gap-1 text-[10.5px] text-amber-400">
-              <IconAlertTriangleFilled size={12} /> To wygląda na numer konta Twojej własnej firmy — sprawdź, czy nie pomyliłeś się z kontem dostawcy.
-            </p>
-          ) : supplierAccounts !== null && cost.dostawca_konto && (
-            supplierAccounts.length === 0 ? (
-              <p className="mt-1 text-[10.5px] text-muted">Biała Lista MF nie zwróciła numerów kont dla tego NIP-u.</p>
-            ) : supplierAccounts.some((a) => normalizeAccountNumber(a) === normalizeAccountNumber(cost.dostawca_konto)) ? (
-              <p className="mt-1 flex items-center gap-1 text-[10.5px] text-emerald-400">
-                <IconCheck size={12} /> Zgodny z Białą Listą MF.
-              </p>
-            ) : (
-              <p className="mt-1 flex items-center gap-1 text-[10.5px] text-amber-400">
-                <IconAlertTriangleFilled size={12} /> Numer NIE widnieje w Białej Liście dla tego NIP-u — przelew &gt;15 000 zł na to konto może oznaczać utratę prawa do zaliczenia w koszty.
-              </p>
-            )
-          )}
-        </label>
+        </WierszPola>
+        {/* Werdykt Białej Listy WŁASNYM wierszem sekcji, nie drugą linijką pod
+            polem: `WierszPola` ma stałą wysokość i to ona robi rytm listy
+            (`../ProfileSection.tsx`, punkt 1). */}
+        {companyKonto && cost.dostawca_konto && normalizeAccountNumber(companyKonto) === normalizeAccountNumber(cost.dostawca_konto) ? (
+          <WierszUwaga ton="ostrzezenie">
+            <IconAlertTriangleFilled size={12} className="mt-0.5 shrink-0" /> To wygląda na numer konta Twojej własnej firmy — sprawdź, czy nie pomyliłeś się z kontem dostawcy.
+          </WierszUwaga>
+        ) : supplierAccounts !== null && cost.dostawca_konto ? (
+          supplierAccounts.length === 0 ? (
+            <WierszUwaga>Biała Lista MF nie zwróciła numerów kont dla tego NIP-u.</WierszUwaga>
+          ) : supplierAccounts.some((a) => normalizeAccountNumber(a) === normalizeAccountNumber(cost.dostawca_konto)) ? (
+            <WierszUwaga ton="ok">
+              <IconCheck size={12} className="mt-0.5 shrink-0" /> Zgodny z Białą Listą MF.
+            </WierszUwaga>
+          ) : (
+            <WierszUwaga ton="ostrzezenie">
+              <IconAlertTriangleFilled size={12} className="mt-0.5 shrink-0" /> Numer NIE widnieje w Białej Liście dla tego NIP-u — przelew &gt;15 000 zł na to konto może oznaczać utratę prawa do zaliczenia w koszty.
+            </WierszUwaga>
+          )
+        ) : null}
+        </SekcjaProfilu>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Kategoria</span>
+        <SekcjaProfilu tytul="Przypisanie">
+        <WierszPola etykieta="Kategoria">
           <Popover
             align="left"
             width={200}
@@ -529,14 +533,13 @@ export function CostEditor({
               </div>
             )}
           </Popover>
-        </label>
+        </WierszPola>
 
         {/* Moduł 22 — koszt „na rzecz" konkretnego klienta/leada, niezależnie
             od projektu. Osobno od pola Projekt niżej: nie każdy koszt klienta
             ma projekt (np. licencja kupiona pod jedno wdrożenie), a dotąd
             klient dało się wywnioskować TYLKO przez projekt. */}
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Klient / lead</span>
+        <WierszPola etykieta="Klient / lead">
           <LinkPicker
             kinds={["client", "lead"]}
             value={{ client_id: cost.client_id, lead_id: cost.lead_id }}
@@ -550,10 +553,9 @@ export function CostEditor({
               </button>
             )}
           />
-        </label>
+        </WierszPola>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Projekt</span>
+        <WierszPola etykieta="Projekt">
           <Popover
             align="left"
             width={240}
@@ -575,17 +577,18 @@ export function CostEditor({
               </div>
             )}
           </Popover>
-        </label>
+        </WierszPola>
 
         {cost.kategoria === "Sprzęt" && cost.kwota_netto >= AMORTYZACJA_PROG_NETTO && (
-          <p className="col-span-full flex items-start gap-1.5 rounded-md bg-amber-400/10 px-2.5 py-1.5 text-[11.5px] text-amber-400">
+          <WierszUwaga ton="ostrzezenie">
             <IconAlertTriangleFilled size={13} className="mt-0.5 shrink-0" />
             Kwota netto ≥ {formatMoney(AMORTYZACJA_PROG_NETTO)} przy kategorii „Sprzęt” — to może wymagać amortyzacji zamiast jednorazowego wrzucenia w koszty. Skonsultuj z księgową.
-          </p>
+          </WierszUwaga>
         )}
+        </SekcjaProfilu>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Kwota netto</span>
+        <SekcjaProfilu tytul="Kwoty">
+        <WierszPola etykieta="Kwota netto">
           <input
             type="number"
             step="0.01"
@@ -594,12 +597,11 @@ export function CostEditor({
               const v = Number(e.target.value);
               if (Number.isFinite(v) && v !== cost.kwota_netto) patch({ kwota_netto: v });
             }}
-            className="w-full rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
+            className={poleCls}
           />
-        </label>
+        </WierszPola>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Stawka VAT</span>
+        <WierszPola etykieta="Stawka VAT">
           <Popover
             align="left"
             width={140}
@@ -620,15 +622,13 @@ export function CostEditor({
               </div>
             )}
           </Popover>
-        </label>
+        </WierszPola>
 
-        <div className="block">
-          <span className="mb-1 block text-[11px] text-muted">Kwota brutto</span>
-          <div className="px-2.5 py-1.5 text-[13px] font-medium text-[var(--fg)]">{formatMoney(costBrutto(cost.kwota_netto, cost.vat_stawka))}</div>
-        </div>
+        <WierszPola etykieta="Kwota brutto">
+          <div className="text-[13px] font-medium text-[var(--fg)]">{formatMoney(costBrutto(cost.kwota_netto, cost.vat_stawka))}</div>
+        </WierszPola>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">% odliczenia VAT</span>
+        <WierszPola etykieta="Odliczenie VAT" title="Jaki procent VAT-u z tej faktury odliczasz">
           <Popover
             align="left"
             width={260}
@@ -649,29 +649,29 @@ export function CostEditor({
               </div>
             )}
           </Popover>
-        </label>
-        <div className="block">
-          <span className="mb-1 block text-[11px] text-muted">VAT do odliczenia</span>
-          <div className="px-2.5 py-1.5 text-[13px] font-medium text-[var(--fg)]">
+        </WierszPola>
+        <WierszPola etykieta="VAT do odliczenia">
+          <div className="text-[13px] font-medium text-[var(--fg)]">
             {formatMoney(vatDoOdliczenia(cost.kwota_netto, cost.vat_stawka, cost.vat_odliczenie_procent))}
           </div>
-        </div>
+        </WierszPola>
+        </SekcjaProfilu>
 
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Data wystawienia (wydatku)</span>
+        <SekcjaProfilu tytul="Daty">
+        <WierszPola etykieta="Data wystawienia" title="Data wystawienia faktury (data wydatku)">
           <DateField value={cost.data_wydatku ?? ""} onChange={(v) => patch({ data_wydatku: v })} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Data wpływu faktury</span>
+        </WierszPola>
+        <WierszPola etykieta="Data wpływu" title="Data wpływu faktury — jeśli inna niż wystawienia">
           <DateField value={cost.data_wplywu ?? ""} onChange={(v) => patch({ data_wplywu: v })} placeholder="Jeśli inna niż wystawienia" />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-[11px] text-muted">Data płatności</span>
+        </WierszPola>
+        <WierszPola etykieta="Data płatności">
           <DateField value={cost.data_platnosci ?? ""} onChange={(v) => patch({ data_platnosci: v })} placeholder="Ustaw datę" />
-        </label>
+        </WierszPola>
+        </SekcjaProfilu>
 
-        <label className="col-span-full block">
-          <span className="mb-1 block text-[11px] text-muted">Opis</span>
+        {/* Opis i załącznik bez wierszy — treść wielolinijkowa i blok akcji nie
+            wchodzą do wiersza o stałej wysokości. */}
+        <SekcjaProfilu tytul="Opis" wiersze={false}>
           <textarea
             defaultValue={cost.opis}
             onBlur={(e) => e.target.value !== cost.opis && patch({ opis: e.target.value })}
@@ -679,10 +679,9 @@ export function CostEditor({
             className="w-full resize-none rounded-md border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-brand-purple/60"
             placeholder="Notatka o wydatku…"
           />
-        </label>
+        </SekcjaProfilu>
 
-        <div className="col-span-full">
-          <span className="mb-1 block text-[11px] text-muted">Załącznik (skan / PDF faktury)</span>
+        <SekcjaProfilu tytul="Załącznik (skan / PDF faktury)" wiersze={false}>
           {cost.zalacznik_nazwa ? (
             <div className="flex items-center gap-2 rounded-md border hairline px-2.5 py-1.5 text-[13px]">
               <IconPaperclip size={14} className="shrink-0 text-muted" />
@@ -752,8 +751,15 @@ export function CostEditor({
             }}
             className="hidden"
           />
-        </div>
+        </SekcjaProfilu>
       </div>
     </div>
   );
 }
+
+/** Pole tekstowe w wierszu profilu. `WierszPola` narzuca `input`-om wspólne
+ *  `px`/`text-[13px]` (jedno wcięcie w całej kolumnie wartości), więc tutaj
+ *  zostaje tylko ramka i zachowanie focusu. */
+const poleCls =
+  "w-full rounded-md border hairline bg-transparent py-1.5 text-[var(--fg)] outline-none focus:border-brand-purple/60";
+

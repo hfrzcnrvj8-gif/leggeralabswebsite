@@ -5,6 +5,7 @@ import { IconX, IconTrash, IconPlus, IconChevronDown, IconChevronRight } from "@
 import { formatMoney } from "@/lib/invoices";
 import { type OfferTemplate, type OfferTemplateItem, templateTotal } from "@/lib/offerTemplates";
 import { useUI } from "../ui";
+import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
 
 export function OfferTemplatesPanel({ onClose }: { onClose: () => void }) {
   const { toast, confirm } = useUI();
@@ -142,17 +143,23 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
   };
 
   return (
-    <div className="space-y-2.5">
-      <TField label="Nazwa szablonu" value={t.nazwa} onSave={(v) => patch({ nazwa: v })} />
-      <TField label="Opis (widoczny tylko w panelu)" value={t.opis} onSave={(v) => patch({ opis: v })} placeholder="np. dla kogo ten pakiet" />
+    /* Moduł 59, paczka F+ — sekcje i wiersze te same, co w edytorze oferty. */
+    <div className="space-y-4">
+      <SekcjaProfilu tytul="Szablon">
+        <TField label="Nazwa" value={t.nazwa} onSave={(v) => patch({ nazwa: v })} />
+        <TField label="Opis" value={t.opis} onSave={(v) => patch({ opis: v })} placeholder="np. dla kogo ten pakiet" />
+        <WierszUwaga>Opis widzisz tylko Ty w panelu — nie wychodzi do klienta.</WierszUwaga>
+      </SekcjaProfilu>
 
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <h3 className="text-[11px] uppercase tracking-wide text-muted">Pozycje</h3>
+      <SekcjaProfilu
+        tytul="Pozycje"
+        wiersze={false}
+        akcje={
           <button onClick={addItem} className="rounded-full border hairline px-2.5 py-0.5 text-[11px]">
             + Pozycja
           </button>
-        </div>
+        }
+      >
         {t.pozycje.length === 0 ? (
           <p className="py-2 text-center text-xs text-muted opacity-60">Brak pozycji.</p>
         ) : (
@@ -198,16 +205,17 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
         <div className="mt-1.5 flex justify-end text-[12px] font-semibold text-[var(--fg)]">
           <span className="tabular-nums">{formatMoney(templateTotal(t.pozycje))}</span>
         </div>
-      </div>
+      </SekcjaProfilu>
 
       {/* Bloki treści szablonu (runda 2 Modułu 57). Do tej pory sekcje wchodziły
           do szablonu WYŁĄCZNIE przez „zapisz tę ofertę jako szablon" — szablonu
           zrobionego od zera nie dało się nimi uzupełnić, a istniejących
           poprawić. Funkcja zbudowana w połowie jest gorsza niż jej brak, bo
           wygląda na działającą. */}
-      <div>
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <label className="text-[11px] text-muted">Bloki treści (wstawią się do oferty)</label>
+      <SekcjaProfilu
+        tytul="Bloki treści"
+        wiersze={false}
+        akcje={
           <button
             onClick={() => {
               const sekcje = [...(t.sekcje ?? []), { tytul: "", tresc: "" }];
@@ -218,7 +226,8 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
           >
             + Blok
           </button>
-        </div>
+        }
+      >
         {(t.sekcje ?? []).length === 0 ? (
           <p className="rounded-lg border hairline px-2.5 py-2 text-[11px] text-muted opacity-70">
             Bez bloków szablon wstawi same pozycje — oferta będzie cennikiem bez opisu.
@@ -226,7 +235,7 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
         ) : (
           <div className="space-y-1.5">
             {(t.sekcje ?? []).map((sek, i) => (
-              <div key={i} className="card-inset rounded-lg p-2">
+              <div key={i} className="rounded-lg border hairline p-2">
                 <div className="mb-1 flex items-center gap-1.5">
                   <input
                     value={sek.tytul}
@@ -271,10 +280,9 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
           W treści bloków i uwag możesz wpisać <code>{"{{klient}}"}</code>, <code>{"{{kwota}}"}</code>,{" "}
           <code>{"{{wazna_do}}"}</code>, <code>{"{{dzis}}"}</code> — podstawią się przy wstawianiu szablonu do oferty.
         </p>
-      </div>
+      </SekcjaProfilu>
 
-      <div>
-        <label className="mb-1 block text-[11px] text-muted">Domyślne uwagi (zakres/warunki)</label>
+      <SekcjaProfilu tytul="Domyślne uwagi" wiersze={false}>
         <textarea
           value={t.uwagi}
           onChange={(e) => setT((p) => ({ ...p, uwagi: e.target.value }))}
@@ -283,7 +291,7 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
           placeholder="np. Zakres, warunki płatności, czas realizacji."
           className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
         />
-      </div>
+      </SekcjaProfilu>
 
       <button onClick={onDelete} className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400">
         Usuń szablon
@@ -292,19 +300,19 @@ function TemplateForm({ template, onSaved, onDelete }: { template: OfferTemplate
   );
 }
 
+/** Wiersz szablonu — wspólny `WierszPola` (Moduł 59, paczka F+). */
 function TField({ label, value, onSave, placeholder }: { label: string; value: string; onSave: (v: string) => void; placeholder?: string }) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return (
-    <div>
-      <label className="mb-1 block text-[11px] text-muted">{label}</label>
+    <WierszPola etykieta={label}>
       <input
         value={v}
         onChange={(e) => setV(e.target.value)}
         onBlur={() => v !== value && onSave(v)}
         placeholder={placeholder}
-        className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+        className="w-full rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)] placeholder:text-muted"
       />
-    </div>
+    </WierszPola>
   );
 }

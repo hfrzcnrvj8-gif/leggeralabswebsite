@@ -30,6 +30,7 @@ import { Modal } from "../Modal";
 import { EventInvitePanel } from "./EventInvitePanel";
 import { Popover } from "../Menu";
 import { LinkPicker } from "../LinkPicker";
+import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { CyklPicker, SeriaTag } from "../CyklPicker";
 
 type KindStyle = { border: string; bg: string; text: string; dot: string; label: string };
@@ -1937,109 +1938,124 @@ function AddEventForm({
   };
 
   return (
-    <div className="space-y-2 border-t hairline pt-3">
-      <input
-        ref={titleRef}
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-            e.preventDefault();
-            submit();
-          }
-        }}
-        placeholder="Nowe wydarzenie… np. „jutro 14:00 call z klientem” (Cmd+Enter)"
-        className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <TimeSelect value={time} onChange={setTime} />
-        {time && (
-          <select
-            value={duration}
-            onChange={(e) => setDuration(Number(e.target.value))}
-            className="rounded-lg border hairline bg-transparent px-2 py-1.5 text-[11px] text-muted"
-            title="Czas trwania"
+    /* Moduł 59, paczka F+ (decyzja właściciela 2026-07-29) — formularz nowego
+       wpisu stoi na tych samych sekcjach i wierszach, co profile rekordów.
+       Wcześniej był paskiem kontrolek bez ANI JEDNEJ etykiety: godzina, czas
+       trwania i „Wielodniowe" tłumaczyły się wyłącznie tooltipem, więc jedyna
+       droga do znaczenia prowadziła przez najechanie myszą. */
+    <div className="mt-3 border-t hairline pt-3">
+      <SekcjaProfilu tytul="Nowy wpis">
+        <div className="p-3">
+          <input
+            ref={titleRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder="Nowe wydarzenie… np. „jutro 14:00 call z klientem” (Cmd+Enter)"
+            className="w-full rounded-lg border hairline bg-transparent px-2 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+          />
+        </div>
+        <WierszPola etykieta="Godzina">
+          <TimeSelect value={time} onChange={setTime} />
+          {time && (
+            <select
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11px] text-muted"
+              title="Czas trwania"
+            >
+              {[15, 30, 45, 60, 90, 120, 180].map((mVal) => (
+                <option key={mVal} value={mVal} className="bg-[var(--bg-soft)] text-[var(--fg)]">
+                  {mVal < 60 ? `${mVal} min` : `${mVal / 60} godz.`}
+                </option>
+              ))}
+            </select>
+          )}
+        </WierszPola>
+        <WierszPola etykieta="Powtarzanie">
+          <CyklPicker
+            wlasnaEtykieta={false}
+            cykl={cykl}
+            doDnia={cyklDo}
+            odDnia={day}
+            onChange={(next) => {
+              setCykl(next.cykl);
+              setCyklDo(next.doDnia);
+            }}
+          />
+        </WierszPola>
+        <WierszPola etykieta="Wielodniowe" title="Wydarzenie na kilka dni (urlop, wyjazd)">
+          <button
+            onClick={() => setShowRange((v) => !v)}
+            className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
+              showRange ? "border-transparent bg-[var(--fg)] text-[var(--bg)]" : "hairline text-muted"
+            }`}
           >
-            {[15, 30, 45, 60, 90, 120, 180].map((mVal) => (
-              <option key={mVal} value={mVal} className="bg-[var(--bg-soft)] text-[var(--fg)]">
-                {mVal < 60 ? `${mVal} min` : `${mVal / 60} godz.`}
-              </option>
-            ))}
-          </select>
-        )}
-        <button
-          onClick={() => setShowRange((v) => !v)}
-          className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
-            showRange ? "border-transparent bg-[var(--fg)] text-[var(--bg)]" : "hairline text-muted"
-          }`}
-          title="Wydarzenie wielodniowe (np. urlop, wyjazd)"
-        >
-          Wielodniowe
-        </button>
+            {showRange ? "Tak" : "Nie"}
+          </button>
+          {showRange && (
+            <>
+              <span className="shrink-0 text-[11px] text-muted">do dnia (włącznie)</span>
+              <input
+                type="date"
+                value={dayEnd}
+                min={day}
+                onChange={(e) => setDayEnd(e.target.value)}
+                className="rounded-lg border hairline bg-transparent py-1 text-[11px] text-[var(--fg)]"
+              />
+            </>
+          )}
+        </WierszPola>
+        {/* Moduł 22 — trzy surowe <select>y zastąpione wspólnym LinkPickerem
+            (ten sam wygląd, wyszukiwarka i klawiatura co w Poczcie/Leadach/
+            Umowach). Dwa pola, nie trzy: kontakt (klient ALBO lead — relacja
+            wyłączna) i osobno projekt, bo "spotkanie u klienta X w sprawie
+            projektu Y" to dwie różne, niesprzeczne informacje. */}
+        <WierszPola etykieta="Powiązanie">
+          <LinkPicker
+            kinds={["client", "lead"]}
+            value={{ client_id: clientId || null, lead_id: leadId || null }}
+            onPick={(next) => {
+              setClientId(next.client_id ?? "");
+              setLeadId(next.lead_id ?? "");
+            }}
+            trigger={(picked, open) => (
+              <button
+                onClick={open}
+                className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+              >
+                {picked ? (<span className="flex items-center gap-1"><IconLink size={12} />{picked.nazwa}</span>) : ("Klient / lead")}
+              </button>
+            )}
+          />
+          <LinkPicker
+            kinds={["project"]}
+            value={{ project_id: projectId || null }}
+            onPick={(next) => setProjectId(next.project_id ?? "")}
+            trigger={(picked, open) => (
+              <button
+                onClick={open}
+                className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+              >
+                {picked ? (<span className="flex items-center gap-1"><IconFolder size={12} />{picked.nazwa}</span>) : ("Projekt")}
+              </button>
+            )}
+          />
+        </WierszPola>
+      </SekcjaProfilu>
+      <div className="mt-2 flex justify-end">
         <button
           onClick={submit}
           disabled={!title.trim()}
-          className="ml-auto rounded-md border hairline px-3 py-1.5 text-[12.5px] font-medium text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border hairline px-3 py-1.5 text-[12.5px] font-medium text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Dodaj
         </button>
-      </div>
-      <CyklPicker
-        cykl={cykl}
-        doDnia={cyklDo}
-        odDnia={day}
-        onChange={(next) => {
-          setCykl(next.cykl);
-          setCyklDo(next.doDnia);
-        }}
-      />
-      {showRange && (
-        <div className="flex items-center gap-2 text-[11px] text-muted">
-          <span>Do dnia (włącznie):</span>
-          <input
-            type="date"
-            value={dayEnd}
-            min={day}
-            onChange={(e) => setDayEnd(e.target.value)}
-            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11px] text-[var(--fg)]"
-          />
-        </div>
-      )}
-      {/* Moduł 22 — trzy surowe <select>y zastąpione wspólnym LinkPickerem
-          (ten sam wygląd, wyszukiwarka i klawiatura co w Poczcie/Leadach/
-          Umowach). Dwa pola, nie trzy: kontakt (klient ALBO lead — relacja
-          wyłączna) i osobno projekt, bo "spotkanie u klienta X w sprawie
-          projektu Y" to dwie różne, niesprzeczne informacje. */}
-      <div className="flex flex-wrap gap-2">
-        <LinkPicker
-          kinds={["client", "lead"]}
-          value={{ client_id: clientId || null, lead_id: leadId || null }}
-          onPick={(next) => {
-            setClientId(next.client_id ?? "");
-            setLeadId(next.lead_id ?? "");
-          }}
-          trigger={(picked, open) => (
-            <button
-              onClick={open}
-              className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
-            >
-              {picked ? (<span className="flex items-center gap-1"><IconLink size={12} />{picked.nazwa}</span>) : ("Powiąż z klientem/leadem (opcjonalnie)")}
-            </button>
-          )}
-        />
-        <LinkPicker
-          kinds={["project"]}
-          value={{ project_id: projectId || null }}
-          onPick={(next) => setProjectId(next.project_id ?? "")}
-          trigger={(picked, open) => (
-            <button
-              onClick={open}
-              className="rounded-lg border hairline px-2 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
-            >
-              {picked ? (<span className="flex items-center gap-1"><IconFolder size={12} />{picked.nazwa}</span>) : ("Powiąż z projektem (opcjonalnie)")}
-            </button>
-          )}
-        />
       </div>
     </div>
   );
