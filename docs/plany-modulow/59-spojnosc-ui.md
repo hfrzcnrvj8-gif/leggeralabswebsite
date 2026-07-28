@@ -221,11 +221,13 @@ iPhonie i iPadzie.
 | **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
 | **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
 
-### Do rozstrzygnięcia przez właściciela
+### Rozstrzygnięte przez właściciela
 
-- **Gradient aktywnej pozycji w sidebarze** (`.admin-nav-active`). Formalnie
-  łamie Regułę 4, ale to jawna decyzja właściciela z 2026-07-23 („nie chcę, żeby
-  wyglądało jak komórka tabeli"). Zostawione świadomie, nie przeoczone.
+- **Gradient aktywnej pozycji w sidebarze ZOSTAJE** (`.admin-nav-active`,
+  potwierdzone 2026-07-28). Formalnie łamie Regułę 4 („gradient niesie markę,
+  nigdy znaczenie"), ale sidebar to chrome tożsamości produktu, a nie widok
+  rekordu. To jedyny świadomy wyjątek od tej reguły w całym panelu — nie
+  „naprawiaj" go przy kolejnym przeglądzie.
 
 ### Korekty do inwentarza z Etapu 1
 

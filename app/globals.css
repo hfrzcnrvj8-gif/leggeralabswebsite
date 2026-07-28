@@ -618,6 +618,14 @@
 
 /* Aktywna pozycja nawigacji — świadomie BEZ zamkniętej obwódki (decyzja
    właściciela 2026-07-23: „nie chcę, żeby wyglądało jak komórka tabeli").
+
+   POTWIERDZONY WYJĄTEK od Reguły 4 słownika koloru (2026-07-28, Moduł 59).
+   Reguła mówi, że gradient niesie WYŁĄCZNIE markę, nigdy znaczenie — a „tu
+   jesteś" jest znaczeniem. Ten sam ruch usunął gradient z pigułek filtrów,
+   z mapy procesu i z miernika postępu. Tutaj właściciel zdecydował inaczej
+   i to jest ŚWIADOMY wyjątek, nie przeoczenie: sidebar to chrome tożsamości
+   produktu, nie widok rekordu, więc gradient marki jest tu na swoim miejscu.
+   NIE „naprawiaj" tego przy kolejnym przeglądzie spójności. */
    Sam gradient marki w tle, mocniejszy przy lewej krawędzi i WYGASZONY do
    zera z prawej — podświetlenie wtapia się w pasek, nie zamyka go pudełkiem.
    Cienki gradientowy akcent po lewej zaznacza „tu jesteś" bez rysowania ramki
