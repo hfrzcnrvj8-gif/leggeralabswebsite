@@ -88,6 +88,9 @@ import {
   IconBriefcase,
   IconMapPin,
   IconFlag,
+  IconReceipt,
+  IconChecklist,
+  IconFileCheck,
 } from "@tabler/icons-react";
 import type { ContactChannel, CallOutcome } from "@/lib/contact";
 import type { MailFolder, MailCategory } from "@/lib/mail";
@@ -396,5 +399,70 @@ export function PoleProfiluIcon({
 }) {
   const Icon = POLE_PROFILU[etykieta];
   if (!Icon) return null;
+  return <Icon size={size} className={className} />;
+}
+
+/* --------------------------------------------- Moduł 59 — rodzaj rzeczy ---- */
+
+/**
+ * RODZAJ wpisu w kalendarzu i RODZAJ dokumentu w ścieżce (Moduł 59, 2026-07-28).
+ *
+ * Dlaczego te dwie mapy w ogóle powstały: do tego modułu rodzaj niosło wyłącznie
+ * KOLOR — a kolor niósł jednocześnie stan rekordu, więc ta sama barwa mówiła
+ * dwie rzeczy naraz i mówiła je sprzecznie („projekt" był fioletem w kalendarzu
+ * i złotem w ścieżce dokumentów). Decyzja właściciela: kolor robi w całym
+ * produkcie JEDNĄ rzecz — mówi, jak stoi sprawa i czy się pali. Rodzaj przenosi
+ * się na ikonę, bo ikon jest nieskończenie wiele i żadna nie koliduje z inną osią.
+ *
+ * Przy okazji domyka się realna dziura: wpisy kalendarza NIE MIAŁY ŻADNEJ IKONY,
+ * więc kolor był ich jedynym sygnałem rodzaju — bez zapasowego kanału przy złym
+ * świetle, pośpiechu czy zaburzeniach widzenia barw.
+ */
+const RODZAJ_WPISU: Record<string, TablerIcon> = {
+  invoice: IconReceipt,
+  project: IconFolder,
+  milestone: IconFlag,
+  lead: IconTarget,
+  client: IconUsers,
+  call: IconPhone,
+  "call-missed": IconPhoneOff,
+  email: IconMail,
+  reminder: IconChecklist,
+  event: IconCalendar,
+};
+
+export function RodzajWpisuIcon({
+  kind,
+  size = DEFAULT_SIZE,
+  className,
+}: {
+  kind: string;
+  size?: number;
+  className?: string;
+}) {
+  const Icon = RODZAJ_WPISU[kind] ?? IconCalendar;
+  return <Icon size={size} className={className} />;
+}
+
+/** Rodzaj dokumentu w ścieżce („co z czego wynikło"). Te same ikony, co
+ *  w `SciezkaDokumentow` przed Modułem 59 — zmienia się tylko to, że rodzaj
+ *  niesie teraz WYŁĄCZNIE ikona, a kolor zszedł na status dokumentu. */
+const RODZAJ_DOKUMENTU: Record<string, TablerIcon> = {
+  offer: IconFileText,
+  contract: IconFileCheck,
+  project: IconFolder,
+  invoice: IconReceipt,
+};
+
+export function RodzajDokumentuIcon({
+  kind,
+  size = DEFAULT_SIZE,
+  className,
+}: {
+  kind: string;
+  size?: number;
+  className?: string;
+}) {
+  const Icon = RODZAJ_DOKUMENTU[kind] ?? IconFileText;
   return <Icon size={size} className={className} />;
 }

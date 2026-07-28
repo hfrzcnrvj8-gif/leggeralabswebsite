@@ -33,17 +33,22 @@ const config: Config = {
           pink: "#E85D9E",
           gold: "#E0A93B",
           cyan: "#22D3EE",
-          // Odcienie pochodne — WYŁĄCZNIE dla kalendarza, który musi odróżnić
-          // dziewięć rodzajów wpisu, a rodzin marki są cztery (decyzja
-          // właściciela 2026-07-22: "panel schodzi do palety marki").
-          // Zamiast dobierać obce kolory (było: orange-500, red-500,
-          // indigo-500, #4ea7fc), każdy rodzaj dostaje odcień swojej rodziny,
-          // więc kolor niesie DWIE informacje naraz: rodzina mówi "o co
-          // chodzi", odcień — "co dokładnie".
-          "cyan-deep": "#0E9DB8", // Klient
-          "cyan-soft": "#7DE4F5", // Połączenie
-          "gold-deep": "#B87A1F", // Lead
-          "purple-soft": "#A78BFA", // Email
+          // USUNIĘTE w Module 59 (2026-07-28): "cyan-deep", "cyan-soft",
+          // "gold-deep", "purple-soft".
+          //
+          // Istniały wyłącznie dla kalendarza, który odróżniał nimi dziewięć
+          // RODZAJÓW wpisu (rodziny: turkus = ludzie, złoto = pieniądze,
+          // fiolet = praca). System był wewnętrznie dobry — zmierzone ΔE
+          // między odcieniami: tylko jedna para poniżej 25 — ale stał na tych
+          // samych barwach, którymi reszta panelu opisuje STAN sprawy. Ta sama
+          // barwa mówiła więc dwie rzeczy naraz i mówiła je sprzecznie:
+          // „projekt" był fioletem w kalendarzu i złotem w ścieżce dokumentów.
+          //
+          // Decyzja właściciela: kolor robi w produkcie JEDNĄ rzecz — mówi, jak
+          // stoi sprawa i czy się pali. Rodzaj przeniósł się na ikonę
+          // (`RodzajWpisuIcon`, `RodzajDokumentuIcon` w admin/icons.tsx), bo
+          // ikon jest nieskończenie wiele i żadna nie koliduje z drugą osią.
+          // Nie dokładaj tu odcieni pod nowy rodzaj rzeczy — dołóż ikonę.
           // Środkowy stopień RAMPY PILNOŚCI (Moduł 59): złoto → pomarańcz →
           // czerwień, czyli „termin przed nami" → „minął" → „minął dawno".
           // Ta sama wartość co `Color.markaPomarancz` w apce.

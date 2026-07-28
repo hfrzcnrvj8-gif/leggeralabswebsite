@@ -9404,13 +9404,22 @@ sam — i każdy miał w komentarzu dobre uzasadnienie swojej wersji.
 
 ### Reguły (obowiązują też to, co dopiero powstanie)
 
-1. **Na jednym ekranie kolor niesie tylko jedno z dwojga.** W module wszystkie
-   rekordy są tego samego rodzaju, więc kolor niesie STAN. Tam, gdzie rodzaje
-   się mieszają (Kalendarz, Szukaj, Rejestr, ścieżka dokumentów), kolor niesie
-   RODZAJ, a stan stoi słowem.
-   *Pierwsza wersja tej reguły rozdzielała to formą („pigułka = stan, kropka =
+1. **KOLOR ROBI W CAŁYM PRODUKCIE JEDNĄ RZECZ: mówi, jak stoi sprawa i czy
+   się pali.** Bez wyjątków, bez „zależy od ekranu". **RODZAJ rzeczy niesie
+   IKONA** (`RodzajWpisuIcon`, `RodzajDokumentuIcon` i pozostałe mapy
+   w `admin/icons.tsx`; SF Symbols po stronie apki).
+   *Ta reguła miała dwie wcześniejsze, gorsze wersje — obie warto znać, żeby do
+   nich nie wrócić. Pierwsza rozdzielała osie FORMĄ („pigułka = stan, kropka =
    rodzaj") i nie przeżyła zderzenia z kodem: kanban panelu i `StatusPill` apki
-   od zawsze niosą stan właśnie kropką. Rozstrzyga kontekst ekranu, nie kształt.*
+   od zawsze niosą stan właśnie kropką. Druga rozdzielała je KONTEKSTEM EKRANU
+   („w module stan, w kalendarzu rodzaj") i upadła na tym, że nie da się jej
+   nauczyć — właściciel wchodził w Kalendarz i widział ten sam fiolet znaczący
+   co innego niż w Ofertach. Rozstrzygnięcie (decyzja właściciela 2026-07-28):
+   „ma być spójnie i tylko jedno ma jeden kolor oznaczać". Osiągnięte przez
+   ODJĘCIE koloru z osi rodzaju, nie przez dodanie barw — sprawdziłem pomiarem,
+   że dodanie było wykonalne (22 barwy mają wciąż min ΔE 35,4 przy kontraście
+   ≥ 4,5), ale kosztowałoby przemalowanie całego kalendarza na barwy spoza
+   marki. Paleta skurczyła się z jedenastu barw do siedmiu.*
 2. **Stan to jedna skala cyklu życia** — `lib/kolorStanu.ts` (panel) i `Stan`
    w `Theme.swift` (apka), bliźniaki:
    szarość = jeszcze nie ruszone · **złoto = czeka na MÓJ ruch** ·
@@ -9479,14 +9488,36 @@ audytu nie miały:
 klasy nie powstają, a jedynym objawem jest pigułka bez tła (lekcja z audytu
 Klientów, 2026-07-26). Sprawdzaj `getComputedStyle`, nie zrzutem.
 
-### Otwarte — do rozstrzygnięcia przy najbliższej okazji
+### Kalendarz i ścieżka dokumentów po zmianie
 
-**Kolor rodzaju ma wciąż dwie mapy.** `SciezkaDokumentow.tsx` (oferta=cyjan,
-umowa=fiolet, projekt=złoto, faktura=zieleń) i `CalendarView.tsx` (rodziny:
-cyjan=ludzie, złoto=pieniądze, fiolet=praca). Obie są wewnętrznie spójne i obie
-mają prawo do koloru rodzaju wg Reguły 1, bo obie mieszają rodzaje — ale mówią
-o projekcie dwa różne kolory. Kalendarz opisuje RODZAJE TERMINU, ścieżka RODZAJE
-DOKUMENTU, więc to nie jest zwykła literówka do scalenia: ścieżka pokazuje
-łańcuch, w którym najbardziej liczy się odróżnienie sąsiednich ogniw, a rodziny
-kalendarza dałyby jej trzy odcienie złota z rzędu. Wymaga decyzji właściciela,
-nie zgadywania.
+Kalendarz miał dziewięć odcieni marki na dziewięć rodzajów wpisu (rodziny:
+turkus = ludzie, złoto = pieniądze, fiolet = praca). System był wewnętrznie
+dobry — zmierzone ΔE między odcieniami: tylko jedna para poniżej 25 — ale stał
+na dokładnie tych barwach, którymi reszta panelu opisuje stan. Po zmianie:
+
+- **rodzaj = ikona + etykieta** (wpisy kalendarza NIE MIAŁY DOTĄD ŻADNEJ IKONY,
+  więc kolor był ich jedynym sygnałem rodzaju — bez zapasowego kanału przy złym
+  świetle, pośpiechu czy zaburzeniach widzenia barw);
+- **kolor = pilność**: w terminie neutralnie, po terminie pomarańcz, po 14 dniach
+  czerwień. Zmierzone: kalendarz zszedł z dziewięciu barw do trzech.
+- **Zapis przeszłości nie wchodzi na rampę.** Odbyte połączenie i wysłany mail
+  są neutralne niezależnie od daty — rozmowa sprzed tygodnia nie jest
+  „spóźniona". Złapane POMIAREM po pierwszej wersji zmiany: odbyte połączenie
+  świeciło pomarańczem jak zaległa faktura. „Nieodebrane" zostaje czerwone
+  zawsze, bo to nie termin, tylko fakt, który poszedł źle.
+- Usunięte z palety: `brand.cyan-deep`, `cyan-soft`, `gold-deep`, `purple-soft`.
+  **Nie dokładaj tam odcieni pod nowy rodzaj rzeczy — dołóż ikonę.**
+
+Ścieżka dokumentów straciła własną mapę `AKCENT` (oferta = cyjan, umowa =
+fiolet, projekt = złoto, faktura = zieleń). Jej komentarz brzmiał „kolor niesie
+ETAP, nie status — inaczej drzewko miałoby dwie sprzeczne mapy koloru naraz":
+rozumowanie dobre, zakres za wąski. Sprzeczne mapy i tak powstały, tylko o jeden
+plik dalej.
+
+### Co ta reguła znaczy dla NOWEGO modułu
+
+Nowy rodzaj rzeczy → **dołóż ikonę** w `admin/icons.tsx` (i SF Symbol w apce).
+Nowy status → **zadeklaruj stan**: `mapaStanow({ "Twój status": "uNich" })`.
+Nowy termin → nic nie rób, rampa policzy się sama z daty.
+Jeśli masz ochotę dobrać nowy kolor, to znaczy, że próbujesz nim powiedzieć
+coś, co nie jest ani stanem, ani pilnością — a to należy do ikony albo do słowa.

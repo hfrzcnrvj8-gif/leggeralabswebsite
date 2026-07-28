@@ -63,15 +63,16 @@ const IKONA: Record<WezelSciezki["rodzaj"], TablerIcon> = {
   invoice: IconReceipt,
 };
 
-/** Kolor kafelka niesie ETAP, nie status — status stoi obok słowem.
- * Gdyby kolor niósł jedno i drugie, drzewko miałoby dwie sprzeczne mapy
- * koloru naraz (lekcja z audytu słownika koloru). */
-const AKCENT: Record<WezelSciezki["rodzaj"], string> = {
-  offer: "text-brand-cyan",
-  contract: "text-brand-purple",
-  project: "text-brand-gold",
-  invoice: "text-emerald-400",
-};
+/* Do Modułu 59 kafelek miał tu własną mapę „rodzaj → kolor" (oferta = cyjan,
+ * umowa = fiolet, projekt = złoto, faktura = zieleń). Jej komentarz brzmiał
+ * „kolor niesie ETAP, nie status — inaczej drzewko miałoby dwie sprzeczne mapy
+ * koloru naraz". Rozumowanie było dobre, ale zakres za wąski: sprzeczne mapy
+ * i tak powstały, tylko o jeden plik dalej — ten sam „projekt" był złoty tutaj
+ * i fioletowy w kalendarzu.
+ *
+ * Rodzaj niesie teraz WYŁĄCZNIE ikona (`IKONA` wyżej), a kolor jest w całym
+ * produkcie zarezerwowany dla stanu i pilności. Nazwa rodzaju stoi w kafelku
+ * słowem (`prefiks`), więc nic nie ginie. */
 
 /** Dokument zamknięty przygasa — wzrok ma iść do tego, co jeszcze żyje. */
 const ZAMKNIETE = new Set(["Odrzucona", "Wygasła", "Anulowana", "Zapłacona", "Wdrożone", "Zamknięty"]);
@@ -254,7 +255,7 @@ export function SciezkaDokumentow({
               } ${przygaszony ? "opacity-60" : ""}`}
             >
               <div className="flex items-center gap-1.5">
-                <Ikona size={13} className={AKCENT[u.wezel.rodzaj]} />
+                <Ikona size={13} className="text-muted" />
                 <span className="text-[10.5px] uppercase tracking-wide text-muted">{u.wezel.prefiks}</span>
               </div>
               <div className="mt-0.5 truncate text-[12.5px] font-medium text-[var(--fg)]">{u.wezel.etykieta}</div>

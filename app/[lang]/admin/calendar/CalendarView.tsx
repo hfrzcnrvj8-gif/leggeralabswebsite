@@ -22,7 +22,9 @@ import type { Lead } from "@/lib/leads";
 import type { Project } from "@/lib/projects";
 import type { Client } from "@/lib/clients";
 import type { Deadline, DeadlineKind } from "@/app/api/events/deadlines/route";
-import { todayLocalISO as todayISO, addDaysToISO } from "@/lib/dates";
+import { stopienPilnosci } from "@/lib/kolorStanu";
+import { RodzajWpisuIcon } from "../icons";
+import { todayLocalISO as todayISO, addDaysToISO, daysBetweenISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
 import { Modal } from "../Modal";
 import { EventInvitePanel } from "./EventInvitePanel";
@@ -61,52 +63,103 @@ function InviteButton({ event, className = "" }: { event: HubEvent; className?: 
   );
 }
 
-/** Styl "kalendarza" per rodzaj wpisu — lewy kolorowy pasek + podbarwione tło
- * (wzorem Notion Calendar), zamiast cienkich plakietek.
+/** Styl kalendarza per rodzaj wpisu — lewy pasek + podbarwione tło (wzorem
+ * Notion Calendar).
  *
- * **Wyłącznie paleta marki i jej odcienie** (decyzja właściciela 2026-07-22).
- * Do tej daty cztery rodzaje miały kolory spoza palety — `orange-500` (Lead),
- * `red-500` (Nieodebrane), `indigo-500` (Email) i zahardkodowany `#4ea7fc`
- * (Wydarzenie) — a `CLAUDE.md` mówi wprost, żeby nowe akcenty brać z marki.
- * Ten ostatni był najgorszy, bo to samo wydarzenie wychodziło NIEBIESKIE
- * w panelu i TURKUSOWE w apce; teraz oba są turkusowe.
+ * **Moduł 59 (2026-07-28): rodzaj przestał być KOLOREM i jest IKONĄ.**
+ * Do tej daty dziewięć rodzajów wpisu miało dziewięć odcieni marki (rodziny:
+ * turkus = ludzie, złoto = pieniądze, fiolet = praca). System był wewnętrznie
+ * dobry — zmierzone ΔE między odcieniami: tylko jedna para poniżej 25 — ale
+ * używał DOKŁADNIE tych barw, którymi w całej reszcie panelu opisany jest STAN
+ * sprawy. Ta sama barwa mówiła więc dwie rzeczy naraz i mówiła je sprzecznie:
+ * „projekt" był fioletem tutaj i złotem w ścieżce dokumentów.
  *
- * Rodziny niosą znaczenie, odcienie rozróżniają w rodzinie:
- * turkus = ludzie i spotkania, złoto = pieniądze i terminy,
- * fiolet = praca, róż = kamień milowy, ciemna czerwień = poszło źle. */
-const DEADLINE_STYLE: Record<DeadlineKind, KindStyle> = {
-  invoice: { border: "border-brand-gold", bg: "bg-brand-gold/10", text: "text-brand-gold", dot: "bg-brand-gold", label: "Płatność" },
-  project: { border: "border-brand-purple", bg: "bg-brand-purple/10", text: "text-brand-purple", dot: "bg-brand-purple", label: "Projekt" },
-  // Kamień milowy NALEŻY do projektu, więc dostaje jasny odcień jego fioletu,
-  // a nie własną rodzinę. Do 2026-07-22 był różowy — róż przeszedł na
-  // Przypomnienia, bo tam znaczy to samo, co w apce (patrz niżej).
-  milestone: { border: "border-brand-purple-soft", bg: "bg-brand-purple-soft/10", text: "text-brand-purple-soft", dot: "bg-brand-purple-soft", label: "Kamień" },
-  lead: { border: "border-brand-gold-deep", bg: "bg-brand-gold-deep/10", text: "text-brand-gold-deep", dot: "bg-brand-gold-deep", label: "Lead" },
-  client: { border: "border-brand-cyan-deep", bg: "bg-brand-cyan-deep/10", text: "text-brand-cyan-deep", dot: "bg-brand-cyan-deep", label: "Klient" },
-  call: { border: "border-brand-cyan-soft", bg: "bg-brand-cyan-soft/10", text: "text-brand-cyan-soft", dot: "bg-brand-cyan-soft", label: "Połączenie" },
-  "call-missed": { border: "border-brand-red", bg: "bg-brand-red/10", text: "text-brand-red-soft", dot: "bg-brand-red", label: "Nieodebrane" },
-  // Email jako JEDYNY rodzaj świadomie neutralny, nie akcentowy: to zapis
-  // tego, co już się wydarzyło, a nie coś, co wymaga ruchu. Wypchnięty
-  // z rodziny fioletu, żeby zrobić miejsce Kamieniowi. Neutralny ≠ „poza
-  // paletą" — akcenty biorą się z marki, szarość to chrome.
-  email: { border: "border-[var(--fg-muted)]", bg: "bg-[var(--fg-muted)]/10", text: "text-[var(--fg-muted)]", dot: "bg-[var(--fg-muted)]", label: "Email" },
-  // Róż = przypomnienie, DOKŁADNIE jak w apce (`Color.brandPink` w legendzie
-  // `KalendarzView`). To jest cel całej tej zmiany: ten sam kolor ma znaczyć
-  // to samo na telefonie i przy biurku.
-  reminder: { border: "border-brand-pink", bg: "bg-brand-pink/10", text: "text-brand-pink", dot: "bg-brand-pink", label: "Przypomnienie" },
+ * Decyzja właściciela: kolor robi w produkcie jedną rzecz — mówi, jak stoi
+ * sprawa i czy się pali. Więc w kalendarzu kolor niesie teraz PILNOŚĆ
+ * (`lib/kolorStanu.ts`), a rodzaj — ikonę z `RodzajWpisuIcon`. W kalendarzu to
+ * jest wręcz lepszy podział: zaległa płatność świeci wśród spotkań, zamiast
+ * być złota jak wszystkie inne pieniądze.
+ *
+ * Przy okazji domyka się dziura: wpisy NIE MIAŁY ŻADNEJ IKONY, więc kolor był
+ * ich jedynym sygnałem rodzaju — bez zapasowego kanału. Etykieta zostaje, bo
+ * to ona nazywa rodzaj słowem.
+ */
+const DEADLINE_LABEL: Record<DeadlineKind, string> = {
+  invoice: "Płatność",
+  project: "Projekt",
+  milestone: "Kamień",
+  lead: "Lead",
+  client: "Klient",
+  call: "Połączenie",
+  "call-missed": "Nieodebrane",
+  email: "Email",
+  reminder: "Przypomnienie",
 };
 
-/** Turkus, ten sam co `Znaczenie.wToku` / `Color.brandCyan` w apce — „wydarzenie"
- * ma znaczyć to samo na obu powierzchniach. */
-const EVENT_DEFAULT_STYLE: KindStyle = { border: "border-brand-cyan", bg: "bg-brand-cyan/10", text: "text-brand-cyan", dot: "bg-brand-cyan", label: "Wydarzenie" };
+/** Neutralny styl wpisu — punkt wyjścia dla wszystkiego, co jest w terminie.
+ * Kolor dokłada dopiero `stylPilnosci`, gdy termin minął. */
+const STYL_NEUTRALNY: KindStyle = {
+  border: "border-[var(--fg-muted)]",
+  bg: "bg-[var(--fg-muted)]/10",
+  text: "text-[var(--fg-muted)]",
+  dot: "bg-[var(--fg-muted)]",
+  label: "Wpis",
+};
 
-/** Kolor ręcznego wydarzenia wyliczony z powiązania — sam kolor komunikuje,
- * z którym modułem wydarzenie jest związane (klient → cyan, lead → gold,
- * projekt → purple), zamiast jednego płaskiego koloru dla wszystkiego. */
+/** Rodzaje, które są ZAPISEM PRZESZŁOŚCI, a nie terminem: odbyta rozmowa
+ * i wysłany mail. Nie mają czego przekroczyć, więc zostają neutralne
+ * niezależnie od daty. „Nieodebrane" jest wyjątkiem w drugą stronę — to też
+ * fakt z przeszłości, ale fakt, który poszedł źle. */
+const ZAPIS_PRZESZLOSCI = new Set<DeadlineKind>(["call", "email"]);
+
+/** Kolor wpisu = pilność, nie rodzaj (Moduł 59). Wpis w terminie jest
+ * neutralny; kolor pojawia się dopiero, gdy termin minął — i rośnie z rampą
+ * złoto → pomarańcz → czerwień. „Nieodebrane" to jedyny rodzaj, który jest
+ * czerwony niezależnie od daty, bo to nie termin, tylko fakt: coś poszło źle. */
+function stylWpisu(kind: DeadlineKind, dniPoTerminie: number | null): KindStyle {
+  const label = DEADLINE_LABEL[kind] ?? "Wpis";
+  // Zapis tego, co JUŻ SIĘ WYDARZYŁO, nigdy nie wchodzi na rampę — rozmowa
+  // sprzed tygodnia nie jest „spóźniona". Złapane pomiarem: odbyte połączenie
+  // świeciło pomarańczem jak zaległa faktura.
+  if (ZAPIS_PRZESZLOSCI.has(kind)) return { ...STYL_NEUTRALNY, label };
+  if (kind === "call-missed") {
+    return { border: "border-brand-red", bg: "bg-brand-red/10", text: "text-brand-red-soft", dot: "bg-brand-red", label };
+  }
+  switch (stopienPilnosci(dniPoTerminie)) {
+    case "zaniedbane":
+      return { border: "border-brand-red", bg: "bg-brand-red/10", text: "text-brand-red-soft", dot: "bg-brand-red", label };
+    case "poTerminie":
+      return { border: "border-brand-orange", bg: "bg-brand-orange/10", text: "text-brand-orange", dot: "bg-brand-orange", label };
+    default:
+      return { ...STYL_NEUTRALNY, label };
+  }
+}
+
+/** Ile dni minęło od daty wpisu (dodatnie = po terminie). Kalendarzowo, nie
+ * przez `new Date()` na znaczniku — `d.data` to czyste „YYYY-MM-DD". */
+function dniPoTerminieWpisu(dataISO: string): number {
+  return daysBetweenISO(dataISO, todayISO());
+}
+
+/** Zgodność wstecz dla miejsc, które pytają o styl bez znajomości daty
+ * (legenda, filtry) — wszystkie dostają wariant neutralny z właściwą nazwą. */
+const DEADLINE_STYLE: Record<DeadlineKind, KindStyle> = Object.fromEntries(
+  (Object.keys(DEADLINE_LABEL) as DeadlineKind[]).map((k) => [k, stylWpisu(k, null)])
+) as Record<DeadlineKind, KindStyle>;
+
+/** Wydarzenie w terminie jest neutralne (Moduł 59) — turkus znaczył tu
+ * „rodzaj: wydarzenie", a turkus w skali stanu znaczy „praca trwa". Dwa
+ * znaczenia jednej barwy to dokładnie to, co ten moduł sprząta. */
+const EVENT_DEFAULT_STYLE: KindStyle = { ...STYL_NEUTRALNY, label: "Wydarzenie" };
+
+/** Do Modułu 59 kolor ręcznego wydarzenia brał się z POWIĄZANIA (klient →
+ * cyjan, lead → złoto, projekt → fiolet) — czyli była to trzecia mapa „rodzaj
+ * → kolor" w tym samym pliku. Powiązanie niesie teraz ikona i etykieta;
+ * kolor zostaje przy pilności. */
 function eventStyle(e: HubEvent): KindStyle {
-  if (e.client_id) return DEADLINE_STYLE.client;
-  if (e.lead_id) return DEADLINE_STYLE.lead;
-  if (e.project_id) return DEADLINE_STYLE.project;
+  if (e.client_id) return { ...EVENT_DEFAULT_STYLE, label: "Klient" };
+  if (e.lead_id) return { ...EVENT_DEFAULT_STYLE, label: "Lead" };
+  if (e.project_id) return { ...EVENT_DEFAULT_STYLE, label: "Projekt" };
   return EVENT_DEFAULT_STYLE;
 }
 
@@ -896,11 +949,20 @@ export function CalendarView({ lang }: { lang: string }) {
                               </span>
                             );
                           })}
-                          {shownDeadlines.map((d) => (
-                            <span key={d.id} className={`w-full truncate rounded border-l-2 ${DEADLINE_STYLE[d.kind].border} ${DEADLINE_STYLE[d.kind].bg} px-1 text-[10px] ${DEADLINE_STYLE[d.kind].text}`}>
-                              {d.tytul}
-                            </span>
-                          ))}
+                          {shownDeadlines.map((d) => {
+                            // Rodzaj niesie IKONA, kolor niesie pilność (Moduł 59).
+                            const st = stylWpisu(d.kind, dniPoTerminieWpisu(d.data));
+                            return (
+                              <span
+                                key={d.id}
+                                className={`flex w-full items-center gap-1 truncate rounded border-l-2 ${st.border} ${st.bg} px-1 text-[10px] ${st.text}`}
+                                title={`${st.label}: ${d.tytul}`}
+                              >
+                                <RodzajWpisuIcon kind={d.kind} size={10} className="shrink-0 opacity-80" />
+                                <span className="truncate">{d.tytul}</span>
+                              </span>
+                            );
+                          })}
                           {overflow > 0 && <span className="text-[10px] text-muted">+{overflow} więcej</span>}
                           <span className="flex-1" />
                         </button>
@@ -1199,7 +1261,7 @@ function DayAgendaList({
     <ul className={`space-y-1.5 ${compact ? "" : "mb-3"}`}>
       <AnimatePresence initial={false}>
         {dls.map((d) => {
-          const style = DEADLINE_STYLE[d.kind];
+          const style = stylWpisu(d.kind, dniPoTerminieWpisu(d.data));
           return (
             <motion.li
               key={d.id}
@@ -1288,7 +1350,7 @@ function DayAgendaList({
                     </Link>
                   )}
                   {e.lead_id && (
-                    <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-brand-gold-deep hover:underline">
+                    <Link href={`/${lang}/admin/leads/${e.lead_id}`} className="text-[var(--fg)] hover:underline">
                       <IconTarget size={12} className="mr-1 inline align-[-2px]" />{leadName(e.lead_id)}
                     </Link>
                   )}
