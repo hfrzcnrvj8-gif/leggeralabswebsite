@@ -215,7 +215,7 @@ iPhonie i iPadzie.
 
 | paczka | zakres | skala |
 |---|---|---|
-| **Pulpit** | sekcje bez płyt — „nieczytelny blok" (zgłoszenie 28.07, jedyne nieodrobione z tamtej listy) | 1 plik, kilkanaście sekcji |
+| ~~**Pulpit**~~ | ~~sekcje bez płyt~~ — **ZROBIONE 28.07**, patrz „Paczka Pulpit" niżej | — |
 | **F** | etykietowane wiersze profilu (`SekcjaProfilu`) — 11 modułów bez nich | największa |
 | **E** | puste stany wg A1 · nazwy zakładek · adresy rekordów (Koszty, Przypomnienia, Katalog, Kalendarz) | średnia |
 | **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
@@ -264,3 +264,70 @@ w trakcie prac — warto wiedzieć, że pomiar też bywa zły:
 4. **Zmiana globalna wymaga pomiaru przed i po** (kontrast, rytm, szerokość).
 5. Po każdej paczce: `npx tsc --noEmit`, `npm test`, `xcodebuild`, zrzuty
    z symulatora, dopiero potem commit i wgranie na urządzenia.
+
+---
+
+## Paczka „Pulpit" — wykonana 2026-07-28
+
+**Definicja „gotowe" ustalona PRZED kodem** (żeby nie dało się jej naciągnąć
+po fakcie): każda sekcja ma widoczną płytę · kontrast zmierzony
+`getComputedStyle` + wzór WCAG, płyta ≥ 1,10 wobec podłoża · wartości w JEDNYM
+miejscu w `globals.css` · kafle KPI, pasy alarmowe i sekcje czytają się jako
+trzy warstwy, nie szachownica · zero regresji poza Pulpitem, sprawdzone
+pomiarem na drugim module · `tsc` i `npm test` czyste.
+
+### Pomiar przed → po
+
+| element | przed | po | próg |
+|---|---|---|---|
+| płyta sekcji wobec tła panelu | **1,032** | **1,25** | ≥ 1,10 |
+| krawędź płyty wobec płyty | 1,186 | 1,359 | ≥ 1,35 (płyta wypukła) |
+| krawędź zagnieżdżona (przycisk, pigułka) wobec podłoża | **1,022** (znikała) | 1,359 | ≥ 1,35 |
+| wgłębienie szkicu wobec płyty | brak tła | 1,25 | ≥ 1,10 |
+| tekst `--fg-muted` wobec płyty | 5,94 | 4,91 | ≥ 4,5 (WCAG AA) |
+
+Zmiana: `--plyta` / `--plyta-krawedz` w `.admin-linear` + klasa
+`.plyta-sekcji`; `.card-inset` przeszedł na te same zmienne **bez zmiany
+wartości** (zweryfikowane na profilu leada: `rgb(30,34,42)` / `rgb(51,56,68)`
+przed i po). 21 kafli i sekcji Pulpitu. Kanban bez zmian (kolumna 1,10,
+krawędź 1,695, karta 1,136 wobec kolumny). Szczegóły wzorca i **dwa różne
+progi krawędzi** (wypukła vs zagłębienie): `HUB_SETUP.md` → „trzy warstwy
+powierzchni".
+
+### Co wyszło przy okazji i zostało naprawione w tej samej paczce
+
+- **Szkielet ładowania** miał jasność obramowania, nie płyty — po wczytaniu
+  treść skakała o 20 punktów jasności w górę.
+- **`items-start` na siatce sekcji** — bez tego pusta sekcja rozciągała się do
+  wysokości sąsiada, czyli rozmiar płyty niósł znaczenie, którego nie ma.
+
+### ZNALEZIONE POZA ZAKRESEM — do backlogu, NIE naprawiane tutaj
+
+1. **`.card-inset` nie nadpisuje `--hairline`** — dokładnie ta sama pułapka,
+   którą Pulpit właśnie zamknął, tylko w profilach. Zmierzone na profilu
+   leada: **14 krawędzi wewnątrz płyt ma kontrast 1,022**, czyli jest
+   niewidocznych. To nie są drobiazgi — wśród nich są **linie rozdzielające
+   wiersze pól** („Email", „WWW", „LinkedIn", „Kod / Miasto", „Kraj"), czyli
+   to, co ma robić rytm listy `insetGrouped`. Poprawka to jedna linia
+   (`--hairline: var(--plyta-krawedz)` w `.card-inset`), ale dotyka profilu
+   leada, klienta, oferty i umowy naraz — **idzie razem z paczką F**, nie
+   osobno (zasada 1: poprawka wzorca przez wszystkie moduły w jednym commicie).
+
+2. **Pasy alarmowe Pulpitu (kopie zapasowe, automaty) zostały na starej
+   warstwie** — `bg-brand-gold/10` + `border hairline` na tle panelu.
+   ŚWIADOMIE: to nie jest sekcja treści, tylko alarm, i ma się różnić od płyt.
+   Zapisane, żeby przy paczce F ktoś tego nie „ujednolicił".
+
+### Poza przeglądem spójności — złapane przy starcie
+
+**Panel się nie budował.** Commit `68f26a7` („Gradient w sidebarze zostaje")
+zostawił w `app/globals.css` **niedomknięty komentarz**: jedno `*/` w środku
+akapitu, cztery linie sierocego tekstu i drugie `*/` na końcu. Turbopack
+zwracał `Parsing CSS source code failed`, cała strona szła na 500 — panel
+i strona publiczna, lokalnie i na Vercelu. Naprawione w tej paczce.
+
+**Lekcja: commit z samym komentarzem też trzeba uruchomić.** Zmiana była
+w 100 % opisowa — ani jednej deklaracji CSS — więc nikt jej nie sprawdził,
+a `npx tsc --noEmit` (jedyna weryfikacja, jaką ten projekt ma w sandboksie)
+**nie widzi CSS-a w ogóle**. Po każdej zmianie w `globals.css`, choćby
+kosmetycznej, załaduj `/pl/admin` w podglądzie.

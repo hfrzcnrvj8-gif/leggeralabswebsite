@@ -414,6 +414,22 @@
      kolor" — fiolet w skali stanu znaczy „u drugiej strony", więc zaznaczony
      wiersz wyglądał jak wiersz o konkretnym statusie. */
   --zaznaczenie: #8f96a3;
+  /* PŁYTA WYPUKŁA — jedno źródło jasności dla każdej grupy treści, która ma
+     się czytać jako osobny obiekt, a nie jako fragment tła (Moduł 59,
+     2026-07-28). Do tej pory te same dwie wartości były wpisane z palca
+     osobno przy `.card-inset`; Pulpit dostał trzecią kopię tego samego
+     problemu. Zmiana jasności płyt w całym panelu = zmiana tych dwóch linii.
+
+     Wartości NIE są dobrane na oko — to jedyne, które właściciel zaakceptował
+     po trzech podejściach do `.card-inset` (dwa poprzednie: „nie widzę
+     różnicy"). Zmierzone: płyta 1,25 wobec tła panelu (#08090a), krawędź
+     1,36 wobec płyty. Dla porównania stary `.card-paper` (#0d0e10) dawał na
+     tle panelu 1,03 — czyli różnicę mieszczącą się w szumie ekranu.
+     Próg dla płyty WYPUKŁEJ to ≥ 1,10 wobec tła; próg dla ZAGŁĘBIENIA
+     (`.kolumna-tablicy`) jest inny i wyższy przy krawędzi, bo zagłębienie nie
+     odcina się wypełnieniem i cała robota spada na obrys. */
+  --plyta: #1e222a;
+  --plyta-krawedz: #333844;
   /* Bez tych nadpisań `.glass` (globals.css wyżej) dziedziczyłby jasne,
      białe wartości z :root — panel /admin nigdy nie dostaje klasy `.dark`
      (własna, neutralna paleta Linear, patrz komentarz wyżej), więc bez tego
@@ -492,9 +508,38 @@
      poszła wyżej: #1e222a (+17 punktów wobec karty) z krawędzią #333844.
      Zmierzony kontrast płyta/karta: 1.09 → 1.24. Płyta ma się czytać jak
      wypukła, a nie jak przypadkowy cień. Zmiana jest GLOBALNA — `.card-inset`
-     działa w profilu leada, klienta, oferty i umowy. */
-  background: #1e222a;
-  border: 1px solid #333844;
+     działa w profilu leada, klienta, oferty i umowy.
+     Od 2026-07-28 wartości mieszkają w `--plyta`/`--plyta-krawedz` wyżej —
+     ta sama płyta obsługuje sekcje Pulpitu (`.plyta-sekcji`). */
+  background: var(--plyta);
+  border: 1px solid var(--plyta-krawedz);
+}
+
+/* SEKCJA PULPITU — Moduł 59, zgłoszenie właściciela 2026-07-28: „Pulpit na
+   desktopie zlewa się w jeden nieczytelny blok".
+
+   Powód był ten sam co przy kanbanie i przy profilu, tylko trzeci raz:
+   dwanaście sekcji listowych i dziewięć kafli KPI leżało na `.card-paper`
+   (#0d0e10), czyli 1,03 kontrastu wobec tła panelu. Przy pojedynczej karcie to
+   wystarcza, bo krawędź ma czarne pole dookoła; przy dwudziestu jeden kartach
+   w siatce dwukolumnowej granice trzeba odgadywać z odstępu, a nagłówek sekcji
+   niczego nie zamyka. To jest dokładnie ta sama diagnoza, którą trzeba było
+   postawić trzy razy: treść bez KRAWĘDZI czyta się jak jedna plama, choćby
+   odstępy były poprawne.
+
+   Płyta WYPUKŁA, nie zagłębienie (inaczej niż `.kolumna-tablicy`): sekcja
+   Pulpitu niesie treść bezpośrednio — nie ma w niej kart, które mogłyby w tym
+   zagłębieniu leżeć, więc zagłębienie zostawiłoby tekst w dziurze. */
+.admin-linear .plyta-sekcji {
+  background: var(--plyta);
+  border: 1px solid var(--plyta-krawedz);
+  /* Krawędzie WEWNĄTRZ płyty muszą wjechać w górę razem z nią. Bez tego każdy
+     zagnieżdżony `border hairline` (przyciski, pigułka „nieotwarta", ramka
+     szkicu) spada z 1,19 do 1,02 wobec podłoża, czyli znika — płyta
+     „naprawiałaby" jedną warstwę, psując następną. Jedno nadpisanie zmiennej
+     załatwia wszystkie naraz, bo `.hairline` i `bg-[var(--hairline)]` czytają
+     tę samą wartość. */
+  --hairline: var(--plyta-krawedz);
 }
 
 /* ─── Moduł 5, Paczka 4: „odwebowienie" panelu ──────────────────────────────
@@ -625,7 +670,8 @@
    z mapy procesu i z miernika postępu. Tutaj właściciel zdecydował inaczej
    i to jest ŚWIADOMY wyjątek, nie przeoczenie: sidebar to chrome tożsamości
    produktu, nie widok rekordu, więc gradient marki jest tu na swoim miejscu.
-   NIE „naprawiaj" tego przy kolejnym przeglądzie spójności. */
+   NIE „naprawiaj" tego przy kolejnym przeglądzie spójności.
+
    Sam gradient marki w tle, mocniejszy przy lewej krawędzi i WYGASZONY do
    zera z prawej — podświetlenie wtapia się w pasek, nie zamyka go pudełkiem.
    Cienki gradientowy akcent po lewej zaznacza „tu jesteś" bez rysowania ramki

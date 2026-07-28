@@ -9521,3 +9521,63 @@ Nowy status → **zadeklaruj stan**: `mapaStanow({ "Twój status": "uNich" })`.
 Nowy termin → nic nie rób, rampa policzy się sama z daty.
 Jeśli masz ochotę dobrać nowy kolor, to znaczy, że próbujesz nim powiedzieć
 coś, co nie jest ani stanem, ani pilnością — a to należy do ikony albo do słowa.
+
+## Moduł 59 — trzy warstwy powierzchni: tło, płyta, wgłębienie (2026-07-28)
+
+Zgłoszenie właściciela: *„Pulpit na desktopie zlewa się w jeden nieczytelny
+blok"*. To była **trzecia** postać tej samej diagnozy w ciągu trzech dni —
+wcześniej „w panelu wszystko się zlewa" (profil, `.card-inset`) i „kanban jest
+taki jakiś zbyt płaski" (`.kolumna-tablicy`). Za każdym razem odstępy były
+poprawne, a brakowało KRAWĘDZI.
+
+### Wzorzec (domyślny — patrz reguła „spójność wizualna domyślnie")
+
+| warstwa | do czego | wartość | zmierzony kontrast |
+|---|---|---|---|
+| tło panelu | kanwa, nic na niej nie leży | `--bg` `#08090a` | — |
+| **płyta wypukła** | grupa treści, która ma się czytać jako obiekt | `--plyta` `#1e222a`, krawędź `--plyta-krawedz` `#333844` | **1,25** wobec tła · krawędź **1,36** wobec płyty |
+| **zagłębienie** | pojemnik, w którym leżą osobne karty | `.kolumna-tablicy` `#13161c` / `#383e4d` | 1,10 wobec tła · krawędź **1,70** wobec płyty |
+| wgłębienie w płycie | pole edycji / podgląd wewnątrz płyty | tło `var(--bg)` na płycie | 1,25 wobec płyty |
+
+Klasy czytające `--plyta`: **`.card-inset`** (grupa pól w profilu) i
+**`.plyta-sekcji`** (sekcja Pulpitu, kafel KPI). Zmiana jasności płyt w całym
+panelu = zmiana dwóch linii w `.admin-linear`, nie polowanie po plikach.
+
+### Dlaczego akurat te liczby
+
+Nie są dobrane na oko — właściciel odrzucił dwie „subtelne" wersje
+`.card-inset` słowami „nie widzę różnicy", a pierwsze podejście do
+`.kolumna-tablicy` miało zmierzone **1,012** kontrastu, czyli dosłownie
+niewidoczne. Pulpit przed poprawką: **1,03** (`.card-paper` `#0d0e10` na tle
+`#08090a`).
+
+**Próg roboczy: płyta ≥ 1,10 wobec swojego podłoża.** Poniżej tej wartości
+różnica mieści się w szumie ekranu i płyty po prostu nie ma — niezależnie od
+tego, jak wygląda na zrzucie.
+
+Krawędź ma **dwa różne progi, i to nie jest niekonsekwencja**: płyta wypukła
+odcina się już samym wypełnieniem, więc obrys tylko ją domyka (≥ 1,35);
+zagłębienie jest ciemniejsze od otoczenia i wypełnienie mu nie pomaga, więc
+cała robota spada na obrys (≥ 1,50).
+
+### Pułapka: płyta psuje warstwę pod sobą
+
+Podniesienie płyty **zabija każdą krawędź w środku**. `.hairline` (`#1f2023`)
+ma 1,19 kontrastu na tle panelu, ale **1,02** na płycie — przyciski, pigułki
+i ramki znikają. Dlatego `.plyta-sekcji` nadpisuje u siebie samą zmienną:
+
+```css
+.admin-linear .plyta-sekcji { --hairline: var(--plyta-krawedz); }
+```
+
+Jedna linia naprawia wszystkich potomków naraz, bo `.hairline`
+i `bg-[var(--hairline)]` czytają tę samą wartość. **Dokładając płytę
+gdziekolwiek, zmierz też to, co na niej leży** — inaczej „naprawiasz" jedną
+warstwę, psując następną.
+
+### Rozmiar płyty nie może nieść znaczenia
+
+Siatka sekcji dostała `items-start`. Bez tego dwie sekcje w wierszu rozciągają
+się do wysokości wyższej — przy niewidocznej płycie nie było tego widać, po
+jej wprowadzeniu pusta sekcja („Kamienie po terminie: nic") stawała się płytą
+w połowie wypełnioną powietrzem, sugerując treść, której nie ma.

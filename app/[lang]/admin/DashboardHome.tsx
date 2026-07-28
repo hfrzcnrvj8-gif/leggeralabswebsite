@@ -351,7 +351,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
 
   if (loadError) {
     return (
-      <div className="card-paper rounded-2xl p-6">
+      <div className="plyta-sekcji rounded-2xl p-6">
         <p className="font-medium">Nie udało się wczytać pulpitu.</p>
         <p className="mt-1 text-sm opacity-70">{loadError}</p>
         <button className="btn-primary mt-4" onClick={loadToday}>
@@ -363,11 +363,14 @@ export function DashboardHome({ lang }: { lang: Locale }) {
 
   if (!data) {
     return (
+      /* Szkielet ma jasność PŁYTY, nie obramowania — inaczej ładowanie
+         pokazuje ciemne prostokąty, które po wczytaniu skaczą o 20 punktów
+         jasności w górę. Kształt treści, nie spinner (Moduł 59, kat. 6). */
       <div className="space-y-3">
-        <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
+        <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--plyta)]" />
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-40 animate-pulse rounded-2xl bg-[var(--hairline)]" />
+            <div key={i} className="h-40 animate-pulse rounded-2xl bg-[var(--plyta)]" />
           ))}
         </div>
       </div>
@@ -472,7 +475,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
       )}
 
       <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-6">
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Przychód (ten miesiąc)</div>
           <div className="mt-1 text-liquid text-lg font-semibold">{formatByCurrency(data.kpi.revenueThisMonth)}</div>
           {revenueDelta !== null && (
@@ -481,24 +484,24 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             </div>
           )}
         </div>
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Należności (zaległe)</div>
           <div className="mt-1 text-lg font-semibold">{formatByCurrency(data.kpi.outstanding)}</div>
           <div className="mt-0.5 text-[11px] text-muted">
             {data.overdueInvoices.length} {data.overdueInvoices.length === 1 ? "faktura" : "faktur"} po terminie
           </div>
         </div>
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Pipeline ofert (ważony)</div>
           <div className="mt-1 text-lg font-semibold">{formatMoney(data.kpi.pipeline)}</div>
           <div className="mt-0.5 text-[11px] text-muted">{formatMoney(data.kpi.pipelineRaw)} otwartych ofert (nieważone)</div>
         </div>
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Wymaga działania dziś</div>
           <div className="mt-1 text-lg font-semibold">{totalActionable}</div>
           <div className="mt-0.5 text-[11px] text-muted">leady, projekty, faktury, oferty</div>
         </div>
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Rezerwa podatkowa (ten miesiąc)</div>
           <div className="mt-1.5 space-y-0.5 text-[12px]">
             <div className="flex justify-between">
@@ -518,7 +521,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         {/* Moduł 31 — miara Etapu 3 mapy drogi klienta (cel: 100%). Liczona
             tylko po projektach z klientem: projekt wewnętrzny nie ma z kim
             podpisać umowy, więc wliczanie go zaniżałoby wskaźnik na stałe. */}
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Papier przed pracą</div>
           <div
             className={`mt-1 text-lg font-semibold ${
@@ -533,7 +536,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
               : "Brak projektów z klientem — nie ma czego mierzyć."}
           </div>
         </div>
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Opinie klientów</div>
           <div className="mt-1 text-lg font-semibold">
             {data.kpi.avgClientRating != null ? `★ ${data.kpi.avgClientRating.toFixed(1)}/5` : "—"}
@@ -544,7 +547,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         </div>
         {/* Czy pętla retencji faktycznie się kręci (Etap 10 mapy drogi
             klienta) — do 2026-07-24 liczone tylko w Statystykach. */}
-        <div className="card-paper rounded-xl border hairline p-4">
+        <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Leady z polecenia</div>
           <div className="mt-1 text-lg font-semibold">
             {data.kpi.referralSharePct != null ? `${data.kpi.referralSharePct}%` : "—"}
@@ -553,15 +556,21 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         </div>
         <Link
           href={`/${lang}/admin/stats`}
-          className="card-paper col-span-2 flex items-center justify-between rounded-xl border hairline p-4 hover:border-brand-purple/40 lg:col-span-6"
+          className="plyta-sekcji col-span-2 flex items-center justify-between rounded-xl p-4 hover:border-brand-purple/40 lg:col-span-6"
         >
           <span className="text-[11px] text-muted">Czy trzymam wzorzec pracy? Zobacz wskaźniki zdrowia biznesu.</span>
           <span className="text-[13px] font-semibold text-brand-purple">Statystyki →</span>
         </Link>
       </div>
 
-      <div className="grid gap-4 px-4 py-4 sm:px-6 lg:grid-cols-2">
-        <section className="card-paper rounded-xl border hairline p-4">
+      {/* `items-start` — Moduł 59. Bez tego siatka rozciąga obie sekcje
+          w wierszu do wysokości WYŻSZEJ, co przy niewidocznej płycie było
+          niewidoczne, a po jej wprowadzeniu robi z pustej sekcji („Kamienie
+          po terminie: nic") płytę w połowie wypełnioną powietrzem. Płyta ma
+          mieć rozmiar swojej treści — inaczej wielkość niesie znaczenie,
+          którego nie ma. */}
+      <div className="grid items-start gap-4 px-4 py-4 sm:px-6 lg:grid-cols-2">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Leady wymagające działania</h2>
             <Link href={`/${lang}/admin/leads`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -595,7 +604,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         {/* Moduł 4 — "Wiadomości do odpowiedzi". Wysoko na Pulpicie, zaraz po
             leadach: nieodpisany mail starzeje się szybciej niż większość
             pozostałych spraw. */}
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Wiadomości do odpowiedzi</h2>
             <Link href={`/${lang}/admin/mail`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -626,7 +635,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Klienci wymagający kontaktu</h2>
             <Link href={`/${lang}/admin/clients`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -692,7 +701,13 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                           </span>
                         </div>
                         {openDraftId === f.id && (
-                          <div className="mt-2 rounded-xl border hairline p-2.5">
+                          /* Szkic leży NA płycie sekcji, więc musi być
+                             ZAGŁĘBIENIEM — sama krawędź nie wystarczy, bo
+                             pole bez własnego tła na jaśniejszej płycie czyta
+                             się jak obrys wokół niczego. Tło z `--bg` daje
+                             1,25 wobec płyty, czyli tyle samo, co płyta wobec
+                             tła panelu — trzy czytelne warstwy. */
+                          <div className="mt-2 rounded-xl border bg-[var(--bg)] hairline p-2.5">
                             {draftLoading ? (
                               <p className="text-[12px] text-muted">Wczytywanie szkicu…</p>
                             ) : (
@@ -735,7 +750,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Projekty z minionym terminem</h2>
             <Link href={`/${lang}/admin/projects`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -766,7 +781,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Kamienie po terminie</h2>
           </div>
@@ -786,7 +801,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Zaległe faktury</h2>
             <Link href={`/${lang}/admin/invoices`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -820,7 +835,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Faktury do wystawienia</h2>
             <Link href={`/${lang}/admin/invoices`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -856,7 +871,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             o moment wcześniejszy: wysłana, cisza, decyzji brak. „Otwarta"
             znaczy, że klient wszedł w link — to cieplejszy trop niż oferta,
             której nikt nie widział, więc idzie na górę listy. */}
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Oferty bez decyzji</h2>
             <Link href={`/${lang}/admin/offers`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -902,7 +917,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         {/* Do 2026-07-24 `expiredOffers` było liczone do totalActionable, ale
             nigdzie nie renderowane — licznik u góry ekranu mógł pokazywać
             więcej spraw niż dawało się zobaczyć (zgłoszenie właściciela). */}
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Wygasłe oferty</h2>
             <Link href={`/${lang}/admin/offers`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -940,7 +955,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             nigdy sam z siebie nie wspomniał: umowa wisząca tydzień
             niepodpisana nie przypominała się nigdy, mimo że blokuje formalny
             start projektu. */}
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Umowy czekające na podpis</h2>
             <Link href={`/${lang}/admin/contracts`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -990,7 +1005,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             Dlatego alert liczy się od terminu WYPOWIEDZENIA, nie od daty
             końca (patrz dniDoDzialaniaUmowy). */}
         {(data.wygasajaceUmowy?.length ?? 0) > 0 && (
-          <section className="card-paper rounded-xl border hairline p-4">
+          <section className="plyta-sekcji rounded-xl p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[13px] font-medium">Umowy dobiegające końca</h2>
               <Link href={`/${lang}/admin/contracts`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -1015,7 +1030,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           </section>
         )}
 
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Dziś w kalendarzu</h2>
             <Link href={`/${lang}/admin/calendar`} className="text-xs text-muted hover:text-[var(--fg)]">
@@ -1046,7 +1061,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
-        <section className="card-paper rounded-xl border hairline p-4">
+        <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Ostatnie notatki</h2>
             <Link href={`/${lang}/admin/notes`} className="text-xs text-muted hover:text-[var(--fg)]">
