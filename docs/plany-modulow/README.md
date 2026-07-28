@@ -229,3 +229,14 @@ etapu — patrz [`00-mapa-drogi-klienta.md`](00-mapa-drogi-klienta.md), nie
 duplikowane tutaj.** Właściciel zatwierdził całą kolejność 2026-07-14;
 **ostateczny, całościowy audyt drogi klienta — po ukończeniu modułów
 11-20.**
+
+## Moduł 59 — Przegląd spójności (panel + iPhone + iPad)
+
+`59-spojnosc-ui.md` — **lista kontrolna i system pracy**, nie jednorazowy
+audyt. Dziesięć kategorii (kolor, klikalność, gesty i menu, klawiatura,
+nawigacja, stany, treść, ruch, integralność, dotyk), tabela moduł × kategoria
+i tabela „gdzie mieszka jedno źródło każdego wzorca". Powielaj go przy każdym
+kolejnym module i przy każdej nowej funkcji.
+
+Powstał, bo wzorce poprawiane były w module, nad którym akurat trwała praca —
+i ta sama lista zachowywała się inaczej w czterech miejscach.
