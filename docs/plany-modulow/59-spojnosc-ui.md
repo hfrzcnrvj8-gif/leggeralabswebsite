@@ -193,6 +193,50 @@ w `AppStore`, wyłącznie przy gardłach), brak `window.confirm/alert/prompt`
 (0 trafień), kolejność modułów panel = iPad = iPhone (zweryfikowana pozycja
 po pozycji).
 
+## STAN NA 2026-07-28, koniec dnia
+
+Panel `318f24d..42ee3d0` (7 commitów), apka `acb1c54..b34baae` (5 commitów,
+wydanie 171). Wszystko wypchnięte, panel na Vercelu, apka zainstalowana na
+iPhonie i iPadzie.
+
+### Zrobione
+
+| paczka | zakres | commit |
+|---|---|---|
+| A | walidacja statusu (Leady, Faktury) · numer dokumentu w apce · `parsePgTimestamp` · `TWEEN_EXIT` | `49ed97a` / `b3df16d` |
+| B | cały wiersz listy otwiera profil (Leady, Klienci — tabela i karta telefonu) | `077aa3a` |
+| D | **słownik koloru — jedno źródło dla panelu i apki** | `012532d` / `f91ccd2` |
+| D+ | kolor robi jedną rzecz; rodzaj przeniesiony na ikonę; kalendarz z 9 barw na 3 | `cefe15a` / `fffe91c` |
+| — | szerokość domyślnie pełna · gradient zaznaczenia usunięty · `--zaznaczenie` · płyty kolumn kanbanu | `42ee3d0` |
+| — | widok roczny mieści się na iPhonie · kropki zgodne z legendą | `b34baae` |
+| — | dane pokazowe słownika koloru w bazie dev (blok `[próbka]`) | `7f5d7bf` |
+
+### Zostało z pierwotnego planu
+
+| paczka | zakres | skala |
+|---|---|---|
+| **Pulpit** | sekcje bez płyt — „nieczytelny blok" (zgłoszenie 28.07, jedyne nieodrobione z tamtej listy) | 1 plik, kilkanaście sekcji |
+| **F** | etykietowane wiersze profilu (`SekcjaProfilu`) — 11 modułów bez nich | największa |
+| **E** | puste stany wg A1 · nazwy zakładek · adresy rekordów (Koszty, Przypomnienia, Katalog, Kalendarz) | średnia |
+| **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
+| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
+
+### Do rozstrzygnięcia przez właściciela
+
+- **Gradient aktywnej pozycji w sidebarze** (`.admin-nav-active`). Formalnie
+  łamie Regułę 4, ale to jawna decyzja właściciela z 2026-07-23 („nie chcę, żeby
+  wyglądało jak komórka tabeli"). Zostawione świadomie, nie przeoczone.
+
+### Korekty do inwentarza z Etapu 1
+
+Dwie rzeczy w tabeli wyżej były NIEPRAWDZIWE i zostały poprawione dopiero
+w trakcie prac — warto wiedzieć, że pomiar też bywa zły:
+
+1. **„Panel nie ma chordów `g <litera>`"** — ma. `GO_CHORDS` w `AppShell.tsx:129`
+   obsługuje 12 modułów. Grep był wrażliwy na wielkość liter.
+2. **„Odcienie kalendarza się zlewają"** — nie zlewały się. Zmierzone ΔE: tylko
+   jedna para poniżej 25. System był dobry, kolidował wyłącznie znaczeniem.
+
 ## Gdzie mieszkają wzorce (jedno źródło każdego)
 
 | Rzecz | Panel | Apka |
