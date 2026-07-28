@@ -17,6 +17,7 @@
 // języka, tłumaczenie dokładałoby pracę bez realnej wartości na tym etapie.
 
 import { type DocLang, documentYear } from "./documents";
+import { mapaStanow } from "./kolorStanu";
 
 export type ContractTyp = "umowa" | "nda" | "dpa" | "aneks";
 
@@ -49,13 +50,13 @@ export const CONTRACT_STATUSES: ContractStatus[] = ["Szkic", "Wysłana", "Podpis
 /* „Wysłana" fioletem — patrz komentarz przy OFFER_STATUS_CLASS (lib/offers.ts).
  * Umowa wysłana do podpisu to dokładnie ta sama sytuacja co oferta wysłana do
  * decyzji, więc ma ten sam kolor po obu stronach. */
-export const CONTRACT_STATUS_CLASS: Record<string, string> = {
-  Szkic: "bg-[var(--hairline)] text-muted",
-  Wysłana: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
-  Podpisana: "bg-emerald-500/20 text-emerald-400 font-semibold",
+export const CONTRACT_STATUS_CLASS: Record<string, string> = mapaStanow({
+  Szkic: "nieruszone",
+  Wysłana: "uNich",
+  Podpisana: "sukces",
   // Neutralnie, nie czerwono — patrz OFFER_STATUS_CLASS (lib/offers.ts).
-  Odrzucona: "bg-[var(--hairline)] text-muted",
-};
+  Odrzucona: "zamkniete",
+});
 
 /** Dlaczego druga strona nie podpisała — krótka, ZAMKNIĘTA lista (audyt
  * Modułu 11, 2026-07-27), wzorem `OFFER_REJECT_REASONS`.

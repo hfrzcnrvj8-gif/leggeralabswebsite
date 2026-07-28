@@ -73,7 +73,11 @@ function SekcjaModulu({
   return (
     <section id={modul.id} className="card-paper rounded-2xl border hairline p-5">
       <button onClick={onOtworz} className="flex w-full items-start gap-2 text-left">
-        <IconBook size={18} className="mt-0.5 shrink-0 text-brand-purple" />
+        {/* Neutralna, nie fioletowa (Moduł 59, zgłoszenie właściciela). Ta ikona
+            nie mówi ani o stanie, ani o rodzaju — powtarza to, co obok stoi
+            słowem. Kolor marki na niej robił drugi akcent na ekranie, który ma
+            już jeden: gradientowy nagłówek wyżej. */}
+        <IconBook size={18} className="mt-0.5 shrink-0 text-muted" />
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold">{modul.nazwa}</span>
           <span className="mt-0.5 block text-[13px] text-muted">{modul.poCoTo}</span>

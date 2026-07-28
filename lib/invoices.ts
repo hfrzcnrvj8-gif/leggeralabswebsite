@@ -4,6 +4,7 @@
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
 import { todayLocalISO, daysBetweenISO } from "./dates";
+import { mapaStanow, STAN_CLASS, type Stan } from "./kolorStanu";
 // Type-only (erased przy kompilacji) — bez cyklu w runtime: wartości płyną
 // tylko z invoices.ts do ksef.ts, nigdy w drugą stronę.
 import type { KsefStatus, KsefTryb } from "./ksef";
@@ -100,16 +101,29 @@ export function isInvoiceStatus(v: unknown): v is InvoiceStatus {
   return typeof v === "string" && (INVOICE_STATUSES as string[]).includes(v);
 }
 
-// Każdy status ma własny, wyraźnie inny kolor — żeby na liście dało się je
-// rozróżnić rzutem oka. Szkic (bursztyn = w przygotowaniu), Wystawiona (cyan =
-// w obiegu), Opłacona (zieleń = zamknięta pozytywnie), Po terminie (czerwień =
-// wymaga akcji), Anulowana (szary + przekreślenie = unieważniona).
+/* Status faktury na wspólnej skali (Moduł 59, `lib/kolorStanu.ts`).
+ * Trzy z pięciu wartości się zmieniły — Faktury najdalej odstawały:
+ * — „Szkic" był BURSZTYNOWY, choć szkic oferty i umowy jest szary. Szkic to
+ *   „jeszcze nie ruszone", nie „wymaga uwagi".
+ * — „Wystawiona" była CYJANOWA, czyli w skali „praca trwa po naszej stronie".
+ *   Wystawiona faktura nie wymaga od nas niczego — czekamy na ICH przelew.
+ * — „Po terminie" była CZERWONA na sztywno, więc faktura spóźniona o dzień
+ *   wyglądała jak spóźniona o pół roku. Stan to „czeka na mój ruch"
+ *   (windykacja), a to, JAK pilnie, mówi rampa pilności liczona z daty
+ *   (`stopienPilnosci`) — patrz `isOverdue` i lista faktur. */
+const INVOICE_STAN: Record<string, Stan> = {
+  Szkic: "nieruszone",
+  Wystawiona: "uNich",
+  Opłacona: "sukces",
+  "Po terminie": "mojRuch",
+  Anulowana: "zamkniete",
+};
+
 export const INVOICE_STATUS_CLASS: Record<string, string> = {
-  Szkic: "bg-amber-400/15 text-amber-500",
-  Wystawiona: "bg-brand-cyan/15 text-brand-cyan",
-  Opłacona: "bg-emerald-500/20 text-emerald-400 font-semibold",
-  "Po terminie": "bg-red-500/15 text-red-400",
-  Anulowana: "bg-[var(--hairline)] text-muted line-through opacity-70",
+  ...mapaStanow(INVOICE_STAN),
+  // Przekreślenie zostaje: anulowana faktura to jedyny dokument, którego numer
+  // dalej istnieje w rejestrze, a treść już nie obowiązuje.
+  Anulowana: `${STAN_CLASS.zamkniete} line-through`,
 };
 
 /** Stawki VAT dostępne na pozycji faktury (numeryczne w %, plus "zw" zwolniony

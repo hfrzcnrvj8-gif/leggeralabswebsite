@@ -11,7 +11,9 @@ import {
   KSEF_MICRO_THRESHOLD_PLN,
   formatMoney,
   isInvoiceOverdue,
+  daysOverdue,
 } from "@/lib/invoices";
+import { stopienPilnosci, opisPilnosci, PILNOSC_ROW, PILNOSC_TEXT } from "@/lib/kolorStanu";
 import { KSEF_STATUS_CLASS, KSEF_STATUS_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
 import { daysBetweenISO, todayLocalISO } from "@/lib/dates";
@@ -308,7 +310,14 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               Najstarsza zaległość
               <InfoDot text="Ile dni po terminie wisi najstarsza nieopłacona faktura. Progi eskalacji: 3 dni — uprzejme przypomnienie, 10 — stanowcze, 21 — formalne wezwanie do zapłaty." />
             </div>
-            <div className={`mt-0.5 text-lg font-semibold ${kpi.najstarszaZaleglosc >= 21 ? "text-red-400" : kpi.najstarszaZaleglosc >= 10 ? "text-brand-gold" : "text-[var(--fg)]"}`}>
+            {/* Ten sam próg (PROG_ZANIEDBANIA_DNI) co wszędzie indziej — do
+                Modułu 59 ten kafel czerwieniał przy 21 dniach, wiersz listy
+                przy pierwszym dniu, a Pulpit złocił wszystko po terminie. */}
+            <div
+              className={`mt-0.5 text-lg font-semibold ${
+                kpi.najstarszaZaleglosc > 0 ? PILNOSC_TEXT[stopienPilnosci(kpi.najstarszaZaleglosc)] : "text-[var(--fg)]"
+              }`}
+            >
               {kpi.najstarszaZaleglosc > 0 ? `${kpi.najstarszaZaleglosc} dni` : "—"}
             </div>
           </div>
@@ -415,13 +424,17 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               <tbody>
                 {rows.map((inv) => {
                   const overdue = isInvoiceOverdue(inv);
+                  // Rampa pilności (Moduł 59) zamiast jednego czerwonego tła:
+                  // faktura spóźniona o dzień wyglądała dotąd identycznie jak
+                  // spóźniona o pół roku.
+                  const pilnosc = overdue ? stopienPilnosci(daysOverdue(inv)) : "wTerminie";
                   return (
                     <tr
                       key={inv.id}
                       onClick={() => setOpenId(inv.id)}
                       onContextMenu={(e) => ctl.openAt(e, inv)}
                       className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
-                        overdue ? "bg-red-500/[0.04]" : ""
+                        PILNOSC_ROW[pilnosc]
                       } ${selectedIds.has(inv.id) ? "bg-[#4ea7fc]/[0.08]" : ""}`}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
@@ -475,7 +488,10 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                           </span>
                         </PropertyMenu>
                       </td>
-                      <td className={`p-2.5 ${overdue ? "font-medium text-red-400" : "text-muted"}`}>
+                      <td
+                        className={`p-2.5 ${overdue ? `font-medium ${PILNOSC_TEXT[pilnosc]}` : "text-muted"}`}
+                        title={opisPilnosci(overdue ? daysOverdue(inv) : null) ?? undefined}
+                      >
                         {inv.termin_platnosci ? formatPlDate(inv.termin_platnosci) : "—"}
                       </td>
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>

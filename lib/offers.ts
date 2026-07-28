@@ -7,6 +7,7 @@
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines, documentYear } from "./documents";
 import { todayLocalISO, parsePgTimestamp } from "./dates";
 import { round2 } from "./invoices";
+import { mapaStanow } from "./kolorStanu";
 
 /** Język wydruku oferty — jak w fakturach (lib/invoices.ts), niezależny od
  * języka panelu. Typ i lista dzielone przez lib/documents.ts. */
@@ -78,13 +79,15 @@ export function rejectReasonLabel(powod: string, komentarz: string): string {
  * Powód: odrzucona oferta nie jest AWARIĄ, tylko zamkniętą sprawą, a czerwień
  * w palecie apki jest zarezerwowana dla błędów. Panel malował ją czerwono,
  * apka szaro; wygrywa apka, tym samym precedensem co przy statusie klienta. */
-export const OFFER_STATUS_CLASS: Record<string, string> = {
-  Szkic: "bg-[var(--hairline)] text-muted",
-  Wysłana: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
-  Zaakceptowana: "bg-emerald-500/20 text-emerald-400 font-semibold",
-  Odrzucona: "bg-[var(--hairline)] text-muted",
-  Wygasła: "bg-[var(--hairline)] text-muted opacity-70",
-};
+export const OFFER_STATUS_CLASS: Record<string, string> = mapaStanow({
+  Szkic: "nieruszone",
+  Wysłana: "uNich",
+  Zaakceptowana: "sukces",
+  // „Odrzucona" i „Wygasła" to obie sprawy zamknięte bez sukcesu — do Modułu 59
+  // różniły się przygaszeniem bez powodu.
+  Odrzucona: "zamkniete",
+  Wygasła: "zamkniete",
+});
 
 export type OfferItem = {
   id: string;

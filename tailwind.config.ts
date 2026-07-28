@@ -44,6 +44,16 @@ const config: Config = {
           "cyan-soft": "#7DE4F5", // Połączenie
           "gold-deep": "#B87A1F", // Lead
           "purple-soft": "#A78BFA", // Email
+          // Środkowy stopień RAMPY PILNOŚCI (Moduł 59): złoto → pomarańcz →
+          // czerwień, czyli „termin przed nami" → „minął" → „minął dawno".
+          // Ta sama wartość co `Color.markaPomarancz` w apce.
+          //
+          // Świadomie #F97316, a NIE `orange-400` (#FB923C), którego panel
+          // używał dotąd w „Testach / review": zmierzone ΔE do brandowego
+          // złota to 38,7 dla #F97316 i tylko 23,6 dla #FB923C. Przy 23,6 dwa
+          // sąsiednie stopnie rampy zlewają się w pamięci; przy 38,7 nie.
+          // Kontrast na tle karty 6,4:1 — powyżej progu 4,5.
+          orange: "#F97316",
           // Ta sama stonowana czerwień, co `Color.ciemnaCzerwien` w apce —
           // systemowa czerwień jest w tym systemie zakazana ("czerwień znika").
           red: "#8B272F", // Nieodebrane — obwódka, kropka, tło

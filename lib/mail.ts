@@ -10,6 +10,7 @@
 
 import type { ClientStatus } from "./clients";
 import { todayLocalISO, addDaysToISO, warsawWallTimeToUtcISO, warsawNowMinutes } from "./dates";
+import { mapaStanow } from "./kolorStanu";
 
 export const MAIL_DIRECTIONS = ["in", "out"] as const;
 export type MailDirection = (typeof MAIL_DIRECTIONS)[number];
@@ -49,11 +50,13 @@ export const MAIL_STATUS_LABEL: Record<MailStatus, string> = {
   zignorowany: "Zignorowany",
 };
 
-export const MAIL_STATUS_CLASS: Record<MailStatus, string> = {
-  nowy: "bg-brand-gold/15 text-brand-gold",
-  obsłużony: "bg-emerald-500/15 text-emerald-400",
-  zignorowany: "bg-[var(--hairline)] text-muted",
-};
+/* Wspólna skala (Moduł 59). Poczta była zgodna z nią od początku — zmienia
+ * się tylko źródło klas, nie kolory. */
+export const MAIL_STATUS_CLASS: Record<string, string> = mapaStanow({
+  nowy: "mojRuch",
+  obsłużony: "sukces",
+  zignorowany: "zamkniete",
+});
 
 export type MailMessage = {
   id: string;

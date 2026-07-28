@@ -11,6 +11,7 @@
 
 import { todayLocalISO, daysBetweenISO } from "./dates";
 import { type DocLang } from "./documents";
+import { mapaStanow, mapaKropek, type Stan } from "./kolorStanu";
 
 export type Client = {
   id: string;
@@ -206,19 +207,19 @@ export type ClientStatus = (typeof CLIENT_STATUSES)[number];
  * apka: jej paleta przeszła osobny audyt koloru, a zieleń jest w niej
  * zarezerwowana dla „zrobione/sukces". Bliźniak: `kolorStatusuKlienta`
  * w `PulpitView.swift`. */
-export const CLIENT_STATUS_CLASS: Record<ClientStatus, string> = {
-  Prospekt: "bg-brand-gold/15 text-brand-gold",
-  Aktywny: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
-  Uśpiony: "bg-[var(--hairline)] text-muted",
-  Stracony: "bg-[var(--hairline)] text-muted opacity-70",
+/* Moduł 59: te same kolory co dotąd, ale wzięte ze WSPÓLNEJ skali
+ * (`lib/kolorStanu.ts`) zamiast wpisane tutaj. Klienci przeszli audyt koloru
+ * w Module 51 i dlatego skala się z nimi zgadza co do wartości — to z nich
+ * (i z Ofert) została wyciągnięta, nie odwrotnie. */
+const CLIENT_STAN: Record<ClientStatus, Stan> = {
+  Prospekt: "mojRuch",
+  Aktywny: "uNich",
+  Uśpiony: "nieruszone",
+  Stracony: "zamkniete",
 };
 
-export const CLIENT_STATUS_DOT: Record<ClientStatus, string> = {
-  Prospekt: "bg-brand-gold",
-  Aktywny: "bg-brand-purple",
-  Uśpiony: "bg-[var(--fg-muted)]",
-  Stracony: "bg-[var(--fg-muted)]",
-};
+export const CLIENT_STATUS_CLASS: Record<string, string> = mapaStanow(CLIENT_STAN);
+export const CLIENT_STATUS_DOT: Record<string, string> = mapaKropek(CLIENT_STAN);
 
 /** Miękkie, statyczne podpowiedzi "co zwykle dalej" per status — mentor
  * bez LLM (zgodne z istniejącą zasadą "brak AI w logice przypominacza").

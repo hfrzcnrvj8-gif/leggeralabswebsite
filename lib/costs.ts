@@ -10,6 +10,7 @@ export const ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024; // 8 MB — skan/PDF faktur
 
 import { formatMoney, round2, VAT_RATES, vatFraction, type VatRate } from "./invoices";
 import type { RecurringCycle } from "./recurring";
+import { mapaStanow } from "./kolorStanu";
 
 export { formatMoney, round2, VAT_RATES, type VatRate };
 
@@ -27,10 +28,14 @@ export type CostCategory = (typeof COST_CATEGORIES)[number];
 export type CostStatus = "Nieopłacony" | "Opłacony";
 export const COST_STATUSES: CostStatus[] = ["Nieopłacony", "Opłacony"];
 
-export const COST_STATUS_CLASS: Record<string, string> = {
-  Nieopłacony: "bg-[var(--hairline)] text-muted",
-  Opłacony: "bg-emerald-500/20 text-emerald-400 font-semibold",
-};
+/* Wspólna skala (Moduł 59, `lib/kolorStanu.ts`). „Nieopłacony" przechodzi
+ * z szarości na złoto: to nie jest „nic się nie dzieje", tylko rachunek, który
+ * czeka na MÓJ przelew. Świadomie NIE czerwień — nieopłacony koszt to zdrowy,
+ * normalny stan przez większość jego życia. */
+export const COST_STATUS_CLASS: Record<string, string> = mapaStanow({
+  Nieopłacony: "mojRuch",
+  Opłacony: "sukces",
+});
 
 /** Moduł 9 (branżowy standard) — jak koszt został/zostanie zapłacony. Czysta
  * etykieta do raportowania i uzgadniania z wyciągiem bankowym, wzorem

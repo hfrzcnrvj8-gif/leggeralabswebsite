@@ -4,6 +4,7 @@
 
 import { todayLocalISO } from "./dates";
 import { type DocLang } from "./documents";
+import { mapaStanow, mapaKropek, type Stan } from "./kolorStanu";
 
 export type Project = {
   id: string;
@@ -401,23 +402,21 @@ export const PROJECT_ICONS = ["📁", "🌐", "⚙️", "🔍", "🚀", "📊", 
 export const DEFAULT_PROJECT_COLOR = "#4ea7fc";
 export const DEFAULT_PROJECT_ICON = "📁";
 
-export const PROJECT_STATUS_CLASS: Record<string, string> = {
-  Pomysł: "bg-[var(--hairline)] text-muted",
-  Planowanie: "bg-brand-gold/15 text-brand-gold",
-  "W trakcie": "bg-brand-cyan/15 text-brand-cyan",
-  "Testy / review": "bg-orange-500/15 text-orange-400",
-  Wdrożone: "bg-emerald-500/20 text-emerald-400 font-semibold",
-  Wstrzymane: "bg-[var(--hairline)] text-muted opacity-70",
+/* Status projektu na wspólnej skali (Moduł 59, `lib/kolorStanu.ts`).
+ * Zmieniło się jedno: „Testy / review" traci POMARAŃCZ. Pomarańcz jest od
+ * tego modułu stopniem rampy pilności („termin minął"), a nie stanem —
+ * a testy u klienta to zwyczajne czekanie na drugą stronę, czyli fiolet. */
+const PROJECT_STAN: Record<string, Stan> = {
+  Pomysł: "nieruszone",
+  Planowanie: "mojRuch",
+  "W trakcie": "wRobocie",
+  "Testy / review": "uNich",
+  Wdrożone: "sukces",
+  Wstrzymane: "zamkniete",
 };
 
-export const PROJECT_STATUS_DOT: Record<string, string> = {
-  Pomysł: "bg-[var(--fg-muted)]",
-  Planowanie: "bg-brand-gold",
-  "W trakcie": "bg-brand-cyan",
-  "Testy / review": "bg-orange-500",
-  Wdrożone: "bg-emerald-600",
-  Wstrzymane: "bg-[var(--hairline)]",
-};
+export const PROJECT_STATUS_CLASS: Record<string, string> = mapaStanow(PROJECT_STAN);
+export const PROJECT_STATUS_DOT: Record<string, string> = mapaKropek(PROJECT_STAN);
 
 export const CLOSED_PROJECT_STATUSES = new Set(["Wdrożone"]);
 
@@ -456,10 +455,15 @@ export function relativeDeadline(s: string | null | undefined): string {
 // (styl Linear: projekt może być "W trakcie" i jednocześnie "Zagrożony").
 export const PROJECT_HEALTHS = ["Na dobrej drodze", "Zagrożony", "Zerwany"] as const;
 
+/* Zdrowie NIE jest statusem — to druga, prostopadła oś (patrz komentarz wyżej),
+ * więc świadomie NIE idzie ze skali `Stan`. Idzie natomiast po tej samej rampie
+ * ciepła co pilność (Moduł 59): zieleń → pomarańcz → czerwień, w barwach marki
+ * zamiast generycznych `orange-500`/`red-500`. To jest dokładnie ta sytuacja,
+ * dla której rampa powstała — „coraz gorzej", a nie „inna kategoria". */
 export const PROJECT_HEALTH_CLASS: Record<string, string> = {
   "Na dobrej drodze": "bg-emerald-500/15 text-emerald-400",
-  Zagrożony: "bg-orange-500/15 text-orange-400",
-  Zerwany: "bg-red-500/15 text-red-400",
+  Zagrożony: "bg-brand-orange/15 text-brand-orange",
+  Zerwany: "bg-brand-red/20 text-brand-red-soft",
 };
 
 /** Postęp checklisty/kamienia milowego jako "X% z Y" — bezpieczny na 0/0. */

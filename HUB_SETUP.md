@@ -9388,3 +9388,105 @@ pigułka daje segmenty o RÓWNEJ szerokości (`maxWidth: .infinity`), z
 przesuwanym zaznaczeniem (`matchedGeometryEffect` + krzywa z `Ruch`).
 Napisy w jednej linii z `minimumScaleFactor`, bo przy pięciu zakładkach na
 wąskim iPhonie „Wizytówka" inaczej zawija i rozpycha pasek.
+
+## Moduł 59 — słownik koloru: jedna skala dla panelu i apki (2026-07-28)
+
+Zgłoszenie właściciela: *„jest za dużo rozjazdów, trzeba to ujednolicić dla tego,
+co jest, i dla tego, co dopiero będzie — jakimiś odpowiednimi regułami"*.
+
+**Diagnoza z pomiaru, nie z oglądania.** Te same cztery barwy marki wykonywały
+w produkcie cztery różne prace naraz: stan rekordu (20 wpisów w mapach `lib/`),
+rodzaj rzeczy (dwie SPRZECZNE mapy — projekt był złoty w `SciezkaDokumentow.tsx`
+i fioletowy w `CalendarView.tsx`), „wymaga uwagi" (50 × `text-brand-gold`) oraz
+zwykła ozdoba (`IconBook` na fiolecie w Instrukcjach). Łącznie 95 miejsc
+w panelu i 144 w apce. Nikt tego nie rozstrzygnął, bo każdy moduł rozstrzygał
+sam — i każdy miał w komentarzu dobre uzasadnienie swojej wersji.
+
+### Reguły (obowiązują też to, co dopiero powstanie)
+
+1. **Na jednym ekranie kolor niesie tylko jedno z dwojga.** W module wszystkie
+   rekordy są tego samego rodzaju, więc kolor niesie STAN. Tam, gdzie rodzaje
+   się mieszają (Kalendarz, Szukaj, Rejestr, ścieżka dokumentów), kolor niesie
+   RODZAJ, a stan stoi słowem.
+   *Pierwsza wersja tej reguły rozdzielała to formą („pigułka = stan, kropka =
+   rodzaj") i nie przeżyła zderzenia z kodem: kanban panelu i `StatusPill` apki
+   od zawsze niosą stan właśnie kropką. Rozstrzyga kontekst ekranu, nie kształt.*
+2. **Stan to jedna skala cyklu życia** — `lib/kolorStanu.ts` (panel) i `Stan`
+   w `Theme.swift` (apka), bliźniaki:
+   szarość = jeszcze nie ruszone · **złoto = czeka na MÓJ ruch** ·
+   **fiolet = u drugiej strony** · **cyjan = praca trwa u nas** ·
+   **zieleń = domknięte sukcesem** · szarość+`opacity-70` = domknięte bez sukcesu.
+   Zdanie do zapamiętania: *złoto = ja, fiolet = oni, cyjan = robimy,
+   zieleń = koniec dobry, szarość = koniec albo nic.*
+3. **Pilność to OSOBNA oś, liczona z DATY, nie ze słownika.** Rampa ciepła
+   złoto → pomarańcz → czerwień (`stopienPilnosci`, `Pilnosc.z(dniPoTerminie:)`),
+   jeden próg `PROG_ZANIEDBANIA_DNI = 14` dla całego produktu. Dlatego nowy moduł
+   nie pominie jej przez zapomnienie wpisu w mapie.
+4. **Gradient marki niesie wyłącznie tożsamość, nigdy znaczenie** — najwyżej
+   jedno miejsce na ekran (znak LL, `h1`, jedna liczba-bohater, podkreślenie
+   aktywnej zakładki). **Ikona, która nie mówi ani o stanie, ani o rodzaju, jest
+   neutralna** (`text-muted`) — nie dostaje ani gradientu, ani litego koloru
+   marki. Czerwień nie należy do skali stanu: ma dwie role — koniec rampy
+   pilności i awaria/akcja niszcząca.
+
+**Nowy moduł deklaruje ZNACZENIE, nie kolor:** `mapaStanow({ Wysłana: "uNich" })`
+zamiast wpisywania klas. Gdy skala się zmieni, zmienia się jeden plik — a nie
+osiem map, z których siódma zostanie zapomniana.
+
+### Dlaczego pomarańcz jest stopniem, a nie kategorią „ostrzeżenie"
+
+Zmierzone ΔE (CIE76) między brandowym złotem `#E0A93B` a pomarańczem:
+**23,6 dla `orange-400`** (którego panel używał dotąd w „Testach / review")
+i **38,7 dla `#F97316`** — dla porównania fiolet↔zieleń to 101. Przy takim
+dystansie dwa kolory rozróżnisz OBOK SIEBIE w ustalonej kolejności, ale nie
+rozpoznasz Z PAMIĘCI na dwóch różnych ekranach. Dlatego pomarańcz działa jako
+stopień rampy (kolejność sama niesie znaczenie) i nie działa jako samodzielne
+„uwaga" obok złotego „zrób coś". Do palety weszło `brand.orange = #F97316`,
+bo ma większy dystans od złota i jest już w apce jako `markaPomarancz`.
+
+### Dlaczego czerwień NIE znaczy „nieopłacone"
+
+Pod taką regułą świeciłyby na czerwono **2 z 5 statusów faktury** (Wystawiona,
+Po terminie) i **1 z 2 statusów kosztu** — a faktura spędza w stanie
+„wystawiona i nieopłacona" większość życia. Lista byłaby czerwona przy
+całkowicie zdrowej firmie, a kolor, który świeci zawsze, przestaje cokolwiek
+znaczyć. Czerwień zapala się dopiero, gdy termin minął o więcej niż 14 dni.
+
+### Co się realnie zmieniło (zmierzone `getComputedStyle`)
+
+Oferty, Umowy, Klienci i Poczta: **zero zmian** — skala została z nich
+wyciągnięta, bo przeszły wcześniej audyt koloru. Zmieniły się moduły, które
+audytu nie miały:
+
+- **Leady** — „Nowe zgłoszenie ze strony" przestało być CZERWONE (nowy lead to
+  zadanie, nie awaria; zmierzone `rgb(248,113,113)` → `rgb(224,169,59)`).
+  „Napisano – czeka" i „Przypomnienie wysłane" (złoto/pomarańcz) → fiolet, bo
+  oba znaczą „piłka po ich stronie". „Pilotaż w trakcie" przestał być ZIELONY,
+  czyli kolorem sprawy zamkniętej sukcesem → cyjan.
+- **Faktury** — „Szkic" z bursztynu na szarość (jak szkic oferty i umowy),
+  „Wystawiona" z cyjanu na fiolet (nie wymaga od nas niczego, czekamy na ich
+  przelew), „Po terminie" z czerwieni na złoto + rampa liczona z daty.
+- **Projekty** — „Testy / review" traci pomarańcz na rzecz fioletu (czekanie na
+  klienta); „Planowanie" w apce z szarości na złoto. Zdrowie projektu (osobna
+  oś) przechodzi z `orange-500`/`red-500` na `brand-orange`/`brand-red`.
+- **Koszty** — „Nieopłacony" z szarości na złoto: to nie „nic się nie dzieje",
+  tylko rachunek czekający na MÓJ przelew.
+- **Instrukcje** — `IconBook` z fioletu na neutralny (Reguła 4).
+
+### Pułapka, o której trzeba pamiętać
+
+`tailwind.config.ts` musi skanować `lib/` — cała skala mieszka tam i bez tego
+klasy nie powstają, a jedynym objawem jest pigułka bez tła (lekcja z audytu
+Klientów, 2026-07-26). Sprawdzaj `getComputedStyle`, nie zrzutem.
+
+### Otwarte — do rozstrzygnięcia przy najbliższej okazji
+
+**Kolor rodzaju ma wciąż dwie mapy.** `SciezkaDokumentow.tsx` (oferta=cyjan,
+umowa=fiolet, projekt=złoto, faktura=zieleń) i `CalendarView.tsx` (rodziny:
+cyjan=ludzie, złoto=pieniądze, fiolet=praca). Obie są wewnętrznie spójne i obie
+mają prawo do koloru rodzaju wg Reguły 1, bo obie mieszają rodzaje — ale mówią
+o projekcie dwa różne kolory. Kalendarz opisuje RODZAJE TERMINU, ścieżka RODZAJE
+DOKUMENTU, więc to nie jest zwykła literówka do scalenia: ścieżka pokazuje
+łańcuch, w którym najbardziej liczy się odróżnienie sąsiednich ogniw, a rodziny
+kalendarza dałyby jej trzy odcienie złota z rzędu. Wymaga decyzji właściciela,
+nie zgadywania.

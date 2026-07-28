@@ -1,0 +1,179 @@
+/**
+ * JEDNO ŹRÓDŁO KOLORU STANU — panel (Moduł 59, 2026-07-28).
+ *
+ * Skąd to się wzięło: pomiar całego słownika koloru pokazał, że te same cztery
+ * barwy marki wykonują w produkcie CZTERY różne prace naraz (stan rekordu,
+ * rodzaj rzeczy, „wymaga uwagi", ozdoba), a nikt tego nigdy nie rozstrzygnął —
+ * bo każdy moduł rozstrzygał sam. Skutek: „Wysłana" była fioletem w Ofertach
+ * i cyjanem w Fakturach, „Pilotaż w trakcie" zielenią (czyli kolorem sprawy
+ * ZAMKNIĘTEJ), a nowy lead czerwienią, jakby był awarią.
+ *
+ * Reguła, którą to zastępuje — cztery zdania:
+ *
+ *   1. Na jednym ekranie kolor niesie TYLKO JEDNO z dwojga. W module (Leady,
+ *      Faktury…) wszystkie rekordy są tego samego rodzaju, więc kolor niesie
+ *      STAN — czy to pigułka, czy kropka przy nazwie, byle stała przy słowie
+ *      statusu. Tam, gdzie rodzaje się MIESZAJĄ (Kalendarz, Szukaj, Rejestr),
+ *      kolor niesie RODZAJ, a stan jest podany słowem.
+ *      [Pierwsza wersja tej reguły rozdzielała to formą — „pigułka = stan,
+ *      kropka = rodzaj". Nie przeżyła zderzenia z kodem: kanban panelu i
+ *      `StatusPill` apki od zawsze niosą stan właśnie kropką. Rozstrzyga
+ *      kontekst ekranu, nie kształt.]
+ *   2. Stan to jedna skala cyklu życia (niżej): złoto = ja, fiolet = oni,
+ *      cyjan = robimy, zieleń = koniec dobry, szarość = koniec albo nic.
+ *   3. Pilność jest OSOBNĄ osią i liczy się z DATY, nie ze słownika
+ *      (patrz `stopienPilnosci`) — dlatego nie da się jej zapomnieć w nowym
+ *      module.
+ *   4. Gradient marki niesie WYŁĄCZNIE tożsamość i nigdy znaczenia; ikona,
+ *      która nie mówi ani o stanie, ani o rodzaju, jest neutralna. Czerwień
+ *      nie należy do skali stanu — ma dwie role: obietnica zerwana (koniec
+ *      rampy pilności) i awaria/akcja niszcząca.
+ *
+ * Odpowiednik po stronie apki: `Stan` w `LeggeraHub/Views/Theme.swift`.
+ * Trzymaj obie strony zsynchronizowane — to jest ten sam słownik.
+ */
+
+/** Gdzie rekord stoi w swoim cyklu życia. Sześć wartości dla CAŁEGO produktu. */
+export type Stan =
+  /** Jeszcze nie ruszone — szkic, pomysł, świeżo dodane. „Nic się nie dzieje." */
+  | "nieruszone"
+  /** Czeka na MÓJ ruch. „Ja." */
+  | "mojRuch"
+  /** U drugiej strony, w obiegu. „Oni." */
+  | "uNich"
+  /** Praca trwa po naszej stronie. „Robimy." */
+  | "wRobocie"
+  /** Domknięte sukcesem. „Koniec dobry." */
+  | "sukces"
+  /** Domknięte bez sukcesu albo nieaktualne. Przygasa, wzrok ma iść dalej. */
+  | "zamkniete";
+
+/**
+ * Klasy pigułki dla każdego stanu. To jedyne miejsce w panelu, w którym te
+ * konkretne klasy są wypisane — moduły odwołują się do stanu, nie do koloru.
+ *
+ * `tailwind.config.ts` skanuje `lib/`, więc klasy stąd realnie się generują
+ * (do 2026-07-26 nie skanował i mapy „status → klasy" działały przez przypadek
+ * — pigułka bez tła była jedynym objawem).
+ */
+export const STAN_CLASS: Record<Stan, string> = {
+  nieruszone: "bg-[var(--hairline)] text-muted",
+  mojRuch: "bg-brand-gold/15 text-brand-gold",
+  uNich: "bg-brand-purple/20 text-[#c4a5ff] font-semibold",
+  wRobocie: "bg-brand-cyan/15 text-brand-cyan",
+  sukces: "bg-emerald-500/20 text-emerald-400 font-semibold",
+  zamkniete: "bg-[var(--hairline)] text-muted opacity-70",
+};
+
+/** Kropka statusu — kanban i wszędzie, gdzie kolor stoi PRZY słowie statusu,
+ *  a nie zamiast niego. Ta sama skala co `STAN_CLASS`, tylko lity kolor. */
+export const STAN_DOT: Record<Stan, string> = {
+  nieruszone: "bg-[var(--fg-muted)]",
+  mojRuch: "bg-brand-gold",
+  uNich: "bg-brand-purple",
+  wRobocie: "bg-brand-cyan",
+  sukces: "bg-emerald-500",
+  zamkniete: "bg-[var(--hairline)]",
+};
+
+/** Krótkie tłumaczenie stanu — do podpowiedzi i legend, żeby skala dała się
+ *  przeczytać bez zaglądania do kodu. */
+export const STAN_OPIS: Record<Stan, string> = {
+  nieruszone: "Jeszcze nie ruszone",
+  mojRuch: "Czeka na Twój ruch",
+  uNich: "U drugiej strony",
+  wRobocie: "Praca trwa",
+  sukces: "Domknięte sukcesem",
+  zamkniete: "Domknięte",
+};
+
+/**
+ * Buduje mapę „status → klasy" ze słownika „status → stan".
+ *
+ * Po co pośrednik: moduł deklaruje ZNACZENIE („Wysłana to «u nich»"), a nie
+ * kolor. Gdy skala się zmieni, zmienia się jeden plik — a nie osiem map, z
+ * których siódma zostanie zapomniana. Dokładnie tak powstał rozjazd, który ten
+ * moduł sprząta.
+ */
+export function mapaStanow<K extends string>(slownik: Record<K, Stan>): Record<string, string> {
+  const wynik: Record<string, string> = {};
+  for (const [status, stan] of Object.entries(slownik) as [K, Stan][]) {
+    wynik[status] = STAN_CLASS[stan];
+  }
+  return wynik;
+}
+
+/** To samo dla kropek kanbanu — patrz `STAN_DOT`. */
+export function mapaKropek<K extends string>(slownik: Record<K, Stan>): Record<string, string> {
+  const wynik: Record<string, string> = {};
+  for (const [status, stan] of Object.entries(slownik) as [K, Stan][]) {
+    wynik[status] = STAN_DOT[stan];
+  }
+  return wynik;
+}
+
+/* ------------------------------------------------------ rampa pilności ---- */
+
+/**
+ * PRÓG ZANIEDBANIA — jedna liczba dla całego produktu (decyzja właściciela,
+ * 2026-07-28). Wcześniej każdy moduł miał własny: Faktury czerwieniły przy 21
+ * dniach, Leady miały własne `isOverdue`, Pulpit malował złotem wszystko po
+ * terminie. Trzy progi na to samo zjawisko to trzy rzeczy do zapamiętania.
+ */
+export const PROG_ZANIEDBANIA_DNI = 14;
+
+/** Jak dawno minął termin. Prostopadła do `Stan`: mówi „jak pilne", nie „gdzie
+ *  w procesie". */
+export type Pilnosc =
+  /** Termin jeszcze przed nami (albo terminu nie ma). */
+  | "wTerminie"
+  /** Termin minął, ale niedawno. */
+  | "poTerminie"
+  /** Minął dawno — obietnica zerwana. */
+  | "zaniedbane";
+
+/**
+ * Rampa ciepła: złoto → pomarańcz → czerwień.
+ *
+ * Dlaczego pomarańcz jest tu STOPNIEM, a nie osobną kategorią „ostrzeżenie":
+ * zmierzone ΔE między brandowym złotem a pomarańczem to 23,6 (dla porównania
+ * fiolet↔zieleń: 101). To wystarczy, żeby rozróżnić je OBOK SIEBIE w ustalonej
+ * kolejności, i za mało, żeby rozpoznać je Z PAMIĘCI na dwóch różnych ekranach.
+ * Kolejność niesie znaczenie — więc niczego nie trzeba pamiętać.
+ *
+ * Dlaczego czerwień NIE znaczy „nieopłacone": nieopłacona faktura to zdrowy,
+ * normalny stan przez większość jej życia — 2 z 5 statusów faktury i 1 z 2
+ * statusów kosztu świeciłyby na czerwono przy poprawnie działającej firmie.
+ * Kolor, który świeci zawsze, przestaje cokolwiek znaczyć.
+ *
+ * @param dniPoTerminie dodatnie = tyle dni po terminie; `null`/ujemne = w terminie
+ */
+export function stopienPilnosci(dniPoTerminie: number | null | undefined): Pilnosc {
+  if (dniPoTerminie == null || dniPoTerminie <= 0) return "wTerminie";
+  return dniPoTerminie > PROG_ZANIEDBANIA_DNI ? "zaniedbane" : "poTerminie";
+}
+
+/** Kolor SAMEGO TEKSTU dla stopnia pilności (liczba dni, data po terminie). */
+export const PILNOSC_TEXT: Record<Pilnosc, string> = {
+  wTerminie: "text-brand-gold",
+  poTerminie: "text-brand-orange",
+  zaniedbane: "text-brand-red-soft",
+};
+
+/** Delikatne podbarwienie WIERSZA/karty — ma wołać kątem oka, nie krzyczeć. */
+export const PILNOSC_ROW: Record<Pilnosc, string> = {
+  wTerminie: "",
+  poTerminie: "bg-brand-orange/[0.06]",
+  zaniedbane: "bg-brand-red/[0.08]",
+};
+
+/** Zdanie tłumaczące, co ten kolor znaczy — pilność bez powodu jest ozdobą. */
+export function opisPilnosci(dniPoTerminie: number | null | undefined): string | null {
+  const stopien = stopienPilnosci(dniPoTerminie);
+  if (stopien === "wTerminie") return null;
+  const dni = dniPoTerminie ?? 0;
+  const forma = dni === 1 ? "dzień" : "dni";
+  return stopien === "zaniedbane"
+    ? `Po terminie o ${dni} ${forma} — to już zerwana obietnica, zajmij się tym dziś.`
+    : `Po terminie o ${dni} ${forma}.`;
+}

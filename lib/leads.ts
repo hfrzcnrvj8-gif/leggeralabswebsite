@@ -5,6 +5,7 @@
 // ją zaimportować bez ciągnięcia za sobą granicy klienckiej.
 
 import { todayLocalISO, daysBetweenISO } from "./dates";
+import { mapaStanow, mapaKropek, type Stan } from "./kolorStanu";
 
 export type Lead = {
   id: string;
@@ -104,30 +105,29 @@ export function isLeadStatus(v: unknown): v is (typeof STATUSES)[number] {
   return typeof v === "string" && (STATUSES as readonly string[]).includes(v);
 }
 
-// Odznaki statusu — półprzezroczyste na kolorze marki, czytelne w obu
-// motywach (jasnym i ciemnym) dzięki alpha-blend zamiast litych barw.
-export const STATUS_CLASS: Record<string, string> = {
-  "Nowe zgłoszenie ze strony": "bg-red-500/15 text-red-400 dark:text-red-300",
-  "Do kontaktu": "bg-[var(--hairline)] text-muted",
-  "Napisano - czeka na odpowiedź": "bg-brand-gold/15 text-brand-gold",
-  "Przypomnienie wysłane": "bg-orange-500/15 text-orange-400",
-  "Rozmowa umówiona": "bg-brand-cyan/15 text-brand-cyan",
-  "Pilotaż w trakcie": "bg-emerald-500/15 text-emerald-400",
-  "Zamknięte - sukces": "bg-emerald-500/20 text-emerald-400 font-semibold",
-  "Odrzucone / brak zainteresowania": "bg-[var(--hairline)] text-muted opacity-70",
+/* Status leada na WSPÓLNEJ skali cyklu życia (Moduł 59) — patrz
+ * `lib/kolorStanu.ts`. Moduł deklaruje ZNACZENIE, kolory dobiera skala.
+ *
+ * Cztery z ośmiu wartości się przy tym zmieniły i każda z powodu:
+ * — „Nowe zgłoszenie ze strony" było CZERWONE. Nowy lead nie jest awarią,
+ *   tylko zadaniem na dziś. Czerwień wraca do roli błędu i zniszczenia.
+ * — „Napisano – czeka" i „Przypomnienie wysłane" były złote i pomarańczowe,
+ *   choć oba znaczą to samo: piłka jest po ICH stronie. Fiolet.
+ * — „Pilotaż w trakcie" był ZIELONY, czyli kolorem sprawy zamkniętej
+ *   sukcesem — a pilotaż to praca, która dopiero trwa i może się nie udać. */
+const LEAD_STAN: Record<(typeof STATUSES)[number], Stan> = {
+  "Nowe zgłoszenie ze strony": "mojRuch",
+  "Do kontaktu": "mojRuch",
+  "Napisano - czeka na odpowiedź": "uNich",
+  "Przypomnienie wysłane": "uNich",
+  "Rozmowa umówiona": "uNich",
+  "Pilotaż w trakcie": "wRobocie",
+  "Zamknięte - sukces": "sukces",
+  "Odrzucone / brak zainteresowania": "zamkniete",
 };
 
-// Kropka statusu w widoku kanban — pełny kolor marki/semantyczny.
-export const STATUS_DOT: Record<string, string> = {
-  "Nowe zgłoszenie ze strony": "bg-red-500",
-  "Do kontaktu": "bg-[var(--fg-muted)]",
-  "Napisano - czeka na odpowiedź": "bg-brand-gold",
-  "Przypomnienie wysłane": "bg-orange-500",
-  "Rozmowa umówiona": "bg-brand-cyan",
-  "Pilotaż w trakcie": "bg-emerald-500",
-  "Zamknięte - sukces": "bg-emerald-600",
-  "Odrzucone / brak zainteresowania": "bg-[var(--hairline)]",
-};
+export const STATUS_CLASS: Record<string, string> = mapaStanow(LEAD_STAN);
+export const STATUS_DOT: Record<string, string> = mapaKropek(LEAD_STAN);
 
 /** Stała lista kategorii źródła leada — zastępuje dawne jedno pole
  * "Źródło", które mieszało kategorię z dopiskiem (np. "Przysucha - ciepły?").
