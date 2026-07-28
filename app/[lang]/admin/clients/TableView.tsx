@@ -103,8 +103,13 @@ export function TableView({
           return (
             <div
               key={client.id}
+              // CAŁA karta otwiera profil (Moduł 59) — ten sam wzorzec, co
+              // `<tr>` w tabeli niżej. Szybkie akcje i pigułka statusu
+              // zatrzymują zdarzenie u siebie, żeby „Zadzwoń" nie otwierało
+              // przy okazji profilu.
+              onClick={() => onOpen(client.id)}
               onContextMenu={(e) => ctl.openAt(e, client)}
-              className={`border-b hairline px-4 py-4 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
+              className={`cursor-pointer border-b hairline px-4 py-4 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
             >
               {/* Nazwa na całą szerokość — patrz leads/TableView.tsx (Paczka 6). */}
               <button onClick={() => onOpen(client.id)} className="block w-full text-left">
@@ -115,7 +120,9 @@ export function TableView({
               </button>
 
               <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px]">
-                <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
+                <span onClick={(e) => e.stopPropagation()}>
+                  <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
+                </span>
                 <span className={overdueRow ? "font-semibold text-orange-400" : "text-muted"}>
                   {client.ostatni_kontakt
                     ? `${formatPlDate(client.ostatni_kontakt)}${daysAgoLabel(d) ? ` · ${daysAgoLabel(d)}` : ""}`
@@ -124,7 +131,7 @@ export function TableView({
               </div>
 
               {(client.telefon || client.email || wa) && (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
                   {client.telefon && (
                     <a href={`tel:${client.telefon}`} className={quickCls} aria-label={`Zadzwoń do ${client.nazwa}`}>
                       <ContactChannelIcon kind="telefon" size={15} /> Zadzwoń
@@ -224,12 +231,16 @@ export function TableView({
               return (
                 <tr
                   key={client.id}
+                  // CAŁY wiersz otwiera profil (Moduł 59) — patrz bliźniaczy
+                  // komentarz w leads/TableView.tsx. Zmieniając jedno, zmień
+                  // drugie: te dwa pliki są kopią wzorca.
+                  onClick={() => onOpen(client.id)}
                   onContextMenu={(e) => ctl.openAt(e, client)}
-                  className={`border-b hairline align-top transition-colors ${
+                  className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-[var(--hairline)]/40 ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
                   } ${selected ? "bg-[#4ea7fc]/[0.08]" : ""} ${checked ? "bg-[#4ea7fc]/[0.08]" : ""}`}
                 >
-                  <td className="p-2">
+                  <td className="p-2" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={checked}
@@ -300,7 +311,9 @@ export function TableView({
                       </span>
                     )}
                   </td>
-                  <td className="p-2">
+                  {/* Pigułka statusu rozwija własną listę — bez stopPropagation
+                      kliknięcie w nią otwierałoby też profil. */}
+                  <td className="p-2" onClick={(e) => e.stopPropagation()}>
                     <StatusTag status={client.status} onChange={(v) => onUpdate(client.id, "status", v)} />
                   </td>
                   <td className="hidden p-2 xl:table-cell">
@@ -321,7 +334,9 @@ export function TableView({
                   <td className="hidden p-2 xl:table-cell">
                     <Truncate value={client.notatki} />
                   </td>
-                  <td className="p-2">
+                  {/* Odnośnik (Cmd+klik = nowa karta) i usuwanie mają własne
+                      zachowanie — zdarzenie zostaje w tej komórce. */}
+                  <td className="p-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/${lang}/admin/clients/${client.id}`}
