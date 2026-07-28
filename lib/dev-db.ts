@@ -1018,6 +1018,121 @@ async function ensureSeeded(): Promise<void> {
            (CURRENT_DATE,'pkd_poza_lista',18),(CURRENT_DATE,'brak_kontaktu',9),(CURRENT_DATE,'za_mloda',4)`,
         []
       );
+
+      // ——— PRÓBKI SŁOWNIKA KOLORU (Moduł 59, 2026-07-28) ———
+      //
+      // Po co osobny blok, skoro seed wyżej ma już leady, faktury i oferty:
+      // tamte pokrywają ŚCIEŻKI (da się kliknąć przez cały przepływ), ale nie
+      // pokrywają STANÓW — a właśnie stany maluje nowa skala koloru. Właściciel
+      // nie mógł ocenić zmiany, bo w bazie nie było ani jednego leada
+      // „Pilotaż w trakcie" czy faktury zaległej o trzy tygodnie.
+      //
+      // Ten blok istnieje po to, żeby JEDEN rzut oka na listę pokazywał całą
+      // skalę naraz: wszystkie osiem statusów leada, wszystkie stany dokumentów
+      // i trzy stopnie rampy pilności (w terminie / po terminie / zaniedbane).
+      // Nazwy świadomie zaczynają się od „[próbka]", żeby było jasne, że to nie
+      // są dane do klikania w przepływie — i żeby dało się je odfiltrować.
+
+      // Wszystkie osiem statusów leada — po jednym.
+      const statusyLeada = [
+        "Nowe zgłoszenie ze strony",
+        "Do kontaktu",
+        "Napisano - czeka na odpowiedź",
+        "Przypomnienie wysłane",
+        "Rozmowa umówiona",
+        "Pilotaż w trakcie",
+        "Zamknięte - sukces",
+        "Odrzucone / brak zainteresowania",
+      ];
+      for (let i = 0; i < statusyLeada.length; i++) {
+        await raw(
+          `INSERT INTO leads (id, firma, osoba_kontaktowa, branza, telefon, email, miasto, zrodlo_kategoria, status, ostatni_kontakt, ostatni_kanal, notatki)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [
+            randomUUID(),
+            `[próbka] Lead ${i + 1} — ${statusyLeada[i]}`,
+            "Jan Przykładowy", "Usługi", `60010${String(i).padStart(4, "0")}`,
+            `probka${i}@przyklad.pl`, "Warszawa", "Inne", statusyLeada[i],
+            iso(-(i * 4 + 1)), i % 2 === 0 ? "telefon" : "email",
+            "Wiersz pokazowy słownika koloru (Moduł 59) — nie jest prawdziwym leadem.",
+          ]
+        );
+      }
+
+      // Faktury na trzech stopniach rampy pilności. Termin liczony wstecz od
+      // dziś: 5 dni DO terminu (neutralnie), 3 dni PO (pomarańcz), 25 dni PO
+      // (czerwień — powyżej progu PROG_ZANIEDBANIA_DNI = 14).
+      const rampa: [string, number, string][] = [
+        ["FV 90/2026", +5, "Wystawiona"],
+        ["FV 91/2026", -3, "Po terminie"],
+        ["FV 92/2026", -25, "Po terminie"],
+      ];
+      for (const [numer, offset, status] of rampa) {
+        const fvId = randomUUID();
+        await raw(
+          `INSERT INTO invoices (id, numer, klient_nazwa, klient_email, data_wystawienia, termin_platnosci, status, waluta)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'PLN')`,
+          [fvId, numer, "[próbka] Klient pokazowy", "probka@przyklad.pl", iso(offset - 14), iso(offset), status]
+        );
+        await raw(
+          `INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
+           VALUES ($1,$2,'Wiersz pokazowy',1,'szt.',1000,'23',0)`,
+          [randomUUID(), fvId]
+        );
+      }
+
+      // Oferty: wszystkie pięć stanów.
+      for (const [i, st] of ["Szkic", "Wysłana", "Zaakceptowana", "Odrzucona", "Wygasła"].entries()) {
+        await raw(
+          `INSERT INTO offers (id, tytul, klient_nazwa, klient_email, wazna_do, status)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [randomUUID(), `[próbka] Oferta — ${st}`, "[próbka] Klient pokazowy", "probka@przyklad.pl", iso(14 - i * 10), st]
+        );
+      }
+
+      // Umowy: wszystkie cztery stany.
+      for (const st of ["Szkic", "Wysłana", "Podpisana", "Odrzucona"]) {
+        await raw(
+          `INSERT INTO contracts (id, typ, status, klient_nazwa, klient_email, zakres_prac, cena)
+           VALUES ($1,'umowa',$2,$3,$4,'Zakres pokazowy',5000)`,
+          [randomUUID(), st, `[próbka] Klient — umowa ${st}`, "probka@przyklad.pl"]
+        );
+      }
+
+      // Projekty: wszystkie sześć statusów × trzy stany zdrowia na przemian,
+      // żeby było widać, że to DWIE niezależne osie (status ≠ zdrowie).
+      const statusyProjektu = ["Pomysł", "Planowanie", "W trakcie", "Testy / review", "Wdrożone", "Wstrzymane"];
+      const zdrowia = ["Na dobrej drodze", "Zagrożony", "Zerwany"];
+      for (let i = 0; i < statusyProjektu.length; i++) {
+        await raw(
+          `INSERT INTO projects (id, tytul, opis, status, priorytet, zdrowie, start, termin)
+           VALUES ($1,$2,$3,$4,'Średni',$5,$6,$7)`,
+          [
+            randomUUID(), `[próbka] Projekt — ${statusyProjektu[i]}`,
+            "Wiersz pokazowy słownika koloru.", statusyProjektu[i],
+            zdrowia[i % 3], iso(-20 + i * 3), iso(10 + i * 5),
+          ]
+        );
+      }
+
+      // Koszty: opłacony i nieopłacony (szarość vs złoto po zmianie).
+      for (const [st, dni] of [["Nieopłacony", -2], ["Opłacony", -30]] as [string, number][]) {
+        await raw(
+          `INSERT INTO costs (id, dostawca_nazwa, kategoria, numer_faktury, data_wydatku, kwota_netto, vat_stawka, kwota_brutto, status)
+           VALUES ($1,$2,'Oprogramowanie',$3,$4,200,'23',246,$5)`,
+          [randomUUID(), `[próbka] Dostawca — ${st}`, `PR/${dni}`, iso(dni), st]
+        );
+      }
+
+      // Wydarzenia w kalendarzu na trzech stopniach rampy — żeby było widać,
+      // że kolor niesie teraz PILNOŚĆ, a rodzaj niesie ikona.
+      await raw(
+        `INSERT INTO events (id, tytul, opis, data, godzina, czas_trwania_min) VALUES
+           ($1,'[próbka] Spotkanie w terminie','Neutralne — termin przed nami',$2,'10:00',60),
+           ($3,'[próbka] Termin minął wczoraj','Pomarańcz — po terminie',$4,'11:00',60),
+           ($5,'[próbka] Termin minął dawno','Czerwień — powyżej progu 14 dni',$6,'12:00',60)`,
+        [randomUUID(), iso(3), randomUUID(), iso(-1), randomUUID(), iso(-25)]
+      );
     })();
   }
   await seedPromise;
