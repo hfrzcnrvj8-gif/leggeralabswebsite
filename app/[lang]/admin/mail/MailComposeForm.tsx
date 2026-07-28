@@ -30,6 +30,7 @@ import {
   type SignatureLang,
 } from "./shared";
 import { RecipientField, useMailContacts } from "./RecipientPicker";
+import { PoleProfiluIcon } from "../icons";
 import { TemplatePickerButton, useMailTemplates, type MailTemplate } from "./TemplatePickerButton";
 import { useUndoSend } from "./useUndoSend";
 import { useUI } from "../ui";
@@ -222,7 +223,7 @@ export function MailComposeForm({
       <div className="flex flex-1 flex-col overflow-y-auto px-6 py-1 sm:px-8">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <RecipientField label="Do:" value={to} onChange={setTo} contacts={contacts} placeholder="adres@domena.pl" />
+            <RecipientField label="Do" value={to} onChange={setTo} contacts={contacts} placeholder="adres@domena.pl" />
           </div>
           {!showCcBcc && (
             <button type="button" onClick={() => setShowCcBcc(true)} className="ml-2 shrink-0 text-[11px] text-muted hover:text-[var(--fg)]">
@@ -230,11 +231,16 @@ export function MailComposeForm({
             </button>
           )}
         </div>
-        {showCcBcc && <RecipientField label="DW:" value={cc} onChange={setCc} contacts={contacts} placeholder="opcjonalnie" />}
-        {showCcBcc && <RecipientField label="UDW:" value={bcc} onChange={setBcc} contacts={contacts} placeholder="opcjonalnie" />}
+        {showCcBcc && <RecipientField label="DW" value={cc} onChange={setCc} contacts={contacts} placeholder="opcjonalnie" />}
+        {showCcBcc && <RecipientField label="UDW" value={bcc} onChange={setBcc} contacts={contacts} placeholder="opcjonalnie" />}
         {mode !== "forward" && (
-          <div className="flex items-center gap-1.5 border-b hairline py-2">
-            <span className="w-11 shrink-0 text-[12px] text-muted">Temat:</span>
+          <div className="flex items-center gap-2 border-b hairline px-3 py-2">
+            {/* Ta sama geometria, co w polach odbiorcy i w wierszach profilu —
+                patrz komentarz w `RecipientPicker.tsx`. */}
+            <span className="flex w-[118px] shrink-0 items-center gap-1.5 text-[11.5px] leading-tight text-muted">
+              <PoleProfiluIcon etykieta="Temat" size={13} className="shrink-0 opacity-70" />
+              <span className="min-w-0 truncate">Temat</span>
+            </span>
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}

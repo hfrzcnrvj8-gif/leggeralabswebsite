@@ -469,9 +469,25 @@ krytyczność”) skrócone, pełne znaczenie zeszło do `title`. Rytm wierszy p
 zmianie: **38–43 px** na wszystkich sprawdzonych formularzach (próg: rozrzut
 < 10 px). `tsc` i `npm test` (141) czyste.
 
-### Poza wzorcem — świadomie
+### Kompozytor poczty — wersja pośrednia (domknięte 29.07)
 
-**Kompozytor poczty** (`MailComposeForm`). Ma etykiety po lewej („Do:", „DW:",
-„Temat:"), tylko w wąskiej kolumnie — układ każdego klienta pocztowego. Kolumna
-118 px zabrałaby miejsce adresom i upodobniła okno pisania maila do formularza
-rekordu, którym nie jest.
+Zapytany „ujednolicić czy zostawić", policzyłem najpierw szerokości — i **mój
+własny argument okazał się nieprawdziwy**: okno pisania ma `max-w-4xl` (~830 px
+treści), więc kolumna 118 px to 14 %, a nie „zabranie miejsca adresom".
+Prawdziwy powód jest inny i on się broni: **pole odbiorcy rośnie w pionie**
+(adresy to pigułki, które zawijają się na kolejne linijki), a `WierszPola` ma
+z definicji stałą wysokość.
+
+Stąd wersja pośrednia: pola „Do", „DW", „UDW", „Temat" **nie** idą przez
+`WierszPola`, ale biorą jego geometrię — kolumna 118 px, pismo 11,5 px, ikona
+z `POLE_PROFILU` (`Do`→wysyłka, `DW`→ludzie, `UDW`→kłódka, `Temat`→wiadomość).
+Dwukropki zniknęły: kolumna i ikona niosą teraz to, co niósł dwukropek.
+
+Zmierzone po zmianie: wszystkie cztery etykiety mają **118 px** i **11,5 px**
+pisma, kolumna wartości zaczyna się w tym samym miejscu (363 px), żadna
+etykieta się nie ucina. Okno wygląda jak reszta panelu, a zachowuje zawijanie
+adresów, którego wiersz profilu by nie udźwignął.
+
+**Lekcja: argument „nie ma miejsca" trzeba zmierzyć, zanim się go użyje.**
+Ten sam błąd co przy granicy „profil vs formularz" — uzasadnienie brzmiało
+sensownie i było nieprawdziwe.

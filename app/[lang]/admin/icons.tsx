@@ -441,6 +441,13 @@ const POLE_PROFILU: Record<string, TablerIcon> = {
   Zapłacono: IconCash,
   Załącznik: IconPaperclip,
   Numer: IconHash,
+  /* Okno pisania maila — Moduł 59, paczka F+ (wersja pośrednia). Pola odbiorcy
+     nie idą przez `WierszPola` (rosną w pionie), ale biorą jego geometrię
+     i tę samą mapę ikon, żeby nie były jedynym miejscem z innym wyglądem. */
+  Do: IconSend,
+  DW: IconUsers,
+  UDW: IconLock,
+  Temat: IconMessage,
   Typ: IconFileText,
   Język: IconWorld,
   Zapłata: IconCreditCard,

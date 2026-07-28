@@ -9628,12 +9628,22 @@ Rozwiązania problemów, które ten podział miał usprawiedliwiać:
 - **`autoFocus` i walidacja** → działają bez zmian, to nie ma nic wspólnego
   z układem etykiety.
 
-Jedyne, co ZOSTAJE poza tym wzorcem, i to z powodu, nie z rozpędu:
-**kompozytor poczty** (`MailComposeForm`). On już ma etykiety po lewej
-(„Do:", „DW:", „Temat:") w wąskiej kolumnie — układ każdego klienta pocztowego
-od trzydziestu lat. Rozepchanie tej kolumny do 118 px zabrałoby miejsce
-adresom i upodobniłoby okno pisania maila do formularza rekordu, którym nie
-jest.
+**Kompozytor poczty — wersja pośrednia (2026-07-29).** Pola „Do", „DW", „UDW"
+i „Temat" NIE idą przez `WierszPola`, ale biorą jego **geometrię**: kolumna
+118 px, pismo 11,5 px wyszarzone, ikona z tej samej mapy `POLE_PROFILU`.
+Zmierzone po zmianie: kolumna wartości zaczyna się w tym samym miejscu
+(363 px) we wszystkich czterech wierszach.
+
+Powód, dla którego to nie jest pełny `WierszPola`: **pole odbiorcy rośnie
+w pionie** — adresy są pigułkami, które zawijają się na kolejne linijki, a
+wiersz profilu ma z definicji stałą wysokość i to ona trzyma rytm listy.
+Wciśnięcie tam adresatów złamałoby ten kontrakt w jedynym miejscu, gdzie
+łamanie jest pewne, a nie okazjonalne.
+
+Wcześniejszy argument („kolumna 118 px zabrałaby miejsce adresom") **był
+błędny i został sprawdzony liczbami**: okno ma `max-w-4xl`, czyli ~830 px
+treści, więc etykieta zajmuje 14 %. Miejsca jest aż nadto — problemem była
+wysokość, nie szerokość.
 
 ### Czego wiersz NIE przyjmuje
 

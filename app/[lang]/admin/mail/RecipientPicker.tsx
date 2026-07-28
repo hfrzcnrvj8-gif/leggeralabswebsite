@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import { IconSearch, IconUser, IconTarget } from "@tabler/icons-react";
 import { Popover } from "../Menu";
+import { PoleProfiluIcon } from "../icons";
 import { parseAddressList } from "./shared";
 
 type ContactOption = { id: string; nazwa: string; email: string; type: "client" | "lead" };
@@ -64,8 +65,19 @@ export function RecipientField({
   };
 
   return (
-    <div className="flex items-start gap-1.5 border-b hairline py-2">
-      <span className="mt-1.5 w-11 shrink-0 text-[12px] text-muted">{label}</span>
+    /* Moduł 59, paczka F+ (wersja pośrednia, 2026-07-29) — pole odbiorcy NIE
+     * idzie przez `WierszPola`, bo rośnie w pionie: adresy są pigułkami, które
+     * zawijają się na kolejne linijki, a wiersz profilu ma z definicji stałą
+     * wysokość i to on trzyma rytm listy. Zamiast tego bierze jego GEOMETRIĘ:
+     * ta sama kolumna 118 px, ten sam rozmiar i kolor etykiety, ta sama ikona
+     * przed nazwą. Dzięki temu pionowa krawędź, po której skanuje się w dół,
+     * leci przez cały panel bez wyjątku — a okno pisania maila zachowuje
+     * zachowanie, którego wiersz profilu i tak by nie udźwignął. */
+    <div className="flex items-start gap-2 border-b hairline px-3 py-2">
+      <span className="mt-1.5 flex w-[118px] shrink-0 items-center gap-1.5 text-[11.5px] leading-tight text-muted">
+        <PoleProfiluIcon etykieta={label} size={13} className="shrink-0 opacity-70" />
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {value.map((email) => (
           <span key={email} className="flex items-center gap-1 rounded-full bg-[var(--hairline)] px-2 py-0.5 text-[12px]">
