@@ -550,15 +550,38 @@ export function ContractEditor({
           {edytowalneWarunki && (
             <div className="card-paper rounded-xl border hairline p-4">
               <h2 className="mb-2 text-[13px] font-medium">Przedmiot umowy (zakres prac)</h2>
-              <textarea
-                value={contract.zakres_prac}
-                onChange={(e) => setContract((p) => (p ? { ...p, zakres_prac: e.target.value } : p))}
-                onBlur={(e) => patch({ zakres_prac: e.target.value })}
-                readOnly={signed}
-                rows={5}
-                placeholder="Skopiowane z pozycji zaakceptowanej oferty — dopracuj sformułowania."
-                className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
-              />
+              {/* Pole zablokowane MUSI powiedzieć, dlaczego nie da się w nim
+                  pisać, i dokąd iść dalej (zgłoszenie właściciela 2026-07-27:
+                  „mam nieklikalne pole i nie mogę nic dodać"). Samo
+                  `readOnly` wygląda jak usterka — zwłaszcza gdy pole jest
+                  puste, bo wtedy widać wyłącznie szary placeholder. */}
+              {signed ? (
+                <>
+                  <div className="whitespace-pre-line rounded-lg card-inset px-2.5 py-2 text-sm text-[var(--fg)]">
+                    {contract.zakres_prac || <span className="text-muted">(nie wpisano zakresu)</span>}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11.5px] text-muted">
+                    <span>Dokument jest podpisany — treści nie zmieniamy.</span>
+                    {contract.typ === "umowa" && (
+                      <button
+                        onClick={sporzadzAneks}
+                        className="rounded-full border hairline px-2.5 py-0.5 text-[11.5px] text-[var(--fg)] hover:bg-[var(--hairline)]"
+                      >
+                        Sporządź aneks
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <textarea
+                  value={contract.zakres_prac}
+                  onChange={(e) => setContract((p) => (p ? { ...p, zakres_prac: e.target.value } : p))}
+                  onBlur={(e) => patch({ zakres_prac: e.target.value })}
+                  rows={5}
+                  placeholder="Skopiowane z pozycji zaakceptowanej oferty — dopracuj sformułowania."
+                  className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
+                />
+              )}
             </div>
           )}
 

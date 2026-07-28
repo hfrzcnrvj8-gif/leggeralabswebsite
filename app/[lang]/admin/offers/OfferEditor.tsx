@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconSquare, IconSquareCheck, IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconChevronUp, IconExternalLink, IconMail, IconCopy, IconVersions, IconLink, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
+import { IconPlus, IconSquare, IconSquareCheck, IconX, IconTrash, IconCheck, IconLoader2, IconChevronDown, IconChevronUp, IconExternalLink, IconMail, IconCopy, IconVersions, IconLink, IconSearch, IconLayoutGrid, IconBox } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Offer,
@@ -35,7 +35,7 @@ import { formatPlDateTime, todayLocalISO, daysBetweenISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/documents";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
-import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu } from "../Menu";
+import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { Tooltip } from "../Tooltip";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { ShareLinkControl } from "../ShareLinkControl";
@@ -71,6 +71,11 @@ export function OfferEditor({
   const [generatingContract, setGeneratingContract] = useState(false);
   const [templates, setTemplates] = useState<OfferTemplate[]>([]);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  /** Prawy przycisk na bloku treści (zgłoszenie właściciela 2026-07-27:
+   * „w takich miejscach aż się prosi o menu pod prawym"). Wszystko, co tu
+   * jest, da się też zrobić widocznymi ikonami — menu jest skrótem, nie
+   * jedyną drogą. */
+  const ctxSekcji = useContextMenu<{ sekcja: OfferSection; i: number }>();
   /** Umowa wygenerowana z tej oferty — `null`, dopóki jej nie ma. Przychodzi
    * z `GET /api/offers/:id`, żeby karta WIEDZIAŁA, że dokument już istnieje
    * (patrz komentarz przy tej trasie). */
@@ -919,7 +924,11 @@ export function OfferEditor({
             ) : (
               <div className="space-y-2">
                 {sections.map((sekcja, i) => (
-                  <div key={sekcja.id} className="card-inset rounded-lg p-2.5">
+                  <div
+                    key={sekcja.id}
+                    onContextMenu={(e) => ctxSekcji.openAt(e, { sekcja, i })}
+                    className="card-inset rounded-lg p-2.5"
+                  >
                     <div className="mb-1 flex items-center gap-1.5">
                       <input
                         value={sekcja.tytul}
@@ -1472,6 +1481,58 @@ export function OfferEditor({
           </button>
         </div>
       </div>
+
+      <ContextMenu ctl={ctxSekcji} width={230}>
+        {({ sekcja, i }, close) => (
+          <>
+            <ContextMenuItem
+              icon={<IconPlus size={14} />}
+              label="Dodaj sekcję pod spodem"
+              onClick={() => {
+                close();
+                addSection();
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconCopy size={14} />}
+              label="Powiel tę sekcję"
+              onClick={() => {
+                close();
+                addSection(sekcja.tytul, sekcja.tresc);
+              }}
+            />
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconChevronUp size={14} />}
+              label="Wyżej"
+              disabled={i === 0}
+              onClick={() => {
+                close();
+                moveSection(i, -1);
+              }}
+            />
+            <ContextMenuItem
+              icon={<IconChevronDown size={14} />}
+              label="Niżej"
+              disabled={i === sections.length - 1}
+              onClick={() => {
+                close();
+                moveSection(i, 1);
+              }}
+            />
+            <MenuDivider />
+            <ContextMenuItem
+              icon={<IconTrash size={14} />}
+              label="Usuń sekcję"
+              danger
+              onClick={() => {
+                close();
+                deleteSection(sekcja.id);
+              }}
+            />
+          </>
+        )}
+      </ContextMenu>
 
       <Modal
         open={rejectOpen}

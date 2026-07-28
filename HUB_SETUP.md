@@ -9349,3 +9349,42 @@ i kontaktami kontrolnymi — właściciel ich po prostu nie znajdował. Nazwa
 zakładki jest tu całą funkcją odkrywalności. (Uwaga przy edycji: w tym pliku
 `dokumenty` to już rząd przycisków „Nowa oferta/faktura" w zakładce Akcje —
 zakładka nazywa się `zakladkaDokumentow`.)
+
+### Zasada „co da się usunąć, da się dodać" (2026-07-27)
+
+Zgłoszenie właściciela: „usunąłem zakres prac i mam nieklikalne pole, nie mogę
+nic dodać; wszędzie co chwilę są takie niescisłości". Sprawdzone miejsce po
+miejscu:
+
+- **Sekcje treści oferty** — dają się dodać z powrotem („+ Gotowa sekcja",
+  „+ Pusta"), pusty stan tłumaczy, po co są. **Bez zmian.**
+- **Pozycje oferty i faktury** — „+ Pozycja" stoi w nagłówku karty niezależnie
+  od tego, czy lista jest pusta. **Bez zmian.**
+- **Zakres prac w PODPISANEJ umowie** — to było to. `readOnly` bez słowa
+  wyjaśnienia wygląda jak usterka, a przy pustej treści widać wyłącznie szary
+  placeholder, czyli „pole, w które nie da się kliknąć". Teraz zablokowane pole
+  pokazuje TREŚĆ na płycie (albo „(nie wpisano zakresu)"), pod nią zdanie
+  „Dokument jest podpisany — treści nie zmieniamy" i przycisk **„Sporządź
+  aneks"** — czyli wyjście dokładnie tam, gdzie właściciel odbija się od
+  blokady.
+
+**Reguła na przyszłość:** pole tylko do odczytu MUSI powiedzieć, dlaczego jest
+zablokowane i co zrobić zamiast tego. Samo wyszarzenie to interfejs, który
+udaje usterkę.
+
+### Menu pod prawym przyciskiem na blokach treści oferty
+
+Doszło do listy miejsc z menu kontekstowym (obok list Ofert, Umów, Klientów,
+Leadów): bloki treści w edytorze oferty — dodaj sekcję, powiel, wyżej, niżej,
+usuń. Wszystko to da się zrobić też widocznymi ikonami; menu jest skrótem,
+nie jedyną drogą.
+
+### Apka: własna pigułka zakładek (`PigulkaZakladek.swift`)
+
+Systemowy `Picker(.segmented)` dopasowuje szerokość segmentu do napisu, więc
+przy pięciu zakładkach karty klienta („Wizytówka · Dokumenty · Historia ·
+Akcje · Logi") odstępy wychodziły nierówne — zgłoszenie właściciela. Własna
+pigułka daje segmenty o RÓWNEJ szerokości (`maxWidth: .infinity`), z
+przesuwanym zaznaczeniem (`matchedGeometryEffect` + krzywa z `Ruch`).
+Napisy w jednej linii z `minimumScaleFactor`, bo przy pięciu zakładkach na
+wąskim iPhonie „Wizytówka" inaczej zawija i rozpycha pasek.
