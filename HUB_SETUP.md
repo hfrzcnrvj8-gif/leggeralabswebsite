@@ -9322,3 +9322,30 @@ miejscem pracy, nie obrazkiem.
 
 Pierwsze wymiary (168×62, odstęp 28) ucinały ostatnią kolumnę w kolumnie
 szczegółów iPada — wyglądały dobrze na pustym ekranie, źle w realnym układzie.
+
+#### Runda czytelności ścieżki (2026-07-27, zgłoszenie właściciela)
+
+Zgłoszenie brzmiało: „zagmatwane, nie widzę gdzie co jest, jak to mam ręcznie
+połączyć, a na iPadzie i iPhonie nie wiem gdzie te zakładki są". Trzy osobne
+problemy, trzy osobne poprawki.
+
+**1. Łączenie tam, gdzie stoi dokument.** Karta klienta mówiła „połączysz je
+polem «Wynika z» w fakturze albo «Z oferty» w umowie" — czyli dawała
+INSTRUKCJĘ zamiast akcji, i to odsyłającą do innego modułu. Teraz każdy wiersz
+rejestru ma picker na miejscu: faktura „wynika z: umowy / oferty", umowa
+„z oferty". Po wyborze profil przeładowuje się i ścieżka rysuje się od razu —
+inaczej trzeba by zgadywać, czy kliknięcie w ogóle coś zrobiło.
+
+**2. Płyty danych stałych widocznie jaśniejsze** (`.card-inset`: `#101114` →
+`#16181d`, własna krawędź `#262930`). Różnica trzech punktów jasności ginęła
+w szumie ciemnego panelu; teraz kontrast płyty do karty wynosi 1.09 (zmierzone
+`getComputedStyle`). **Zmiana jest globalna** — dotyczy profilu leada, klienta,
+oferty i umowy, bo wszędzie tam ta sama klasa niesie to samo znaczenie: dane
+STAŁE rekordu, w odróżnieniu od kart ze zmienną treścią.
+
+**3. Apka: „Dokumenty" jako własna zakładka karty klienta.** Ścieżka i rejestr
+siedziały na końcu „Wizytówki", pod kontaktem, osobami, danymi firmy
+i kontaktami kontrolnymi — właściciel ich po prostu nie znajdował. Nazwa
+zakładki jest tu całą funkcją odkrywalności. (Uwaga przy edycji: w tym pliku
+`dokumenty` to już rząd przycisków „Nowa oferta/faktura" w zakładce Akcje —
+zakładka nazywa się `zakladkaDokumentow`.)

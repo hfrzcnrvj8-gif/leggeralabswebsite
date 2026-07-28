@@ -48,6 +48,7 @@ import { formatPlDate } from "@/lib/projects";
 import { CONTRACT_TYP_LABEL, contractReference, type ContractTyp } from "@/lib/contracts";
 import { offerReference } from "@/lib/offers";
 import { SciezkaDokumentow, type WezelSciezki } from "../SciezkaDokumentow";
+import { DocLinkPicker } from "../DocLinkPicker";
 import { formatMoney } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -59,7 +60,16 @@ import { ClientContacts } from "./ClientContacts";
 import type { FieldChange } from "@/lib/audit";
 
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
-type LinkedInvoice = { id: string; numer: string | null; status: string; typ_dokumentu: string; created_at: string };
+type LinkedInvoice = {
+  id: string;
+  numer: string | null;
+  status: string;
+  typ_dokumentu: string;
+  /** Z czego wynika — ustawiane pickerem wprost w rejestrze (2026-07-27). */
+  offer_id: string | null;
+  contract_id: string | null;
+  created_at: string;
+};
 /** Pola opinii (Moduł 15) jadą razem z projektem — patrz komentarz przy
  * zapytaniu w `app/api/clients/[id]/route.ts`. */
 type LinkedProject = {
@@ -93,6 +103,7 @@ type LinkedContract = {
   typ: ContractTyp;
   status: string;
   project_id: string | null;
+  offer_id: string | null;
   accepted_at: string | null;
   created_at: string;
 };
@@ -172,6 +183,27 @@ export function ClientDetailPanel({
   const [contacts, setContacts] = useState<ClientContact[]>([]);
   const [creatingDoc, setCreatingDoc] = useState<"offers" | "invoices" | null>(null);
   const [sciezki, setSciezki] = useState<KrokSciezki[][]>([]);
+
+  /** Zapis powiązania „ten dokument wynika z tamtego" wprost z karty klienta.
+   * Po zapisie przeładowujemy profil, żeby ścieżka narysowała się od razu —
+   * inaczej trzeba by zgadywać, czy kliknięcie w ogóle coś zrobiło. */
+  const polaczDokument = useCallback(
+    async (modul: "invoices" | "contracts", docId: string, patch: Record<string, string | null>) => {
+      const res = await fetch(`/api/${modul}/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        toast(d.error ?? "Nie udało się połączyć dokumentów.", "error");
+        return;
+      }
+      toast("Połączono.");
+      await load();
+    },
+    [toast]
+  );
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const [focusNote, setFocusNote] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -826,8 +858,8 @@ export function ClientDetailPanel({
                   )}
                   {sciezki.length === 0 && linkedCount > 1 && (
                     <p className="mb-4 rounded-lg card-inset px-3 py-2 text-[11.5px] leading-relaxed text-muted">
-                      Żaden z tych dokumentów nie wynika jeszcze z innego. Połączysz je polem „Wynika z” w fakturze
-                      albo „Z oferty” w umowie — wtedy pojawi się tu ścieżka sprawy.
+                      Żaden z tych dokumentów nie wynika jeszcze z innego. Ustaw to przy dokumencie niżej —
+                      przy fakturze („wynika z”) albo przy umowie („z oferty”). Ścieżka narysuje się od razu.
                     </p>
                   )}
                   {linkedCount === 0 && (
@@ -856,11 +888,33 @@ export function ClientDetailPanel({
                       {invoices.length > 0 && (
                         <LinkedGroup title="Faktury">
                           {invoices.map((i) => (
-                            <li key={i.id}>
+                            <li key={i.id} className="flex flex-wrap items-baseline gap-x-2">
                               <Link href={`/${lang}/admin/invoices/${i.id}`} className="hover:underline">
                                 {i.numer ?? "(szkic)"}
                               </Link>
-                              <span className="text-muted"> — {i.status}</span>
+                              <span className="text-muted">— {i.status}</span>
+                              {/* Łączenie dokumentów TU, przy dokumencie, a nie
+                                  w innym module (zgłoszenie właściciela
+                                  2026-07-27: „nie wiem, gdzie miałbym to
+                                  ręcznie połączyć"). Podpowiedź odsyłająca do
+                                  pola w edytorze faktury była instrukcją
+                                  zamiast akcji. */}
+                              <span className="ml-auto flex items-center gap-1 text-[11.5px] text-muted">
+                                <span className="opacity-70">wynika z</span>
+                                <DocLinkPicker
+                                  rodzaj="contract"
+                                  clientId={id}
+                                  value={i.contract_id ?? null}
+                                  onPick={(v) => polaczDokument("invoices", i.id, { contract_id: v })}
+                                />
+                                <span className="opacity-70">/</span>
+                                <DocLinkPicker
+                                  rodzaj="offer"
+                                  clientId={id}
+                                  value={i.offer_id ?? null}
+                                  onPick={(v) => polaczDokument("invoices", i.id, { offer_id: v })}
+                                />
+                              </span>
                             </li>
                           ))}
                         </LinkedGroup>
@@ -882,7 +936,7 @@ export function ClientDetailPanel({
                       {contracts.length > 0 && (
                         <LinkedGroup title="Umowy i NDA">
                           {contracts.map((c) => (
-                            <li key={c.id}>
+                            <li key={c.id} className="flex flex-wrap items-baseline gap-x-2">
                               {/* Numer dokumentu, nie samo „Powierzenie danych"
                                   — ścieżka wyżej mówi „DPA-2026-E72339", a dwie
                                   nazwy tego samego dokumentu na jednym ekranie
@@ -897,6 +951,18 @@ export function ClientDetailPanel({
                                 {c.accepted_at ? `, podpisana ${formatPlDate(c.accepted_at)}` : ""}
                                 {c.typ === "umowa" && !c.project_id ? ", bez projektu" : ""}
                               </span>
+                              {c.typ === "umowa" && (
+                                <span className="ml-auto flex items-center gap-1 text-[11.5px] text-muted">
+                                  <span className="opacity-70">z oferty</span>
+                                  <DocLinkPicker
+                                    rodzaj="offer"
+                                    clientId={id}
+                                    value={c.offer_id ?? null}
+                                    onPick={(v) => polaczDokument("contracts", c.id, { offer_id: v })}
+                                    disabled={c.status === "Podpisana"}
+                                  />
+                                </span>
+                              )}
                             </li>
                           ))}
                         </LinkedGroup>
