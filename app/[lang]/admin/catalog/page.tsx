@@ -20,7 +20,7 @@ export default async function AdminCatalogPage({
 
   return (
     <AppShell lang={lang as Locale} authed={authed}>
-      {authed ? <CatalogDashboard /> : <LoginForm />}
+      {authed ? <CatalogDashboard lang={lang} /> : <LoginForm />}
     </AppShell>
   );
 }

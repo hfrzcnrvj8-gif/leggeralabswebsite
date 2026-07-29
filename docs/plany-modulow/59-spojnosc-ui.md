@@ -218,7 +218,7 @@ iPhonie i iPadzie.
 | ~~**Pulpit**~~ | ~~sekcje bez płyt~~ — **ZROBIONE 28.07**, patrz „Paczka Pulpit" niżej | — |
 | ~~**F**~~ | ~~etykietowane wiersze profilu~~ — **ZROBIONE 28.07**, patrz „Paczka F" niżej | — |
 | ~~**F+**~~ | ~~to samo w formularzach~~ — **ZROBIONE 29.07** na prośbę właściciela | — |
-| **E** | puste stany wg A1 · nazwy zakładek · adresy rekordów (Koszty, Przypomnienia, Katalog, Kalendarz) | średnia |
+| ~~**E**~~ | ~~puste stany · nazwy zakładek · adresy rekordów~~ — **ZROBIONE 29.07** | — |
 | **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
 | **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
 
@@ -408,7 +408,7 @@ jak profil — to jest osobna decyzja i osobna paczka, nie przeoczenie.**
 
 | paczka | zakres | skala |
 |---|---|---|
-| **E** | puste stany wg A1 · nazwy zakładek · adresy rekordów (Koszty, Przypomnienia, Katalog, Kalendarz) | średnia |
+| ~~**E**~~ | ~~puste stany · nazwy zakładek · adresy rekordów~~ — **ZROBIONE 29.07**, patrz „Paczka E" niżej | — |
 | **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
 | **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
 
@@ -491,3 +491,104 @@ adresów, którego wiersz profilu by nie udźwignął.
 **Lekcja: argument „nie ma miejsca" trzeba zmierzyć, zanim się go użyje.**
 Ten sam błąd co przy granicy „profil vs formularz" — uzasadnienie brzmiało
 sensownie i było nieprawdziwe.
+
+---
+
+## Paczka „E" — puste stany, adresy rekordów, nazwy zakładek (2026-07-29)
+
+**Definicja „gotowe" ustalona PRZED kodem:** każdy ekran listy rozróżnia trzy
+sytuacje (pusto naprawdę / nic nie pasuje do filtra / nie udało się wczytać) ·
+żaden szkielet ładowania nie pulsuje w nieskończoność po awarii · cztery moduły
+bez adresu rekordu (Koszty, Przypomnienia, Katalog, Kalendarz) dostają
+`/<moduł>/<id>` i podstrona renderuje TEN SAM komponent, co modal · zakładki
+profilu nazwane jak w apce · kontrasty zmierzone, nie ocenione · `tsc` i
+`npm test` czyste · każdy ekran obejrzany w awarii, nie tylko w kodzie.
+
+### E1 — trzeci wariant pustego stanu (13 modułów)
+
+Panel nie miał go **nigdzie**. Wzorzec `fetch → if 401 reload → res.json()`
+bez `catch` powtarzał się w każdym dashboardzie, więc zerwana sieć albo 500
+dawały jeden z dwóch fałszywych ekranów:
+
+| moduł | co pokazywał przy awarii | co pokazuje teraz |
+|---|---|---|
+| Leady, Klienci | „Brak leadów/klientów pasujących do filtrów" — **przy zerowej bazie i zerowych filtrach też** | trzy osobne komunikaty |
+| Koszty, Projekty, Notatnik, Klienci, Leady, Oferty, Umowy, Faktury, Poczta | szkielet pulsujący bez końca | `StanBledu` z „Spróbuj ponownie" |
+| Katalog | „Wczytuję…" bez końca | jw. |
+| Kalendarz | **pusty miesiąc** — czyli „nic nie zaplanowano" | `PasekBledu` nad siatką, siatka zostaje użyteczna |
+| Poczta | tylko toast (znika po chwili), potem pusty folder | `PasekBledu` nad listą |
+| Statystyki | goły czerwony akapit, bez drogi wyjścia | `StanBledu` |
+| Pulpit | własna forma tego samego komunikatu | `StanBledu` (jedna forma w całym panelu) |
+
+Nowe wspólne części: `admin/dane.ts` (`pobierzJSON`, `komunikatBledu`,
+`BladPanelu`, `SesjaWygasla`) i `admin/StanPusty.tsx` (`StanPusty`,
+`StanListy`, `StanBledu`, `PasekBledu`). Reguła i uzasadnienie:
+`HUB_SETUP.md` → „Moduł 59, paczka E".
+
+**Czerwień świadomie NIE użyta na awarii wczytania** (kat. 1 listy kontrolnej:
+czerwień = błąd i akcja niszcząca). Nieudane wczytanie niczego nie niszczy —
+dostaje neutralną ikonę wtyczki i przycisk powtórzenia. Statystyki miały tu
+czerwony akapit; zabrany.
+
+### E2 — adresy rekordów (4 moduły)
+
+| moduł | adres | nowy uchwyt HTTP |
+|---|---|---|
+| Koszty | `/admin/costs/<id>` | — (`GET` już był) |
+| Przypomnienia | `/admin/reminders/<id>` | `GET /api/reminders/:id` |
+| Katalog | `/admin/catalog/<id>` | `GET /api/catalog/:id` |
+| Kalendarz | `/admin/calendar/<id>` | `GET /api/events/:id` |
+
+Trzy pułapki, na które warto uważać przy następnym takim module:
+
+1. **Wydarzenie serii nie ma prostego id.** `GET /api/events/:id` musi
+   przyjąć `<id-wzorca>~<data>` i zwrócić wzorzec **z datą tego wystąpienia** —
+   inaczej link do „spotkania w środę" otwiera pierwszy termin serii sprzed
+   pół roku. W linku `encodeURIComponent`.
+2. **404 to czwarty komunikat, nie trzeci.** Usunięty rekord nie naprawi się
+   przyciskiem „Spróbuj ponownie" — stąd osobne „Nie ma takiego…". Odróżnia je
+   `BladPanelu.status`.
+3. **Podzadania.** Lista przypomnień pokazuje je z wcięciem pod rodzicem, więc
+   podstrona rodzica musi je pokazać też — inaczej ten sam rekord ma dwa różne
+   zestawy treści zależnie od drogi wejścia.
+
+Katalog był jedynym modułem, w którym rekord **nie miał profilu w ogóle** —
+istniał jako wiersz listy i formularz edycji. Widok czytania idzie przez
+`SekcjaProfilu`/`WierszPola` (paczka F), a edycję otwiera dokładnie ten sam
+formularz, co lista.
+
+### E3 — nazwy zakładek
+
+Panel: „Historia kontaktu" / „Logi zmian" / „Powiązane" → **„Historia" /
+„Logi" / „Dokumenty"**, w kolejności apki. Szczegóły i powód (dlaczego brak
+„Wizytówki" i „Akcji" w panelu NIE jest rozjazdem): `HUB_SETUP.md`.
+
+### Pomiar
+
+| element | zmierzone | próg |
+|---|---|---|
+| tytuł pustego stanu wobec karty | **18,15** | ≥ 4,5 (WCAG AA) |
+| opis pustego stanu (12,5 px, `text-muted`) | **5,94** | ≥ 4,5 |
+| `PasekBledu` wobec tła panelu | 1,077 → **1,169** | ≥ 1,10 |
+| tekst na pasku | **16,0** | ≥ 4,5 |
+
+### Jak zweryfikowano
+
+Podmiana `window.fetch` w podglądzie na odrzucającą żądania danego modułu, po
+jednym module — czyli **prawdziwa ścieżka awarii**, nie ustawienie stanu
+z palca. Obejrzane w awarii: Klienci (zrzut), Przypomnienia (zrzut), Kalendarz
+(zrzut + pomiar kontrastu paska). Wariant „nic nie pasuje do filtra"
+sprawdzony na Leadach frazą bez trafień (zrzut). Wszystkie 13 modułów
+przeklikane po kolei z podpiętym `window.onerror` i `unhandledrejection` —
+**zero błędów wykonania**. Nowe trasy `GET` sprawdzone `curl`-em po jednym
+uchwycie, razem z odpowiedzią 404. Podstrony obejrzane zrzutem: Katalog,
+Kalendarz, Koszty, Przypomnienia (w tym z podzadaniem) i wariant „nie ma
+takiego rekordu".
+
+**Złapane przy okazji: `tsc` nie widzi tego, co widzi Turbopack.** Pierwsza
+wersja pustego stanu Kanbanu w Leadach miała ternary zagnieżdżony w gałęzi
+innego ternary — `npx tsc --noEmit` przeszedł **czysto**, a SWC odrzucił plik
+(`Not a pattern`) i cały moduł szedł na 500. Wyszło to dopiero po załadowaniu
+strony w podglądzie. Ta sama lekcja, co przy niedomkniętym komentarzu w
+`globals.css` (paczka Pulpit): **jedyna weryfikacja tego środowiska nie jest
+pełna — po każdej paczce załaduj ekran, którego dotknąłeś.**

@@ -7,6 +7,7 @@ import {
   IconArrowsMinimize,
   IconCalendar,
   IconCalendarCheck,
+  IconArrowUpRight,
   IconCalendarPlus,
   IconMailShare,
   IconFolder,
@@ -26,6 +27,8 @@ import { stopienPilnosci } from "@/lib/kolorStanu";
 import { RodzajWpisuIcon } from "../icons";
 import { todayLocalISO as todayISO, addDaysToISO, daysBetweenISO } from "@/lib/dates";
 import { useUI, useRegisterActions } from "../ui";
+import { PasekBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { Modal } from "../Modal";
 import { EventInvitePanel } from "./EventInvitePanel";
 import { Popover } from "../Menu";
@@ -296,6 +299,9 @@ export function CalendarView({ lang }: { lang: string }) {
   const [monthIdx, setMonthIdx] = useState(now.getMonth());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [events, setEvents] = useState<HubEvent[] | null>(null);
+  // Paczka E: bez tego pola zerwane połączenie rysowało PUSTY miesiąc — czyli
+  // kalendarz twierdził, że nic nie zaplanowano, zamiast przyznać, że nie wie.
+  const [blad, setBlad] = useState<string | null>(null);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [selectedDay, setSelectedDay] = useState<string>(todayISO());
   const [dayPrefillTime, setDayPrefillTime] = useState("");
@@ -388,14 +394,14 @@ export function CalendarView({ lang }: { lang: string }) {
 
   const load = useCallback(async () => {
     const key = monthKey;
-    const res = await fetch(`/api/events?month=${key}`);
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ events: HubEvent[] }>(`/api/events?month=${key}`);
+      setEvents(data.events);
+      setEventsReadyKey(key);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { events: HubEvent[] };
-    setEvents(data.events);
-    setEventsReadyKey(key);
   }, [monthKey]);
 
   // Wyliczone terminy z innych modułów (płatności, projekty, kamienie,
@@ -869,6 +875,11 @@ export function CalendarView({ lang }: { lang: string }) {
           <button onClick={() => changePeriod(1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">→</button>
         </div>
 
+        {/* Pasek, nie pełnoekranowy komunikat: siatka miesiąca zostaje użyteczna
+            (przewijanie okresów, dodawanie wydarzeń), a właściciel widzi, że
+            to, co na niej jest, może być niekompletne. */}
+        {blad && <PasekBledu blad={blad} onPonow={() => { void load(); void loadDeadlines(); }} />}
+
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6">
         <AnimatePresence mode="wait" custom={direction} initial={false}>
         <motion.div
@@ -1340,6 +1351,16 @@ function DayAgendaList({
                     </span>
                   )}
                   <InviteButton event={e} />
+                  {/* Adres rekordu (paczka E) — wydarzenie da się w końcu
+                      wkleić w rozmowę. `encodeURIComponent`, bo id wystąpienia
+                      serii ma w środku `~` (patrz `idWystapienia`). */}
+                  <Link
+                    href={`/${lang}/admin/calendar/${encodeURIComponent(e.id)}`}
+                    className="text-muted hover:text-[var(--fg)]"
+                    title="Otwórz wydarzenie"
+                  >
+                    <IconArrowUpRight size={13} />
+                  </Link>
                   <button onClick={() => onDelete(e.id)} className="text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
                 </span>
               </div>

@@ -6,6 +6,32 @@ import { normalizujCykl, pominieteDoTekstu, pominieteZTekstu, rozbierzIdWystapie
 
 export const runtime = "nodejs";
 
+/** GET /api/events/:id — jedno wydarzenie. Admin-only.
+ *
+ * Powstało dla ADRESU REKORDU (`/admin/calendar/<id>`, Moduł 59, paczka E):
+ * wydarzenie dało się dotąd otworzyć wyłącznie klikając w dzień w siatce, więc
+ * „przyślij mi link do tego spotkania" nie miało odpowiedzi.
+ *
+ * `:id` może być syntetycznym id WYSTĄPIENIA serii (`<id-wzorca>~<data>`) —
+ * tak samo jak w PATCH/DELETE, bo tak wracają rozwinięte wystąpienia z listy.
+ * Wtedy wczytujemy wzorzec i podmieniamy datę na datę tego wystąpienia:
+ * właściciel kliknął w konkretny dzień i o ten dzień pyta, a nie o pierwszy
+ * termin serii sprzed pół roku. */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { id: rawId } = await params;
+  const { idWzorca, wystapienie } = rozbierzIdWystapienia(rawId);
+  await ensureHubSchema();
+  const sql = getSql();
+  const rows = await sql`SELECT * FROM events WHERE id = ${idWzorca};`;
+  const event = rows[0];
+  if (!event) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (wystapienie && isPlausibleDateString(wystapienie)) {
+    return NextResponse.json({ event: { ...event, id: rawId, data: wystapienie } });
+  }
+  return NextResponse.json({ event });
+}
+
 /** PATCH /api/events/:id — update fields. Admin-only.
  *
  * `:id` może być syntetycznym id WYSTĄPIENIA serii (`<id-wzorca>~<data>`),

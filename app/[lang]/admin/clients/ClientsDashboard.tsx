@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPlus, IconFilter, IconX, IconFileExport } from "@tabler/icons-react";
+import { IconPlus, IconFilter, IconX, IconFileExport, IconUsers } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
@@ -26,6 +26,8 @@ import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 
@@ -43,6 +45,8 @@ type HistoryHit = {
 export function ClientsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [clients, setClients] = useState<Client[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   // Ilu klientów jest NAPRAWDĘ w rejestrze — trasa oddaje najwyżej 1000 naraz
   // (Moduł 54, krok 3a). Gdy `total` przewyższa długość listy, mówimy o tym
   // wprost: lista, która po cichu gubi rekordy, jest gorsza niż jej brak.
@@ -79,14 +83,14 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/clients");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ clients: Client[]; total?: number }>("/api/clients");
+      setClients(data.clients);
+      setTotal(data.total ?? data.clients.length);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { clients: Client[]; total?: number };
-    setClients(data.clients);
-    setTotal(data.total ?? data.clients.length);
   }, []);
 
   useEffect(() => {
@@ -307,6 +311,33 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     clearSelection();
   }, [filterStatus, filterBranza, filterKanal, search, view, clearSelection]);
 
+  const wyczyscFiltry = useCallback(() => {
+    setFilterStatus("");
+    setFilterBranza("");
+    setFilterKanal("");
+    setSearch("");
+  }, []);
+
+  /** Trzy warianty pustego ekranu (paczka E) — bliźniak z LeadsDashboard. */
+  const stanPusty = (
+    <StanListy
+      blad={blad}
+      onPonow={load}
+      filtrAktywny={activeFilterCount > 0 || search.length > 0}
+      onWyczyscFiltr={wyczyscFiltry}
+      filtrTytul="Żaden klient nie pasuje"
+      filtrOpis="Klienci w rejestrze są, ale ten zestaw filtrów odsiał wszystkich."
+      ikona={IconUsers}
+      tytul="Rejestr klientów jest pusty"
+      opis="Bez klienta nie ma do czego podpiąć oferty, umowy ani faktury — a rytm kontaktu nie ma kogo pilnować. Klient powstaje z wygranego leada albo ręcznie."
+      akcja={
+        <button onClick={() => setAddOpen(true)} className="rounded-lg border hairline px-3 py-1.5 text-[12.5px] hover:bg-[var(--hairline)]">
+          + Dodaj klienta
+        </button>
+      }
+    />
+  );
+
   // Szukanie po TREŚCI historii — z opóźnieniem, żeby nie strzelać zapytaniem
   // na każdą literę, i dopiero od dwóch znaków (jeden zwróciłby pół rejestru).
   useEffect(() => {
@@ -386,6 +417,18 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   );
 
   if (!clients) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria wczytania
+    // zostawiała ten szkielet pulsujący w nieskończoność — ekran wyglądał jak
+    // wieczne ładowanie i nie mówił ani co się stało, ani jak spróbować znowu.
+    if (blad) {
+      return (
+        <div>
+          <div className="card-paper rounded-2xl">
+            <StanBledu blad={blad} onPonow={load} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -611,7 +654,11 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
         )}
 
         <ViewSwitch viewKey={view} fill>
-          {view === "kanban" ? (
+          {/* Tablica z pustymi kolumnami nie odróżnia awarii od zerowej bazy —
+              oba przypadki przejmuje `stanPusty` (paczka E). */}
+          {view === "kanban" && filtered.length === 0 ? (
+            <div className="card-paper rounded-2xl">{stanPusty}</div>
+          ) : view === "kanban" ? (
             <KanbanBoard
               clients={filtered}
               lang={lang}
@@ -631,6 +678,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onToggleSelectAll={(checked) => toggleSelectAll(checked, filtered.map((c) => c.id))}
+              stanPusty={stanPusty}
               onUpdate={updateClient}
               onDelete={deleteClient}
               onOpen={setOpenClientId}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { IconArrowUpRight, IconX, IconInbox, IconBrandLinkedin } from "@tabler/icons-react";
+import { IconArrowUpRight, IconX, IconBrandLinkedin } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
@@ -44,6 +44,7 @@ export function TableView({
   onOpen,
   activeChannel,
   onFilterChannel,
+  stanPusty,
 }: {
   leads: Lead[];
   lang: Locale;
@@ -57,6 +58,11 @@ export function TableView({
   /** Patrz KanbanBoard.tsx — ta sama odznaka, ten sam filtr (Moduł 34). */
   activeChannel?: string;
   onFilterChannel?: (kanal: string) => void;
+  /** `StanListy` złożony przez dashboard — on jeden wie, czy lista jest pusta
+   * naprawdę, czy tylko odsiana filtrem (paczka E). Do tej pory tabela pisała
+   * „Brak leadów pasujących do filtrów" także przy zerowej bazie i zerowych
+   * filtrach, czyli zwalała na filtr coś, co filtrem nie było. */
+  stanPusty?: ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -90,12 +96,7 @@ export function TableView({
           zaznaczonych, zmiana statusu paczki) to praca biurkowa, a na telefonie
           kosztowałyby cel dotykowy w każdej karcie. Zostają od `md`. */}
       <div className="flex flex-col md:hidden">
-        {leads.length === 0 && (
-          <div className="p-8 text-center text-sm text-muted opacity-60">
-            <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
-            Brak leadów pasujących do filtrów.
-          </div>
-        )}
+        {leads.length === 0 && stanPusty}
         {leads.map((lead) => {
           const d = daysSince(lead.ostatni_kontakt);
           const overdueRow = isOverdue(lead);
@@ -253,10 +254,7 @@ export function TableView({
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-sm text-muted opacity-60">
-                  <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
-                  Brak leadów pasujących do filtrów.
-                </td>
+                <td colSpan={10} className="p-0">{stanPusty}</td>
               </tr>
             )}
             {leads.map((lead) => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AUDIT_PREVIEW_CHARS, auditFieldLabel, type AuditEntity, type FieldChange } from "@/lib/audit";
 
 /**
- * Zakładka „Logi zmian" (Moduł 23) — wspólna dla klienta i leada.
+ * Zakładka „Logi" (Moduł 23; do paczki E nazywana „Logi zmian") — wspólna dla klienta i leada.
  *
  * Odpowiada na „kiedy i z czego na co", a NIE na „kto" — panel jest
  * jednoosobowy, więc kolumny użytkownika świadomie nie ma (patrz lib/audit.ts).

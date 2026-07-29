@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { IconPlus, IconX, IconPaperclip, IconCloudDownload, IconRepeat, IconArrowUpRight, IconBuilding, IconHash, IconCoin, IconTrash, IconCash } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
@@ -9,6 +10,8 @@ import { PaymentMethodIcon } from "../icons";
 import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import {
   Popover,
   MenuRow,
@@ -112,10 +115,12 @@ function ImportKsefButton({ onImported }: { onImported: () => void }) {
   );
 }
 
-export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
+export function CostsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const searchParams = useSearchParams();
   const [costs, setCosts] = useState<Cost[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const ctl = useContextMenu<Cost>();
   const copy = useCopy();
@@ -138,13 +143,13 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
   }, [editorBusy, toast]);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/costs");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ costs: Cost[] }>("/api/costs");
+      setCosts(data.costs);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { costs: Cost[] };
-    setCosts(data.costs);
   }, []);
 
   useEffect(() => {
@@ -214,6 +219,18 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
   }, [costs]);
 
   if (!costs) {
+    // Szkielet ładowania TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria
+    // wczytania zostawiała `costs === null`, czyli ten szkielet pulsował
+    // w nieskończoność i nic nie mówił.
+    if (blad) {
+      return (
+        <div className="p-4 sm:p-6">
+          <div className="card-paper rounded-2xl">
+            <StanBledu blad={blad} onPonow={load} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3 p-4 sm:p-6">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -294,9 +311,25 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
 
         <div className="min-w-0">
             {rows.length === 0 ? (
-              <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
-                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted"><IconCash size={20} /></div>
-                <p className="mt-2">{filterStatus || filterKategoria || projectFilter ? "Brak kosztów spełniających filtry." : "Brak kosztów — dodaj pierwszy przyciskiem +."}</p>
+              <div className="card-paper rounded-2xl">
+                <StanListy
+                  blad={blad}
+                  onPonow={load}
+                  filtrAktywny={!!filterStatus || !!filterKategoria || !!projectFilter}
+                  onWyczyscFiltr={() => { setFilterStatus(""); setFilterKategoria(""); }}
+                  filtrTytul="Żaden koszt nie pasuje"
+                  filtrOpis={projectFilter
+                    ? "Ten projekt nie ma jeszcze kosztów w wybranym zakresie — filtr projektu zdejmiesz, wracając do pełnego rejestru."
+                    : "Koszty w rejestrze są, ale żaden nie spełnia zaznaczonych warunków."}
+                  ikona={IconCash}
+                  tytul="Rejestr kosztów jest pusty"
+                  opis="Bez kosztów rentowność projektu jest tylko przychodem — panel nie ma czego od niego odjąć, a księgowa nie ma czego rozliczyć."
+                  akcja={
+                    <button onClick={createCost} className="rounded-lg border hairline px-3 py-1.5 text-[12.5px] hover:bg-[var(--hairline)]">
+                      + Dodaj koszt
+                    </button>
+                  }
+                />
               </div>
             ) : (
               // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
@@ -350,7 +383,23 @@ export function CostsDashboard({ lang: _lang }: { lang: Locale }) {
                         </td>
                         <td className="p-2.5 text-muted">{c.data_wydatku ? formatPlDate(c.data_wydatku) : "—"}</td>
                         <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Adres rekordu (paczka E) — ten sam wzorzec co
+                                w Leadach i Klientach: zwykły klik otwiera modal
+                                (szybciej), Cmd/Ctrl+klik nową kartę, a sam
+                                odnośnik daje się skopiować i wkleić. */}
+                            <Link
+                              href={`/${lang}/admin/costs/${c.id}`}
+                              onClick={(e) => {
+                                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                                e.preventDefault();
+                                setOpenId(c.id);
+                              }}
+                              className="flex text-muted hover:text-[var(--fg)]"
+                              title="Otwórz koszt"
+                            >
+                              <IconArrowUpRight size={15} />
+                            </Link>
                             <ExpandingIconButton
                               label="Usuń"
                               icon={<IconX size={15} />}

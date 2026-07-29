@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck, IconPlus, IconTrash, IconPencil, IconFlag, IconFlagFilled } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconCheck, IconPlus, IconTrash, IconPencil, IconFlag, IconFlagFilled, IconCircleCheck, IconArrowUpRight } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { todayLocalISO } from "@/lib/dates";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { useUI, useRegisterActions } from "../ui";
+import { StanListy } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { ReminderDetail } from "./ReminderDetail";
 import { SeriaTag } from "../CyklPicker";
 import {
@@ -27,6 +30,8 @@ const BEZ_LISTY = "brak";
 export function RemindersDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [reminders, setReminders] = useState<Reminder[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [lists, setLists] = useState<ReminderList[]>([]);
   const [bezListy, setBezListy] = useState(0);
   const [wybranaLista, setWybranaLista] = useState<string>(WSZYSTKIE);
@@ -41,19 +46,18 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
     const q = new URLSearchParams();
     if (wybranaLista !== WSZYSTKIE) q.set("lista", wybranaLista);
     if (zUkonczonymi) q.set("ukonczone", "1");
-    const [rRes, lRes] = await Promise.all([
-      fetch(`/api/reminders?${q}`),
-      fetch("/api/reminders/lists"),
-    ]);
-    if (rRes.status === 401 || lRes.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const [dane, listy] = await Promise.all([
+        pobierzJSON<{ reminders: Reminder[] }>(`/api/reminders?${q}`),
+        pobierzJSON<{ lists: ReminderList[]; bez_listy: number }>("/api/reminders/lists"),
+      ]);
+      setReminders(dane.reminders);
+      setLists(listy.lists);
+      setBezListy(listy.bez_listy);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const dane = (await rRes.json()) as { reminders: Reminder[] };
-    const listy = (await lRes.json()) as { lists: ReminderList[]; bez_listy: number };
-    setReminders(dane.reminders);
-    setLists(listy.lists);
-    setBezListy(listy.bez_listy);
   }, [wybranaLista, zUkonczonymi]);
 
   useEffect(() => {
@@ -190,7 +194,11 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
 
       <div className="mt-3 flex items-center justify-between">
         <span className="text-[12px] text-muted">
-          {reminders === null ? "Wczytuję…" : `${wszystkie.filter((r) => !r.ukonczone).length} do zrobienia`}
+          {reminders === null
+            ? blad
+              ? "" /* licznik milczy — zdanie o awarii jest niżej, w pustym stanie */
+              : "Wczytuję…"
+            : `${wszystkie.filter((r) => !r.ukonczone).length} do zrobienia`}
         </span>
         <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-muted">
           <input
@@ -208,6 +216,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
           <li key={r.id} className="py-1">
             <WierszPrzypomnienia
               r={r}
+              lang={lang}
               dzisISO={dzisISO}
               pokazListe={wybranaLista === WSZYSTKIE}
               onOtworz={() => setOtwarte(r.id)}
@@ -223,6 +232,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
                   <li key={s.id}>
                     <WierszPrzypomnienia
                       r={s}
+                      lang={lang}
                       dzisISO={dzisISO}
                       pokazListe={false}
                       onOtworz={() => setOtwarte(s.id)}
@@ -237,12 +247,23 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
         ))}
       </ul>
 
-      {reminders !== null && reminders.length === 0 && (
-        <p className="mt-6 text-center text-[13px] text-muted">
-          {wybranaLista === WSZYSTKIE
-            ? "Nic tu jeszcze nie ma. Wpisz coś w pole wyżej."
-            : "Ta lista jest pusta."}
-        </p>
+      {/* Do paczki E awaria wczytania zostawiała `reminders === null`, czyli
+          licznik na zawsze pokazywał „Wczytuję…", a lista była po prostu
+          pusta — bez słowa o tym, że panel nie odpowiedział. */}
+      {(reminders === null ? !!blad : reminders.length === 0) && (
+        <div className="card-paper mt-4 rounded-2xl">
+          <StanListy
+            blad={blad}
+            onPonow={wczytaj}
+            filtrAktywny={wybranaLista !== WSZYSTKIE || zUkonczonymi}
+            onWyczyscFiltr={() => { setWybranaLista(WSZYSTKIE); setZUkonczonymi(false); }}
+            filtrTytul="Ta lista jest pusta"
+            filtrOpis="Przypomnienia są, ale żadne nie należy do wybranej listy."
+            ikona={IconCircleCheck}
+            tytul="Nic tu jeszcze nie ma"
+            opis="Przypomnienie to jedyne miejsce w panelu na rzecz bez terminu w kalendarzu — „oddzwonić”, „dopytać o fakturę”. Wpisz je w pole wyżej."
+          />
+        </div>
       )}
 
       <ReminderDetail
@@ -260,6 +281,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
  * inaczej niż zadanie (u Apple'a to dokładnie ta sama rzecz, tylko z wcięciem). */
 function WierszPrzypomnienia({
   r,
+  lang,
   dzisISO,
   pokazListe,
   onOtworz,
@@ -267,6 +289,7 @@ function WierszPrzypomnienia({
   onUsun,
 }: {
   r: Reminder;
+  lang: Locale;
   dzisISO: string;
   pokazListe: boolean;
   onOtworz: () => void;
@@ -326,6 +349,21 @@ function WierszPrzypomnienia({
       >
         {r.flaga ? <IconFlagFilled size={15} /> : <IconFlag size={15} />}
       </button>
+
+      {/* Adres rekordu (paczka E) — zwykły klik otwiera modal, Cmd/Ctrl+klik
+          nową kartę, a sam odnośnik daje się skopiować. */}
+      <Link
+        href={`/${lang}/admin/reminders/${r.id}`}
+        onClick={(e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+          e.preventDefault();
+          onOtworz();
+        }}
+        title="Otwórz przypomnienie"
+        className="mt-0.5 shrink-0 text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
+      >
+        <IconArrowUpRight size={15} />
+      </Link>
 
       <button
         onClick={() => onUsun(r)}

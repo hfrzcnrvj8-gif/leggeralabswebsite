@@ -498,9 +498,13 @@ export function LeadDetailPanel({
               value={tab}
               onChange={setTab}
               layoutId="lead-detail-tab-underline"
+              // Nazwy 1:1 z apką (paczka E, kat. 5 listy kontrolnej): tam ta
+              // sama treść siedzi pod „Historia" i „Logi" (`LeadDetailView.
+              // Zakladka`). Dwie nazwy tej samej zakładki na dwóch ekranach
+              // każą uczyć się dwóch schematów zamiast jednego.
               tabs={[
-                { id: "history", label: "Historia kontaktu" },
-                { id: "changes", label: "Logi zmian" },
+                { id: "history", label: "Historia" },
+                { id: "changes", label: "Logi" },
               ]}
             />
           </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { IconArrowUpRight, IconX, IconInbox, IconBrandLinkedin } from "@tabler/icons-react";
+import { IconArrowUpRight, IconX, IconBrandLinkedin } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
@@ -45,6 +45,7 @@ export function TableView({
   onOpen,
   activeChannel,
   onFilterChannel,
+  stanPusty,
 }: {
   clients: Client[];
   lang: Locale;
@@ -58,6 +59,9 @@ export function TableView({
   /** Patrz clients/KanbanBoard.tsx — ta sama odznaka, ten sam filtr. */
   activeChannel?: string;
   onFilterChannel?: (kanal: string) => void;
+  /** Bliźniak z leads/TableView.tsx — trzy warianty pustego ekranu składa
+   * dashboard, bo tylko on wie, czy odsiał filtr, czy nie udało się wczytać. */
+  stanPusty?: ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -86,12 +90,7 @@ export function TableView({
           dawno kontakt i pozwala od razu zadzwonić. Bez checkboxów zaznaczania
           — operacje masowe zostają pracą biurkową (od `md`). */}
       <div className="flex flex-col md:hidden">
-        {clients.length === 0 && (
-          <div className="p-8 text-center text-sm text-muted opacity-60">
-            <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
-            Brak klientów pasujących do filtrów.
-          </div>
-        )}
+        {clients.length === 0 && stanPusty}
         {clients.map((client) => {
           const d = clientDaysSince(client.ostatni_kontakt);
           const overdueRow = isClientOverdue(client);
@@ -214,10 +213,7 @@ export function TableView({
           <tbody>
             {clients.length === 0 && (
               <tr>
-                <td colSpan={11} className="p-8 text-center text-sm text-muted opacity-60">
-                  <IconInbox size={18} className="mx-auto mb-1.5 opacity-70" />
-                  Brak klientów pasujących do filtrów.
-                </td>
+                <td colSpan={11} className="p-0">{stanPusty}</td>
               </tr>
             )}
             {clients.map((client) => {

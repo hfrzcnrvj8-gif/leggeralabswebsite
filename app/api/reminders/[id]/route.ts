@@ -55,6 +55,38 @@ async function przesunSerie(sql: ReturnType<typeof getSql>, id: string): Promise
   return true;
 }
 
+/** GET /api/reminders/:id — jedno przypomnienie. Admin-only.
+ *
+ * Powstało dla ADRESU REKORDU (`/admin/reminders/<id>`, Moduł 59, paczka E):
+ * do tej pory jedyną drogą do przypomnienia było kliknięcie w wiersz listy,
+ * więc nie dało się go wkleić w rozmowę ani zapisać w zakładkach.
+ *
+ * Zwraca też podzadania — profil pokazuje je tak samo jak lista, a drugie
+ * żądanie po nie byłoby zapytaniem więcej przy każdym wejściu (neon() = jedno
+ * żądanie HTTP na zapytanie). */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { id } = await params;
+  await ensureRemindersSchema();
+  const sql = getSql();
+  const rows = await sql`
+    SELECT r.*, l.nazwa AS lista_nazwa, l.kolor AS lista_kolor
+    FROM reminders r
+    LEFT JOIN reminder_lists l ON l.id = r.lista_id
+    WHERE r.id = ${id};
+  `;
+  const reminder = rows[0];
+  if (!reminder) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const podzadania = await sql`
+    SELECT r.*, l.nazwa AS lista_nazwa, l.kolor AS lista_kolor
+    FROM reminders r
+    LEFT JOIN reminder_lists l ON l.id = r.lista_id
+    WHERE r.parent_id = ${id}
+    ORDER BY r.ukonczone ASC, r.termin ASC NULLS LAST, r.created_at ASC;
+  `;
+  return NextResponse.json({ reminder: { ...reminder, podzadania } });
+}
+
 /** PATCH /api/reminders/:id — zmiana pól, pole po polu. Admin-only. */
 export async function PATCH(
   req: NextRequest,

@@ -29,6 +29,29 @@ export function ReminderDetail({
   onPatch: (id: string, pola: Record<string, unknown>) => void | Promise<void>;
 }) {
   if (!reminder) return null;
+  return (
+    <Modal open onClose={onClose} card="my-auto w-full max-w-xl">
+      <TrescPrzypomnienia reminder={reminder} lists={lists} onZamknij={onClose} onPatch={onPatch} />
+    </Modal>
+  );
+}
+
+/** Sama treść profilu, bez okna — żeby podstrona `/admin/reminders/<id>`
+ * (ADRES REKORDU, paczka E) renderowała DOKŁADNIE ten sam profil, co modal,
+ * a nie własną kopię, która z czasem się rozjedzie. Ta sama zasada, co
+ * w Notatniku i Projektach. */
+export function TrescPrzypomnienia({
+  reminder,
+  lists,
+  onZamknij,
+  onPatch,
+}: {
+  reminder: Reminder;
+  lists: ReminderList[];
+  /** `null` = brak przycisku zamykania (podstrona wychodzi linkiem „wróć"). */
+  onZamknij: (() => void) | null;
+  onPatch: (id: string, pola: Record<string, unknown>) => void | Promise<void>;
+}) {
   const r = reminder;
 
   // Powiązania są WZAJEMNIE WYŁĄCZNE — dokładnie ta sama zasada, co
@@ -41,15 +64,16 @@ export function ReminderDetail({
   };
 
   return (
-    <Modal open onClose={onClose} card="my-auto w-full max-w-xl">
       <div className="card-paper max-h-[85vh] overflow-y-auto rounded-2xl p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <EditableText value={r.tytul} onSave={(v) => v.trim() && onPatch(r.id, { tytul: v.trim() })} />
           </div>
-          <button onClick={onClose} aria-label="Zamknij" className="shrink-0 text-muted hover:text-[var(--fg)]">
-            ✕
-          </button>
+          {onZamknij && (
+            <button onClick={onZamknij} aria-label="Zamknij" className="shrink-0 text-muted hover:text-[var(--fg)]">
+              ✕
+            </button>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -177,7 +201,6 @@ export function ReminderDetail({
           <p className="mt-4 text-[11.5px] text-muted">Odhaczone {r.ukonczone_at.slice(0, 16).replace("T", ", ")}</p>
         )}
       </div>
-    </Modal>
   );
 }
 

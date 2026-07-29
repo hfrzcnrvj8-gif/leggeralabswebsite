@@ -721,10 +721,16 @@ export function ClientDetailPanel({
               value={tab}
               onChange={setTab}
               layoutId="client-detail-tab-underline"
+              // Nazwy i KOLEJNOŚĆ 1:1 z apką (paczka E, kat. 5): tam profil
+              // klienta ma „Dokumenty · Historia · Logi" w tej kolejności
+              // (`KlientDetailView.Zakladka`; „Wizytówka" i „Akcje" odpadają
+              // w panelu, bo atrybuty stoją w przypiętej kolumnie po lewej,
+              // a akcje w nagłówku karty — układ boczny z Modułu 54).
+              // „Powiązane" mówiło o mechanizmie, „Dokumenty" o treści.
               tabs={[
-                { id: "history", label: "Historia kontaktu" },
-                { id: "linked", label: "Powiązane" },
-                { id: "changes", label: "Logi zmian" },
+                { id: "linked", label: "Dokumenty" },
+                { id: "history", label: "Historia" },
+                { id: "changes", label: "Logi" },
               ]}
             />
           </div>
@@ -817,7 +823,10 @@ export function ClientDetailPanel({
                     nigdy nie zostaje niewidoczny, a przycisk jest w tym czasie
                     zablokowany, więc podwójne kliknięcie nie zrobi dwóch. */}
                 <SekcjaProfilu
-                  tytul="Powiązane"
+                  // Sekcja nazwana tym, co w niej leży — po zmianie nazwy
+                  // zakładki na „Dokumenty" (paczka E) „Powiązane" byłoby
+                  // drugą nazwą tej samej rzeczy o linijkę niżej.
+                  tytul="Dokumenty i projekty"
                   wiersze={false}
                   akcje={
                     <>

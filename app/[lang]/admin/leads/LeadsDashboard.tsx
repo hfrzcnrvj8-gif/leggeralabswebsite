@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag, IconFileExport, IconCheck } from "@tabler/icons-react";
+import { IconInbox, IconPlus, IconSparkles, IconMailForward, IconDownload, IconFilter, IconX, IconTag, IconFileExport, IconCheck } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
@@ -29,6 +29,8 @@ import { Popover, MenuRow, MenuLabel, MenuDivider, ContextMenu, ContextMenuItem,
 import { Tooltip } from "../Tooltip";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/invoices";
 
@@ -47,6 +49,10 @@ const OVERDUE_SKROT = 5;
 export function LeadsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [leads, setLeads] = useState<Lead[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E): dopóki tego pola nie było, zerwane
+  // połączenie kończyło się listą „Brak leadów pasujących do filtrów" — czyli
+  // panel twierdził, że baza jest pusta, nie wiedząc o niej nic.
+  const [blad, setBlad] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   // Moduł 34 — filtr po ostatnim kanale kontaktu. Ustawiany klikiem w odznakę
   // kanału na liście: ikona przestała być ozdobą, a stała się wejściem w
@@ -88,13 +94,13 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const exportCtl = useContextMenu<null>();
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/leads");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ leads: Lead[] }>("/api/leads");
+      setLeads(data.leads);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { leads: Lead[] };
-    setLeads(data.leads);
   }, []);
 
   /** Skrzynka łowcy + definicje polowań. Dwa żądania, bo to dwa różne zbiory
@@ -355,6 +361,36 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     clearSelection();
   }, [filterStatus, filterZrodlo, filterMiasto, filterKanal, search, view, clearSelection]);
 
+  const wyczyscFiltry = useCallback(() => {
+    setFilterStatus("");
+    setFilterZrodlo("");
+    setFilterMiasto("");
+    setFilterKanal("");
+    setSearch("");
+  }, []);
+
+  /** Trzy warianty pustego ekranu (paczka E). Składane TU, bo tylko dashboard
+   * wie, czy `filtered` jest puste przez filtr, przez zerową bazę, czy przez
+   * to, że wczytanie w ogóle się nie udało. */
+  const stanPusty = (
+    <StanListy
+      blad={blad}
+      onPonow={load}
+      filtrAktywny={activeFilterCount > 0 || search.length > 0}
+      onWyczyscFiltr={wyczyscFiltry}
+      filtrTytul="Żaden lead nie pasuje"
+      filtrOpis="Leady w rejestrze są, ale ten zestaw filtrów odsiał wszystkie."
+      ikona={IconInbox}
+      tytul="Rejestr leadów jest pusty"
+      opis="Nie ma kogo pilnować ani do kogo wracać — lejek sprzedaży zaczyna się właśnie tu. Dodaj pierwszy lead albo puść Łowcę na kandydatów."
+      akcja={
+        <button onClick={() => setAddOpen(true)} className="rounded-lg border hairline px-3 py-1.5 text-[12.5px] hover:bg-[var(--hairline)]">
+          + Dodaj lead
+        </button>
+      }
+    />
+  );
+
   // Skróty lokalne dla tego widoku: "/" fokus wyszukiwarki, "j"/"k"
   // nawigacja w tabeli, Esc zamyka peek panel. Cmd+K i "n" (dodaj) obsługuje
   // globalny AppShell — patrz useRegisterActions poniżej.
@@ -426,6 +462,18 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   );
 
   if (!leads) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria wczytania
+    // zostawiała ten szkielet pulsujący w nieskończoność — ekran wyglądał jak
+    // wieczne ładowanie i nie mówił ani co się stało, ani jak spróbować znowu.
+    if (blad) {
+      return (
+        <div>
+          <div className="card-paper rounded-2xl">
+            <StanBledu blad={blad} onPonow={load} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -781,6 +829,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           polujSygnal={polujSygnal}
           nowePolowanieSygnal={nowePolowanieSygnal}
         />
+      ) : view === "kanban" && filtered.length === 0 ? (
+        // Tablica z pustymi kolumnami sama w sobie niczego nie tłumaczy —
+        // przy awarii wczytania wygląda identycznie jak przy zerowej bazie.
+        // Dlatego oba te przypadki przejmuje `stanPusty` (paczka E).
+        <div className="card-paper rounded-2xl">{stanPusty}</div>
       ) : view === "kanban" ? (
         <KanbanBoard
           leads={filtered}
@@ -801,6 +854,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onToggleSelectAll={(checked) => toggleSelectAll(checked, filtered.map((l) => l.id))}
+          stanPusty={stanPusty}
           onUpdate={updateLead}
           onDelete={deleteLead}
           onOpen={setOpenLeadId}

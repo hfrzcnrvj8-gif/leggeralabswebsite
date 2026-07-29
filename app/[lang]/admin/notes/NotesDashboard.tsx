@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from "@tabler/icons-react";
+import { IconPin, IconPinFilled, IconArchive, IconArchiveOff, IconNotes } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { formatPlDate } from "@/lib/projects";
 import { EditableText, EditableTextarea } from "../components";
@@ -10,6 +10,8 @@ import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { Modal } from "../Modal";
 import { useUI, useRegisterActions } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { NoteDetailPanel } from "./NoteDetailPanel";
 import {
   matchesTab,
@@ -27,6 +29,8 @@ import {
 export function NotesDashboard({ lang }: { lang: Locale }) {
   const { toast } = useUI();
   const [notes, setNotes] = useState<Note[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [newText, setNewText] = useState("");
   const [newLink, setNewLink] = useState<LinkValue>({});
   const [tab, setTab] = useState<NoteTab>("all");
@@ -37,13 +41,13 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
   const newTextRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/notes");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ notes: Note[] }>("/api/notes");
+      setNotes(data.notes);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { notes: Note[] };
-    setNotes(data.notes);
   }, []);
 
   useEffect(() => {
@@ -103,6 +107,15 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
   );
 
   if (!notes) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy — przy awarii pulsował
+    // w nieskończoność (paczka E).
+    if (blad) {
+      return (
+        <div className="card-paper rounded-2xl">
+          <StanBledu blad={blad} onPonow={load} />
+        </div>
+      );
+    }
     return <div className="h-48 animate-pulse rounded-2xl bg-[var(--hairline)]" />;
   }
 
@@ -196,13 +209,23 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
         )}
 
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted opacity-60">
-            {tab === "archived"
-              ? "Archiwum jest puste."
-              : notes.length === 0
-                ? "Brak notatek — dodaj pierwszą powyżej."
-                : "Nic nie pasuje do tych filtrów."}
-          </p>
+          <div className="card-paper rounded-2xl">
+            <StanListy
+              blad={blad}
+              onPonow={load}
+              // „Archiwum" to zakładka, czyli też filtr — puste archiwum nie
+              // znaczy „nie masz notatek", tylko „nic tu nie odłożyłeś".
+              filtrAktywny={tab !== "all" || !!tagFilter || !!search || !!linkFilter.client_id || !!linkFilter.lead_id}
+              onWyczyscFiltr={() => { setTab("all"); setTagFilter(""); setLinkFilter({}); setSearch(""); }}
+              filtrTytul={tab === "archived" ? "Archiwum jest puste" : "Nic nie pasuje do tych filtrów"}
+              filtrOpis={tab === "archived"
+                ? "Nic jeszcze nie schowałeś z biurka — notatki lądują tu dopiero po zarchiwizowaniu."
+                : "Notatki są, ale żadna nie spełnia zaznaczonych warunków."}
+              ikona={IconNotes}
+              tytul="Notatnik jest pusty"
+              opis="Notatnik jest miejscem na to, co pada w rozmowie, zanim stanie się leadem, zadaniem albo wydarzeniem — bez niego ustalenia zostają wyłącznie w głowie."
+            />
+          </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((n) => (

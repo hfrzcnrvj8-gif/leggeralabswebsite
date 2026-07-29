@@ -18,6 +18,8 @@ import { KSEF_STATUS_CLASS, KSEF_STATUS_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
 import { daysBetweenISO, todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import {
   Popover,
   MenuRow,
@@ -42,6 +44,8 @@ type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number };
 export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const ctl = useContextMenu<InvoiceRow>();
   const copy = useCopy();
@@ -53,13 +57,13 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/invoices");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ invoices: InvoiceRow[] }>("/api/invoices");
+      setInvoices(data.invoices);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { invoices: InvoiceRow[] };
-    setInvoices(data.invoices);
   }, []);
 
   useEffect(() => {
@@ -248,6 +252,18 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   };
 
   if (!invoices) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria wczytania
+    // zostawiała ten szkielet pulsujący w nieskończoność — ekran wyglądał jak
+    // wieczne ładowanie i nie mówił ani co się stało, ani jak spróbować znowu.
+    if (blad) {
+      return (
+        <div className="p-4 sm:p-6">
+          <div className="card-paper rounded-2xl">
+            <StanBledu blad={blad} onPonow={load} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3 p-4 sm:p-6">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -393,9 +409,26 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
         )}
 
         {rows.length === 0 ? (
-          <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
-            <IconReceiptEmpty />
-            <p className="mt-2">{filterStatus ? "Brak faktur o tym statusie." : "Brak faktur — utwórz pierwszą przyciskiem +."}</p>
+          <div className="card-paper rounded-2xl">
+            {/* Do paczki E ten ekran miał JEDNO zdanie na dwa różne przypadki
+                („Brak faktur o tym statusie" / „Brak faktur") i żadnego na
+                trzeci — awaria wczytania wyglądała jak pusty rejestr. */}
+            <StanListy
+              blad={blad}
+              onPonow={load}
+              filtrAktywny={!!filterStatus}
+              onWyczyscFiltr={() => setFilterStatus("")}
+              filtrTytul="Żadna faktura nie ma tego statusu"
+              filtrOpis="Faktury w rejestrze są, ale żadna nie jest w wybranym stanie."
+              ikona={IconFileInvoice}
+              tytul="Nie ma jeszcze żadnej faktury"
+              opis="Faktura zamyka obieg: oferta → umowa → projekt → pieniądze. Dopóki jej nie ma, przychód nie liczy się nigdzie — ani w Statystykach, ani w rozliczeniu z księgową."
+              akcja={
+                <button onClick={createInvoice} className="btn-primary rounded-full px-4 py-1.5 text-xs font-semibold">
+                  + Nowa faktura
+                </button>
+              }
+            />
           </div>
         ) : (
           // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
@@ -654,10 +687,3 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   );
 }
 
-function IconReceiptEmpty() {
-  return (
-    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted">
-      <IconFileInvoice size={20} />
-    </div>
-  );
-}

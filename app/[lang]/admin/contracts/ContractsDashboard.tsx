@@ -27,6 +27,8 @@ import {
 } from "@/lib/contracts";
 import { formatMoney } from "@/lib/invoices";
 import { useUI, useRegisterActions } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { Popover, MenuRow, MenuDivider, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { ContractEditor } from "./ContractEditor";
@@ -36,6 +38,8 @@ import { OknoOdrzucenia } from "../RejectDialog";
 export function ContractsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [contracts, setContracts] = useState<Contract[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [rejectFor, setRejectFor] = useState<string | null>(null);
@@ -52,14 +56,14 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   const [total, setTotal] = useState(0);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/contracts");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ contracts: Contract[]; total?: number }>("/api/contracts");
+      setContracts(data.contracts);
+      setTotal(data.total ?? data.contracts.length);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { contracts: Contract[]; total?: number };
-    setContracts(data.contracts);
-    setTotal(data.total ?? data.contracts.length);
   }, []);
 
   useEffect(() => {
@@ -303,6 +307,18 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   }, [rows, kursor, openId, rejectFor]);
 
   if (!contracts) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria wczytania
+    // zostawiała ten szkielet pulsujący w nieskończoność — ekran wyglądał jak
+    // wieczne ładowanie i nie mówił ani co się stało, ani jak spróbować znowu.
+    if (blad) {
+      return (
+        <div className="p-4 sm:p-6">
+          <div className="card-paper rounded-2xl">
+            <StanBledu blad={blad} onPonow={load} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3 p-4 sm:p-6">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -378,33 +394,26 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
         )}
 
         {rows.length === 0 ? (
-          <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
-            <IconContractEmpty />
-            {/* Pusty stan mówi, czego brakuje i co to zmienia (ustalenie A1) —
-                „Brak dokumentów." nie tłumaczyło, po co tu wchodzić. */}
-            {szukaj.trim() || filterStatus ? (
-              <>
-                <p className="mt-2">Nic nie pasuje do tego, czego szukasz.</p>
-                <button
-                  onClick={() => { setSzukaj(""); setFilterStatus(""); }}
-                  className="mt-2 rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)]"
-                >
-                  Wyczyść filtry
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="mt-2 text-[var(--fg)]">Nie ma jeszcze żadnej umowy ani NDA.</p>
-                <p className="mx-auto mt-1 max-w-md text-[12.5px]">
-                  Podpisana umowa to jedyna rzecz, która odblokowuje start projektu z klientem
-                  („papier przed pracą”). NDA idzie wcześniej — przed rozmową, w której padną
-                  szczegóły cudzych systemów.
-                </p>
-                <button onClick={createUmowa} className="btn-primary mt-3 rounded-full px-4 py-1.5 text-xs font-semibold">
+          <div className="card-paper rounded-2xl">
+            {/* Trzy warianty przez wspólny `StanListy` (paczka E). Treść
+                wariantu „pusto naprawdę" bez zmian; nowy jest wariant
+                „nie udało się wczytać". */}
+            <StanListy
+              blad={blad}
+              onPonow={load}
+              filtrAktywny={!!szukaj.trim() || !!filterStatus}
+              onWyczyscFiltr={() => { setSzukaj(""); setFilterStatus(""); }}
+              filtrTytul="Nic nie pasuje do tego, czego szukasz"
+              filtrOpis="Dokumenty w rejestrze są, ale żaden nie spełnia zaznaczonych warunków."
+              ikona={IconSignature}
+              tytul="Nie ma jeszcze żadnej umowy ani NDA"
+              opis="Podpisana umowa to jedyna rzecz, która odblokowuje start projektu z klientem („papier przed pracą”). NDA idzie wcześniej — przed rozmową, w której padną szczegóły cudzych systemów."
+              akcja={
+                <button onClick={createUmowa} className="btn-primary rounded-full px-4 py-1.5 text-xs font-semibold">
                   + Nowa umowa
                 </button>
-              </>
-            )}
+              }
+            />
           </div>
         ) : (
           // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
@@ -632,14 +641,6 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
           />
         )}
       </Modal>
-    </div>
-  );
-}
-
-function IconContractEmpty() {
-  return (
-    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted">
-      <IconFileText size={20} />
     </div>
   );
 }

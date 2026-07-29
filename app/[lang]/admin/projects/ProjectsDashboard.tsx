@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled, IconFileExport } from "@tabler/icons-react";
+import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled, IconFileExport, IconLayoutKanban } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
 import { PROJECT_TEMPLATES } from "@/lib/projects";
@@ -15,6 +15,8 @@ import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Tooltip } from "../Tooltip";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 
 type ViewMode = "kanban" | "timeline";
 type SortBy = "reczna" | "nazwa" | "termin" | "priorytet";
@@ -41,6 +43,8 @@ function isTypingTarget(el: EventTarget | null): boolean {
 export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [projects, setProjects] = useState<Project[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
@@ -59,13 +63,13 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const bumpTimelineRefresh = useCallback(() => setTimelineRefreshKey((k) => k + 1), []);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/projects");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ projects: Project[] }>("/api/projects");
+      setProjects(data.projects);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { projects: Project[] };
-    setProjects(data.projects);
   }, []);
 
   useEffect(() => {
@@ -184,6 +188,26 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
 
   const activeFilterCount = [filterStatus, filterPriority, filterHealth].filter(Boolean).length;
 
+  /** Trzy warianty pustego ekranu (paczka E) — bliźniak z LeadsDashboard. */
+  const stanPusty = (
+    <StanListy
+      blad={blad}
+      onPonow={load}
+      filtrAktywny={activeFilterCount > 0 || search.length > 0}
+      onWyczyscFiltr={() => { setFilterStatus(""); setFilterPriority(""); setFilterHealth(""); setSearch(""); }}
+      filtrTytul="Żaden projekt nie pasuje"
+      filtrOpis="Projekty są, ale ten zestaw filtrów odsiał wszystkie."
+      ikona={IconLayoutKanban}
+      tytul="Nie ma jeszcze żadnego projektu"
+      opis="Projekt to miejsce, w którym umowa zamienia się w pracę: kamienie milowe, zadania, czas i rentowność. Bez niego nie ma czego pilnować terminem ani do czego doliczyć kosztów."
+      akcja={
+        <button onClick={addProject} className="rounded-lg border hairline px-3 py-1.5 text-[12.5px] hover:bg-[var(--hairline)]">
+          + Dodaj projekt
+        </button>
+      }
+    />
+  );
+
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   useEffect(() => {
@@ -253,6 +277,15 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   }, [openId, updateProject]);
 
   if (!projects) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy — przy awarii pulsowałby
+    // w nieskończoność i nic nie mówił (paczka E).
+    if (blad) {
+      return (
+        <div className="card-paper rounded-2xl">
+          <StanBledu blad={blad} onPonow={load} />
+        </div>
+      );
+    }
     return (
       <div className="space-y-3">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -488,7 +521,12 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
       )}
 
       <ViewSwitch viewKey={view} fill>
-      {view === "kanban" ? (
+      {/* Tablica z pustymi kolumnami nie odróżnia „nic nie pasuje" od „nic nie
+          ma" — oba przejmuje `stanPusty` (paczka E). Oś czasu ma własny pusty
+          stan, bo rysuje też projekty bez dat. */}
+      {view === "kanban" && filtered.length === 0 ? (
+        <div className="card-paper rounded-2xl">{stanPusty}</div>
+      ) : view === "kanban" ? (
         <ProjectKanban
           projects={filtered}
           lang={lang}

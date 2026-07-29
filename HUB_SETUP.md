@@ -9684,3 +9684,125 @@ Po: **1,359** (próg krawędzi na płycie wypukłej: ≥ 1,35), przy niezmienion
 wartościach samej płyty (`rgb(30,34,42)` / `rgb(51,56,68)` przed i po).
 Zasada ogólna: **dokładając płytę gdziekolwiek, zmierz też to, co na niej
 leży** — inaczej naprawiasz jedną warstwę, psując następną.
+
+## Moduł 59, paczka E — pusty ekran mówi, KTÓRA z trzech rzeczy się stała (2026-07-29)
+
+Do tej paczki **żaden** ekran panelu nie umiał powiedzieć „nie udało się
+wczytać". Każdy dashboard miał ten sam kształt:
+
+```ts
+const res = await fetch("/api/leads");
+if (res.status === 401) { window.location.reload(); return; }
+const data = await res.json();   // ← i ani jednego `catch`
+```
+
+Zerwana sieć albo 500 z trasy nie dawały **żadnego** objawu poza tym, że stan
+listy zostawał `null`. W praktyce znaczyło to jedną z dwóch rzeczy, obie złe:
+
+- szkielet ładowania pulsował w nieskończoność (Koszty, Projekty, Notatnik,
+  Klienci, Leady, Oferty, Umowy, Faktury, Poczta), albo
+- ekran pokazywał pusty stan — czyli **twierdził, że rejestr jest pusty, nie
+  wiedząc o nim nic** (Katalog: „Wczytuję…" na zawsze; Kalendarz: pusty
+  miesiąc; tabela leadów i klientów: „Brak leadów pasujących do filtrów").
+
+Apka zamknęła dokładnie ten błąd w Fazie A1 (`docs/natywna-aplikacja/
+22-wynik-a1-komunikaty.md`, ustalenie A1). Panel został z nim rok dłużej.
+
+### Reguła
+
+**Ekran bez danych musi rozróżnić trzy sytuacje, bo każda ma inne wyjście:**
+
+| sytuacja | co mówi | wyjście |
+|---|---|---|
+| pusto naprawdę | czego brakuje **i co to zmienia** | „+ Dodaj X" |
+| nic nie pasuje do filtra | że rekordy są, tylko odsiane | „Wyczyść filtry" |
+| nie udało się wczytać | że panel nie odpowiedział | „Spróbuj ponownie" |
+
+**Błąd wygrywa ze wszystkim.** Przy zerwanym połączeniu lista jest pusta
+niezależnie od filtrów, więc „nic nie pasuje do filtra" byłoby drugim
+kłamstwem zamiast pierwszego. Kolejność rozstrzyga `StanListy`, nie wołający —
+inaczej powstałoby piętnaście kopii tego samego `if`, tak jak wcześniej
+powstało sześć kopii wiersza profilu (paczka F).
+
+### Gdzie to mieszka
+
+| rzecz | plik | do czego |
+|---|---|---|
+| `pobierzJSON` / `komunikatBledu` / `BladPanelu` | `admin/dane.ts` | jedno gardło wczytywania — odpowiednik `wykonaj(zasob, waga)` z apki |
+| `StanListy` | `admin/StanPusty.tsx` | trzy warianty, rozstrzygane za wołającego |
+| `StanBledu` | tamże | sam wariant awarii — tam, gdzie nie ma listy ani filtra (szkielety, Statystyki, profil rekordu) |
+| `PasekBledu` | tamże | awaria jako PASEK, gdy widoku nie wolno zasłonić (Kalendarz, Poczta) |
+
+`pobierzJSON` zachowuje dotychczasowe zachowanie przy 401 (przeładowanie →
+formularz logowania), ale rzuca wtedy `SesjaWygasla`, a `komunikatBledu`
+zamienia to na `null` — strona i tak się przeładowuje, więc migający komunikat
+byłby szumem. Ta sama zasada, co `Waga.tlo` w apce.
+
+**Szkielet ładowania renderuj TYLKO wtedy, gdy naprawdę czekasz** — czyli
+`if (!dane) { if (blad) …; return szkielet; }`. Sam `if (!dane)` jest właśnie
+tym, co dawało wieczne pulsowanie.
+
+### Pomiar
+
+| element | zmierzone | próg |
+|---|---|---|
+| tytuł pustego stanu wobec karty | **18,15** | ≥ 4,5 (WCAG AA) |
+| opis pustego stanu (`text-muted`, 12,5 px) wobec karty | **5,94** | ≥ 4,5 |
+| `PasekBledu` wobec tła panelu | 1,077 → **1,169** | ≥ 1,10 (próg płyty) |
+| tekst na pasku | **16,0** | ≥ 4,5 |
+
+Pierwsza wersja paska miała `bg-orange-500/[0.08]` i zmierzone **1,077**, czyli
+poniżej progu z „trzech warstw powierzchni" — pasek, którego nie widać, jest
+tym samym błędem, co pusty stan, który kłamie. Stąd `/[0.14]`.
+
+## Moduł 59, paczka E — każdy rekord ma własny adres (2026-07-29)
+
+Cztery moduły nie miały adresu rekordu: **Koszty, Przypomnienia, Katalog,
+Kalendarz**. Rekord istniał wyłącznie jako wiersz listy, więc „przyślij mi
+link do tego spotkania" nie miało odpowiedzi, a zakładka w przeglądarce nie
+miała czego wskazać.
+
+Dołożone: `/<lang>/admin/{costs,reminders,catalog,calendar}/<id>` plus trzy
+brakujące uchwyty `GET` (`/api/reminders/:id`, `/api/catalog/:id`,
+`/api/events/:id` — koszty GET-a już miały).
+
+**Podstrona renderuje TEN SAM komponent, co modal** — nie własną kopię pól.
+Tam, gdzie profil był wrośnięty w `Modal`, wychodzi z niego treść
+(`ReminderDetail` → `TrescPrzypomnienia`), a okno zostaje cienkim opakowaniem.
+Dwie kopie profilu rozjeżdżają się w pierwszym module, który ktoś poprawi —
+to jest ta sama lekcja, co sześć wersji wiersza „etykieta — wartość".
+
+Trzy rzeczy warte zapamiętania:
+
+1. **`GET /api/events/:id` przyjmuje syntetyczne id wystąpienia serii**
+   (`<id-wzorca>~<data>`), tak samo jak PATCH/DELETE — bo tak wracają
+   rozwinięte wystąpienia z listy. Zwraca wzorzec z **datą tego wystąpienia**:
+   właściciel kliknął w konkretny dzień i o ten dzień pyta, nie o pierwszy
+   termin serii sprzed pół roku. W linku `encodeURIComponent`, bo `~`.
+2. **404 to nie awaria.** Rekord mógł zostać usunięty i wtedy „Spróbuj
+   ponownie" niczego nie naprawi — stąd osobny, czwarty komunikat („Nie ma
+   takiego przypomnienia"). `BladPanelu.status` pozwala to odróżnić.
+3. **Podstrona wydarzenia jest WIDOKIEM, nie edytorem** — wydarzenie poprawia
+   się w kalendarzu, przy dniu, na którym stoi, bo tam widać kontekst (co jest
+   obok, czy się nakłada). Świadomie bez przycisku „pokaż ten dzień w siatce":
+   `CalendarView` nie czyta dziś żadnego parametru dnia z adresu, więc byłaby
+   to martwa afordancja.
+
+Na listach adres wystawia ikona `IconArrowUpRight` — ten sam wzorzec, co
+w Leadach i Klientach: zwykły klik otwiera modal (szybciej), Cmd/Ctrl+klik
+nową kartę, a sam odnośnik daje się skopiować i wkleić.
+
+## Moduł 59, paczka E — zakładki profilu nazwane jak w apce (2026-07-29)
+
+| gdzie | było (panel) | jest | dlaczego |
+|---|---|---|---|
+| profil leada | Historia kontaktu · Logi zmian | **Historia · Logi** | 1:1 z `LeadDetailView.Zakladka` |
+| profil klienta | Historia kontaktu · Powiązane · Logi zmian | **Dokumenty · Historia · Logi** | nazwy i KOLEJNOŚĆ 1:1 z `KlientDetailView.Zakladka` |
+
+„Wizytówka" i „Akcje" z apki nie mają odpowiednika w panelu i **to nie jest
+rozjazd**: od Modułu 54 atrybuty stoją w przypiętej kolumnie po lewej, a akcje
+w nagłówku karty (układ boczny wzorem Attio), więc nie ma czego chować pod
+zakładką. „Powiązane" mówiło o mechanizmie, „Dokumenty" mówi o treści.
+
+Sekcja wewnątrz zakładki dostała przy okazji nazwę „Dokumenty i projekty" —
+„Powiązane" o linijkę niżej byłoby drugą nazwą tej samej rzeczy.

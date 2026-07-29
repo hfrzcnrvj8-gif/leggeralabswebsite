@@ -17,6 +17,7 @@ import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { type Client, clientOverdueReason } from "@/lib/clients";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI } from "./ui";
+import { StanBledu } from "./StanPusty";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
@@ -350,13 +351,11 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   };
 
   if (loadError) {
+    // Ten sam komunikat awarii co w każdym innym module (paczka E) — Pulpit
+    // miał go pierwszy, ale we własnej formie; teraz idzie przez `StanBledu`.
     return (
-      <div className="plyta-sekcji rounded-2xl p-6">
-        <p className="font-medium">Nie udało się wczytać pulpitu.</p>
-        <p className="mt-1 text-sm opacity-70">{loadError}</p>
-        <button className="btn-primary mt-4" onClick={loadToday}>
-          Spróbuj ponownie
-        </button>
+      <div className="plyta-sekcji rounded-2xl">
+        <StanBledu blad={loadError} onPonow={loadToday} />
       </div>
     );
   }

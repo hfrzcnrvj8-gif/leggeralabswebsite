@@ -23,6 +23,8 @@ import { SPRING } from "@/lib/motion";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget, useCopy } from "../ui";
+import { PasekBledu, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import {
   MailStatusTag,
   MailCategoryTag,
@@ -143,6 +145,9 @@ function formatWhen(iso: string): string {
 export function MailDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
   const [messages, setMessages] = useState<MailMessageWithLinks[] | null>(null);
+  // Paczka E: dotąd awaria wczytania dawała tylko toast (znika po chwili),
+  // a lista zostawała pusta — po powrocie do ekranu wyglądała jak pusty folder.
+  const [blad, setBlad] = useState<string | null>(null);
   const [counts, setCounts] = useState<Counts>({ nowe: 0, nieprzypisane: 0 });
   const [configured, setConfigured] = useState(true);
   // Nudge/Follow-up (Moduł 4f) — osobny stan, NIE część `messages`: to
@@ -193,16 +198,17 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     const seq = ++loadSeqRef.current;
     const params = new URLSearchParams({ folder: activeFolder });
     if (query.trim()) params.set("q", query.trim());
-    const res = await fetch(`/api/mail?${params.toString()}`);
-    if (res.status === 401) {
-      window.location.reload();
+    let data: { messages: MailMessageWithLinks[]; counts?: { nowe: number; nieprzypisane: number }; configured: boolean };
+    try {
+      data = await pobierzJSON(`/api/mail?${params.toString()}`);
+    } catch (e) {
+      const powod = komunikatBledu(e);
+      if (powod) {
+        setBlad(powod);
+        toast("Nie udało się wczytać poczty.", "error");
+      }
       return;
     }
-    if (!res.ok) {
-      toast("Nie udało się wczytać poczty.", "error");
-      return;
-    }
-    const data = await res.json();
     // Ochrona przed wyścigiem: przy szybkim przełączaniu folderów starsze
     // żądanie mogło odpowiedzieć PÓŹNIEJ niż nowsze (kolejność w sieci nie
     // jest gwarantowana) — bez tej kontroli nadpisywało wynik nowszego kliku
@@ -214,6 +220,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     setMessages(data.messages);
     setCounts(data.counts ?? { nowe: 0, nieprzypisane: 0 });
     setConfigured(data.configured);
+    setBlad(null);
   }, [activeFolder, query, toast]);
 
   /** Moduł 4f — osobne zapytanie, patrz komentarz przy stanie `nudgeThreads`
@@ -679,6 +686,18 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   }, [openId, threadGroups, focusedIndex, configured, toggleSelect, setMailStatus, toggleFlag, moveMail]);
 
   if (!messages) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria wczytania
+    // zostawiała ten szkielet pulsujący w nieskończoność — ekran wyglądał jak
+    // wieczne ładowanie i nie mówił ani co się stało, ani jak spróbować znowu.
+    if (blad) {
+      return (
+        <div className="p-4 sm:p-6">
+          <div className="card-paper rounded-2xl">
+            <StanBledu blad={blad} onPonow={load} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3 p-4 sm:p-6">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -933,6 +952,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               2026-07-16 lista podmieniała się w jednej klatce. Ramka karty
               zostaje na zewnątrz, żeby przenikała tylko TREŚĆ, a nie całe
               pudełko wraz z obrysem. */}
+          {/* Pasek, nie pełny ekran: obok stoi otwarta wiadomość i pasek
+              filtrów, więc zasłonięcie listy zabrałoby drogę powrotną. */}
+          {blad && <PasekBledu blad={blad} onPonow={() => void load()} />}
           <ViewSwitch viewKey={`${activeFolder}:${filter}:${catFilter}`}>
           {isSubsView ? (
             <SubscriptionsView onChanged={load} />

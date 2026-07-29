@@ -29,6 +29,21 @@ function normalizeRow(r: Record<string, unknown>): CatalogItem {
   };
 }
 
+/** GET /api/catalog/:id — jedna pozycja katalogu. Admin-only.
+ *
+ * Powstało dla ADRESU REKORDU (`/admin/catalog/<id>`, Moduł 59, paczka E) —
+ * dotąd komponent katalogu istniał wyłącznie jako wiersz listy i nie dało się
+ * do niego odesłać linkiem. */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { id } = await params;
+  await ensureInvoicesSchema();
+  const sql = getSql();
+  const rows = await sql`SELECT * FROM service_catalog WHERE id = ${id};`;
+  if (!rows[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json({ item: normalizeRow(rows[0] as Record<string, unknown>) });
+}
+
 /** PATCH /api/catalog/:id — edytuj pozycję katalogu. Admin-only. Zwraca całą
  * odświeżoną listę (jak POST), żeby UI nie musiał scalać ręcznie. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

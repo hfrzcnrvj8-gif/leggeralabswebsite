@@ -23,6 +23,8 @@ import { formatMoney } from "@/lib/invoices";
 import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
+import { StanListy, StanBledu } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { Popover, MenuRow, MenuDivider, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Tooltip } from "../Tooltip";
@@ -43,6 +45,8 @@ const PO_TERMINIE = "__po_terminie__";
 export function OffersDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
   const [offers, setOffers] = useState<OfferRow[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -64,14 +68,14 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const ctx = useContextMenu<OfferRow>();
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/offers");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const data = await pobierzJSON<{ offers: OfferRow[]; total?: number }>("/api/offers");
+      setOffers(data.offers);
+      setTotal(data.total ?? data.offers.length);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const data = (await res.json()) as { offers: OfferRow[]; total?: number };
-    setOffers(data.offers);
-    setTotal(data.total ?? data.offers.length);
   }, []);
 
   useEffect(() => {
@@ -404,6 +408,18 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   }, [offers]);
 
   if (!offers) {
+    // Szkielet TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria wczytania
+    // zostawiała ten szkielet pulsujący w nieskończoność — ekran wyglądał jak
+    // wieczne ładowanie i nie mówił ani co się stało, ani jak spróbować znowu.
+    if (blad) {
+      return (
+        <div className="p-4 sm:p-6">
+          <div className="card-paper rounded-2xl">
+            <StanBledu blad={blad} onPonow={load} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3 p-4 sm:p-6">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--hairline)]" />
@@ -567,33 +583,27 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         )}
 
         {rows.length === 0 ? (
-          <div className="card-paper rounded-2xl p-10 text-center text-sm text-muted">
-            <IconOfferEmpty />
-            {/* Pusty stan ma mówić, czego brakuje i co to zmienia (ustalenie A1)
-                — samo „brak ofert" nie tłumaczy, po co w ogóle wchodzić w ten
-                ekran. */}
-            {szukaj.trim() || filterStatus ? (
-              <>
-                <p className="mt-2">Nic nie pasuje do tego, czego szukasz.</p>
-                <button
-                  onClick={() => { setSzukaj(""); setFilterStatus(""); }}
-                  className="mt-2 rounded-full border hairline px-3 py-1 text-xs text-[var(--fg)]"
-                >
-                  Wyczyść filtry
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="mt-2 text-[var(--fg)]">Nie ma jeszcze żadnej oferty.</p>
-                <p className="mx-auto mt-1 max-w-md text-[12.5px]">
-                  Oferta to moment, w którym rozmowa zamienia się w liczby. Gdy klient ją zaakceptuje,
-                  panel sam założy projekt i szkic faktury, a lead z niej zrobiony awansuje na klienta.
-                </p>
-                <button onClick={createOffer} className="btn-primary mt-3 rounded-full px-4 py-1.5 text-xs font-semibold">
+          <div className="card-paper rounded-2xl">
+            {/* Trzy warianty pustego ekranu przez wspólny `StanListy`
+                (paczka E). Treść wariantu „pusto naprawdę" jest ta sama, co
+                wcześniej — nowy jest tylko wariant „nie udało się wczytać",
+                którego ten ekran nie miał wcale. */}
+            <StanListy
+              blad={blad}
+              onPonow={load}
+              filtrAktywny={!!szukaj.trim() || !!filterStatus}
+              onWyczyscFiltr={() => { setSzukaj(""); setFilterStatus(""); }}
+              filtrTytul="Nic nie pasuje do tego, czego szukasz"
+              filtrOpis="Oferty w rejestrze są, ale żadna nie spełnia zaznaczonych warunków."
+              ikona={IconFileDescription}
+              tytul="Nie ma jeszcze żadnej oferty"
+              opis="Oferta to moment, w którym rozmowa zamienia się w liczby. Gdy klient ją zaakceptuje, panel sam założy projekt i szkic faktury, a lead z niej zrobiony awansuje na klienta."
+              akcja={
+                <button onClick={createOffer} className="btn-primary rounded-full px-4 py-1.5 text-xs font-semibold">
                   + Nowa oferta
                 </button>
-              </>
-            )}
+              }
+            />
           </div>
         ) : (
           // `flex-1` + `overflow-auto` (Moduł 35): tabela sięga dołu okna i przewija
@@ -860,14 +870,6 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         opis="Powiązanie decyduje o tym, czy oferta trafi na kartę klienta i czy po zamknięciu projektu panel przypomni o kontakcie. Możesz je dodać także później."
         leadNote="założy klienta"
       />
-    </div>
-  );
-}
-
-function IconOfferEmpty() {
-  return (
-    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hairline)] text-muted">
-      <IconFileDescription size={20} />
     </div>
   );
 }

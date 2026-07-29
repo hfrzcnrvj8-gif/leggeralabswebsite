@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { PROJECT_HEALTHS, PROJECT_HEALTH_CLASS } from "@/lib/projects";
 import type { StatsTrendPoint } from "@/lib/stats";
 import { TrendChart } from "./TrendChart";
+import { StanBledu } from "../StanPusty";
 
 type StatsData = {
   months: string[];
@@ -90,9 +91,14 @@ export function StatsDashboard() {
   }, []);
 
   if (loadError) {
+    // Do paczki E był tu goły czerwony akapit — bez ikony i bez drogi wyjścia.
+    // Czerwień w tym panelu jest zarezerwowana dla akcji niszczącej (kat. 1),
+    // a nieudane wczytanie nie niszczy niczego, tylko wymaga powtórzenia.
     return (
       <div className="-mx-4 p-6 sm:-mx-6">
-        <p className="text-sm text-red-400">{loadError}</p>
+        <div className="card-paper rounded-2xl">
+          <StanBledu blad={loadError} onPonow={() => window.location.reload()} />
+        </div>
       </div>
     );
   }

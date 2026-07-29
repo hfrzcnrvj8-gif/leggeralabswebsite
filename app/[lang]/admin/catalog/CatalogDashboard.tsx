@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IconPlus, IconTrash, IconPencil, IconInfoCircle } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconPlus, IconTrash, IconPencil, IconInfoCircle, IconBoxMultiple, IconArrowUpRight } from "@tabler/icons-react";
 import { Modal } from "../Modal";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { useUI, useRegisterActions } from "../ui";
+import { StanListy } from "../StanPusty";
+import { pobierzJSON, komunikatBledu } from "../dane";
 import { CatalogCategoryIcon } from "../icons";
 import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
 import { VAT_RATES } from "@/lib/invoices";
@@ -29,21 +32,23 @@ const WSZYSTKIE = "__wszystkie__";
  * robocizny. */
 const JEDNOSTKI = ["szt.", "kpl.", "mies.", "godz.", "usł.", "lic."];
 
-export function CatalogDashboard() {
+export function CatalogDashboard({ lang }: { lang: string }) {
   const { toast, confirm } = useUI();
   const [items, setItems] = useState<CatalogItem[] | null>(null);
+  // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
+  const [blad, setBlad] = useState<string | null>(null);
   const [kategoria, setKategoria] = useState<string>(WSZYSTKIE);
   const [edytowany, setEdytowany] = useState<CatalogItem | null>(null);
   const [formOtwarty, setFormOtwarty] = useState(false);
 
   const wczytaj = useCallback(async () => {
-    const res = await fetch("/api/catalog");
-    if (res.status === 401) {
-      window.location.reload();
-      return;
+    try {
+      const dane = await pobierzJSON<{ items: CatalogItem[] }>("/api/catalog");
+      setItems(dane.items);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    const dane = (await res.json()) as { items: CatalogItem[] };
-    setItems(dane.items);
   }, []);
 
   useEffect(() => {
@@ -127,21 +132,27 @@ export function CatalogDashboard() {
         </FilterPillsBar>
       )}
 
-      {items === null ? (
+      {/* Do paczki E ten ekran przy awarii wczytania zostawał na „Wczytuję…"
+          w nieskończoność — `items` nigdy nie przestawało być `null`. */}
+      {items === null && !blad ? (
         <p className="mt-6 text-center text-[13px] text-muted">Wczytuję…</p>
-      ) : items.length === 0 ? (
-        <div className="card-paper mt-6 rounded-2xl px-5 py-8 text-center">
-          <p className="text-[13.5px] text-[var(--fg)]">Katalog jest pusty.</p>
-          <p className="mx-auto mt-1 max-w-md text-[12.5px] text-muted">
-            Dodaj pierwszy komponent (np. „Serwer 1× RTX 4090", „Wdrożenie RAG", „Serwis miesięczny"), a potem składaj
-            z nich oferty jednym kliknięciem.
-          </p>
-          <button
-            onClick={otworzNowy}
-            className="btn-primary mx-auto mt-4 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold"
-          >
-            <IconPlus size={16} /> Dodaj komponent
-          </button>
+      ) : (items?.length ?? 0) === 0 ? (
+        <div className="card-paper mt-6 rounded-2xl">
+          <StanListy
+            blad={blad}
+            onPonow={wczytaj}
+            ikona={IconBoxMultiple}
+            tytul="Katalog jest pusty"
+            opis="Katalog to klocki, z których składasz ofertę jednym kliknięciem — bez niego każdą pozycję wpisujesz od nowa, a koszt zakupu i marża nie mają skąd się wziąć."
+            akcja={
+              <button
+                onClick={otworzNowy}
+                className="btn-primary flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold"
+              >
+                <IconPlus size={16} /> Dodaj komponent
+              </button>
+            }
+          />
         </div>
       ) : (
         <div className="mt-4 space-y-6">
@@ -157,7 +168,7 @@ export function CatalogDashboard() {
               <ul className="space-y-1.5">
                 {g.items.map((c) => (
                   <li key={c.id}>
-                    <WierszKomponentu c={c} onEdytuj={() => otworzEdycje(c)} onUsun={() => usun(c)} pokazKategorie={false} />
+                    <WierszKomponentu c={c} lang={lang} onEdytuj={() => otworzEdycje(c)} onUsun={() => usun(c)} pokazKategorie={false} />
                   </li>
                 ))}
               </ul>
@@ -183,11 +194,13 @@ export function CatalogDashboard() {
 
 function WierszKomponentu({
   c,
+  lang,
   onEdytuj,
   onUsun,
   pokazKategorie,
 }: {
   c: CatalogItem;
+  lang: string;
   onEdytuj: () => void;
   onUsun: () => void;
   pokazKategorie: boolean;
@@ -225,6 +238,21 @@ function WierszKomponentu({
         </span>
       </button>
       <div className="flex shrink-0 items-center gap-1">
+        {/* Adres rekordu (paczka E) — profil komponentu pod własnym linkiem;
+            zwykły klik zostaje przy formularzu edycji, bo to najczęstsza
+            czynność w katalogu. */}
+        <Link
+          href={`/${lang}/admin/catalog/${c.id}`}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+            e.preventDefault();
+            onEdytuj();
+          }}
+          title="Otwórz komponent"
+          className="text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
+        >
+          <IconArrowUpRight size={15} />
+        </Link>
         <button
           onClick={onEdytuj}
           aria-label="Edytuj"
@@ -247,7 +275,7 @@ function WierszKomponentu({
 /** Formularz dodawania/edycji. Renderowany warunkowo (montuje się świeżo przy
  * każdym otwarciu), więc stan początkowy z `initial` czytamy raz w inicjatorze
  * useState — bez ryzyka „starej wartości" znanego z innych ekranów. */
-function CatalogFormModal({
+export function CatalogFormModal({
   initial,
   onClose,
   onSaved,
