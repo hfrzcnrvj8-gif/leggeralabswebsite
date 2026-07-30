@@ -308,7 +308,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
                   if (e.key === "Escape") closePrompt(null);
                   if (e.key === "Enter") closePrompt(promptValue.trim() || null);
                 }}
-                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
+                className="w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm text-[var(--fg)] placeholder:text-muted focus:border-zaznaczenie/60 focus:outline-none"
               />
               <div className="mt-4 flex justify-end gap-2">
                 <button

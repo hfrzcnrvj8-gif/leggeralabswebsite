@@ -8,6 +8,8 @@ import { todayLocalISO } from "@/lib/dates";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { useUI, useRegisterActions } from "../ui";
 import { StanListy } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { ReminderDetail } from "./ReminderDetail";
 import { SeriaTag } from "../CyklPicker";
@@ -39,6 +41,8 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
   const [nowy, setNowy] = useState("");
   const [otwarte, setOtwarte] = useState<string | null>(null);
   const poleNowego = useRef<HTMLInputElement>(null);
+  const [szukaj, setSzukaj] = useState("");
+  const szukajRef = useRef<HTMLInputElement>(null);
 
   const dzisISO = todayLocalISO();
 
@@ -145,19 +149,53 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
     [lists, bezListy]
   );
 
+  // Filtr tekstowy: pasuje rodzic ALBO którekolwiek z jego podzadań. Ukrycie
+  // rodzica, którego podzadanie trafiło we frazę, zostawiłoby podzadanie bez
+  // kontekstu — a wcięcie pod rodzicem jest tu jedyną informacją, do czego ono
+  // należy (patrz komentarz przy renderowaniu podzadań).
+  const widoczne = useMemo(() => {
+    const igla = szukaj.trim().toLowerCase();
+    if (!igla) return reminders ?? [];
+    const pasuje = (r: Reminder) => (r.tytul + " " + (r.notatka ?? "")).toLowerCase().includes(igla);
+    return (reminders ?? []).filter((r) => pasuje(r) || (r.podzadania ?? []).some(pasuje));
+  }, [reminders, szukaj]);
+
   // Szukamy TAKŻE w podzadaniach — inaczej kliknięcie w podzadanie otwierałoby
   // pusty modal, bo lista najwyższego poziomu go nie zawiera.
   const wszystkie = reminders?.flatMap((r) => [r, ...(r.podzadania ?? [])]) ?? [];
   const otwarty = wszystkie.find((r) => r.id === otwarte) ?? null;
 
+  /** Kolejność kursora = kolejność czytania: rodzic, potem jego podzadania. */
+  const plaskie = useMemo(() => widoczne.flatMap((r) => [r, ...(r.podzadania ?? [])]), [widoczne]);
+  const indeksy = useMemo(() => new Map(plaskie.map((r, i) => [r.id, i])), [plaskie]);
+
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C).
+  const { wiersz } = useSkrotyListy({
+    elementy: plaskie,
+    otworz: (r) => setOtwarte(r.id),
+    szukajRef,
+    wyczyscSzukanie: () => setSzukaj(""),
+    aktywne: !otwarte,
+  });
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
-      <header className="mb-4 flex items-baseline justify-between gap-3">
+      <header className="mb-3 flex items-baseline justify-between gap-3">
         <h1 className="text-liquid text-2xl font-semibold">Przypomnienia</h1>
         <button onClick={dodajListe} className="text-[12px] text-muted hover:text-[var(--fg)]">
           + nowa lista
         </button>
       </header>
+
+      <div className="mb-3 flex h-9 items-center rounded-lg border hairline px-2">
+        <PoleSzukania
+          ref={szukajRef}
+          value={szukaj}
+          onChange={setSzukaj}
+          podpowiedz="Szuka w tytule i notatce przypomnienia — także w podzadaniach"
+          className="ml-0"
+        />
+      </div>
 
       <FilterPillsBar>
         <FilterPills
@@ -212,7 +250,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
       </div>
 
       <ul className="mt-2 divide-y divide-[var(--hairline)]">
-        {reminders?.map((r) => (
+        {widoczne.map((r) => (
           <li key={r.id} className="py-1">
             <WierszPrzypomnienia
               r={r}
@@ -222,6 +260,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
               onOtworz={() => setOtwarte(r.id)}
               onPatch={patch}
               onUsun={usun}
+              {...wiersz(indeksy.get(r.id) ?? -1)}
             />
             {/* Podzadania z wcięciem — zagnieżdżenie robi API (`podzadania`),
                 panel je tylko rysuje. Płaska lista pokazywałaby „Kupić farbę"
@@ -238,6 +277,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
                       onOtworz={() => setOtwarte(s.id)}
                       onPatch={patch}
                       onUsun={usun}
+                      {...wiersz(indeksy.get(s.id) ?? -1)}
                     />
                   </li>
                 ))}
@@ -250,13 +290,13 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
       {/* Do paczki E awaria wczytania zostawiała `reminders === null`, czyli
           licznik na zawsze pokazywał „Wczytuję…", a lista była po prostu
           pusta — bez słowa o tym, że panel nie odpowiedział. */}
-      {(reminders === null ? !!blad : reminders.length === 0) && (
+      {(reminders === null ? !!blad : widoczne.length === 0) && (
         <div className="card-paper mt-4 rounded-2xl">
           <StanListy
             blad={blad}
             onPonow={wczytaj}
-            filtrAktywny={wybranaLista !== WSZYSTKIE || zUkonczonymi}
-            onWyczyscFiltr={() => { setWybranaLista(WSZYSTKIE); setZUkonczonymi(false); }}
+            filtrAktywny={wybranaLista !== WSZYSTKIE || zUkonczonymi || !!szukaj.trim()}
+            onWyczyscFiltr={() => { setWybranaLista(WSZYSTKIE); setZUkonczonymi(false); setSzukaj(""); }}
             filtrTytul="Ta lista jest pusta"
             filtrOpis="Przypomnienia są, ale żadne nie należy do wybranej listy."
             ikona={IconCircleCheck}
@@ -287,6 +327,8 @@ function WierszPrzypomnienia({
   onOtworz,
   onPatch,
   onUsun,
+  className,
+  ...reszta
 }: {
   r: Reminder;
   lang: Locale;
@@ -295,9 +337,12 @@ function WierszPrzypomnienia({
   onOtworz: () => void;
   onPatch: (id: string, pola: Record<string, unknown>) => void;
   onUsun: (r: Reminder) => void;
+  /** Podświetlenie kursora j/k — składane przez `wiersz()` z `klawiatura.ts`. */
+  className?: string;
+  "data-kursor"?: "1";
 }) {
   return (
-    <div className="group flex items-start gap-3 py-1.5">
+    <div className={`group flex items-start gap-3 rounded-lg py-1.5 ${className ?? ""}`} {...reszta}>
       <button
         onClick={() => onPatch(r.id, { ukonczone: !r.ukonczone })}
         aria-label={r.ukonczone ? "Cofnij odhaczenie" : "Odhacz"}

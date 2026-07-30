@@ -297,7 +297,7 @@ function Przeglad({
           inputMode="numeric"
           autoComplete="one-time-code"
           placeholder="123456"
-          className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2.5 text-center text-lg tracking-[0.3em] outline-none focus:border-[var(--zaznaczenie)]/60"
+          className="mt-1 w-full rounded-lg border hairline bg-transparent px-3 py-2.5 text-center text-lg tracking-[0.3em] outline-none focus:border-zaznaczenie/60"
         />
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <button
@@ -420,7 +420,7 @@ function Skanowanie({
           onKeyDown={(e) => {
             if (e.key === "Enter" && kod && !zajete) onPotwierdz();
           }}
-          className="mt-2 w-full rounded-lg border hairline bg-transparent px-3 py-2.5 text-center text-lg tracking-[0.3em] outline-none focus:border-[var(--zaznaczenie)]/60"
+          className="mt-2 w-full rounded-lg border hairline bg-transparent px-3 py-2.5 text-center text-lg tracking-[0.3em] outline-none focus:border-zaznaczenie/60"
         />
         <div className="mt-2 flex gap-2">
           <button

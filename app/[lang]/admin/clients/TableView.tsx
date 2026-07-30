@@ -18,6 +18,7 @@ import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
 import { ContextMenu, useContextMenu } from "../Menu";
 import { Tooltip } from "../Tooltip";
+import { KLASA_KURSORA } from "../klawiatura";
 import { ContactChannelMenuItems, hasChannelActions } from "../ContactChannelMenu";
 import { daysAgoLabel } from "@/lib/dates";
 import { ClientMenuItems } from "./ClientContextMenu";
@@ -36,7 +37,7 @@ import { ClientMenuItems } from "./ClientContextMenu";
 export function TableView({
   clients,
   lang,
-  selectedId,
+  podKursorem,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -49,7 +50,9 @@ export function TableView({
 }: {
   clients: Client[];
   lang: Locale;
-  selectedId?: string | null;
+  /** Id wiersza pod kursorem j/k. Obrys, nie tło — tło znaczy „zaznaczone
+   *  do akcji zbiorczej" (bliźniak `leads/TableView.tsx`). */
+  podKursorem?: string | null;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: (checked: boolean) => void;
@@ -222,7 +225,7 @@ export function TableView({
               // onClick TS gubi zawężenie z `&&`.
               const kanal = client.ostatni_kanal;
               const overdueRow = isClientOverdue(client);
-              const selected = selectedId === client.id;
+              const kursor = podKursorem === client.id;
               const checked = selectedIds.has(client.id);
               return (
                 <tr
@@ -232,9 +235,10 @@ export function TableView({
                   // drugie: te dwa pliki są kopią wzorca.
                   onClick={() => onOpen(client.id)}
                   onContextMenu={(e) => ctl.openAt(e, client)}
-                  className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-[var(--hairline)]/40 ${
+                  className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-hairline/80 ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
-                  } ${selected ? "bg-[var(--zaznaczenie)]/[0.08]" : ""} ${checked ? "bg-[var(--zaznaczenie)]/[0.08]" : ""}`}
+                  } ${checked ? "bg-zaznaczenie/[0.08]" : ""} ${kursor ? KLASA_KURSORA : ""}`}
+                  {...(kursor ? { "data-kursor": "1" as const } : {})}
                 >
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
                     <input

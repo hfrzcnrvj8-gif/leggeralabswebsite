@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { IconPlus, IconX, IconPaperclip, IconCloudDownload, IconRepeat, IconArrowUpRight, IconBuilding, IconHash, IconCoin, IconTrash, IconCash } from "@tabler/icons-react";
@@ -11,6 +11,8 @@ import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import {
   Popover,
@@ -127,6 +129,8 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
   const [editorBusy, setEditorBusy] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterKategoria, setFilterKategoria] = useState("");
+  const [szukaj, setSzukaj] = useState("");
+  const szukajRef = useRef<HTMLInputElement>(null);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const projectFilter = searchParams.get("project");
 
@@ -203,8 +207,26 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
     if (projectFilter) list = list.filter((c) => c.project_id === projectFilter);
     if (filterStatus) list = list.filter((c) => c.status === filterStatus);
     if (filterKategoria) list = list.filter((c) => c.kategoria === filterKategoria);
+    const igla = szukaj.trim().toLowerCase();
+    if (igla) {
+      list = list.filter(
+        (c) =>
+          (c.dostawca_nazwa ?? "").toLowerCase().includes(igla) ||
+          (c.opis ?? "").toLowerCase().includes(igla) ||
+          (c.project_tytul ?? "").toLowerCase().includes(igla)
+      );
+    }
     return list;
-  }, [costs, projectFilter, filterStatus, filterKategoria]);
+  }, [costs, projectFilter, filterStatus, filterKategoria, szukaj]);
+
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C).
+  const { wiersz } = useSkrotyListy({
+    elementy: rows,
+    otworz: (c) => setOpenId(c.id),
+    szukajRef,
+    wyczyscSzukanie: () => setSzukaj(""),
+    aktywne: !openId && !recurringOpen,
+  });
 
   const kpi = useMemo(() => {
     const list = costs ?? [];
@@ -244,7 +266,7 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Koszty</span>
-        <span className="flex-1" />
+        <PoleSzukania ref={szukajRef} value={szukaj} onChange={setSzukaj} podpowiedz="Szuka po dostawcy, opisie kosztu i nazwie projektu" />
         <Popover
           align="right"
           width={200}
@@ -315,8 +337,8 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
                 <StanListy
                   blad={blad}
                   onPonow={load}
-                  filtrAktywny={!!filterStatus || !!filterKategoria || !!projectFilter}
-                  onWyczyscFiltr={() => { setFilterStatus(""); setFilterKategoria(""); }}
+                  filtrAktywny={!!filterStatus || !!filterKategoria || !!projectFilter || !!szukaj.trim()}
+                  onWyczyscFiltr={() => { setFilterStatus(""); setFilterKategoria(""); setSzukaj(""); }}
                   filtrTytul="Żaden koszt nie pasuje"
                   filtrOpis={projectFilter
                     ? "Ten projekt nie ma jeszcze kosztów w wybranym zakresie — filtr projektu zdejmiesz, wracając do pełnego rejestru."
@@ -349,12 +371,12 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((c) => (
+                    {rows.map((c, i) => (
                       <tr
                         key={c.id}
                         onClick={() => setOpenId(c.id)}
                         onContextMenu={(e) => ctl.openAt(e, c)}
-                        className="cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40"
+                        {...wiersz(i, "cursor-pointer border-b hairline transition-colors hover:bg-hairline/80")}
                       >
                         <td className="p-2.5 font-medium text-[var(--fg)]">
                           <span className="flex items-center gap-1.5">

@@ -70,7 +70,7 @@ export function MailBodyHtml({ html, blockedImages, onShowImages }: { html: stri
   return (
     <div className="space-y-2">
       {blockedImages && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border hairline bg-[var(--hairline)]/30 px-3 py-2 text-[12px]">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border hairline bg-hairline/30 px-3 py-2 text-[12px]">
           <span className="text-muted">Obrazki zablokowane — zdalne obrazki zdradzają nadawcy, że otworzyłeś maila.</span>
           <button onClick={onShowImages} className="rounded-full border hairline px-2 py-0.5 hover:bg-[var(--hairline)]">
             Pokaż obrazki
@@ -83,7 +83,7 @@ export function MailBodyHtml({ html, blockedImages, onShowImages }: { html: stri
           wymuszamy na ciemno (tak samo robi Apple Mail/Gmail — nie
           przemalowują cudzej treści). To wyłącznie kosmetyka wokół, nie
           zmiana samego renderowania (patrz buildMailSrcDoc, lib/mailHtml.ts). */}
-      <div className="rounded-2xl border hairline bg-[var(--hairline)]/10 p-2">
+      <div className="rounded-2xl border hairline bg-hairline/10 p-2">
         <iframe
           ref={ref}
           srcDoc={srcDoc}

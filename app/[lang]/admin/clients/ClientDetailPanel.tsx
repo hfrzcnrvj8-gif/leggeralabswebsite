@@ -1224,7 +1224,7 @@ export function ClientDetailPanel({
                             return (
                               <li
                                 key={`${f.source}:${f.id}`}
-                                className="group relative flex items-start gap-2.5 rounded-lg py-2 pl-10 pr-2 text-sm hover:bg-[var(--hairline)]/60"
+                                className="group relative flex items-start gap-2.5 rounded-lg py-2 pl-10 pr-2 text-sm hover:bg-hairline/60"
                               >
                                 {/* Odznaka siedzi NA linii (ujemny lewy margines
                                     równy wcięciu listy), więc oś czasu ma jeden

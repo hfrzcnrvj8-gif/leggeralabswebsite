@@ -19,6 +19,7 @@ import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
 import { ContextMenu, useContextMenu } from "../Menu";
 import { Tooltip } from "../Tooltip";
+import { KLASA_KURSORA } from "../klawiatura";
 import { ContactChannelMenuItems, hasChannelActions } from "../ContactChannelMenu";
 import { daysAgoLabel } from "@/lib/dates";
 import { LeadMenuItems } from "./LeadContextMenu";
@@ -35,7 +36,7 @@ import { LeadMenuItems } from "./LeadContextMenu";
 export function TableView({
   leads,
   lang,
-  selectedId,
+  podKursorem,
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
@@ -48,7 +49,10 @@ export function TableView({
 }: {
   leads: Lead[];
   lang: Locale;
-  selectedId?: string | null;
+  /** Id wiersza pod kursorem j/k. Podświetlenie OBRYSEM, nie tłem: tło znaczy
+   *  „zaznaczone do akcji zbiorczej" (checkbox), a do paczki C obie rzeczy
+   *  wyglądały identycznie. */
+  podKursorem?: string | null;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: (checked: boolean) => void;
@@ -263,7 +267,7 @@ export function TableView({
               // zawężenie z `&&` (closure może odpalić później), a `!` tylko by je uciszył.
               const kanal = lead.ostatni_kanal;
               const overdueRow = isOverdue(lead);
-              const selected = selectedId === lead.id;
+              const kursor = podKursorem === lead.id;
               const checked = selectedIds.has(lead.id);
               const kontakt = [lead.telefon, lead.email].filter(Boolean);
               return (
@@ -278,9 +282,10 @@ export function TableView({
                   // zatrzymują zdarzenie u siebie.
                   onClick={() => onOpen(lead.id)}
                   onContextMenu={(e) => ctl.openAt(e, lead)}
-                  className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-[var(--hairline)]/40 ${
+                  className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-hairline/80 ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
-                  } ${selected ? "bg-[var(--zaznaczenie)]/[0.08]" : ""} ${checked ? "bg-[var(--zaznaczenie)]/[0.08]" : ""}`}
+                  } ${checked ? "bg-zaznaczenie/[0.08]" : ""} ${kursor ? KLASA_KURSORA : ""}`}
+                  {...(kursor ? { "data-kursor": "1" as const } : {})}
                 >
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
                     <input

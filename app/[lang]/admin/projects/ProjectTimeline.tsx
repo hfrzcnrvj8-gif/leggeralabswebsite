@@ -454,7 +454,7 @@ export function ProjectTimeline({
             {layoutRows.map((row, ri) => {
               if (row.type === "group") {
                 return (
-                  <div key={`g-${ri}`} className="relative flex items-center gap-2 border-y hairline bg-[var(--hairline)]/[0.18] px-3" style={{ height: GROUP_H }}>
+                  <div key={`g-${ri}`} className="relative flex items-center gap-2 border-y hairline bg-hairline/[0.18] px-3" style={{ height: GROUP_H }}>
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{row.label}</span>
                     <span className="rounded-full bg-[var(--hairline)] px-1.5 text-[10px] text-muted">{row.count}</span>
                   </div>
@@ -501,7 +501,7 @@ export function ProjectTimeline({
               const hasTrail = !estimated && solidEndPct < endPct - 0.2;
 
               return (
-                <div key={p.id} className={`group relative ${row.alt ? "bg-[var(--hairline)]/[0.06]" : ""}`} style={{ height: ROW_H }}>
+                <div key={p.id} className={`group relative ${row.alt ? "bg-hairline/[0.06]" : ""}`} style={{ height: ROW_H }}>
                   {/* NAZWA NAD PASKIEM — przy dacie startu */}
                   <button
                     onClick={() => {
@@ -521,7 +521,7 @@ export function ProjectTimeline({
                   {/* PASEK (solidna część) — ciało przeciąga, krawędzie zmieniają start/termin */}
                   <div
                     className={`absolute rounded-md border ${estimated ? "border-dashed opacity-80" : ""} ${
-                      dg ? "ring-1 ring-[var(--zaznaczenie)]/60" : ""
+                      dg ? "ring-1 ring-zaznaczenie/60" : ""
                     }`}
                     style={{ left: `${startPct}%`, width: `${Math.max((hasTrail ? solidEndPct : endPct) - startPct, 0.4)}%`, top: BAR_TOP, height: BAR_H, minWidth: 10, background: barFill, borderColor: statusHex }}
                     title={

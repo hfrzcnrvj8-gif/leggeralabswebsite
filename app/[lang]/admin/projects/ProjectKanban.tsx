@@ -30,6 +30,7 @@ import {
   useContextMenu,
 } from "../Menu";
 import { useCopy } from "../ui";
+import { KLASA_KURSORA } from "../klawiatura";
 
 // Status jako ikona (styl Linear) — KSZTAŁT koła oddaje etap, kolor tylko go
 // wzmacnia. Kolory zgodne z pigułkami (`PROJECT_STATUS_CLASS` w lib/projects.ts),
@@ -103,6 +104,7 @@ export function ProjectKanban({
   projects,
   lang,
   selectedIds,
+  podKursorem,
   onToggleSelect,
   onUpdate,
   onDelete,
@@ -111,6 +113,9 @@ export function ProjectKanban({
   projects: Project[];
   lang: Locale;
   selectedIds: Set<string>;
+  /** Id karty pod kursorem j/k (Moduł 59, paczka C). Obrys neutralny, tak samo
+   *  jak w tabelach — zaznaczenie do akcji zbiorczej niesie tło. */
+  podKursorem?: string | null;
   onToggleSelect: (id: string) => void;
   onUpdate: (id: string, field: string, value: string) => void;
   onDelete: (id: string, tytul: string) => void;
@@ -154,7 +159,7 @@ export function ProjectKanban({
             // 2026-07-16) — wcześniej samo bledziutkie tło 0.04 bez obrysu,
             // ledwo widoczne przy przeciąganiu.
             className={`kolumna-tablicy flex w-[300px] shrink-0 flex-col overflow-hidden rounded-xl transition-colors ${
-              dragOverStatus === col.status ? "bg-[var(--zaznaczenie)]/[0.08] ring-1 ring-[var(--zaznaczenie)]/40" : ""
+              dragOverStatus === col.status ? "bg-zaznaczenie/[0.08] ring-1 ring-zaznaczenie/40" : ""
             }`}
           >
             {/* Nagłówek kolumny — ikona statusu + nazwa + licznik, bez ramki */}
@@ -194,10 +199,11 @@ export function ProjectKanban({
                       onKeyDown={(e) => {
                         if (e.key === "Enter") onOpen(p.id);
                       }}
+                      {...(podKursorem === p.id ? { "data-kursor": "1" as const } : {})}
                       className={`group relative cursor-pointer rounded-lg border bg-[var(--bg-soft)] px-3 py-2.5 transition-colors hover:border-[#3a3b40] active:cursor-grabbing ${
                         draggingId === p.id ? "opacity-40" : ""
-                      } ${
-                        selected ? "border-[var(--zaznaczenie)]/60 bg-[var(--zaznaczenie)]/[0.06]" : "border-[var(--hairline)]"
+                      } ${podKursorem === p.id ? KLASA_KURSORA : ""} ${
+                        selected ? "border-zaznaczenie/60 bg-zaznaczenie/[0.06]" : "border-[var(--hairline)]"
                       }`}
                     >
                       {/* Checkbox — na hover (lub gdy coś zaznaczone), lewy górny róg */}

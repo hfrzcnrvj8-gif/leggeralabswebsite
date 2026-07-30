@@ -11,6 +11,8 @@ import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { Modal } from "../Modal";
 import { useUI, useRegisterActions } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { NoteDetailPanel } from "./NoteDetailPanel";
 import {
@@ -39,6 +41,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
   const [search, setSearch] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const newTextRef = useRef<HTMLTextAreaElement>(null);
+  const szukajRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -106,6 +109,16 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
     []
   );
 
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C). Kursor chodzi po
+  // kartach w kolejności siatki (rzędami), Enter otwiera profil notatki.
+  const { wiersz } = useSkrotyListy({
+    elementy: filtered,
+    otworz: (n) => setOpenId(n.id),
+    szukajRef,
+    wyczyscSzukanie: () => setSearch(""),
+    aktywne: !openId,
+  });
+
   if (!notes) {
     // Szkielet TYLKO wtedy, gdy naprawdę czekamy — przy awarii pulsował
     // w nieskończoność (paczka E).
@@ -128,7 +141,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       <div className="flex shrink-0 items-center gap-2 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] text-muted">Notatnik · {activeCount}</span>
-        <span className="flex-1" />
+        <PoleSzukania ref={szukajRef} value={search} onChange={setSearch} podpowiedz="Szuka w tytule, treści, tagach i logu notatki" />
         {/* Filtr po kliencie/leadzie — wzorem Kalendarza, ale przez wspólny
             LinkPicker (Moduł 22) zamiast surowego <select>. */}
         <LinkPicker
@@ -138,14 +151,6 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
           align="right"
           placeholder="Wszyscy"
         />
-        <Tooltip label="Szuka w tytule, treści, tagach i logu">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Szukaj…"
-            className="w-40 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
-          />
-        </Tooltip>
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 sm:px-6 md:min-h-0">
@@ -228,8 +233,8 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((n) => (
-              <div key={n.id} className="card-paper rounded-2xl p-4">
+            {filtered.map((n, i) => (
+              <div key={n.id} {...wiersz(i, "card-paper rounded-2xl p-4")}>
                 <div className="flex items-start gap-1.5">
                   {/* Akcje karty notatki: dymek, nie pigułka. Karta to inna
                       powierzchnia niż pasek/wiersz tabeli — pinezka siedzi przy
@@ -269,7 +274,7 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
                     defaultValue={n.tagi}
                     onBlur={(e) => patch(n.id, { tagi: e.target.value })}
                     placeholder="tagi, po przecinku"
-                    className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
+                    className="w-full rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-zaznaczenie/60 focus:outline-none"
                   />
                 </div>
 

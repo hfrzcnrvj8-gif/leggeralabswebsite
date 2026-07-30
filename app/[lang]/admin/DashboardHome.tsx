@@ -427,7 +427,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
               </p>
               <p className="mt-0.5 text-[12px] text-muted">{data.backup.opis}</p>
               {data.backup.stan === "blad" && (
-                <p className="mt-1 rounded-lg bg-[var(--hairline)]/60 px-2 py-1 font-mono text-[11px] text-muted">
+                <p className="mt-1 rounded-lg bg-hairline/60 px-2 py-1 font-mono text-[11px] text-muted">
                   {data.backup.powod}
                 </p>
               )}
@@ -462,7 +462,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   </p>
                   <p className="mt-0.5 text-[12px] text-muted">{a.automat.skutek}</p>
                   {a.stan === "blad" && (
-                    <p className="mt-1 rounded-lg bg-[var(--hairline)]/60 px-2 py-1 font-mono text-[11px] text-muted">
+                    <p className="mt-1 rounded-lg bg-hairline/60 px-2 py-1 font-mono text-[11px] text-muted">
                       {a.powod}
                     </p>
                   )}

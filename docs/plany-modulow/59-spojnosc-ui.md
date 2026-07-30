@@ -219,8 +219,8 @@ iPhonie i iPadzie.
 | ~~**F**~~ | ~~etykietowane wiersze profilu~~ — **ZROBIONE 28.07**, patrz „Paczka F" niżej | — |
 | ~~**F+**~~ | ~~to samo w formularzach~~ — **ZROBIONE 29.07** na prośbę właściciela | — |
 | ~~**E**~~ | ~~puste stany · nazwy zakładek · adresy rekordów~~ — **ZROBIONE 29.07** | — |
-| **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
-| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
+| ~~**C**~~ | ~~klawiatura~~ — **ZROBIONE 29.07**, patrz „Paczka C" na dole | — |
+| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+" w panelu (szukanie zrobione w paczce C) | ~9 plików |
 
 ### Rozstrzygnięte przez właściciela
 
@@ -409,8 +409,8 @@ jak profil — to jest osobna decyzja i osobna paczka, nie przeoczenie.**
 | paczka | zakres | skala |
 |---|---|---|
 | ~~**E**~~ | ~~puste stany · nazwy zakładek · adresy rekordów~~ — **ZROBIONE 29.07**, patrz „Paczka E" niżej | — |
-| **C** | klawiatura: `/` i `j/k` w 10 modułach · ⌘N/⌘F w apce (dziś tylko Poczta) | 1 hook + wywołania |
-| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+"/szukania w panelu | ~9 plików |
+| ~~**C**~~ | ~~klawiatura~~ — **ZROBIONE 29.07**, patrz „Paczka C" na dole | — |
+| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+" w panelu (szukanie zrobione w paczce C) | ~9 plików |
 
 **Apka nie była w zakresie tej paczki** — jej ekrany profili od początku stoją
 na `List(.insetGrouped)`, czyli na wzorcu, do którego panel się właśnie
@@ -592,3 +592,71 @@ innego ternary — `npx tsc --noEmit` przeszedł **czysto**, a SWC odrzucił pli
 strony w podglądzie. Ta sama lekcja, co przy niedomkniętym komentarzu w
 `globals.css` (paczka Pulpit): **jedyna weryfikacja tego środowiska nie jest
 pełna — po każdej paczce załaduj ekran, którego dotknąłeś.**
+
+---
+
+## Paczka „C" — klawiatura, wykonana 2026-07-29
+
+**Definicja „gotowe" ustalona PRZED kodem:** jeden hook obsługuje `/`, `j/k`,
+`Enter` i `Esc` w KAŻDYM module z listą · zero lokalnych kopii tej obsługi ·
+kursor przewija się do widoku · kursor i zaznaczenie do akcji zbiorczej
+wyglądają RÓŻNIE · cztery moduły bez pola szukania je dostają · pole stoi w tym
+samym miejscu we wszystkich modułach · każdy skrót sprawdzony na żywo
+(zdarzenie klawiatury → stan DOM), nie tylko w kodzie · `tsc`, `npm test`
+i załadowanie każdego dotkniętego ekranu czyste.
+
+### Co zastąpiono
+
+| moduł | co było |
+|---|---|
+| Leady, Klienci | `/` + `j/k` + `Enter`, kursor rysowany **tłem** — tym samym, co zaznaczenie checkboxem |
+| Oferty, Umowy | to samo, ale z własnym rozpoznawaniem „czy piszę w polu" i z Esc czyszczącym frazę |
+| Poczta | `j/k` + `Enter` + własne przewijanie po `data-idx`, obrys w 40 % zamiast 60 % |
+| Projekty | tylko cyfry statusu przy otwartym profilu — ani `/`, ani `j/k` |
+| Faktury, Koszty, Katalog, Przypomnienia | **nic** — i żadnego pola szukania |
+| Notatnik | pole szukania było, klawiatury nie |
+| Kalendarz | nic (świadomie zostaje bez `/` i `j/k` — patrz `HUB_SETUP.md`) |
+
+Nowe wspólne części: `admin/klawiatura.ts` (`useSkrotyListy`, `KLASA_KURSORA`)
+i `admin/PoleSzukania.tsx`. Reguła, kontrakt klawiszy i uzasadnienie miejsca
+pola: `HUB_SETUP.md` → „Moduł 59, paczka C".
+
+### Co wyszło przy okazji i zostało naprawione w tej samej paczce
+
+1. **86 klas Tailwinda w panelu nie generowało ŻADNEJ reguły** — każda postać
+   `…-[var(--token)]/krycie`. Wśród nich podświetlenie wiersza pod myszą
+   w każdej tabeli, tło zaznaczonego wiersza i obrys kursora, który spadał na
+   domyślny błękit Tailwinda. Pełny opis, pomiar i reguła na przyszłość:
+   `HUB_SETUP.md` → „klasa z kryciem na zmiennej CSS NIE ISTNIEJE".
+2. **Cyfra statusu w Leadach i Klientach trafiała w pierwszy wiersz listy**,
+   choć nikt go nie wskazał — kursor był „na zerze" od wejścia na ekran.
+   Teraz cyfra działa tylko przy widocznym kursorze.
+3. **Pole szukania rejestru leadów stało widoczne w zakładce „Kandydaci"**,
+   gdzie nie zawężało niczego (martwa afordancja, kategoria 2). Schowane.
+4. **Krzyżyk czyszczący frazę** miała jedna Poczta — teraz ma go każdy moduł,
+   bo `Esc` to jedyne wyjście dla kogoś, kto zna skrót.
+
+### Korekta do inwentarza z Etapu 1
+
+**„⌘N/⌘F w apce — dziś tylko Poczta" było nieprawdą.** Skróty miały już
+Pulpit, Poczta, Leady (iPhone i iPad), Klienci (iPad), Projekty (iPhone
+i iPad) i Notatnik — siedem ekranów, nie jeden. Brakowało ich w Ofertach,
+Umowach, Fakturach, Kosztach, Katalogu, Przypomnieniach i Kalendarzu, czyli
+dokładnie tam, gdzie w apce nie ma też pola szukania.
+
+### Jak zweryfikowano
+
+Każdy skrót wywołany jako prawdziwe zdarzenie klawiatury w podglądzie i
+sprawdzony po stanie DOM, nie po zrzucie: `/` → który element ma fokus;
+wpisana fraza → ile wierszy zostało; `Esc` → czy fraza pusta i czy fokus
+wrócił; `j`/`k` → który wiersz ma `data-kursor`; `Enter` → czy otworzył się
+modal. Przeklikane po kolei wszystkie 11 modułów z podpiętym `window.onerror`
+i `unhandledrejection` — **zero błędów wykonania**, każdy ma pole szukania
+(Kalendarz świadomie nie).
+
+**Uwaga na artefakt narzędzia:** karta podglądu jest `document.hidden`, więc
+`requestAnimationFrame` nie tyka i **przejścia CSS nigdy się nie kończą** —
+`getComputedStyle` na elemencie z `transition-colors` zwraca wartość
+POCZĄTKOWĄ. Przez to poprawnie działające tło zaznaczenia mierzyło się jako
+`rgba(0,0,0,0)`. Rozstrzyga klon elementu (`cloneNode`) albo świeżo wstawiona
+próbka — na nich żadne przejście nie trwa.

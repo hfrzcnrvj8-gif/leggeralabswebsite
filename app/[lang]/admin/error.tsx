@@ -47,7 +47,7 @@ export default function AdminError({ error, reset }: { error: Error & { digest?:
             </p>
             {/* Komunikat techniczny zostaje, ale schowany wizualnie: bywa
                 jedyną wskazówką, gdy właściciel pyta „co się stało". */}
-            <p className="mt-3 rounded-lg bg-[var(--hairline)]/60 px-2 py-1 font-mono text-[11px] text-muted">
+            <p className="mt-3 rounded-lg bg-hairline/60 px-2 py-1 font-mono text-[11px] text-muted">
               {error.message || "Brak komunikatu."}
               {error.digest ? ` (${error.digest})` : ""}
             </p>

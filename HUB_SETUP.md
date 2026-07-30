@@ -9806,3 +9806,135 @@ zakładką. „Powiązane" mówiło o mechanizmie, „Dokumenty" mówi o treści
 
 Sekcja wewnątrz zakładki dostała przy okazji nazwę „Dokumenty i projekty" —
 „Powiązane" o linijkę niżej byłoby drugą nazwą tej samej rzeczy.
+
+## Moduł 59, paczka C — klawiatura listy jest jedna dla całego panelu (2026-07-29)
+
+Do tej paczki ten sam zestaw klawiszy istniał w **czterech modułach w czterech
+wersjach**, a w dziesięciu nie istniał wcale. Różnice nie były kosmetyczne:
+Oferty i Umowy same rozpoznawały „czy piszę w polu", Leady i Klienci wołały
+`isTypingTarget`; Oferty czyściły frazę Esc-em, Leady nie; Poczta rysowała
+kursor obrysem w 40 % krycia, Oferty w 60 %, Leady i Klienci **tłem — tym
+samym, którym oznaczały zaznaczenie do akcji zbiorczej**, więc „gdzie stoi
+kursor" i „co zaznaczyłem" wyglądały identycznie.
+
+### Kontrakt (obowiązuje KAŻDY ekran z listą)
+
+| klawisz | co robi |
+|---|---|
+| `/` | kursor do pola szukania |
+| `Esc` w polu szukania | czyści frazę i oddaje fokus liście |
+| `j` / `k` (oraz ↓/↑) | kursor po widocznych wierszach |
+| `Enter` | otwiera wiersz pod kursorem |
+
+Klawisze WŁASNE modułu zostają w module: cyfry statusu w Leadach i Klientach,
+`r`/`f`/`a`/`e`/`s`/`y`/Backspace w Poczcie, `t`/`x` u Kandydatów. To jego
+słownik, nie wspólny kontrakt.
+
+### Gdzie to mieszka
+
+| rzecz | plik |
+|---|---|
+| `useSkrotyListy`, `KLASA_KURSORA` | `admin/klawiatura.ts` |
+| `PoleSzukania` (ikona + pole + krzyżyk) | `admin/PoleSzukania.tsx` |
+
+Hook dostaje **listę widoczną po filtrach i po szukaniu** — kursor nie może
+wskazywać rekordu, którego nie widać, bo `Enter` otwierałby wtedy co innego,
+niż pokazuje ekran. `aktywne: false` wycisza go pod modalem: profil i formularz
+mają własną obsługę klawiszy i lista pod spodem nie może im podbierać `Enter`.
+
+Dwie rzeczy, których wcześniej nie robił ŻADEN moduł:
+
+1. **Kursor przewija się do widoku** (`scrollIntoView({block:"nearest"})`).
+   Bez tego `j` na dłuższej liście gubiło zaznaczenie pod krawędzią ekranu.
+2. **Kursor pojawia się dopiero po pierwszym naciśnięciu klawisza.** Wcześniej
+   obrys stał na pierwszym wierszu od razu po wejściu na ekran — właściciel
+   zgłosił to w Poczcie jako „toporne" (Moduł 4b, runda 4) i naprawiono to
+   wtedy ścieńszeniem obrysu, czyli objawem. Przy okazji znika cichy błąd:
+   cyfra statusu w Leadach/Klientach trafiała w PIERWSZY wiersz listy, choć
+   nikt go nie wskazał.
+
+### Pole szukania — jedno miejsce, jeden kształt
+
+Pole stoi **zaraz po tożsamości modułu** (tytuł albo zakładki widoku), po
+lewej — tak samo, jak `.searchable` w apce siedzi tuż pod tytułem ekranu.
+Prawa strona paska należy do akcji („+", filtry, eksport), a szukanie nie jest
+akcją, tylko sposobem patrzenia na tę samą listę. Cztery moduły (Faktury,
+Koszty, Katalog, Przypomnienia) nie miały go w ogóle.
+
+Zakres szukania idzie w **dymek**, nie w placeholder: placeholder znika, gdy
+coś wpiszesz (kategoria 7 listy kontrolnej), a wtedy właśnie najbardziej chce
+się wiedzieć, czego ta lista szuka. Placeholder mówi tylko `Szukaj… (/)`.
+
+Kalendarz świadomie NIE dostaje `/` ani `j/k`: nie ma tam listy ani pola
+szukania, a użycie `j/k` do przewijania czasu dałoby tym samym klawiszom drugie
+znaczenie. Zamiast tego klawisze odpowiadają jeden do jednego widocznym
+przyciskom paska — `←`/`→` = „◀ ▶", `t` = „Dziś", `1/2/3` = pozycje
+przełącznika widoku.
+
+## Moduł 59, paczka C — klasa z kryciem na zmiennej CSS NIE ISTNIEJE (2026-07-29)
+
+Największe znalezisko tej paczki, złapane pomiarem obrysu kursora:
+
+```
+ring-[var(--zaznaczenie)]/60      →  Tailwind NIE generuje żadnej reguły
+hover:bg-[var(--hairline)]/40     →  jw.
+bg-[var(--zaznaczenie)]/[0.08]    →  jw.
+```
+
+Modyfikatora krycia (`/60`) nie da się nałożyć na `var()`, bo Tailwind nie zna
+kanałów RGB kryjących się w zmiennej. **Nie jest to błąd kompilacji — reguła
+po prostu nie powstaje**, klasa zostaje w HTML-u i nie robi nic. Zmierzone
+w arkuszu podglądu: `.ring-[var(--zaznaczenie)]` istnieje, `.ring-[var(--zaznaczenie)]\/60` nie.
+
+**86 klas w dwunastu katalogach panelu nie robiło nic**, a wśród nich:
+
+- **podświetlenie wiersza pod myszą w KAŻDEJ tabeli** (`hover:bg-[var(--hairline)]/40`,
+  20 wystąpień) — wiersz reagował na klik, ale nie dawał znaku, że jest klikalny;
+- **tło zaznaczonego wiersza** (`bg-[var(--zaznaczenie)]/[0.08]`) — checkbox
+  zaznaczał, a wiersz wyglądał tak samo jak niezaznaczony;
+- **obrys kursora `j/k`**, który spadał na **domyślny błękit ringa Tailwinda**
+  `rgba(59,130,246,0.5)` — kolor spoza palety marki, w module, który tydzień
+  wcześniej wyrzucał z panelu twardy błękit `#4ea7fc`.
+
+### Reguła
+
+**Token panelu, którego chcesz używać z kryciem, MUSI istnieć jako kolor
+w `tailwind.config.ts` z `<alpha-value>`, a zmienna CSS musi trzymać KANAŁY.**
+
+```css
+/* globals.css, .admin-linear */
+--hairline-rgb: 31 32 35;
+--hairline: rgb(var(--hairline-rgb));   /* jedno źródło, nie dwa hexy */
+```
+```ts
+/* tailwind.config.ts */
+hairline: "rgb(var(--hairline-rgb) / <alpha-value>)",
+```
+```tsx
+hover:bg-hairline/80   // ← działa i daje się zmierzyć
+```
+
+Tak są zrobione cztery tokeny: `zaznaczenie`, `hairline`, `tresc` (`--fg`),
+`tresc-muted` (`--fg-muted`). Kanały żyją tylko w `.admin-linear` — te klasy
+występują wyłącznie w panelu, a strona publiczna ma `--hairline` z własną
+przezroczystością i nie da się jej rozłożyć na kanały bez zmiany wyglądu.
+
+**Postać `bg-[var(--token)]` bez ukośnika jest dalej w porządku** i zostaje
+w kodzie — łamie się dopiero krycie.
+
+### Pomiar
+
+Podświetlenie pod myszą wróciło do życia w 40 % krycia i dawało **1,059**
+wobec płyty karty — poniżej progu 1,10 z „trzech warstw powierzchni", czyli
+byłoby widoczne tylko z nazwy. Stąd `/80`:
+
+| element | przed | po | próg |
+|---|---|---|---|
+| wiersz pod myszą wobec płyty karty | brak reguły (0 zmian) | **1,138** | ≥ 1,10 |
+| wiersz pod myszą wobec tła panelu | brak reguły | **1,162** | ≥ 1,10 |
+| obrys kursora `j/k` | `rgba(59,130,246,0.5)` (błękit Tailwinda) | `rgba(143,150,163,0.6)` | paleta panelu |
+
+**Lekcja: klasa w kodzie nie jest dowodem na regułę w arkuszu.** To trzeci raz
+w tym projekcie, gdy Tailwind cicho nie wygenerował klasy — po `lib/` poza
+`content` (audyt Klientów) i po pigułce statusu bez tła. Rozstrzyga
+przeszukanie `document.styleSheets`, nie `getComputedStyle` i nie zrzut ekranu.

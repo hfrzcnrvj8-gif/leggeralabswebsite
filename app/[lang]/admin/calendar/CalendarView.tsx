@@ -26,7 +26,7 @@ import type { Deadline, DeadlineKind } from "@/app/api/events/deadlines/route";
 import { stopienPilnosci } from "@/lib/kolorStanu";
 import { RodzajWpisuIcon } from "../icons";
 import { todayLocalISO as todayISO, addDaysToISO, daysBetweenISO } from "@/lib/dates";
-import { useUI, useRegisterActions } from "../ui";
+import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { PasekBledu } from "../StanPusty";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { Modal } from "../Modal";
@@ -104,7 +104,7 @@ const DEADLINE_LABEL: Record<DeadlineKind, string> = {
  * Kolor dokłada dopiero `stylPilnosci`, gdy termin minął. */
 const STYL_NEUTRALNY: KindStyle = {
   border: "border-[var(--fg-muted)]",
-  bg: "bg-[var(--fg-muted)]/10",
+  bg: "bg-tresc-muted/10",
   text: "text-[var(--fg-muted)]",
   dot: "bg-[var(--fg-muted)]",
   label: "Wpis",
@@ -768,6 +768,35 @@ export function CalendarView({ lang }: { lang: string }) {
     []
   );
 
+  /**
+   * Klawiatura Kalendarza (Moduł 59, paczka C).
+   *
+   * ŚWIADOMIE bez „/" i bez j/k: w Kalendarzu nie ma listy ani pola szukania,
+   * a użycie j/k do przewijania czasu dałoby tym samym klawiszom drugie
+   * znaczenie — dokładnie ten błąd, który paczka D naprawiła w kolorze.
+   * Zamiast tego klawisze odpowiadają jeden do jednego widocznym przyciskom
+   * paska: strzałki = „◀ ▶" (`changePeriod`), „t" = „Dziś", cyfry = pozycje
+   * przełącznika widoku (ta sama konwencja, co zakładki w Leadach).
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); changePeriod(-1); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); changePeriod(1); return; }
+      if (e.key === "t") { e.preventDefault(); goToday(); return; }
+      if (e.key === "1" || e.key === "2" || e.key === "3") {
+        e.preventDefault();
+        handleViewChange(e.key === "1" ? "month" : e.key === "2" ? "week" : "day");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // Bez tablicy zależności świadomie: `changePeriod`/`goToday`/`handleViewChange`
+    // powstają na nowo przy każdym renderze, więc lista zależności i tak
+    // przepinałaby nasłuch co render — a bez niej nie da się złapać starego
+    // domknięcia na `viewMode`/`selectedDay`.
+  });
+
   const today = todayISO();
   const leadName = (id: string | null) => (id ? leads?.find((l) => l.id === id)?.firma : null);
   const projectName = (id: string | null) => (id ? projects?.find((p) => p.id === id)?.tytul : null);
@@ -927,11 +956,11 @@ export function CalendarView({ lang }: { lang: string }) {
                           // per-komórka — 42 komórki w miesiącu, prop-drilling
                           // stanu przez tyle kafli byłby przesadą dla samego
                           // podświetlenia ramki podczas przeciągania).
-                          onDragEnter={(ev) => ev.currentTarget.classList.add("ring-2", "ring-inset", "ring-[var(--fg)]/40")}
-                          onDragLeave={(ev) => ev.currentTarget.classList.remove("ring-2", "ring-inset", "ring-[var(--fg)]/40")}
+                          onDragEnter={(ev) => ev.currentTarget.classList.add("ring-2", "ring-inset", "ring-tresc/40")}
+                          onDragLeave={(ev) => ev.currentTarget.classList.remove("ring-2", "ring-inset", "ring-tresc/40")}
                           onDrop={(ev) => {
                             ev.preventDefault();
-                            ev.currentTarget.classList.remove("ring-2", "ring-inset", "ring-[var(--fg)]/40");
+                            ev.currentTarget.classList.remove("ring-2", "ring-inset", "ring-tresc/40");
                             const id = ev.dataTransfer.getData("text/plain");
                             if (id) moveEvent(id, day);
                           }}
@@ -1766,7 +1795,7 @@ function TimelineGridRow({
 
   return (
     <div
-      className={`relative rounded-lg transition-shadow ${isDragOver ? "ring-2 ring-inset ring-[var(--fg)]/40" : ""}`}
+      className={`relative rounded-lg transition-shadow ${isDragOver ? "ring-2 ring-inset ring-tresc/40" : ""}`}
       style={{
         height: (DAY_RANGE.endHour - DAY_RANGE.startHour) * HOUR_PX,
         backgroundImage: `repeating-linear-gradient(to bottom, var(--hairline) 0, var(--hairline) 1px, transparent 1px, transparent ${HOUR_PX}px)`,

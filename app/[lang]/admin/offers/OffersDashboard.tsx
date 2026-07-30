@@ -7,7 +7,6 @@ import {
   IconExternalLink,
   IconLayoutGrid,
   IconFileDescription,
-  IconSearch,
   IconEye,
   IconCopy,
   IconMail,
@@ -24,6 +23,8 @@ import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { PoleSzukania } from "../PoleSzukania";
+import { useSkrotyListy } from "../klawiatura";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { Popover, MenuRow, MenuDivider, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
@@ -59,7 +60,6 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
    * gubić oferty (i liczyć z nich wskaźniki). */
   const [total, setTotal] = useState(0);
   const szukajRef = useRef<HTMLInputElement>(null);
-  const [kursor, setKursor] = useState(0);
   /** Id oferty, dla której otwarte jest okno „dlaczego odrzucona". */
   const [rejectFor, setRejectFor] = useState<string | null>(null);
   /** Menu pod prawym przyciskiem — jedno na listę, nie na wiersz
@@ -321,40 +321,16 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     return list;
   }, [offers, filterStatus, szukaj]);
 
-  // Kursor po liście (j/k jak w Leadach i Klientach) nie może wskazywać poza
-  // przefiltrowaną listę — inaczej Enter otwierałby ofertę, której nie widać.
-  useEffect(() => {
-    setKursor((k) => Math.min(k, Math.max(0, rows.length - 1)));
-  }, [rows.length]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const cel = e.target as HTMLElement | null;
-      const wPolu = !!cel && (cel.tagName === "INPUT" || cel.tagName === "TEXTAREA" || cel.isContentEditable);
-      if (e.key === "Escape" && wPolu && cel === szukajRef.current) {
-        setSzukaj("");
-        szukajRef.current?.blur();
-        return;
-      }
-      if (wPolu || e.metaKey || e.ctrlKey || e.altKey) return;
-      // Modal profilu ma własną obsługę klawiszy — lista nie może pod nim
-      // przewijać kursora ani otwierać drugiej oferty.
-      if (openId || newOpen || templatesOpen || rejectFor) return;
-      if (e.key === "/") {
-        e.preventDefault();
-        szukajRef.current?.focus();
-      } else if (e.key === "j") {
-        setKursor((k) => Math.min(k + 1, Math.max(0, rows.length - 1)));
-      } else if (e.key === "k") {
-        setKursor((k) => Math.max(k - 1, 0));
-      } else if (e.key === "Enter") {
-        const cel = rows[kursor];
-        if (cel) setOpenId(cel.id);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rows, kursor, openId, newOpen, templatesOpen, rejectFor]);
+  // Skróty listy — wspólny hook (Moduł 59, paczka C). Wyciszony, gdy nad listą
+  // stoi modal: profil, formularz i arkusz mają własną obsługę klawiszy, a
+  // lista pod spodem nie może im podbierać Entera.
+  const { wiersz } = useSkrotyListy({
+    elementy: rows,
+    otworz: (o) => setOpenId(o.id),
+    szukajRef,
+    wyczyscSzukanie: () => setSzukaj(""),
+    aktywne: !openId && !newOpen && !templatesOpen && !rejectFor,
+  });
 
   const kpi = useMemo(() => {
     // Oferty zastąpione nowszą wersją NIE wchodzą do liczników — jedna
@@ -435,16 +411,7 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Oferty</span>
-        <div className="ml-3 flex min-w-0 flex-1 items-center gap-1.5 text-muted">
-          <IconSearch size={13} className="shrink-0" />
-          <input
-            ref={szukajRef}
-            value={szukaj}
-            onChange={(e) => setSzukaj(e.target.value)}
-            placeholder="Szukaj po tytule lub kliencie   /"
-            className="min-w-0 max-w-[280px] flex-1 bg-transparent text-[12.5px] text-[var(--fg)] placeholder:text-muted focus:outline-none"
-          />
-        </div>
+        <PoleSzukania ref={szukajRef} value={szukaj} onChange={setSzukaj} podpowiedz="Szuka w tytule oferty i nazwie klienta" />
         <Popover
           align="right"
           width={220}
@@ -637,11 +604,12 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       key={o.id}
                       onClick={() => setOpenId(o.id)}
                       onContextMenu={(e) => ctx.openAt(e, o)}
-                      className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
-                        expired ? "bg-red-500/[0.04]" : ""
-                      } ${selectedIds.has(o.id) ? "bg-[var(--zaznaczenie)]/[0.08]" : ""} ${
-                        i === kursor ? "ring-1 ring-inset ring-[var(--zaznaczenie)]/60" : ""
-                      }`}
+                      {...wiersz(
+                        i,
+                        `cursor-pointer border-b hairline transition-colors hover:bg-hairline/80 ${
+                          expired ? "bg-red-500/[0.04]" : ""
+                        } ${selectedIds.has(o.id) ? "bg-zaznaczenie/[0.08]" : ""}`
+                      )}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <input

@@ -5,7 +5,6 @@ import {
   IconArrowUpRight,
   IconMail,
   IconNote,
-  IconSearch,
   IconPencil,
   IconArchive,
   IconTrash,
@@ -24,6 +23,8 @@ import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget, useCopy } from "../ui";
 import { PasekBledu, StanBledu } from "../StanPusty";
+import { useSkrotyListy, KLASA_KURSORA } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import {
   MailStatusTag,
@@ -174,7 +175,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
   // Nawigacja klawiaturą (Etap 2 Modułu 4b) — pozycja "kursora" na liście,
   // niezależna od `openId` (fokus klawiaturowy vs otwarty podgląd mogą być
   // różnymi wierszami, tak jak w Gmailu/Superhuman).
-  const [focusedIndex, setFocusedIndex] = useState(0);
+  const szukajRef = useRef<HTMLInputElement>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   // Inkrementowany nonce — skrót "r" wywołuje efekt w MailDetailPanel, który
@@ -481,17 +482,6 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     return () => window.clearTimeout(t);
   }, [activeFolder, query, load, clearSelection]);
 
-  // Fokus klawiaturowy wraca na górę listy przy każdym świeżym wczytaniu
-  // (nowy folder, nowe wyniki szukania) — stara pozycja nie ma już sensu.
-  useEffect(() => {
-    setFocusedIndex(0);
-  }, [messages]);
-
-  useEffect(() => {
-    const el = listRef.current?.querySelector(`[data-idx="${focusedIndex}"]`);
-    el?.scrollIntoView({ block: "nearest" });
-  }, [focusedIndex]);
-
   useRegisterActions(
     [
       { id: "add", label: "Nowa wiadomość", run: () => setComposeOpen(true) },
@@ -589,6 +579,23 @@ export function MailDashboard({ lang }: { lang: Locale }) {
     return order.map((k) => byThread.get(k)!);
   }, [filtered]);
 
+  // „/", j/k, Enter i Esc w polu szukania — wspólny hook (Moduł 59, paczka C).
+  // Klawisze WŁASNE Poczty (spacja, r/f/a, e, s, y, Backspace) zostają niżej:
+  // to słownik tego modułu, nie wspólny kontrakt listy.
+  const { kursor: focusedIndex, kursorWidoczny, setKursor: setFocusedIndex } = useSkrotyListy({
+    elementy: threadGroups,
+    otworz: (g) => setOpenId(g.rep.id),
+    szukajRef,
+    wyczyscSzukanie: () => setQuery(""),
+    aktywne: !openId,
+  });
+
+  // Fokus klawiaturowy wraca na górę listy przy każdym świeżym wczytaniu
+  // (nowy folder, nowe wyniki szukania) — stara pozycja nie ma już sensu.
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [messages, setFocusedIndex]);
+
   // Nawigacja klawiaturą (Etap 2 Modułu 4b): j/k albo strzałki po liście,
   // Enter otwiera, spacja zaznacza, "r" otwiera odpowiedź na otwartej
   // wiadomości, "e" oznacza jako obsłużone (decyzja właściciela 2026-07-16:
@@ -603,21 +610,6 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       }
       if (isTypingTarget(e.target)) return;
 
-      if (e.key === "j" || e.key === "ArrowDown") {
-        e.preventDefault();
-        setFocusedIndex((i) => Math.min(i + 1, Math.max(threadGroups.length - 1, 0)));
-        return;
-      }
-      if (e.key === "k" || e.key === "ArrowUp") {
-        e.preventDefault();
-        setFocusedIndex((i) => Math.max(i - 1, 0));
-        return;
-      }
-      if (e.key === "Enter" && threadGroups[focusedIndex]) {
-        e.preventDefault();
-        setOpenId(threadGroups[focusedIndex].rep.id);
-        return;
-      }
       if (e.key === " " && threadGroups[focusedIndex]) {
         e.preventDefault();
         toggleSelect(threadGroups[focusedIndex].rep.id);
@@ -756,25 +748,17 @@ export function MailDashboard({ lang }: { lang: Locale }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <input
+          {/* Pole w tym samym kształcie, co w pozostałych modułach — z pigułki
+              zostaje tylko ramka, bo tu pole stoi w rzędzie z przyciskami
+              („Pobierz nowe", „Nowa wiadomość"), a nie na pasku modułu. */}
+          <div className="flex h-8 w-64 items-center rounded-full border hairline px-3">
+            <PoleSzukania
+              ref={szukajRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Szukaj w poczcie…"
-              className="w-56 rounded-full border hairline bg-transparent py-1.5 pl-8 pr-7 text-[13px] outline-none focus:border-brand-purple/50"
+              onChange={setQuery}
+              podpowiedz="Szuka po nadawcy, temacie i treści w tym folderze (zapytanie idzie na serwer poczty)"
+              className="ml-0"
             />
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden>
-              <IconSearch size={13} />
-            </span>
-            {query && (
-              <button
-                onClick={() => setQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-muted hover:text-[var(--fg)]"
-                aria-label="Wyczyść szukanie"
-              >
-                ×
-              </button>
-            )}
           </div>
           <button
             onClick={() => void sync(false)}
@@ -846,7 +830,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               <button
                 onClick={() => void bulkSetStatus("obsłużony")}
                 disabled={bulkBusy}
-                className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+                className="rounded-full border hairline px-3 py-1 hover:bg-hairline/50 disabled:opacity-50"
               >
                 Obsłużone
               </button>
@@ -854,7 +838,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                 <button
                   onClick={() => void bulkMove("archive")}
                   disabled={bulkBusy || !configured}
-                  className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+                  className="rounded-full border hairline px-3 py-1 hover:bg-hairline/50 disabled:opacity-50"
                 >
                   <IconArchive size={13} className="mr-1 inline align-[-2px]" />Archiwizuj
                 </button>
@@ -872,7 +856,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                 <button
                   onClick={() => void bulkMove("inbox")}
                   disabled={bulkBusy || !configured}
-                  className="rounded-full border hairline px-3 py-1 hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+                  className="rounded-full border hairline px-3 py-1 hover:bg-hairline/50 disabled:opacity-50"
                 >
                   <IconArrowBackUp size={13} className="mr-1 inline align-[-2px]" />Przywróć
                 </button>
@@ -902,7 +886,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                 key={f}
                 onClick={() => setActiveFolder(f)}
                 className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-2 ${
-                  activeFolder === f ? "pill-active font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+                  activeFolder === f ? "pill-active font-medium" : "text-muted hover:bg-hairline/80 hover:text-[var(--fg)]"
                 }`}
               >
                 <MailFolderIcon folder={f} size={15} />
@@ -925,7 +909,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     key={c.id}
                     onClick={() => setCatFilter(c.id)}
                     className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-left text-[13px] transition lg:rounded-xl lg:px-3 lg:py-1.5 ${
-                      catFilter === c.id ? "pill-active font-medium" : "text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+                      catFilter === c.id ? "pill-active font-medium" : "text-muted hover:bg-hairline/80 hover:text-[var(--fg)]"
                     }`}
                   >
                     {c.id !== "wszystkie" && <MailCategoryIcon kind={c.id as MailCategory} size={14} />}
@@ -976,7 +960,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") setOpenId(t.id);
                       }}
-                      className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-[var(--ease-liquid)] hover:bg-[var(--hairline)]/40 ${
+                      className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-[var(--ease-liquid)] hover:bg-hairline/80 ${
                         openId === t.id ? "bg-brand-purple/[0.07]" : ""
                       }`}
                     >
@@ -1088,9 +1072,10 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                     // Cieńszy ring (1px, 25%) + delikatny fioletowy odcień
                     // zamiast szarego tła dla otwartej wiadomości, płynne
                     // przejście zamiast skoku.
-                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-[var(--ease-liquid)] hover:bg-[var(--hairline)]/40 ${
+                    className={`flex w-full cursor-pointer items-start gap-3 px-4 py-3.5 text-left transition-all duration-200 ease-[var(--ease-liquid)] hover:bg-hairline/80 ${
                       openId === m.id ? "bg-brand-purple/[0.07]" : ""
-                    } ${focusedIndex === i ? "ring-1 ring-inset ring-[var(--zaznaczenie)]/40" : ""}`}
+                    } ${kursorWidoczny === i ? KLASA_KURSORA : ""}`}
+                    {...(kursorWidoczny === i ? { "data-kursor": "1" as const } : {})}
                   >
                     <span onClick={(e) => e.stopPropagation()} className="mt-1 shrink-0">
                       <input

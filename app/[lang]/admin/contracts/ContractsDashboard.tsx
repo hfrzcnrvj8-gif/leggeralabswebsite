@@ -7,7 +7,6 @@ import {
   IconExternalLink,
   IconFileText,
   IconFilePlus,
-  IconSearch,
   IconMail,
   IconBell,
   IconLink,
@@ -28,6 +27,8 @@ import {
 import { formatMoney } from "@/lib/invoices";
 import { useUI, useRegisterActions } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { PoleSzukania } from "../PoleSzukania";
+import { useSkrotyListy } from "../klawiatura";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { Popover, MenuRow, MenuDivider, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
@@ -50,7 +51,6 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   const ctx = useContextMenu<Contract>();
   const [szukaj, setSzukaj] = useState("");
   const szukajRef = useRef<HTMLInputElement>(null);
-  const [kursor, setKursor] = useState(0);
   /** Rozmiar rejestru po stronie serwera — bez tego ostrzeżenie o sufcie
    * (patrz SUFIT_UMOW w api/contracts) nie miałoby czego porównać. */
   const [total, setTotal] = useState(0);
@@ -273,38 +273,14 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
     return list;
   }, [contracts, filterStatus, szukaj]);
 
-  // Kursor nie może wskazywać poza przefiltrowaną listę — inaczej Enter
-  // otwierałby dokument, którego nie widać (1:1 z Ofertami).
-  useEffect(() => {
-    setKursor((k) => Math.min(k, Math.max(0, rows.length - 1)));
-  }, [rows.length]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const cel = e.target as HTMLElement | null;
-      const wPolu = !!cel && (cel.tagName === "INPUT" || cel.tagName === "TEXTAREA" || cel.isContentEditable);
-      if (e.key === "Escape" && wPolu && cel === szukajRef.current) {
-        setSzukaj("");
-        szukajRef.current?.blur();
-        return;
-      }
-      if (wPolu || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (openId || rejectFor) return;
-      if (e.key === "/") {
-        e.preventDefault();
-        szukajRef.current?.focus();
-      } else if (e.key === "j") {
-        setKursor((k) => Math.min(k + 1, Math.max(0, rows.length - 1)));
-      } else if (e.key === "k") {
-        setKursor((k) => Math.max(k - 1, 0));
-      } else if (e.key === "Enter") {
-        const cel = rows[kursor];
-        if (cel) setOpenId(cel.id);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rows, kursor, openId, rejectFor]);
+  // Skróty listy — wspólny hook (Moduł 59, paczka C).
+  const { wiersz } = useSkrotyListy({
+    elementy: rows,
+    otworz: (c) => setOpenId(c.id),
+    szukajRef,
+    wyczyscSzukanie: () => setSzukaj(""),
+    aktywne: !openId && !rejectFor,
+  });
 
   if (!contracts) {
     // Szkielet TYLKO wtedy, gdy naprawdę czekamy. Do paczki E awaria wczytania
@@ -334,16 +310,12 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
     <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
       <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Umowy</span>
-        <div className="ml-3 flex min-w-0 flex-1 items-center gap-1.5 text-muted">
-          <IconSearch size={13} className="shrink-0" />
-          <input
-            ref={szukajRef}
-            value={szukaj}
-            onChange={(e) => setSzukaj(e.target.value)}
-            placeholder="Szukaj po stronie, zakresie lub numerze   /"
-            className="min-w-0 max-w-[300px] flex-1 bg-transparent text-[12.5px] text-[var(--fg)] placeholder:text-muted focus:outline-none"
-          />
-        </div>
+        <PoleSzukania
+          ref={szukajRef}
+          value={szukaj}
+          onChange={setSzukaj}
+          podpowiedz="Szuka po stronie umowy, zakresie prac i numerze dokumentu"
+        />
         <Popover
           align="right"
           width={220}
@@ -436,9 +408,7 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
                     key={c.id}
                     onClick={() => setOpenId(c.id)}
                     onContextMenu={(e) => ctx.openAt(e, c)}
-                    className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
-                      i === kursor ? "ring-1 ring-inset ring-[var(--zaznaczenie)]/60" : ""
-                    }`}
+                    {...wiersz(i, "cursor-pointer border-b hairline transition-colors hover:bg-hairline/80")}
                   >
                     <td className="p-2.5 font-medium text-[var(--fg)]">
                       {CONTRACT_TYP_LABEL[c.typ]}

@@ -251,7 +251,7 @@ export function KalkulatorDashboard() {
               </div>
             </div>
 
-            <p className="border-t hairline bg-[var(--hairline)]/20 px-4 py-3 text-[11.5px] text-muted">
+            <p className="border-t hairline bg-hairline/20 px-4 py-3 text-[11.5px] text-muted">
               Wynik orientacyjny, liczony z zapasem. Ceny to widełki na lipiec 2026 — zweryfikuj u dostawcy i potwierdź
               testem modelu na danych klienta.
             </p>

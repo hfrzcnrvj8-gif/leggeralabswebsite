@@ -87,7 +87,7 @@ export function KanbanBoard({
           // celu), więc stan `dragOver` jest tu MOCNIEJSZY niż był: obrys
           // `ring` + wyraźniejsze tło zamiast samej zmiany koloru ramki.
           className={`flex w-72 shrink-0 flex-col kolumna-tablicy rounded-xl p-2 transition-colors ${
-            dragOverStatus === col.status ? "bg-[var(--zaznaczenie)]/[0.08] ring-1 ring-[var(--zaznaczenie)]/40" : ""
+            dragOverStatus === col.status ? "bg-zaznaczenie/[0.08] ring-1 ring-zaznaczenie/40" : ""
           }`}
         >
           <div className="mb-2 flex items-center gap-2 px-1">
@@ -131,10 +131,10 @@ export function KanbanBoard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onOpen(lead.id);
                   }}
-                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-[var(--zaznaczenie)]/30 active:cursor-grabbing ${
+                  className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-zaznaczenie/30 active:cursor-grabbing ${
                     draggingId === lead.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""} ${
-                    selectedIds.has(lead.id) ? "border-[var(--zaznaczenie)]/50 bg-[var(--zaznaczenie)]/[0.06]" : ""
+                    selectedIds.has(lead.id) ? "border-zaznaczenie/50 bg-zaznaczenie/[0.06]" : ""
                   }`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">

@@ -681,7 +681,7 @@ export function LeadDetailPanel({
                           return (
                             <li
                               key={a.id}
-                              className="group relative flex items-start gap-2.5 rounded-lg py-2 pl-10 pr-2 text-sm hover:bg-[var(--hairline)]/60"
+                              className="group relative flex items-start gap-2.5 rounded-lg py-2 pl-10 pr-2 text-sm hover:bg-hairline/60"
                             >
                               <span
                                 className={`absolute left-0 top-2 flex h-7 w-7 items-center justify-center rounded-full ring-4 ring-[var(--bg-soft)] ${badge.cls}`}

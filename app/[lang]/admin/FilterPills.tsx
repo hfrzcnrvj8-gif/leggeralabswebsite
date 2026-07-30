@@ -54,7 +54,7 @@ export function FilterPills<T extends string>({
                 // o piksel przy każdym przełączeniu. Widoczny obrys na
                 // nieaktywnych dawał rząd sześciu obwódek naraz (sprawdzone
                 // wzrokowo) — za dużo szumu.
-                "border border-transparent text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+                "border border-transparent text-muted hover:bg-hairline/80 hover:text-[var(--fg)]"
           }`}
         >
           {value === p.id && (

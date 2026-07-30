@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { IconPlus, IconTrash, IconPencil, IconInfoCircle, IconBoxMultiple, IconArrowUpRight } from "@tabler/icons-react";
 import { Modal } from "../Modal";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { useUI, useRegisterActions } from "../ui";
 import { StanListy } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { CatalogCategoryIcon } from "../icons";
 import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
@@ -38,6 +40,8 @@ export function CatalogDashboard({ lang }: { lang: string }) {
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
   const [kategoria, setKategoria] = useState<string>(WSZYSTKIE);
+  const [szukaj, setSzukaj] = useState("");
+  const szukajRef = useRef<HTMLInputElement>(null);
   const [edytowany, setEdytowany] = useState<CatalogItem | null>(null);
   const [formOtwarty, setFormOtwarty] = useState(false);
 
@@ -96,10 +100,19 @@ export function CatalogDashboard({ lang }: { lang: string }) {
     [items, liczniki]
   );
 
-  const widoczne = useMemo(
-    () => (kategoria === WSZYSTKIE ? items ?? [] : (items ?? []).filter((it) => it.kategoria === kategoria)),
-    [items, kategoria]
-  );
+  const widoczne = useMemo(() => {
+    let list = kategoria === WSZYSTKIE ? items ?? [] : (items ?? []).filter((it) => it.kategoria === kategoria);
+    const igla = szukaj.trim().toLowerCase();
+    if (igla) {
+      list = list.filter(
+        (it) =>
+          it.nazwa.toLowerCase().includes(igla) ||
+          (it.opis ?? "").toLowerCase().includes(igla) ||
+          (it.dostawca ?? "").toLowerCase().includes(igla)
+      );
+    }
+    return list;
+  }, [items, kategoria, szukaj]);
 
   // W widoku „Wszystkie" grupujemy po kategorii (nagłówki), w wybranej
   // kategorii — płaska lista bez nagłówków (byłyby jednym powtórzonym tytułem).
@@ -109,6 +122,23 @@ export function CatalogDashboard({ lang }: { lang: string }) {
       (g) => g.items.length > 0
     );
   }, [kategoria, widoczne]);
+
+  /** Kolejność kursora = kolejność czytania listy: grupa po grupie, w każdej
+   *  z góry na dół. Sama `widoczne` ma inny porządek niż ekran, bo w widoku
+   *  „Wszystkie" pozycje są przetasowane na kategorie. */
+  const plaskie = useMemo(() => grupy.flatMap((g) => g.items), [grupy]);
+  const indeksy = useMemo(() => new Map(plaskie.map((it, i) => [it.id, i])), [plaskie]);
+
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C). Enter otwiera to
+  // samo, co klik w wiersz: formularz edycji (w katalogu to najczęstsza
+  // czynność — profil pod adresem wystawia osobna ikona).
+  const { wiersz } = useSkrotyListy({
+    elementy: plaskie,
+    otworz: otworzEdycje,
+    szukajRef,
+    wyczyscSzukanie: () => setSzukaj(""),
+    aktywne: !formOtwarty,
+  });
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6">
@@ -126,6 +156,18 @@ export function CatalogDashboard({ lang }: { lang: string }) {
         klient. Koszt zakupu i marża są tylko dla Ciebie; nie trafiają na wydruk dla klienta.
       </p>
 
+      {(items?.length ?? 0) > 0 && (
+        <div className="mb-2 flex h-9 items-center rounded-lg border hairline px-2">
+          <PoleSzukania
+            ref={szukajRef}
+            value={szukaj}
+            onChange={setSzukaj}
+            podpowiedz="Szuka po nazwie komponentu, opisie i dostawcy"
+            className="ml-0"
+          />
+        </div>
+      )}
+
       {pigulki.length > 1 && (
         <FilterPillsBar>
           <FilterPills value={kategoria} onChange={setKategoria} pills={pigulki} layoutId="catalog-cats" />
@@ -136,11 +178,15 @@ export function CatalogDashboard({ lang }: { lang: string }) {
           w nieskończoność — `items` nigdy nie przestawało być `null`. */}
       {items === null && !blad ? (
         <p className="mt-6 text-center text-[13px] text-muted">Wczytuję…</p>
-      ) : (items?.length ?? 0) === 0 ? (
+      ) : plaskie.length === 0 ? (
         <div className="card-paper mt-6 rounded-2xl">
           <StanListy
             blad={blad}
             onPonow={wczytaj}
+            filtrAktywny={kategoria !== WSZYSTKIE || !!szukaj.trim()}
+            onWyczyscFiltr={() => { setKategoria(WSZYSTKIE); setSzukaj(""); }}
+            filtrTytul="Nic nie pasuje"
+            filtrOpis="Komponenty w katalogu są, ale żaden nie spełnia zaznaczonych warunków."
             ikona={IconBoxMultiple}
             tytul="Katalog jest pusty"
             opis="Katalog to klocki, z których składasz ofertę jednym kliknięciem — bez niego każdą pozycję wpisujesz od nowa, a koszt zakupu i marża nie mają skąd się wziąć."
@@ -168,7 +214,14 @@ export function CatalogDashboard({ lang }: { lang: string }) {
               <ul className="space-y-1.5">
                 {g.items.map((c) => (
                   <li key={c.id}>
-                    <WierszKomponentu c={c} lang={lang} onEdytuj={() => otworzEdycje(c)} onUsun={() => usun(c)} pokazKategorie={false} />
+                    <WierszKomponentu
+                      c={c}
+                      lang={lang}
+                      onEdytuj={() => otworzEdycje(c)}
+                      onUsun={() => usun(c)}
+                      pokazKategorie={false}
+                      {...wiersz(indeksy.get(c.id) ?? -1)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -198,19 +251,24 @@ function WierszKomponentu({
   onEdytuj,
   onUsun,
   pokazKategorie,
+  className,
+  ...reszta
 }: {
   c: CatalogItem;
   lang: string;
   onEdytuj: () => void;
   onUsun: () => void;
   pokazKategorie: boolean;
+  /** Podświetlenie kursora j/k — składane przez `wiersz()` z `klawiatura.ts`. */
+  className?: string;
+  "data-kursor"?: "1";
 }) {
   const marza = catalogMargin(c.cena_netto, c.koszt_zakupu);
   const marzaProc = catalogMarginPercent(c.cena_netto, c.koszt_zakupu);
   const zakres = hasPriceRange(c.cena_min, c.cena_max);
 
   return (
-    <div className="group card-paper flex items-start gap-3 rounded-xl px-3 py-2.5">
+    <div className={`group card-paper flex items-start gap-3 rounded-xl px-3 py-2.5 ${className ?? ""}`} {...reszta}>
       <CatalogCategoryIcon kind={c.kategoria} size={16} className="mt-0.5 shrink-0 text-muted" />
       <button onClick={onEdytuj} className="min-w-0 flex-1 text-left">
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

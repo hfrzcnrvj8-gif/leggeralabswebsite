@@ -716,7 +716,7 @@ export function MailDetailPanel({
             <button
               key={s.id}
               onClick={() => onOpenThreadMessage?.(s.id)}
-              className="flex shrink-0 items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)]"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:bg-hairline/80 hover:text-[var(--fg)]"
               title={s.subject || "(bez tematu)"}
             >
               {s.kierunek === "out" ? <IconCornerUpLeft size={13} /> : <IconMail size={13} />}
@@ -733,7 +733,7 @@ export function MailDetailPanel({
             onClick={() => void requestThreadSummary()}
             disabled={summaryLoading}
             title="Model AI streści ten wątek — tylko do przeczytania, nic nie wysyła ani nie zapisuje"
-            className="flex shrink-0 items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:bg-[var(--hairline)]/40 hover:text-[var(--fg)] disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[12px] text-muted hover:bg-hairline/80 hover:text-[var(--fg)] disabled:opacity-50"
           >
             <IconFileText size={13} />
             {summaryLoading ? "Streszczam…" : "Podsumuj wątek"}
@@ -745,7 +745,7 @@ export function MailDetailPanel({
           Świadomie NIE w polu odpowiedzi (replyText): to streszczenie do
           zorientowania się w rozmowie, nie treść do wysłania. */}
       {summary != null && (
-        <div className="mb-4 rounded-xl border hairline bg-[var(--hairline)]/20 p-3 text-[13px] leading-relaxed">
+        <div className="mb-4 rounded-xl border hairline bg-hairline/20 p-3 text-[13px] leading-relaxed">
           <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
             <IconFileText size={12} />
             Podsumowanie wątku (AI)
@@ -836,7 +836,7 @@ export function MailDetailPanel({
             {sending ? (
               <>
                 <span className="rounded-full bg-[var(--hairline)] px-4 py-1.5 text-[13px] text-muted">Wysyłam za {countdown}s…</span>
-                <button onClick={cancel} className="rounded-full border hairline px-3 py-1.5 text-[13px] hover:bg-[var(--hairline)]/50">
+                <button onClick={cancel} className="rounded-full border hairline px-3 py-1.5 text-[13px] hover:bg-hairline/50">
                   Cofnij
                 </button>
               </>
@@ -1103,12 +1103,12 @@ export function MailDetailPanel({
       {/* Baner snooze (Moduł 4, Etap 3) — TYLKO gdy termin jest w przyszłości;
           po jego minięciu znika sam przy kolejnym odczycie, bez akcji. */}
       {mail.snooze_until && new Date(mail.snooze_until) > new Date() && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-hairline/20 px-4 py-2.5 text-[12px]">
           <span className="text-muted">⏰ Uśpiona do {formatPlDateTime(mail.snooze_until)}.</span>
           <button
             onClick={() => void snoozeMail(null)}
             disabled={busy}
-            className="rounded-full border hairline px-2.5 py-1 font-medium hover:bg-[var(--hairline)]/60 disabled:opacity-50"
+            className="rounded-full border hairline px-2.5 py-1 font-medium hover:bg-hairline/60 disabled:opacity-50"
           >
             Wróć teraz
           </button>
@@ -1122,7 +1122,7 @@ export function MailDetailPanel({
           (app/api/mail/[id]/reply/route.ts), więc baner po prostu zniknie
           przy następnym load() bez konieczności klikania tu. */}
       {mail.sender_status === "pending" && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-hairline/20 px-4 py-2.5 text-[12px]">
           <span className="flex items-center gap-1.5 text-muted"><IconUserQuestion size={13} />Nowy nadawca — jeszcze nie zatwierdzony.</span>
           <span className="flex items-center gap-2">
             <button
@@ -1149,7 +1149,7 @@ export function MailDetailPanel({
           klik użytkownika, panel nigdy sam nie odpytuje ani nie POST-uje do
           cudzego URL-a wypisu w tle. */}
       {mail.list_unsubscribe_url && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-[var(--hairline)]/20 px-4 py-2.5 text-[12px]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border hairline bg-hairline/20 px-4 py-2.5 text-[12px]">
           <span className="flex items-center gap-1.5 text-muted"><IconUsers size={13} />Wiadomość z listy dystrybucyjnej.</span>
           <a
             href={mail.list_unsubscribe_url}
@@ -1179,7 +1179,7 @@ export function MailDetailPanel({
         {html ? (
           <MailBodyHtml html={html} blockedImages={blockedImages} onShowImages={() => setShowImages(true)} />
         ) : (
-          <div className="mx-auto max-w-[70ch] rounded-xl border hairline bg-[var(--hairline)]/20 p-4">
+          <div className="mx-auto max-w-[70ch] rounded-xl border hairline bg-hairline/20 p-4">
             <pre className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed">
               {mail.body_text || "(pusta treść)"}
             </pre>
@@ -1204,7 +1204,7 @@ export function MailDetailPanel({
                 key={a.id}
                 href={`/api/mail/${mailId}/attachment/${a.id}`}
                 download={a.filename}
-                className="flex items-center gap-2.5 rounded-xl border hairline px-3 py-2 text-[13px] hover:bg-[var(--hairline)]/50"
+                className="flex items-center gap-2.5 rounded-xl border hairline px-3 py-2 text-[13px] hover:bg-hairline/50"
               >
                 <IconFile size={16} className="shrink-0 text-muted" />
                 <span className="min-w-0 flex-1 truncate">{a.filename}</span>
@@ -1229,7 +1229,7 @@ export function MailDetailPanel({
                 key={p.id}
                 onClick={() => void toTask(p.id)}
                 disabled={busy}
-                className="rounded-full border hairline px-2.5 py-1 text-[12px] hover:bg-[var(--hairline)]/50 disabled:opacity-50"
+                className="rounded-full border hairline px-2.5 py-1 text-[12px] hover:bg-hairline/50 disabled:opacity-50"
               >
                 <IconClipboard size={12} className="mr-1 inline align-[-2px]" />{p.tytul}
               </button>

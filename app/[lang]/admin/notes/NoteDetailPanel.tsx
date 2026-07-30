@@ -153,7 +153,7 @@ export function NoteDetailPanel({
               defaultValue={note.tagi}
               onBlur={(e) => patch(note.id, { tagi: e.target.value })}
               placeholder="tagi, po przecinku"
-              className="w-full rounded-lg border border-transparent bg-transparent py-0.5 text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
+              className="w-full rounded-lg border border-transparent bg-transparent py-0.5 text-muted placeholder:text-muted/60 hover:border-[var(--hairline)] focus:border-zaznaczenie/60 focus:outline-none"
             />
           </WierszPola>
         </SekcjaProfilu>

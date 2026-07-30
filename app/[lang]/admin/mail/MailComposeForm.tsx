@@ -339,7 +339,7 @@ export function MailComposeForm({
           ) : sending ? (
             <>
               <span className="rounded-full bg-[var(--hairline)] px-4 py-1.5 text-[13px] text-muted">Wysyłam za {countdown}s…</span>
-              <button onClick={cancel} className="rounded-full border hairline px-3 py-1.5 text-[13px] hover:bg-[var(--hairline)]/50">
+              <button onClick={cancel} className="rounded-full border hairline px-3 py-1.5 text-[13px] hover:bg-hairline/50">
                 Cofnij
               </button>
             </>

@@ -659,7 +659,7 @@ export function CandidatesView({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.2, ease: EASE_LIQUID }}
-            className="flex flex-wrap items-center gap-2 rounded-xl border hairline bg-[var(--hairline)]/40 px-3 py-2 text-[12.5px]"
+            className="flex flex-wrap items-center gap-2 rounded-xl border hairline bg-hairline/40 px-3 py-2 text-[12.5px]"
           >
             <span className="text-muted">
               Odrzucono <b className="text-[var(--fg)]">{ostatnioOdrzucony.nazwa}</b> — firma jest na czarnej liście.

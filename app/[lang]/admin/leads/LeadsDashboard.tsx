@@ -30,6 +30,8 @@ import { Tooltip } from "../Tooltip";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/invoices";
@@ -76,7 +78,6 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [nowePolowanieSygnal, setNowePolowanieSygnal] = useState(0);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [sendingReport, setSendingReport] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -356,10 +357,22 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     });
   }, [leads, filterStatus, filterZrodlo, filterMiasto, filterKanal, search]);
 
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C). Kursor dostaje pustą
+  // listę poza widokiem tabeli: w Kanbanie i u Kandydatów nie ma wierszy, po
+  // których miałby chodzić. „/" działa mimo to we wszystkich widokach —
+  // szukanie zawęża także tablicę.
+  const { kursorWidoczny, setKursor: setSelectedIndex } = useSkrotyListy({
+    elementy: view === "table" ? filtered : [],
+    otworz: (l) => setOpenLeadId(l.id),
+    szukajRef: searchRef,
+    wyczyscSzukanie: () => setSearch(""),
+    aktywne: !openLeadId,
+  });
+
   useEffect(() => {
     setSelectedIndex(0);
     clearSelection();
-  }, [filterStatus, filterZrodlo, filterMiasto, filterKanal, search, view, clearSelection]);
+  }, [filterStatus, filterZrodlo, filterMiasto, filterKanal, search, view, clearSelection, setSelectedIndex]);
 
   const wyczyscFiltry = useCallback(() => {
     setFilterStatus("");
@@ -402,13 +415,10 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       }
       if (isTypingTarget(e.target)) return;
 
-      if (e.key === "/") {
-        e.preventDefault();
-        searchRef.current?.focus();
-        return;
-      }
       if (/^[1-9]$/.test(e.key)) {
-        const targetId = openLeadId ?? (view === "table" ? filtered[selectedIndex]?.id : undefined);
+        // Kursor MUSI być widoczny — inaczej cyfra zmieniałaby status
+        // pierwszego wiersza, którego nikt nie wskazał (paczka C).
+        const targetId = openLeadId ?? (view === "table" && kursorWidoczny !== null ? filtered[kursorWidoczny]?.id : undefined);
         const status = STATUSES[Number(e.key) - 1];
         if (targetId && status) {
           e.preventDefault();
@@ -425,22 +435,10 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         switchView(e.key === "1" ? "kanban" : e.key === "2" ? "table" : "kandydaci");
         return;
       }
-      if (view === "table" && (e.key === "j" || e.key === "k")) {
-        e.preventDefault();
-        setSelectedIndex((i) => {
-          const delta = e.key === "j" ? 1 : -1;
-          return Math.min(Math.max(i + delta, 0), Math.max(filtered.length - 1, 0));
-        });
-        return;
-      }
-      if (view === "table" && e.key === "Enter" && filtered[selectedIndex]) {
-        e.preventDefault();
-        setOpenLeadId(filtered[selectedIndex].id);
-      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openLeadId, view, filtered, selectedIndex, updateLead, switchView]);
+  }, [openLeadId, view, filtered, kursorWidoczny, updateLead, switchView]);
 
   // Akcje zgłoszone do globalnej palety poleceń (Cmd+K) w AppShell.
   useRegisterActions(
@@ -492,7 +490,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const overdue = leads
     .filter(isOverdue)
     .sort((a, b) => (a.ostatni_kontakt ?? a.created_at).localeCompare(b.ostatni_kontakt ?? b.created_at));
-  const selectedId = view === "table" ? filtered[selectedIndex]?.id ?? null : null;
+  const selectedId = view === "table" && kursorWidoczny !== null ? filtered[kursorWidoczny]?.id ?? null : null;
   // Zakładka „Kandydaci" ma swój własny zbiór, więc filtry, zaznaczanie i
   // akcje rejestru leadów są tam bez sensu — chowamy je zamiast zostawiać
   // martwe kontrolki, które niczego nie robią.
@@ -526,14 +524,19 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             { id: "kandydaci", label: nowychKandydatow > 0 ? `Kandydaci (${nowychKandydatow})` : "Kandydaci" },
           ]}
         />
-        <span className="flex-1" />
-        <input
-          ref={searchRef}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj… (/)"
-          className="w-24 min-w-0 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted sm:w-32"
-        />
+        {/* Zakładka „Kandydaci" ma własny zbiór i własne szukanie — pole
+            rejestru leadów niczego by tam nie zawężało (martwa afordancja,
+            kategoria 2 listy kontrolnej). Do paczki C stało tam widoczne. */}
+        {rejestr ? (
+          <PoleSzukania
+            ref={searchRef}
+            value={search}
+            onChange={setSearch}
+            podpowiedz="Szuka po firmie, osobie kontaktowej, branży, mieście i notatce"
+          />
+        ) : (
+          <span className="flex-1" />
+        )}
         {rejestr && (
         <Popover
           align="right"
@@ -545,7 +548,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             >
               <IconFilter size={14} /> Filtry
               {activeFilterCount > 0 && (
-                <span className="ml-0.5 rounded-full bg-[var(--zaznaczenie)]/20 px-1.5 text-[10px] font-medium text-[var(--zaznaczenie)]">
+                <span className="ml-0.5 rounded-full bg-zaznaczenie/20 px-1.5 text-[10px] font-medium text-[var(--zaznaczenie)]">
                   {activeFilterCount}
                 </span>
               )}
@@ -850,7 +853,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         <TableView
           leads={filtered}
           lang={lang}
-          selectedId={selectedId}
+          podKursorem={selectedId}
           selectedIds={selectedIds}
           onToggleSelect={toggleSelect}
           onToggleSelectAll={(checked) => toggleSelectAll(checked, filtered.map((l) => l.id))}

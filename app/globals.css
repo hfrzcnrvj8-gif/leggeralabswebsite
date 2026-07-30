@@ -401,9 +401,16 @@
 .admin-linear {
   --bg: #08090a;
   --bg-soft: #0d0e10;
-  --fg: #f7f8f8;
-  --fg-muted: #8a8f98;
-  --hairline: #1f2023;
+  /* KANAŁY OSOBNO — patrz komentarz przy `--zaznaczenie-rgb` niżej i przy
+     kolorach `hairline`/`tresc` w `tailwind.config.ts`. Bez tego klasy
+     z kryciem (`hover:bg-hairline/40`, `text-tresc/80`) nie generują się
+     wcale. Wartości identyczne z dotychczasowymi hexami. */
+  --fg-rgb: 247 248 248;
+  --fg: rgb(var(--fg-rgb));
+  --fg-muted-rgb: 138 143 152;
+  --fg-muted: rgb(var(--fg-muted-rgb));
+  --hairline-rgb: 31 32 35;
+  --hairline: rgb(var(--hairline-rgb));
   /* ZAZNACZENIE — „tu jesteś" / „to wybrałeś" (Moduł 59, 2026-07-28).
      Neutralne, celowo: zaznaczenie nie jest STANEM rekordu ani jego RODZAJEM,
      tylko chrome interfejsu, więc nie ma prawa sięgać po barwy ze skali stanu
@@ -412,8 +419,17 @@
      40+ wystąpień w dziesięciu plikach — kanbany, tabele, oś czasu) i fioletową
      obwódkę kursora `j/k`. Zgłoszenie właściciela: „lepszy byłby neutralniejszy
      kolor" — fiolet w skali stanu znaczy „u drugiej strony", więc zaznaczony
-     wiersz wyglądał jak wiersz o konkretnym statusie. */
-  --zaznaczenie: #8f96a3;
+     wiersz wyglądał jak wiersz o konkretnym statusie.
+
+     KANAŁY OSOBNO (Moduł 59, paczka C, 2026-07-29): `--zaznaczenie-rgb` jest
+     źródłem, `--zaznaczenie` się z niego składa. Bez tego nie da się użyć tej
+     barwy z kryciem — `bg-[var(--zaznaczenie)]/[0.08]` nie generuje w
+     Tailwindzie ŻADNEJ reguły (zmierzone w arkuszu podglądu), więc zaznaczony
+     wiersz tabeli od Modułu 59/D nie miał tła w ogóle, a obrys kursora `j/k`
+     spadał na domyślny błękit ringa. Klasy z kryciem idą teraz przez kolor
+     `zaznaczenie` z `tailwind.config.ts` (`bg-zaznaczenie/[0.08]`). */
+  --zaznaczenie-rgb: 143 150 163;
+  --zaznaczenie: rgb(var(--zaznaczenie-rgb));
   /* PŁYTA WYPUKŁA — jedno źródło jasności dla każdej grupy treści, która ma
      się czytać jako osobny obiekt, a nie jako fragment tła (Moduł 59,
      2026-07-28). Do tej pory te same dwie wartości były wpisane z palca

@@ -31,7 +31,7 @@ export function InstrukcjeView() {
             <p key={i}>{a}</p>
           ))}
         </div>
-        <p className="mt-3 rounded-xl border hairline bg-[var(--hairline)]/30 p-3 text-[12.5px] text-muted">
+        <p className="mt-3 rounded-xl border hairline bg-hairline/30 p-3 text-[12.5px] text-muted">
           {WSTEP.stan}
         </p>
       </header>

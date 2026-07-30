@@ -84,7 +84,7 @@ function ValueChip({ value, muted = false }: { value: string; muted?: boolean })
   }
   return (
     <span
-      className={`whitespace-pre-wrap rounded-lg bg-[var(--hairline)]/50 px-1.5 py-0.5 ${
+      className={`whitespace-pre-wrap rounded-lg bg-hairline/50 px-1.5 py-0.5 ${
         muted ? "text-muted line-through opacity-70" : "text-[var(--fg)]"
       }`}
     >

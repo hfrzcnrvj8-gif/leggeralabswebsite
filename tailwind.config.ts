@@ -23,6 +23,38 @@ const config: Config = {
         serif: ["var(--font-serif)", "Georgia", "serif"],
       },
       colors: {
+        // ZAZNACZENIE jako kolor Tailwinda, nie tylko zmienna CSS
+        // (Moduł 59, paczka C, 2026-07-29).
+        //
+        // Powód jest twardy: `bg-[var(--zaznaczenie)]/[0.08]`,
+        // `ring-[var(--zaznaczenie)]/60` i `border-[var(--zaznaczenie)]/60`
+        // NIE GENERUJĄ ŻADNEJ REGUŁY — modyfikatora krycia nie da się nałożyć
+        // na `var()`, bo Tailwind nie zna kanałów. Zmierzone w podglądzie:
+        // arkusz zawierał `.bg-[var(--zaznaczenie)]` i `.ring-[var(--zaznaczenie)]`,
+        // ale ani jednej reguły z ukośnikiem — czyli 28 wystąpień w panelu
+        // (zaznaczony wiersz tabeli, kolumna pod przeciąganiem, obrys kursora)
+        // od Modułu 59/D rysowało się BEZ tła albo domyślnym błękitem ringa.
+        // Zrzut ekranu tego nie zdradzał: brak bladego tła wygląda jak
+        // „jeszcze nic nie zaznaczyłem".
+        //
+        // `<alpha-value>` sprawia, że `bg-zaznaczenie/10` liczy się poprawnie.
+        // Wymaga kanałów RGB osobno — stąd `--zaznaczenie-rgb` w globals.css,
+        // z którego składa się też samo `--zaznaczenie` (jedno źródło).
+        zaznaczenie: "rgb(var(--zaznaczenie-rgb) / <alpha-value>)",
+        // Te same trzy tokeny panelu, z tego samego powodu. Zmierzone w
+        // arkuszu podglądu: `hover:bg-[var(--hairline)]/40` NIE istnieje jako
+        // reguła — czyli 53 klasy w dwunastu katalogach panelu nie robiły nic,
+        // a wśród nich PODŚWIETLENIE WIERSZA POD MYSZĄ w każdej tabeli
+        // (Leady, Klienci, Oferty, Umowy, Faktury, Koszty, Poczta). Wiersz
+        // reagował na klik, ale nie dawał znaku, że jest klikalny.
+        //
+        // Kanały (`*-rgb`) żyją tylko w `.admin-linear` — te klasy występują
+        // wyłącznie w panelu, a strona publiczna ma `--hairline` z własną
+        // przezroczystością i nie da się jej rozłożyć na kanały bez zmiany
+        // wyglądu.
+        hairline: "rgb(var(--hairline-rgb) / <alpha-value>)",
+        tresc: "rgb(var(--fg-rgb) / <alpha-value>)",
+        "tresc-muted": "rgb(var(--fg-muted-rgb) / <alpha-value>)",
         ink: {
           DEFAULT: "#0A0A0A",
           soft: "#101012",

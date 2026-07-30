@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconPlus, IconBuildingStore, IconExternalLink, IconX, IconRepeat, IconBan, IconArrowUpRight, IconPrinter, IconFileInvoice, IconBuilding, IconHash, IconCoin, IconTrash } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
@@ -19,6 +19,8 @@ import { formatPlDate } from "@/lib/projects";
 import { daysBetweenISO, todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import {
   Popover,
@@ -53,6 +55,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
+  const [szukaj, setSzukaj] = useState("");
+  const szukajRef = useRef<HTMLInputElement>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
@@ -195,8 +199,23 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const rows = useMemo(() => {
     let list = invoices ?? [];
     if (filterStatus) list = list.filter((i) => i.status === filterStatus);
+    const igla = szukaj.trim().toLowerCase();
+    if (igla) {
+      list = list.filter(
+        (i) => (i.numer ?? "").toLowerCase().includes(igla) || (i.klient_nazwa ?? "").toLowerCase().includes(igla)
+      );
+    }
     return list;
-  }, [invoices, filterStatus]);
+  }, [invoices, filterStatus, szukaj]);
+
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C).
+  const { wiersz } = useSkrotyListy({
+    elementy: rows,
+    otworz: (i) => setOpenId(i.id),
+    szukajRef,
+    wyczyscSzukanie: () => setSzukaj(""),
+    aktywne: !openId && !settingsOpen && !recurringOpen && !newOpen,
+  });
 
   // Grupowane wg waluty — sumowanie kwot z różnych walut w jedną liczbę
   // byłoby matematycznie bez sensu (faktura w EUR i w PLN to nie ta sama
@@ -280,7 +299,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       {/* Kompaktowy pasek narzędzi */}
       <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
         <span className="text-[13px] font-medium text-[var(--fg)]">Faktury</span>
-        <span className="flex-1" />
+        <PoleSzukania ref={szukajRef} value={szukaj} onChange={setSzukaj} podpowiedz="Szuka po numerze faktury i nazwie klienta" />
         <Popover
           align="right"
           width={220}
@@ -416,8 +435,8 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             <StanListy
               blad={blad}
               onPonow={load}
-              filtrAktywny={!!filterStatus}
-              onWyczyscFiltr={() => setFilterStatus("")}
+              filtrAktywny={!!filterStatus || !!szukaj.trim()}
+              onWyczyscFiltr={() => { setFilterStatus(""); setSzukaj(""); }}
               filtrTytul="Żadna faktura nie ma tego statusu"
               filtrOpis="Faktury w rejestrze są, ale żadna nie jest w wybranym stanie."
               ikona={IconFileInvoice}
@@ -455,7 +474,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((inv) => {
+                {rows.map((inv, i) => {
                   const overdue = isInvoiceOverdue(inv);
                   // Rampa pilności (Moduł 59) zamiast jednego czerwonego tła:
                   // faktura spóźniona o dzień wyglądała dotąd identycznie jak
@@ -466,9 +485,12 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                       key={inv.id}
                       onClick={() => setOpenId(inv.id)}
                       onContextMenu={(e) => ctl.openAt(e, inv)}
-                      className={`cursor-pointer border-b hairline transition-colors hover:bg-[var(--hairline)]/40 ${
-                        PILNOSC_ROW[pilnosc]
-                      } ${selectedIds.has(inv.id) ? "bg-[var(--zaznaczenie)]/[0.08]" : ""}`}
+                      {...wiersz(
+                        i,
+                        `cursor-pointer border-b hairline transition-colors hover:bg-hairline/80 ${
+                          PILNOSC_ROW[pilnosc]
+                        } ${selectedIds.has(inv.id) ? "bg-zaznaczenie/[0.08]" : ""}`
+                      )}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                         <input

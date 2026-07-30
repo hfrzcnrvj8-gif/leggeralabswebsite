@@ -646,7 +646,7 @@ export function InvoiceEditor({
       </div>
 
       {locked && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border hairline bg-[var(--hairline)]/40 px-3 py-2 text-[12px] text-muted">
+        <div className="mt-3 flex items-center gap-2 rounded-lg border hairline bg-hairline/40 px-3 py-2 text-[12px] text-muted">
           <IconLock size={14} className="shrink-0" />
           <span>
             Faktura wystawiona (<span className="font-medium text-[var(--fg)]">{invoice.numer}</span>) — dane są zablokowane, żeby nie zmienić dokumentu przez pomyłkę.
@@ -766,7 +766,7 @@ export function InvoiceEditor({
               className="mt-2 w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
             />
             {invoice.klient_adres && !invoice.klient_ulica && !invoice.klient_miasto && (
-              <p className="mt-2 whitespace-pre-line rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
+              <p className="mt-2 whitespace-pre-line rounded-lg bg-hairline/40 px-2.5 py-1.5 text-[11px] text-muted">
                 Stary adres (sprzed rozbicia na pola): {invoice.klient_adres}
               </p>
             )}
@@ -881,7 +881,7 @@ export function InvoiceEditor({
             {koryguje && isDraft && (
               <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-400/10 px-3 py-2 text-[11.5px] leading-relaxed text-amber-600 dark:text-amber-400">
                 <p className="mb-1 font-medium">Jak działa korekta</p>
-                <p className="text-[var(--fg)]/80">
+                <p className="text-tresc/80">
                   Popraw pozycje tak, jak faktura <span className="font-medium">powinna wyglądać po zmianie</span> (stan
                   docelowy). Usługę niewykonaną <span className="font-medium">usuń</span> (<IconTrash size={12} className="inline align-[-2px]" />). Aby zmniejszyć ilość lub cenę —
                   wpisz nową, <span className="font-medium">dodatnią</span> wartość. Nie wpisuj ilości ujemnej ani{" "}
@@ -1063,7 +1063,7 @@ export function InvoiceEditor({
                 onClick={() => onOpenInvoice?.(koryguje.id)}
                 disabled={!onOpenInvoice}
                 title={onOpenInvoice ? "Otwórz fakturę pierwotną" : undefined}
-                className="flex w-full items-center justify-between gap-2 bg-[var(--hairline)]/40 px-3 py-2 text-[11.5px] text-muted enabled:hover:bg-[var(--hairline)] disabled:cursor-default"
+                className="flex w-full items-center justify-between gap-2 bg-hairline/40 px-3 py-2 text-[11.5px] text-muted enabled:hover:bg-[var(--hairline)] disabled:cursor-default"
               >
                 <span>
                   Korekta faktury <span className="font-medium text-[var(--fg)]">{koryguje.numer ?? "…"}</span>

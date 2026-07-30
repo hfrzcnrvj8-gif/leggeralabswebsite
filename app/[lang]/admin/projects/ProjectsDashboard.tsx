@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled, IconFileExport, IconLayoutKanban } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
@@ -16,6 +16,8 @@ import { Tooltip } from "../Tooltip";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 
 type ViewMode = "kanban" | "timeline";
@@ -51,6 +53,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const [filterHealth, setFilterHealth] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("reczna");
   const [search, setSearch] = useState("");
+  const szukajRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<ViewMode>("kanban");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -188,6 +191,27 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
 
   const activeFilterCount = [filterStatus, filterPriority, filterHealth].filter(Boolean).length;
 
+  /** Kolejność kursora j/k na tablicy = kolejność CZYTANIA tablicy: kolumna po
+   *  kolumnie, w każdej z góry na dół. Płaska `filtered` skakałaby między
+   *  kolumnami, bo sortowanie („Termin", „Priorytet") nie zna podziału na
+   *  statusy. */
+  const wKolejnosciTablicy = useMemo(
+    () => PROJECT_STATUSES.flatMap((s) => filtered.filter((p) => p.status === s)),
+    [filtered]
+  );
+
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C). Oś czasu dostaje
+  // pustą listę: kursor po pasach osi to inna rzecz niż kursor po kartach
+  // i wymagałby własnego przewijania w dwóch osiach.
+  const { kursorWidoczny } = useSkrotyListy({
+    elementy: view === "kanban" ? wKolejnosciTablicy : [],
+    otworz: (p) => setOpenId(p.id),
+    szukajRef,
+    wyczyscSzukanie: () => setSearch(""),
+    aktywne: !openId,
+  });
+  const podKursorem = view === "kanban" && kursorWidoczny !== null ? wKolejnosciTablicy[kursorWidoczny]?.id ?? null : null;
+
   /** Trzy warianty pustego ekranu (paczka E) — bliźniak z LeadsDashboard. */
   const stanPusty = (
     <StanListy
@@ -313,13 +337,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             { id: "timeline", label: "Oś czasu" },
           ]}
         />
-        <span className="flex-1" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj…"
-          className="w-32 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
-        />
+        <PoleSzukania ref={szukajRef} value={search} onChange={setSearch} podpowiedz="Szuka po nazwie projektu" />
         {/* Filtry — jedno menu (Linear), realnie filtruje po statusie/priorytecie/zdrowiu */}
         {/* „Filtry" zostaje przyciskiem (nie pigułką): pokazuje liczbę aktywnych
             filtrów, a sztywna ramka 24×24 pigułki nie zmieściłaby tej odznaki.
@@ -531,6 +549,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           projects={filtered}
           lang={lang}
           selectedIds={selectedIds}
+          podKursorem={podKursorem}
           onToggleSelect={toggleSelect}
           onUpdate={updateProject}
           onDelete={deleteProject}

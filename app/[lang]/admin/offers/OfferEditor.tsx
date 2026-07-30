@@ -866,7 +866,7 @@ export function OfferEditor({
               </WierszPola>
             </SekcjaProfilu>
             {offer.klient_adres && !offer.klient_ulica && !offer.klient_miasto && (
-              <p className="mt-2 whitespace-pre-line rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
+              <p className="mt-2 whitespace-pre-line rounded-lg bg-hairline/40 px-2.5 py-1.5 text-[11px] text-muted">
                 Stary adres (sprzed rozbicia na pola): {offer.klient_adres}
               </p>
             )}
@@ -1291,7 +1291,7 @@ export function OfferEditor({
               />
             </Field>
             {zwrot ? (
-              <p className="mt-1.5 rounded-lg bg-[var(--hairline)]/40 px-2.5 py-1.5 text-[11px] text-muted">
+              <p className="mt-1.5 rounded-lg bg-hairline/40 px-2.5 py-1.5 text-[11px] text-muted">
                 Na dokumencie: oszczędność {formatMoney(zwrot.oszczednoscMiesiac, waluta)}/mies., zwrot po{" "}
                 {zwrot.miesiecyDoZwrotu} mies.
               </p>

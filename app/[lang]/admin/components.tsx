@@ -93,7 +93,7 @@ export function EditableText({
         if (!readOnly && v !== value) onSave(v);
       }}
       className={`w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors placeholder:text-muted placeholder:opacity-60 focus:outline-none ${
-        readOnly ? "cursor-default opacity-70" : "hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60"
+        readOnly ? "cursor-default opacity-70" : "hover:border-[var(--hairline)] focus:border-zaznaczenie/60"
       }`}
     />
   );
@@ -149,7 +149,7 @@ export function EditableTextarea({ value, onSave }: { value: string; onSave: (v:
         if (v !== value) onSave(v);
       }}
       rows={1}
-      className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-[var(--zaznaczenie)]/60 focus:outline-none"
+      className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors hover:border-[var(--hairline)] focus:border-zaznaczenie/60 focus:outline-none"
     />
   );
 }
@@ -516,7 +516,7 @@ export function ClientLinkChip({
  * (wzorem LEAD_STATUS_HINT). */
 export function LinkHint({ text }: { text: string }) {
   return (
-    <div className="mb-3 flex items-start gap-2 rounded-lg border hairline bg-[var(--hairline)]/40 px-3 py-2 text-[12px] text-muted">
+    <div className="mb-3 flex items-start gap-2 rounded-lg border hairline bg-hairline/40 px-3 py-2 text-[12px] text-muted">
       <IconInfoCircle size={14} className="mt-[1px] shrink-0" />
       <span>{text}</span>
     </div>

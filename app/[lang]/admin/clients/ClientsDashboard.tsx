@@ -27,6 +27,8 @@ import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
+import { useSkrotyListy } from "../klawiatura";
+import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
@@ -73,7 +75,6 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const [addKategoria, setAddKategoria] = useState<string>("Polecenie");
   const [addSzczegoly, setAddSzczegoly] = useState("");
   const [addBusy, setAddBusy] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   // Trafienia w TREŚCI historii (rozmowy, zdarzenia, maile) — osobno od
@@ -306,10 +307,20 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
     return sortClients(list, sort);
   }, [clients, filterStatus, filterBranza, filterKanal, search, sort]);
 
+  // „/", j/k i Enter — wspólny hook (Moduł 59, paczka C). Bliźniak Leadów:
+  // kursor tylko w tabeli, „/" we wszystkich widokach.
+  const { kursorWidoczny, setKursor: setSelectedIndex } = useSkrotyListy({
+    elementy: view === "table" ? filtered : [],
+    otworz: (c) => setOpenClientId(c.id),
+    szukajRef: searchRef,
+    wyczyscSzukanie: () => setSearch(""),
+    aktywne: !openClientId,
+  });
+
   useEffect(() => {
     setSelectedIndex(0);
     clearSelection();
-  }, [filterStatus, filterBranza, filterKanal, search, view, clearSelection]);
+  }, [filterStatus, filterBranza, filterKanal, search, view, clearSelection, setSelectedIndex]);
 
   const wyczyscFiltry = useCallback(() => {
     setFilterStatus("");
@@ -371,13 +382,10 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       }
       if (isTypingTarget(e.target)) return;
 
-      if (e.key === "/") {
-        e.preventDefault();
-        searchRef.current?.focus();
-        return;
-      }
       if (/^[1-4]$/.test(e.key)) {
-        const targetId = openClientId ?? (view === "table" ? filtered[selectedIndex]?.id : undefined);
+        // Patrz bliźniaczy komentarz w LeadsDashboard — bez widocznego
+        // kursora cyfra trafiałaby w pierwszy wiersz z listy.
+        const targetId = openClientId ?? (view === "table" && kursorWidoczny !== null ? filtered[kursorWidoczny]?.id : undefined);
         const status = CLIENT_STATUSES[Number(e.key) - 1];
         if (targetId && status) {
           e.preventDefault();
@@ -385,22 +393,10 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
         }
         return;
       }
-      if (view === "table" && (e.key === "j" || e.key === "k")) {
-        e.preventDefault();
-        setSelectedIndex((i) => {
-          const delta = e.key === "j" ? 1 : -1;
-          return Math.min(Math.max(i + delta, 0), Math.max(filtered.length - 1, 0));
-        });
-        return;
-      }
-      if (view === "table" && e.key === "Enter" && filtered[selectedIndex]) {
-        e.preventDefault();
-        setOpenClientId(filtered[selectedIndex].id);
-      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openClientId, view, filtered, selectedIndex, updateClient]);
+  }, [openClientId, view, filtered, kursorWidoczny, updateClient]);
 
   useRegisterActions(
     [
@@ -443,7 +439,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   }
 
   const overdue = clients.filter(isClientOverdue);
-  const selectedId = view === "table" ? filtered[selectedIndex]?.id ?? null : null;
+  const selectedId = view === "table" && kursorWidoczny !== null ? filtered[kursorWidoczny]?.id ?? null : null;
 
   return (
     // `flex flex-1 flex-col md:min-h-0` (Moduł 35) — przekazanie wysokości okna
@@ -462,13 +458,11 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
             { id: "table", label: "Tabela" },
           ]}
         />
-        <span className="flex-1" />
-        <input
+        <PoleSzukania
           ref={searchRef}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Szukaj… (/)"
-          className="w-24 min-w-0 rounded-md bg-transparent px-2 py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted sm:w-32"
+          onChange={setSearch}
+          podpowiedz="Szuka po nazwie klienta; od dwóch znaków także w treści historii kontaktu"
         />
         <Popover
           align="right"
@@ -476,7 +470,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
           trigger={(open) => (
             <button onClick={open} className="flex h-6 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]">
               <IconFilter size={14} /> Filtry
-              {activeFilterCount > 0 && <span className="ml-0.5 rounded-full bg-[var(--zaznaczenie)]/20 px-1.5 text-[10px] font-medium text-[var(--zaznaczenie)]">{activeFilterCount}</span>}
+              {activeFilterCount > 0 && <span className="ml-0.5 rounded-full bg-zaznaczenie/20 px-1.5 text-[10px] font-medium text-[var(--zaznaczenie)]">{activeFilterCount}</span>}
             </button>
           )}
         >
@@ -674,7 +668,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
             <TableView
               clients={filtered}
               lang={lang}
-              selectedId={selectedId}
+              podKursorem={selectedId}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onToggleSelectAll={(checked) => toggleSelectAll(checked, filtered.map((c) => c.id))}
