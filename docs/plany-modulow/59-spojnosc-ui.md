@@ -636,6 +636,37 @@ pola: `HUB_SETUP.md` → „Moduł 59, paczka C".
 4. **Krzyżyk czyszczący frazę** miała jedna Poczta — teraz ma go każdy moduł,
    bo `Esc` to jedyne wyjście dla kogoś, kto zna skrót.
 
+### Apka — ⌘F/⌘N na siedmiu brakujących ekranach
+
+| ekran | co dostał |
+|---|---|
+| Oferty (iPhone) | pole szukania (tytuł, klient) + ⌘F |
+| Oferty (iPad, `OfertyPanelIpad`) | ⌘F — pole stało tam od Fazy 9, ale skrót do niego nie prowadził; jedyny z czterech paneli iPada bez tego podpięcia |
+| Umowy | pole szukania (strona, zakres prac) + ⌘F |
+| Faktury | pole szukania (numer, klient) + ⌘F |
+| Koszty | pole szukania (dostawca, opis, projekt) + ⌘F, ⌘N = aparat („nowy koszt" na telefonie znaczy „zrób zdjęcie paragonu") |
+| Katalog | pole szukania (nazwa, opis, dostawca) + ⌘F + ⌘N |
+| Przypomnienia | pole szukania (tytuł, notatka, także w podzadaniach) + ⌘F + ⌘N (kursor w polu „Co masz zrobić?") |
+
+Oferty, Umowy i Faktury świadomie **bez ⌘N**: te dokumenty zakłada się przy
+biurku (poziom 3 z planu apki) — skrót otwierałby coś, czego na telefonie nie
+ma. Kalendarz bez pola szukania, tak samo jak w panelu.
+
+Przy okazji: **Koszty pokazywały sztywno 30 ostatnich pozycji** i nie dało się
+w nich niczego znaleźć — a „czy już to wpisałem?" jest jedynym powodem, dla
+którego patrzy się na tę listę. Przy wpisanej frazie sufit znika. Koszty
+i Przypomnienia dostały też **czwarty wariant pustego stanu** („nic nie pasuje
+do frazy") — bez niego fraza bez trafień dawała pusty ekran bez słowa, czyli
+to samo kłamstwo, które paczka E naprawiała w panelu.
+
+**Apka zweryfikowana kompilacją i zgodnością ze wzorcem, nie zrzutem.**
+`xcodebuild` przechodzi, a wszystkie siedem ekranów używa dokładnie tych samych
+`skrotSzukaj`/`skrotSzukajINowy`, co siedem ekranów, na których skrót już
+działa. Zrzutu z symulatora NIE ma, bo build Debug apki rozmawia z produkcją
+i wchodzi przez ekran logowania hasłem właściciela — nie mam go i nie powinienem
+go mieć. To jedyna część tej paczki bez dowodu na żywo; **właściciel powinien
+sprawdzić te siedem ekranów na urządzeniu**.
+
 ### Korekta do inwentarza z Etapu 1
 
 **„⌘N/⌘F w apce — dziś tylko Poczta" było nieprawdą.** Skróty miały już
