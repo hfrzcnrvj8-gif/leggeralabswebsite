@@ -2,29 +2,60 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "@/lib/projects";
+import {
+  getProjectTemplate,
+  expandProjectTemplate,
+  DEFAULT_ONBOARDING_ITEMS,
+  isProjectStatus,
+  isProjectPriority,
+  isPlausibleDateString,
+  PROJECT_STATUSES,
+  PROJECT_PRIORITIES,
+} from "@/lib/projects";
 
 export const runtime = "nodejs";
 
-/** GET /api/projects — list all projects. Admin-only. */
+/** Górny limit tego, ile projektów trasa odda naraz — ten sam wzorzec co przy
+ * klientach (Moduł 54, krok 3a) i ofertach: sufit z GŁOŚNYM ostrzeżeniem
+ * zamiast przedwczesnego stronicowania.
+ *
+ * Trasa świadomie NIE jest stronicowana z tego samego powodu co oferty: kanban
+ * układa kolumny, oś czasu rysuje pasma, a licznik postępu sumuje zadania —
+ * wszystko po stronie przeglądarki i wszystko o CAŁYM rejestrze, nie o jednej
+ * stronie. Przy Projektach dochodzi jednak trzeci konsument, którego oferty nie
+ * mają: **apka filtruje i sortuje lokalnie**, więc obcięta lista kłamałaby też
+ * w szukaniu — telefon pokazywałby „nie znaleziono" na projekt, który istnieje.
+ * Dlatego `total` leci również do apki, a nie tylko do panelu. */
+const PROJECTS_LIMIT = 1000;
+
+/** GET /api/projects — lista projektów z licznikiem zadań. Admin-only.
+ * Zwraca `{ projects, total }` — patrz PROJECTS_LIMIT. */
 export async function GET() {
   if (!(await isAuthed())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   await ensureHubSchema();
   const sql = getSql();
-  const rows = await sql`
+  // `COUNT(*) OVER ()` liczy się PRZED `LIMIT`, więc `total` to pełny rozmiar
+  // rejestru, a nie długość zwróconej strony (jedno zapytanie zamiast dwóch —
+  // neon() płaci rundę HTTP za każde).
+  const rows = (await sql`
     SELECT p.*,
       COALESCE(t.total, 0)::int AS task_total,
-      COALESCE(t.done, 0)::int AS task_done
+      COALESCE(t.done, 0)::int AS task_done,
+      COUNT(*) OVER () AS _total
     FROM projects p
     LEFT JOIN (
       SELECT project_id, COUNT(*) AS total, COUNT(*) FILTER (WHERE done) AS done
       FROM project_tasks GROUP BY project_id
     ) t ON t.project_id = p.id
-    ORDER BY p.created_at DESC;
-  `;
-  return NextResponse.json({ projects: rows });
+    ORDER BY p.created_at DESC
+    LIMIT ${PROJECTS_LIMIT};
+  `) as unknown as Record<string, unknown>[];
+
+  const total = rows.length > 0 ? Number(rows[0]._total) : 0;
+  const projects = rows.map(({ _total, ...p }) => p);
+  return NextResponse.json({ projects, total });
 }
 
 /** POST /api/projects — create a project. Admin-only. */
@@ -43,8 +74,25 @@ export async function POST(req: NextRequest) {
 
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
   const id = randomUUID();
-  const status = str(body?.status, 100) || "Pomysł";
-  const priorytet = str(body?.priorytet, 50) || "Normalny";
+
+  // Słownik na WEJŚCIU, nie tylko przy edycji (audyt 2026-07-31) — sonda
+  // założyła tą trasą projekt ze statusem „CAŁKOWITA_BZDURA" i dostała 200.
+  // Projekt zakładany z literówką w statusie wypada od razu z kanbanu, filtra
+  // i koloru pigułki, a nikt tego nie zauważa, bo trasa nie protestuje.
+  const status = str(body?.status, 100).trim() || "Pomysł";
+  if (!isProjectStatus(status)) {
+    return NextResponse.json(
+      { error: `Nieznany status projektu. Dozwolone: ${PROJECT_STATUSES.join(", ")}.` },
+      { status: 400 }
+    );
+  }
+  const priorytet = str(body?.priorytet, 50).trim() || "Normalny";
+  if (!isProjectPriority(priorytet)) {
+    return NextResponse.json(
+      { error: `Nieznany priorytet. Dozwolone: ${PROJECT_PRIORITIES.join(", ")}.` },
+      { status: 400 }
+    );
+  }
   const leadId = typeof body?.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;
 
   // Szablon: rozwijamy kamienie milowe + zadania po stronie serwera (atomowo,
@@ -53,7 +101,14 @@ export async function POST(req: NextRequest) {
   const template = typeof body?.template === "string" ? getProjectTemplate(body.template) : undefined;
   let opis = str(body?.opis, 4000);
   let start: string | null = null;
-  let termin: string | null = typeof body?.termin === "string" && body.termin.trim() ? body.termin : null;
+  // Termin przez `isPlausibleDateString` — tak jak w PATCH i w kamieniach
+  // milowych. Zakładanie projektu było ostatnią drogą, którą `<input
+  // type="date">` mógł wpuścić rok „0202" (znana pułapka, CLAUDE.md).
+  const terminRaw = typeof body?.termin === "string" ? body.termin.trim() : "";
+  if (terminRaw && !isPlausibleDateString(terminRaw)) {
+    return NextResponse.json({ error: "invalid termin" }, { status: 400 });
+  }
+  let termin: string | null = terminRaw || null;
 
   let milestones: { nazwa: string; termin: string; tasks: string[] }[] = [];
   if (template) {

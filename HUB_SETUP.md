@@ -10066,3 +10066,198 @@ Kursor łapie **sam formularz**, nie wołający: `AddEventForm` dostaje jednoraz
 zgadywaniem czasu przejścia `AnimatePresence mode="wait"` — a w karcie podglądu
 `requestAnimationFrame` w ogóle nie tyka (zmierzone: **0 klatek w 600 ms**),
 więc przejście nigdy się nie kończy i żadna liczba prób nie jest bezpieczna.
+
+## Audyt Modułu 60 — Projekty, sesja 1: fundament (2026-07-31)
+
+Audyt integralności, sufitów, parytetu i poprawności danych modułu Projekty
+(28 uchwytów HTTP w 21 plikach — najwięcej ze wszystkich audytowanych).
+Wygląd i gesty poszły do sesji 2 (`PROMPT-60B-PROJEKTY-WYGLAD.md`).
+Metoda jak przy Ofertach i Umowach: **sonda `curl` per uchwyt HTTP**, nie
+przegląd kodu.
+
+### Sonda autoryzacji wymaga WYŁĄCZENIA dev-bypassu — inaczej nie dowodzi niczego
+
+`isAuthed()` zwraca `true` bezwarunkowo, gdy `NODE_ENV=development` **i**
+`DEV_ADMIN_BYPASS=1` (a to drugie siedzi w `.env.local`). Sonda `curl` na
+zwykłym `npm run dev` dostaje więc **200 na każdej trasie, także na tej bez
+`isAuthed()`** — czyli wynik nieodróżnialny od dziury i od zdrowia.
+
+Poprawna procedura (użyta tutaj):
+
+```bash
+# 1. Sonda autoryzacji — serwer BEZ bypassu, 401 to wynik oczekiwany
+kill <pid-biezacego-dev>
+DEV_ADMIN_BYPASS=0 npx next dev -p 3111
+# 2. Sonda biznesowa (słowniki, blokady, hamulce) — serwer Z bypassem
+npx next dev -p 3111
+```
+
+Next odmawia uruchomienia drugiego `next dev` w tym samym katalogu, więc to
+muszą być dwa przebiegi po kolei, nie dwa serwery obok siebie.
+
+**Baza PGlite kasuje się przy restarcie serwera.** Identyfikatory z poprzedniego
+przebiegu przestają istnieć, a `PATCH` na nieistniejący wiersz zwraca **200**
+(`current` jest `undefined`, więc warunki `current && …` nie wchodzą i nic się
+nie dzieje). To wygląda dokładnie jak „blokada nie działa". Po każdym restarcie
+pobierz identyfikatory na nowo.
+
+**Wynik: 28/28 uchwytów zdrowych.** 26 prywatnych → 401 bez ciasteczka,
+2 publiczne (`review/public/:token` i `…/submit`) → 404 na nieznanym tokenie.
+Unieważnianie linków trzyma w obu. Pierwszy moduł w tej serii bez ani jednej
+otwartej trasy.
+
+### Słownik statusu chronił BRAMKĘ, nie kolor pigułki
+
+`isProjectStatus` / `isProjectPriority` / `isProjectHealth` (`lib/projects.ts`)
+— wzorem `isLeadStatus`. Nowe jest jednak uzasadnienie: przy Leadach i Ofertach
+brak słownika psuł filtr i kolor, tu psuł **jedyną twardą bramkę w panelu**.
+
+Bramka Modułu 31 porównuje status przez `=== "W trakcie"`, więc każdy wariant
+z białym znakiem ją omijał:
+
+| wsad | przed | po |
+|---|---|---|
+| `"W trakcie"` | 409 | 409 |
+| `"W trakcie "` | **200 — start bez podpisanej umowy** | 409 |
+| `"  W trakcie  "` | **200** | 409 |
+| `"BZDURA"` | 200 | 400 |
+
+**Trasy przycinają wsad PRZED sprawdzeniem słownika.** Sam strażnik bez
+`trim()` zamknąłby tylko wariant „BZDURA", zostawiając ten groźny.
+Dotyczy `PATCH /api/projects/:id` **i `POST /api/projects`** — brief wymieniał
+tylko pierwszą. `zdrowie` wolno wyczyścić pustym stringiem (projekt bez oceny),
+`status` i `priorytet` nie.
+
+Apka broniła się sama (`ProjektStatus` i spółka to enumy), więc 400 jej nie
+dotknie — ale komentarz w `Projekt.swift` twierdzący „serwer NIE waliduje"
+przestał być prawdą i został poprawiony.
+
+### Hamulec na publicznej trasie opinii
+
+`POST /api/projects/review/public/:token/submit` był **jedyną publiczną trasą
+dokumentową bez hamulca** — 12 prób pod rząd, każda z pełną rundą do bazy.
+Teraz `HAMULEC_DOKUMENT_PUBLICZNY` (5/60 min), identycznie jak przy ofertach
+i umowach; sonda dostaje 429 z `Retry-After: 3600` od szóstej próby.
+
+Komunikat jest po polsku, choć formularz bywa `en`/`de`: języka dowiedzielibyśmy
+się dopiero z bazy, a hamulec ma odciąć ruch PRZED zapytaniem — inaczej nie
+chroni przed tym, przed czym ma chronić.
+
+### Sufity: trzy trasy, trzy różne odpowiedzi
+
+| trasa | sufit | dlaczego tak |
+|---|---|---|
+| `GET /api/projects` | 1000 + `total` | wzorzec z Ofert/Klientów |
+| `GET /api/projects/timeline` | **500** + `total` | każdy wiersz ciągnie tablicę kamieni milowych — najcięższa odpowiedź modułu |
+| `GET /api/projects/export` | **brak, świadomie** | obcięty CSV kłamie gorzej niż wolny; żaden z sześciu eksportów panelu limitu nie ma |
+
+Dwa różne sufity znaczą **dwa osobne ostrzeżenia** — oś czasu może być ucięta
+wtedy, gdy tablica jeszcze nie jest, więc ostrzeżenie dashboardu jej nie
+wystarczy. Sprawdzone przez chwilowe obniżenie limitów: „Widzisz 3 z 9" na
+liście i „Oś czasu rysuje 4 z 9" jednocześnie.
+
+Ostrzeżenie trafiło też **do apki** (`PasekSufituProjektow`, bliźniak
+`PasekSufituKlientow`) — apka filtruje i sortuje lokalnie, więc obcięta lista
+kłamie tam także w szukaniu: telefon odpowiadałby „nic nie pasuje" na projekt,
+który istnieje. `licznikProjektow` liczy z rejestru (`max(count, wRejestrze)`),
+nie z tego, co zmieściło się pod sufitem.
+
+### Rabat nie wchodził do rentowności — jedna literówka, trzy wskaźniki
+
+`SUM(ilosc * cena_netto)` bez `(1 - rabat_procent / 100)`, podczas gdy lista
+faktur, eksport dla księgowej, wezwanie do zapłaty i rejestr wpłat rabat
+stosowały. Przychód → zysk → efektywna stawka godzinowa: **trzy liczby naraz
+zawyżone i żadna nie wyglądała na zepsutą**. Ta sama klasa co „VAT 23 % dla
+każdej pozycji" z Ofert.
+
+Ta sama literówka siedziała w `app/api/clients/[id]` (kwota faktury w profilu
+klienta rozjeżdżała się z listą Faktur) — poprawiona przy okazji.
+
+Dowód: pozycja 1000 zł netto z rabatem 50 % → przychód 2600, nie 3100.
+Uwaga przy powtarzaniu tej próby: `POST /api/invoices/:id/items` **nie
+przyjmuje `rabat_procent` przy zakładaniu** pozycji (zapisuje 0), rabat ustawia
+się dopiero `PATCH`-em. Pierwsze podejście do tej sondy dało fałszywy wynik
+właśnie dlatego.
+
+### ⚠️ Komentarz SQL `--` wewnątrz `sql\`…\`` wycina resztę zapytania
+
+Znalezione przy tej właśnie poprawce. W tagowanych szablonach nowe linie się
+gubią, więc komentarz liniowy zjada wszystko po sobie — zapytanie dociera do
+bazy urwane w miejscu `--`, trasa zwraca pustą odpowiedź, a w UI nie ma żadnego
+błędu. `tsc` tego nie widzi (nie sprawdza SQL-a), sonda widzi natychmiast.
+
+**Wewnątrz zapytań tylko komentarze blokowe; uzasadnienia pisz NAD zapytaniem.**
+
+### Znaczniki czasu w profilu projektu
+
+Licznik działającego stopera i daty w logu aktywności parsowały TIMESTAMPTZ
+gołym `new Date()` — na Safari `Invalid Date`, czyli `NaN` zamiast czasu sesji
+i dosłowne „Invalid Date" na osi historii. Oba przez `parsePgTimestamp`
+(`lib/dates.ts`). Nieczytelny znacznik daje `—` w liczniku (zero kłamałoby, że
+stoper dopiero ruszył) i surowy tekst w logu (widać, że dana jest zepsuta).
+
+Apka była czysta — `Daty.zZnacznika` od Fazy 5.
+
+### Domknięcie lejka: dwie luki
+
+**Z projektu nie było widać żadnego dokumentu.** Powiązania istniały w bazie
+w obie strony (`contracts.project_id`, `invoices.project_id`), ale profil
+projektu nie pokazywał ani umowy, ani faktur. Efekt absurdalny: bramka
+odmawiała startu „bo brak podpisanej umowy", a właściciel nie miał **stąd** jak
+sprawdzić, czy umowa w ogóle istnieje. Nowa sekcja „Dokumenty" w prawej
+kolumnie profilu; `GET /api/projects/:id` oddaje `documents`.
+
+Umowa nie ma kolumn `numer`/`tytul` — etykietę składa `contractReference()`
+z `id`, `typ` i `created_at`, więc trasa oddaje te trzy pola.
+
+**Z zakończonego projektu nie było drogi do faktury.** `POST /api/invoices`
+przyjmował `project_id` od zawsze, ale nic go stąd nie wołało. Przycisk
+„Wystaw fakturę" + trasa kopiuje teraz **migawkę nabywcy** z karty klienta:
+wcześniej podnosiła samo `client_id` i zostawiała `klient_*` puste, co
+wystarczało fakturze z oferty (tam migawkę przepisuje `lib/offerAccept.ts`),
+ale nie fakturze z projektu — rodziła się z pustym nabywcą. Kopiujemy **tylko
+w puste pola**: to migawka na moment wystawienia, więc dane podane jawnie przez
+wołającego zawsze wygrywają.
+
+Faktura powstaje jako **szkic z pustymi pozycjami** — świadomie. Zgadywanie
+kwoty z kamieni milowych albo z oferty byłoby cichym wpisaniem liczby, której
+nikt nie zatwierdził; żmudny był nabywca i powiązanie, i tylko to przenosi się
+samo.
+
+### Oś czasu na iPadzie (natywnie)
+
+`GET /api/projects/timeline` była jedyną trasą Projektów, której apka nie wołała
+w ogóle. Decyzja właściciela: iPad dostaje oś czasu **natywnie**, nie przez
+WKWebView. `LeggeraHub/Views/OsCzasuProjektow.swift` — pasma kolorowane
+statusem (`ProjektStatus.kolor`), kamienie milowe jako punkty, kreska „dziś",
+trzy skale (kwartał/miesiąc/tydzień), tryb na **całą szerokość modułu**
+z przełącznikiem w nagłówku kolumny.
+
+Model `ProjektNaOsi` dekoduje `Projekt` z **tego samego kontenera** co
+`milestones` — odpowiedź trasy jest płaska. Działa, bo `Projekt.init(from:)`
+toleruje brakujące pola (oś czasu nie oddaje `opis` ani `jezyk`).
+
+Świadomie NIE przeniesione z panelu: **cykle** (naprzemienne pasy co 14 dni to
+w panelu wyłącznie rytm wizualny — przeniesienie dekoracji, która nic nie
+znaczy, zabrałoby tylko wysokość), **krzywe zależności** (wymagają układu
+współrzędnych całego wykresu — osobna runda), **przeciąganie pasm** (zmiana dat
+gestem to poziom 3, biurko). Stuknięcie w pasmo wraca do listy z otwartym
+profilem — zostawienie właściciela na osi byłoby ślepym zaułkiem.
+
+Na iPhonie i wąsko na iPadzie (< 760 pt) osi **nie ma** — pasmo czasu na tej
+szerokości przestaje odpowiadać na pytanie, po które się je otwiera.
+
+### Co sprawdzone i zdrowe bez zmian
+
+Nie wszystko wymagało poprawki i warto to zapisać, żeby nie audytować drugi raz:
+onboarding startuje sam **obiema** drogami zakładania projektu (`POST
+/api/projects` i `lib/offerAccept.ts`), prośba o opinię ma widoczny ślad
+(`review_requested_at` + „Wysłano… czeka na odpowiedź", przycisk zmienia się na
+„Wyślij ponownie") i idempotencję claim-style, daty `start`/`termin` i kamieni
+milowych szły przez `isPlausibleDateString()` po stronie serwera, a stoper
+liczy się **na serwerze** z `started_at` (`EXTRACT(EPOCH …)`), więc ubicie apki
+go nie gubi.
+
+Format czasu panel ↔ apka zgadza się **co do arytmetyki**, nie tylko wedle
+komentarza: `formatDuration` i `Czas.format` zaokrąglają w tych samych trzech
+miejscach, a `h === 0` w panelu jest równoważne `pełneMinuty < 60` w Swifcie.

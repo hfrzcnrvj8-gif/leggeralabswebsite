@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureFollowupsSchema, ensureContractsSchema, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { isPlausibleDateString, formatPlDate, CLOSED_PROJECT_STATUSES } from "@/lib/projects";
+import {
+  isPlausibleDateString,
+  formatPlDate,
+  CLOSED_PROJECT_STATUSES,
+  isProjectStatus,
+  isProjectPriority,
+  isProjectHealth,
+  PROJECT_STATUSES,
+  PROJECT_PRIORITIES,
+  PROJECT_HEALTHS,
+} from "@/lib/projects";
 import { NURTURE_OFFSETS } from "@/lib/clients";
 import { todayLocalISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/documents";
@@ -51,18 +61,55 @@ export async function GET(
   const sourceOfferRows = await sql`SELECT id, tytul FROM offers WHERE project_id = ${id} LIMIT 1;`;
   const sourceOffer = sourceOfferRows[0] ?? null;
 
+  // Dokumenty projektu — umowy i faktury (audyt Projektów, 2026-07-31).
+  // Do tej pory profil projektu nie pokazywał ANI JEDNEGO dokumentu, choć
+  // powiązania istniały w bazie w obie strony. Efekt: bramka Modułu 31
+  // odmawiała startu „bo brak podpisanej umowy", a właściciel nie miał stąd
+  // jak sprawdzić, czy umowa istnieje i w jakim jest stanie — musiał iść do
+  // modułu Umowy i szukać po nazwie. Lejek był domknięty w kodzie, a rozpięty
+  // na ekranie.
+  await ensureContractsSchema();
+  await ensureInvoicesSchema();
+  // Umowa NIE ma kolumn `numer`/`tytul` — identyfikuje ją `contractReference()`
+  // liczona z `id`, `typ` i `created_at` (bez numeracji fiskalnej, wzorem
+  // oferty). Dlatego bierzemy te trzy pola, a etykietę składa UI.
+  const documents = {
+    contracts: await sql`
+      SELECT id, typ, status, accepted_at, created_at
+      FROM contracts WHERE project_id = ${id} ORDER BY created_at DESC;
+    `,
+    invoices: await sql`
+      SELECT id, numer, status, typ_dokumentu, waluta, created_at
+      FROM invoices WHERE project_id = ${id} ORDER BY created_at DESC;
+    `,
+  };
+
   // Rentowność projektu: przychód netto z faktur projektu (wg tych samych
   // wykluczeń co licznik KSeF w InvoicesDashboard: bez proform/szkiców/
   // anulowanych, tylko PLN) minus koszty netto podpięte do projektu.
   // Świadomie tylko PLN w v1 — faktury w innych walutach są pomijane, o czym
   // informuje `ma_inne_waluty`.
+  //
+  // `(1 - rabat_procent / 100)` w sumie pozycji: rabat MUSI wejść do przychodu.
+  // Do audytu Projektów (2026-07-31) ta jedna suma liczyła pozycje po cenie
+  // katalogowej, podczas gdy lista faktur, eksport dla księgowej, wezwanie do
+  // zapłaty i rejestr wpłat rabat stosowały. Projekt z rabatem pokazywał więc
+  // przychód wyższy niż kwota, którą klient faktycznie zapłacił — a że zysk
+  // i efektywna stawka godzinowa liczą się z tej liczby, jedna literówka
+  // zawyżała TRZY wskaźniki naraz i żaden nie wyglądał na zepsuty. To ta sama
+  // wpadka, co VAT 23 % dla każdej pozycji w Ofertach.
+  //
+  // Komentarz stoi TUTAJ, a nie w zapytaniu: w tych szablonach nowe linie się
+  // gubią, więc SQL-owy komentarz `--` wycina wszystko, co po nim (złapane
+  // sondą przy tej właśnie poprawce — `tsc` tego nie widzi). Wewnątrz zapytania
+  // dozwolone są wyłącznie komentarze blokowe.
   await ensureInvoicesSchema();
   await ensureCostsSchema();
   const [revenueRow] = await sql`
     SELECT COALESCE(SUM(t.netto), 0)::float8 AS netto
     FROM invoices i
     JOIN (
-      SELECT invoice_id, SUM(ilosc * cena_netto) AS netto
+      SELECT invoice_id, SUM(ilosc * cena_netto * (1 - rabat_procent / 100)) AS netto
       FROM invoice_items GROUP BY invoice_id
     ) t ON t.invoice_id = i.id
     WHERE i.project_id = ${id}
@@ -92,7 +139,7 @@ export async function GET(
     ma_inne_waluty: Number(nonPlnRow?.n ?? 0) > 0,
   };
 
-  return NextResponse.json({ project, tasks, activity, milestones, resources, onboarding, dependencies, rentownosc, sourceOffer });
+  return NextResponse.json({ project, tasks, activity, milestones, resources, onboarding, dependencies, rentownosc, sourceOffer, documents });
 }
 
 /** PATCH /api/projects/:id — update one or more fields. Admin-only. */
@@ -132,7 +179,17 @@ export async function PATCH(
   }
   let statusChangedTo: string | null = null;
   if ("status" in body) {
-    const nv = str(body.status);
+    // PRZYCINAMY przed sprawdzeniem słownika — bramka umowy niżej porównuje
+    // status przez `===`, więc surowe „W trakcie " (ze spacją) omijało ją
+    // w całości (sonda audytu, 2026-07-31). Strażnik bez `trim()` zamknąłby
+    // tylko połowę dziury.
+    const nv = str(body.status).trim();
+    if (!isProjectStatus(nv)) {
+      return NextResponse.json(
+        { error: `Nieznany status projektu. Dozwolone: ${PROJECT_STATUSES.join(", ")}.` },
+        { status: 400 }
+      );
+    }
     // Formalny start realizacji ("W trakcie") wymaga podpisanej Umowy —
     // jedyny wyjątek od zasady "miękkie podpowiedzi, nigdy twarde bramki"
     // w tym panelu, świadomie zaakceptowany przez właściciela (patrz
@@ -170,12 +227,26 @@ export async function PATCH(
     await sql`UPDATE projects SET status = ${nv}, updated_at = now() WHERE id = ${id};`;
   }
   if ("priorytet" in body) {
-    const nv = str(body.priorytet);
+    const nv = str(body.priorytet).trim();
+    if (!isProjectPriority(nv)) {
+      return NextResponse.json(
+        { error: `Nieznany priorytet. Dozwolone: ${PROJECT_PRIORITIES.join(", ")}.` },
+        { status: 400 }
+      );
+    }
     if (current && norm(current.priorytet) !== nv) changes.push(`Priorytet: ${norm(current.priorytet) || "—"} → ${nv}`);
     await sql`UPDATE projects SET priorytet = ${nv}, updated_at = now() WHERE id = ${id};`;
   }
   if ("zdrowie" in body) {
-    const nv = str(body.zdrowie);
+    // Zdrowie wolno WYCZYŚCIĆ (projekt bez oceny) — pusty string przechodzi,
+    // reszta musi być ze słownika.
+    const nv = str(body.zdrowie).trim();
+    if (nv && !isProjectHealth(nv)) {
+      return NextResponse.json(
+        { error: `Nieznane zdrowie projektu. Dozwolone: ${PROJECT_HEALTHS.join(", ")}.` },
+        { status: 400 }
+      );
+    }
     if (current && norm(current.zdrowie) !== nv) changes.push(`Zdrowie: ${norm(current.zdrowie) || "—"} → ${nv}`);
     await sql`UPDATE projects SET zdrowie = ${nv}, updated_at = now() WHERE id = ${id};`;
   }

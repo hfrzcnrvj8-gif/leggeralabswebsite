@@ -64,11 +64,15 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   // czyli świeży fetch.
   const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
   const bumpTimelineRefresh = useCallback(() => setTimelineRefreshKey((k) => k + 1), []);
+  // Rozmiar rejestru po stronie serwera — bez tego ostrzeżenie o sufonie nie
+  // miałoby z czym porównać długości listy (PROJECTS_LIMIT, app/api/projects).
+  const [total, setTotal] = useState(0);
 
   const load = useCallback(async () => {
     try {
-      const data = await pobierzJSON<{ projects: Project[] }>("/api/projects");
+      const data = await pobierzJSON<{ projects: Project[]; total?: number }>("/api/projects");
       setProjects(data.projects);
+      setTotal(data.total ?? data.projects.length);
       setBlad(null);
     } catch (e) {
       setBlad(komunikatBledu(e));
@@ -535,6 +539,18 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           <button onClick={clearSelection} className="rounded-full border hairline px-3 py-1 text-muted">
             Odznacz wszystko
           </button>
+        </div>
+      )}
+
+      {/* Sufit listy (PROJECTS_LIMIT) — ten sam komunikat co przy ofertach
+          i klientach. Ostrzeżenie stoi NAD przełącznikiem widoku, bo dotyczy
+          każdego z nich tak samo: obcięta lista kłamie i na tablicy, i na osi
+          czasu, i w wyszukiwaniu. */}
+      {projects !== null && projects.length > 0 && total > projects.length && (
+        <div className="mb-3 rounded-xl border border-brand-gold/40 bg-brand-gold/10 px-3 py-2 text-[12px] text-brand-gold">
+          Widzisz {projects.length} z {total} projektów — reszta jest w bazie, ale nie na tej liście.
+          Filtry, szukanie i liczniki postępu działają tylko na tym, co widać, więc od tej chwili są
+          niepełne. Powiedz o tym Claude’owi: czas na stronicowanie.
         </div>
       )}
 

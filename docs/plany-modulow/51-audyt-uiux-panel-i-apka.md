@@ -442,7 +442,110 @@ blisko Dropbox Sign, brakowało sześciu rzeczy — wszystkie zbudowane
 negocjacje z komentarzami i wersjonowaniem w dokumencie, obiegi zatwierdzeń,
 integracje z CRM-ami korporacyjnymi, „AI review klauzul".
 
-## Następny moduł w kolejce: PROJEKTY (2026-07-31)
+## Stan po module „Projekty" — sesja 1, fundament (2026-07-31)
+
+Audyt + wdrożenie w jednym podejściu. Pełny zapis techniczny: `HUB_SETUP.md`
+→ „Audyt Modułu 60 — Projekty, sesja 1". Sesja 2 (wygląd) dostała odświeżony
+brief: `PROMPT-60B-PROJEKTY-WYGLAD.md`.
+
+**Integralność: 28/28 uchwytów zdrowych — pierwszy taki wynik w tej serii.**
+Sonda po każdym uchwycie osobno, z wyłączonym dev-bypassem (bez tego `curl`
+lokalnie zwraca 200 wszędzie i nie dowodzi niczego): 26 tras prywatnych oddaje
+401 bez ciasteczka, 2 publiczne — 404 na nieznanym tokenie. Unieważnianie
+linków (Moduł 40) trzyma w obu publicznych. Po Ofertach (7 otwartych tras)
+i Umowach (4 dziury) to jest zaskoczenie warte odnotowania: **tu dokumentacja
+nie kłamała**.
+
+**Za to bramka umowy — jedyna twarda bramka w panelu — przepuszczała jedną
+spacją.** To znalezisko wyszło dopiero z sondy, nie z przeglądu kodu i nie
+z briefu. Brak walidacji słownika był w briefie opisany jako usterka
+kosmetyczna („pigułka bez tła"); w rzeczywistości bramka Modułu 31 porównuje
+status przez `=== "W trakcie"`, więc:
+
+| wsad | przed | po |
+|---|---|---|
+| `{"status":"W trakcie"}` | 409 „brak podpisanej umowy" | 409 |
+| `{"status":"W trakcie "}` | **200 — projekt z klientem startował bez umowy** | 409 |
+| `{"status":"BZDURA"}` | 200 | 400 |
+| `POST` projektu ze statusem `CAŁKOWITA_BZDURA` | 200 | 400 |
+
+Trasy **przycinają wsad przed sprawdzeniem słownika** — sam strażnik bez
+`trim()` zamknąłby połowę dziury. Słownik wszedł też do `POST` (brief mówił
+tylko o `PATCH`), a przy okazji `POST` dostał `isPlausibleDateString()` na
+`termin`: zakładanie projektu było ostatnią drogą, którą `<input type="date">`
+mógł wpuścić rok „0202".
+
+**Hamulec na publicznej trasie opinii** — 12 prób pod rząd przechodziło pełną
+rundę do bazy. Teraz `HAMULEC_DOKUMENT_PUBLICZNY` (5/60 min) jak w ofertach
+i umowach: sonda dostaje 429 z `Retry-After` od szóstej próby.
+
+**Rabat nie wchodził do rentowności projektu.** Znalezione poza briefem, ta
+sama klasa co „VAT 23 % na sztywno" z Ofert: `SUM(ilosc * cena_netto)` bez
+`(1 - rabat_procent / 100)`, podczas gdy lista faktur, eksport dla księgowej,
+wezwanie do zapłaty i rejestr wpłat rabat stosowały. Jedna literówka zawyżała
+**trzy** wskaźniki naraz (przychód → zysk → efektywna stawka godzinowa) i żaden
+nie wyglądał na zepsuty. Ta sama literówka była w profilu klienta — poprawiona
+przy okazji, bo to jedna linia i ten sam defekt.
+Dowód: pozycja 1000 zł z rabatem 50 % → przychód 2600, nie 3100.
+
+**Znaczniki czasu.** Licznik działającego stopera i daty w logu aktywności
+parsowały TIMESTAMPTZ gołym `new Date()` — na Safari `Invalid Date`, czyli
+`NaN` zamiast czasu sesji i „Invalid Date" wprost na osi historii. Oba przez
+`parsePgTimestamp`. Apka była czysta (`Daty.zZnacznika`).
+
+**Sufity.** `GET /api/projects` oddawało wszystko bez limitu i bez `total` —
+teraz wzorzec z Ofert (1000 + `total` + głośne ostrzeżenie). Oś czasu dostała
+**własny, niższy sufit** (500), bo każdy jej wiersz ciągnie tablicę kamieni
+milowych; ma więc własne ostrzeżenie, mówiące inną liczbą niż lista.
+**Eksport CSV świadomie BEZ sufitu** — obcięty plik kłamie gorzej niż wolny,
+a żaden z sześciu eksportów panelu limitu nie ma. Ostrzeżenie trafiło też do
+apki (`PasekSufituProjektow`, bliźniak klienckiego), bo apka filtruje i sortuje
+lokalnie: bez tego telefon odpowiadałby „nic nie pasuje" na projekt, który
+istnieje.
+
+**Domknięcie lejka — dwie luki, obie zamknięte:**
+
+- **Z projektu nie było widać ŻADNEGO dokumentu.** Powiązania istniały w bazie
+  w obie strony, ale profil projektu nie pokazywał ani umowy, ani faktur. Efekt
+  absurdalny: bramka odmawiała startu „bo brak podpisanej umowy", a właściciel
+  nie miał stąd jak sprawdzić, czy umowa istnieje. Nowa sekcja „Dokumenty".
+- **Z zakończonego projektu nie było drogi do faktury.** `POST /api/invoices`
+  przyjmował `project_id` od zawsze, ale nic go stąd nie wołało. Przycisk
+  „Wystaw fakturę" + trasa kopiuje teraz **migawkę nabywcy** z karty klienta
+  (wcześniej podnosiła samo `client_id`, więc faktura z projektu rodziła się
+  z pustym nabywcą — „jeden ruch" byłby fikcją). Faktura powstaje jako szkic
+  z pustymi pozycjami: zgadywanie kwoty z kamieni milowych byłoby wpisaniem
+  liczby, której nikt nie zatwierdził.
+
+**W porządku bez zmian** (sprawdzone, nie założone): onboarding startuje sam
+obiema drogami zakładania projektu (ręczną i przez akceptację oferty), prośba
+o opinię ma widoczny ślad i idempotencję claim-style, daty `start`/`termin`
+i kamieni milowych szły przez `isPlausibleDateString()` po stronie serwera,
+format czasu panel ↔ apka zgadza się **co do arytmetyki** (`round` w tych
+samych trzech miejscach), a stoper liczy się na serwerze z `started_at`, więc
+ubicie apki go nie gubi.
+
+**Parytet.** Apka wołała wszystko poza `timeline` i `export`. **Oś czasu weszła
+na iPada natywnie** (decyzja właściciela): `OsCzasuProjektow.swift` — pasma
+kolorowane statusem, kamienie jako punkty, kreska „dziś", trzy skale, tryb na
+całą szerokość modułu z przełącznikiem w nagłówku. Świadomie bez cykli (w
+panelu to sama dekoracja), bez krzywych zależności i bez przeciągania pasm.
+Na iPhonie i wąsko na iPadzie osi NIE ma — z tego samego powodu.
+`export` zostaje przy biurku (Moduł 38).
+
+**Zostawione dla sesji 2** (świadomie, nie z braku czasu): trzy pola ⚠️
+z inwentarza Modułu 59 — kolor, nawigacja, treść — oraz cała lista kontrolna
+wyglądu na trzech platformach.
+
+**Pułapka warta zapamiętania:** komentarz SQL-owy `--` wewnątrz tagowanego
+szablonu `sql\`…\`` **wycina resztę zapytania** — nowe linie w tych szablonach
+się gubią. Złapane sondą przy tej właśnie poprawce rabatu; `tsc` tego nie widzi,
+a trasa zwraca pustą odpowiedź bez błędu w UI. Wewnątrz zapytań tylko komentarze
+blokowe, uzasadnienia nad zapytaniem.
+
+## Następny w kolejce: PROJEKTY — sesja 2, wygląd (2026-07-31)
+
+> Sesja 1 (fundament) jest **WYKONANA** — patrz sekcja wyżej. Zostaje sesja 2.
 
 Po Umowach (etap 7 lejka) idą etapy 8–10: Onboarding → Kickoff/kamienie →
 Realizacja, czyli moduł **Projekty**.
@@ -466,15 +569,14 @@ bez osobnego audytu — prompt wymienia co dokładnie, żeby nie robić tego
 drugi raz. Inwentarz Modułu 59 zostawił Projektom trzy pola ⚠️: **kolor,
 nawigacja, treść**.
 
-Dwa konkrety znalezione przy pisaniu promptów, do naprawienia w sesji 1:
+Dwa konkrety znalezione przy pisaniu promptów — **oba naprawione w sesji 1**,
+oba okazały się większe, niż wyglądały:
 
-1. `PATCH /api/projects/:id` zapisuje `status`, `priorytet` i `zdrowie` **bez
-   walidacji słownikiem** — `PROJECT_STATUSES` istnieje w `lib/projects.ts:260`,
-   ale żadna trasa w `app/api` go nie importuje. Ta sama dziura, którą paczka A
-   zamknęła w Leadach i Fakturach.
-2. `POST /api/projects/review/public/:token/submit` **nie ma hamulca**
-   (`lib/rateLimit.ts`), choć publiczne trasy ofert i umów już go mają.
-   Unieważnianie linków (Moduł 40) obejmuje `project` i jest w porządku.
+1. ~~`PATCH /api/projects/:id` bez walidacji słownikiem~~ → dotyczyło też
+   `POST`, a przez brak `trim()` **omijało twardą bramkę umowy jedną spacją**.
+2. ~~`POST /api/projects/review/public/:token/submit` bez hamulca~~ →
+   `HAMULEC_DOKUMENT_PUBLICZNY`. Unieważnianie linków (Moduł 40) było w
+   porządku — potwierdzone sondą, nie na słowo.
 
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 

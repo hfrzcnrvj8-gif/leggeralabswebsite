@@ -112,6 +112,10 @@ export function ProjectTimeline({
 }) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
   const [deps, setDeps] = useState<{ project_id: string; depends_on_id: string }[]>([]);
+  // Sufit osi czasu (TIMELINE_LIMIT) jest NIŻSZY niż sufit listy, więc oś czasu
+  // może być obcięta wtedy, gdy tablica jeszcze nie jest — ostrzeżenie z
+  // dashboardu tu nie wystarczy i musi być własne.
+  const [total, setTotal] = useState(0);
   const [zoom, setZoom] = useState<Zoom>("month");
   const [groupBy, setGroupBy] = useState<"none" | "status" | "zdrowie">("none");
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -143,9 +147,14 @@ export function ProjectTimeline({
         window.location.reload();
         return;
       }
-      const data = (await res.json()) as { projects: TimelineProject[]; dependencies?: { project_id: string; depends_on_id: string }[] };
+      const data = (await res.json()) as {
+        projects: TimelineProject[];
+        dependencies?: { project_id: string; depends_on_id: string }[];
+        total?: number;
+      };
       setProjects(data.projects);
       setDeps(data.dependencies ?? []);
+      setTotal(data.total ?? data.projects.length);
     })();
   }, []);
 
@@ -376,6 +385,14 @@ export function ProjectTimeline({
     // `flex flex-1 flex-col min-h-0` (Moduł 35) — Oś czasu wypełnia wysokość
     // okna zamiast kończyć się na ostatnim projekcie.
     <div className="flex flex-1 flex-col md:min-h-0">
+      {/* Sufit osi czasu (TIMELINE_LIMIT) — patrz komentarz przy `total`. */}
+      {projects.length > 0 && total > projects.length && (
+        <div className="mb-2 shrink-0 rounded-xl border border-brand-gold/40 bg-brand-gold/10 px-3 py-2 text-[12px] text-brand-gold">
+          Oś czasu rysuje {projects.length} z {total} projektów — brakujące pasma po prostu tu nie
+          istnieją, choć projekty są w bazie. Powiedz o tym Claude’owi: czas na stronicowanie.
+        </div>
+      )}
+
       {/* Pasek narzędzi: grupowanie + zoom */}
       <div className="mb-2 flex shrink-0 items-center justify-end gap-2">
         <SegmentedSwitch

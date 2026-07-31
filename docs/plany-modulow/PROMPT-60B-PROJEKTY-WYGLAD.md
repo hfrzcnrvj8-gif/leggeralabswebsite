@@ -4,10 +4,54 @@
 > **Sesja 1 (`PROMPT-60A-PROJEKTY-FUNDAMENT.md`) robi integralność, parytet
 > i dane. Ta sesja robi wygląd, nawigację i dotyk.**
 >
-> ⚠️ **Zacznij od przeczytania wyniku sesji 1** — sekcja „Stan po module
-> Projekty — sesja 1 (fundament)" w `51-audyt-uiux-panel-i-apka.md`. Sesja 1
-> miała zaktualizować ten plik o to, co zastała; jeśli tego nie zrobiła,
-> i tak przeczytaj jej wynik, zanim cokolwiek ruszysz.
+> ✅ **Sesja 1 jest WYKONANA (2026-07-31).** Jej wynik: sekcja „Stan po module
+> Projekty — sesja 1 (fundament)" w `51-audyt-uiux-panel-i-apka.md` oraz
+> „Audyt Modułu 60 — Projekty, sesja 1" w `HUB_SETUP.md`. Przeczytaj obie,
+> zanim cokolwiek ruszysz — poniżej jest tylko skrót tego, co zmienia się
+> dla TWOJEJ sesji.
+
+---
+
+## Co zastajesz po sesji 1 (przeczytaj, zanim zaplanujesz swoją)
+
+**Zmieniło się to, co widać na ekranie — i to jest Twój materiał:**
+
+- **Profil projektu ma nową sekcję „Dokumenty"** w prawej kolumnie (umowy
+  + faktury + przycisk „Wystaw fakturę"). Powstała naprędce, wzorem
+  `SekcjaProfilu`, ale **nie przeszła Twojej listy kontrolnej** — sprawdź ją
+  jak każdą inną: pigułki statusu, puste stany, odstępy, kolejność.
+- **Dwa nowe paski ostrzeżeń o suficie** — jeden nad przełącznikiem widoku
+  w `ProjectsDashboard`, drugi wewnątrz `ProjectTimeline`. Oba złote,
+  wzorem Ofert. Mogą być widoczne **jednocześnie** (sufity są różne: 1000
+  i 500) — sprawdź, czy dwa złote paski nad sobą nie wyglądają jak awaria.
+- **iPad ma nowy tryb: Oś czasu** (`OsCzasuProjektow.swift`), przełączany
+  ikoną w nagłówku kolumny. **To jest najświeższy i najmniej dopracowany
+  wizualnie kod w module** — pasma, kamienie, kreska „dziś", trzy skale.
+  Świadomie bez cykli, krzywych zależności i przeciągania pasm (uzasadnienia
+  w nagłówku pliku — nie cofaj bez pytania). Wygląd, odstępy, zachowanie przy
+  przewijaniu i wariant ciemny: **Twoje**.
+- **Apka ma `PasekSufituProjektow`** na liście (iPhone i iPad).
+- Statusy spoza słownika **nie da się już zapisać** (400) — jeśli w seedzie
+  albo w bazie dev trafisz na dziwny status, to dana sprzed poprawki, nie
+  usterka UI.
+
+**Czego sesja 1 świadomie NIE tknęła, choć rzucało się w oczy:** trzy pola ⚠️
+z inwentarza Modułu 59 (kolor, nawigacja, treść) i cała lista kontrolna
+wyglądu. To jest dokładnie zakres A i B poniżej — nic z tego nie zostało
+„przy okazji" zrobione.
+
+**Dwie pułapki warsztatowe z sesji 1, oszczędzą Ci godziny:**
+
+1. **Karta podglądu w narzędziach przeglądarki ma zamrożony `requestAnimationFrame`**
+   (zmierzone: 0 klatek). `ViewSwitch` z `mode="wait"` **nigdy nie kończy
+   przejścia**, więc przełączenie „Tablica → Oś czasu" kliknięciem zostawia
+   pusty ekran, a `javascript_tool` z pętlą `rAF` wisi do timeoutu. Obejście:
+   ustaw widok przez `localStorage.setItem("leggera_projects_view","timeline")`
+   i przeładuj stronę — wtedy widok montuje się bez przejścia. To artefakt
+   narzędzia, **nie usterka**; nie „naprawiaj" animacji.
+2. **Baza PGlite kasuje się przy każdym restarcie `npm run dev`** — po restarcie
+   identyfikatory z poprzedniego przebiegu nie istnieją, a trasy `PATCH`
+   odpowiadają wtedy **200 i nic nie robią**. Wygląda jak zepsuta blokada.
 
 Kontynuujemy audyt UI/UX i kompletności panelu (leggeralabs.pl/admin, repo
 bieżące) oraz apki natywnej iPhone/iPad (`leggera-hub-ios`, osobne repo:
@@ -62,9 +106,14 @@ Szczególnie warte uwagi w tym module:
 
 ### C. Widoki: Tablica, Oś czasu, profil
 
-- **Oś czasu** (`ProjectTimeline.tsx`) istnieje **tylko w panelu** — apka jej
-  nie woła. Zapytaj właściciela, czy iPad ma ją dostać (na iPhonie prawie
-  na pewno nie — poziom 3).
+- **Oś czasu jest już w DWÓCH miejscach** (zmiana z sesji 1 — pytanie
+  o iPada zostało zadane i właściciel powiedział „tak, natywnie"):
+  `ProjectTimeline.tsx` w panelu i `OsCzasuProjektow.swift` na iPadzie.
+  **Porównaj je ze sobą** — to teraz jeden widok w dwóch implementacjach,
+  czyli klasyczne miejsce na rozjazd słownika koloru i skal. Panel ma cykle
+  (rytm wizualny), iPad świadomie nie; panel ma krzywe zależności, iPad nie.
+  Sprawdź, czy to nadal właściwy podział, ale **nie dokładaj cykli do apki**
+  bez pytania. Na iPhonie osi nie ma i nie ma jej mieć.
 - **Profil projektu na pięciu zakładkach** (Moduł 35). Sprawdź nazwy
   i kolejność wobec apki — paczka E ujednoliciła je w Leadach i Klientach
   („Historia" / „Logi" / „Dokumenty"), Projekty mogły zostać z tyłu.

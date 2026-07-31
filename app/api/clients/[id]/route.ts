@@ -69,13 +69,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ) t ON t.offer_id = o.id
       WHERE o.client_id = ${id} ORDER BY o.created_at DESC;
     `,
+    // Kwota faktury z rabatem — tak jak wszędzie indziej przy fakturach.
+    // Znalezione przy audycie Projektów (2026-07-31): ta trasa i rentowność
+    // projektu miały tę samą literówkę (suma po cenie katalogowej), więc kwota
+    // faktury w profilu klienta rozjeżdżała się z kwotą na liście Faktur.
     sql`
       SELECT i.id, i.numer, i.status, i.typ_dokumentu, i.offer_id, i.contract_id, i.project_id,
              i.waluta, i.created_at,
              COALESCE(t.kwota, 0)::float8 AS kwota
       FROM invoices i
       LEFT JOIN (
-        SELECT invoice_id, SUM(ilosc * cena_netto) AS kwota FROM invoice_items GROUP BY invoice_id
+        SELECT invoice_id, SUM(ilosc * cena_netto * (1 - rabat_procent / 100)) AS kwota FROM invoice_items GROUP BY invoice_id
       ) t ON t.invoice_id = i.id
       WHERE i.client_id = ${id} ORDER BY i.created_at DESC;
     `,

@@ -266,6 +266,23 @@ export const PROJECT_STATUSES = [
   "Wstrzymane",
 ] as const;
 
+/** Strażnik statusu projektu — ten sam wzorzec i ten sam powód co
+ * `isLeadStatus` (lib/leads.ts) i `isOfferStatus` (lib/offers.ts). Do audytu
+ * Projektów (2026-07-31) `POST /api/projects` i `PATCH /api/projects/:id`
+ * zapisywały dowolny string: sonda założyła projekt ze statusem
+ * „CAŁKOWITA_BZDURA" i priorytetem `<script>alert(1)</script>` i dostała 200.
+ *
+ * Przy Projektach stawka jest jednak WYŻSZA niż wypadnięcie z filtra i koloru.
+ * Bramka umowy z Modułu 31 — jedyna twarda bramka w tym panelu — porównuje
+ * status przez `=== "W trakcie"`, więc jedna spacja na końcu ją omijała:
+ * `"W trakcie"` dawało 409 „brak podpisanej umowy", a `"W trakcie "` 200
+ * i projekt z klientem startował bez papieru. Dlatego strażnik jest tu
+ * bramką wejścia (400), a nie kosmetyką — i dlatego trasy PRZYCINAJĄ wartość
+ * przed sprawdzeniem, zamiast porównywać surowy wsad. */
+export function isProjectStatus(v: unknown): v is (typeof PROJECT_STATUSES)[number] {
+  return typeof v === "string" && (PROJECT_STATUSES as readonly string[]).includes(v);
+}
+
 /** Kolor (hex) przypisany do statusu projektu — każdy status ma własną barwę,
  * żeby z daleka na osi czasu rozpoznać stan projektu (pasek jest kolorowany wg
  * statusu). Używane też do obramowania i gradientowego wypełnienia paska. */
@@ -294,6 +311,11 @@ export const PROJECT_STATUS_HEX: Record<string, string> = {
 export const DEFAULT_STATUS_HEX = "#8a8f98";
 
 export const PROJECT_PRIORITIES = ["Niski", "Normalny", "Wysoki", "Krytyczny"] as const;
+
+/** Strażnik priorytetu — patrz `isProjectStatus`. */
+export function isProjectPriority(v: unknown): v is (typeof PROJECT_PRIORITIES)[number] {
+  return typeof v === "string" && (PROJECT_PRIORITIES as readonly string[]).includes(v);
+}
 
 /** Szablon projektu — powtarzalna struktura zlecenia (kamienie milowe z
  * przesunięciami dni od startu + zadania pod każdym). Tworzy gotowy projekt
@@ -454,6 +476,13 @@ export function relativeDeadline(s: string | null | undefined): string {
 // "Zdrowie" — ręcznie ustawiana ocena, niezależna od statusu na tablicy
 // (styl Linear: projekt może być "W trakcie" i jednocześnie "Zagrożony").
 export const PROJECT_HEALTHS = ["Na dobrej drodze", "Zagrożony", "Zerwany"] as const;
+
+/** Strażnik zdrowia — patrz `isProjectStatus`. Zdrowie ma dodatkowo prawo być
+ * PUSTE (projekt bez ustawionej oceny), więc trasy przepuszczają `""` osobno;
+ * ta funkcja odpowiada tylko na pytanie „czy to wartość ze słownika". */
+export function isProjectHealth(v: unknown): v is (typeof PROJECT_HEALTHS)[number] {
+  return typeof v === "string" && (PROJECT_HEALTHS as readonly string[]).includes(v);
+}
 
 /* Zdrowie NIE jest statusem — to druga, prostopadła oś (patrz komentarz wyżej),
  * więc świadomie NIE idzie ze skali `Stan`. Idzie natomiast po tej samej rampie

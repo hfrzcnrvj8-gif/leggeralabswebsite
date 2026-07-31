@@ -3,6 +3,7 @@ import { getSql, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
+import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
 import type { DocLang } from "@/lib/documents";
 
 export const runtime = "nodejs";
@@ -41,6 +42,27 @@ const ERRORS: Record<DocLang, { ratings: string; consentName: string; alreadySub
  * checkboxem samym w sobie nie da się tego udowodnić. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+
+  // Hamulec — ten sam co przy publicznych trasach ofert i umów
+  // (HAMULEC_DOKUMENT_PUBLICZNY, 5/60 min). Do audytu Projektów (2026-07-31)
+  // była to JEDYNA publiczna trasa dokumentowa bez hamulca: sonda wykonała
+  // 12 prób pod rząd i każda przeszła pełną rundę do bazy. Klient wypełnia
+  // formularz raz, więc próg 5 mieści prawdziwy ruch z zapasem.
+  //
+  // Komunikat jest po polsku, choć formularz opinii bywa en/de — języka
+  // dowiedzielibyśmy się dopiero z bazy, a hamulec ma odciąć ruch PRZED
+  // zapytaniem, inaczej nie chroni przed tym, przed czym ma chronić.
+  const odcisk = odciskZadania(req.headers);
+  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+  if (!limit.dozwolone) {
+    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+    return NextResponse.json(
+      { error: `Zbyt wiele prób. Spróbuj ponownie za ${limit.zaMinut} min.` },
+      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+    );
+  }
+  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "invalid payload" }, { status: 400 });
 

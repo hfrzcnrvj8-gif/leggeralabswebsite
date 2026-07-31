@@ -88,6 +88,33 @@ export async function POST(req: NextRequest) {
     if (typeof proj?.client_id === "string") clientId = proj.client_id;
   }
 
+  // Migawka nabywcy z karty klienta (audyt Projektów, 2026-07-31). Do tej pory
+  // trasa podnosiła samo `client_id`, a pola `klient_*` zostawiała puste, o ile
+  // wołający ich nie podał — wystarczyło to fakturze z oferty (tam migawkę
+  // przepisuje `lib/offerAccept.ts`), ale nie fakturze z PROJEKTU, która
+  // rodziła się z pustym nabywcą. „Wystawienie jednym ruchem" bez nazwy
+  // i adresu nabywcy nie jest jednym ruchem, tylko formularzem do wypełnienia.
+  //
+  // Kopiujemy TYLKO w puste pola: to migawka na moment wystawienia (Moduł 30),
+  // więc jawnie podane dane wołającego zawsze wygrywają z kartą klienta.
+  let klientNip = str(body?.klient_nip, 30);
+  let klientUlica = str(body?.klient_ulica, 300);
+  let klientKod = str(body?.klient_kod, 20);
+  let klientMiasto = str(body?.klient_miasto, 200);
+  let klientKraj = str(body?.klient_kraj, 100);
+  if (clientId && !klientNazwa) {
+    const c = (await sql`SELECT nazwa, nip, ulica, kod, miasto, kraj FROM clients WHERE id = ${clientId};`)[0];
+    if (c) {
+      const pole = (v: unknown) => (typeof v === "string" ? v : "");
+      klientNazwa = pole(c.nazwa);
+      if (!klientNip) klientNip = pole(c.nip);
+      if (!klientUlica) klientUlica = pole(c.ulica);
+      if (!klientKod) klientKod = pole(c.kod);
+      if (!klientMiasto) klientMiasto = pole(c.miasto);
+      if (!klientKraj) klientKraj = pole(c.kraj);
+    }
+  }
+
   // Domyślne uwagi z Danych firmy — wygodne, żeby nie przepisywać tej samej
   // formułki na każdej nowej fakturze (można nadpisać w edytorze jak dotąd).
   const settingsRows = await sql`SELECT domyslne_uwagi FROM company_settings WHERE id = 'default';`;
@@ -99,8 +126,16 @@ export async function POST(req: NextRequest) {
   const cenyBrutto = typ === "zaliczkowa";
 
   await sql`
-    INSERT INTO invoices (id, lead_id, project_id, client_id, klient_nazwa, klient_nip, klient_adres, share_token, typ_dokumentu, uwagi, ceny_brutto)
-    VALUES (${id}, ${leadId}, ${projectId}, ${clientId}, ${klientNazwa}, ${str(body?.klient_nip, 30)}, ${str(body?.klient_adres, 500)}, ${shareToken}, ${typ}, ${domyslneUwagi}, ${cenyBrutto});
+    INSERT INTO invoices (
+      id, lead_id, project_id, client_id, klient_nazwa, klient_nip, klient_adres,
+      klient_ulica, klient_kod, klient_miasto, klient_kraj,
+      share_token, typ_dokumentu, uwagi, ceny_brutto
+    )
+    VALUES (
+      ${id}, ${leadId}, ${projectId}, ${clientId}, ${klientNazwa}, ${klientNip}, ${str(body?.klient_adres, 500)},
+      ${klientUlica}, ${klientKod}, ${klientMiasto}, ${klientKraj},
+      ${shareToken}, ${typ}, ${domyslneUwagi}, ${cenyBrutto}
+    );
   `;
   // Świadomie BEZ logClientEvent — oś czasu klienta dostaje fakturę dopiero
   // przy wystawieniu (invoice_issued, patrz CLIENT_EVENT_KINDS). Szkic to

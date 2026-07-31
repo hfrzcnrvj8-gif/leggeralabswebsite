@@ -32,13 +32,22 @@ import { DateField } from "../DatePicker";
 import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
 import { useUI, useRegisterActions } from "../ui";
 import type { Lead } from "@/lib/leads";
-import { formatMoney } from "@/lib/invoices";
+import { formatMoney, INVOICE_STATUS_CLASS } from "@/lib/invoices";
+import { contractReference, CONTRACT_STATUS_CLASS, type ContractTyp } from "@/lib/contracts";
 import { type TimeEntry, formatDuration, sumMinutes, effectiveHourlyRate } from "@/lib/time-tracking";
-import { todayLocalISO } from "@/lib/dates";
+import { todayLocalISO, parsePgTimestamp } from "@/lib/dates";
 import { TIMER_CHANGED_EVENT } from "../AppShell";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { MiniSciezka } from "../MiniSciezka";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
+
+/** Dokumenty wiszące na projekcie — umowy i faktury (audyt Projektów,
+ * 2026-07-31). Umowa nie ma numeru w bazie: etykietę składa
+ * `contractReference()` z `id`, `typ` i `created_at`. */
+export type ProjectDocuments = {
+  contracts: { id: string; typ: ContractTyp; status: string; accepted_at: string | null; created_at: string }[];
+  invoices: { id: string; numer: string | null; status: string; typ_dokumentu: string; waluta: string; created_at: string }[];
+};
 
 /** Rdzeń widoku szczegółów projektu, w stylu Linear: treść + kamienie
  * milowe + log aktywności po lewej, metadane (zdrowie/status/terminy/
@@ -78,6 +87,8 @@ export function ProjectDetailPanel({
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [clients, setClients] = useState<{ id: string; nazwa: string }[] | null>(null);
   const [sourceOffer, setSourceOffer] = useState<{ id: string; tytul: string } | null>(null);
+  const [documents, setDocuments] = useState<ProjectDocuments>({ contracts: [], invoices: [] });
+  const [wystawiam, setWystawiam] = useState(false);
   const [newResourceLabel, setNewResourceLabel] = useState("");
   const [newResourceUrl, setNewResourceUrl] = useState("");
   const [newOnboardingText, setNewOnboardingText] = useState("");
@@ -132,6 +143,7 @@ export function ProjectDetailPanel({
       dependencies?: { depends_on_id: string }[];
       rentownosc?: { przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean };
       sourceOffer?: { id: string; tytul: string } | null;
+      documents?: ProjectDocuments;
     };
     setProject(data.project);
     setTasks(data.tasks);
@@ -142,6 +154,7 @@ export function ProjectDetailPanel({
     setDependencies((data.dependencies ?? []).map((d) => d.depends_on_id));
     setRentownosc(data.rentownosc ?? null);
     setSourceOffer(data.sourceOffer ?? null);
+    setDocuments(data.documents ?? { contracts: [], invoices: [] });
 
     let loadedClient: { nazwa: string; osoba_kontaktowa: string; email: string } | null = null;
     if (data.project.client_id) {
@@ -706,6 +719,33 @@ export function ProjectDetailPanel({
     load();
   };
 
+  /** Wystaw fakturę z projektu (audyt Projektów, 2026-07-31) — domknięcie
+   * lejka w drugą stronę. Do tej pory z zakończonego projektu nie było ŻADNEJ
+   * drogi do faktury: `POST /api/invoices` przyjmował `project_id` od zawsze,
+   * ale nic go stąd nie wołało, więc właściciel szedł do modułu Faktury
+   * i przepisywał nabywcę ręcznie.
+   *
+   * Faktura rodzi się jako SZKIC z pustymi pozycjami — świadomie. Zgadywanie
+   * kwoty z kamieni milowych albo z oferty byłoby cichym wpisaniem klientowi
+   * liczby, której nikt nie zatwierdził; nabywca i powiązanie z projektem to
+   * dokładnie ta część, która była żmudna, i tylko ona przenosi się sama. */
+  const wystawFakture = async () => {
+    if (wystawiam) return;
+    setWystawiam(true);
+    const res = await fetch("/api/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: id, client_id: project?.client_id ?? null }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+    setWystawiam(false);
+    if (!res.ok || !data.id) {
+      toast(data.error ?? "Nie udało się założyć faktury.", "error");
+      return;
+    }
+    window.location.href = `/${langPrefix}/admin/invoices/${data.id}`;
+  };
+
   const saveManualReview = async () => {
     if (manualJakosc === 0 || manualTerminowosc === 0 || manualKomunikacja === 0 || savingManualReview) return;
     if (manualConsent && !manualConsentName.trim()) {
@@ -1170,7 +1210,18 @@ export function ProjectDetailPanel({
                   <IconClock size={14} className="text-emerald-400" />
                   Stoper działa{activeTimerHere.task_text ? ` — ${activeTimerHere.task_text}` : ""}
                   {" · "}
-                  {formatDuration(Math.max(0, (Date.now() - new Date(activeTimerHere.started_at as string).getTime()) / 60000))}
+                  {/* `parsePgTimestamp`, NIE `new Date()` — `started_at` to
+                      TIMESTAMPTZ z Postgresa („2026-07-31 11:33:59.296+01":
+                      spacja zamiast T, strefa bez dwukropka). Safari zwraca
+                      z tego `Invalid Date`, więc licznik pokazywał tam `NaN`
+                      zamiast czasu sesji. `null` (nieczytelny znacznik) daje
+                      pusty licznik, nie zero — zero kłamałoby, że stoper
+                      dopiero ruszył. */}
+                  {(() => {
+                    const start = parsePgTimestamp(activeTimerHere.started_at);
+                    if (!start) return "—";
+                    return formatDuration(Math.max(0, (Date.now() - start.getTime()) / 60000));
+                  })()}
                 </span>
                 <button onClick={stopTimer} className="shrink-0 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]">
                   <IconPlayerStop size={13} className="inline -mt-0.5 mr-1" />
@@ -1580,6 +1631,55 @@ export function ProjectDetailPanel({
             </div>
           </SekcjaProfilu>
 
+          {/* Dokumenty projektu (audyt 2026-07-31) — domknięcie lejka w obie
+              strony. Umowa stoi NAD fakturami, bo w tej kolejności powstają
+              i bo to ona odblokowuje bramkę statusu „W trakcie". */}
+          <SekcjaProfilu tytul="Dokumenty" wiersze={false}>
+            <div className="space-y-1.5 p-2.5">
+              {documents.contracts.length === 0 && documents.invoices.length === 0 && (
+                <div className="text-[12px] text-muted">
+                  {project.client_id
+                    ? "Brak umowy i faktur. Status „W trakcie” wymaga podpisanej umowy."
+                    : "Brak dokumentów. Projekt bez klienta ich nie potrzebuje."}
+                </div>
+              )}
+
+              {documents.contracts.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/${langPrefix}/admin/contracts/${c.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg border hairline px-2.5 py-1.5 text-[12px] hover:border-[var(--fg)]"
+                >
+                  <span className="truncate">{contractReference(c)}</span>
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${CONTRACT_STATUS_CLASS[c.status] ?? "text-muted"}`}>
+                    {c.status}
+                  </span>
+                </Link>
+              ))}
+
+              {documents.invoices.map((f) => (
+                <Link
+                  key={f.id}
+                  href={`/${langPrefix}/admin/invoices/${f.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg border hairline px-2.5 py-1.5 text-[12px] hover:border-[var(--fg)]"
+                >
+                  <span className="truncate">{f.numer || "Szkic faktury"}</span>
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${INVOICE_STATUS_CLASS[f.status] ?? "text-muted"}`}>
+                    {f.status}
+                  </span>
+                </Link>
+              ))}
+
+              <button
+                onClick={wystawFakture}
+                disabled={wystawiam}
+                className="w-full rounded-full border hairline px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                {wystawiam ? "Zakładam…" : "Wystaw fakturę"}
+              </button>
+            </div>
+          </SekcjaProfilu>
+
           <button
             onClick={deleteProject}
             className="w-full rounded-full border hairline px-3 py-1.5 text-xs text-red-400"
@@ -1850,8 +1950,15 @@ function DateRangeField({
   );
 }
 
+/** Data + godzina wpisu z logu aktywności. `created_at` to TIMESTAMPTZ
+ * z Postgresa, więc idzie przez `parsePgTimestamp` — goły `new Date()` dawał
+ * na Safari `Invalid Date`, czyli „Invalid Date" wprost na osi historii
+ * projektu. Nieczytelny znacznik pokazujemy jako surowy tekst, nie jako pustkę:
+ * lepiej, żeby było widać, że coś jest nie tak z daną, niż żeby wpis wyglądał
+ * na pozbawiony daty. */
 function formatDate(iso: string): string {
-  const d = new Date(iso);
+  const d = parsePgTimestamp(iso);
+  if (!d) return iso;
   return d.toLocaleString("pl-PL", {
     day: "2-digit",
     month: "2-digit",
