@@ -81,9 +81,16 @@ Trasy: sonda `curl` po każdym uchwycie HTTP osobno.
       Menu jest SKRÓTEM — wszystko z niego musi dać się zrobić też widocznym
       przyciskiem.
 - [ ] **Apka: przytrzymanie = to samo menu** co prawy przycisk w panelu.
-- [ ] **Swipe w prawo = akcja pozytywna/kontakt** (zadzwoń, obsłużone),
-      **swipe w lewo = zamknięcie sprawy albo usunięcie.** Ta sama strona dla
-      tego samego znaczenia we wszystkich modułach.
+- [ ] **Swipe w prawo = ruch DO PRZODU albo POMYŚLNE domknięcie** (zadzwoń,
+      wyślij, przypomnij, obsłużone, opłacony, wdrożone), **swipe w lewo =
+      wyłącznie to, co idzie „od siebie"** (odrzuć, zablokuj, archiwum, usuń).
+      Ta sama strona dla tego samego znaczenia we wszystkich modułach.
+      Doprecyzowane 2026-07-31 (paczka G): pierwsza wersja mówiła po prostu
+      „w lewo = zamknięcie sprawy", a to czyta się w dwie strony — „obsłużone"
+      przecież też zamyka. Ta dwuznaczność JEST powodem, dla którego jedno
+      słowo miało w apce dwa kierunki. Test rozstrzygający: czy po tej akcji
+      sprawa skończyła się dobrze, czy odpadła? Powód wyboru (pełne
+      przeciągnięcie odpala pierwszy przycisk krawędzi): `HUB_SETUP.md`.
 - [ ] **Pozycje niedostępne są wyszarzone, nie ukryte** — menu, które zmienia
       kształt przy każdym wierszu, nie da się zapamiętać.
 - [ ] Drag & drop tam, gdzie istnieje kolejność (kamienie, zadania, pozycje).
@@ -105,7 +112,9 @@ Trasy: sonda `curl` po każdym uchwycie HTTP osobno.
 - [ ] **Zakładki profilu nazwane tak samo** i w tej samej kolejności na
       wszystkich platformach.
 - [ ] Moduł z gęstą tabelą jest na PEŁNĄ szerokość (`PELNA_SZEROKOSC`).
-- [ ] „+" zawsze w tym samym rogu; szukanie zawsze w tym samym miejscu.
+- [ ] „+" zawsze w tym samym rogu (**ostatnia kontrolka paska modułu, przy
+      prawej krawędzi OKNA — nie wyśrodkowanej kolumny**); szukanie zawsze
+      w tym samym miejscu. „+" dodaje REKORD modułu, nigdy pojemnik.
 - [ ] Powrót zachowuje pozycję listy i wybrany filtr.
 
 ### 6. Puste stany, ładowanie, błędy
@@ -220,7 +229,7 @@ iPhonie i iPadzie.
 | ~~**F+**~~ | ~~to samo w formularzach~~ — **ZROBIONE 29.07** na prośbę właściciela | — |
 | ~~**E**~~ | ~~puste stany · nazwy zakładek · adresy rekordów~~ — **ZROBIONE 29.07** | — |
 | ~~**C**~~ | ~~klawiatura~~ — **ZROBIONE 29.07**, patrz „Paczka C" na dole | — |
-| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+" w panelu (szukanie zrobione w paczce C) | ~9 plików |
+| ~~**G**~~ | ~~kierunek swipe'a w apce · miejsce „+" w panelu~~ — **ZROBIONE 31.07**, patrz „Paczka G" na dole | — |
 
 ### Rozstrzygnięte przez właściciela
 
@@ -410,7 +419,7 @@ jak profil — to jest osobna decyzja i osobna paczka, nie przeoczenie.**
 |---|---|---|
 | ~~**E**~~ | ~~puste stany · nazwy zakładek · adresy rekordów~~ — **ZROBIONE 29.07**, patrz „Paczka E" niżej | — |
 | ~~**C**~~ | ~~klawiatura~~ — **ZROBIONE 29.07**, patrz „Paczka C" na dole | — |
-| **G** | kierunek swipe'a w apce (Oferty, Umowy, Faktury, Koszty) · miejsce „+" w panelu (szukanie zrobione w paczce C) | ~9 plików |
+| ~~**G**~~ | ~~kierunek swipe'a w apce · miejsce „+" w panelu~~ — **ZROBIONE 31.07**, patrz „Paczka G" na dole | — |
 
 **Apka nie była w zakresie tej paczki** — jej ekrany profili od początku stoją
 na `List(.insetGrouped)`, czyli na wzorcu, do którego panel się właśnie
@@ -691,3 +700,164 @@ i `unhandledrejection` — **zero błędów wykonania**, każdy ma pole szukania
 POCZĄTKOWĄ. Przez to poprawnie działające tło zaznaczenia mierzyło się jako
 `rgba(0,0,0,0)`. Rozstrzyga klon elementu (`cloneNode`) albo świeżo wstawiona
 próbka — na nich żadne przejście nie trwa.
+
+---
+
+## Paczka „G" — kierunek gestu w apce, miejsce „+" w panelu (2026-07-31)
+
+Ostatnia paczka z planu. **Definicja „gotowe" ustalona PRZED kodem:** żadna
+akcja pozytywna nie zostaje po stronie usuwania · to samo słowo znaczy tę samą
+stronę we WSZYSTKICH modułach, nie tylko w czterech z zakresu · „+" stoi w tym
+samym rogu w każdym module, także w tych, które go nie miały · żaden „+" nie
+otwiera czegoś, czego na danym ekranie nie ma · `tsc`, `npm test`, `xcodebuild`
+i załadowanie każdego dotkniętego ekranu czyste.
+
+### Rozjazd był większy niż zakres z planu
+
+Plan mówił „Oferty, Umowy, Faktury, Koszty". Po przejrzeniu **wszystkich 40
+gestów w apce** okazało się, że problem nie kończy się na dokumentach:
+
+- **„Obsłużone" miało dwie strony naraz** — gest w prawo w Poczcie, gest
+  w lewo w Leadach, Klientach i na Pulpicie (6 miejsc). Lista kontrolna
+  (kat. 3) mówiła „w prawo" od pierwszego dnia; kod robił odwrotnie w 11 z 13
+  miejsc.
+- **Wysyłka dokumentu i przypomnienie o płatności** stały po stronie
+  odrzucania i usuwania (Oferty ×2, Umowy, Faktury, Pulpit ×3).
+- **Koszty** — „Opłacony" po stronie kasowania.
+
+Zasada 1 tego dokumentu („poprawka idzie przez wszystkie moduły w jednym
+commicie") kazała ruszyć wszystko naraz: **9 plików apki**.
+
+### Decyzja właściciela (2026-07-31)
+
+Zapytany wprost, wybrał wariant zgodny z listą kontrolną: **w prawo = ruch do
+przodu ALBO pomyślne domknięcie, w lewo = wyłącznie „od siebie"** — świadomie
+kosztem codziennego odruchu w Leadach i na Pulpicie. Rozstrzygający argument:
+pełne przeciągnięcie odpala pierwszy przycisk krawędzi, więc dopóki
+„Obsłużone" sąsiadowało z „Usuń", ten sam odruch znaczył co innego w każdym
+module. Reguła, tabela stron i powód: `HUB_SETUP.md` → „Moduł 59, paczka G".
+
+### „+" w panelu
+
+| moduł | co było | skala |
+|---|---|---|
+| Notatnik, Kalendarz | **brak „+" w ogóle** — dodawanie tylko przez zauważenie pola w treści | 2 pliki |
+| Przypomnienia | „+" w rogu dodawał **listę**, nie przypomnienie — jedyne takie miejsce w panelu | 1 plik |
+| Katalog | „+" w rogu wyśrodkowanej kolumny, nie okna | 1 plik |
+
+Katalog i Przypomnienia dostały przy okazji ten sam pasek 44 px, co reszta
+panelu — więc i ich pole szukania stoi tam, gdzie każe paczka C.
+
+### Co wyszło przy okazji i zostało naprawione w tej samej paczce
+
+1. **`Cmd+K → „+ Nowe wydarzenie" nie robiło NIC** poza widokiem dnia — pole
+   istnieje wyłącznie tam, więc `newTitleRef.current?.focus()` cicho milczał
+   w miesiącu, tygodniu i roku. Martwa pozycja palety, kategoria 2.
+2. **Faktura miała gest wykluczający się sam z sobą** — „Przypomnij" i „Oznacz
+   opłaconą" siedziały w jednym `if/else`, więc jedno chowało drugie i na
+   fakturze po terminie nie dało się odhaczyć płatności gestem. Gest zmieniał
+   kształt przy każdym wierszu (łamał kat. 3: „niedostępne wyszarzone, nie
+   ukryte"). Rozdzielone po zgłoszeniu właściciela z urządzenia („faktury tylko
+   w prawo Przypomnij").
+3. **Katalog i Przypomnienia przewijały cały ekran razem z nagłówkiem**, więc
+   ich „+" znikał po pierwszym obrocie kółka — „w tym samym rogu" obowiązywało
+   tylko na pozycji zerowej.
+
+### Znalezione na urządzeniu — dwa kafle obok siebie
+
+Test na iPhonie (31.07, build wgrany kablem) wyłapał usterkę, **której ta
+paczka sama nie dotknęła, a jednak ją stworzyła**: odkąd „Zadzwoń" i
+„Obsłużone" stoją po tej samej stronie, są to dwa prawie identyczne zielone
+kafle — bo obie akcje są pozytywne, a `sukces` i `zrobione` to celowo ta sama
+zieleń (ujednolicone 2026-07-20).
+
+Rozwiązanie właściciela — jego pomysł, lepszy niż moja pierwsza propozycja
+(„dołóżmy ikonę"): **kolor zostaje w słowniku, różnicę niesie hierarchia** —
+pierwszy plan wypełniony, drugi przygaszony i z ikoną konturową. Mówi to nie
+tylko ŻE akcje są różne, ale i KTÓRA jest ważniejsza. Reguła, tabela planów
+i kiedy jej NIE stosować: `HUB_SETUP.md` → „Dwa kafle na jednej krawędzi".
+
+Przy okazji wyszło, że **wypełniony kafel nie był tym, co odpala pełne
+przeciągnięcie** — SwiftUI uruchamia pierwszy przycisk krawędzi, a „Zadzwoń"
+stał w kodzie pierwszy, czyli wygląd kłamał o zachowaniu. Kolejność
+zamieniona: pełny gest w prawo na leadzie i kliencie oznacza teraz
+„Obsłużone" (decyzja właściciela 2026-07-31).
+
+### Trzy zgłoszenia z urządzenia, które NIE były usterkami kodu
+
+Właściciel przeszedł listę na iPhonie i iPadzie i zgłosił trzy braki. Po
+sprawdzeniu **własnym palcem na symulatorze** (patrz niżej) okazało się, że
+kod działa we wszystkich trzech, a różnica siedziała w danych albo w wersji
+buildu:
+
+| zgłoszenie | co jest naprawdę |
+|---|---|
+| „na Pulpicie nie da się wykonać tego gestu w ogóle" | działa — gest odhaczył wiersz, licznik zjechał 18 → 17. Gestu nie mają: pas „Nadzór", kafel licznika i „Ostatnie notatki"; „Dziś w kalendarzu" ma tylko w lewo |
+| „Umowy tylko w prawo" | „Nie podpisali" pokazuje się **wyłącznie** dla umowy nie-podpisanej i nie-odrzuconej (`umowaStatusPozwala`) — zachowanie sprzed paczki |
+| „na iPadzie w Leadach i Klientach nie ma gestu" | działa; po ponownym wgraniu buildu właściciel potwierdził. U Klientów wychodzi sam „Zadzwoń", gdy klient nie wymaga działania |
+
+**Lekcja: kompilacja i grep nie widzą SĄSIEDZTWA.** Obie usterki były
+niewidoczne w kodzie i w statycznym przeglądzie — powstały z układu, który
+istnieje dopiero na ekranie, pod palcem.
+
+### Pomiar
+
+| element | zmierzone | próg |
+|---|---|---|
+| prawa krawędź „+" — Oferty (wzorzec) | **1416 px** | — |
+| jw. — Katalog po zmianie | **1416 px** (przed: 1405, w kolumnie) | = wzorzec |
+| jw. — Przypomnienia, Notatnik | **1416 px** | = wzorzec |
+| jw. — Kalendarz | **1416 px**, `top` 70 zamiast 36 (pasek zawija się na dwa rzędy — świadomie) | = wzorzec w poziomie |
+| akcje pozytywne po stronie usuwania (apka) | **12 → 0** | 0 |
+
+### Jak zweryfikowano
+
+Panel: każdy dotknięty ekran załadowany w podglądzie i sprawdzony po stanie
+DOM, nie po zrzucie — „+" wywołany `click()`, po nim odczytany `activeElement`
+(Notatnik → pole notatki, Przypomnienia → „Co masz zrobić?", Kalendarz → pole
+wydarzenia). Menu pod „+" w Przypomnieniach rozwinięte i przeczytane po
+treści pozycji. Skróty paczki C przetestowane po przeniesieniu pasków: `/`
+ustawia kursor w polu, `j`/`k` przesuwają `data-kursor` w obie strony.
+Wszystkie 12 modułów pobrane osobno — 200, zero śladów `__next_error__`.
+Konsola bez błędów.
+
+Apka: `xcodebuild` przechodzi, a **pełny grep po wszystkich 40 wywołaniach
+`swipeActions`** pokazuje, że po stronie `trailing` nie została ani jedna
+akcja pozytywna. **Sprawdzone też NA URZĄDZENIU** (31.07): build wgrany kablem
+na iPhone'a i iPada, ekran podglądany przez lustro QuickTime, gesty wykonane
+palcem przez właściciela. Tą drogą wyszły dwie usterki, których nie widać
+w kodzie — patrz „Znalezione na urządzeniu" wyżej.
+
+**Droga, której wcześniej nie używaliśmy — symulator na LOKALNYM panelu.**
+Build Debug domyślnie gada z produkcją i zatrzymuje się na ekranie logowania,
+dlatego paczka C zapisała „apka bez zrzutu". Obejście: `LEGGERA_DEV_BACKEND=lokalny`
+(PGlite z danymi testowymi) plus token wydany curl-em z `POST /api/admin/login`
+(body **musi** mieć pole `device`, inaczej trasa nie wydaje tokenu) podany jako
+`SIMCTL_CHILD_LEGGERA_DEV_TOKEN`. W symulatorze narzędzia potrafią wykonać
+PRAWDZIWY gest, więc swipe da się sprawdzić **bez palca właściciela** — i to
+tam wyszło rozdzielenie gestu faktury. Fizyczne urządzenie zostaje do rzeczy,
+których symulator nie odda: Face ID, Wyspa, aparat, prawdziwa skrzynka.
+
+**Jak to ustawić następnym razem:** `xcrun xctrace list devices` po UDID (nie
+`devicectl` — tam jest inny identyfikator), build z `-allowProvisioningUpdates`,
+`devicectl device install app`, potem `process launch -e '{"LEGGERA_DEV_TAB":"leady"}'`.
+Podgląd: QuickTime → Nowe nagranie filmowe → strzałka przy nagrywaniu → sekcja
+**Ekran**. Lustro jest JEDNOKIERUNKOWE — kliknięcia przez nie nie przechodzą,
+więc sam gest musi zrobić właściciel; wgranie, prowadzenie apki po ekranach
+i odczyt wyniku idą bez niego.
+
+### Artefakt narzędzia, na który warto uważać
+
+Karta podglądu jest `document.hidden`, więc `requestAnimationFrame` **nie tyka
+w ogóle** — zmierzone: **0 klatek w 600 ms**. Konsekwencja mocniejsza niż
+zapisana w paczce C: `AnimatePresence mode="wait"` nigdy nie kończy wyjścia,
+więc **przełączenie widoku Kalendarza jest w podglądzie nietestowalne**.
+Ścieżkę „+ → widok dnia → kursor" sprawdzono, ustawiając na chwilę widok
+startowy na „dzień" (zmiana cofnięta), a samą implementację przepisano tak,
+żeby nie zależała od czasu przejścia.
+
+### Stan planu
+
+**Wszystkie paczki z Modułu 59 są zamknięte** (Pulpit, A, B, C, D, D+, E, F,
+F+, G). Lista kontrolna na górze tego dokumentu zostaje jako narzędzie do
+POWIELANIA przy każdym nowym module — nie jako zamknięte zadanie.

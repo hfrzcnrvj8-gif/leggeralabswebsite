@@ -9,6 +9,7 @@ import {
   IconCalendarCheck,
   IconArrowUpRight,
   IconCalendarPlus,
+  IconPlus,
   IconMailShare,
   IconFolder,
   IconLink,
@@ -32,6 +33,7 @@ import { pobierzJSON, komunikatBledu } from "../dane";
 import { Modal } from "../Modal";
 import { EventInvitePanel } from "./EventInvitePanel";
 import { Popover } from "../Menu";
+import { ExpandingIconButton } from "../ExpandingIconButton";
 import { LinkPicker } from "../LinkPicker";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { CyklPicker, SeriaTag } from "../CyklPicker";
@@ -624,6 +626,34 @@ export function CalendarView({ lang }: { lang: string }) {
     setViewMode(v);
   };
 
+  /**
+   * „+ Nowe wydarzenie" — Moduł 59, paczka G.
+   *
+   * Kalendarz dodaje przez pole „Nowe wydarzenie…", które renderuje się
+   * WYŁĄCZNIE w widoku dnia (`AddEventForm` niżej). Dlatego pozycja palety
+   * poleceń `+ Nowe wydarzenie` w widoku miesiąca, tygodnia i roku **nie
+   * robiła NIC** — `newTitleRef.current` był wtedy `null`, a `?.focus()`
+   * milczał. Teraz najpierw przełącza na dzień, potem łapie kursor.
+   *
+   * Widok dnia wjeżdża przez `AnimatePresence mode="wait"`, więc pole nie
+   * istnieje jeszcze w chwili kliknięcia. **Nie zgadujemy czasu przejścia**
+   * (ani przez `setTimeout`, ani przez pętlę prób): zamiast tego podnosimy
+   * sygnał, a `AddEventForm` łapie kursor sam, kiedy się zamontuje — obojętne,
+   * ile to potrwa. Sygnał jest jednorazowy (formularz go zeruje), więc
+   * późniejsze, zwykłe wejście w widok dnia już kursora nie porywa.
+   */
+  const [sygnalNowego, setSygnalNowego] = useState(0);
+  const zuzyjSygnalNowego = useCallback(() => setSygnalNowego(0), []);
+
+  const dodajWydarzenie = () => {
+    if (viewMode === "day" && newTitleRef.current) {
+      newTitleRef.current.focus();
+      return;
+    }
+    handleViewChange("day");
+    setSygnalNowego((n) => n + 1);
+  };
+
   const addEvent: AddEventFn = async (day, title, time, leadId, projectId, clientId, dayEnd, durationMin, powtarzanie) => {
     if (!title.trim()) return false;
     const res = await fetch("/api/events", {
@@ -759,7 +789,7 @@ export function CalendarView({ lang }: { lang: string }) {
 
   useRegisterActions(
     [
-      { id: "add", label: "+ Nowe wydarzenie", hint: "N", run: () => newTitleRef.current?.focus() },
+      { id: "add", label: "+ Nowe wydarzenie", hint: "N", run: dodajWydarzenie },
       { id: "today", label: "Dziś", hint: "T", run: () => goToday() },
       { id: "view-month", label: "Widok: Miesiąc", run: () => handleViewChange("month") },
       { id: "view-week", label: "Widok: Tydzień", run: () => handleViewChange("week") },
@@ -902,6 +932,15 @@ export function CalendarView({ lang }: { lang: string }) {
           <button onClick={() => changePeriod(-1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">←</button>
           <span className="min-w-[140px] text-center text-[13px] font-medium">{periodLabel}</span>
           <button onClick={() => changePeriod(1)} className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)]">→</button>
+          {/* Moduł 59, paczka G — „+" jako ostatnia kontrolka paska, w tym
+              samym rogu, co we wszystkich pozostałych modułach. Do tej pory
+              Kalendarz nie miał go wcale: jedyną drogą było zauważenie pola
+              „Nowe wydarzenie…" na dole widoku dnia. */}
+          <ExpandingIconButton
+            label="Nowe wydarzenie"
+            icon={<IconPlus size={16} />}
+            onClick={dodajWydarzenie}
+          />
         </div>
 
         {/* Pasek, nie pełnoekranowy komunikat: siatka miesiąca zostaje użyteczna
@@ -1083,6 +1122,8 @@ export function CalendarView({ lang }: { lang: string }) {
                 titleRef={newTitleRef}
                 onAdd={addEvent}
                 prefillTime={dayPrefillTime}
+                sygnalSkupienia={sygnalNowego}
+                onSkupiono={zuzyjSygnalNowego}
               />
             </div>
           )}
@@ -1935,6 +1976,8 @@ function AddEventForm({
   titleRef,
   onAdd,
   prefillTime,
+  sygnalSkupienia,
+  onSkupiono,
 }: {
   day: string;
   leads: Lead[] | null;
@@ -1943,6 +1986,11 @@ function AddEventForm({
   titleRef?: React.RefObject<HTMLInputElement | null>;
   onAdd: AddEventFn;
   prefillTime?: string;
+  /** Podniesiony licznik = „ustaw kursor w tytule, gdy tylko zdążysz się
+   *  zamontować" (Moduł 59, paczka G — „+" z paska modułu). */
+  sygnalSkupienia?: number;
+  /** Zeruje sygnał, żeby zwykłe wejście w widok dnia już kursora nie porywało. */
+  onSkupiono?: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [time, setTime] = useState(prefillTime ?? "");
@@ -1958,6 +2006,14 @@ function AddEventForm({
   useEffect(() => {
     if (prefillTime) setTime(prefillTime);
   }, [prefillTime]);
+
+  // Kursor łapiemy TU, a nie po stronie wołającego: formularz wie o sobie, że
+  // istnieje, a `CalendarView` musiałby zgadywać, kiedy widok dnia dojedzie.
+  useEffect(() => {
+    if (!sygnalSkupienia) return;
+    titleRef?.current?.focus();
+    onSkupiono?.();
+  }, [sygnalSkupienia, titleRef, onSkupiono]);
 
   const submit = async () => {
     const parsed = parseQuickAdd(title, day);

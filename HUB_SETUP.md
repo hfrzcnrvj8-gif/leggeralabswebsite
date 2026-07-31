@@ -9938,3 +9938,131 @@ byłoby widoczne tylko z nazwy. Stąd `/80`:
 w tym projekcie, gdy Tailwind cicho nie wygenerował klasy — po `lib/` poza
 `content` (audyt Klientów) i po pigułce statusu bez tła. Rozstrzyga
 przeszukanie `document.styleSheets`, nie `getComputedStyle` i nie zrzut ekranu.
+
+## Moduł 59, paczka G — gest w bok ma JEDEN kierunek na znaczenie (2026-07-31)
+
+Do tej paczki to samo słowo znaczyło w apce dwie różne strony. **„Obsłużone"
+było gestem w prawo w Poczcie, a gestem w lewo w Leadach, Klientach i na
+Pulpicie** — a lista kontrolna Modułu 59 (kat. 3) mówiła od początku „w prawo".
+Do tego wysyłka dokumentu (Oferty, Umowy) i przypomnienie o fakturze siedziały
+po tej samej stronie, co odrzucenie i usunięcie.
+
+### Reguła (obowiązuje KAŻDĄ listę w apce)
+
+| strona | co tam należy | przykłady |
+|---|---|---|
+| **w prawo** (`edge: .leading`) | ruch DO PRZODU **albo pomyślne domknięcie** | Zadzwoń · Wyślij · Przypomnij · Stoper · Flaga · Przypnij · Weź · Wpuść · Główna · **Obsłużone · Załatwione · Wdrożone · Opłacony** |
+| **w lewo** (`edge: .trailing`) | wyłącznie to, co idzie „od siebie" | Odrzucona · Nie podpisali · Odrzuć · Zablokuj · Wypisz się · Nie przypominaj · Anuluj · Archiwum · Usuń |
+
+**Powód, dla którego „zrobione" jest po tej samej stronie co „zadzwoń", a nie
+przy „usuń":** pełne przeciągnięcie (`full swipe`) odpala PIERWSZY przycisk na
+danej krawędzi bez dodatkowego kliknięcia. Dopóki „Obsłużone" stało po lewej
+razem z „Usuń" i „Archiwum", ten sam odruch znaczył w Leadach „odhacz",
+w Przypomnieniach „skasuj", a w Notatniku „zarchiwizuj". Po tej zmianie
+**przeciągnięcie w lewo nigdy nie oznacza „zrobione" w żadnym module** —
+i dopiero to da się zapamiętać. Kolor idzie za tym sam: zielone i złote po
+prawej, czerwone i wygaszone po lewej.
+
+Decyzja właściciela z 2026-07-31, świadomie kosztem odruchu — „Obsłużone"
+w Leadach, Klientach i na Pulpicie przeniosło się na drugą stronę.
+
+Rekord bez akcji „od siebie" (lead, faktura, koszt) **nie dostaje gestu w lewo
+na siłę** — brak gestu jest tu poprawną odpowiedzią, nie luką.
+
+### Dwa kafle na jednej krawędzi: pierwszy plan i drugi plan
+
+Skutek uboczny, którego nie dało się przewidzieć zza biurka i który wyszedł
+dopiero na telefonie: odkąd gest w prawo zbiera wszystko, co pozytywne,
+w Leadach i Klientach stanęły obok siebie **„Zadzwoń" i „Obsłużone" — dwa
+prawie identyczne zielone kafle**. Obie akcje są pozytywne, więc obie mają tę
+samą `markaZielen`, i to jest celowe (`Znaczenie.sukces` = `Znaczenie.zrobione`,
+ujednolicone 2026-07-20).
+
+**Nie rozjeżdżamy kolorów** — to cofnęłoby tamto ujednolicenie i złamało zasadę
+„jeden kolor = jedno znaczenie". Różnicę niesie HIERARCHIA:
+
+| plan | wygląd | co tam trafia |
+|---|---|---|
+| pierwszy | kafel **wypełniony**, ikona wypełniona | akcja zmieniająca stan rekordu („Obsłużone") |
+| drugi | ten sam kolor **przygaszony** (`Znaczenie.drugiPlan`), ikona **konturowa** | akcja otwierająca coś poza apką („Zadzwoń" → dialer) |
+
+**Pierwszy plan stoi PIERWSZY w kodzie**, bo SwiftUI odpala pierwszy przycisk
+krawędzi przy pełnym przeciągnięciu — wypełniony kafel i pełny gest muszą
+znaczyć to samo, inaczej wygląd kłamie o zachowaniu. Decyzja właściciela
+2026-07-31: pełne przeciągnięcie leada/klienta w prawo = „Obsłużone".
+
+SwiftUI nie daje obrysu kafla gestu (`.tint` maluje całe tło, nie ma API na
+ramkę), więc „sam kontur" realizujemy przygaszonym tłem plus konturowym
+symbolem — to najbliższa wykonalna wersja tej samej myśli.
+
+**Kiedy to stosować: ZAWSZE, gdy na jednej krawędzi stoją dwa kafle** —
+decyzja właściciela 2026-07-31 („stosujmy tę formułę globalnie"). Dzięki temu
+na każdym geście dokładnie JEDEN kafel jest wypełniony i jest to ten, który
+odpala pełne przeciągnięcie. To da się zapamiętać raz.
+
+| moduł | pierwszy plan | drugi plan |
+|---|---|---|
+| Leady, Klienci | Obsłużone | Zadzwoń |
+| Faktury (po terminie) | Przypomnij | Oznacz opłaconą |
+| Umowy | Wyślij | Przypomnij |
+| Poczta | Obsłużone | Odłóż |
+
+**Jedyny wyjątek: czerwień akcji niszczącej NIE przygasa** (Notatnik: Archiwum
++ Usuń). Czerwień ma być widoczna — przygaszone kasowanie to gorszy błąd niż
+dwa kafle o tej samej wadze. Tak samo zostaje „Zignoruj" w Poczcie, które już
+jest szare (`.secondary`), więc przygaszać nie ma czego.
+
+Kafel, który stoi na krawędzi SAM, jest zawsze pierwszym planem — pełny kolor
+(np. „Oznacz opłaconą" na fakturze przed terminem, gdzie przypomnienie nie ma
+sensu).
+
+### Gest, który wykluczał się sam z sobą (Faktury)
+
+Przy tej samej rundzie wyszło, że faktura miała `if/else`: „Przypomnij"
+**chowało** „Oznacz opłaconą", więc na fakturze po terminie nie dało się
+odhaczyć płatności gestem — a to najczęstszy powód, dla którego się na tę
+listę patrzy. Gest zmieniał przy tym kształt przy każdym wierszu, czyli łamał
+kategorię 3 listy kontrolnej („niedostępne wyszarzone, nie ukryte").
+Rozdzielone: oba kafle są widoczne, gdy oba mają sens.
+
+**Lekcja:** ta usterka nie istniała przed paczką G i nie dało się jej zobaczyć
+w kodzie — powstała z sąsiedztwa, którego wcześniej nie było. Zmiana układu
+potrafi zepsuć rzecz, której sama nie dotyka; dlatego gest trzeba było
+obejrzeć palcem na urządzeniu, a nie tylko skompilować.
+
+## Moduł 59, paczka G — „+" stoi w prawym rogu paska modułu (2026-07-31)
+
+Osiem modułów miało „+" jako ostatnią kontrolkę paska 44 px przy prawej
+krawędzi okna. Pozostałe pięć miało własne pomysły, a dwa nie miały „+" wcale:
+
+| moduł | co było | co jest |
+|---|---|---|
+| Notatnik | **brak** — jedyną drogą było zauważenie pola w treści | „+" w pasku, ustawia kursor w polu |
+| Kalendarz | **brak** — jw. | „+" w pasku; przełącza na widok dnia i dopiero tam łapie kursor |
+| Przypomnienia | „+ nowa lista" w rogu nagłówka — czyli **„+" dodawał POJEMNIK, nie rekord** | „+" w pasku → menu: „Nowe przypomnienie" / „Nowa lista" |
+| Katalog | „+" w rogu wyśrodkowanej kolumny (na szerokim ekranie kilkaset px od miejsca, gdzie stoi wszędzie indziej) | pasek modułu jak reszta |
+
+Katalog i Przypomnienia dostały przy okazji **ten sam pasek 44 px**, co reszta
+panelu (tożsamość → szukanie → akcje → „+"), więc ich pole szukania stoi teraz
+tam, gdzie każe paczka C. Treść została w wyśrodkowanej kolumnie
+(`max-w-4xl` / `max-w-3xl`) i przewija się pod paskiem, zamiast przewijać go
+razem ze sobą — inaczej „+" znikał po pierwszym obrocie kółka.
+
+**W modułach szybkiego wpisywania „+" nie otwiera okna, tylko ustawia kursor
+w polu** — dokładnie to, co robi `Cmd+K → + Dodaj X`. Osobne okno dla notatki
+czy przypomnienia byłoby krokiem wstecz wobec pola, które jest już na ekranie;
+chodziło o to, żeby afordancja stała w znanym miejscu, nie o zmianę sposobu
+dodawania.
+
+### Złapane przy okazji: „+ Nowe wydarzenie" w palecie nie robiło NIC
+
+Pole „Nowe wydarzenie…" renderuje się wyłącznie w widoku **dnia**. W widoku
+miesiąca, tygodnia i roku `newTitleRef.current` był `null`, więc
+`?.focus()` milczał — pozycja palety poleceń istniała i nie robiła nic.
+Teraz najpierw przełącza widok.
+
+Kursor łapie **sam formularz**, nie wołający: `AddEventForm` dostaje jednorazowy
+`sygnalSkupienia` i zeruje go po użyciu. Wersja z `setTimeout`/pętlą prób była
+zgadywaniem czasu przejścia `AnimatePresence mode="wait"` — a w karcie podglądu
+`requestAnimationFrame` w ogóle nie tyka (zmierzone: **0 klatek w 600 ms**),
+więc przejście nigdy się nie kończy i żadna liczba prób nie jest bezpieczna.

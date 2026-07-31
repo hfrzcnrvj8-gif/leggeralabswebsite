@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPin, IconPinFilled, IconArchive, IconArchiveOff, IconNotes } from "@tabler/icons-react";
+import { IconPin, IconPinFilled, IconArchive, IconArchiveOff, IconNotes, IconPlus } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import { formatPlDate } from "@/lib/projects";
 import { EditableText, EditableTextarea } from "../components";
@@ -13,6 +13,7 @@ import { useUI, useRegisterActions } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
+import { ExpandingIconButton } from "../ExpandingIconButton";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { NoteDetailPanel } from "./NoteDetailPanel";
 import {
@@ -150,6 +151,16 @@ export function NotesDashboard({ lang }: { lang: Locale }) {
           onPick={(next) => setLinkFilter(next)}
           align="right"
           placeholder="Wszyscy"
+        />
+        {/* Moduł 59, paczka G — „+" w tym samym rogu, co w każdym innym module.
+            Notatnik dodaje przez pole na górze treści, więc „+" nie otwiera
+            okna, tylko ustawia w nim kursor: dokładnie to, co robi już
+            `Cmd+K → + Nowa notatka`. Bez tego jedyna droga do dodawania
+            prowadziła przez zauważenie pola w treści (kategoria 5). */}
+        <ExpandingIconButton
+          label="Nowa notatka"
+          icon={<IconPlus size={16} />}
+          onClick={() => newTextRef.current?.focus()}
         />
       </div>
 

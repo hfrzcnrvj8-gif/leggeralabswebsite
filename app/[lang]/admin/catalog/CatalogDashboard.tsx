@@ -9,6 +9,7 @@ import { useUI, useRegisterActions } from "../ui";
 import { StanListy } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
+import { ExpandingIconButton } from "../ExpandingIconButton";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { CatalogCategoryIcon } from "../icons";
 import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
@@ -141,32 +142,33 @@ export function CatalogDashboard({ lang }: { lang: string }) {
   });
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6">
-      <header className="mb-1 flex items-baseline justify-between gap-3">
-        <h1 className="text-liquid text-2xl font-semibold">Katalog</h1>
-        <button
-          onClick={otworzNowy}
-          className="flex items-center gap-1 rounded-full border hairline px-3 py-1 text-xs text-muted hover:text-[var(--fg)]"
-        >
-          <IconPlus size={14} /> Dodaj komponent
-        </button>
-      </header>
-      <p className="mb-4 max-w-2xl text-[12.5px] text-muted">
-        Biblioteka klocków — sprzęt, software, robocizna i serwis z widełkami cen — z których składasz ofertę per
-        klient. Koszt zakupu i marża są tylko dla Ciebie; nie trafiają na wydruk dla klienta.
-      </p>
-
-      {(items?.length ?? 0) > 0 && (
-        <div className="mb-2 flex h-9 items-center rounded-lg border hairline px-2">
+    // Moduł 59, paczka G — ten sam pasek modułu, co w Leadach, Ofertach czy
+    // Kosztach: tożsamość po lewej, szukanie zaraz po niej, „+" jako OSTATNIA
+    // kontrolka przy prawej krawędzi OKNA. Wcześniej Katalog miał własny
+    // nagłówek strony, więc jego „+" siedział przy krawędzi wyśrodkowanej
+    // kolumny — na szerokim ekranie kilkaset pikseli od miejsca, w którym „+"
+    // stoi we wszystkich pozostałych modułach.
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
+      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+        <span className="text-[13px] font-medium text-[var(--fg)]">Katalog</span>
+        {(items?.length ?? 0) > 0 ? (
           <PoleSzukania
             ref={szukajRef}
             value={szukaj}
             onChange={setSzukaj}
             podpowiedz="Szuka po nazwie komponentu, opisie i dostawcy"
-            className="ml-0"
           />
-        </div>
-      )}
+        ) : (
+          <span className="flex-1" />
+        )}
+        <ExpandingIconButton label="Dodaj komponent" icon={<IconPlus size={16} />} onClick={otworzNowy} />
+      </div>
+
+      <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 md:min-h-0 md:overflow-y-auto">
+      <p className="mb-4 max-w-2xl text-[12.5px] text-muted">
+        Biblioteka klocków — sprzęt, software, robocizna i serwis z widełkami cen — z których składasz ofertę per
+        klient. Koszt zakupu i marża są tylko dla Ciebie; nie trafiają na wydruk dla klienta.
+      </p>
 
       {pigulki.length > 1 && (
         <FilterPillsBar>
@@ -241,6 +243,7 @@ export function CatalogDashboard({ lang }: { lang: string }) {
           onError={(msg) => toast(msg, "error")}
         />
       )}
+      </div>
     </div>
   );
 }

@@ -10,6 +10,8 @@ import { useUI, useRegisterActions } from "../ui";
 import { StanListy } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
+import { ExpandingIconButton } from "../ExpandingIconButton";
+import { Popover, MenuRow } from "../Menu";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { ReminderDetail } from "./ReminderDetail";
 import { SeriaTag } from "../CyklPicker";
@@ -179,23 +181,45 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
   });
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6">
-      <header className="mb-3 flex items-baseline justify-between gap-3">
-        <h1 className="text-liquid text-2xl font-semibold">Przypomnienia</h1>
-        <button onClick={dodajListe} className="text-[12px] text-muted hover:text-[var(--fg)]">
-          + nowa lista
-        </button>
-      </header>
-
-      <div className="mb-3 flex h-9 items-center rounded-lg border hairline px-2">
+    // Moduł 59, paczka G — ten sam pasek modułu, co w pozostałych modułach.
+    // Wcześniej w prawym rogu stało „+ nowa lista", czyli „+" dodawał tu
+    // POJEMNIK, a nie rekord modułu — jedyne takie miejsce w panelu. Teraz „+"
+    // dodaje przypomnienie (kursor w polu „Co masz zrobić?"), a założenie listy
+    // zeszło do menu pod tym samym „+".
+    <div className="-mx-4 flex flex-1 flex-col sm:-mx-6 md:min-h-0">
+      <div className="flex shrink-0 items-center gap-1 border-b hairline px-4 sm:px-6" style={{ height: "44px" }}>
+        <span className="text-[13px] font-medium text-[var(--fg)]">Przypomnienia</span>
         <PoleSzukania
           ref={szukajRef}
           value={szukaj}
           onChange={setSzukaj}
           podpowiedz="Szuka w tytule i notatce przypomnienia — także w podzadaniach"
-          className="ml-0"
         />
+        <Popover
+          align="right"
+          width={220}
+          trigger={(open, isOpen) => (
+            <ExpandingIconButton
+              label="Dodaj przypomnienie"
+              icon={<IconPlus size={16} />}
+              onClick={open}
+              active={isOpen}
+            />
+          )}
+        >
+          {(close) => (
+            <div>
+              <MenuRow
+                label="+ Nowe przypomnienie"
+                onClick={() => { close(); poleNowego.current?.focus(); }}
+              />
+              <MenuRow label="+ Nowa lista" onClick={() => { close(); void dodajListe(); }} />
+            </div>
+          )}
+        </Popover>
       </div>
+
+      <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 md:min-h-0 md:overflow-y-auto">
 
       <FilterPillsBar>
         <FilterPills
@@ -312,6 +336,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
         onClose={() => setOtwarte(null)}
         onPatch={patch}
       />
+      </div>
     </div>
   );
 }
