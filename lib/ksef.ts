@@ -37,12 +37,33 @@ export const KSEF_STATUS_LABEL: Record<KsefStatus, string> = {
   odrzucono: "Odrzucono",
 };
 
-/** Klasy Tailwind do plakietki statusu — spójne z INVOICE_STATUS_CLASS. */
+/**
+ * Klasy plakietki statusu KSeF — świadomie BEZ koloru (audyt Faktur,
+ * 2026-07-31, decyzja właściciela).
+ *
+ * Dlaczego: faktura niesie TRZY osie naraz — status płatności, status KSeF
+ * i termin — a na jednej karcie kolorem mogą mówić najwyżej dwie
+ * (`HUB_SETUP.md` → „Moduł 60, sesja 2"). Ta mapa była wpisana z palca poza
+ * skalą i kolidowała wprost: `przyjeto` brało tę samą zieleń `emerald`, co
+ * status **„Opłacona"**, a obie pigułki stoją w JEDNYM wierszu listy faktur.
+ * Faktura „Wystawiona" + KSeF „Przyjęto" świeciła więc na zielono, co czyta
+ * się jako „zapłacona" — a nikt nie zapłacił. `wyslano` brało cyjan, czyli
+ * kolor „praca trwa po naszej stronie" ze skali stanu.
+ *
+ * Kolor na wierszu niesie od teraz status płatności i pilność z daty. KSeF to
+ * fakt techniczny („czy urząd to przyjął"), nie stan sprawy — mówi SŁOWEM.
+ *
+ * Wyjątek: `odrzucono`. Czerwień nie należy do skali stanu, ale słownik daje
+ * jej rolę „awaria" (`lib/kolorStanu.ts`, zdanie 4) — a odrzucona faktura to
+ * dokładnie awaria wymagająca ruchu. Bierze BRANDOWĄ czerwień
+ * (`bg-brand-red/20 text-brand-red-soft`, ta sama co „Zerwany" w Projektach),
+ * nie generyczną `red-500` sprzed tej poprawki.
+ */
 export const KSEF_STATUS_CLASS: Record<KsefStatus, string> = {
   nie_wyslano: "bg-[var(--hairline)] text-muted",
-  wyslano: "bg-brand-cyan/15 text-brand-cyan",
-  przyjeto: "bg-emerald-500/20 text-emerald-400 font-semibold",
-  odrzucono: "bg-red-500/15 text-red-400",
+  wyslano: "bg-[var(--hairline)] text-muted",
+  przyjeto: "bg-[var(--hairline)] text-muted",
+  odrzucono: "bg-brand-red/20 text-brand-red-soft font-semibold",
 };
 
 /** Środowisko KSeF, do którego wysłano dokument. `test` = serwery testowe MF

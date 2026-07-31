@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { INVOICE_LANGS } from "@/lib/invoices";
+import { INVOICE_CURRENCIES, INVOICE_LANGS, zeSlownika } from "@/lib/invoices";
 import { RECURRING_CYCLES, type RecurringItem } from "@/lib/recurring";
 
 export const runtime = "nodejs";
@@ -25,7 +25,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("klient_miasto" in body) await sql`UPDATE recurring_invoices SET klient_miasto = ${str(body.klient_miasto, 200)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_kraj" in body) await sql`UPDATE recurring_invoices SET klient_kraj = ${str(body.klient_kraj, 100)}, updated_at = now() WHERE id = ${id};`;
     if ("klient_email" in body) await sql`UPDATE recurring_invoices SET klient_email = ${str(body.klient_email, 200)}, updated_at = now() WHERE id = ${id};`;
-    if ("waluta" in body) await sql`UPDATE recurring_invoices SET waluta = ${str(body.waluta, 10) || "PLN"}, updated_at = now() WHERE id = ${id};`;
+    if ("waluta" in body) {
+      // Patrz `isInvoiceCurrency` — zły kod waluty wywracał `formatMoney`,
+      // a z nim cały ekran, który pokazywał tę fakturę (audyt Faktur).
+      const v = zeSlownika(INVOICE_CURRENCIES, body.waluta);
+      if (!v) return NextResponse.json({ error: "invalid waluta" }, { status: 400 });
+      await sql`UPDATE recurring_invoices SET waluta = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("jezyk" in body) {
       const v = typeof body.jezyk === "string" && (INVOICE_LANGS as readonly string[]).includes(body.jezyk) ? body.jezyk : "pl";
       await sql`UPDATE recurring_invoices SET jezyk = ${v}, updated_at = now() WHERE id = ${id};`;

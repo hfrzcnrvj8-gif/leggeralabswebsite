@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { itemNetto, itemVat, itemBrutto, unitBrutto, nettoFromUnitBrutto, invoiceTotals, totalPaid, vatFraction, round2 } from "../lib/invoices.ts";
+import {
+  itemNetto, itemVat, itemBrutto, unitBrutto, nettoFromUnitBrutto, invoiceTotals, totalPaid, vatFraction, round2,
+  zeSlownika, isInvoiceCurrency, formatMoney, INVOICE_TYPES, INVOICE_STATUSES,
+} from "../lib/invoices.ts";
 
 // To są PIENIĄDZE — czysta matematyka faktury, wysoka stawka błędu. Nie dubluje
 // się z apką (apka bierze kwoty zawsze z API, nigdy nie liczy w Swifcie —
@@ -39,4 +42,38 @@ test("suma wpłat zaokrąglana do grosza", () => {
 
 test("round2: zaokrąglenie do dwóch miejsc", () => {
   assert.equal(round2(0.1 + 0.2), 0.3); // klasyczna pułapka zmiennoprzecinkowa
+});
+
+// --- Audyt Faktur, 2026-07-31: bramki słowników i odporność formatera ---
+// Wszystkie trzy poniższe znalazła SONDA curl, nie czytanie kodu. Każde
+// odpowiadało `{"ok":true}` i cicho psuło dane albo wywracało ekran.
+
+test("zeSlownika: przycina wsad, potem sprawdza słownik", () => {
+  // Wartość oczywiście zamierzona ma przejść — jedna spacja z apki albo
+  // z kopiuj-wklej robiła z niefiskalnej proformy dokument FISKALNY.
+  assert.equal(zeSlownika(INVOICE_TYPES, " proforma "), "proforma");
+  assert.equal(zeSlownika(INVOICE_STATUSES, " Opłacona "), "Opłacona");
+  // Genuinie zła ma się odbić — `null` znaczy w trasie 400, nie podmianę
+  // na wartość domyślną.
+  assert.equal(zeSlownika(INVOICE_TYPES, "DOWOLNY"), null);
+  assert.equal(zeSlownika(INVOICE_TYPES, ""), null);
+  assert.equal(zeSlownika(INVOICE_TYPES, undefined), null);
+  assert.equal(zeSlownika(INVOICE_TYPES, 7), null);
+});
+
+test("isInvoiceCurrency: tylko kody ze słownika", () => {
+  assert.equal(isInvoiceCurrency("PLN"), true);
+  assert.equal(isInvoiceCurrency(" EUR "), true);
+  assert.equal(isInvoiceCurrency("BITCOIN-I-"), false);
+  assert.equal(isInvoiceCurrency(""), false);
+});
+
+test("formatMoney nie wywraca ekranu na złym kodzie waluty", () => {
+  assert.equal(formatMoney(1234.5, "PLN"), new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN" }).format(1234.5));
+  // Jeden uszkodzony wiersz w bazie wywalał CAŁĄ listę faktur w error
+  // boundary (`RangeError: Invalid currency code`). Bramki zapisu zamykają
+  // drogę na przyszłość, ten fallback ratuje wiersze już zapisane.
+  const zly = formatMoney(1234.5, "BITCOIN-I-");
+  assert.match(zly, /BITCOIN-I-/); // kod pokazany DOSŁOWNIE, nie podmieniony na „zł”
+  assert.match(zly, /1/);
 });

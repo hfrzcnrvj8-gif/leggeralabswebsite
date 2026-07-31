@@ -219,6 +219,25 @@ export const PILNOSC_TEXT: Record<Pilnosc, string> = {
   zaniedbane: "text-brand-red-soft",
 };
 
+/**
+ * Pilność jako PIGUŁKA — odpowiednik `STAN_CLASS` na osi pilności.
+ *
+ * Dołożona przy audycie Faktur (2026-07-31), bo jej brak rodził dokładnie ten
+ * rozjazd, który ten plik miał skończyć: edytor faktury malował własną,
+ * wpisaną z palca plakietkę „po terminie" na generycznej `red-500` — czyli
+ * DRUGĄ formę statusu, który skala świadomie odczerwieniła (`INVOICE_STAN`
+ * mapuje „Po terminie" na `mojRuch`, a to, JAK pilnie, mówi rampa liczona
+ * z daty). Kto potrzebuje pigułki pilności, bierze ją stąd.
+ *
+ * `wTerminie` jest pusty celowo — w terminie nie ma o pilności czego mówić,
+ * tak samo jak w `PILNOSC_ROW` i `PILNOSC_HEX`.
+ */
+export const PILNOSC_CLASS: Record<Pilnosc, string> = {
+  wTerminie: "",
+  poTerminie: "bg-brand-orange/15 text-brand-orange",
+  zaniedbane: "bg-brand-red/20 text-brand-red-soft font-semibold",
+};
+
 /** Delikatne podbarwienie WIERSZA/karty — ma wołać kątem oka, nie krzyczeć. */
 export const PILNOSC_ROW: Record<Pilnosc, string> = {
   wTerminie: "",

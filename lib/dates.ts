@@ -138,3 +138,22 @@ export function daysAgoLabel(d: number | null | undefined): string | null {
   if (d === 1) return "wczoraj";
   return `${d} dni temu`;
 }
+
+/**
+ * Polska odmiana rzeczownika przez liczbę — trzy formy, nie dwie.
+ *
+ * Powstało przy audycie Faktur (2026-07-31): kafel zaległości pisał „3 faktur
+ * po terminie", bo warunek rozróżniał tylko 1 od reszty. W panelu pisanym
+ * po polsku dla jednego czytelnika to widać od razu.
+ *
+ * @example odmienPl(3, "faktura", "faktury", "faktur") // "faktury"
+ */
+export function odmienPl(n: number, jedna: string, dwie: string, wiele: string): string {
+  const abs = Math.abs(n);
+  if (abs === 1) return jedna;
+  const reszta10 = abs % 10;
+  const reszta100 = abs % 100;
+  // 12–14 idą jak „wiele" mimo końcówki 2–4 („12 faktur", nie „12 faktury").
+  if (reszta10 >= 2 && reszta10 <= 4 && !(reszta100 >= 12 && reszta100 <= 14)) return dwie;
+  return wiele;
+}

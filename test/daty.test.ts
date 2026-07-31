@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysBetweenISO, warsawNowMinutes, warsawWallTimeToUtcISO, daysSinceISO } from "../lib/dates.ts";
+import { daysBetweenISO, warsawNowMinutes, warsawWallTimeToUtcISO, daysSinceISO , odmienPl } from "../lib/dates.ts";
 
 // daysBetweenISO to arytmetyka, na której od Audytu 6 stoi reguła „wymaga
 // działania dziś" (isOverdue → daysSince → daysBetweenISO). Bliźniak w apce:
@@ -42,4 +42,16 @@ test("daysSinceISO: PEŁNE doby z realnego zegara (floor), nie kalendarz", () =>
   // 3 doby i 23:59 to nadal 3, nie 4.
   assert.equal(daysSinceISO("2026-07-19T00:00:00Z", new Date("2026-07-23T00:00:00Z")), 4);
   assert.equal(daysSinceISO("2026-07-19T00:00:00Z", new Date("2026-07-22T23:59:00Z")), 3);
+});
+
+test("odmienPl: polska liczba mnoga ma TRZY formy", () => {
+  assert.equal(odmienPl(1, "faktura", "faktury", "faktur"), "faktura");
+  assert.equal(odmienPl(3, "faktura", "faktury", "faktur"), "faktury");
+  assert.equal(odmienPl(5, "faktura", "faktury", "faktur"), "faktur");
+  // 12–14 idą jak „wiele" mimo końcówki 2–4 — to ten wyjątek, przez który
+  // naiwne `n % 10` pisze „12 faktury".
+  assert.equal(odmienPl(12, "faktura", "faktury", "faktur"), "faktur");
+  assert.equal(odmienPl(13, "faktura", "faktury", "faktur"), "faktur");
+  assert.equal(odmienPl(22, "faktura", "faktury", "faktur"), "faktury");
+  assert.equal(odmienPl(0, "faktura", "faktury", "faktur"), "faktur");
 });

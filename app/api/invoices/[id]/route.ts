@@ -3,7 +3,17 @@ import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaFaktury, POLA_MIMO_BLOKADY_FAKTURY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { isPlausibleDateString } from "@/lib/projects";
-import { INVOICE_LANGS, PAYMENT_METHODS, invoiceTotals, isInvoiceStatus, type InvoiceItem } from "@/lib/invoices";
+import {
+  INVOICE_LANGS,
+  INVOICE_CURRENCIES,
+  INVOICE_STATUSES,
+  INVOICE_TYPES,
+  PAYMENT_METHODS,
+  invoiceTotals,
+  zeSlownika,
+  type InvoiceItem,
+} from "@/lib/invoices";
+import { KOREKTA_TYPY } from "@/lib/ksef";
 
 export const runtime = "nodejs";
 
@@ -122,31 +132,49 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE invoices SET zamowienie_wartosc = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("zamowienie_opis" in body) await sql`UPDATE invoices SET zamowienie_opis = ${str(body.zamowienie_opis, 500)}, updated_at = now() WHERE id = ${id};`;
+    // Pięć pól ze SŁOWNIKIEM. Wszystkie odbijają się 400, żadne nie podmienia
+    // wsadu na domyślny (audyt Faktur, 2026-07-31 — patrz `zeSlownika`).
+    // Do tej pory tylko `status` niżej odpowiadał błędem, a te cztery
+    // odpowiadały `{"ok":true}` i cicho zapisywały wartość domyślną: `PATCH
+    // {"typ_dokumentu":" proforma "}` robił z proformy dokument FISKALNY,
+    // który wchodził do przychodu na Pulpicie.
     if ("typ_korekty" in body) {
-      const v = typeof body.typ_korekty === "string" && ["1", "2", "3"].includes(body.typ_korekty) ? body.typ_korekty : "1";
+      const v = zeSlownika(KOREKTA_TYPY, body.typ_korekty);
+      if (!v) return NextResponse.json({ error: "invalid typ_korekty" }, { status: 400 });
       await sql`UPDATE invoices SET typ_korekty = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("typ_dokumentu" in body) {
-      const v = typeof body.typ_dokumentu === "string" && ["faktura", "proforma", "zaliczkowa"].includes(body.typ_dokumentu) ? body.typ_dokumentu : "faktura";
+      const v = zeSlownika(INVOICE_TYPES, body.typ_dokumentu);
+      if (!v) return NextResponse.json({ error: "invalid typ_dokumentu" }, { status: 400 });
       await sql`UPDATE invoices SET typ_dokumentu = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("uwagi" in body) await sql`UPDATE invoices SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
     if ("ceny_brutto" in body) await sql`UPDATE invoices SET ceny_brutto = ${Boolean(body.ceny_brutto)}, updated_at = now() WHERE id = ${id};`;
-    if ("waluta" in body) await sql`UPDATE invoices SET waluta = ${str(body.waluta, 10) || "PLN"}, updated_at = now() WHERE id = ${id};`;
+    if ("waluta" in body) {
+      // Bez tej bramki jeden zły kod waluty wywalał w error boundary CAŁĄ
+      // listę faktur — `formatMoney` rzucał `RangeError`. Patrz
+      // `isInvoiceCurrency` (lib/invoices.ts).
+      const v = zeSlownika(INVOICE_CURRENCIES, body.waluta);
+      if (!v) return NextResponse.json({ error: "invalid waluta" }, { status: 400 });
+      await sql`UPDATE invoices SET waluta = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("sposob_platnosci" in body) {
-      const v = typeof body.sposob_platnosci === "string" && (PAYMENT_METHODS as readonly string[]).includes(body.sposob_platnosci) ? body.sposob_platnosci : "przelew";
+      const v = zeSlownika(PAYMENT_METHODS, body.sposob_platnosci);
+      if (!v) return NextResponse.json({ error: "invalid sposob_platnosci" }, { status: 400 });
       await sql`UPDATE invoices SET sposob_platnosci = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("jezyk" in body) {
-      const v = typeof body.jezyk === "string" && (INVOICE_LANGS as string[]).includes(body.jezyk) ? body.jezyk : "pl";
+      const v = zeSlownika(INVOICE_LANGS, body.jezyk);
+      if (!v) return NextResponse.json({ error: "invalid jezyk" }, { status: 400 });
       await sql`UPDATE invoices SET jezyk = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("status" in body) {
       // Wartość ze SŁOWNIKA, nie dowolny string do 40 znaków (Moduł 59).
       // Na fakturze boli podwójnie: status steruje windykacją (`isOverdue`)
       // i sumami na Pulpicie, więc literówka cicho wypada z obu.
-      if (!isInvoiceStatus(body.status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
-      await sql`UPDATE invoices SET status = ${body.status}, updated_at = now() WHERE id = ${id};`;
+      const v = zeSlownika(INVOICE_STATUSES, body.status);
+      if (!v) return NextResponse.json({ error: "invalid status" }, { status: 400 });
+      await sql`UPDATE invoices SET status = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("lead_id" in body) {
       const v = typeof body.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;

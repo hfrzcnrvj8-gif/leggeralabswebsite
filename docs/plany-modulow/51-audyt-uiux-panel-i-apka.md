@@ -771,3 +771,193 @@ Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`
 - Panel dev lokalny: `preview_start name:"dev"` (PGlite + dane testowe),
   apka łączy się z nim przez `LEGGERA_DEV_BACKEND=lokalny` +
   `LEGGERA_DEV_TOKEN=dev` (zmienne `SIMCTL_CHILD_*` przy `simctl launch`).
+
+---
+
+## Stan po module „Faktury" (2026-07-31)
+
+Moduł 61, etapy 11–12 lejka. Brief: `PROMPT-61-FAKTURY.md`.
+
+### Czego NIE trzeba było robić
+
+Inwentarz z 28.07 dawał Fakturom trzy ❌ i cztery ⚠️. **Dwa z trzech ❌ były
+nieaktualne, zanim ktokolwiek je tknął** — paczki A–G objęły wszystkie moduły
+naraz i nikt tabeli nie zaktualizował:
+
+- **Kolor**: statusy stały już na wspólnej skali (`INVOICE_STAN` + `mapaStanow`).
+  Szukałem drugiej formy tego samego statusu — tak wróciły Projekty, dwa razy.
+  `grep` po `"Opłacona"` dał 16 trafień i **żadne nie niosło koloru**.
+- **Integralność (status)**: `isInvoiceStatus` stał w `PATCH` i odrzucał 400.
+
+Lekcja bez zmian: **inwentarz jest hipotezą, nie wynikiem.** Ale ta hipoteza
+myliła się w OBIE strony — realną pracą okazało się coś, czego w tabeli nie
+było wcale.
+
+### Znalezisko główne: jeden `PATCH` unieruchamiał cały moduł
+
+Nie było go w żadnej kategorii inwentarza, bo nie jest usterką UI.
+
+`PATCH /api/invoices/:id {"waluta":"BITCOIN-I-DUZO"}` odpowiadał `{"ok":true}`
+i zapisywał obcięte `"BITCOIN-I-"`. `Intl.NumberFormat` rzuca `RangeError` na
+każdym kodzie spoza ISO 4217, a `formatMoney` jest **jedynym** formaterem kwot
+w panelu. Zmierzone na żywo, nie wywnioskowane:
+
+> `RangeError: Invalid currency code : BITCOIN-I-` → `InvoicesDashboard`
+> w `ErrorBoundaryHandler`. **Nie jeden wiersz — cała lista faktur.**
+
+Jedna faktura z jedną złą literą kasowała dostęp do rejestru sprzedaży, a droga
+zapisu przyjmowała to z potwierdzeniem sukcesu.
+
+Naprawione w dwóch warstwach, bo jedna nie wystarcza:
+1. **Bramka zapisu** — `isInvoiceCurrency` / `zeSlownika` na czterech trasach.
+   Zamyka drogę na przyszłość.
+2. **`formatMoney` odporny na zły kod** — pokazuje liczbę i kod DOSŁOWNIE
+   zamiast wysadzić widok. Bramka nie naprawi wierszy, które już siedzą
+   w produkcyjnej bazie, a do tej bazy nie ma dostępu z panelu.
+
+**Zasięg był szerszy niż moduł.** Oferty miały `isOfferCurrency` od swojego
+audytu; Faktury, Umowy i faktury cykliczne — nie. Jedna linijka, cztery trasy,
+trzy moduły. To lekcja Modułu 59 dosłownie: *poprawka idzie przez wszystkie
+moduły naraz*, inaczej audyt jednego modułu zostawia bliźniaczą dziurę obok.
+
+### Cztery ciche podmiany — `{"ok":true"}` i wartość domyślna
+
+`status` był w `PATCH` Faktur WYJĄTKIEM, nie regułą. Cztery sąsiednie pola
+(`typ_dokumentu`, `typ_korekty`, `sposob_platnosci`, `jezyk`) przyjmowały
+dowolny śmieć i zapisywały wartość domyślną. Najgorszy przypadek jest księgowy:
+
+> `PATCH {"typ_dokumentu":" proforma "}` → zapisane `"faktura"`.
+
+Jedna spacja — z apki, z kopiuj-wklej — zamieniała **niefiskalną proformę
+w dokument fiskalny**, który wchodził do przychodu na Pulpicie. Właściciel
+widział „zapisano".
+
+Nowy wspólny strażnik `zeSlownika()` **przycina wsad, potem sprawdza słownik**,
+a `null` kończy się 400. To odwrotna strona lekcji z Projektów: tam spacja
+OMIJAŁA twardą bramkę i trzeba było przyciąć, żeby bramka łapała; tu — żeby
+odpowiedź nie kłamała.
+
+### Trzecia oś koloru: KSeF
+
+`KSEF_STATUS_CLASS` był wpisany z palca poza skalą i kolidował wprost:
+`przyjeto` brało `emerald` — tę samą zieleń, co status **„Opłacona"** — a obie
+pigułki stoją w jednym wierszu listy. Faktura „Wystawiona" + KSeF „Przyjęto"
+świeciła na zielono, co czyta się jako „zapłacona". Nikt nie zapłacił.
+
+Decyzja właściciela: **KSeF traci kolor, zostaje czerwień odrzucenia.** Pigułka
+jest neutralna i mówi słowem (`KSeF ✓ / ✕ / …`), a `odrzucono` bierze BRANDOWĄ
+czerwień w roli awarii — jedynej roli, jaką słownik czerwieni zostawia poza
+skalą stanu. Zmierzone po poprawce (`getComputedStyle` na klonie):
+
+| pigułka | kolor | kontrast |
+|---|---|---|
+| KSeF ✓ | `rgb(107,102,95)` neutralny | 6,46 |
+| Opłacona | `rgb(52,211,153)` zieleń | 10,92 |
+| Po terminie | `rgb(224,169,59)` złoto | 9,91 |
+| Wystawiona | `rgb(196,165,255)` fiolet | 10,17 |
+
+**Ta sama kolizja siedziała w apce** (`kolorKsef` w `FakturyView.swift`) i
+została zamknięta tym samym ruchem — inaczej poprawka rozjechałaby platformy.
+
+Przy okazji: w tym samym wierszu listy stały jeszcze DWIE kolorowe pigułki
+niosące RODZAJ, nie stan — „Proforma" na złocie (`mojRuch`) i „Rozliczenie
+zaliczki" na fiolecie (`uNich`). Cztery kolory o czterech różnych rzeczach
+w jednym wierszu. Obie zneutralizowane.
+
+### Druga forma statusu — wróciła, tak jak w Projektach
+
+Brief kazał szukać i było czego. Edytor faktury malował **własną** plakietkę
+„po terminie" na generycznej `red-500` — czyli drugą formę statusu, który
+skala świadomie odczerwieniła. Faktura spóźniona o dzień wyglądała jak
+spóźniona o pół roku.
+
+Przyczyna była strukturalna: słownik miał dla pilności formę TEKSTU, WIERSZA
+i HEX-a, ale **nie miał pigułki**, więc kto potrzebował pigułki, pisał ją
+z palca. Dołożone `PILNOSC_CLASS` w `lib/kolorStanu.ts`. Plakietka mówi teraz
+„po terminie o 25 dni" i niesie zdanie ze słownika.
+
+**To jest ta lekcja w czystej postaci:** brakująca forma w słowniku nie jest
+brakiem wygody — jest zaproszeniem do rozjazdu.
+
+### Sonda integralności
+
+`DEV_ADMIN_BYPASS=0` na osobnym porcie, potem `curl` **per uchwyt HTTP**:
+
+- **23/23 uchwytów** modułu oddaje 401 bez sesji. Trzy trasy publiczne
+  (`public`, `wezwanie/public`) świadomie na tokenie — oddają 404 na zły token.
+- Uwaga metodyczna: dwa uchwyty (`ksef/send` POST, `ksef/auth/test`) nie mają
+  `isAuthed()` we własnej linii — delegują do funkcji, która sprawdza pierwszą
+  instrukcją. **Grep po pliku pokazałby dziurę, której nie ma; sonda rozstrzyga.**
+- Blokada wystawionej faktury: treść 409, status 200 (poprawnie — status nie
+  jest treścią), korekta jako droga wyjścia działa, `DELETE` wystawionej 400.
+- `issue` jest idempotentne — drugie wywołanie oddaje ten sam numer.
+- **Wszystkie 22 sumy SQL mają `(1 - rabat_procent / 100)`** — poprawka z 31.07
+  się trzyma.
+
+`POST /api/invoices/:id/items` **ignorował `rabat_procent`** (zapisywał 0
+i odpowiadał `{"ok":true"}`). Brief traktował to jako pułapkę dla sondującego;
+to ta sama rodzina błędu co reszta — wołający, który podał rabat, cicho
+wystawiał fakturę na pełną kwotę. Naprawione.
+
+### Apka: sekcja „Dokumenty" w profilu projektu
+
+Decyzja właściciela — dołożona teraz, bo trasa i tak już oddawała `documents`,
+a apka ich po prostu nie czytała. Podgląd, bez zakładania i edycji (poziom
+apki bez zmian).
+
+Trzy rzeczy złapane przy okazji, każda „wyglądałaby poprawnie i nic nie robiła":
+
+1. **`brutto` wracało jako STRING**, nie liczba — panel łyka to przez
+   `Number(...)`, dekoder Swifta wywaliłby CAŁY profil projektu. Dodane
+   `::float8`, a dekoder i tak przyjmuje oba warianty.
+2. **Numer umowy liczy panel**, nie apka (`contractReference`) — bez tego trzy
+   umowy jednego projektu byłyby trzema nierozróżnialnymi wierszami „Umowa".
+   Ta sama zasada, co w `GET /api/clients/:id`.
+3. **`wczytajFakture` zapełniało tylko `szczegolyFaktury`**, a widok czyta sam
+   rekord z `faktury`. Dopóki jedyną drogą do faktury była zakładka Faktur,
+   lista zawsze już stała w pamięci i nikt tego nie zauważył — wejście
+   z profilu PROJEKTU omija zakładkę i dawało **wieczny spinner**. Nowa droga
+   nawigacji obnażyła zastaną dziurę; `wczytajUmowe` obok robiło to poprawnie
+   od zawsze.
+
+Sprawdzone palcem w symulatorze na lokalnym panelu, nie tylko w kodzie.
+
+### Zostawione świadomie
+
+- ~~`brutto` i `zaplacono` w `/api/stats` są martwe~~ — **domknięte w tej samej
+  sesji, na prośbę właściciela.** Blok `dso` raportował `overdueCount` (ile
+  faktur) i `oldestOverdueDays` (jak stara jest najstarsza), ale nigdy **ile
+  pieniędzy** wisi — choć `brutto` i `zaplacono` liczył od zawsze i wyrzucał.
+  Jeden blok niżej ten sam plik pisze w komentarzu „kwota obok liczby, bo pięć
+  małych ofert przegranych na cenie znaczy co innego niż jedna duża" i łamał tę
+  zasadę wyżej. Nowy kafel „Zaległości (kwota)" — patrz sekcja niżej.
+- **22 sumy SQL z rabatem to 22 kopie tej samej formuły.** Wszystkie dziś
+  poprawne, ale `tsc` ich nie sprawdza, a 23. napisze ktoś bez rabatu. Wspólny
+  fragment SQL w `neon()` jest ryzykowny (pułapka: komentarz `--` w `sql\`…\``
+  tnie zapytanie), więc zostaje reguła + testy.
+- **Czerwień „stop" stopera** — decyzja właściciela: zostaje jako ikonografia
+  nagrywania, nie stan rekordu. Świadomy wyjątek, nie dług.
+
+### Testy
+
+`test/faktury.test.ts` +3 przypadki (`zeSlownika`, `isInvoiceCurrency`,
+`formatMoney` na złym kodzie). **144/144 przechodzi.**
+
+### Kafel „Zaległości (kwota)" — domknięcie martwych kolumn
+
+Dołożony po audycie, decyzją właściciela. Trzy rzeczy warte zapamiętania:
+
+- **Liczy RESZTĘ DO ZAPŁATY** (`brutto − zaplacono`), nie pełne brutto: faktura
+  zapłacona w połowie wisi połową. Ujemne odcinane — nadpłata na jednej
+  fakturze nie jest zaległością ujemną, którą wolno odjąć od cudzego długu.
+- **Kolor z rampy pilności, nie z palca.** `StatCard` dostał opcjonalny
+  `valueClass`; bez niego zostaje `text-liquid`, czyli gradient marki = sama
+  tożsamość, bez znaczenia — i tak zostaje na wszystkich pozostałych kaflach.
+  Wyjątek dostaje tylko ten, na którym „jak bardzo" jest osobnym pytaniem.
+  Sprawdzone: 8610 zł przy najstarszej zaległości 25 dni → `brand-red-soft`
+  (`zaniedbane`, próg 14 dni). Kwota zgadza się co do grosza z KPI „Po
+  terminie" na liście Faktur — dwie niezależne drogi, ta sama liczba.
+- **Odmiana polska ma TRZY formy.** Kafel pisał „3 faktur", bo warunek
+  rozróżniał tylko 1 od reszty. Nowy `odmienPl()` w `lib/dates.ts` (z wyjątkiem
+  12–14, przez który naiwne `n % 10` pisze „12 faktury"), użyty też w sąsiednim
+  kaflu DSO, który miał ten sam błąd. Test w `test/daty.test.ts`.

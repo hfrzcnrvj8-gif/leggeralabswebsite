@@ -13,6 +13,7 @@ import {
   type ContractTyp,
 } from "@/lib/contracts";
 import { rejectReasonLabel } from "@/lib/offers";
+import { INVOICE_CURRENCIES, zeSlownika } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 
@@ -133,7 +134,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if ("klient_email" in body) await sql`UPDATE contracts SET klient_email = ${str(body.klient_email, 200)}, updated_at = now() WHERE id = ${id};`;
     if ("zakres_prac" in body) await sql`UPDATE contracts SET zakres_prac = ${str(body.zakres_prac, 4000)}, updated_at = now() WHERE id = ${id};`;
     if ("uwagi" in body) await sql`UPDATE contracts SET uwagi = ${str(body.uwagi, 2000)}, updated_at = now() WHERE id = ${id};`;
-    if ("waluta" in body) await sql`UPDATE contracts SET waluta = ${str(body.waluta, 10) || "PLN"}, updated_at = now() WHERE id = ${id};`;
+    if ("waluta" in body) {
+      // Bramka dołożona przy audycie FAKTUR (2026-07-31), nie Umów: `waluta`
+      // z tej trasy trafia do tego samego `formatMoney`, więc zły kod wywracał
+      // listę umów i kartę klienta tak samo jak listę faktur. Oferty miały
+      // `isOfferCurrency` od swojego audytu — poprawka nie poszła wtedy przez
+      // pozostałe moduły (lekcja Modułu 59: poprawka idzie przez wszystkie
+      // moduły naraz).
+      const v = zeSlownika(INVOICE_CURRENCIES, body.waluta);
+      if (!v) return NextResponse.json({ error: "invalid waluta" }, { status: 400 });
+      await sql`UPDATE contracts SET waluta = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("cena" in body) {
       const n = typeof body.cena === "number" && Number.isFinite(body.cena) ? body.cena : 0;
       await sql`UPDATE contracts SET cena = ${n}, updated_at = now() WHERE id = ${id};`;

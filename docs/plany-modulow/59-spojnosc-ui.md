@@ -185,7 +185,7 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Oferty | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Umowy | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Projekty | ✅¹ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅¹ |
-| Faktury | ❌ | ✅ | ⚠️ | ❌ | ⚠️ | ⚠️ | ❌ | ✅ | ❌ | ✅ |
+| Faktury | ✅² | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Katalog | ✅ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
 | Kalkulator | ✅ | — | — | ❌ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Koszty | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -194,6 +194,20 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
 | Przypomnienia | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
 | Statystyki | ✅ | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+² **Faktury przeszły pełną listę 2026-07-31** (Moduł 61) — wynik i pomiary
+w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Faktury". Dwa z trzech ❌
+w tym wierszu były NIEAKTUALNE, zanim ktokolwiek je tknął: statusy stały na
+wspólnej skali od paczek A–G, a `isInvoiceStatus` pilnował PATCH-a. Inwentarz
+z 28.07 był hipotezą, nie wynikiem — realną pracą okazało się coś, czego w nim
+nie było wcale (patrz niżej).
+
+- **Kolor** ✅ po odebraniu barwy osi KSeF. Faktura niesie trzy osie naraz
+  (płatność, KSeF, termin), a kolorem mogą mówić najwyżej dwie — `przyjeto`
+  brało tę samą zieleń, co „Opłacona", i obie pigułki stały w JEDNYM wierszu.
+  Ta sama kolizja siedziała w apce i została zamknięta tym samym ruchem.
+- **Integralność** ✅ po zamknięciu czterech cichych podmian i bramki waluty.
+  Sonda `curl` per uchwyt HTTP: 23/23 uchwytów oddaje 401 bez sesji.
 
 ¹ **Projekty przeszły pełną listę 2026-07-31** (Moduł 60, sesja 2) — wszystkie
 dziesięć kategorii na trzech platformach, wynik i pomiary w

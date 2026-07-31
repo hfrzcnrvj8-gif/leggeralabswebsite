@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { INVOICE_LANGS } from "@/lib/invoices";
+import { INVOICE_CURRENCIES, INVOICE_LANGS, zeSlownika } from "@/lib/invoices";
 import { RECURRING_CYCLES, todayISO, type RecurringItem } from "@/lib/recurring";
 
 export const runtime = "nodejs";
@@ -42,6 +42,12 @@ export async function POST(req: NextRequest) {
         }))
       : [];
     const nextRun = typeof body.next_run === "string" && body.next_run.trim() ? body.next_run.slice(0, 10) : todayISO();
+    // Waluta ze słownika (audyt Faktur, 2026-07-31). Pominięcie pola przy
+    // ZAKŁADANIU szablonu jest legalne (domyślnie PLN), ale podanie śmiecia
+    // już nie: obcięty kod trafiał do każdej faktury wystawionej z tego
+    // szablonu i wywracał `formatMoney` na każdym ekranie, który ją pokazał.
+    const waluta = "waluta" in body ? zeSlownika(INVOICE_CURRENCIES, body.waluta) : "PLN";
+    if (!waluta) return NextResponse.json({ error: "invalid waluta" }, { status: 400 });
 
     const id = randomUUID();
     await sql`
@@ -51,7 +57,7 @@ export async function POST(req: NextRequest) {
       ) VALUES (
         ${id}, ${str(body.nazwa, 200)}, ${str(body.klient_nazwa, 300)}, ${str(body.klient_nip, 30)},
         ${str(body.klient_ulica, 300)}, ${str(body.klient_kod, 20)}, ${str(body.klient_miasto, 200)}, ${str(body.klient_kraj, 100)},
-        ${str(body.klient_email, 200)}, ${str(body.waluta, 10) || "PLN"}, ${jezyk}, ${terminDni},
+        ${str(body.klient_email, 200)}, ${waluta}, ${jezyk}, ${terminDni},
         ${JSON.stringify(pozycje)}, ${cykl}, ${nextRun}, true
       );
     `;

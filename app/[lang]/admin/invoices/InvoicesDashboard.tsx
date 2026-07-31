@@ -336,7 +336,14 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
           </div>
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Po terminie</div>
-            <div className={`mt-0.5 text-lg font-semibold ${kpi.poTerminie.size > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
+            {/* Kolor z rampy pilności, nie generyczna czerwień (audyt Faktur,
+                2026-07-31). Czerwień w słowniku znaczy „obietnica zerwana", a ten
+                licznik zapala się już przy fakturze spóźnionej o jeden dzień —
+                świeciłby więc na czerwono przez większość życia zdrowej firmy,
+                a kolor, który świeci zawsze, przestaje cokolwiek znaczyć.
+                Sąsiedni kafel „najstarsza zaległość" liczył to poprawnie od
+                Modułu 59; ten został w tyle. */}
+            <div className={`mt-0.5 text-lg font-semibold ${kpi.poTerminie.size > 0 ? PILNOSC_TEXT.poTerminie : "text-[var(--fg)]"}`}>
               {formatKpi(kpi.poTerminie)}
             </div>
           </div>
@@ -371,8 +378,11 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             </div>
             <div
               className={`mt-0.5 text-lg font-semibold ${
+                // Czerwień brandowa w roli „awaria" — przekroczony próg to realny
+                // obowiązek prawny, jedyna z dwóch ról, jakie słownik czerwieni
+                // zostawia poza skalą stanu (audyt Faktur, 2026-07-31).
                 kpi.ksefMonthSalesPln >= KSEF_MICRO_THRESHOLD_PLN
-                  ? "text-red-400"
+                  ? "text-brand-red-soft"
                   : kpi.ksefMonthSalesPln >= KSEF_MICRO_THRESHOLD_PLN * 0.7
                     ? "text-brand-gold"
                     : "text-[var(--fg)]"
@@ -381,7 +391,7 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
               {formatMoney(kpi.ksefMonthSalesPln)} / {formatMoney(KSEF_MICRO_THRESHOLD_PLN)}
             </div>
             {kpi.ksefMonthSalesPln >= KSEF_MICRO_THRESHOLD_PLN && (
-              <div className="mt-0.5 text-[11px] text-red-400">Próg przekroczony — KSeF może być już obowiązkowy.</div>
+              <div className="mt-0.5 text-[11px] text-brand-red-soft">Próg przekroczony — KSeF może być już obowiązkowy.</div>
             )}
           </div>
         </div>
@@ -511,16 +521,23 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                               {inv.jezyk}
                             </span>
                           </Tooltip>
+                          {/* Typ dokumentu i „rozliczenie zaliczki" to RODZAJ, nie stan
+                              — na ekranie modułu kolor niesie stan (`lib/kolorStanu.ts`,
+                              zdanie 1), więc obie pigułki niżej są neutralne (audyt
+                              Faktur, 2026-07-31). Wcześniej brały złoto („czeka na Twój
+                              ruch") i fiolet („u drugiej strony") ze skali STANU, przez
+                              co w jednym wierszu listy stały cztery kolorowe pigułki
+                              mówiące o czterech różnych rzeczach. */}
                           {inv.typ_dokumentu !== "faktura" && (
                             <Tooltip label="Typ dokumentu">
-                              <span className="rounded-full bg-brand-gold/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-gold">
+                              <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium text-muted">
                                 {INVOICE_TYPE_LABEL[inv.typ_dokumentu]}
                               </span>
                             </Tooltip>
                           )}
                           {inv.typ_dokumentu === "faktura" && inv.rozlicza_zaliczke_id && (
                             <Tooltip label="Faktura rozliczeniowa — rozlicza wcześniejszą zaliczkę (kwota w tabeli to reszta do zapłaty)">
-                              <span className="rounded-full bg-brand-purple/15 px-1.5 py-0.5 text-[10px] font-medium text-brand-purple">
+                              <span className="rounded-full bg-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-medium text-muted">
                                 Rozliczenie zaliczki
                               </span>
                             </Tooltip>

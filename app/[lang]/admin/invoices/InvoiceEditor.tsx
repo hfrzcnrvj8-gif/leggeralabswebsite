@@ -52,6 +52,7 @@ import {
   REMINDER_LEVEL_LABEL,
 } from "@/lib/invoices";
 import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL, KOREKTA_TYPY, KOREKTA_TYP_LABEL } from "@/lib/ksef";
+import { stopienPilnosci, opisPilnosci, PILNOSC_CLASS } from "@/lib/kolorStanu";
 import type { Client } from "@/lib/clients";
 import { lookupClientByNip } from "@/lib/vies";
 import { formatPlDate } from "@/lib/projects";
@@ -126,7 +127,9 @@ export function InvoiceEditor({
   // przy każdym znaku wpisywanym w polu.
   const [bruttoDrafts, setBruttoDrafts] = useState<Record<string, string>>({});
   const [paidNow, setPaidNow] = useState(false);
-  const [zaliczkoweOptions, setZaliczkoweOptions] = useState<{ id: string; numer: string | null; klient_nazwa: string; brutto: number }[] | null>(null);
+  const [zaliczkoweOptions, setZaliczkoweOptions] = useState<
+    { id: string; numer: string | null; klient_nazwa: string; brutto: number; waluta: string }[] | null
+  >(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/invoices/${id}`);
@@ -570,7 +573,12 @@ export function InvoiceEditor({
         .filter(
           (i) => i.typ_dokumentu === "zaliczkowa" && i.status !== "Szkic" && i.status !== "Anulowana" && i.id !== id && !used.has(i.id)
         )
-        .map((i) => ({ id: i.id, numer: i.numer, klient_nazwa: i.klient_nazwa, brutto: i.brutto }))
+        // `waluta` przenoszona razem z kwotą (audyt Faktur, 2026-07-31) — bez
+        // niej wybierak pokazywał KAŻDĄ zaliczkę w złotówkach, także tę
+        // wystawioną w EUR. To ten sam błąd, który Oferty miały przed swoją
+        // walutą („oferta po niemiecku pokazywała 6.000,00 zł"), tyle że tutaj
+        // decyduje o kwocie POZOSTAŁEJ DO ZAPŁATY na fakturze końcowej.
+        .map((i) => ({ id: i.id, numer: i.numer, klient_nazwa: i.klient_nazwa, brutto: i.brutto, waluta: i.waluta }))
     );
   }, [id]);
 
@@ -1225,7 +1233,7 @@ export function InvoiceEditor({
                         zaliczkoweOptions.map((z) => (
                           <MenuRow
                             key={z.id}
-                            label={`${z.numer ?? "—"} — ${z.klient_nazwa} (${formatMoney(z.brutto)})`}
+                            label={`${z.numer ?? "—"} — ${z.klient_nazwa} (${formatMoney(z.brutto, z.waluta || "PLN")})`}
                             selected={invoice.rozlicza_zaliczke_id === z.id}
                             onClick={() => {
                               close();
@@ -1300,7 +1308,23 @@ export function InvoiceEditor({
           ) : (
             <div className="card-paper rounded-xl border hairline p-3 text-center text-[12px] text-muted">
               Wystawiona jako <span className="font-medium text-[var(--fg)]">{invoice.numer}</span>
-              {overdue && <span className="ml-1.5 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400">po terminie</span>}
+              {/* Plakietka pilności ze SŁOWNIKA (audyt Faktur, 2026-07-31). Była tu
+                  wpisana z palca na generycznej `red-500` — czyli DRUGA forma statusu,
+                  który skala świadomie odczerwieniła: faktura spóźniona o dzień
+                  wyglądała jak spóźniona o pół roku. Teraz mówi, JAK bardzo. */}
+              {overdue &&
+                (() => {
+                  const dni = daysOverdue(invoice);
+                  const stopien = stopienPilnosci(dni);
+                  return (
+                    <span
+                      title={opisPilnosci(dni) ?? undefined}
+                      className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${PILNOSC_CLASS[stopien]}`}
+                    >
+                      po terminie{dni != null && dni > 0 ? ` o ${dni} ${dni === 1 ? "dzień" : "dni"}` : ""}
+                    </span>
+                  );
+                })()}
             </div>
           )}
 

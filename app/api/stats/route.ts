@@ -209,6 +209,30 @@ export async function GET() {
       ? null
       : Math.max(...overdueInvoices.map((inv) => daysBetweenISO(String(inv.termin_platnosci), today)));
 
+  /* ILE PIENIĘDZY wisi, nie tylko ile faktur i jak stara jest najstarsza
+     (audyt Faktur, 2026-07-31, decyzja właściciela).
+
+     `brutto` i `zaplacono` były w zapytaniu wyżej liczone od zawsze i przez
+     NIC nieczytane — jedyne trafienie `grep "\.brutto"` w tym pliku było samą
+     definicją. To nie była resztka po refaktorze, tylko zapomniana funkcja:
+     blok `dso` mówił ILE faktur jest po terminie i JAK STARA jest najstarsza,
+     a nigdy najważniejszego — na jaką kwotę. Sekcja `offerLosses` niżej pisze
+     w komentarzu dokładnie tę zasadę („kwota obok liczby, bo pięć małych ofert
+     przegranych na cenie znaczy co innego niż jedna duża") i łamała ją jeden
+     blok wyżej.
+
+     Liczymy RESZTĘ DO ZAPŁATY (brutto − zapłacono), nie pełne brutto: faktura
+     zapłacona w połowie wisi tylko połową. Ujemne odcinamy — nadpłata nie jest
+     zaległością ujemną, którą można odjąć od cudzego długu.
+
+     Waluta: `realInvoices` jest już zawężone do PLN (patrz wyżej, ta sama
+     świadoma granica co przy DSO i rezerwie podatkowej) — panel nie przelicza
+     kursów, więc jedna suma jest tu uczciwa. */
+  const overdueAmount = overdueInvoices.reduce(
+    (suma, inv) => suma + Math.max(0, Number(inv.brutto ?? 0) - Number(inv.zaplacono ?? 0)),
+    0
+  );
+
   // --- 5) % zamkniętych projektów z zebraną opinią ---
   const closedProjects = projectRows.filter((p) => p.status === "Wdrożone");
   const reviewedProjects = projectRows.filter((p) => p.review_submitted_at);
@@ -291,6 +315,7 @@ export async function GET() {
     dso: {
       avgDays: avgDso == null ? null : statsRound1(avgDso),
       oldestOverdueDays,
+      overdueAmount: statsRound1(overdueAmount),
       overdueCount: overdueInvoices.length,
       trend: dsoTrend,
     },

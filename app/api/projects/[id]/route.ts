@@ -16,6 +16,8 @@ import {
 import { NURTURE_OFFSETS } from "@/lib/clients";
 import { todayLocalISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/documents";
+import { contractReference, type ContractTyp } from "@/lib/contracts";
+import type { ContractRow } from "@/lib/sciezkaDokumentow";
 
 export const runtime = "nodejs";
 
@@ -74,10 +76,18 @@ export async function GET(
   // liczona z `id`, `typ` i `created_at` (bez numeracji fiskalnej, wzorem
   // oferty). Dlatego bierzemy te trzy pola, a etykietę składa UI.
   const documents = {
-    contracts: await sql`
+    // NUMER liczony TU, nie w apce — dokładnie jak w `GET /api/clients/:id`
+    // (Moduł 59). `contractReference` jest funkcją panelu; przepisanie jej do
+    // Swifta dałoby DRUGIE źródło numeru dokumentu. Bez tego pola apka mogłaby
+    // pokazać tylko słowo „Umowa", a trzy umowy jednego projektu byłyby trzema
+    // nierozróżnialnymi wierszami (audyt Faktur, 2026-07-31).
+    contracts: ((await sql`
       SELECT id, typ, status, accepted_at, created_at
       FROM contracts WHERE project_id = ${id} ORDER BY created_at DESC;
-    `,
+    `) as ContractRow[]).map((c) => ({
+      ...c,
+      numer: contractReference({ id: c.id, typ: c.typ as ContractTyp, created_at: c.created_at }),
+    })),
     /* Kwota brutto liczona TĄ SAMĄ formułą, co lista Faktur (`app/api/invoices`):
        z rabatem i z VAT-em per pozycja. Bez niej rejestr dokumentów w profilu
        projektu pokazywał sam numer i status — a „kwoty zawsze z walutą" jest
@@ -91,7 +101,7 @@ export async function GET(
                SELECT SUM(p.ilosc * p.cena_netto * (1 - p.rabat_procent / 100)
                           * (1 + CASE WHEN p.vat_stawka ~ '^[0-9]+$' THEN p.vat_stawka::numeric / 100 ELSE 0 END))
                FROM invoice_items p WHERE p.invoice_id = i.id
-             ), 0) AS brutto
+             ), 0)::float8 AS brutto
       FROM invoices i WHERE i.project_id = ${id} ORDER BY i.created_at DESC;
     `,
   };

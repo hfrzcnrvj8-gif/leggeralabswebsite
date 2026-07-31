@@ -42,9 +42,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const jednostka = typeof body.jednostka === "string" && body.jednostka.trim() ? body.jednostka.slice(0, 20) : unit;
   const iloscRaw = Number(body.ilosc);
   const ilosc = Number.isFinite(iloscRaw) && iloscRaw > 0 ? iloscRaw : 1;
+  // Rabat przyjmowany od razu przy dodawaniu (audyt Faktur, 2026-07-31). Do tej
+  // pory ta trasa `rabat_procent` IGNOROWAŁA — zapisywała 0, odpowiadała
+  // `{"ok":true}` i pokazywała w odpowiedzi wyzerowaną pozycję. Rabat dawał się
+  // ustawić dopiero osobnym PATCH-em, więc każdy wołający, który podał go tu
+  // (apka, katalog, automatyzacja), cicho wystawiał fakturę na PEŁNĄ kwotę.
+  // To ta sama rodzina błędu co reszta tego audytu: liczba wygląda wiarygodnie,
+  // nic nie zapala lampki.
+  const rabatRaw = Number(body.rabat_procent);
+  const rabat = Number.isFinite(rabatRaw) ? Math.min(100, Math.max(0, rabatRaw)) : 0;
   await sql`
-    INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
-    VALUES (${itemId}, ${id}, ${nazwa}, ${ilosc}, ${jednostka}, ${cena}, ${vat}, ${pos});
+    INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, rabat_procent, position)
+    VALUES (${itemId}, ${id}, ${nazwa}, ${ilosc}, ${jednostka}, ${cena}, ${vat}, ${rabat}, ${pos});
   `;
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
   return NextResponse.json({

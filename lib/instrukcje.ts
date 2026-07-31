@@ -734,6 +734,131 @@ export const MODULY: ModulInstrukcji[] = [
       },
     ],
   },
+  {
+    id: "faktury",
+    nazwa: "Faktury",
+    gdzie: "Panel: pozycja w menu pod Umowami. Telefon i iPad: „Więcej” → Faktury. Z profilu projektu wchodzisz w sekcji „Dokumenty”.",
+    poCoTo:
+      "Ostatnie dwa kroki lejka: wystawienie i pilnowanie, żeby przelew naprawdę przyszedł. Tu mieszka rejestr sprzedaży, windykacja i KSeF.",
+    kiedy:
+      "Fakturę zakłada się z projektu albo z oferty (dane nabywcy przepisują się same), rzadziej ręcznie. Szkic można poprawiać do woli; wystawienie nadaje numer i zamyka treść.",
+    kroki: [
+      {
+        tytul: "1. Szkic wolno wszystko, wystawiona już nie",
+        opis:
+          "Dopóki faktura nie ma numeru, jest szkicem i zmienia się bez ograniczeń. „Wystaw fakturę” nadaje numer z ciągłej numeracji i od tej chwili TREŚĆ jest zablokowana — nazwy nabywcy, kwot ani waluty nie da się już podmienić. Status i powiązania zostają wolne, bo to nie treść dokumentu. Wystawionej faktury nie da się też usunąć: zostawiłaby dziurę w numeracji. Jedyne drogi wyjścia to „Anulowana” (numer zostaje w rejestrze) albo korekta.",
+      },
+      {
+        tytul: "2. Korekta to nowy dokument, nie edycja starego",
+        opis:
+          "„Utwórz korektę” zakłada nowy szkic, w którym wpisujesz stan PO korekcie — panel sam pokazuje różnicę wobec faktury pierwotnej i to ją wysyła do KSeF. Oryginał zostaje nietknięty; obie faktury widzisz potem powiązane ze sobą.",
+      },
+      {
+        tytul: "3. Trzy rodzaje dokumentu, jeden rejestr",
+        opis:
+          "„Faktura” to dokument fiskalny i liczy się do przychodu. „Proforma” nie — to prośba o zapłatę z własną numeracją, którą można potem jednym ruchem przekształcić w fakturę. „Faktura zaliczkowa” bierze pieniądze z góry, a późniejsza faktura końcowa ją rozlicza (wybierasz ją z listy, a panel odejmuje kwotę zaliczki od reszty do zapłaty).",
+      },
+      {
+        tytul: "4. Rabat siedzi na pozycji, nie na fakturze",
+        opis:
+          "Rabat wpisuje się jako procent przy konkretnej pozycji i liczy się od kwoty netto, PRZED VAT-em. Nie ma osobnego rabatu na całą fakturę — ten sam efekt daje wpisanie tego samego procentu na każdej pozycji. Wszystkie kwoty w panelu (Pulpit, Statystyki, rentowność projektu, wezwania) liczą się z rabatem.",
+      },
+      {
+        tytul: "5. Kolor mówi o pieniądzach, nie o urzędzie",
+        opis:
+          "Kolorowa pigułka niesie status PŁATNOŚCI: szary szkic, fioletowa „Wystawiona” (czekasz na ich przelew), zielona „Opłacona”, złota „Po terminie”. Osobno, z samej daty, liczy się PILNOŚĆ — termin robi się pomarańczowy zaraz po terminie i czerwony po dwóch tygodniach. Plakietka KSeF jest świadomie SZARA i mówi słowem („KSeF ✓”), żeby zielone „przyjęte przez urząd” nie wyglądało jak „zapłacone”. Czerwona robi się tylko przy odrzuceniu.",
+      },
+      {
+        tytul: "6. Windykacja: przypomnienie ma poziomy",
+        opis:
+          "„Przypomnij” wysyła maila, którego ton rośnie z liczbą dni po terminie — od uprzejmego przypomnienia po wezwanie do zapłaty z odsetkami. Odsetki liczą się ze stawki, którą wpisujesz RĘCZNIE w Danych firmy: panel nigdy sam jej nie zgaduje ani nie aktualizuje. Historia wysyłek zostaje na fakturze, więc widać ile poszło i na jakim poziomie.",
+      },
+      {
+        tytul: "7. KSeF stoi na środowisku testowym",
+        opis:
+          "Wysyłka działa end-to-end, ale na serwerach TESTOWYCH Ministerstwa — faktury nie mają mocy prawnej. Produkcja odblokuje się dopiero po rejestracji firmy. Kafel na górze listy liczy miesięczną sprzedaż wobec progu, poniżej którego mikrofirma może w 2026 fakturować poza KSeF, i ostrzega po przekroczeniu.",
+      },
+      {
+        tytul: "8. Waluta jest z listy i panel nie przelicza kursów",
+        opis:
+          "Do wyboru PLN, EUR, USD i GBP — nic spoza tej listy nie wejdzie. Każda kwota pokazuje się w walucie SWOJEGO dokumentu, a sumy w KPI liczą się osobno dla każdej waluty (nie ma jednej liczby „razem”). Przeliczaniem kursów panel się nie zajmuje i mówi o tym wprost tam, gdzie to ma znaczenie — na przykład przy rentowności projektu.",
+      },
+      {
+        tytul: "9. Faktury cykliczne wystawiają się same",
+        opis:
+          "Szablon z pozycjami i cyklem („co miesiąc”) zakłada szkic w wyznaczonym dniu. Szkic, nie gotową fakturę — numer nadajesz Ty, po sprawdzeniu. Szablon można wyłączyć bez kasowania.",
+      },
+    ],
+    skroty: [
+      { tytul: "/", opis: "Kursor do wyszukiwarki faktur (numer, klient)." },
+      { tytul: "j / k", opis: "Ruch po liście." },
+      { tytul: "Enter", opis: "Otwiera zaznaczoną fakturę." },
+      {
+        tytul: "Bez „n”",
+        opis:
+          "Faktury świadomie nie zakłada się skrótem — zaczyna się ją od projektu albo oferty, żeby dane nabywcy i powiązania przepisały się same.",
+      },
+      {
+        tytul: "Telefon i iPad",
+        opis:
+          "Podgląd dokumentu, wysyłka mailem, oznaczenie opłaty i przypomnienie o zaległości. Zakładanie faktury i edycja pozycji zostają przy biurku — to praca na kilkanaście pól, nie na kciuk.",
+      },
+      {
+        tytul: "Telefon: przesunięcie palcem",
+        opis:
+          "W lewo na wierszu faktury — dwie osobne akcje: „Przypomnij” i „Oznacz opłaconą”. W prawo nie ma nic.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Numer nadaje się sam i nie ma w nim dziur",
+        opis:
+          "Kolejny numer bierze się z ciągłej numeracji rocznej w chwili wystawienia. Dlatego wystawionej faktury nie da się usunąć — zostałaby luka, której nie wolno mieć. Ponowne kliknięcie „Wystaw” nie nadaje drugiego numeru.",
+      },
+      {
+        tytul: "Wpłata na całość sama zamyka fakturę",
+        opis:
+          "Zarejestrowanie wpłaty pokrywającej resztę przestawia status na „Opłacona”. Usunięcie tej wpłaty cofa go z powrotem — status nie zostaje na „opłacona” po wycofaniu pieniędzy. Wpłata częściowa statusu nie rusza.",
+      },
+      {
+        tytul: "Zaległości odzywają się bez pytania",
+        opis:
+          "Faktura po terminie trafia na Pulpit i do porannego maila. Reguła jest deterministyczna: minął termin płatności i status nie jest „Opłacona” ani „Anulowana”.",
+      },
+      {
+        tytul: "Faktura cykliczna zakłada SZKIC, nie gotowy dokument",
+        opis:
+          "W dniu z szablonu powstaje szkic z przepisanymi pozycjami. Numer nadajesz Ty, po sprawdzeniu — panel nigdy nie wystawia dokumentu fiskalnego sam.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Proforma to NIE faktura, choć wygląda podobnie",
+        opis:
+          "Proforma ma własną numerację i nie liczy się do przychodu ani do progu KSeF. Jeśli szukasz brakujących pieniędzy w Statystykach, sprawdź najpierw, czy dokument nie jest przypadkiem proformą.",
+      },
+      {
+        tytul: "Faktura bez daty wystawienia wypada z liczników",
+        opis:
+          "KPI Pulpitu i sumy miesięczne liczą się po dacie wystawienia. Faktura, która jej nie ma, nie pojawi się w żadnej z tych liczb — a wygląda w rejestrze normalnie.",
+      },
+      {
+        tytul: "Przypomnienie potrzebuje adresu e-mail klienta",
+        opis:
+          "Bez adresu na fakturze windykacja nie ma dokąd wysłać maila i po cichu nic nie robi. Adres uzupełnia się na fakturze albo na karcie klienta.",
+      },
+      {
+        tytul: "„Po terminie” to złoto, nie czerwień",
+        opis:
+          "Faktura spóźniona o dzień i spóźniona o pół roku mają ten sam STATUS. Różnicę pokazuje kolor TERMINU obok — pomarańczowy zaraz po terminie, czerwony po dwóch tygodniach. Patrz na datę, nie na samą pigułkę.",
+      },
+      {
+        tytul: "Wysłana faktura pokazuje klientowi migawkę",
+        opis:
+          "Publiczny link pokazuje dokument w stanie z chwili wysyłki. Zmiana czegokolwiek później (o ile w ogóle przejdzie przez blokadę) nie zmieni tego, co klient już widział.",
+      },
+    ],
+  },
 ];
 
 /** Moduł po `id` — do podstrony i do kotwic. */

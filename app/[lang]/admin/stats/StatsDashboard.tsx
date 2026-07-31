@@ -1,6 +1,8 @@
 "use client";
 
 import { formatMoney } from "@/lib/invoices";
+import { stopienPilnosci, PILNOSC_TEXT } from "@/lib/kolorStanu";
+import { odmienPl } from "@/lib/dates";
 
 // Statystyki (Moduł 18) — wskaźniki zdrowia biznesu z mapy drogi klienta
 // (docs/plany-modulow/00-mapa-drogi-klienta.md, sekcja "Jak sprawdzić, że
@@ -27,7 +29,14 @@ type StatsData = {
     bySource: { zrodlo: string; totalLeads: number; convertedLeads: number; pct: number | null }[];
   };
   projectHealth: { counts: Record<string, number>; total: number };
-  dso: { avgDays: number | null; oldestOverdueDays: number | null; overdueCount: number; trend: StatsTrendPoint[] };
+  dso: {
+    avgDays: number | null;
+    oldestOverdueDays: number | null;
+    overdueCount: number;
+    /** Reszta do zapłaty ze wszystkich faktur po terminie (PLN). */
+    overdueAmount: number;
+    trend: StatsTrendPoint[];
+  };
   reviews: { closedProjectsCount: number; reviewsCollected: number; pct: number | null; avgClientRating: number | null };
   referral: { totalLeads: number; referralLeads: number; pct: number | null; nurtureAsksSent: number; trend: StatsTrendPoint[] };
   timeTracking: { totalHours: number; trend: StatsTrendPoint[] };
@@ -50,11 +59,29 @@ function formatHours(h: number): string {
   return `${(h / 24).toFixed(1)} dni`;
 }
 
-function StatCard({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+/**
+ * `valueClass` nadpisuje gradient marki kolorem NIOSĄCYM ZNACZENIE (audyt
+ * Faktur, 2026-07-31). Domyślnie zostaje `text-liquid`, czyli tożsamość bez
+ * znaczenia — tak jest na wszystkich pozostałych kaflach i tak ma zostać.
+ * Wyjątek dostaje tylko ten kafel, na którym „jak bardzo" jest osobnym
+ * pytaniem: kwota zaległości, kolorowana rampą pilności liczoną z DATY,
+ * nie ze słownika statusów.
+ */
+function StatCard({
+  label,
+  value,
+  sub,
+  valueClass,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  valueClass?: string;
+}) {
   return (
     <div className="card-paper rounded-xl border hairline p-4">
       <div className="text-[11px] text-muted">{label}</div>
-      <div className="mt-1 text-liquid text-lg font-semibold">{value}</div>
+      <div className={`mt-1 text-lg font-semibold ${valueClass ?? "text-liquid"}`}>{value}</div>
       {sub && <div className="mt-0.5 text-[11px] text-muted">{sub}</div>}
     </div>
   );
@@ -142,10 +169,31 @@ export function StatsDashboard() {
           value={data.dso.avgDays != null ? `${data.dso.avgDays} dni` : "—"}
           sub={
             data.dso.oldestOverdueDays != null
-              ? `najstarsza zaległość: ${data.dso.oldestOverdueDays} dni (${data.dso.overdueCount} ${
-                  data.dso.overdueCount === 1 ? "faktura" : "faktur"
-                })`
+              ? `najstarsza zaległość: ${data.dso.oldestOverdueDays} dni (${data.dso.overdueCount} ${odmienPl(
+                  data.dso.overdueCount,
+                  "faktura",
+                  "faktury",
+                  "faktur"
+                )})`
               : "brak zaległych faktur"
+          }
+        />
+        {/* Zaległości KWOTĄ, nie liczbą faktur (audyt Faktur, 2026-07-31).
+            Kafel DSO obok mówi „ile dni" i „ile faktur" — a pytanie, po które
+            właściciel tu zagląda, brzmi „ile mi wiszą". Dane były liczone
+            w trasie od zawsze i wyrzucane. Kolor z rampy pilności: dopóki
+            najstarsza zaległość mieści się w progu zaniedbania, to pomarańcz,
+            a nie czerwień — czerwień znaczy „obietnica zerwana". */}
+        <StatCard
+          label="Zaległości (kwota)"
+          value={formatMoney(data.dso.overdueAmount)}
+          valueClass={
+            data.dso.overdueAmount > 0 ? PILNOSC_TEXT[stopienPilnosci(data.dso.oldestOverdueDays)] : undefined
+          }
+          sub={
+            data.dso.overdueCount > 0
+              ? `${data.dso.overdueCount} ${odmienPl(data.dso.overdueCount, "faktura", "faktury", "faktur")} po terminie — tylko złotówki`
+              : "wszystko zapłacone w terminie"
           }
         />
         <StatCard

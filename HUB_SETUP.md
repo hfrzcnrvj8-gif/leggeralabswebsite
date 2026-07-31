@@ -10427,3 +10427,103 @@ Interpretacja wyniku ma **dwa** odczytania i oba są cenne:
 - Przypomnienie o zaległej fakturze wymaga `klient_email != ''`.
 - Mail w dev **nie wychodzi** (`lib/email.ts` bez `RESEND_API_KEY` tylko loguje
   treść) — i właśnie ten log jest dowodem na kwotę w wezwaniu.
+
+---
+
+## Audyt Faktur (Moduł 61, 2026-07-31)
+
+Etapy 11–12 lejka. Pełny wynik: `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md`
+→ „Stan po module Faktury". Tu tylko wzorce, każdy z uzasadnieniem.
+
+### `zeSlownika()` — wspólny strażnik pola ze słownikiem
+
+`lib/invoices.ts`. **Przycina wsad, POTEM sprawdza słownik; `null` kończy się
+400, nigdy podmianą na wartość domyślną.**
+
+Powód jest księgowy, nie kosmetyczny. Cztery pola w `PATCH` Faktur
+(`typ_dokumentu`, `typ_korekty`, `sposob_platnosci`, `jezyk`) przyjmowały
+dowolny śmieć, odpowiadały `{"ok":true}` i cicho zapisywały wartość domyślną —
+`{"typ_dokumentu":" proforma "}` zapisywał `"faktura"`, czyli niefiskalna
+proforma stawała się dokumentem fiskalnym i wchodziła do przychodu na Pulpicie.
+`status` obok robił to poprawnie od Modułu 59; był WYJĄTKIEM, nie regułą.
+
+`trim()` przed słownikiem to odwrotna strona lekcji z Projektów: tam spacja
+OMIJAŁA twardą bramkę i trzeba było przyciąć, żeby bramka łapała — tu, żeby
+odpowiedź nie kłamała sukcesem.
+
+**Dodając pole z zamkniętą listą wartości, użyj `zeSlownika` i zwróć 400.**
+
+### Kwota z bazy może wysadzić ekran — dwie warstwy, nie jedna
+
+`Intl.NumberFormat` rzuca `RangeError` na każdym kodzie waluty spoza ISO 4217,
+a `formatMoney` (`lib/invoices.ts`) jest JEDYNYM formaterem kwot w panelu —
+woła go osiem modułów w ~100 miejscach. Zmierzone: jedna faktura z zapisanym
+`"BITCOIN-I-"` wywalała **całą listę faktur** w error boundary. Nie wiersz.
+
+Dlatego dwie warstwy i obie są potrzebne:
+
+1. **Bramka zapisu** (`isInvoiceCurrency`) — zamyka drogę na przyszłość.
+2. **`formatMoney` odporny na zły kod** — pokazuje liczbę i kod DOSŁOWNIE.
+   Bramka nie naprawi wierszy, które już siedzą w produkcyjnej bazie, a do tej
+   bazy nie ma dostępu z panelu. Cicha podmiana na „zł" byłaby gorsza: kwota
+   w obcej walucie udawałaby złotówki.
+
+Zasięg: Oferty miały `isOfferCurrency` od swojego audytu, Faktury/Umowy/faktury
+cykliczne — nie. **Poprawka idzie przez wszystkie moduły naraz** (Moduł 59),
+inaczej audyt jednego zostawia bliźniaczą dziurę obok.
+
+### Trzy osie na jednej karcie — którą pozbawić koloru
+
+Faktura niesie status płatności, status KSeF i termin. Kolorem mogą mówić
+najwyżej dwie. `KSEF_STATUS_CLASS` był wpisany z palca poza skalą i kolidował
+wprost: `przyjeto` brało tę samą zieleń, co status **„Opłacona"**, a obie
+pigułki stoją w JEDNYM wierszu listy — „przyjęte przez urząd" czytało się jako
+„zapłacone".
+
+Decyzja właściciela: **KSeF traci kolor.** Pigułka jest neutralna i mówi słowem
+(`KSeF ✓ / ✕ / …`); `odrzucono` zostaje czerwone, bo czerwień ma poza skalą
+stanu rolę awarii. Ta sama kolizja siedziała w apce (`kolorKsef`
+w `FakturyView.swift`) i musiała paść tym samym ruchem — inaczej platformy się
+rozjeżdżają.
+
+Reguła ogólna: **rodzaj rzeczy nie dostaje koloru na ekranie modułu.** Pigułki
+„Proforma" (złoto = `mojRuch`) i „Rozliczenie zaliczki" (fiolet = `uNich`)
+pożyczały barwy ze skali STANU dla czegoś, co stanem nie jest.
+
+### `PILNOSC_CLASS` — brakująca forma rodzi rozjazd
+
+`lib/kolorStanu.ts` miał dla pilności formę TEKSTU, WIERSZA i HEX-a, ale **nie
+miał pigułki**. Skutek był przewidywalny: edytor faktury malował własną
+plakietkę „po terminie" na generycznej `red-500` — drugą formę statusu, który
+skala świadomie odczerwieniła.
+
+**Brakująca forma w słowniku nie jest brakiem wygody — jest zaproszeniem do
+rozjazdu.** Dokładając kolor w nowym kształcie, dołóż FORMĘ do słownika,
+zamiast wpisać wartość na miejscu.
+
+### Sonda: grep po pliku pokazuje dziury, których nie ma
+
+Dwa uchwyty modułu (`ksef/send` POST, `ksef/auth/test` GET/POST) nie mają
+`isAuthed()` we własnej linii — delegują do funkcji, która sprawdza pierwszą
+instrukcją. Czytanie kodu dałoby tu fałszywy alarm; `curl` per uchwyt
+rozstrzygnął: **23/23 oddaje 401**. Działa to w obie strony — audyt Ofert
+odwrotnie: liczył pliki i przegapił uchwyty.
+
+### Apka: nowa droga nawigacji obnaża zastane dziury
+
+Sekcja „Dokumenty" w profilu projektu (decyzja właściciela) była podglądem
+danych, które trasa już oddawała. Mimo to wyciągnęła trzy błędy, z których
+każdy „wyglądałby poprawnie i nic nie robił":
+
+- **`brutto` wracało jako STRING** — panel łyka przez `Number(...)`, dekoder
+  Swifta wywaliłby CAŁY profil projektu. Sumy w SQL potrzebują `::float8`.
+- **Numer umowy liczy PANEL** (`contractReference`), nie apka — inaczej trzy
+  umowy jednego projektu to trzy nierozróżnialne wiersze „Umowa". Ta sama
+  zasada, co w `GET /api/clients/:id`.
+- **`wczytajFakture` zapełniało tylko `szczegolyFaktury`**, a widok czyta sam
+  rekord z `faktury`. Dopóki jedyną drogą do faktury była zakładka Faktur,
+  lista zawsze już stała w pamięci i błędu nie było widać — wejście z profilu
+  PROJEKTU dawało wieczny spinner.
+
+**Dokładając w apce drogę do istniejącego ekranu, sprawdź, skąd ten ekran bierze
+swój rekord — nie tylko szczegóły.**

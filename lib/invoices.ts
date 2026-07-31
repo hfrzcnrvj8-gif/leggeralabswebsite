@@ -101,6 +101,31 @@ export function isInvoiceStatus(v: unknown): v is InvoiceStatus {
   return typeof v === "string" && (INVOICE_STATUSES as string[]).includes(v);
 }
 
+/**
+ * Wspólny strażnik pola ze SŁOWNIKIEM (audyt Faktur, 2026-07-31). Zwraca
+ * PRZYCIĘTĄ wartość ze słownika albo `null` — a `null` ma się w trasie kończyć
+ * odpowiedzią 400, nie podmianą na domyślną.
+ *
+ * Powstał, bo sonda pokazała, że `isInvoiceStatus` był w PATCH-u Faktur
+ * WYJĄTKIEM, a nie regułą: cztery sąsiednie pola (`typ_dokumentu`,
+ * `typ_korekty`, `sposob_platnosci`, `jezyk`) przyjmowały dowolny śmieć,
+ * odpowiadały `{"ok":true}` i cicho zapisywały wartość domyślną. Najgorszy
+ * przypadek jest księgowy, nie kosmetyczny: `PATCH {"typ_dokumentu":" proforma "}`
+ * — jedna spacja z apki albo z kopiuj-wklej — zapisywał `"faktura"`, czyli
+ * NIEFISKALNA proforma cicho stawała się dokumentem fiskalnym i wchodziła do
+ * przychodu na Pulpicie. Właściciel widział „zapisano".
+ *
+ * Dlatego `trim()` stoi PRZED sprawdzeniem słownika: wartość oczywiście
+ * zamierzona ma przejść, a genuinie zła — odbić się głośno. To odwrotna
+ * strona lekcji z Projektów, gdzie spacja OMIJAŁA twardą bramkę; tam trzeba
+ * było przyciąć, żeby bramka łapała, tu — żeby nie kłamała odpowiedzią.
+ */
+export function zeSlownika<T extends string>(slownik: readonly T[], v: unknown): T | null {
+  if (typeof v !== "string") return null;
+  const przyciete = v.trim();
+  return (slownik as readonly string[]).includes(przyciete) ? (przyciete as T) : null;
+}
+
 /* Status faktury na wspólnej skali (Moduł 59, `lib/kolorStanu.ts`).
  * Trzy z pięciu wartości się zmieniły — Faktury najdalej odstawały:
  * — „Szkic" był BURSZTYNOWY, choć szkic oferty i umowy jest szary. Szkic to
@@ -134,6 +159,18 @@ export type VatRate = (typeof VAT_RATES)[number];
 /** Waluty dostępne na fakturze. EUR odblokowuje kod QR do przelewu SEPA
  * (standard EPC069-12 jest zdefiniowany wyłącznie dla EUR). */
 export const INVOICE_CURRENCIES = ["PLN", "EUR", "USD", "GBP"] as const;
+export type InvoiceCurrency = (typeof INVOICE_CURRENCIES)[number];
+
+/** Strażnik waluty — bliźniak `isOfferCurrency` (lib/offers.ts). Oferty dostały
+ * go przy swoim audycie, Faktury/Umowy/faktury cykliczne zostały bez niego, bo
+ * poprawka nie poszła przez wszystkie moduły naraz (lekcja Modułu 59). Skutek
+ * zmierzony sondą: `PATCH {"waluta":"BITCOIN-I-DUZO"}` odpowiadał `{"ok":true}`
+ * i zapisywał obcięte `"BITCOIN-I-"`, po czym `formatMoney` rzucał
+ * `RangeError: Invalid currency code` i **cała lista faktur** szła w error
+ * boundary — nie jeden wiersz, cały ekran. */
+export function isInvoiceCurrency(v: unknown): v is InvoiceCurrency {
+  return typeof v === "string" && (INVOICE_CURRENCIES as readonly string[]).includes(v.trim());
+}
 
 /** Typ dokumentu: zwykła faktura / proforma (niefiskalna, własna numeracja,
  * nie liczy się do KPI/przychodu) / zaliczkowa (na poczet przyszłej faktury
@@ -383,9 +420,28 @@ export function invoiceTotals(items: { ilosc: number; cena_netto: number; vat_st
   return { netto, vat, brutto: round2(netto + vat) };
 }
 
-/** Kwota w PLN sformatowana po polsku (np. "1 234,50 zł"). */
+/**
+ * Kwota sformatowana po polsku (np. "1 234,50 zł"). Formater kwot dla CAŁEGO
+ * panelu — Faktury, Oferty, Umowy, Koszty, Katalog, Projekty, Statystyki
+ * i Pulpit wołają właśnie ten.
+ *
+ * Nie wywraca się na złym kodzie waluty (audyt Faktur, 2026-07-31). `Intl`
+ * rzuca `RangeError` na wszystkim, co nie jest kodem ISO 4217, a `waluta`
+ * przychodzi wprost z bazy — więc JEDEN uszkodzony wiersz wywalał w error
+ * boundary CAŁY ekran, który go zawierał. Bramki zapisu (`isInvoiceCurrency`
+ * i bliźniaki) zamykają drogę na przyszłość, ale nie naprawią wierszy już
+ * zapisanych w produkcyjnej bazie, do której nie ma dostępu z panelu. Dlatego
+ * druga warstwa: zamiast wysadzić widok, pokazujemy liczbę i kod waluty
+ * DOSŁOWNIE — właściciel od razu widzi, że z tą fakturą jest coś nie tak,
+ * i może ją poprawić w edytorze. Cicha podmiana na "zł" byłaby gorsza: kwota
+ * w obcej walucie udawałaby złotówki.
+ */
 export function formatMoney(n: number, waluta = "PLN"): string {
-  return new Intl.NumberFormat("pl-PL", { style: "currency", currency: waluta }).format(n);
+  try {
+    return new Intl.NumberFormat("pl-PL", { style: "currency", currency: waluta }).format(n);
+  } catch {
+    return `${new Intl.NumberFormat("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)} ${waluta}`;
+  }
 }
 
 /** Numer faktury w formacie "kolejny/rok" (np. "7/2026"). */
