@@ -442,6 +442,25 @@ blisko Dropbox Sign, brakowało sześciu rzeczy — wszystkie zbudowane
 negocjacje z komentarzami i wersjonowaniem w dokumencie, obiegi zatwierdzeń,
 integracje z CRM-ami korporacyjnymi, „AI review klauzul".
 
+## Następny moduł w kolejce: PROJEKTY (2026-07-31)
+
+Po Umowach (etap 7 lejka) idą etapy 8–10: Onboarding → Kickoff/kamienie →
+Realizacja, czyli moduł **Projekty**. Gotowy brief do wklejenia w nowym
+czacie: **`PROMPT-60-PROJEKTY.md`**.
+
+Między Umowami a Projektami wszedł **Moduł 59 — przegląd spójności**, który
+objął wszystkie moduły naraz (klawiatura, puste stany, wiersze profilu,
+miejsce „+", kierunek gestu, słownik koloru). Projekty dostały z niego sporo
+bez osobnego audytu — prompt wymienia co dokładnie, żeby nie robić tego
+drugi raz. Inwentarz Modułu 59 zostawił Projektom trzy pola ⚠️: **kolor,
+nawigacja, treść**.
+
+Konkret znaleziony przy pisaniu promptu, do naprawienia w tym module:
+`PATCH /api/projects/:id` zapisuje `status`, `priorytet` i `zdrowie` **bez
+walidacji słownikiem** — `PROJECT_STATUSES` istnieje w `lib/projects.ts`,
+ale żadna trasa go nie importuje. Ta sama dziura, którą paczka A zamknęła
+w Leadach i Fakturach.
+
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
 Sprawdzić dla modułu Leady (panel `/admin/leads`, apka `LeadsListView.swift`
