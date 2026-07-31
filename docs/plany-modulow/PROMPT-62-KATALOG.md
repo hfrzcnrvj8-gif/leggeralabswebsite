@@ -20,6 +20,22 @@ gdzie tabela pokazuje ✅.** Katalog ma w inwentarzu cztery ❌ (Klikalność,
 Gesty/menu, Klawiatura, Stany) i dwa ⚠️ (Nawigacja, Integralność) — ale ta
 liczba nic nie znaczy, dopóki jej nie sprawdzisz.
 
+### Wiersze „Leady" i „Klienci" w tabeli są NIEAKTUALNE — nie licz na nie
+
+Sprawdzone `git log -S` po commicie audytu Faktur: oba wiersze ostatni raz
+tknęła **paczka F Modułu 59**, a nie ich własne audyty (25 i 26 lipca). Pokazują
+❌ dla modułów, które są domknięte — „Stan po module Leady" i „Stan po module
+Klienci" stoją w `51-audyt-uiux-panel-i-apka.md` od tamtych dat.
+
+To trzeci raz z rzędu, kiedy ta tabela myli się na niekorzyść. Krok „wypełnij
+wiersz" z listy kontrolnej był po prostu pomijany, dopóki nie zaczęto go
+egzekwować przy Projektach.
+
+**Zrób to na początku sesji, zanim ruszysz Katalog** — pół godziny sondą po
+Leadach i Klientach, poprawka obu wierszy, i tabela znowu zaczyna coś znaczyć.
+Inaczej każdy następny moduł startuje od tego samego zamieszania. Jeśli pomiar
+pokaże, że któreś ❌ obowiązuje naprawdę — tym lepiej, będzie wiadomo.
+
 ### Trzy konkrety z rekonesansu, sprawdzone gretem przy pisaniu tego promptu
 
 **1. Bramka waluty NIE dotyczy Katalogu — i to jest podejrzane.**
