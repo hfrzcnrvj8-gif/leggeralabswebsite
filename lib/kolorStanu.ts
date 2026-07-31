@@ -76,6 +76,47 @@ export const STAN_DOT: Record<Stan, string> = {
   zamkniete: "bg-[var(--hairline)]",
 };
 
+/**
+ * Stan jako SAM KOLOR TEKSTU — ikony statusu (kanban, oś czasu), gdzie kolor
+ * stoi przy kształcie, a nie na własnym tle.
+ *
+ * Istnieje, bo bez tego każdy moduł wypisywał swoje `text-*` z palca i po
+ * pierwszej zmianie skali zostawał w tyle: `STATUS_ICON` w kanbanie Projektów
+ * miał komentarz „kolory zgodne z pigułkami" i **nie był** zgodny od dnia,
+ * w którym pigułki przeszły na tę skalę (Moduł 59, D+).
+ */
+export const STAN_TEXT: Record<Stan, string> = {
+  nieruszone: "text-[var(--fg-muted)]",
+  mojRuch: "text-brand-gold",
+  uNich: "text-[#c4a5ff]",
+  wRobocie: "text-brand-cyan",
+  sukces: "text-emerald-400",
+  zamkniete: "text-[var(--fg-muted)] opacity-70",
+};
+
+/**
+ * Stan jako HEX — wyłącznie dla rysowania stylem inline (paski osi czasu,
+ * gradienty, `<svg fill>`), gdzie klasa Tailwinda nie wchodzi.
+ *
+ * Dwie wartości świadomie NIE są dosłownym odpowiednikiem `STAN_DOT`:
+ *
+ * - `uNich` bierze **jasny fiolet `#c4a5ff`** (kolor tekstu pigułki), a nie
+ *   `brand.purple #7C3AED`. Powód jest zmierzony, nie estetyczny: na tle panelu
+ *   `#7C3AED` ma kontrast **2,9**, podczas gdy złoto 8,9, cyan 11,4 i zieleń
+ *   8,0 — pasmo „u nich" byłoby jedynym, które ledwo widać. Ciemny fiolet
+ *   działa jako TŁO pigułki (bo pod jasnym tekstem), nie jako sama kreska.
+ * - `zamkniete` bierze szarość `--fg-muted`, a nie `--hairline`: hairline to
+ *   kolor KRAWĘDZI, na pasku o szerokości ekranu nie widać go w ogóle.
+ */
+export const STAN_HEX: Record<Stan, string> = {
+  nieruszone: "#8a8f98",
+  mojRuch: "#E0A93B",
+  uNich: "#c4a5ff",
+  wRobocie: "#22D3EE",
+  sukces: "#10b981",
+  zamkniete: "#8a8f98",
+};
+
 /** Krótkie tłumaczenie stanu — do podpowiedzi i legend, żeby skala dała się
  *  przeczytać bez zaglądania do kodu. */
 export const STAN_OPIS: Record<Stan, string> = {
@@ -108,6 +149,24 @@ export function mapaKropek<K extends string>(slownik: Record<K, Stan>): Record<s
   const wynik: Record<string, string> = {};
   for (const [status, stan] of Object.entries(slownik) as [K, Stan][]) {
     wynik[status] = STAN_DOT[stan];
+  }
+  return wynik;
+}
+
+/** To samo dla ikon statusu — patrz `STAN_TEXT`. */
+export function mapaTekstow<K extends string>(slownik: Record<K, Stan>): Record<string, string> {
+  const wynik: Record<string, string> = {};
+  for (const [status, stan] of Object.entries(slownik) as [K, Stan][]) {
+    wynik[status] = STAN_TEXT[stan];
+  }
+  return wynik;
+}
+
+/** To samo dla rysowania stylem inline — patrz `STAN_HEX`. */
+export function mapaHexow<K extends string>(slownik: Record<K, Stan>): Record<string, string> {
+  const wynik: Record<string, string> = {};
+  for (const [status, stan] of Object.entries(slownik) as [K, Stan][]) {
+    wynik[status] = STAN_HEX[stan];
   }
   return wynik;
 }
@@ -165,6 +224,15 @@ export const PILNOSC_ROW: Record<Pilnosc, string> = {
   wTerminie: "",
   poTerminie: "bg-brand-orange/[0.06]",
   zaniedbane: "bg-brand-red/[0.08]",
+};
+
+/** Rampa pilności w HEX — do rysowania stylem inline (pasek osi czasu).
+ *  Ta sama rampa co `PILNOSC_TEXT`, ta sama rola co `STAN_HEX` wobec
+ *  `STAN_TEXT`. `wTerminie` nie ma własnej barwy: w terminie o pilności nie ma
+ *  czego mówić, więc rysujący zostaje przy kolorze stanu. */
+export const PILNOSC_HEX: Record<Exclude<Pilnosc, "wTerminie">, string> = {
+  poTerminie: "#F97316",
+  zaniedbane: "#CE6A70",
 };
 
 /** Zdanie tłumaczące, co ten kolor znaczy — pilność bez powodu jest ozdobą. */

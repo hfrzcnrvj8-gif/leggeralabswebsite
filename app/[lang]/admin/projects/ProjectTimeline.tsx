@@ -5,7 +5,12 @@ import { motion } from "framer-motion";
 import { SPRING } from "@/lib/motion";
 import type { Locale } from "@/i18n/config";
 import { ProjectIcon, formatPlDate, PROJECT_STATUS_HEX, DEFAULT_STATUS_HEX } from "./shared";
-import { statusIconEl } from "./ProjectKanban";
+import { stopienPilnosci, PILNOSC_HEX } from "@/lib/kolorStanu";
+// Ikona statusu i sygnał priorytetu przychodzą z tablicy — oś czasu miała
+// do 2026-07-31 WŁASNĄ kopię priorytetu (pomarańczowy kwadrat z „!" zamiast
+// trójkąta), więc ten sam „Krytyczny" wyglądał inaczej w każdym z dwóch
+// widoków tego samego modułu, a użyty tam pomarańcz znaczy „po terminie".
+import { statusIconEl, PriorityIcon } from "./ProjectKanban";
 
 type TimelineMilestone = { id: string; nazwa: string; termin: string | null };
 type TimelineProject = {
@@ -60,25 +65,6 @@ function fmtMonth(d: Date, showYear: boolean): string {
   return showYear || d.getMonth() === 0 ? `${abbr} ${d.getFullYear()}` : abbr;
 }
 
-function PrioritySignal({ priorytet }: { priorytet: string }) {
-  if (priorytet === "Krytyczny") {
-    return (
-      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] bg-orange-500 text-[9px] font-bold leading-none text-white" title="Priorytet: Krytyczny">
-        !
-      </span>
-    );
-  }
-  const level = priorytet === "Niski" ? 1 : priorytet === "Normalny" ? 2 : priorytet === "Wysoki" ? 3 : 0;
-  if (level === 0) return null;
-  return (
-    <span className="flex shrink-0 items-end gap-[1.5px]" title={`Priorytet: ${priorytet}`}>
-      {[1, 2, 3].map((i) => (
-        <span key={i} className={`w-[3px] rounded-[1px] ${i <= level ? "bg-muted opacity-80" : "bg-[var(--hairline)]"}`} style={{ height: `${3 + i * 2}px` }} />
-      ))}
-    </span>
-  );
-}
-
 type DragState = {
   kind: "move" | "start" | "end" | "milestone";
   projectId: string;
@@ -103,12 +89,16 @@ export function ProjectTimeline({
   onOpen,
   onChange,
   filter,
+  listaJuzOstrzega = false,
 }: {
   lang: Locale;
   onOpen: (id: string) => void;
   onChange?: () => void;
   /** Filtry z paska Projektów — oś respektuje je tak jak roadmapa w Linear. */
   filter?: { status?: string; priority?: string; health?: string };
+  /** Czy pasek sufitu LISTY stoi już nad tym widokiem — wtedy ostrzeżenie osi
+   *  nie powtarza wezwania, tylko dopowiada różnicę (patrz komentarz niżej). */
+  listaJuzOstrzega?: boolean;
 }) {
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
   const [deps, setDeps] = useState<{ project_id: string; depends_on_id: string }[]>([]);
@@ -385,11 +375,26 @@ export function ProjectTimeline({
     // `flex flex-1 flex-col min-h-0` (Moduł 35) — Oś czasu wypełnia wysokość
     // okna zamiast kończyć się na ostatnim projekcie.
     <div className="flex flex-1 flex-col md:min-h-0">
-      {/* Sufit osi czasu (TIMELINE_LIMIT) — patrz komentarz przy `total`. */}
+      {/* Sufit osi czasu (TIMELINE_LIMIT) — patrz komentarz przy `total`.
+
+          Sufity są DWA i różne (1000 na liście, 500 tutaj), więc oba paski
+          potrafią stanąć jeden nad drugim. Wtedy drugi NIE powtarza wezwania
+          „czas na stronicowanie" — dwa złote paski kończące się tym samym
+          zdaniem czytają się jak zacinająca się płyta i zabierają 130 px nad
+          wykresem, zamiast powiedzieć to, czego pierwszy nie mówi: że oś czasu
+          jest ucięta MOCNIEJ niż lista, i o ile. */}
       {projects.length > 0 && total > projects.length && (
         <div className="mb-2 shrink-0 rounded-xl border border-brand-gold/40 bg-brand-gold/10 px-3 py-2 text-[12px] text-brand-gold">
-          Oś czasu rysuje {projects.length} z {total} projektów — brakujące pasma po prostu tu nie
-          istnieją, choć projekty są w bazie. Powiedz o tym Claude’owi: czas na stronicowanie.
+          {listaJuzOstrzega ? (
+            <>
+              Sama oś czasu jest ucięta jeszcze mocniej: rysuje {projects.length} z {total} projektów.
+            </>
+          ) : (
+            <>
+              Oś czasu rysuje {projects.length} z {total} projektów — brakujące pasma po prostu tu nie
+              istnieją, choć projekty są w bazie. Powiedz o tym Claude’owi: czas na stronicowanie.
+            </>
+          )}
         </div>
       )}
 
@@ -481,14 +486,21 @@ export function ProjectTimeline({
               const milestonesWithDates = p.milestones
                 .map((m) => ({ id: m.id, nazwa: m.nazwa, date: parseDate(m.termin) }))
                 .filter((m): m is { id: string; nazwa: string; date: Date } => m.date !== null);
-              // Kolor paska = kolor STATUSU (każdy status ma własną barwę — z daleka
-              // widać stan projektu). Obramowanie w kolorze statusu, wypełnienie to
-              // delikatny gradient tego koloru. Prognoza czerwienieje po terminie.
+              // Kolor paska = kolor STATUSU (`PROJECT_STATUS_HEX`, wyliczany ze
+              // wspólnej skali `Stan` — ta sama wartość, co pigułka i ikona).
+              // Obramowanie w kolorze statusu, wypełnienie to delikatny gradient.
               const statusHex = PROJECT_STATUS_HEX[p.status] ?? DEFAULT_STATUS_HEX;
               const barFill = `linear-gradient(180deg, ${statusHex}45 0%, ${statusHex}12 100%)`;
               const tDate = parseDate(p.termin);
               const overdue = !estimated && p.status !== "Wdrożone" && !!tDate && tDate < today;
-              const trailBorder = overdue ? "#ef4444" : statusHex;
+              // Prognoza po terminie idzie RAMPĄ PILNOŚCI, nie jedną czerwienią:
+              // do 2026-07-31 pasek robił się `#ef4444` już pierwszego dnia po
+              // terminie, czyli projekt spóźniony o dzień wyglądał tak samo, jak
+              // porzucony od pół roku — a czerwień w tym produkcie znaczy
+              // „obietnica zerwana" (próg 14 dni, `PROG_ZANIEDBANIA_DNI`).
+              const dniPoTerminie = overdue && tDate ? Math.round((today.getTime() - tDate.getTime()) / 86400000) : null;
+              const stopien = stopienPilnosci(dniPoTerminie);
+              const trailBorder = stopien === "wTerminie" ? statusHex : PILNOSC_HEX[stopien];
 
               const dg = drag && drag.projectId === p.id ? drag : null;
               let dispStart = start;
@@ -532,7 +544,7 @@ export function ProjectTimeline({
                     <span className="font-medium text-[var(--fg)]">{p.tytul}</span>
                     {/* Ikona statusu — zmienia się przy zmianie statusu (Pomysł/W trakcie/…) */}
                     <span className="shrink-0" title={`Status: ${p.status}`}>{statusIconEl(p.status, 14)}</span>
-                    <PrioritySignal priorytet={p.priorytet} />
+                    <PriorityIcon priorytet={p.priorytet} />
                   </button>
 
                   {/* PASEK (solidna część) — ciało przeciąga, krawędzie zmieniają start/termin */}

@@ -19,7 +19,18 @@ import {
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate, ProjectIcon } from "./shared";
+import {
+  type Project,
+  PROJECT_STATUSES,
+  PROJECT_PRIORITIES,
+  PROJECT_HEALTHS,
+  PROJECT_STATUS_TEXT,
+  PROJECT_HEALTH_TEXT,
+  isProjectHealthAlarming,
+  isProjectOverdue,
+  formatPlDate,
+  ProjectIcon,
+} from "./shared";
 import {
   PropertyMenu,
   type MenuOption,
@@ -33,23 +44,35 @@ import { useCopy } from "../ui";
 import { KLASA_KURSORA } from "../klawiatura";
 
 // Status jako ikona (styl Linear) — KSZTAŁT koła oddaje etap, kolor tylko go
-// wzmacnia. Kolory zgodne z pigułkami (`PROJECT_STATUS_CLASS` w lib/projects.ts),
-// które od 2026-07-20 są jedynym źródłem prawdy: wcześniej ta mapa dawała
-// „W trakcie" złoty, pigułki cyan, a oś czasu niebieski — trzy kolory jednego
-// stanu na trzech ekranach tego samego panelu.
-const STATUS_ICON: Record<string, { icon: TablerIcon; className: string }> = {
-  "Pomysł": { icon: IconCircleDashed, className: "text-[#8a8f98]" },
-  "Planowanie": { icon: IconCircle, className: "text-brand-gold" },
-  "W trakcie": { icon: IconProgress, className: "text-brand-cyan" },
-  "Testy / review": { icon: IconProgressCheck, className: "text-orange-400" },
-  "Wdrożone": { icon: IconCircleCheckFilled, className: "text-emerald-400" },
-  "Wstrzymane": { icon: IconCircleMinus, className: "text-[#8a8f98]" },
+// wzmacnia. Tu mieszka wyłącznie KSZTAŁT; kolor przychodzi z `PROJECT_STATUS_TEXT`,
+// czyli z tego samego słownika, co pigułki i paski osi czasu.
+//
+// Do 2026-07-31 kolor był tu wpisany z palca „zgodnie z pigułkami" — i przestał
+// być zgodny w dniu, w którym pigułki przeszły na wspólną skalę (Moduł 59, D+):
+// „Testy / review" zostało tu pomarańczowe, choć pomarańcz znaczy w tym
+// produkcie „po terminie". Powód i pełna historia: `lib/projects.ts`.
+const STATUS_ICON: Record<string, TablerIcon> = {
+  "Pomysł": IconCircleDashed,
+  "Planowanie": IconCircle,
+  "W trakcie": IconProgress,
+  "Testy / review": IconProgressCheck,
+  "Wdrożone": IconCircleCheckFilled,
+  "Wstrzymane": IconCircleMinus,
 };
 
-// Priorytet jako słupki sygnału (jak w Linear), Krytyczny = ostrzeżenie.
+// Priorytet jako słupki sygnału (jak w Linear), Krytyczny = wypełniony trójkąt.
+//
+// ŚWIADOMIE BEZ BARWY (decyzja właściciela 2026-07-31). Priorytet to TRZECIA oś
+// na tej samej karcie — obok statusu i zdrowia — a obie barwy, po które taka
+// ikona sięga naturalnie, są już zajęte znaczeniem: czerwień to awaria i akcja
+// niszcząca (i „Zerwany" na osi zdrowia), pomarańcz to stopień rampy pilności
+// („po terminie”). „Krytyczny" świecił do dziś czerwienią `#e5484d`, czyli tym
+// samym kolorem, co zerwany projekt — dwie różne rzeczy, jedna barwa, obok
+// siebie. Rozróżnienie niosą KSZTAŁT (słupki → trójkąt) i JASNOŚĆ (szarość →
+// pełny foreground), czyli środki, których w tym produkcie nic więcej nie używa.
 export function PriorityIcon({ priorytet }: { priorytet: string }) {
   if (priorytet === "Krytyczny") {
-    return <IconAlertTriangleFilled size={13} className="shrink-0 text-[#e5484d]" title="Priorytet: Krytyczny" />;
+    return <IconAlertTriangleFilled size={13} className="shrink-0 text-[var(--fg)]" title="Priorytet: Krytyczny" />;
   }
   const level = priorytet === "Niski" ? 1 : priorytet === "Normalny" ? 2 : priorytet === "Wysoki" ? 3 : 0;
   if (level === 0) return null;
@@ -66,20 +89,9 @@ export function PriorityIcon({ priorytet }: { priorytet: string }) {
   );
 }
 
-export const HEALTH_COLOR: Record<string, string> = {
-  "Na dobrej drodze": "text-[#3fb987]",
-  "Zagrożony": "text-[#e2a336]",
-  "Zerwany": "text-[#e5484d]",
-};
-const HEALTH_DOT: Record<string, string> = {
-  "Zagrożony": "text-[#e2a336]",
-  "Zerwany": "text-[#e5484d]",
-};
-
 export function statusIconEl(status: string, size = 15) {
-  const st = STATUS_ICON[status];
-  const Ico = st?.icon ?? IconCircle;
-  return <Ico size={size} className={st?.className ?? "text-muted"} />;
+  const Ico = STATUS_ICON[status] ?? IconCircle;
+  return <Ico size={size} className={PROJECT_STATUS_TEXT[status] ?? "text-muted"} />;
 }
 
 // Listy opcji do menu (z ikonami) — budowane raz, współdzielone z panelem
@@ -97,7 +109,7 @@ export const PRIORITY_OPTS: MenuOption<string>[] = PROJECT_PRIORITIES.map((p) =>
 export const HEALTH_OPTS: MenuOption<string>[] = PROJECT_HEALTHS.map((h) => ({
   value: h,
   label: h,
-  icon: <IconPointFilled size={12} className={HEALTH_COLOR[h] ?? "text-muted"} />,
+  icon: <IconPointFilled size={12} className={PROJECT_HEALTH_TEXT[h] ?? "text-muted"} />,
 }));
 
 export function ProjectKanban({
@@ -138,8 +150,7 @@ export function ProjectKanban({
     // ekranu, i upuszczenie karty działa na całej wysokości kolumny.
     <div className="flex flex-1 items-stretch gap-4 overflow-x-auto pb-2 md:min-h-0">
       {columns.map((col) => {
-        const st = STATUS_ICON[col.status];
-        const StatusIco = st?.icon ?? IconCircle;
+        const StatusIco = STATUS_ICON[col.status] ?? IconCircle;
         return (
           <div
             key={col.status}
@@ -164,7 +175,7 @@ export function ProjectKanban({
           >
             {/* Nagłówek kolumny — ikona statusu + nazwa + licznik, bez ramki */}
             <div className="mb-1 flex items-center gap-2 px-1 py-1.5">
-              <StatusIco size={14} className={st?.className ?? "text-muted"} />
+              <StatusIco size={14} className={PROJECT_STATUS_TEXT[col.status] ?? "text-muted"} />
               <h3 className="text-[13px] font-medium text-[var(--fg)]">{col.status}</h3>
               <span className="text-[12px] text-muted">{col.items.length}</span>
             </div>
@@ -176,7 +187,7 @@ export function ProjectKanban({
                 {col.items.map((p) => {
                   const overdue = isProjectOverdue(p);
                   const selected = selectedIds.has(p.id);
-                  const showRisk = p.zdrowie && HEALTH_DOT[p.zdrowie];
+                  const showRisk = isProjectHealthAlarming(p.zdrowie);
                   const hasTasks = typeof p.task_total === "number" && p.task_total > 0;
                   return (
                     <motion.div
@@ -261,7 +272,7 @@ export function ProjectKanban({
                         >
                           <IconPointFilled
                             size={12}
-                            className={`${HEALTH_COLOR[p.zdrowie] ?? "text-[#3a3b40]"} ${
+                            className={`${PROJECT_HEALTH_TEXT[p.zdrowie] ?? "text-[#3a3b40]"} ${
                               showRisk ? "" : "opacity-40 group-hover:opacity-100"
                             }`}
                           />

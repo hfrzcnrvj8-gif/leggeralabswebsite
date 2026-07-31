@@ -85,7 +85,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rod
                  i.waluta, i.created_at, COALESCE(t.kwota, 0)::float8 AS kwota
           FROM invoices i
           LEFT JOIN (
-            SELECT invoice_id, SUM(ilosc * cena_netto) AS kwota FROM invoice_items GROUP BY invoice_id
+            SELECT invoice_id, SUM(ilosc * cena_netto * (1 - rabat_procent / 100)) AS kwota FROM invoice_items GROUP BY invoice_id
           ) t ON t.invoice_id = i.id
           WHERE i.client_id = ${clientId} ORDER BY i.created_at DESC;
         ` as unknown as Promise<InvoiceRow[]>,
@@ -156,7 +156,7 @@ async function watekBezKlienta(
              i.waluta, i.created_at, COALESCE(t.kwota, 0)::float8 AS kwota
       FROM invoices i
       LEFT JOIN (
-        SELECT invoice_id, SUM(ilosc * cena_netto) AS kwota FROM invoice_items GROUP BY invoice_id
+        SELECT invoice_id, SUM(ilosc * cena_netto * (1 - rabat_procent / 100)) AS kwota FROM invoice_items GROUP BY invoice_id
       ) t ON t.invoice_id = i.id
       WHERE i.contract_id = ${c.id};
     `) as unknown as InvoiceRow[];
@@ -168,7 +168,7 @@ async function watekBezKlienta(
                i.waluta, i.created_at, COALESCE(t.kwota, 0)::float8 AS kwota
         FROM invoices i
         LEFT JOIN (
-          SELECT invoice_id, SUM(ilosc * cena_netto) AS kwota FROM invoice_items GROUP BY invoice_id
+          SELECT invoice_id, SUM(ilosc * cena_netto * (1 - rabat_procent / 100)) AS kwota FROM invoice_items GROUP BY invoice_id
         ) t ON t.invoice_id = i.id
         WHERE i.offer_id = ${offerId};
       `) as unknown as InvoiceRow[])

@@ -22,6 +22,7 @@ import {
   formatPlDate,
   relativeDeadline,
   daysFromToday,
+  PROJECT_HEALTH_TEXT,
   ProjectIconPicker,
 } from "./shared";
 import { EditableText, EditableTextarea, ClientLinkChip } from "../components";
@@ -29,7 +30,7 @@ import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { PropertyMenu, Popover, MenuRow, type MenuOption } from "../Menu";
 import { DateField } from "../DatePicker";
-import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, HEALTH_COLOR, PriorityIcon } from "./ProjectKanban";
+import { STATUS_OPTS, PRIORITY_OPTS, HEALTH_OPTS, statusIconEl, PriorityIcon } from "./ProjectKanban";
 import { useUI, useRegisterActions } from "../ui";
 import type { Lead } from "@/lib/leads";
 import { formatMoney, INVOICE_STATUS_CLASS } from "@/lib/invoices";
@@ -46,7 +47,7 @@ import { SekcjaProfilu, WierszPola } from "../ProfileSection";
  * `contractReference()` z `id`, `typ` i `created_at`. */
 export type ProjectDocuments = {
   contracts: { id: string; typ: ContractTyp; status: string; accepted_at: string | null; created_at: string }[];
-  invoices: { id: string; numer: string | null; status: string; typ_dokumentu: string; waluta: string; created_at: string }[];
+  invoices: { id: string; numer: string | null; status: string; typ_dokumentu: string; waluta: string; created_at: string; brutto: number | string | null }[];
 };
 
 /** Rdzeń widoku szczegółów projektu, w stylu Linear: treść + kamienie
@@ -888,12 +889,23 @@ export function ProjectDetailPanel({
           value={tab}
           onChange={setTab}
           layoutId="project-detail-tab-underline"
+          // Nazwy i kolejność wg apki (Moduł 60 sesja 2, ta sama reguła co
+          // paczka E w Leadach i Klientach: wygrywa słownictwo apki, bo tam
+          // nazwa sekcji stoi nad treścią i nie da się jej rozminąć z tym, co
+          // pod nią leży). Kolejność zgadzała się już wcześniej.
+          //
+          // Dwa wyjątki, oba świadome:
+          // · „Podgląd" nie ma odpowiednika w apce — tam pierwsze sekcje
+          //   (Status, Klient, Kamienie) leżą po prostu na górze przewijania.
+          // · „Czas pracy i rentowność" mieści DWIE sekcje apki („Rentowność"
+          //   i „Czas pracy"), więc skrócenie do jednego słowa schowałoby
+          //   drugą — na przewijanym ekranie widać obie, pod zakładką nie.
           tabs={[
             { id: "overview", label: "Podgląd" },
-            { id: "onboarding", label: "Onboarding" },
+            { id: "onboarding", label: "Wdrożenie" },
             { id: "time", label: "Czas pracy i rentowność" },
-            { id: "closing", label: "Zamknięcie i opinia" },
-            { id: "log", label: "Log aktywności" },
+            { id: "closing", label: "Opinia klienta" },
+            { id: "log", label: "Dziennik" },
           ]}
         />
       </div>
@@ -903,7 +915,7 @@ export function ProjectDetailPanel({
           <div className="mt-4">
           <div className="card-paper rounded-xl border hairline p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[14px] font-medium">Onboarding</h2>
+              <h2 className="text-[14px] font-medium">Wdrożenie</h2>
               {onboarding.length > 0 && (
                 <span className="text-[11px] text-muted tabular-nums">
                   {progressOf(onboarding.map((o) => ({ done: o.done }))).pct}% · {progressOf(onboarding.map((o) => ({ done: o.done }))).done}/{onboarding.length}
@@ -1498,7 +1510,7 @@ export function ProjectDetailPanel({
           <SekcjaProfilu tytul="Właściwości">
             <WierszPola etykieta="Zdrowie">
               <PropertyMenu value={project.zdrowie} options={HEALTH_OPTS} onChange={(v) => updateProject("zdrowie", v)} title="Zdrowie" full>
-                <PropTrigger icon={<IconPointFilled size={10} className={HEALTH_COLOR[project.zdrowie] ?? "text-muted"} />} label={project.zdrowie} />
+                <PropTrigger icon={<IconPointFilled size={10} className={PROJECT_HEALTH_TEXT[project.zdrowie] ?? "text-muted"} />} label={project.zdrowie} />
               </PropertyMenu>
             </WierszPola>
             <WierszPola etykieta="Status">
@@ -1546,14 +1558,31 @@ export function ProjectDetailPanel({
           </SekcjaProfilu>
 
           <SekcjaProfilu tytul="Zależy od" wiersze={false}>
+            {/* Pusty stan mówi, czego brakuje i CO TO ZMIENIA (ustalenie A1) —
+                do 2026-07-31 obie te sekcje przy zerowej liczbie pozycji
+                pokazywały sam przycisk „+ Dodaj…", czyli nie odróżniały
+                „nic tu nie wpisano" od „ta rzecz nie dotyczy tego projektu". */}
+            {dependencies.length === 0 && (
+              <p className="mb-2 text-[12px] text-muted">
+                Nic nie blokuje tego projektu. Zależność przesuwa go na osi czasu za projektem, na który czeka.
+              </p>
+            )}
             {dependencies.length > 0 && (
               <ul className="mb-2 space-y-1">
                 {dependencies.map((depId) => (
                   <li key={depId} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    {/* Powiązanie PROWADZI do rekordu (kat. 2 listy kontrolnej).
+                        Do 2026-07-31 tytuł projektu-poprzednika był tu zwykłym
+                        tekstem — jedyne miejsce w profilu, gdzie widoczne
+                        powiązanie nie dawało się otworzyć, choć klient, faktura
+                        i umowa obok już się dawały. */}
+                    <Link
+                      href={`/${langPrefix}/admin/projects/${depId}`}
+                      className="flex min-w-0 items-center gap-1.5 truncate hover:underline"
+                    >
                       <IconArrowRight size={13} className="shrink-0 text-muted" />
                       <span className="truncate">{allProjects.find((p) => p.id === depId)?.tytul ?? "—"}</span>
-                    </span>
+                    </Link>
                     <button onClick={() => removeDependency(depId)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń zależność" title="Usuń">
                       <IconX size={14} />
                     </button>
@@ -1588,6 +1617,11 @@ export function ProjectDetailPanel({
           </SekcjaProfilu>
 
           <SekcjaProfilu tytul="Zasoby" wiersze={false}>
+            {resources.length === 0 && (
+              <p className="mb-2 text-[12px] text-muted">
+                Brak linków. Trzymaj tu makiety, repozytorium i dostępy — żeby przy powrocie do projektu nie szukać ich po mailach.
+              </p>
+            )}
             {resources.length > 0 && (
               <ul className="mb-2 space-y-1">
                 {resources.map((r) => (
@@ -1640,7 +1674,7 @@ export function ProjectDetailPanel({
                 <div className="text-[12px] text-muted">
                   {project.client_id
                     ? "Brak umowy i faktur. Status „W trakcie” wymaga podpisanej umowy."
-                    : "Brak dokumentów. Projekt bez klienta ich nie potrzebuje."}
+                    : "Brak dokumentów. Projekt bez klienta ich nie potrzebuje — podepnij klienta we „Właściwościach”, żeby wystawić fakturę."}
                 </div>
               )}
 
@@ -1664,19 +1698,35 @@ export function ProjectDetailPanel({
                   className="flex items-center justify-between gap-2 rounded-lg border hairline px-2.5 py-1.5 text-[12px] hover:border-[var(--fg)]"
                 >
                   <span className="truncate">{f.numer || "Szkic faktury"}</span>
-                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${INVOICE_STATUS_CLASS[f.status] ?? "text-muted"}`}>
-                    {f.status}
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {/* Kwota z WALUTĄ DOKUMENTU — panel nie przelicza kursów
+                        (kat. 7 listy kontrolnej), więc waluta stoi przy liczbie,
+                        a nie jest domyślana ze złotówek. */}
+                    <span className="tabular-nums text-muted">{formatMoney(Number(f.brutto ?? 0), f.waluta || "PLN")}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${INVOICE_STATUS_CLASS[f.status] ?? "text-muted"}`}>
+                      {f.status}
+                    </span>
                   </span>
                 </Link>
               ))}
 
-              <button
-                onClick={wystawFakture}
-                disabled={wystawiam}
-                className="w-full rounded-full border hairline px-3 py-1.5 text-xs disabled:opacity-50"
-              >
-                {wystawiam ? "Zakładam…" : "Wystaw fakturę"}
-              </button>
+              {/* Przycisk pokazuje się TYLKO przy podpiętym kliencie. Do
+                  2026-07-31 stał także pod komunikatem „Projekt bez klienta
+                  dokumentów nie potrzebuje" — czyli ekran przeczył sam sobie,
+                  a kliknięcie zakładało fakturę z PUSTYM nabywcą (migawkę
+                  nabywcy trasa kopiuje z karty klienta, a klienta nie było).
+                  Reguła: afordancja, która nie może zadziałać, ma nie istnieć,
+                  a puste miejsce po niej ma mówić, czego brakuje — i mówi je
+                  komunikat wyżej. */}
+              {project.client_id && (
+                <button
+                  onClick={wystawFakture}
+                  disabled={wystawiam}
+                  className="w-full rounded-full border hairline px-3 py-1.5 text-xs disabled:opacity-50"
+                >
+                  {wystawiam ? "Zakładam…" : "Wystaw fakturę"}
+                </button>
+              )}
             </div>
           </SekcjaProfilu>
 

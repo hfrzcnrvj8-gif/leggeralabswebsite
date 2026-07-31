@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconPlus, IconFilter, IconAdjustmentsHorizontal, IconCircleFilled, IconFileExport, IconLayoutKanban } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
-import { type Project, PROJECT_STATUSES, PROJECT_PRIORITIES, PROJECT_HEALTHS, isProjectOverdue, formatPlDate } from "./shared";
+import {
+  type Project,
+  PROJECT_STATUSES,
+  PROJECT_PRIORITIES,
+  PROJECT_HEALTHS,
+  PROJECT_HEALTH_TEXT,
+  isProjectOverdue,
+  formatPlDate,
+} from "./shared";
 import { PROJECT_TEMPLATES } from "@/lib/projects";
 import { SavedViews, ExportCsvButton } from "../components";
 import { ProjectKanban } from "./ProjectKanban";
@@ -24,11 +32,6 @@ type ViewMode = "kanban" | "timeline";
 type SortBy = "reczna" | "nazwa" | "termin" | "priorytet";
 
 const PRIORITY_RANK: Record<string, number> = { "Krytyczny": 0, "Wysoki": 1, "Normalny": 2, "Niski": 3 };
-const HEALTH_COLOR: Record<string, string> = {
-  "Na dobrej drodze": "text-[#3fb987]",
-  "Zagrożony": "text-[#e2a336]",
-  "Zerwany": "text-[#e5484d]",
-};
 const SORT_LABEL: Record<SortBy, string> = {
   reczna: "Domyślnie",
   nazwa: "Nazwa (A→Z)",
@@ -384,7 +387,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
                   key={h}
                   label={h}
                   selected={filterHealth === h}
-                  icon={<IconCircleFilled size={9} className={HEALTH_COLOR[h] ?? "text-muted"} />}
+                  icon={<IconCircleFilled size={9} className={PROJECT_HEALTH_TEXT[h] ?? "text-muted"} />}
                   onClick={() => setFilterHealth(h)}
                 />
               ))}
@@ -578,6 +581,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenId}
           onChange={load}
           filter={{ status: filterStatus, priority: filterPriority, health: filterHealth }}
+          listaJuzOstrzega={projects !== null && projects.length > 0 && total > projects.length}
         />
       )}
       </ViewSwitch>

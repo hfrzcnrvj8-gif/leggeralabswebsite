@@ -247,7 +247,7 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "j / k", opis: "Ruch po liście — w Tabeli i w skrzynce kandydatów." },
       { tytul: "Enter", opis: "W Tabeli otwiera lead. W skrzynce kandydatów rozwija „dlaczego”." },
       { tytul: "t / x (kandydaci)", opis: "„t” bierze kandydata, „x” odrzuca (zapyta o powód)." },
-      { tytul: "Telefon: przesunięcie palcem", opis: "Na liście leadów w prawo — zadzwoń, w lewo — oznacz obsłużone. W skrzynce kandydatów w prawo — Weź, w lewo — Odrzuć. To samo jest w menu po przytrzymaniu wiersza." },
+      { tytul: "Telefon: przesunięcie palcem", opis: "Na liście leadów w prawo — „Obsłużone”, a zaraz obok „Zadzwoń” (przygaszony, bo wychodzi poza apkę). W skrzynce kandydatów w prawo — Weź, w lewo — Odrzuć. Zasada jest jedna w całej aplikacji: w prawo idzie to, co posuwa sprawę do przodu albo kończy ją dobrze, w lewo wyłącznie to, co odsuwasz od siebie. To samo jest w menu po przytrzymaniu wiersza." },
     ],
   },
 
@@ -366,7 +366,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "Telefon i iPad: przesunięcie palcem",
         opis:
-          "W prawo — zadzwoń. W lewo — „Obsłużone” (tylko przy kliencie z zaległym przypomnieniem; przy pozostałych nie ma czego gasić). To samo jest w menu po przytrzymaniu wiersza, razem ze zmianą statusu i logowaniem rozmowy.",
+          "W prawo — „Obsłużone” (tylko przy kliencie z zaległym przypomnieniem; przy pozostałych nie ma czego gasić) i „Zadzwoń”. W lewo nie ma nic: przy kliencie nie ma czego odsuwać od siebie. To samo jest w menu po przytrzymaniu wiersza, razem ze zmianą statusu i logowaniem rozmowy.",
       },
     ],
   },
@@ -511,7 +511,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "Telefon: przesunięcie palcem",
         opis:
-          "W lewo na wierszu — „Wyślij” i „Odrzucona”. To samo (plus „Wygasła”) jest w menu po przytrzymaniu wiersza.",
+          "W prawo — „Wyślij”. W lewo — „Odrzucona”. To samo (plus „Wygasła”) jest w menu po przytrzymaniu wiersza.",
       },
     ],
   },
@@ -623,7 +623,114 @@ export const MODULY: ModulInstrukcji[] = [
       },
       {
         tytul: "Telefon: przesunięcie palcem",
-        opis: "W lewo na wierszu — „Wyślij” i „Nie podpisali”. To samo jest w menu po przytrzymaniu wiersza.",
+        opis: "W prawo — „Wyślij”, a przy wysłanym dokumencie także „Przypomnij”. W lewo — „Nie podpisali”. To samo jest w menu po przytrzymaniu wiersza.",
+      },
+    ],
+  },
+  {
+    id: "projekty",
+    nazwa: "Projekty",
+    gdzie: "Panel: szósta pozycja w menu. Telefon: zakładka Projekty. iPad: pozycja w panelu bocznym, z własnym trybem „oś czasu”.",
+    poCoTo:
+      "Miejsce, w którym umowa zamienia się w robotę: co jest do zrobienia, na kiedy, ile już zeszło i czy na tym projekcie w ogóle zarabiasz. Tablica pokazuje etap, oś czasu — kto się z kim mija w kalendarzu.",
+    kiedy:
+      "Projekt zakłada się sam w chwili akceptacji oferty. Ręcznie — gdy robisz coś bez oferty (własny produkt, próbne wdrożenie, praca wewnętrzna).",
+    kroki: [
+      {
+        tytul: "1. Dwie osie, które nie mają ze sobą nic wspólnego",
+        opis:
+          "„Status” mówi, na jakim ETAPIE jest praca (Pomysł → Planowanie → W trakcie → Testy / review → Wdrożone, plus Wstrzymane). „Zdrowie” mówi, czy idzie DOBRZE (Na dobrej drodze / Zagrożony / Zerwany) i ustawiasz je ręcznie — panel nigdy nie wylicza go z terminów. Projekt może być „W trakcie” i „Zagrożony” naraz; to nie sprzeczność, tylko dwa różne pytania.",
+      },
+      {
+        tytul: "2. Start dla klienta wymaga podpisanej umowy",
+        opis:
+          "Przestawienie projektu Z KLIENTEM na „W trakcie” odbije się, dopóki nie ma podpisanej umowy podpiętej do tego projektu — to jedyna twarda blokada w całym panelu. Projekt bez klienta (wewnętrzny, próbny) startuje bez papieru. Umowę i faktury tego projektu widzisz w sekcji „Dokumenty” w jego profilu, więc nie musisz sprawdzać w drugim module, czy papier istnieje.",
+      },
+      {
+        tytul: "3. Kamienie milowe i zadania",
+        opis:
+          "Kamień to termin z nazwą („Makiety zaakceptowane”), zadanie to jedna rzecz do odhaczenia. Zadania mogą wisieć pod kamieniem albo luzem. Kolejność jednych i drugich zmienia się przeciąganiem — na wszystkich trzech ekranach. Szablon projektu (przy zakładaniu) wstawia komplet kamieni z terminami liczonymi od startu.",
+      },
+      {
+        tytul: "4. Stoper zamiast pamiętania",
+        opis:
+          "Czas liczy się NA SERWERZE od momentu startu, więc zamknięcie apki albo restart telefonu niczego nie gubi. Na telefonie stoper odpalisz przesunięciem wiersza w prawo, a chodzący pomiar widać na Wyspie. Pomiar można przypiąć do konkretnego zadania — wtedy wiesz nie tylko ile, ale i na czym.",
+      },
+      {
+        tytul: "5. Rentowność liczy się sama, ale tylko ze złotówek",
+        opis:
+          "Przychód to faktury tego projektu (z rabatami, bez proform i szkiców), koszty — wydatki podpięte do projektu. Z tego wychodzi zysk i efektywna stawka godzinowa, czyli jedyna liczba mówiąca, czy ta praca była warta czasu. Faktury w innych walutach są pomijane i panel pisze o tym wprost — nie przelicza kursów.",
+      },
+      {
+        tytul: "6. Wystaw fakturę prosto stąd",
+        opis:
+          "Przycisk „Wystaw fakturę” w sekcji Dokumenty zakłada szkic z przepisanymi danymi nabywcy i gotowym powiązaniem. Pozycje zostają PUSTE — świadomie: kwota wzięta z kamieni milowych byłaby liczbą, której nikt nie zatwierdził. Przycisk pojawia się dopiero przy podpiętym kliencie, bo bez niego nie ma na kogo wystawić.",
+      },
+      {
+        tytul: "7. Zamknięcie: poproś o opinię",
+        opis:
+          "Po „Wdrożone” zakładka „Opinia klienta” wysyła prośbę o ocenę (jakość, terminowość, komunikacja) pod linkiem. Widać, kiedy prośba poszła i czy jest odpowiedź; opinię możesz też wpisać ręcznie, jeśli klient powiedział ją przez telefon.",
+      },
+      {
+        tytul: "8. Oś czasu: gdzie się mijają terminy",
+        opis:
+          "Pasek biegnie od startu do terminu, a jego KOLOR to status projektu — ten sam, co pigułka na tablicy. Kropki to kamienie milowe, pionowa złota kreska to dziś. Pasek po terminie robi się pomarańczowy, a po dwóch tygodniach czerwony. Naprzemienne pasy co 14 dni to sam rytm patrzenia, nie „sprinty” — nic się do nich nie przypisuje. Na iPadzie oś czasu jest natywnie (ikona w nagłówku listy), na telefonie jej nie ma i mieć nie będzie: na tej szerokości pasmo czasu przestaje odpowiadać na pytanie, po które się je otwiera.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Checklista wdrożeniowa startuje sama",
+        opis:
+          "Nowy projekt — nieważne, czy z oferty, czy z ręki — dostaje komplet pozycji wdrożeniowych do odhaczenia. Nie trzeba o niej pamiętać ani jej włączać.",
+      },
+      {
+        tytul: "Termin po czasie odzywa się na Pulpicie",
+        opis:
+          "Projekt z minionym terminem, który nie jest „Wdrożone”, trafia na Pulpit i do porannego maila. Reguła jest deterministyczna: minął termin i nie jest zamknięty. Żadnego zgadywania.",
+      },
+      {
+        tytul: "Bramka umowy pilnuje się sama",
+        opis:
+          "Blokada startu bez papieru stoi po stronie serwera, nie w interfejsie — nie da się jej ominąć ani z telefonu, ani wpisując status inaczej.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Zdrowie nie zmienia się samo",
+        opis:
+          "To Twoja ocena, nie wyliczenie. Projekt po terminie NIE zrobi się „Zagrożony” z automatu — jeśli chcesz, żeby ktoś (Ty za miesiąc) to zobaczył, ustaw ręcznie.",
+      },
+      {
+        tytul: "„Na dobrej drodze” nie ma koloru i to jest celowe",
+        opis:
+          "Zdrowie odzywa się barwą tylko wtedy, gdy jest źle — pomarańcz przy zagrożonym, czerwień przy zerwanym. Zieleń w całej aplikacji znaczy „skończone sukcesem”, więc projekt idący zgodnie z planem świeciłby tym samym kolorem, co projekt już zamknięty. Brak alarmu to dobra wiadomość.",
+      },
+      {
+        tytul: "Kolejność zadań a ich kamień to dwie różne rzeczy",
+        opis:
+          "Przeciąganie zmienia kolejność w obrębie jednej grupy. Żeby przenieść zadanie POD inny kamień, użyj wyboru kamienia w samym zadaniu.",
+      },
+      {
+        tytul: "Usunięty projekt zabiera swoją historię",
+        opis:
+          "Kamienie, zadania, wpisy dziennika i pomiary czasu znikają razem z nim. Faktury i umowy zostają (są własnymi dokumentami), ale tracą powiązanie. Projekt, którego nie chcesz widzieć, lepiej oznaczyć „Wstrzymane”.",
+      },
+    ],
+    skroty: [
+      { tytul: "/", opis: "Kursor do wyszukiwarki projektów." },
+      { tytul: "j / k", opis: "Ruch po liście." },
+      { tytul: "Enter", opis: "Otwiera zaznaczony projekt." },
+      { tytul: "n", opis: "Nowy projekt (także z szablonu)." },
+      { tytul: "1–6", opis: "Zmiana statusu przy otwartym profilu." },
+      {
+        tytul: "Telefon i iPad",
+        opis:
+          "Podgląd, stoper, odhaczanie zadań i pozycji wdrożenia, zmiana statusu i zdrowia, dziennik, prośba o opinię. Zakładanie projektu i planowanie kamieni od zera zostaje przy biurku. iPad ma dodatkowo oś czasu.",
+      },
+      {
+        tytul: "Telefon: przesunięcie palcem",
+        opis:
+          "W prawo na wierszu projektu — stoper (drugie przesunięcie go zatrzymuje). W lewo nie ma nic: projektu się nie odsuwa od siebie jednym gestem. Kamienie i zadania kasuje się przesunięciem w lewo.",
       },
     ],
   },

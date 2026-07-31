@@ -78,9 +78,21 @@ export async function GET(
       SELECT id, typ, status, accepted_at, created_at
       FROM contracts WHERE project_id = ${id} ORDER BY created_at DESC;
     `,
+    /* Kwota brutto liczona TĄ SAMĄ formułą, co lista Faktur (`app/api/invoices`):
+       z rabatem i z VAT-em per pozycja. Bez niej rejestr dokumentów w profilu
+       projektu pokazywał sam numer i status — a „kwoty zawsze z walutą" jest
+       punktem listy kontrolnej (kat. 7), i to nie kosmetycznym: jedyne pytanie,
+       po które właściciel tu zagląda po zamknięciu projektu, brzmi „na ile
+       wystawiłem". Rabat MUSI wejść — ta sama literówka zawyżała rentowność
+       projektu do audytu 2026-07-31. */
     invoices: await sql`
-      SELECT id, numer, status, typ_dokumentu, waluta, created_at
-      FROM invoices WHERE project_id = ${id} ORDER BY created_at DESC;
+      SELECT i.id, i.numer, i.status, i.typ_dokumentu, i.waluta, i.created_at,
+             COALESCE((
+               SELECT SUM(p.ilosc * p.cena_netto * (1 - p.rabat_procent / 100)
+                          * (1 + CASE WHEN p.vat_stawka ~ '^[0-9]+$' THEN p.vat_stawka::numeric / 100 ELSE 0 END))
+               FROM invoice_items p WHERE p.invoice_id = i.id
+             ), 0) AS brutto
+      FROM invoices i WHERE i.project_id = ${id} ORDER BY i.created_at DESC;
     `,
   };
 

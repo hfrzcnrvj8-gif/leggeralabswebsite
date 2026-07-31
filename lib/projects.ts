@@ -4,7 +4,7 @@
 
 import { todayLocalISO } from "./dates";
 import { type DocLang } from "./documents";
-import { mapaStanow, mapaKropek, type Stan } from "./kolorStanu";
+import { mapaStanow, mapaKropek, mapaTekstow, mapaHexow, type Stan } from "./kolorStanu";
 
 export type Project = {
   id: string;
@@ -283,31 +283,6 @@ export function isProjectStatus(v: unknown): v is (typeof PROJECT_STATUSES)[numb
   return typeof v === "string" && (PROJECT_STATUSES as readonly string[]).includes(v);
 }
 
-/** Kolor (hex) przypisany do statusu projektu — każdy status ma własną barwę,
- * żeby z daleka na osi czasu rozpoznać stan projektu (pasek jest kolorowany wg
- * statusu). Używane też do obramowania i gradientowego wypełnienia paska. */
-/**
- * ŹRÓDŁEM PRAWDY dla koloru statusu są pigułki (`PROJECT_STATUS_CLASS` niżej).
- * Ta mapa jest ich odpowiednikiem w hex, bo oś czasu rysuje paski inline'owym
- * stylem i nie może użyć klas Tailwinda.
- *
- * Do 2026-07-20 panel miał TRZY sprzeczne mapy dla tego samego statusu: tę,
- * pigułki i `STATUS_ICON` w `ProjectKanban.tsx`. „W trakcie" był kolejno
- * niebieski, cyan i złoty; „Planowanie" — fioletowe, złote i szare. Ten sam
- * projekt miał inny kolor zależnie od tego, gdzie się na niego patrzyło.
- * Właściciel wybrał pigułki jako obowiązujące (są najczęściej widoczne i mówią
- * tym samym słownikiem, co leady, faktury i oferty), a pozostałe dwie zostały
- * do nich doprowadzone. **Zmieniasz kolor statusu → zmieniasz we WSZYSTKICH
- * trzech miejscach**, inaczej rozjazd wraca.
- */
-export const PROJECT_STATUS_HEX: Record<string, string> = {
-  Pomysł: "#8a8f98", // szary — luźny pomysł
-  Planowanie: "#E0A93B", // złoto marki — planowanie
-  "W trakcie": "#22D3EE", // cyan marki — w realizacji
-  "Testy / review": "#f97316", // pomarańcz — testy/review
-  Wdrożone: "#10b981", // zielony — zrobione
-  Wstrzymane: "#8a8f98", // szary — pauza
-};
 export const DEFAULT_STATUS_HEX = "#8a8f98";
 
 export const PROJECT_PRIORITIES = ["Niski", "Normalny", "Wysoki", "Krytyczny"] as const;
@@ -440,6 +415,26 @@ const PROJECT_STAN: Record<string, Stan> = {
 export const PROJECT_STATUS_CLASS: Record<string, string> = mapaStanow(PROJECT_STAN);
 export const PROJECT_STATUS_DOT: Record<string, string> = mapaKropek(PROJECT_STAN);
 
+/**
+ * Ten sam status w pozostałych dwóch formach: sam tekst (ikona kanbanu, ikona
+ * przy nazwie na osi czasu) i hex (pasek osi czasu, rysowany stylem inline).
+ *
+ * **To jest to samo źródło, nie trzy mapy.** Do 2026-07-31 były trzy — i po raz
+ * DRUGI się rozjechały. Historia jest pouczająca: audyt z 2026-07-20 zastał
+ * „W trakcie" w trzech barwach naraz, właściciel wybrał pigułki jako
+ * obowiązujące i pozostałe dwie mapy przepisano ręcznie do tej samej wartości.
+ * Osiem dni później Moduł 59 (D+) przeniósł pigułki na wspólną skalę `Stan`
+ * i zabrał „Testy / review" pomarańcz — a mapa hex i mapa ikon zostały
+ * z pomarańczem, bo nic ich do pigułek nie WIĄZAŁO poza komentarzem
+ * „kolory zgodne z pigułkami". Komentarz przetrwał, zgodność nie.
+ *
+ * Ręczne przepisanie trzech map do jednej wartości nie jest naprawą rozjazdu,
+ * tylko jego odroczeniem do najbliższej zmiany. Wiąże je dopiero wspólny
+ * słownik: `PROJECT_STAN` deklaruje ZNACZENIE, formy wyliczają się same.
+ */
+export const PROJECT_STATUS_TEXT: Record<string, string> = mapaTekstow(PROJECT_STAN);
+export const PROJECT_STATUS_HEX: Record<string, string> = mapaHexow(PROJECT_STAN);
+
 export const CLOSED_PROJECT_STATUSES = new Set(["Wdrożone"]);
 
 /** Projekt "wymaga działania" jeśli ma minięty/dzisiejszy termin i nie jest
@@ -486,14 +481,47 @@ export function isProjectHealth(v: unknown): v is (typeof PROJECT_HEALTHS)[numbe
 
 /* Zdrowie NIE jest statusem — to druga, prostopadła oś (patrz komentarz wyżej),
  * więc świadomie NIE idzie ze skali `Stan`. Idzie natomiast po tej samej rampie
- * ciepła co pilność (Moduł 59): zieleń → pomarańcz → czerwień, w barwach marki
- * zamiast generycznych `orange-500`/`red-500`. To jest dokładnie ta sytuacja,
- * dla której rampa powstała — „coraz gorzej", a nie „inna kategoria". */
+ * ciepła co pilność (Moduł 59): pomarańcz → czerwień, w barwach marki zamiast
+ * generycznych `orange-500`/`red-500`. To jest dokładnie ta sytuacja, dla
+ * której rampa powstała — „coraz gorzej", a nie „inna kategoria".
+ *
+ * **„Na dobrej drodze" jest NEUTRALNE — kolor mówi tu tylko wtedy, gdy jest
+ * źle** (decyzja właściciela 2026-07-31, Moduł 60 sesja 2). Do tej pory brało
+ * `emerald`, czyli DOKŁADNIE tę samą zieleń, co status „Wdrożone" (`sukces` na
+ * skali `Stan`) — a obie pigułki stoją obok siebie na tej samej karcie i na tym
+ * samym wierszu kanbanu. Jedna barwa mówiła tam naraz „projekt skończony
+ * sukcesem" i „projekt idzie zgodnie z planem", czyli łamała pierwszy punkt
+ * listy kontrolnej („jeden kolor = jedno znaczenie") w najgorszym możliwym
+ * miejscu: tam, gdzie oba znaczenia widać jednocześnie.
+ *
+ * Zieleń zostaje wyłącznie dla domknięcia sukcesem. Zdrowie bez alarmu nie ma
+ * nic do zakomunikowania — brak koloru JEST informacją („nic się nie pali"),
+ * tak samo jak w Linearze. Kanban zresztą już tak działał: kropka zdrowia
+ * gasła do 40 % krycia, dopóki projekt nie był zagrożony (`showRisk`) — czyli
+ * sam kod uznawał zieleń za szum, tylko pigułka o tym nie wiedziała. */
 export const PROJECT_HEALTH_CLASS: Record<string, string> = {
-  "Na dobrej drodze": "bg-emerald-500/15 text-emerald-400",
+  "Na dobrej drodze": "bg-[var(--hairline)] text-muted",
   Zagrożony: "bg-brand-orange/15 text-brand-orange",
   Zerwany: "bg-brand-red/20 text-brand-red-soft",
 };
+
+/** Zdrowie jako sam kolor tekstu — kropki w kanbanie, na liście i w profilu.
+ *  Ta sama rampa co `PROJECT_HEALTH_CLASS`; istnieje, żeby kropka i pigułka nie
+ *  rozjechały się tak, jak rozjechały się trzy mapy statusu. Do 2026-07-31
+ *  panel miał tę mapę wpisaną z palca DWA razy (`ProjectKanban.tsx`
+ *  i `ProjectsDashboard.tsx`), obie z hexami spoza palety marki. */
+export const PROJECT_HEALTH_TEXT: Record<string, string> = {
+  "Na dobrej drodze": "text-[var(--fg-muted)]",
+  Zagrożony: "text-brand-orange",
+  Zerwany: "text-brand-red-soft",
+};
+
+/** Czy to zdrowie jest ALARMEM (czymś, co ma zawołać kątem oka). „Na dobrej
+ *  drodze" i brak oceny — nie; zagrożenie i zerwanie — tak. Jedno miejsce,
+ *  z którego kanban i lista biorą odpowiedź na „czy podświetlać". */
+export function isProjectHealthAlarming(zdrowie: string | null | undefined): boolean {
+  return zdrowie === "Zagrożony" || zdrowie === "Zerwany";
+}
 
 /** Postęp checklisty/kamienia milowego jako "X% z Y" — bezpieczny na 0/0. */
 export function progressOf(tasks: { done: boolean }[]): { pct: number; total: number; done: number } {

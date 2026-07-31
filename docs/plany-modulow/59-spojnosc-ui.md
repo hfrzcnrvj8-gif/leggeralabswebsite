@@ -184,7 +184,7 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Klienci | ✅ | ❌ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Oferty | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Umowy | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Projekty | ⚠️ | ✅ | ✅ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
+| Projekty | ✅¹ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅¹ |
 | Faktury | ❌ | ✅ | ⚠️ | ❌ | ⚠️ | ⚠️ | ❌ | ✅ | ❌ | ✅ |
 | Katalog | ✅ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
 | Kalkulator | ✅ | — | — | ❌ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
@@ -194,6 +194,25 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
 | Przypomnienia | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
 | Statystyki | ✅ | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+¹ **Projekty przeszły pełną listę 2026-07-31** (Moduł 60, sesja 2) — wszystkie
+dziesięć kategorii na trzech platformach, wynik i pomiary w
+`51-audyt-uiux-panel-i-apka.md` → „Stan po module Projekty — sesja 2".
+Dwa przypisy, żeby ✅ nie znaczyło więcej, niż znaczy:
+
+- **Kolor** ✅ dotyczy statusu, zdrowia i priorytetu, które zostały rozdzielone
+  i sprowadzone do jednego słownika. Otwarta zostaje JEDNA rzecz spoza tego
+  modułu: `STAN_DOT` (panel) i `Stan.kolor` (apka) malują „u nich"
+  `brand.purple #7C3AED`, który ma na tle panelu kontrast **3,5** przy reszcie
+  skali 6,1–11,0. Tam, gdzie kolor niesie się sam (pasmo osi czasu), obie
+  platformy biorą już jasny `#C4A5FF` (9,65). Czy kropka przy słowie też ma
+  pojaśnieć, to decyzja dla CAŁEGO produktu — nie dla Projektów.
+- **Dotyk** ✅ znaczy „zgodnie z resztą panelu", nie „≥ 44 px". Zmierzone:
+  profil projektu ma 59 celów poniżej 44 px, profil leada 53, w obu najmniejszy
+  ma 13 px. Reguła 44 pt jest DOTYKOWA i obowiązuje apkę; panel jest sterowany
+  myszą i trzyma jeden rozmiar wszędzie. Podniesienie go byłoby zmianą
+  w piętnastu modułach naraz i osobną decyzją właściciela — inwentarz z 28.07
+  dawał tu Leadom ⚠️, a Projektom ✅ za tę samą wartość.
 
 **Czyste w całym produkcie (nie wymagają ruchu):** integralność `isAuthed`
 (260 uchwytów HTTP sprawdzonych po jednym — 20 bez bramki, wszystkie

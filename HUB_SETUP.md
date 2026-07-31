@@ -10261,3 +10261,169 @@ go nie gubi.
 Format czasu panel ↔ apka zgadza się **co do arytmetyki**, nie tylko wedle
 komentarza: `formatDuration` i `Czas.format` zaokrąglają w tych samych trzech
 miejscach, a `h === 0` w panelu jest równoważne `pełneMinuty < 60` w Swifcie.
+
+## Moduł 60, sesja 2 — status projektu ma JEDEN słownik i cztery formy (2026-07-31)
+
+Rozjazd koloru statusu wrócił po raz **drugi**, tą samą drogą. Audyt
+2026-07-20 zastał „W trakcie" w trzech barwach naraz, właściciel wybrał
+pigułki, a pozostałe mapy **przepisano ręcznie**. Osiem dni później Moduł 59
+(D+) przeniósł pigułki na skalę `Stan` i zabrał „Testy / review" pomarańcz —
+mapa hex, ikona kanbanu i apka zostały z pomarańczem, bo nic ich do pigułek
+nie wiązało poza komentarzem „kolory zgodne z pigułkami".
+
+**Reguła: mapa deklaruje ZNACZENIE, formy wyliczają się same.**
+
+| forma | gdzie potrzebna | panel | apka |
+|---|---|---|---|
+| pigułka (tło + tekst) | lista, profil | `mapaStanow` → `STAN_CLASS` | `StatusPillTekst` |
+| kropka (lity kolor przy słowie) | kanban, wiersz listy | `mapaKropek` → `STAN_DOT` | `Stan.kolor` |
+| sam tekst | ikona statusu | `mapaTekstow` → `STAN_TEXT` | — |
+| hex / kolor niosący się SAM | pasmo osi czasu, styl inline | `mapaHexow` → `STAN_HEX` | `Stan.kolorSamodzielny` |
+
+Moduł pisze wyłącznie `PROJECT_STAN: Record<string, Stan>`. Cztery formy
+powstają z niego; dołożenie piątej to jedna funkcja w `lib/kolorStanu.ts`,
+a nie piąta mapa do zapomnienia.
+
+**Dlaczego „kolor niosący się sam" różni się jedną wartością:** `brand.purple
+#7C3AED` ma na tle panelu kontrast **3,5**, przy złocie 9,4, cyanie 11,0
+i zieleni 7,9 — pasmo „u nich" byłoby jedynym, którego prawie nie widać.
+Ciemny fiolet działa jako TŁO pigułki (bo pod jasnym tekstem), nie jako sama
+kreska; jasny `#C4A5FF` to ten sam fiolet w formie, którą widać samą (9,65).
+`zamkniete` z tego samego powodu bierze szarość `--fg-muted`, a nie
+`--hairline`: hairline to kolor krawędzi, na paśmie nie widać go w ogóle.
+
+**Ręczne przepisanie map do jednej wartości nie jest naprawą rozjazdu, tylko
+jego odroczeniem do najbliższej zmiany.**
+
+## Moduł 60, sesja 2 — trzy osie na jednej karcie, dwie barwy (2026-07-31)
+
+Projekt niesie naraz **status** (etap), **zdrowie** (czy idzie dobrze)
+i **priorytet** — trzy prostopadłe osie, wszystkie widoczne na jednym wierszu
+kanbanu. Dwie pary używały tej samej barwy do różnych rzeczy:
+
+| kolizja | było | jest |
+|---|---|---|
+| zdrowie „Na dobrej drodze" vs status „Wdrożone" | ta sama `emerald` | zdrowie NEUTRALNE; zieleń wyłącznie dla domknięcia sukcesem |
+| priorytet „Krytyczny" vs zdrowie „Zerwany" | ta sama czerwień `#e5484d` | priorytet BEZ barwy; kształt (słupki → trójkąt) + jasność |
+
+**Reguła: gdy na jednym ekranie stoją obok siebie trzy osie, tylko dwie mogą
+mówić kolorem — trzecia bierze kształt.** Barwy, po które taka ikona sięga
+naturalnie, są już zajęte: czerwień to awaria i akcja niszcząca, pomarańcz to
+stopień rampy pilności, zieleń to domknięcie sukcesem.
+
+**Zdrowie odzywa się kolorem tylko wtedy, gdy jest źle** (decyzja właściciela
+2026-07-31). Brak alarmu JEST informacją — tak samo działa Linear. Kanban
+zresztą już tak działał: kropka zdrowia gasła do 40 % krycia, dopóki projekt
+nie był zagrożony, czyli sam kod uznawał zieleń za szum. Tylko pigułka o tym
+nie wiedziała. Jedno źródło: `PROJECT_HEALTH_CLASS` / `PROJECT_HEALTH_TEXT` /
+`isProjectHealthAlarming` w `lib/projects.ts` — do tej poprawki panel miał tę
+mapę wpisaną z palca **dwa razy**, obie z hexami spoza palety marki.
+
+## Moduł 60, sesja 2 — kafel gestu niesie ZNACZENIE, nie markę (2026-07-31)
+
+Sześć kafli `swipeActions` w czterech modułach apki miało `.tint(.brandPurple)`
+— kolor marki w miejscu, w którym kolor coś znaczy. Odkąd skala `Stan`
+przypisała fiolet do „u drugiej strony", w Projektach robiła się z tego realna
+kolizja: fioletowy kafel stopera stał na tej samej liście, co fioletowa kropka
+statusu „Testy / review".
+
+| kafel | znaczenie | kolor |
+|---|---|---|
+| Wyślij (Oferty, Umowy) | dokument idzie do drugiej strony | `Stan.uNich.kolor` (ta sama barwa, teraz ZADEKLAROWANA) |
+| Stoper (Projekty) | praca trwa | `Znaczenie.wToku` |
+| Archiwum (Notatnik) | idzie od siebie, zamknięte | `Stan.zamkniete.kolor` |
+
+Przy okazji ten sam stoper był **cyanowy na kaflu gestu i zielony w profilu**
+(`Znaczenie.sukces`) — zieleń znaczy „domknięte sukcesem", a uruchomienie
+pomiaru niczego nie domyka. **Czerwień na „stop" ZOSTAJE**: to ikonografia
+sterowania nagrywaniem, nie stan rekordu, i dopóki stoi na przycisku, a nie na
+pigułce, nie miesza się ze skalą.
+
+## Moduł 60, sesja 2 — pułapki układu, które widać dopiero na ekranie (2026-07-31)
+
+Dwie z osi czasu iPada, obie niewidoczne w kodzie i w kompilacji:
+
+1. **`ScrollView([.horizontal, .vertical])` CENTRUJE treść mniejszą od okna** —
+   inaczej niż zwykły, jednokierunkowy ScrollView, który trzyma ją przy górnej
+   krawędzi. Oś wisiała w połowie ekranu z ~500 pt pustki nad nagłówkiem
+   miesięcy, co przy ośmiu projektach czyta się jak niezaładowany ekran.
+   Lekarstwo: `.defaultScrollAnchor(.topLeading)`.
+2. **Pas rytmu jako DZIECKO ZStacka bierze udział w mierzeniu wiersza** —
+   `Rectangle()` bez rozmiaru rozpychał wiersze parzyste i odstępy pasm szły na
+   przemian 58 i 34 pt zamiast równych 46. Czyta się to jak przypadkowe
+   grupowanie projektów w pary, czyli odstęp niesie znaczenie, którego nie ma
+   (ta sama klasa co `items-start` z paczki Pulpit). Tło pasa idzie przez
+   `.background`, nie przez dziecko.
+
+**Dwa ostrzeżenia o suficie jedno nad drugim.** Sufity Projektów są różne
+(1000 na liście, 500 na osi czasu), więc oba paski potrafią stanąć razem.
+Wtedy drugi **nie powtarza wezwania** „czas na stronicowanie" — dwa złote paski
+kończące się tym samym zdaniem czytają się jak zacinająca się płyta i zabierają
+130 px nad wykresem. Drugi mówi to, czego nie mówi pierwszy: że ten widok jest
+ucięty mocniej, i o ile.
+
+## Moduł 60, sesja 2 — instrukcja też się rozjeżdża (2026-07-31)
+
+Paczka G odwróciła kierunki gestów w apce i **nie tknęła `lib/instrukcje.ts`**:
+cztery moduły dalej uczyły „w lewo — Obsłużone / Wyślij". To ten sam rozjazd,
+który Moduł 59 sprzątał w kodzie, tylko w tekście — i groźniejszy, bo
+instrukcja uczy ODRUCHU, a odruch zostaje po tym, jak ekran się zmienił.
+
+**Reguła: zmiana gestu, skrótu albo miejsca kontrolki = poprawka w
+`lib/instrukcje.ts` w tym samym commicie.** `npx tsc` tego nie złapie, bo to
+poprawny string; złapie to wyłącznie ktoś, kto czyta instrukcję obok ekranu.
+
+## Rabat MUSI być w każdej sumie pozycji (2026-07-31)
+
+Ta sama literówka wyszła w tym projekcie **dwa razy w jeden dzień**:
+`SUM(ilosc * cena_netto)` bez `(1 - rabat_procent / 100)`. Sesja 1 audytu
+Projektów znalazła ją w rentowności projektu i w profilu klienta; rekonesans
+przed modułem Faktur znalazł **pięć kolejnych miejsc** — Pulpit (netto, VAT
+i brutto naraz), Statystyki, poranny mail i ścieżka dokumentów ×3.
+
+**Formuła obowiązująca** (wzorzec: `app/api/invoices/route.ts`):
+
+```sql
+SUM(ilosc * cena_netto * (1 - rabat_procent / 100)) AS netto
+SUM(ilosc * cena_netto * (1 - rabat_procent / 100)
+    * (1 + CASE WHEN vat_stawka ~ '^[0-9]+$' THEN vat_stawka::numeric / 100 ELSE 0 END)) AS brutto
+```
+
+Kontrola, która wyłapuje wszystkie odstępstwa naraz — **zero trafień znaczy
+zdrowo**:
+
+```bash
+grep -rn "ilosc \* cena_netto" app lib | grep -v "rabat_procent"
+```
+
+**Dlaczego to jest groźniejsze niż wygląda:** `tsc` nie sprawdza SQL-a, UI nie
+pokazuje błędu, a wynik jest liczbą wiarygodną co do rzędu wielkości. Rabat
+gubiony na Pulpicie nie zapalił żadnej lampki przez cały czas swojego
+istnienia. Trzy wskaźniki potrafi zawyżyć jedna literówka (przychód → zysk →
+efektywna stawka godzinowa) i żaden nie wygląda na zepsuty.
+
+### Test różnicowy — jak to mierzyć
+
+Nie czytaniem kodu i nie porównaniem z „oczekiwaną" liczbą wyliczoną w głowie,
+tylko **różnicą całych odpowiedzi**: ustaw rabat 50 %, zapisz JSON trasy,
+wyzeruj rabat, zapisz ponownie, porównaj rekurencyjnie pole po polu.
+
+Interpretacja wyniku ma **dwa** odczytania i oba są cenne:
+
+- **są różnice** → rabat wchodzi, poprawka działa;
+- **nie ma różnic** → albo rabat nie wchodzi, albo **to pole nikogo nie
+  obchodzi**. Tą drogą wyszło, że kolumna `brutto` w `app/api/stats/route.ts`
+  jest liczona i **nigdzie nieużywana** — poprawka jest tam poprawna, ale bez
+  efektu. Zostawione do audytu Statystyk z pytaniem, czy ten moduł nie miał
+  pokazywać przychodu, którego nie pokazuje.
+
+### Pułapki przy stawianiu takiej sondy
+
+- `POST /api/invoices/:id/items` **nie przyjmuje `rabat_procent`** (zapisuje 0)
+  — rabat ustawia się dopiero `PATCH`-em. Pierwsze podejście do tej sondy
+  w sesji 1 dało z tego powodu fałszywy wynik.
+- Faktura **bez `data_wystawienia` nie wchodzi do KPI Pulpitu**, więc test
+  różnicowy pokazuje 0 różnic z zupełnie innego powodu.
+- Przypomnienie o zaległej fakturze wymaga `klient_email != ''`.
+- Mail w dev **nie wychodzi** (`lib/email.ts` bez `RESEND_API_KEY` tylko loguje
+  treść) — i właśnie ten log jest dowodem na kwotę w wezwaniu.

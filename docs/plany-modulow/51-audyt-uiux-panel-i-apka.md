@@ -543,7 +543,142 @@ się gubią. Złapane sondą przy tej właśnie poprawce rabatu; `tsc` tego nie 
 a trasa zwraca pustą odpowiedź bez błędu w UI. Wewnątrz zapytań tylko komentarze
 blokowe, uzasadnienia nad zapytaniem.
 
-## Następny w kolejce: PROJEKTY — sesja 2, wygląd (2026-07-31)
+## Stan po module „Projekty" — sesja 2, wygląd (2026-07-31)
+
+Trzy pola ⚠️ z inwentarza Modułu 59 (kolor, nawigacja, treść) plus cała lista
+kontrolna na trzech platformach. Pełny zapis wzorców: `HUB_SETUP.md` → „Moduł 60,
+sesja 2". Wiersz „Projekty" w tabeli `59-spojnosc-ui.md` wypełniony, z dwoma
+przypisami, żeby ✅ nie znaczyło więcej, niż znaczy.
+
+**Ten sam rozjazd koloru wrócił po raz DRUGI — i to jest najważniejsze
+znalezisko tej sesji.** Audyt z 2026-07-20 zastał status „W trakcie" w trzech
+barwach naraz (pigułka, oś czasu, kanban), właściciel wybrał pigułki jako
+obowiązujące, a pozostałe mapy **przepisano ręcznie** do tej samej wartości.
+Osiem dni później Moduł 59 (D+) przeniósł pigułki na wspólną skalę `Stan`
+i zabrał „Testy / review" pomarańcz — a mapa hex, mapa ikon kanbanu i apka
+zostały z pomarańczem, bo nic ich do pigułek nie WIĄZAŁO poza komentarzem
+„kolory zgodne z pigułkami". Komentarz przetrwał, zgodność nie.
+
+| „Testy / review" | przed | po |
+|---|---|---|
+| pigułka panelu | fiolet (`uNich`) | fiolet |
+| pasek osi czasu (`PROJECT_STATUS_HEX`) | **pomarańcz `#f97316`** | fiolet |
+| ikona kanbanu (`STATUS_ICON`) | **pomarańcz `orange-400`** | fiolet |
+| apka (`ProjektStatus.kolor`) | **`.markaPomarancz`** | fiolet |
+
+Stawka nie była estetyczna: **pomarańcz znaczy od Modułu 59 „po terminie"**,
+więc projekt w testach u klienta wyglądał jak projekt spóźniony. Wszystkie
+cztery formy wyliczają się teraz z jednego słownika (`PROJECT_STAN` →
+`mapaStanow`/`mapaKropek`/`mapaTekstow`/`mapaHexow`, w apce `ProjektStatus.stan`).
+**Ręczne przepisanie map do jednej wartości nie naprawia rozjazdu — odracza go
+do najbliższej zmiany.**
+
+**Trzy osie na jednej karcie używały dwóch barw.** Zdrowie „Na dobrej drodze"
+brało tę samą zieleń, co status „Wdrożone", a priorytet „Krytyczny" tę samą
+czerwień, co zdrowie „Zerwany" — wszystko widoczne jednocześnie na jednym
+wierszu kanbanu. Decyzje właściciela: zdrowie odzywa się kolorem **tylko gdy
+jest źle** (zieleń zostaje wyłącznie dla domknięcia sukcesem), priorytet idzie
+**bez barwy** — niosą go kształt (słupki → trójkąt) i jasność. Kanban zresztą
+już tak działał: kropka zdrowia gasła do 40 %, dopóki projekt nie był zagrożony,
+czyli sam kod uznawał zieleń za szum — tylko pigułka o tym nie wiedziała.
+
+**Siedem map na trzy właściwości.** Poza czterema mapami statusu były jeszcze
+trzy mapy zdrowia (`lib/projects.ts` + dwie lokalne kopie z wpisanymi hexami
+spoza palety marki) i **dwie kopie priorytetu** — oś czasu miała własnego
+„Krytycznego" jako pomarańczowy kwadrat z „!", kanban jako czerwony trójkąt.
+Ten sam projekt wyglądał inaczej w dwóch widokach tego samego modułu.
+
+**Kafel gestu w apce brał kolor MARKI zamiast koloru znaczenia** — 6 miejsc
+w 4 modułach (`Wyślij` w Ofertach i Umowach, `Archiwum` w Notatniku, `Stoper`
+w Projektach ×2). W Projektach to była już realna kolizja: fioletowy kafel
+stopera stał na tej samej liście, co fioletowa kropka „Testy / review".
+Poprawione razem (zasada 1 dokumentu 59): stoper = `wToku`, wysyłka = `uNich`,
+archiwum = `zamkniete`. Przy okazji ten sam stoper był **cyanowy na liście
+i zielony w profilu** — zieleń znaczy „domknięte sukcesem", a uruchomienie
+pomiaru niczego nie domyka.
+
+**Instrukcje w panelu uczyły odwrotnego gestu niż apka.** Paczka G (31.07)
+odwróciła kierunki w kodzie i nie tknęła `lib/instrukcje.ts`: cztery moduły
+dalej pisały „w lewo — Obsłużone / Wyślij". To ten sam rozjazd, który Moduł 59
+sprzątał, tylko w tekście zamiast w kodzie — i groźniejszy, bo instrukcja uczy
+odruchu. Poprawione we wszystkich czterech. **Projekty dopisane do instrukcji**
+(szósty moduł).
+
+**Oś czasu na iPadzie — dwie usterki układu, obie widoczne dopiero na ekranie:**
+
+| co | dlaczego |
+|---|---|
+| oś wisiała w POŁOWIE ekranu, ~500 pt pustki nad nagłówkiem | `ScrollView([.horizontal, .vertical])` **centruje** treść mniejszą od okna, inaczej niż zwykły, jednokierunkowy ScrollView. Przy ośmiu projektach czyta się to jak niezaładowany ekran. `.defaultScrollAnchor(.topLeading)` |
+| odstępy pasm szły na przemian 58 i 34 pt zamiast równych 46 | pas rytmu był DZIECKIEM ZStacka, więc `Rectangle()` bez rozmiaru brał udział w mierzeniu wiersza. Poszedł na `.background` |
+
+Drugie czyta się jak przypadkowe grupowanie projektów w pary — czyli rozmiar
+i odstęp niosły znaczenie, którego nie ma (ta sama klasa co `items-start`
+z paczki Pulpit).
+
+**Sekcja „Dokumenty" z sesji 1 przeszła listę kontrolną i miała trzy braki:**
+przycisk „Wystaw fakturę" stał także pod komunikatem „projekt bez klienta
+dokumentów nie potrzebuje" (ekran przeczył sam sobie, a kliknięcie zakładało
+fakturę z pustym nabywcą — migawkę trasa kopiuje z karty klienta); faktury nie
+pokazywały KWOTY, choć „kwoty zawsze z walutą" jest punktem listy, a to jedyne
+pytanie, po które się tu zagląda po zamknięciu projektu; pusty stan nie mówił,
+co zrobić. Kwota liczy się tą samą formułą co lista Faktur — **z rabatem**
+(sprawdzone: 1000 zł netto, rabat 50 %, VAT 23 % → 615 zł).
+
+**Zakładki profilu** wzięły słownictwo apki (paczka E): „Onboarding" →
+**„Wdrożenie"**, „Zamknięcie i opinia" → **„Opinia klienta"**, „Log aktywności"
+→ **„Dziennik"**. Kolejność zgadzała się już wcześniej. Dwa wyjątki świadome:
+„Podgląd" nie ma odpowiednika w apce (tam te sekcje leżą po prostu na górze
+przewijania), a „Czas pracy i rentowność" mieści DWIE sekcje apki — skrócenie
+do jednego słowa schowałoby drugą.
+
+**Dwa złote paski sufitu nad sobą** (sufity są różne: 1000 i 500) nie wyglądały
+jak awaria — złoto, nie czerwień — ale **oba kończyły się tym samym wezwaniem**
+„czas na stronicowanie" i zabierały 130 px nad wykresem. Drugi mówi teraz tylko
+to, czego nie mówi pierwszy: że oś czasu jest ucięta mocniej, i o ile.
+
+**Puste stany** „Zależy od" i „Zasoby" pokazywały sam przycisk „+ Dodaj…",
+czyli nie odróżniały „nic tu nie wpisano" od „ta rzecz nie dotyczy tego
+projektu" (ustalenie A1). Oba dostały zdanie mówiące, CO TO ZMIENIA — w panelu
+i w apce, tym samym tekstem. Klikalność: tytuł projektu-poprzednika w „Zależy
+od" był jedynym widocznym powiązaniem w profilu, którego nie dało się otworzyć.
+
+**Sprawdzone i zdrowe bez zmian:** gest w prawo na projekcie = Stoper (poprawny
+kierunek), brak gestu w lewo (projekt nie ma akcji „od siebie" — brak gestu
+jest tu właściwą odpowiedzią, nie luką), ruch wyłącznie przez `SPRING`
+(zero liczb z palca, zero `transition` bez `ease`), filtry i wybrany widok
+przeżywają powrót (`localStorage`), klient i faktura w profilu prowadzą do
+rekordu, kolory osi czasu panel ↔ iPad zgodne co do wartości.
+
+**Świadomie zostawione, z powodem:** czerwień na przycisku „stop" stopera —
+to ikonografia sterowania nagrywaniem (ten sam znak, co w każdym dyktafonie),
+a nie stan rekordu, i dopóki stoi na przycisku, a nie na pigułce, nie miesza
+się ze skalą. Do rozstrzygnięcia, jeśli właściciel uzna inaczej.
+
+**Poza zakresem sesji, naprawione na wyraźną prośbę właściciela: rabat nie
+wchodził do sum w PIĘCIU dalszych miejscach.** Sesja 1 naprawiła tę literówkę
+w rentowności projektu i w profilu klienta; przy pisaniu promptu do Faktur
+okazało się, że `SUM(ilosc * cena_netto)` bez `(1 - rabat_procent / 100)`
+siedzi jeszcze w **Pulpicie** (netto, VAT i brutto naraz), **Statystykach**,
+**porannym mailu** i **ścieżce dokumentów** (trzy zapytania). Po poprawce zero
+wystąpień w repo. Dowody na żywo, każdy inną drogą:
+
+| trasa | pomiar | wynik |
+|---|---|---|
+| `hub/today` | `revenueThisMonth`, rabat 50 % vs 0 % | 19 065 vs 19 680 — różnica dokładnie 615 zł |
+| `sciezka` ×3 | kwota węzła faktury | 500 vs 1000 |
+| `leads/notify` | treść wezwania w logu serwera | 1230,00 zł (2 × 615), bez rabatu 2460 |
+| `stats` | brak różnicy | kolumna `brutto` jest **martwa** — liczona i nieużywana |
+
+Metoda warta zapamiętania: **test różnicowy na całej odpowiedzi JSON** —
+ustaw rabat, zmierz, wyzeruj, zmierz, porównaj rekurencyjnie. Zero różnic
+znaczy albo „rabat nie wchodzi", albo „to pole nikogo nie obchodzi"; jedno
+i drugie warto wiedzieć, a bez tego testu drugie przeszłoby niezauważone.
+
+**Nie dołożone bez pytania:** sekcja „Dokumenty" w apce (panel ma ją od sesji 1;
+podgląd umowy i faktur mieści się w poziomie 1, ale to nowa sekcja — pytanie
+do właściciela), cykle i przeciąganie pasm na iPadzie.
+
+## Poprzedni stan: PROJEKTY — sesja 2 jako następna w kolejce (2026-07-31)
 
 > Sesja 1 (fundament) jest **WYKONANA** — patrz sekcja wyżej. Zostaje sesja 2.
 
