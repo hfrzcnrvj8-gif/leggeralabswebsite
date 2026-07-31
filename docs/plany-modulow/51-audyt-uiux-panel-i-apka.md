@@ -445,8 +445,19 @@ integracje z CRM-ami korporacyjnymi, „AI review klauzul".
 ## Następny moduł w kolejce: PROJEKTY (2026-07-31)
 
 Po Umowach (etap 7 lejka) idą etapy 8–10: Onboarding → Kickoff/kamienie →
-Realizacja, czyli moduł **Projekty**. Gotowy brief do wklejenia w nowym
-czacie: **`PROMPT-60-PROJEKTY.md`**.
+Realizacja, czyli moduł **Projekty**.
+
+**Rozbity na DWIE sesje, każda w osobnym czacie** (decyzja właściciela
+2026-07-31) — moduł ma 28 uchwytów HTTP w 21 plikach, najwięcej ze wszystkich
+audytowanych dotąd, i nie mieści się w jednym czacie bez utraty jakości:
+
+| sesja | plik | zakres |
+|---|---|---|
+| 1/2 | `PROMPT-60A-PROJEKTY-FUNDAMENT.md` | integralność (sonda po 28 uchwytach), sufity, parytet panel ↔ apka, domknięcie lejka, poprawność danych i czasu |
+| 2/2 | `PROMPT-60B-PROJEKTY-WYGLAD.md` | trzy pola ⚠️ z inwentarza Modułu 59, cała lista kontrolna na trzech platformach, widoki, gesty, ruch |
+
+Kolejność ma znaczenie: sesja 2 zaczyna od wyniku sesji 1, a sesja 1 kończy
+aktualizacją briefu sesji 2. Drogowskaz: `PROMPT-60-PROJEKTY.md`.
 
 Między Umowami a Projektami wszedł **Moduł 59 — przegląd spójności**, który
 objął wszystkie moduły naraz (klawiatura, puste stany, wiersze profilu,
@@ -455,11 +466,15 @@ bez osobnego audytu — prompt wymienia co dokładnie, żeby nie robić tego
 drugi raz. Inwentarz Modułu 59 zostawił Projektom trzy pola ⚠️: **kolor,
 nawigacja, treść**.
 
-Konkret znaleziony przy pisaniu promptu, do naprawienia w tym module:
-`PATCH /api/projects/:id` zapisuje `status`, `priorytet` i `zdrowie` **bez
-walidacji słownikiem** — `PROJECT_STATUSES` istnieje w `lib/projects.ts`,
-ale żadna trasa go nie importuje. Ta sama dziura, którą paczka A zamknęła
-w Leadach i Fakturach.
+Dwa konkrety znalezione przy pisaniu promptów, do naprawienia w sesji 1:
+
+1. `PATCH /api/projects/:id` zapisuje `status`, `priorytet` i `zdrowie` **bez
+   walidacji słownikiem** — `PROJECT_STATUSES` istnieje w `lib/projects.ts:260`,
+   ale żadna trasa w `app/api` go nie importuje. Ta sama dziura, którą paczka A
+   zamknęła w Leadach i Fakturach.
+2. `POST /api/projects/review/public/:token/submit` **nie ma hamulca**
+   (`lib/rateLimit.ts`), choć publiczne trasy ofert i umów już go mają.
+   Unieważnianie linków (Moduł 40) obejmuje `project` i jest w porządku.
 
 ## Poprzedni stan: następny moduł w kolejce (Leady — WYKONANE)
 
