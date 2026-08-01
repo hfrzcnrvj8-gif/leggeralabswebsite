@@ -78,7 +78,9 @@ export function MailComposeForm({
   const [podpis, setPodpis] = useState<SignatureLang | null>("pl");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [justSent, setJustSent] = useState(false);
-  const { countdown, start, cancel, sending, submitting } = useUndoSend();
+  const { countdown, start, cancel, sending, submitting } = useUndoSend(undefined, () =>
+    toast("Wiadomość NIE została wysłana — zamknięcie okna w trakcie odliczania przerywa wysyłkę.", "error")
+  );
 
   /** Zaproszenie i odwołanie zachowują się identycznie wszędzie poza
    * napisami — różni je wyłącznie wartość METHOD po stronie serwera. */
@@ -186,6 +188,14 @@ export function MailComposeForm({
         const data = await res.json().catch(() => null);
         if (!res.ok) {
           toast(data?.error || "Nie udało się wysłać wiadomości.", "error");
+          // Bezpiecznik podwójnej wysyłki (Moduł 65): ta wiadomość już
+          // poleciała. Zamykamy okno mimo błędu — zostawione otwarte
+          // z gotową treścią prosi o trzecią próbę tam, gdzie trzeba
+          // przestać. Komunikat z serwera został pokazany wyżej.
+          if (data?.juz_wyslana) {
+            await onSent();
+            onClose();
+          }
           return;
         }
         await onSent();

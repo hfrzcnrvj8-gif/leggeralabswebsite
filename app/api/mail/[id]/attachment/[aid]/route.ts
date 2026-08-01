@@ -88,13 +88,28 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const pobrane = await downloadAttachmentPart(imapPath, att.uid, att.part_id);
-  if (!pobrane) {
+
+  // Dwa RÓŻNE niepowodzenia, dwa różne komunikaty (Moduł 65). Do tej pory oba
+  // dostawały jedno zdanie o skasowanej wiadomości — czyli chwilowy brak
+  // połączenia mówił właścicielowi, że plik przepadł, i zachęcał do skasowania
+  // maila, który był w porządku. Wzorzec `maPrzelicznik()` z Modułu 63: stan
+  // nieustalony ma własną nazwę i własne wyjście.
+  if (pobrane.stan === "nie-wiem") {
     return NextResponse.json(
       {
         error:
-          "Nie udało się pobrać załącznika ze skrzynki. Załączniki nie są przechowywane w panelu — jeśli wiadomość została usunięta z serwera pocztowego, pliku już nie ma.",
+          "Nie udało się połączyć ze skrzynką pocztową, więc nie wiadomo, czy ten plik jeszcze na niej jest. Spróbuj za chwilę — NIE kasuj tej wiadomości, dopóki połączenie nie wróci.",
       },
-      { status: 502 }
+      { status: 503 }
+    );
+  }
+  if (pobrane.stan === "nie-ma") {
+    return NextResponse.json(
+      {
+        error:
+          "Tego załącznika nie ma już na serwerze pocztowym — wiadomość została z niego usunięta. Panel przechowuje tylko opis pliku, nie jego treść, więc tej kopii nie da się odzyskać.",
+      },
+      { status: 410 }
     );
   }
 

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { IconX, IconClock, IconCheck, IconAlertTriangle } from "@tabler/icons-react";
 import { useUI } from "../ui";
+import { StanPusty } from "../StanPusty";
 import { formatPlDateTime } from "./shared";
 
 type OutboxRow = {
@@ -76,7 +77,16 @@ export function ScheduledView() {
 
   if (queue === null) return <p className="p-8 text-center text-sm text-muted opacity-60">Wczytuję…</p>;
   if (queue.length === 0) {
-    return <p className="p-8 text-center text-sm text-muted opacity-60">Nic nie czeka w kolejce.</p>;
+    // Bez `opacity-60` (Moduł 65): przygaszony `text-muted` ma zmierzone
+    // 2,84:1 wobec tła karty, a to jedyna treść na tym ekranie.
+    return (
+      <StanPusty
+        ikona={IconClock}
+        gesty
+        tytul="Nic nie czeka w kolejce"
+        opis="Wiadomość odłożona na później pojawi się tutaj razem z godziną, o której najwcześniej poleci."
+      />
+    );
   }
 
   return (

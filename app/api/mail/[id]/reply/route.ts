@@ -6,6 +6,7 @@ import { buildReferences, mailSummaryLine, parseAddressList, replySubject, textT
 import { appendToSent, fetchSignatureImages, isMailboxConfigured, sendMail } from "@/lib/mailbox";
 import { logMailOnTimeline } from "@/lib/mailSync";
 import { signatureHtml, signatureText } from "@/lib/mailSignature";
+import { odciskWysylki, otworzBramke, zamknijBramke, komunikatBramki } from "@/lib/mailGuard";
 import { getBookingUrl } from "@/lib/site";
 import { i18n, type Locale } from "@/i18n/config";
 
@@ -68,6 +69,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const fullHtml = podpis ? `${textToHtml(text)}<br />${signatureHtml(podpis, bookingUrl)}` : undefined;
   const inlineImages = podpis ? await fetchSignatureImages() : [];
 
+  // Bezpiecznik podwójnej wysyłki (Moduł 65) — PRZED sendMail, bo po nim jest
+  // już za późno. Ta trasa jest najbardziej narażona z całej trójki: apka miała
+  // na nią 20 s przy `maxDuration = 60`, więc zerwane żądanie przy działającej
+  // wysyłce było tu scenariuszem domyślnym, nie skrajnym.
+  const odcisk = odciskWysylki({ sciezka: `reply:${id}`, to: [original.from_addr], cc, subject, text });
+  const bramka = await otworzBramke(odcisk);
+  if (!bramka.wolne) {
+    return NextResponse.json(
+      { error: komunikatBramki(bramka), juz_wyslana: bramka.powod === "wyslana", id: bramka.powod === "wyslana" ? bramka.mailId : null },
+      { status: 409 }
+    );
+  }
+
   let sent: { messageId: string; raw: string };
   try {
     sent = await sendMail({
@@ -82,12 +96,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   } catch (e) {
     console.error("[POST /api/mail/[id]/reply] wysyłka nie powiodła się", e);
+    // Bramka zwolniona: mail NIE poleciał, więc ponowienie jest uprawnione.
+    await zamknijBramke(odcisk, false).catch(() => {});
     const message = e instanceof Error ? e.message : "Nieznany błąd wysyłki.";
     return NextResponse.json({ error: `Nie udało się wysłać odpowiedzi: ${message}` }, { status: 502 });
   }
 
   // Od tego miejsca mail JUŻ poleciał — żaden błąd nie może zwrócić 5xx.
   const warnings: string[] = [];
+
+  const replyId = randomUUID();
+  // Bramka zamykana NATYCHMIAST po SMTP, przed zapisami pobocznymi: gdyby
+  // czekała na koniec trasy, ponowienie w trakcie APPEND-u zobaczyłoby stan
+  // 'wysylam' i dostało „poczekaj" — mylące, ale nieszkodliwe; gorzej, gdyby
+  // wyjątek niżej zostawił bramkę otwartą i wpuścił drugą wysyłkę.
+  await zamknijBramke(odcisk, true, replyId).catch((e) =>
+    console.error("[POST /api/mail/[id]/reply] nie udało się zamknąć bramki", e)
+  );
 
   const appended = await appendToSent(sent.raw).catch((e) => {
     console.error("[POST /api/mail/[id]/reply] APPEND do Sent nie powiódł się", e);
@@ -97,7 +122,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     warnings.push("Odpowiedź wysłana, ale nie udało się dopisać kopii do folderu Sent — w Outlooku może jej nie być w „Wysłanych”.");
   }
 
-  const replyId = randomUUID();
   try {
     // thread_id: rodzic już go ma (albo, dla wiadomości sprzed migracji
     // wątkowania, jeszcze nie doczekał się backfillu) — nie trzeba całego

@@ -10662,3 +10662,66 @@ nie mówi nic.
 `Tooltip` renderuje opakowanie z `display: contents`, które nie niesie koloru
 i dziedziczy `--fg`. Pomiar kontrastu przez pierwszy `<span>` w komórce zwrócił
 niemal biel tam, gdzie ekran był czerwony. **Mierz najgłębszy węzeł z tekstem.**
+
+## Moduł 65 — Poczta (2026-08-01)
+
+Pełny wynik i pomiary: `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md` →
+„Stan po module Poczta". Tu tylko wzorce, które od teraz obowiązują szerzej.
+
+### Bezpiecznik podwójnej wysyłki (`lib/mailGuard.ts`)
+
+**Idempotencja należy do SERWERA, bo tylko on wie, czy SMTP już zadziałał.**
+Blokada przycisku broni jednej karty przeglądarki — a droga do dwóch maili
+u klienta nie wiedzie przez szybkie dwa kliknięcia, tylko przez **zerwane
+żądanie**: telefon ma krótszy limit czasu niż trasa, więc pokazuje błąd tam,
+gdzie serwer widzi sukces.
+
+`odciskWysylki()` liczy skrót z (ścieżka + odbiorcy + temat + treść) —
+**świadomie bez znacznika czasu i bez identyfikatora karty**, bo inaczej
+ponowienie miałoby inny odcisk niż pierwsza próba i bezpiecznik nie zadziałałby
+w jedynym przypadku, dla którego istnieje. Okno 10 minut. Nieudana wysyłka
+ZWALNIA bramkę (mail nie poleciał → ponowienie jest uprawnione). Wpięty
+w `reply`, `compose`, `forward`; kolejka odłożona ma własną ochronę
+(`UPDATE … FOR UPDATE SKIP LOCKED`).
+
+**Dokładając nową ścieżkę wysyłki — wepnij bramkę przed `sendMail()`
+i zamknij ją NATYCHMIAST po nim**, przed zapisami pobocznymi.
+
+### Stan nieustalony ma własną nazwę — także w warstwie IMAP
+
+`downloadAttachmentPart()` zwraca trzy stany (`jest` / `nie-ma` / `nie-wiem`),
+nie `Buffer | null`. Podział przebiega po tym, KTO zawiódł: spokojna odpowiedź
+serwera bez treści to „nie ma", a wyjątek z połączenia to „nie wiem".
+Wcześniej jedno `null` na oba przypadki znaczyło, że **chwilowa awaria sieci
+mówiła właścicielowi, że plik przepadł na dobre** — i zachęcała do skasowania
+maila, który był w porządku. To ten sam wzorzec, co `maPrzelicznik()`
+w Kosztach.
+
+### Odliczanie „Cofnij wysyłkę" — 10 s w OBU miejscach
+
+`UNDO_SEND_DELAY_MS` (panel) i `SEKUND_NA_COFNIECIE` (apka,
+`EdytorWiadomosciView.swift`) muszą trzymać tę samą liczbę: właściciel używa
+obu tego samego dnia, a dwie różne wartości znaczą, że to samo działanie
+zachowuje się inaczej zależnie od urządzenia.
+
+Przerwanie odliczania **wyjściem** (zamknięcie karty, zamknięcie okna) nie
+wysyła maila — i to zostaje. Ale musi to **powiedzieć**: `useUndoSend()`
+przyjmuje `onPorzucone`, a karta pyta przez `beforeunload`. Cichy brak wysyłki
+przy ekranie piszącym „Wysyłam za 5s…" był tym samym błędem, co `{"ok":true}`
+na śmieciu.
+
+### Treść od modelu musi być WIDOCZNIE od modelu
+
+Reguła „model proponuje, właściciel zatwierdza" nie wystarczy jako prawda
+w kodzie — musi być widoczna na ekranie **w chwili, w której właściciel patrzy
+na tekst**. Tooltip przycisku nie liczy się: po kliknięciu już go nie widać.
+Wzorzec: pasek nad polem („To propozycja modelu… przeczytaj i popraw"),
+znikający przy pierwszej zmianie tekstu. Tak robi szkic notatki (Moduł 50)
+i od teraz szkic odpowiedzi.
+
+### Pusty stan: „nic nie pasuje do filtra" ≠ „nic nie ma"
+
+Poczta była ostatnim modułem bez `StanListy`. Kosztowało to zdanie „Nic —
+wszystko obsłużone" wyświetlane przy sześciu wiadomościach odsianych filtrem
+kategorii. **`opacity-60` na tekście pustego stanu jest zakazane** — zmierzone
+2,84:1 wobec tła karty, przy progu AA 4,5. To zwykle jedyna treść na ekranie.

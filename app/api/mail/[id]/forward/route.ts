@@ -19,6 +19,7 @@ import { appendToSent, fetchSignatureImages, isMailboxConfigured, sendMail } fro
 import { logMailOnTimeline } from "@/lib/mailSync";
 import { sanitizeMailHtml } from "@/lib/mailHtml";
 import { signatureHtml, signatureText } from "@/lib/mailSignature";
+import { odciskWysylki, otworzBramke, zamknijBramke, komunikatBramki } from "@/lib/mailGuard";
 import { getBookingUrl } from "@/lib/site";
 import { i18n, type Locale } from "@/i18n/config";
 
@@ -118,11 +119,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const fullHtml = `${commentHtml}${podpis ? `${signatureHtml(podpis, bookingUrl)}<br />` : ""}${forwardHtml(originalMeta, sanitizedOriginal)}`;
   const inlineImages = podpis ? await fetchSignatureImages() : [];
 
+  // Bezpiecznik podwójnej wysyłki (Moduł 65) — patrz lib/mailGuard.ts.
+  // W odcisku sam KOMENTARZ właściciela, nie sklejona treść z cytatem:
+  // cytat jest identyczny przy każdej próbie, więc niczego nie rozróżnia,
+  // a `sciezka` niesie już id przekazywanej wiadomości.
+  const odcisk = odciskWysylki({ sciezka: `forward:${id}`, to, cc, bcc, subject, text: commentText });
+  const bramka = await otworzBramke(odcisk);
+  if (!bramka.wolne) {
+    return NextResponse.json(
+      { error: komunikatBramki(bramka), juz_wyslana: bramka.powod === "wyslana", id: bramka.powod === "wyslana" ? bramka.mailId : null },
+      { status: 409 }
+    );
+  }
+
   let sent: { messageId: string; raw: string };
   try {
     sent = await sendMail({ to, cc, bcc, subject, text: fullText, html: fullHtml, inlineImages, attachments });
   } catch (e) {
     console.error("[POST /api/mail/[id]/forward] wysyłka nie powiodła się", e);
+    await zamknijBramke(odcisk, false).catch(() => {});
     const message = e instanceof Error ? e.message : "Nieznany błąd wysyłki.";
     return NextResponse.json({ error: `Nie udało się przekazać wiadomości: ${message}` }, { status: 502 });
   }
@@ -139,6 +154,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const mailId = randomUUID();
+  await zamknijBramke(odcisk, true, mailId).catch((e) =>
+    console.error("[POST /api/mail/[id]/forward] nie udało się zamknąć bramki", e)
+  );
+
   try {
     // Dopasowanie po PIERWSZYM adresie "Do" — patrz komentarz w
     // app/api/mail/compose/route.ts, ten sam wzorzec.

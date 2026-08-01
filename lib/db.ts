@@ -2784,6 +2784,48 @@ async function createMailOutboxSchema(): Promise<void> {
 /** Lazily tworzy tabelę kolejki wysyłki odłożonej (Faza 8). */
 export const ensureMailOutboxSchema: () => Promise<void> = razNaInstancje(createMailOutboxSchema);
 
+/** Moduł 65 (Poczta) — bezpiecznik podwójnej wysyłki.
+ *
+ * **Po co osobna tabela, skoro przycisk i tak się blokuje.** Blokada
+ * przycisku broni jednej karty przeglądarki, a nie tego, co się naprawdę
+ * zdarza: telefon zrywa żądanie po swoim limicie czasu (audyt Modułu 65:
+ * „Odpisz" w apce miał 20 s przy trasie o `maxDuration = 60`), pokazuje błąd,
+ * a serwer w tym czasie spokojnie kończy wysyłkę. Właściciel widzi „nie
+ * poszło", klika drugi raz — i klient dostaje dwa maile. Idempotencja należy
+ * do SERWERA, bo tylko on wie, czy SMTP już zadziałał.
+ *
+ * `odcisk` to skrót z (trasa + odbiorcy + temat + treść) — patrz
+ * `odciskWysylki()` w lib/mailGuard.ts. Klucz główny, więc dwa równoległe
+ * żądania nie mogą obu wygrać `INSERT`-a: przegrany dostaje konflikt i pyta
+ * o stan zwycięzcy, zamiast wysyłać.
+ *
+ * Wierszy NIE kasujemy od razu po wysyłce — okno ochronne (`MAIL_GUARD_OKNO_MS`)
+ * musi przeżyć ponowienie. Sprzątanie robi ta sama funkcja przy okazji
+ * kolejnego zapisu; osobnego crona to nie warte. */
+async function createMailGuardSchema(): Promise<void> {
+  if (await schemaUpToDate("mail_send_guard")) return;
+  const sql = getSql();
+  await sql`
+    CREATE TABLE IF NOT EXISTS mail_send_guard (
+      odcisk TEXT PRIMARY KEY,
+      /* 'wysylam' = próba w locie (ktoś już to wysyła TERAZ),
+         'wyslany' = SMTP potwierdził, 'blad' = SMTP odmówił.
+         Tylko pierwsze dwa blokują ponowienie: po błędzie wysyłki
+         właściciel MA prawo spróbować jeszcze raz. */
+      stan TEXT NOT NULL DEFAULT 'wysylam',
+      /* Identyfikator wiadomości z pierwszej, udanej próby — ponowienie
+         dostaje go z powrotem, żeby UI mógł otworzyć to, co naprawdę
+         poleciało, zamiast twierdzić, że nic nie ma. */
+      mail_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  await markSchemaApplied("mail_send_guard");
+}
+
+/** Lazily tworzy tabelę bezpiecznika podwójnej wysyłki (Moduł 65). */
+export const ensureMailGuardSchema: () => Promise<void> = razNaInstancje(createMailGuardSchema);
+
 /** Moduł 4b, Etap 1 — szablony wiadomości (Superhuman Snippets). Ten sam
  * kształt co `offer_templates`: nazwa + gotowa treść do wstawienia, tu
  * dodatkowo `temat` (przydatny głównie przy "Nowa wiadomość" pisanej od

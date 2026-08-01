@@ -11,7 +11,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const UNDO_SEND_DELAY_MS = 10_000;
 
-export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS) {
+/**
+ * @param onPorzucone Wołane, gdy odliczanie przerwało WYJŚCIE (zamknięcie okna
+ *   pisania, przejście na inny ekran), a nie świadome „Cofnij". Wiadomość
+ *   wtedy NIE leci — i właśnie o tym trzeba powiedzieć.
+ *
+ *   **Dlaczego to jest osobna sprawa od `cancel()`** (pomiar Modułu 65,
+ *   decyzja właściciela 2026-08-01): zachowanie „zamknięcie karty w 5. sekundzie
+ *   = mail przepada" jest do obrony i zostaje, bo alternatywa — wysyłka w tle
+ *   po ruchu, który wygląda jak rezygnacja — jest gorsza. Nie do obrony było
+ *   to, że działo się w CISZY: ekran do ostatniej chwili pisał „Wysyłam za 5s…",
+ *   więc właściciel miał pełne prawo sądzić, że mail poszedł.
+ */
+export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS, onPorzucone?: () => void) {
   const [countdown, setCountdown] = useState<number | null>(null);
   // Faktyczna wysyłka w toku — od końca odliczania do rozstrzygnięcia się
   // action() (sukces LUB błąd). Odrębne od `sending` (=odliczanie), bo bez
@@ -22,6 +34,16 @@ export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS) {
   const timeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  /** Czy odliczanie trwa — w REFIE, nie w stanie: sprzątanie przy odmontowaniu
+   * czyta wartość z chwili odmontowania, a domknięcie po stanie miałoby tam
+   * wartość z ostatniego renderu. */
+  const odliczaRef = useRef(false);
+  /** Callback w refie, żeby efekt sprzątający nie przeładowywał się przy każdej
+   * nowej instancji funkcji od wołającego (a tym samym nie gubił odliczania). */
+  const onPorzuconeRef = useRef(onPorzucone);
+  useEffect(() => {
+    onPorzuconeRef.current = onPorzucone;
+  });
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -41,12 +63,16 @@ export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS) {
   const start = useCallback(
     (action: () => void | Promise<void>) => {
       clear();
+      odliczaRef.current = true;
       setCountdown(Math.ceil(delayMs / 1000));
       intervalRef.current = window.setInterval(() => {
         setCountdown((c) => (c !== null && c > 1 ? c - 1 : c));
       }, 1000);
       timeoutRef.current = window.setTimeout(() => {
         clear();
+        // Odliczanie się SKOŃCZYŁO — od tej chwili wysyłka leci i odmontowanie
+        // nie jest już „porzuceniem" (fetch dokończy się bez komponentu).
+        odliczaRef.current = false;
         setCountdown(null);
         setSubmitting(true);
         Promise.resolve()
@@ -62,13 +88,36 @@ export function useUndoSend(delayMs: number = UNDO_SEND_DELAY_MS) {
   const cancel = useCallback(() => {
     // Cancel ma sens TYLKO w trakcie odliczania — po starcie prawdziwej
     // wysyłki fetch już leci, nie ma czego anulować.
+    odliczaRef.current = false;
     clear();
     setCountdown(null);
   }, [clear]);
 
+  // Ostrzeżenie przeglądarki przy zamknięciu karty/przeładowaniu w trakcie
+  // odliczania. Systemowe okno „opuścić stronę?" jest jedynym sposobem, jaki
+  // strona ma na zatrzymanie tego ruchu — własnego dialogu przeglądarka tu nie
+  // pokaże. Wieszamy je TYLKO na czas odliczania, żeby zwykłe zamknięcie
+  // panelu niczego nie pytało.
+  useEffect(() => {
+    if (countdown === null) return;
+    const ostrzez = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", ostrzez);
+    return () => window.removeEventListener("beforeunload", ostrzez);
+  }, [countdown]);
+
   // Nawigacja w trakcie odliczania (zamknięcie modala) nie ma wysłać maila
-  // po cichu w tle.
-  useEffect(() => clear, [clear]);
+  // po cichu w tle — ale też nie ma go po cichu zgubić: `onPorzucone` mówi
+  // wprost, że wiadomość nie poleciała.
+  useEffect(
+    () => () => {
+      if (odliczaRef.current) {
+        odliczaRef.current = false;
+        onPorzuconeRef.current?.();
+      }
+      clear();
+    },
+    [clear]
+  );
 
   return { countdown, start, cancel, sending: countdown !== null, submitting };
 }

@@ -189,7 +189,7 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Katalog | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅ | ✅⁴ | ✅ |
 | Kalkulator | ✅ | — | — | ❌ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Koszty | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅ | ✅ | ✅ | ✅⁵ | ✅ |
-| Poczta | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Poczta | ✅ | ✅ | ✅ | ✅⁶ | ✅ | ✅⁶ | ✅ | ✅ | ✅⁶ | ✅ |
 | Kalendarz | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
 | Przypomnienia | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
@@ -222,6 +222,18 @@ się na niekorzyść. Co dokładnie zmierzono:
   fałszywy alarm — dokładnie ta pułapka, o której mówi lista kontrolna.
 - **Dotyk** (Leady): wiersz tabeli 73 px. „⚠️" z 28.07 dotyczyło celów poniżej
   44 px, których panel ma wszędzie tyle samo — patrz przypis ¹ przy Projektach.
+
+⁶ **Poczta przeszła pełną listę 2026-08-01** (Moduł 65) — wynik i pomiary
+w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Poczta". **Klawiatura ⚠️
+była nieaktualna** (paczka C podpięła `useSkrotyListy`, do tabeli nikt tego nie
+wpisał — piąty raz z rzędu). **Stany ⚠️ obowiązywały i to nie kosmetycznie**:
+pusty stan przy włączonej kategorii pisał „Nic — wszystko obsłużone", czyli
+twierdził, że skrzynka jest czysta, gdy sześć wiadomości czekało odsianych
+filtrem — i nie dawał drogi powrotnej. Cała ta informacja stała na
+`text-muted opacity-60`, zmierzone **2,84:1** (po zmianie 5,94 opis / 18,15
+tytuł). **Integralność** zmierzona sondą: 22/22 uchwytów z realną bramką 401,
+walidacja wejścia bez zarzutu — ale wysyłka dała się **wykonać dwa razy**
+zerwanym żądaniem (patrz `lib/mailGuard.ts`).
 
 ⁵ **Koszty przeszły pełną listę 2026-08-01** (Moduł 63) — wynik i pomiary
 w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Koszty". Jedyne ❌

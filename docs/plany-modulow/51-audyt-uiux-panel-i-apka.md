@@ -1236,3 +1236,160 @@ NAJGŁĘBSZY węzeł z tekstem, nie pierwszy `<span>`.
 - **Kurs wpisywany ręcznie, bez pobierania z NBP.** Automatyczne źródło kursów
   to osobny zakres (który dokument, z którego dnia, co przy weekendzie) —
   ta sama granica, którą Katalog postawił przy swojej walucie.
+
+---
+
+## Stan po module Poczta (2026-08-01, Moduł 65)
+
+**Ten moduł był w innym stanie niż cztery poprzednie — i brief to przewidział.**
+Projekty, Faktury, Katalog i Koszty miały za każdym razem tę samą rodzinę
+usterek: trasa bierze śmieć, po cichu podmienia go na wartość domyślną
+i odpowiada `{"ok":true}`. **W Poczcie tego wzorca nie ma.** Sonda potwierdziła
+to liczbami, a nie założeniem: 22/22 uchwytów HTTP z realną bramką `isAuthed()`,
+`PATCH` oddaje 400 z powodem na każdą z czterech podmian, `POST /schedule`
+odrzuca rok „0202" i termin w przeszłości, adres bez `@` nie przechodzi nigdzie.
+
+Realną pracą było co innego — i było go sporo, bo **ten moduł jako jedyny
+działa NA ZEWNĄTRZ firmy**. Zła liczba w koszcie jest poprawialna do końca roku
+podatkowego; mail wysłany do klienta nie jest poprawialny nigdy.
+
+### Co zmieniono
+
+**1. Wysyłkę dało się wykonać DWA RAZY — i to nie hipotetycznie.**
+`odpowiedzNaWiadomosc()` w apce szła zwykłą sesją (20 s na żądanie, 45 s na
+całość) na trasę o `maxDuration = 60`, która robi pełne SMTP + APPEND do
+folderu Wysłane. „Nowa wiadomość" i „Przekaż" dostały długą sesję (70 s) już
+wcześniej — **odpowiedź, czyli najczęściej używana ścieżka wysyłki, została
+pominięta**. Skutek jest najgorszy z możliwych: telefon pokazuje „nie udało
+się wysłać", serwer w tym czasie spokojnie wysyła, właściciel klika drugi raz
+i klient dostaje dwa maile. Naprawione z obu stron, zgodnie z decyzją
+właściciela:
+
+- apka: odpowiedź na `sesjaDluga`, limit 70 s — tak jak dwie pozostałe drogi;
+- serwer: **bezpiecznik odcisku** (`lib/mailGuard.ts` + tabela
+  `mail_send_guard`) wpięty w `reply`, `compose` i `forward`. Odcisk to skrót
+  z (ścieżka + odbiorcy + temat + treść), świadomie BEZ znacznika czasu — inaczej
+  ponowienie miałoby inny odcisk niż pierwsza próba i bezpiecznik nie
+  zadziałałby dokładnie w tym jednym przypadku, dla którego powstał. Powtórzenie
+  w oknie 10 minut dostaje 409 z dosłownym powodem; nieudana wysyłka **zwalnia**
+  bramkę, bo mail nie poleciał i ponowienie jest uprawnione.
+
+Idempotencja musiała trafić na serwer, nie na przycisk: blokada przycisku broni
+jednej karty przeglądarki, a tu przeciwnikiem jest zerwane żądanie.
+
+**2. „Cofnij wysyłkę" — panel miał, telefon nie.** Panel daje 10 sekund od
+2026-07-15; apka wysyłała natychmiast. Decyzja właściciela: **te same 10 sekund
+w obu miejscach** (nie 5, nie „zostawmy różnicę"). Z telefonu jest to warte
+więcej niż przy biurku — „Wyślij" stoi pod kciukiem i klika się w biegu.
+Zsunięcie arkusza w trakcie odliczania jest zablokowane; wyjście prowadzi przez
+jawne „Cofnij".
+
+**3. Zamknięcie okna w trakcie odliczania cicho gubiło maila.**
+`useUndoSend` kasuje timeout przy odmontowaniu — czyli zamknięcie karty w 5.
+sekundzie znaczy „nie wysłano", i **to zachowanie zostaje** (wysyłka w tle po
+ruchu, który wygląda jak rezygnacja, byłaby gorsza). Nie do obrony było to, że
+działo się w ciszy: ekran do ostatniej chwili pisał „Wysyłam za 5s…". Teraz
+karta pyta przed zamknięciem (`beforeunload`), a zamknięcie okna pisania daje
+komunikat wprost: „Wiadomość NIE została wysłana".
+
+**4. Załącznik: „nie ma" mówiło to samo, co „nie mogę sprawdzić".**
+`downloadAttachmentPart()` zwracała `null` i wtedy, gdy serwer odpowiedział
+„nie mam tej wiadomości", i wtedy, gdy w ogóle nie udało się połączyć —
+a trasa zamieniała jedno i drugie na zdanie o skasowanej wiadomości. Chwilowa
+awaria sieci twierdziła więc, że plik przepadł na dobre, i zachęcała do
+skasowania maila, który był w porządku. Teraz trzy stany zamiast dwóch
+(`jest` / `nie-ma` / `nie-wiem`), dwa różne komunikaty i dwa różne kody
+(410 vs 503), a przy „nie wiem" pada wprost: **NIE kasuj tej wiadomości,
+dopóki połączenie nie wróci**. To wzorzec `maPrzelicznik()` z Modułu 63
+przeniesiony jeden do jednego: stan nieustalony musi być NAZWANY.
+
+**5. Pusty stan kłamał i był nieczytelny.** Przy włączonej kategorii
+(„Rachunek", zero takich maili) lista pisała „Nic — wszystko obsłużone" —
+czyli twierdziła, że skrzynka jest czysta, gdy sześć wiadomości czekało
+odsianych filtrem. Bez drogi powrotnej. Do tego całość na `text-muted
+opacity-60`: **2,84:1** wobec tła karty, przy progu AA 4,5 — jedyna treść na
+ekranie, i akurat ona nieczytelna. Teraz `StanListy` (wspólny komponent
+z paczki E, Poczta była ostatnim modułem bez niego) z osobnym wariantem
+„nic nie pasuje do filtra" i przyciskiem „Wyczyść filtry". Zmierzone po
+zmianie: **5,94** opis, **18,15** tytuł. Ta sama poprawka objęła Zaplanowane,
+Subskrypcje, przypominajkę o wątkach bez odpowiedzi i „Wybierz wiadomość
+z listy".
+
+**6. Szkic AI był niewidoczny jako szkic.** Reguła „model proponuje, właściciel
+zatwierdza" była prawdziwa w kodzie (tekst ląduje w polu, nikt go nie wysyła),
+ale **na ekranie nie było jej wcale**: propozycja wyglądała identycznie jak
+zdanie napisane ręcznie, a jedyną wzmianką o AI był tooltip przycisku, którego
+po kliknięciu już się nie widzi. Szkic notatki (Moduł 50) robił to od początku
+poprawnie — teraz odpowiedź ma ten sam pasek: „To propozycja modelu, nie gotowa
+odpowiedź — przeczytaj ją i popraw, zanim wyślesz". Znika przy pierwszej
+zmianie tekstu (od tej chwili treść jest już współautorstwem właściciela).
+
+**7. Drobne, wszystkie z sondy.** `to-task` robił dwa zadania z dwóch kart —
+teraz zwraca istniejące (`reused: true`), jak `create-lead`/`create-client`.
+`DELETE /api/mail/schedule` z nieistniejącym id odpowiadał „jest w trakcie
+wysyłki albo została wysłana", czyli opowiadał o wysyłce wiadomości, której
+nigdy nie było — teraz 404 z własnym zdaniem. Temat przechodzi przez
+`naglowekJednowierszowy()`.
+
+### Czego NIE zmieniono (i dlaczego)
+
+**Przy module w tym stanie to jest główny produkt sesji.**
+
+- **`PERMANENTFLAGS` — konkret 3 z briefu okazał się bezprzedmiotowy.** Panel
+  nie zapisuje flag IMAP w ogóle: jedyne wystąpienie `\Seen` w całym kodzie to
+  `append()` kopii do folderu Wysłane. Nie ma cichego zapisu, bo nie ma zapisu.
+  Zostaje jak jest.
+- **Wstrzyknięcie nagłówka SMTP — dziury nie ma.** Zmierzone na
+  `MailComposer`: temat `"Oferta\nBcc: obcy@zly.pl"` wychodzi jako jeden
+  nagłówek `Subject: Oferta Bcc: obcy@zly.pl`. Adresy chroni osobno
+  `extractEmailAddress()` (wyrażenie bez białych znaków). Dołożone
+  `naglowekJednowierszowy()` **nie naprawia dziury, tylko przenosi gwarancję**
+  z biblioteki do nas — pożyczona znikłaby przy podbiciu wersji nodemailera,
+  bez żadnego objawu. Ma własny test.
+- **„Cofnij wysyłkę" zostaje po stronie klienta** — decyzja właściciela
+  z 2026-07-15, wymuszona architekturą Vercela. Zmierzone brzegi, nie przepisana
+  implementacja.
+- **Załączniki dalej na żądanie z IMAP**, flagi jednokierunkowe, „Wycisz" ≠
+  „Archiwizuj", podpis na emoji, język podpisu ręcznie — bez zmian.
+- **`zeSlownika` NIE wprowadzone do Poczty.** Sygnał „0 trafień" jest fałszywie
+  pozytywny: Poczta robi to samo napisane inline, i robi to poprawnie.
+  Przepisywanie dla samej symetrii byłoby zmianą bez powodu.
+- **`SekcjaProfilu` — uzasadniony wyjątek, i to ZAPISANY JUŻ WCZEŚNIEJ.**
+  Sygnał „0 plików" też jest fałszywie pozytywny: `MailDetailPanel` to czytnik
+  wiadomości w układzie Apple Mail, a nie lista atrybutów — wprost wymienione
+  w tym samym pliku `59-spojnosc-ui.md` przy paczce F.
+- **500 adresów w jednym „Do" przechodzi bez ostrzeżenia.** Zmierzone, nie
+  naprawione: sufit liczby odbiorców to decyzja produktowa (ilu adresatów to
+  jeszcze normalna wiadomość, a ilu wklejona przez pomyłkę lista?), a nie
+  usterka. **Do rozstrzygnięcia przez właściciela.**
+
+### Pomiary
+
+- **Sonda 401: 22/22 uchwytów** w `app/api/mail` (liczone per
+  `export async function`, nie per plik). Bez wyjątków.
+- **Sonda biznesowa:** adres bez `@` i sam `@` → 400; rok „0202" i data
+  wsteczna → 400; nowa linia w temacie → nie tworzy nagłówka; `"Kowalski, Jan"
+  <jan@b.pl>` → poprawny adres; cztery śmieciowe wartości w `PATCH` → cztery
+  różne 400 z powodem.
+- **Kontrast pustego stanu:** przed **2,84** · po **5,94** (opis) i **18,15**
+  (tytuł), próg AA 4,5.
+- **Bezpiecznik uruchomiony na prawdziwym Postgresie** (PGlite, cztery
+  przejścia: wolne → w locie → po wysyłce → po błędzie). `tsc` nie sprawdza SQL,
+  a żadna trasa nie dotyka tej tabeli lokalnie, więc DDL wymagał osobnego
+  uruchomienia.
+- **`npm test`: 178/178** (było 170, doszło 8 w `test/poczta.test.ts`).
+- **Apka:** build przechodzi, odliczanie i „Cofnij" sprawdzone w symulatorze
+  na lokalnym panelu.
+
+### Pułapki tej sesji
+
+- **Podgląd przeglądarki ma zamrożony `requestAnimationFrame`** (karta
+  „hidden"), więc `ViewSwitch` nigdy nie kończy przenikania: po kliknięciu
+  filtra kategorii lista **wyglądała na niedziałającą**, choć kod był
+  poprawny. Rozstrzygnął dopiero pomiar `visibilityState` — sam zrzut ekranu
+  kłamał. Obejście: ustawić stan w `localStorage`
+  (`leggera_mail_return_state`) i przeładować, żeby oglądać RENDER POCZĄTKOWY.
+- **Poczty nie da się sprawdzić lokalnie bez skrzynki** — i to nie tylko
+  wysyłki: `disabled={!configured}` wyłącza sam przycisk „Odpisz", więc bez
+  atrapy `MAIL_IMAP_HOST`/`MAIL_USER`/`MAIL_PASS` nie da się dojść nawet do
+  formularza odpowiedzi ani do szkicu AI.

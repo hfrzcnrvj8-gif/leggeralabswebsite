@@ -16,13 +16,14 @@ import {
   IconBellOff,
   IconMailForward,
   IconX,
+  IconClock,
 } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SPRING } from "@/lib/motion";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
 import { useUI, useRegisterActions, isTypingTarget, useCopy } from "../ui";
-import { PasekBledu, StanBledu } from "../StanPusty";
+import { PasekBledu, StanBledu, StanListy, StanPusty } from "../StanPusty";
 import { useSkrotyListy, KLASA_KURSORA } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
 import { pobierzJSON, komunikatBledu } from "../dane";
@@ -948,7 +949,12 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             nudgeThreads === null ? (
               <p className="p-8 text-center text-sm text-muted opacity-60">Wczytuję…</p>
             ) : nudgeThreads.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted opacity-60">Nic — na wszystko dostałeś odpowiedź.</p>
+              <StanPusty
+                ikona={IconClock}
+                gesty
+                tytul="Na wszystko dostałeś odpowiedź"
+                opis="Żaden wysłany przez Ciebie wątek nie czeka bez odzewu dłużej, niż powinien."
+              />
             ) : (
               <ul className="divide-y divide-[var(--hairline)]">
                 {nudgeThreads.map((t) => (
@@ -1031,19 +1037,58 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             </div>
           )}
           {threadGroups.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted opacity-60">
-              {activeFolder !== "inbox"
-                ? `Brak wiadomości w folderze „${MAIL_FOLDER_LABEL[activeFolder]}”.`
-                : filter === "nowy"
-                  ? "Nic — wszystko obsłużone."
-                  : filter === "unassigned"
-                    ? "Nic nieprzypisanego."
-                    : filter === "vip"
-                      ? "Brak poczty od klientów VIP."
-                      : filter === "snoozed"
-                        ? "Nic uśpionego."
-                        : "Brak wiadomości."}
-            </p>
+            /* Pusty stan przez wspólny `StanListy` (Moduł 65) — Poczta była
+               ostatnim modułem panelu bez niego. Powód nie był kosmetyczny:
+               poprzednia wersja przy włączonej kategorii („Rachunek", zero
+               takich maili) pisała „Nic — wszystko obsłużone", czyli mówiła,
+               że skrzynka jest czysta, gdy w niej czekało sześć wiadomości
+               odsianych filtrem — i nie dawała drogi powrotnej. Do tego cała
+               ta informacja stała na `text-muted opacity-60`, zmierzone
+               2,84:1 wobec tła karty (próg AA to 4,5:1) — jedyna treść na
+               ekranie, i akurat ona nieczytelna.
+
+               Szukanie świadomie NIE liczy się tu jako filtr: przy pustym
+               wyniku szukania ma się pojawić „nic nie znaleziono", a nie
+               „wyczyść filtry" — to inne wyjście. */
+            <StanListy
+              blad={null /* błąd ma własny pasek nad listą (PasekBledu wyżej) — lista musi zostać widoczna, bo obok stoi otwarta wiadomość */}
+              filtrAktywny={activeFolder === "inbox" && catFilter !== "wszystkie"}
+              onWyczyscFiltr={() => setCatFilter("wszystkie")}
+              filtrTytul={`Żadna wiadomość nie jest w rodzaju „${MAIL_CATEGORY_LABEL[catFilter as MailCategory] ?? catFilter}”`}
+              filtrOpis="W tym folderze są wiadomości, ale wszystkie mają inny rodzaj. Zdejmij filtr, żeby je zobaczyć."
+              ikona={IconMail}
+              gesty
+              tytul={
+                query.trim()
+                  ? "Nic nie znaleziono"
+                  : activeFolder !== "inbox"
+                    ? `Pusto w folderze „${MAIL_FOLDER_LABEL[activeFolder]}”`
+                    : filter === "nowy"
+                      ? "Wszystko obsłużone"
+                      : filter === "unassigned"
+                        ? "Nic nieprzypisanego"
+                        : filter === "vip"
+                          ? "Brak poczty od klientów VIP"
+                          : filter === "snoozed"
+                            ? "Nic uśpionego"
+                            : "Brak wiadomości"
+              }
+              opis={
+                query.trim()
+                  ? "Żadna wiadomość nie pasuje do wpisanej frazy — szukanie idzie do serwera i obejmuje też wyciszone i obsłużone."
+                  : activeFolder !== "inbox"
+                    ? "Ten folder nie ma wiadomości w oknie, które panel pobrał ze skrzynki."
+                    : filter === "nowy"
+                      ? "Żadna wiadomość nie czeka na odpowiedź. Nowe pojawią się tu po synchronizacji ze skrzynką."
+                      : filter === "unassigned"
+                        ? "Każda wiadomość w Odebranych jest przypisana do klienta albo leada."
+                        : filter === "vip"
+                          ? "VIP to poczta od klientów o statusie „Aktywny” — dziś nikt taki nie pisał."
+                          : filter === "snoozed"
+                            ? "Nic nie czeka odłożone na później."
+                            : "W tym folderze nie ma wiadomości."
+              }
+            />
           ) : (
             <ul ref={listRef} className="divide-y divide-[var(--hairline)]">
               {threadGroups.map((g, i) => {
@@ -1252,7 +1297,9 @@ export function MailDashboard({ lang }: { lang: Locale }) {
               onOpenThreadMessage={setOpenId}
             />
           ) : (
-            <div className="card-paper flex min-h-[300px] flex-1 items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted opacity-60">
+            /* Bez `opacity-60` (Moduł 65) — zmierzone 2,84:1, poniżej progu
+               AA. To zaproszenie do działania, a nie ozdoba tła. */
+            <div className="card-paper flex min-h-[300px] flex-1 items-center justify-center rounded-2xl border hairline p-8 text-center text-sm text-muted">
               Wybierz wiadomość z listy.
             </div>
           )}

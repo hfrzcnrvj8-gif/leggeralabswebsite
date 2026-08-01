@@ -56,7 +56,7 @@ export const WSTEP = {
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Na razie opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury, Katalog oraz Koszty — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
+    "Na razie opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury, Katalog, Koszty oraz Poczta — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -1008,6 +1008,84 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "j / k, Enter", opis: "Kursor po liście i otwarcie kosztu (panel). ⌘N albo „n” — nowy koszt." },
       { tytul: "⌘N na telefonie", opis: "Otwiera APARAT, nie pusty formularz — bo nowy koszt w drodze to zdjęcie paragonu. Świadome odstępstwo od panelu." },
       { tytul: "Prawy przycisk myszy / przytrzymanie", opis: "Menu: otwórz, skopiuj kwotę lub dane do przelewu, zmień status, usuń." },
+    ],
+  },
+
+  /* ─────────────────────────────── POCZTA ───────────────────────────── */
+  {
+    id: "poczta",
+    nazwa: "Poczta",
+    gdzie: "Panel: menu po lewej → Poczta. Telefon i iPad: druga zakładka w dolnej belce.",
+    poCoTo:
+      "Twoja skrzynka z az.pl w środku panelu — obok leadów, klientów i projektów. To jedyny moduł, który wysyła coś NA ZEWNĄTRZ firmy: wszystko inne zapisuje liczby do bazy, a ten wysyła wiadomości do prawdziwych ludzi.",
+    kiedy:
+      "Codziennie rano zamiast Outlooka. Poczta trafia tu z dopiętym klientem albo leadem, więc od razu widać, kto pisze i w jakiej sprawie — a odpowiedź zostaje na osi kontaktu.",
+    kroki: [
+      {
+        tytul: "1. Masz 10 sekund, żeby się rozmyślić",
+        opis:
+          "Po kliknięciu „Wyślij” nic jeszcze nie leci — pojawia się pasek „Wysyłam za 10 s” z przyciskiem „Cofnij”. Tak samo w panelu i na telefonie. Uwaga: zamknięcie okna albo karty w trakcie odliczania PRZERYWA wysyłkę — wiadomość NIE pójdzie, a panel Ci to napisze.",
+      },
+      {
+        tytul: "2. Odpowiedź trafia w ten sam wątek",
+        opis:
+          "Adresata, temat i nagłówki wątku ustala panel — u odbiorcy odpowiedź wpada pod oryginał, nie zakłada nowej rozmowy. Podpis dokleja się przy wysyłce w wybranym języku, więc w polu piszesz samą treść.",
+      },
+      {
+        tytul: "3. Z maila jednym kliknięciem robisz leada, klienta albo zadanie",
+        opis:
+          "„Utwórz leada” zakłada kartę i wpisuje treść wiadomości do notatek. „Z maila → zadanie” wrzuca prośbę klienta do wybranego projektu i oznacza mail jako obsłużony. Jeśli klikniesz dwa razy z dwóch miejsc, panel przypnie do istniejącego wpisu zamiast robić duplikat.",
+      },
+      {
+        tytul: "4. Wysyłka odłożona na później",
+        opis:
+          "Menu przy „Wyślij” pozwala wskazać porę („jutro rano”). Podana godzina to NAJWCZEŚNIEJSZY moment wysyłki, nie gwarantowany — kolejka rusza też przy każdym Twoim wejściu w Pocztę. Wiadomości z załącznikami odłożyć się nie da i panel mówi o tym wprost.",
+      },
+      {
+        tytul: "5. Załączniki ściągają się dopiero przy kliknięciu",
+        opis:
+          "Panel trzyma tylko OPIS pliku (nazwę, rozmiar), nigdy jego treści — dlatego otwarcie trwa kilka sekund. Jeśli nie uda się połączyć ze skrzynką, dostaniesz osobny komunikat i prośbę, żeby NIE kasować wiadomości, dopóki połączenie nie wróci. To co innego niż „pliku już nie ma na serwerze”.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Szufladkowanie i screener nowych nadawców",
+        opis:
+          "Panel sam nadaje rodzaj (Zapytanie, Rachunek, Rozmowa, Reklama) po nagłówkach i treści — bez AI, po regułach. Nowy, nieznany nadawca czeka pod „Nowi nadawcy”, dopóki go nie zatwierdzisz albo nie zablokujesz. Odpisanie zatwierdza go samo.",
+      },
+      {
+        tytul: "Przypomnienie o wątkach bez odpowiedzi",
+        opis:
+          "Wysłałeś i cisza? Wątek wraca na listę z liczbą dni ciszy. „Wycisz wątek” zdejmuje go z tej kolejki, ale ZOSTAWIA wiadomość w Odebranych — to dwie osobne rzeczy, nie archiwizacja.",
+      },
+      {
+        tytul: "Trzy miejsca z lokalnym modelem AI",
+        opis:
+          "Szkic odpowiedzi, podsumowanie wątku i szkic notatki. Model działa na Twoim Macu, nigdy w chmurze, i zawsze tylko PROPONUJE: szkic ląduje w polu z paskiem „przeczytaj i popraw, zanim wyślesz”, a wysyłasz i zapisujesz zawsze Ty.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Tego samego maila nie wyślesz dwa razy",
+        opis:
+          "Jeśli po błędzie („nie udało się wysłać”) klikniesz ponownie, a wiadomość mimo wszystko wyszła — panel odmówi i powie to wprost. Zdarza się to przy słabym zasięgu: telefon zrywa połączenie, gdy serwer już wysyła. Zamiast wysyłać drugi raz, sprawdź folder Wysłane.",
+      },
+      {
+        tytul: "Kasowanie w „Subskrypcjach” dotyczy tylko kopii w panelu",
+        opis:
+          "Sprzątanie po nadawcy masówki usuwa wiadomości z panelu, ale NIE ze skrzynki az.pl — i mogą wrócić przy kolejnym pobraniu. Trwale załatwia sprawę dopiero link „wypisz się”.",
+      },
+      {
+        tytul: "Przeczytane w panelu ≠ przeczytane w Outlooku",
+        opis:
+          "Statusy i foldery panelu żyją po jego stronie; panel nie zmienia flag na serwerze pocztowym. To świadome uproszczenie, nie usterka.",
+      },
+    ],
+    skroty: [
+      { tytul: "„/” albo ⌘F", opis: "Szukanie po nadawcy, temacie i treści — obejmuje też wyciszone i obsłużone." },
+      { tytul: "j / k, Enter", opis: "Kursor po liście i otwarcie wiadomości. Spacja zaznacza." },
+      { tytul: "r / a / f", opis: "Odpisz / Odpowiedz wszystkim / Przekaż dalej — przy otwartej wiadomości." },
+      { tytul: "e", opis: "Oznacz jako obsłużone. Świadomie NIE archiwizuje — status i folder to dwie osobne osie." },
     ],
   },
 ];

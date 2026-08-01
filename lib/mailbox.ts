@@ -12,7 +12,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer";
-import { extractEmailAddress, parseUnsubscribeUrl, safeAttachmentFilename, type MailHeaderHints } from "./mail";
+import { extractEmailAddress, naglowekJednowierszowy, parseUnsubscribeUrl, safeAttachmentFilename, type MailHeaderHints } from "./mail";
 import { parseCalendarReply, type CalendarReply } from "./eventInvites";
 import { SIGNATURE_IMAGES } from "./mailSignature";
 import { siteUrl } from "./site";
@@ -315,39 +315,68 @@ export function extractAttachmentMeta(root: BodyNode | undefined): ParsedAttachm
   return out;
 }
 
+/** Wynik próby pobrania załącznika. Trzy stany, nie dwa — patrz
+ * `downloadAttachmentPart()` niżej. */
+export type WynikPobraniaZalacznika =
+  | { stan: "jest"; content: Buffer; mime: string | null }
+  /** Serwer pocztowy odpowiedział i tej części u niego NIE MA — wiadomość
+   * została skasowana ze skrzynki (np. z Outlooka). Plik przepadł na dobre. */
+  | { stan: "nie-ma" }
+  /** Nie udało się w ogóle zapytać: brak połączenia, złe hasło, timeout.
+   * O losie pliku nie wiemy NIC. */
+  | { stan: "nie-wiem"; powod: string };
+
 /**
  * Ściąga treść JEDNEJ części MIME — sedno decyzji „na żądanie z IMAP".
  *
- * Wołane dopiero, gdy właściciel stuknie w konkretny plik. Zwraca `null`,
- * gdy serwer nie zna już tej wiadomości (mail skasowany ze skrzynki innym
- * klientem) — to normalny scenariusz przy tym sposobie trzymania danych,
- * a nie awaria, więc wołający zamienia go na czytelny komunikat.
+ * **Dlaczego trzy stany, a nie `Buffer | null`.** Do Modułu 65 ta funkcja
+ * zwracała `null` zarówno wtedy, gdy serwer powiedział „nie mam tej
+ * wiadomości", jak i wtedy, gdy w ogóle nie udało się z nim pogadać —
+ * a trasa zamieniała jedno i drugie na komunikat „jeśli wiadomość została
+ * usunięta z serwera pocztowego, pliku już nie ma". Chwilowa awaria sieci
+ * wyglądała więc jak trwała utrata pliku, czyli panel twierdził coś, czego
+ * nie wiedział. To ten sam wzorzec, co `maPrzelicznik()` w Kosztach: stan
+ * nieustalony musi być NAZWANY, a nie zamieciony pod najbliższy komunikat.
+ *
+ * Podział przebiega po tym, KTO zawiódł: wyjątek z połączenia/logowania to
+ * „nie wiem", a spokojna odpowiedź serwera bez treści to „nie ma".
  */
 export async function downloadAttachmentPart(
   imapPath: string,
   uid: number,
   partId: string
-): Promise<{ content: Buffer; mime: string | null } | null> {
-  const cfg = mailboxConfig();
-  const client = await connectImap(cfg);
+): Promise<WynikPobraniaZalacznika> {
+  let client: Awaited<ReturnType<typeof connectImap>>;
+  try {
+    const cfg = mailboxConfig();
+    client = await connectImap(cfg);
+  } catch (e) {
+    console.error(`[mailbox] brak połączenia ze skrzynką przy pobieraniu części ${partId} (uid=${uid})`, e);
+    return { stan: "nie-wiem", powod: e instanceof Error ? e.message : "Nieznany błąd połączenia." };
+  }
+
   try {
     const lock = await client.getMailboxLock(imapPath);
     try {
       const res = await client.download(String(uid), partId, { uid: true });
-      if (!res?.content) return null;
+      // Serwer odpowiedział, ale nie ma czego wysłać — wiadomości już u niego
+      // nie ma. To jedyna gałąź uprawniona do mówienia „pliku nie ma".
+      if (!res?.content) return { stan: "nie-ma" };
 
       const chunks: Buffer[] = [];
       for await (const chunk of res.content) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
       const meta = res.meta as { contentType?: string } | undefined;
-      return { content: Buffer.concat(chunks), mime: meta?.contentType ?? null };
+      return { stan: "jest", content: Buffer.concat(chunks), mime: meta?.contentType ?? null };
     } finally {
       lock.release();
     }
   } catch (e) {
+    // Zerwane połączenie w połowie, brak folderu, timeout — cokolwiek tu
+    // padło, o pliku nie mówi nic.
     console.error(`[mailbox] nie udało się pobrać części ${partId} wiadomości uid=${uid} z ${imapPath}`, e);
-    return null;
+    return { stan: "nie-wiem", powod: e instanceof Error ? e.message : "Nieznany błąd pobierania." };
   } finally {
     await client.logout().catch(() => {});
   }
@@ -651,7 +680,9 @@ export async function sendMail(params: {
       from,
       to: params.to,
       ...(params.cc && params.cc.length > 0 ? { cc: params.cc } : {}),
-      subject: params.subject,
+      // Jedyne miejsce, w którym tekst wpisany ręcznie trafia do nagłówka
+      // protokołu — patrz naglowekJednowierszowy() w lib/mail.ts.
+      subject: naglowekJednowierszowy(params.subject),
       text: params.text,
       ...(params.html ? { html: params.html } : {}),
       // `cid` + `contentDisposition: "inline"` sprawia, że obrazek jest

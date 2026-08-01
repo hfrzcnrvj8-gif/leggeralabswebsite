@@ -448,6 +448,22 @@ export function normalizeThreadSubject(subject: string): string {
 /** Rozbija pole "DW"/"Do" wpisane ręcznie (adresy po przecinku/średniku) na
  * listę poprawnych adresów — współdzielone przez odpowiedź/przekazanie/nową
  * wiadomość, żeby nie duplikować tego samego parsowania w każdej trasie. */
+/** Wartość nadająca się na nagłówek wiadomości — bez znaków nowej linii.
+ *
+ * **Po co, skoro nodemailer i tak to robi** (zmierzone w Module 65: temat
+ * `"X\nBcc: obcy@zly.pl"` wychodzi z MailComposera jako jeden nagłówek
+ * `Subject: X Bcc: obcy@zly.pl`, więc wstrzyknięcie nagłówka SMTP jest dziś
+ * niemożliwe). Bo to jedyne miejsce w produkcie, gdzie cudzy tekst ląduje
+ * w nagłówku protokołu — a gwarancja pożyczona od biblioteki znika przy
+ * podbiciu jej wersji, bez żadnego objawu u nas. Ta funkcja czyni ją NASZĄ
+ * i daje jej test (`test/poczta.test.ts`).
+ *
+ * Adresów NIE trzeba tak chronić: `extractEmailAddress()` wycina je wyrażeniem
+ * bez białych znaków, więc nowa linia nie ma jak przejść. */
+export function naglowekJednowierszowy(raw: string): string {
+  return (raw || "").replace(/[\r\n]+/g, " ").trim();
+}
+
 export function parseAddressList(raw: string): string[] {
   return raw
     .split(/[,;]/)

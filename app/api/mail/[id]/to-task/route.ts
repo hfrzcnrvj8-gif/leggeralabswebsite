@@ -61,6 +61,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const projectRows = (await sql`SELECT id FROM projects WHERE id = ${projectId};`) as unknown as { id: string }[];
   if (projectRows.length === 0) return NextResponse.json({ error: "Taki projekt nie istnieje." }, { status: 400 });
 
+  // Idempotencja po stronie SERWERA (Moduł 65, zmierzone curlem: dwa wejścia
+  // z tą samą treścią dawały dwa zadania i dwa wpisy w historii projektu).
+  // Blokada przycisku broni jednej karty, a nie drugiej — a „Z maila →
+  // zadanie" klika się właśnie wtedy, gdy ta sama wiadomość jest otwarta
+  // w dwóch miejscach naraz. Ten sam duch co dedup w create-lead/create-client
+  // wyżej: zwracamy to, co już jest, zamiast robić bliźniaka.
+  const istniejace = (await sql`
+    SELECT id FROM project_tasks
+    WHERE project_id = ${projectId} AND text = ${text.slice(0, 500)} AND done = false
+    LIMIT 1;
+  `) as unknown as { id: string }[];
+  if (istniejace[0]) {
+    return NextResponse.json({ ok: true, reused: true, task_id: istniejace[0].id, project_id: projectId });
+  }
+
   const countRows = await sql`SELECT COUNT(*)::int AS n FROM project_tasks WHERE project_id = ${projectId};`;
   const position = (countRows[0]?.n as number | undefined) ?? 0;
 

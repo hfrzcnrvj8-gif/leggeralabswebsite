@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { IconExternalLink, IconTrash, IconMailOff } from "@tabler/icons-react";
 import { useUI } from "../ui";
+import { StanPusty } from "../StanPusty";
 import { type MailSubscription } from "./shared";
 
 export function SubscriptionsView({ onChanged }: { onChanged: () => void | Promise<void> }) {
@@ -65,7 +66,15 @@ export function SubscriptionsView({ onChanged }: { onChanged: () => void | Promi
 
   if (subs === null) return <p className="p-8 text-center text-sm text-muted opacity-60">Wczytuję…</p>;
   if (subs.length === 0) {
-    return <p className="p-8 text-center text-sm text-muted opacity-60">Żadnych list dystrybucyjnych — skrzynka czysta.</p>;
+    // Bez `opacity-60` — patrz ScheduledView.tsx (Moduł 65, zmierzone 2,84:1).
+    return (
+      <StanPusty
+        ikona={IconMailOff}
+        gesty
+        tytul="Żadnych list dystrybucyjnych"
+        opis="Panel nie znalazł w skrzynce masówki — nic z nagłówkiem „wypisz się” ani nic zaklasyfikowanego jako reklama."
+      />
+    );
   }
 
   return (

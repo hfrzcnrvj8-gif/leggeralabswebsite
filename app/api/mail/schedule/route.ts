@@ -155,6 +155,14 @@ export async function DELETE(req: NextRequest) {
   `) as unknown as { id: string }[];
 
   if (anulowane.length === 0) {
+    // Dwa różne powody, dwie różne odpowiedzi (Moduł 65). Do tej pory brak
+    // wiersza dawał komunikat „jest w trakcie wysyłki albo została wysłana",
+    // czyli panel opowiadał o wysyłce wiadomości, której nigdy nie było —
+    // po pomyłce w linku właściciel dowiadywał się, że jego mail poleciał.
+    const istnieje = (await sql`SELECT status FROM mail_outbox WHERE id = ${id};`) as unknown as { status: string }[];
+    if (istnieje.length === 0) {
+      return NextResponse.json({ error: "Nie ma takiej zaplanowanej wiadomości." }, { status: 404 });
+    }
     return NextResponse.json(
       { error: "Tej wiadomości nie da się już anulować — jest w trakcie wysyłki albo została wysłana." },
       { status: 409 }

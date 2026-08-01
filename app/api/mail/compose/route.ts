@@ -7,6 +7,7 @@ import { findContactsByEmail } from "@/lib/contactLookup";
 import { appendToSent, fetchSignatureImages, isMailboxConfigured, sendMail } from "@/lib/mailbox";
 import { logMailOnTimeline } from "@/lib/mailSync";
 import { signatureHtml, signatureText } from "@/lib/mailSignature";
+import { odciskWysylki, otworzBramke, zamknijBramke, komunikatBramki } from "@/lib/mailGuard";
 import { getBookingUrl } from "@/lib/site";
 import { i18n, type Locale } from "@/i18n/config";
 
@@ -81,11 +82,26 @@ export async function POST(req: NextRequest) {
   const fullHtml = podpis ? `${textToHtml(text)}<br />${signatureHtml(podpis, bookingUrl)}` : undefined;
   const inlineImages = podpis ? await fetchSignatureImages() : [];
 
+  // Bezpiecznik podwójnej wysyłki (Moduł 65) — patrz lib/mailGuard.ts.
+  // Załączniki świadomie NIE wchodzą do odcisku: liczą się adresaci, temat
+  // i treść. Ta sama wiadomość wysłana dwa razy z innym plikiem to i tak
+  // pomyłka, a wciąganie bajtów do skrótu kosztowałoby przeliczenie
+  // kilkunastu megabajtów przy każdym żądaniu.
+  const odcisk = odciskWysylki({ sciezka: "compose", to, cc, bcc, subject, text });
+  const bramka = await otworzBramke(odcisk);
+  if (!bramka.wolne) {
+    return NextResponse.json(
+      { error: komunikatBramki(bramka), juz_wyslana: bramka.powod === "wyslana", id: bramka.powod === "wyslana" ? bramka.mailId : null },
+      { status: 409 }
+    );
+  }
+
   let sent: { messageId: string; raw: string };
   try {
     sent = await sendMail({ to, cc, bcc, subject, text: fullText, html: fullHtml, inlineImages, attachments });
   } catch (e) {
     console.error("[POST /api/mail/compose] wysyłka nie powiodła się", e);
+    await zamknijBramke(odcisk, false).catch(() => {});
     const message = e instanceof Error ? e.message : "Nieznany błąd wysyłki.";
     return NextResponse.json({ error: `Nie udało się wysłać wiadomości: ${message}` }, { status: 502 });
   }
@@ -102,6 +118,10 @@ export async function POST(req: NextRequest) {
   }
 
   const mailId = randomUUID();
+  await zamknijBramke(odcisk, true, mailId).catch((e) =>
+    console.error("[POST /api/mail/compose] nie udało się zamknąć bramki", e)
+  );
+
   try {
     // Dopasowanie do klienta/leada po PIERWSZYM adresie "Do" — baza wspiera
     // jeden powiązany kontakt na wiadomość, wieloosobowe "Do" nie zmienia

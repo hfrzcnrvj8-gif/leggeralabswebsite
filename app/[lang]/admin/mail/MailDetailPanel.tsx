@@ -146,6 +146,9 @@ export function MailDetailPanel({
   const [podpis, setPodpis] = useState<SignatureLang | null>("pl");
   const [busy, setBusy] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
+  /** Czy to, co stoi w polu odpowiedzi, przyszło od modelu i nie zostało
+   * jeszcze tknięte przez właściciela (Moduł 65) — patrz pasek nad polem. */
+  const [zSzkicuAI, setZSzkicuAI] = useState(false);
   // Moduł 49 — podsumowanie wątku: tylko do odczytu, nigdy nie wysyła/zapisuje.
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -158,7 +161,9 @@ export function MailDetailPanel({
   // "Cofnij wysyłkę" (Etap 1 Modułu 4b) — dotyczy WSZYSTKICH ścieżek wysyłki,
   // tu: Odpisz/Odpowiedz wszystkim. Przekazanie ma własną instancję w
   // MailComposeForm.
-  const { countdown, start, cancel, sending } = useUndoSend();
+  const { countdown, start, cancel, sending } = useUndoSend(undefined, () =>
+    toast("Odpowiedź NIE została wysłana — zamknięcie okna w trakcie odliczania przerywa wysyłkę.", "error")
+  );
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/mail/${mailId}${showImages ? "?images=1" : ""}`);
@@ -427,10 +432,23 @@ export function MailDetailPanel({
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         toast(data?.error || "Nie udało się wysłać odpowiedzi.", "error");
+        // Bezpiecznik podwójnej wysyłki (Moduł 65) odmówił, bo ta odpowiedź
+        // JUŻ poleciała. Zamykamy formularz i odświeżamy mimo błędu: gdyby
+        // został otwarty z tekstem, ekran zachęcałby do trzeciej próby
+        // dokładnie w chwili, w której trzeba przestać.
+        if (data?.juz_wyslana) {
+          setReplyOpen(false);
+          setReplyText("");
+          setZSzkicuAI(false);
+          setReplyCc("");
+          await load();
+          await onChanged();
+        }
         return;
       }
       setReplyOpen(false);
       setReplyText("");
+      setZSzkicuAI(false);
       setReplyCc("");
       await load();
       await onChanged();
@@ -477,6 +495,8 @@ export function MailDetailPanel({
 
   const applyTemplate = useCallback((t: MailTemplate) => {
     setReplyText((prev) => (prev.trim() ? `${prev}\n\n${t.tresc}` : t.tresc));
+    // Szablon pisał człowiek — pasek „to propozycja modelu" przestaje pasować.
+    setZSzkicuAI(false);
   }, []);
 
   /** Szkic AI (Moduł 7) — zawsze NADPISUJE całe pole treścią propozycji
@@ -493,6 +513,7 @@ export function MailDetailPanel({
         return;
       }
       setReplyText(data.draft || "");
+      setZSzkicuAI(true);
     } finally {
       setDraftLoading(false);
     }
@@ -786,9 +807,30 @@ export function MailDetailPanel({
             placeholder="DW (opcjonalnie, adresy po przecinku)"
             className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[13px] outline-none focus:border-brand-purple/50"
           />
+          {/* Ślad po szkicu z modelu (Moduł 65). Reguła „model proponuje,
+              właściciel zatwierdza" była tu prawdziwa w kodzie, ale na ekranie
+              nie było jej wcale: tekst wpadał w pole nieodróżnialny od
+              napisanego ręcznie, a jedyną wzmianką o AI był tooltip przycisku,
+              którego po kliknięciu już się nie widzi. Szkic notatki (Moduł 50)
+              robił to od początku poprawnie — tu ten sam wzorzec.
+
+              Znika przy PIERWSZEJ zmianie tekstu: od tej chwili treść jest już
+              współautorstwem właściciela, a pasek, który zostaje na zawsze,
+              po tygodniu przestaje cokolwiek znaczyć. */}
+          {zSzkicuAI && (
+            <div className="mb-2 flex items-start gap-2 rounded-xl border border-brand-purple/30 bg-brand-purple/[0.10] px-3 py-2 text-[12.5px]">
+              <IconSparkles size={14} className="mt-0.5 shrink-0 text-brand-purple" />
+              <span>
+                To propozycja modelu, nie gotowa odpowiedź — <strong className="font-medium">przeczytaj ją i popraw, zanim wyślesz</strong>.
+              </span>
+            </div>
+          )}
           <textarea
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onChange={(e) => {
+              setReplyText(e.target.value);
+              setZSzkicuAI(false);
+            }}
             rows={8}
             autoFocus
             placeholder="Treść odpowiedzi…"
