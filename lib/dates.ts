@@ -120,8 +120,14 @@ export function parsePgTimestamp(wartosc: string | null | undefined): Date | nul
  * gdzie sama data nie wystarcza. */
 export function formatPlDateTime(iso: string | null | undefined): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+  // Przez `parsePgTimestamp`, nie przez samo `new Date()`: znacznik z Neona ma
+  // SPACJĘ zamiast „T" i strefę bez dwukropka. Node akurat to zjada, ale
+  // przeglądarki nie muszą — a ta funkcja renderuje się po stronie KLIENTA
+  // (Safari ma tu własne zdanie; stąd „OF-NaN" w Ofertach). Awaria byłaby
+  // cicha: `Invalid Date` → zwracamy surowy string i na ekranie staje zapis
+  // z bazy. Jedna wspólna droga zamiast dwóch (pamięć `znacznik-czasu-postgresa`).
+  const d = parsePgTimestamp(iso);
+  if (!d) return iso;
   return d.toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 

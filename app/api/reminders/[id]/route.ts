@@ -87,7 +87,35 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ reminder: { ...reminder, podzadania } });
 }
 
-/** PATCH /api/reminders/:id — zmiana pól, pole po polu. Admin-only. */
+/** Wartość pola „opcjonalna data/tekst": brak, `null` i pusty string znaczą
+ * ZDEJMIJ, string znaczy USTAW, a cokolwiek innego to pomyłka wołającego.
+ *
+ * Osobna funkcja, bo przed audytem Modułu 66 ten trzeci przypadek nie istniał:
+ * `typeof raw === "string"` było jedynym warunkiem, więc `{"termin": 20260901}`
+ * (liczba zamiast stringa — realny wynik pomyłki w kliencie) wpadało do gałęzi
+ * „zdejmij" i **KASOWAŁO termin**, oddając `{"ok":true}`. W module, w którym
+ * data uruchamia powiadomienie, cicha zamiana śmiecia na „nigdy" jest
+ * najgorszą z możliwych podmian. */
+type Opcjonalna = { rodzaj: "brak" } | { rodzaj: "zdejmij" } | { rodzaj: "ustaw"; wartosc: string } | { rodzaj: "blad" };
+
+function odczytajOpcjonalna(body: Record<string, unknown>, pole: string): Opcjonalna {
+  if (!(pole in body)) return { rodzaj: "brak" };
+  const raw = body[pole];
+  if (raw === null || raw === "") return { rodzaj: "zdejmij" };
+  if (typeof raw !== "string") return { rodzaj: "blad" };
+  const trimmed = raw.trim();
+  return trimmed ? { rodzaj: "ustaw", wartosc: trimmed } : { rodzaj: "zdejmij" };
+}
+
+/** PATCH /api/reminders/:id — zmiana pól, pole po polu. Admin-only.
+ *
+ * Przebieg jest DWUFAZOWY: najpierw sprawdzamy komplet pól i stan rekordu,
+ * dopiero potem zapisujemy. Wcześniej było odwrotnie — walidacja stała przy
+ * każdym `UPDATE` z osobna, więc ciało `{"tytul":"PO","termin":"0202-01-01"}`
+ * zapisywało tytuł, po czym oddawało 400. Panel pokazywał wtedy „Nie udało się
+ * zapisać zmiany", a zmiana częściowo weszła — komunikat kłamał (zmierzone
+ * sondą 2026-08-01). Neon nie daje transakcji w kliencie HTTP, więc atomowość
+ * bierzemy stąd, że po pierwszym zapisie nie ma już czego odrzucić. */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -104,61 +132,184 @@ export async function PATCH(
   await ensureRemindersSchema();
   const sql = getSql();
 
+  const zle = (powod: string) => NextResponse.json({ error: powod }, { status: 400 });
+
+  /* ── FAZA 1: kształt pól, bez oglądania się na bazę ───────────────────── */
+
+  let tytul: string | null = null;
   if ("tytul" in body) {
-    const tytul = typeof body.tytul === "string" ? body.tytul.trim() : "";
-    if (!tytul) {
-      return NextResponse.json({ error: "tytul must not be empty" }, { status: 400 });
-    }
-    await sql`UPDATE reminders SET tytul = ${tytul.slice(0, 300)} WHERE id = ${id};`;
+    const v = typeof body.tytul === "string" ? body.tytul.trim() : "";
+    if (!v) return zle("tytul must not be empty");
+    tytul = v.slice(0, 300);
   }
+
+  let notatka: string | null = null;
   if ("notatka" in body) {
-    const value = typeof body.notatka === "string" ? body.notatka.slice(0, 2000) : "";
-    await sql`UPDATE reminders SET notatka = ${value} WHERE id = ${id};`;
+    if (typeof body.notatka !== "string") return zle("notatka must be a string");
+    notatka = body.notatka.slice(0, 2000);
   }
-  if ("termin" in body) {
-    const raw = body.termin;
-    if (typeof raw === "string" && raw.trim()) {
-      const trimmed = raw.trim();
-      if (!isPlausibleDateString(trimmed)) {
-        return NextResponse.json({ error: "invalid termin" }, { status: 400 });
-      }
-      // Ręczna zmiana terminu PRZESTAWIA kotwicę serii — właściciel przesuwa
-      // rytm, a nie jedno wystąpienie (pojedyncze wystąpienie przesuwa się
-      // przez odhaczenie). Bez tego „co miesiąc" po przeniesieniu na inny
-      // dzień dalej liczyłoby się od starej daty.
-      await sql`
-        UPDATE reminders
-        SET termin = ${trimmed}, powtarzanie_od = CASE WHEN powtarzanie IS NULL THEN NULL ELSE ${trimmed}::date END
-        WHERE id = ${id};
-      `;
-    } else {
-      // Zdjęcie terminu zabiera ze sobą godzinę — patrz komentarz w POST.
-      // I cykl: powtarzanie odmierza się OD terminu, więc bez niego zostałaby
-      // seria bez punktu zaczepienia.
-      await sql`
-        UPDATE reminders
-        SET termin = NULL, godzina = NULL, powtarzanie = NULL, powtarzanie_do = NULL, powtarzanie_od = NULL
-        WHERE id = ${id};
-      `;
-    }
-  }
-  if ("godzina" in body) {
-    const raw = body.godzina;
-    if (typeof raw === "string" && raw.trim()) {
-      const trimmed = raw.trim();
-      if (!isPlausibleTimeString(trimmed)) {
-        return NextResponse.json({ error: "invalid godzina" }, { status: 400 });
-      }
-      // Godzina tylko na przypomnieniu, które ma termin — inaczej cicho
-      // powstaje „14:00 nigdy".
-      await sql`UPDATE reminders SET godzina = ${trimmed} WHERE id = ${id} AND termin IS NOT NULL;`;
-    } else {
-      await sql`UPDATE reminders SET godzina = NULL WHERE id = ${id};`;
-    }
-  }
+
+  const terminIn = odczytajOpcjonalna(body, "termin");
+  if (terminIn.rodzaj === "blad") return zle("termin must be a date string or null");
+  if (terminIn.rodzaj === "ustaw" && !isPlausibleDateString(terminIn.wartosc)) return zle("invalid termin");
+
+  const godzinaIn = odczytajOpcjonalna(body, "godzina");
+  if (godzinaIn.rodzaj === "blad") return zle("godzina must be a time string or null");
+  if (godzinaIn.rodzaj === "ustaw" && !isPlausibleTimeString(godzinaIn.wartosc)) return zle("invalid godzina");
+
+  // Priorytet spoza skali NIE jest przycinany. `normalizePriority` robił z „99"
+  // trójkę, a ze stringa „wysoki" — ZERO, czyli „Brak": śmieć zamieniał się
+  // w przeciwieństwo tego, co wołający miał na myśli, i to z `{"ok":true}`.
+  let priorytet: number | null = null;
   if ("priorytet" in body) {
-    await sql`UPDATE reminders SET priorytet = ${normalizePriority(body.priorytet)} WHERE id = ${id};`;
+    const v = body.priorytet;
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 3) return zle("invalid priorytet");
+    priorytet = normalizePriority(v);
   }
+
+  for (const flagowe of ["ukonczone", "flaga", "przy_wyjsciu"] as const) {
+    if (flagowe in body && typeof body[flagowe] !== "boolean") return zle(`${flagowe} must be a boolean`);
+  }
+
+  // Nieznany cykl dostaje 400, ale `null`/`""` dalej znaczy „nie powtarza się".
+  // `normalizujCykl` sam z siebie oddaje null na jedno i drugie, więc bez tego
+  // rozróżnienia literówka w kluczu („co tydzień" zamiast `co_tydzien`) cicho
+  // zapisywała przypomnienie BEZ powtarzania — złapane na własnej sondzie.
+  const cyklIn = odczytajOpcjonalna(body, "powtarzanie");
+  if (cyklIn.rodzaj === "blad") return zle("powtarzanie must be a string or null");
+  if (cyklIn.rodzaj === "ustaw" && !normalizujCykl(cyklIn.wartosc)) return zle("invalid powtarzanie");
+
+  const doIn = odczytajOpcjonalna(body, "powtarzanie_do");
+  if (doIn.rodzaj === "blad") return zle("powtarzanie_do must be a date string or null");
+  if (doIn.rodzaj === "ustaw" && !isPlausibleDateString(doIn.wartosc)) return zle("invalid powtarzanie_do");
+
+  const rodzicIn = odczytajOpcjonalna(body, "parent_id");
+  if (rodzicIn.rodzaj === "blad") return zle("parent_id must be an id or null");
+  if (rodzicIn.rodzaj === "ustaw" && rodzicIn.wartosc === id) {
+    return zle("reminder cannot be its own parent");
+  }
+
+  /* ── FAZA 2: reguły, które zależą od tego, co JEST w bazie ────────────── */
+
+  const [obecny] = (await sql`
+    SELECT termin::text AS termin, powtarzanie, parent_id FROM reminders WHERE id = ${id};
+  `) as unknown as { termin: string | null; powtarzanie: string | null; parent_id: string | null }[];
+  if (!obecny) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // Stan PO tym patchu — reguły dotyczą wyniku, nie punktu wyjścia. Bez tego
+  // `{"termin":"2026-09-01","godzina":"14:00"}` w jednym żądaniu wywracałoby
+  // się na tym, że w chwili sprawdzania terminu jeszcze nie ma.
+  const terminPo =
+    terminIn.rodzaj === "ustaw" ? terminIn.wartosc : terminIn.rodzaj === "zdejmij" ? null : obecny.termin;
+  const rodzicPo =
+    rodzicIn.rodzaj === "ustaw" ? rodzicIn.wartosc : rodzicIn.rodzaj === "zdejmij" ? null : obecny.parent_id;
+  const cyklPo =
+    cyklIn.rodzaj === "ustaw"
+      ? cyklIn.wartosc
+      : cyklIn.rodzaj === "zdejmij" || terminIn.rodzaj === "zdejmij"
+        ? null
+        : obecny.powtarzanie;
+
+  // Trzy ODMOWY zamiast trzech cichych no-opów. Do audytu Modułu 66 każdy
+  // z tych warunków siedział w `WHERE` zapytania, więc zapytanie po prostu nie
+  // zmieniało nic, a trasa i tak odpowiadała `{"ok":true}`: godzina 14:00
+  // ustawiona na bezterminowym przepadała bez śladu, cykl na podzadaniu też.
+  // Cicha odmowa jest w skutkach tym samym, co cicha podmiana — użytkownik
+  // widzi „zapisano" i wierzy w stan, którego nie ma.
+  if (godzinaIn.rodzaj === "ustaw" && !terminPo) return zle("godzina requires termin");
+  if (cyklIn.rodzaj === "ustaw" && !terminPo) return zle("powtarzanie requires termin");
+  if (cyklIn.rodzaj === "ustaw" && rodzicPo) return zle("powtarzanie not allowed on a subtask");
+  if (doIn.rodzaj === "ustaw" && !cyklPo) return zle("powtarzanie_do requires powtarzanie");
+
+  if (rodzicIn.rodzaj === "ustaw") {
+    // Rodzic musi ISTNIEĆ i sam być pozycją najwyższego poziomu. Wcześniej
+    // nieistniejące id leciało prosto na klucz obcy i wracało jako 500, a para
+    // A→B / B→A zapisywała się bez mrugnięcia — po czym OBA zadania znikały
+    // z listy, bo zagnieżdżanie w GET wpychało każde z nich w drugie i żadne
+    // nie trafiało na najwyższy poziom. Dwa zadania parowały bez śladu
+    // (zmierzone sondą 2026-08-01). Kroki są JEDNOPOZIOMOWE — wnuk i tak nigdy
+    // by się nie narysował, bo lista rysuje jeden poziom wcięcia.
+    const [kandydat] = (await sql`
+      SELECT parent_id FROM reminders WHERE id = ${rodzicIn.wartosc};
+    `) as unknown as { parent_id: string | null }[];
+    if (!kandydat) return zle("parent_id does not exist");
+    if (kandydat.parent_id) return zle("a subtask cannot have subtasks");
+  }
+
+  // Powiązania też sprawdzamy PRZED zapisem: nieistniejące id leciało wcześniej
+  // prosto na klucz obcy i wracało jako 500 w środku ciągu zapisów, czyli
+  // z częścią pól już zmienioną.
+  const powiazania: { kolumna: "lista_id" | "lead_id" | "client_id" | "project_id"; wartosc: string | null }[] = [];
+  for (const kolumna of ["lista_id", "lead_id", "client_id", "project_id"] as const) {
+    const wejscie = odczytajOpcjonalna(body, kolumna);
+    if (wejscie.rodzaj === "brak") continue;
+    if (wejscie.rodzaj === "blad") return zle(`${kolumna} must be an id or null`);
+    const wartosc = wejscie.rodzaj === "ustaw" ? wejscie.wartosc : null;
+    if (wartosc) {
+      // Cztery osobne zapytania zamiast jednego z nazwą tabeli w zmiennej:
+      // `neon()` nie ma buildera, a wstawianie nazwy tabeli stringiem to ta
+      // sama droga, co sklejanie SQL-a (patrz komentarz w GET /api/reminders).
+      const [jest] = (await (kolumna === "lista_id"
+        ? sql`SELECT 1 AS x FROM reminder_lists WHERE id = ${wartosc};`
+        : kolumna === "lead_id"
+          ? sql`SELECT 1 AS x FROM leads WHERE id = ${wartosc};`
+          : kolumna === "client_id"
+            ? sql`SELECT 1 AS x FROM clients WHERE id = ${wartosc};`
+            : sql`SELECT 1 AS x FROM projects WHERE id = ${wartosc};`)) as unknown as { x: number }[];
+      if (!jest) return zle(`${kolumna} does not exist`);
+    }
+    powiazania.push({ kolumna, wartosc });
+  }
+
+  /* ── FAZA 3: zapisy. Od tego miejsca nic już nie może oddać 400 ───────── */
+
+  if (tytul !== null) await sql`UPDATE reminders SET tytul = ${tytul} WHERE id = ${id};`;
+  if (notatka !== null) await sql`UPDATE reminders SET notatka = ${notatka} WHERE id = ${id};`;
+
+  if (terminIn.rodzaj === "ustaw") {
+    // Ręczna zmiana terminu PRZESTAWIA kotwicę serii — właściciel przesuwa
+    // rytm, a nie jedno wystąpienie (pojedyncze wystąpienie przesuwa się
+    // przez odhaczenie). Bez tego „co miesiąc" po przeniesieniu na inny
+    // dzień dalej liczyłoby się od starej daty.
+    await sql`
+      UPDATE reminders
+      SET termin = ${terminIn.wartosc},
+          powtarzanie_od = CASE WHEN powtarzanie IS NULL THEN NULL ELSE ${terminIn.wartosc}::date END
+      WHERE id = ${id};
+    `;
+  } else if (terminIn.rodzaj === "zdejmij") {
+    // Zdjęcie terminu zabiera ze sobą godzinę — patrz komentarz w POST.
+    // I cykl: powtarzanie odmierza się OD terminu, więc bez niego zostałaby
+    // seria bez punktu zaczepienia.
+    await sql`
+      UPDATE reminders
+      SET termin = NULL, godzina = NULL, powtarzanie = NULL, powtarzanie_do = NULL, powtarzanie_od = NULL
+      WHERE id = ${id};
+    `;
+  }
+
+  if (godzinaIn.rodzaj === "ustaw") {
+    await sql`UPDATE reminders SET godzina = ${godzinaIn.wartosc} WHERE id = ${id};`;
+  } else if (godzinaIn.rodzaj === "zdejmij") {
+    await sql`UPDATE reminders SET godzina = NULL WHERE id = ${id};`;
+  }
+
+  if (priorytet !== null) await sql`UPDATE reminders SET priorytet = ${priorytet} WHERE id = ${id};`;
+
+  if (cyklIn.rodzaj === "ustaw") {
+    await sql`UPDATE reminders SET powtarzanie = ${cyklIn.wartosc}, powtarzanie_od = termin WHERE id = ${id};`;
+  } else if (cyklIn.rodzaj === "zdejmij") {
+    await sql`
+      UPDATE reminders SET powtarzanie = NULL, powtarzanie_do = NULL, powtarzanie_od = NULL WHERE id = ${id};
+    `;
+  }
+
+  if (doIn.rodzaj === "ustaw") {
+    await sql`UPDATE reminders SET powtarzanie_do = ${doIn.wartosc} WHERE id = ${id};`;
+  } else if (doIn.rodzaj === "zdejmij") {
+    await sql`UPDATE reminders SET powtarzanie_do = NULL WHERE id = ${id};`;
+  }
+
   if ("ukonczone" in body) {
     // `ukonczone_at` ustawia SERWER, nie klient — data odhaczenia ma być
     // faktem z jednego zegara, a nie tym, co pokazuje telefon.
@@ -185,52 +336,37 @@ export async function PATCH(
         WHERE id = ${id};
       `;
     }
-  }
-  if ("powtarzanie" in body) {
-    const cykl = normalizujCykl(body.powtarzanie);
-    if (cykl) {
-      // Cykl tylko na pozycji z terminem i tylko na najwyższym poziomie —
-      // powtarza się całe zadanie, nie krok w jego środku (patrz komentarz
-      // przy migracji w `lib/db.ts`). Warunek jest w SQL-u, żeby jedno
-      // zapytanie rozstrzygało oba przypadki bez rundy w drugą stronę.
+
+    // Odhaczenie zadania odhacza jego KROKI (decyzja właściciela z 2026-08-01,
+    // wzorzec Apple Reminders). Wcześniej kroki zostawały nieodhaczone, a że
+    // rodzic znikał z listy, wyskakiwały na jej wierzch luzem — „Kupić farbę"
+    // bez „Remontu biura" nad sobą wygląda jak zadanie, które wzięło się
+    // znikąd. Zrobione na SERWERZE, żeby panel i apka nie musiały powtarzać
+    // reguły w dwóch językach.
+    //
+    // W drugą stronę NIE kaskadujemy: cofnięcie odhaczenia rodzica nie ma
+    // odhaczać kroków, które faktycznie są zrobione.
+    //
+    // Przy serii jest odwrotnie i celowo: kolejne wystąpienie to kolejny raz
+    // TA SAMA robota, więc jego kroki wracają na start razem z terminem.
+    if (value) {
       await sql`
         UPDATE reminders
-        SET powtarzanie = ${cykl}, powtarzanie_od = termin
-        WHERE id = ${id} AND termin IS NOT NULL AND parent_id IS NULL;
-      `;
-    } else {
-      await sql`
-        UPDATE reminders SET powtarzanie = NULL, powtarzanie_do = NULL, powtarzanie_od = NULL WHERE id = ${id};
+        SET ukonczone = ${!przesuniete},
+            ukonczone_at = ${przesuniete ? null : "now()"}::timestamptz
+        WHERE parent_id = ${id};
       `;
     }
   }
-  if ("powtarzanie_do" in body) {
-    const raw = body.powtarzanie_do;
-    if (typeof raw === "string" && raw.trim()) {
-      const trimmed = raw.trim();
-      if (!isPlausibleDateString(trimmed)) {
-        return NextResponse.json({ error: "invalid powtarzanie_do" }, { status: 400 });
-      }
-      await sql`UPDATE reminders SET powtarzanie_do = ${trimmed} WHERE id = ${id} AND powtarzanie IS NOT NULL;`;
-    } else {
-      await sql`UPDATE reminders SET powtarzanie_do = NULL WHERE id = ${id};`;
-    }
-  }
+
   if ("flaga" in body) {
     await sql`UPDATE reminders SET flaga = ${body.flaga === true} WHERE id = ${id};`;
   }
   if ("przy_wyjsciu" in body) {
     await sql`UPDATE reminders SET przy_wyjsciu = ${body.przy_wyjsciu === true} WHERE id = ${id};`;
   }
-  if ("parent_id" in body) {
-    const raw = body.parent_id;
-    const wartosc = typeof raw === "string" && raw.trim() ? raw : null;
-    // Zadanie nie może być swoim własnym rodzicem — jeden warunek chroni przed
-    // cyklem, którego reszta kodu (zagnieżdżanie w GET) by nie przeżyła.
-    if (wartosc === id) {
-      return NextResponse.json({ error: "reminder cannot be its own parent" }, { status: 400 });
-    }
-    await sql`UPDATE reminders SET parent_id = ${wartosc} WHERE id = ${id};`;
+  if (rodzicIn.rodzaj !== "brak") {
+    await sql`UPDATE reminders SET parent_id = ${rodzicIn.rodzaj === "ustaw" ? rodzicIn.wartosc : null} WHERE id = ${id};`;
   }
   if ("lokalizacja" in body || "lokalizacja_lat" in body) {
     // Miejsce zapisuje się w KOMPLECIE albo wcale: nazwa bez współrzędnych to
@@ -253,19 +389,15 @@ export async function PATCH(
       WHERE id = ${id};
     `;
   }
-  for (const kolumna of ["lista_id", "lead_id", "client_id", "project_id"] as const) {
-    if (kolumna in body) {
-      const raw = body[kolumna];
-      const value = typeof raw === "string" && raw.trim() ? raw : null;
-      if (kolumna === "lista_id") {
-        await sql`UPDATE reminders SET lista_id = ${value} WHERE id = ${id};`;
-      } else if (kolumna === "lead_id") {
-        await sql`UPDATE reminders SET lead_id = ${value} WHERE id = ${id};`;
-      } else if (kolumna === "client_id") {
-        await sql`UPDATE reminders SET client_id = ${value} WHERE id = ${id};`;
-      } else {
-        await sql`UPDATE reminders SET project_id = ${value} WHERE id = ${id};`;
-      }
+  for (const { kolumna, wartosc } of powiazania) {
+    if (kolumna === "lista_id") {
+      await sql`UPDATE reminders SET lista_id = ${wartosc} WHERE id = ${id};`;
+    } else if (kolumna === "lead_id") {
+      await sql`UPDATE reminders SET lead_id = ${wartosc} WHERE id = ${id};`;
+    } else if (kolumna === "client_id") {
+      await sql`UPDATE reminders SET client_id = ${wartosc} WHERE id = ${id};`;
+    } else {
+      await sql`UPDATE reminders SET project_id = ${wartosc} WHERE id = ${id};`;
     }
   }
 

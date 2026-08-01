@@ -192,7 +192,7 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Poczta | ✅ | ✅ | ✅ | ✅⁶ | ✅ | ✅⁶ | ✅ | ✅ | ✅⁶ | ✅ |
 | Kalendarz | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
-| Przypomnienia | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
+| Przypomnienia | ✅ | ✅⁷ | ✅⁷ | ✅⁷ | ✅⁷ | ✅⁷ | ✅ | ✅ | ✅⁷ | ✅ |
 | Statystyki | ✅ | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ³ **Wiersze Leadów i Klientów ZMIERZONE PONOWNIE 2026-08-01** (na początku
@@ -234,6 +234,39 @@ filtrem — i nie dawał drogi powrotnej. Cała ta informacja stała na
 tytuł). **Integralność** zmierzona sondą: 22/22 uchwytów z realną bramką 401,
 walidacja wejścia bez zarzutu — ale wysyłka dała się **wykonać dwa razy**
 zerwanym żądaniem (patrz `lib/mailGuard.ts`).
+
+⁷ **Przypomnienia przeszły pełną listę 2026-08-01** (Moduł 66) — wynik
+i pomiary w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Przypomnienia".
+**Pierwszy raz od sześciu modułów tabela myliła się w OBIE strony**, a nie
+tylko na niekorzyść:
+
+- **Klawiatura ❌ — NIEAKTUALNE** (szósty raz z rzędu). `/` ustawia fokus
+  w polu szukania, `j`/`k` przesuwają `[data-kursor]` — sprawdzone dyspozycją
+  zdarzeń, nie odczytem importów. Sprzątnęła to paczka C, wiersza nikt nie
+  poprawił.
+- **Nawigacja ⚠️ — NIEAKTUALNE.** Adres rekordu (`/pl/admin/reminders/<id>`)
+  dołożyła paczka E, razem z odrębną obsługą 404 („Nie ma takiego
+  przypomnienia" ≠ „nie udało się wczytać").
+- **Stany ❌ — OBOWIĄZYWAŁO**, i to tą samą usterką, co Poczta tydzień
+  wcześniej: jedne słowa obsługiwały dwa różne powody pustki, więc szukanie
+  frazy bez trafień odpowiadało **„Przypomnienia są, ale żadne nie należy do
+  wybranej listy"** — zdaniem fałszywym, gdy żadna lista nie jest wybrana.
+  Pusty stan z błędnym powodem wysyła po złe wyjście.
+- **Klikalność ⚠️ — OBOWIĄZYWAŁO.** Zmierzone `getBoundingClientRect`: kółko
+  odhaczenia **18×18 px**, trzy ikony wiersza (flaga, otwórz, usuń) po
+  **15×15 px**, przy progu 24×24 z WCAG 2.5.8 — i to na przycisku, który w tym
+  module naciska się najczęściej ze wszystkich. Po zmianie **26×26** (padding
+  cofnięty ujemnym marginesem: rośnie trafienie, nie rysunek). **Ten sam wzorzec
+  15 px stoi też w Katalogu** (`CatalogDashboard.tsx`) — zapisane, NIE zmienione
+  w tej sesji, bo to zakres poza modułem.
+- **Gesty/menu ⚠️ — OBOWIĄZYWAŁO.** Jedenaście modułów ma menu pod prawym
+  przyciskiem (`onContextMenu`), Przypomnienia były — obok Notatnika
+  i Kalendarza — jednym z trzech miejsc bez niego. Dołożone wspólnym
+  `useContextMenu`.
+- **Integralność ⚠️ — OBOWIĄZYWAŁO**, i to najciężej z całej tabeli. Sonda:
+  **9/9 uchwytów z realną bramką 401**, ale walidacja miała cztery dziury,
+  w tym `{"termin": 20260901}` (liczba zamiast tekstu), która **KASOWAŁA
+  termin** i odpowiadała `{"ok":true}`. Szczegóły w `51-…`.
 
 ⁵ **Koszty przeszły pełną listę 2026-08-01** (Moduł 63) — wynik i pomiary
 w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Koszty". Jedyne ❌

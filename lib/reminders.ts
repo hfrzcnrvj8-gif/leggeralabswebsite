@@ -6,6 +6,9 @@
 // przypomnienie MOŻE nie mieć terminu — „kiedyś to zrobię" jest pełnoprawnym
 // stanem, podczas gdy wydarzenie bez daty nie ma sensu.
 
+import { parsePgTimestamp } from "./dates";
+import { normalizujCykl, pierwszeWystapienieOd } from "./recurrence";
+
 export type ReminderList = {
   id: string;
   nazwa: string;
@@ -177,6 +180,60 @@ export function isPlausibleTimeString(v: string): boolean {
 export function isOverdue(r: Reminder, dzisISO: string): boolean {
   if (r.ukonczone || !r.termin) return false;
   return r.termin < dzisISO;
+}
+
+/** Ile dni bezterminowe przypomnienie ma poleżeć, zanim panel o nim wspomni.
+ *
+ * 90 dni, nie 30: „kiedyś to zrobię" ma prawo poczekać kwartał — sygnał po
+ * miesiącu odzywałby się przy większości takich spraw i nauczyłby go
+ * ignorować. Reguła jest DETERMINISTYCZNA (`CLAUDE.md`): liczba dni od
+ * utworzenia, bez żadnego modelu i bez zgadywania „ważności". */
+export const PROG_LEZY_DNI = 90;
+
+/** Ile dni leży bezterminowe przypomnienie — albo `null`, gdy nie ma o czym
+ * mówić (jest termin, jest odhaczone, albo leży krócej niż próg).
+ *
+ * Powód istnienia: termin jest tu OPCJONALNY i to jest cecha, nie brak
+ * (decyzja właściciela z 2026-07-22). Ale skoro nic takiego przypomnienia nie
+ * pilnuje — żaden alarm, żaden kolor, żadna zaległość — to bez tego licznika
+ * „oddzwonić do Kowalskiego" może przeleżeć rok i umrzeć w ciszy. Sygnał jest
+ * MIĘKKI: sama liczba dni, szarym tekstem, bez pigułki „zaległe" i bez wpływu
+ * na sortowanie — bo to nie jest zaległość, tylko sprawa, która się zestarzała.
+ * (Decyzja właściciela z 2026-08-01, audyt Modułu 66.) */
+export function dniLezenia(
+  r: Pick<Reminder, "termin" | "ukonczone" | "created_at">,
+  teraz: Date = new Date()
+): number | null {
+  if (r.termin || r.ukonczone) return null;
+  const utworzone = parsePgTimestamp(r.created_at);
+  if (!utworzone) return null;
+  const dni = Math.floor((teraz.getTime() - utworzone.getTime()) / 86400000);
+  return dni >= PROG_LEZY_DNI ? dni : null;
+}
+
+/** Czy powtarzalne przypomnienie ma jeszcze KIEDY wystąpić po bieżącym
+ * terminie. `false` znaczy: pigułka mówi „co miesiąc", a kolejnego razu nie
+ * będzie — bo koniec serii wypada przed terminem albo między terminem
+ * a końcem nie mieści się już ani jeden krok rytmu.
+ *
+ * Da się do tego stanu dojść bez żadnego błędu: ustawiasz „co miesiąc, do
+ * 31 grudnia", a potem przenosisz termin na czerwiec przyszłego roku. Zapis
+ * jest UPRAWNIONY (możesz właśnie poprawiać jedno pole przed drugim), więc
+ * serwer go nie blokuje — decyzja właściciela z 2026-08-01. Ale milczeć o tym
+ * nie wolno: to jedyny moduł, w którym data nie opisuje, tylko URUCHAMIA. */
+export function seriaMaPrzyszlosc(
+  r: Pick<Reminder, "termin" | "powtarzanie" | "powtarzanie_do" | "powtarzanie_od">
+): boolean {
+  const cykl = normalizujCykl(r.powtarzanie);
+  if (!cykl || !r.termin) return false;
+  if (!r.powtarzanie_do) return true;
+  const kotwica = r.powtarzanie_od ?? r.termin;
+  return (
+    pierwszeWystapienieOd(
+      { start: kotwica, cykl, doISO: r.powtarzanie_do, pominiete: [r.termin] },
+      r.termin
+    ) !== null
+  );
 }
 
 /** Kolejność listy: nieukończone przed ukończonymi, potem termin (bez terminu

@@ -49,6 +49,13 @@ export async function POST(req: NextRequest) {
   if (!nazwa) {
     return NextResponse.json({ error: "nazwa is required" }, { status: 400 });
   }
+  // Brak koloru = domyślny (lista zakładana z samej nazwy to normalna droga).
+  // Ale kolor SPOZA palety dostaje 400, dokładnie jak w bliźniaczym PATCH-u —
+  // do audytu Modułu 66 te dwie trasy odpowiadały na tę samą wartość inaczej:
+  // PATCH pisał „invalid kolor", POST po cichu zapisywał fiolet i mówił „ok".
+  if ("kolor" in (body ?? {}) && body?.kolor !== null && body?.kolor !== "" && !isReminderListColor(body?.kolor)) {
+    return NextResponse.json({ error: "invalid kolor" }, { status: 400 });
+  }
   const kolor = isReminderListColor(body?.kolor) ? body.kolor : DEFAULT_LIST_COLOR;
 
   await ensureRemindersSchema();

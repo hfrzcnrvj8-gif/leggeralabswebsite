@@ -1088,6 +1088,77 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "e", opis: "Oznacz jako obsłużone. Świadomie NIE archiwizuje — status i folder to dwie osobne osie." },
     ],
   },
+  {
+    id: "przypomnienia",
+    nazwa: "Przypomnienia",
+    gdzie: "Panel: menu po lewej → Przypomnienia. Telefon i iPad: zakładka „Więcej” → Przypomnienia.",
+    poCoTo:
+      "Lista rzeczy do zrobienia, wzorowana na Przypomnieniach Apple'a. Różnica wobec Kalendarza jest jedna, ale zasadnicza: tutaj termin jest NIEOBOWIĄZKOWY. „Kiedyś przejrzeć backupy” to pełnoprawny wpis, a wydarzenie bez daty nie miałoby sensu.",
+    kiedy:
+      "Kiedy coś masz zrobić, ale nie musisz nigdzie być o konkretnej porze: oddzwonić, dopytać o fakturę, przejrzeć dokumentację. Rzeczy z godziną i miejscem idą do Kalendarza.",
+    kroki: [
+      {
+        tytul: "1. Wpisujesz jedno zdanie i już jest",
+        opis:
+          "Pole „Co masz zrobić?” na górze listy — Enter zapisuje. Formularza nie ma celowo: termin, priorytet i listę dokładasz później, klikając w gotowy wpis. Nowy wpis ląduje na liście, którą właśnie oglądasz.",
+      },
+      {
+        tytul: "2. Bez terminu też jest w porządku",
+        opis:
+          "Wpis bez daty NIE liczy się jako zaległość i nie zaświeci na czerwono — to sprawa świadomie odłożona, nie zapomniana. Jedyne, co panel zrobi: po trzech miesiącach dopisze szarym „leży od 4 miesięcy”, żeby nie zniknęła Ci z oczu na dobre.",
+      },
+      {
+        tytul: "3. Kroki wewnątrz zadania",
+        opis:
+          "Większą rzecz („Remont biura”) rozbijasz na kroki. Odhaczenie całego zadania odhacza WSZYSTKIE jego kroki — tak jak u Apple'a. W drugą stronę to nie działa: cofnięcie odhaczenia zostawia kroki zrobione. Kroki są jednopoziomowe, kroku nie da się rozbić na kolejne kroki.",
+      },
+      {
+        tytul: "4. Powtarzanie zamyka WYSTĄPIENIE, nie serię",
+        opis:
+          "Odhaczasz „Rozliczenie z księgową” za lipiec i zadanie nie znika — wraca z terminem na sierpień. Rytm liczy się od pierwszej daty serii, więc „co miesiąc od 31.” nie zsuwa się na 28. po lutym. Kroki powtarzalnego zadania wracają wtedy na start razem z nim.",
+      },
+      {
+        tytul: "5. Miejsce zamiast godziny",
+        opis:
+          "Przypomnienie może odezwać się, gdy dojdziesz na miejsce albo gdy je opuścisz — tego pilnuje TELEFON, nie serwer. Sama nazwa miejsca bez wskazania go na mapie to zwykła notatka i panel niczego wtedy nie obiecuje.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Powiadomienia planuje TELEFON, nie panel",
+        opis:
+          "Serwer nie wysyła w tym module nic — żadnego maila, żadnego pushu. Alarm o godzinie i alarm „na miejscu” ustawia apka na Twoim iPhonie. Skutek praktyczny: jeśli apki nie masz zainstalowanej albo odmówisz jej zgody na powiadomienia, przypomnienie będzie tylko wpisem na liście.",
+      },
+      {
+        tytul: "Termin przeskakuje sam przy powtarzaniu",
+        opis:
+          "Zaległe zadanie cykliczne, odhaczone po trzech miesiącach, wraca za miesiąc od DZIŚ — a nie wyskakuje od razu z kolejną przeterminowaną datą. Reguła deterministyczna, bez AI.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Godzina bez terminu nie zapisze się wcale",
+        opis:
+          "Sama godzina znaczyłaby „o 14:00 nigdy”. Panel odmówi i to napisze, zamiast przyjąć zapis i po cichu wyrzucić godzinę.",
+      },
+      {
+        tytul: "Seria może stracić przyszłość, choć wygląda na żywą",
+        opis:
+          "Jeśli ustawisz „co miesiąc do 31 grudnia”, a potem przeniesiesz termin na przyszły czerwiec, powtórzenie nigdy nie nastąpi. Zapis przechodzi (bywa krokiem pośrednim), ale w profilu staje zdanie: „To ostatnie wystąpienie tej serii”. Przeczytaj je, zanim zamkniesz okno.",
+      },
+      {
+        tytul: "Usunięcie listy NIE kasuje przypomnień",
+        opis:
+          "Wpisy z usuniętej listy trafiają do „Bez listy” — panel mówi z góry, ilu to dotyczy. Za to usunięcie ZADANIA kasuje jego kroki razem z nim.",
+      },
+    ],
+    skroty: [
+      { tytul: "„/” albo ⌘F", opis: "Szukanie po tytule i notatce — obejmuje też kroki wewnątrz zadań." },
+      { tytul: "j / k, Enter", opis: "Kursor po liście i otwarcie wpisu. Kroki są w kolejności czytania, pod swoim zadaniem." },
+      { tytul: "n albo ⌘N", opis: "Kursor do pola „Co masz zrobić?”." },
+      { tytul: "Prawy przycisk myszy", opis: "Menu wiersza: odhacz, flaga, zdejmij termin, otwórz, usuń." },
+    ],
+  },
 ];
 
 /** Moduł po `id` — do podstrony i do kotwic. */

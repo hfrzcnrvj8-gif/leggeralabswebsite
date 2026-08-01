@@ -95,13 +95,20 @@ export function ReminderPage({ id, lang }: { id: string; lang: Locale }) {
                 <ul className="space-y-1.5">
                   {reminder.podzadania.map((s) => (
                     <li key={s.id} className="flex items-center gap-2 text-[13px]">
+                      {/* Obszar 24 px, kółko 16 px — ten sam zabieg, co na
+                          liście (audyt Modułu 66): `-m-1` cofa `p-1`, więc
+                          rośnie trafienie, a nie rysunek. */}
                       <button
                         onClick={() => patch(s.id, { ukonczone: !s.ukonczone })}
                         aria-label={s.ukonczone ? "Cofnij odhaczenie" : "Odhacz"}
-                        className={`flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border ${
-                          s.ukonczone ? "border-brand-purple bg-brand-purple" : "border-[var(--hairline)]"
-                        }`}
-                      />
+                        className="-m-1 flex shrink-0 items-center justify-center p-1"
+                      >
+                        <span
+                          className={`block h-[16px] w-[16px] rounded-full border ${
+                            s.ukonczone ? "border-brand-purple bg-brand-purple" : "border-[var(--hairline)]"
+                          }`}
+                        />
+                      </button>
                       <Link
                         href={`/${lang}/admin/reminders/${s.id}`}
                         className={`min-w-0 flex-1 truncate hover:underline ${

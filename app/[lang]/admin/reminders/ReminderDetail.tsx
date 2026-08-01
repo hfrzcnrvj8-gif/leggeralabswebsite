@@ -6,7 +6,8 @@ import { LinkPicker, type LinkValue } from "../LinkPicker";
 import { EditableText, EditableTextarea } from "../components";
 import { CyklPicker } from "../CyklPicker";
 import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
-import { PRIORITY_LABEL, KropkaListy, type Reminder, type ReminderList } from "./shared";
+import { formatPlDateTime } from "@/lib/dates";
+import { PRIORITY_LABEL, KropkaListy, seriaMaPrzyszlosc, type Reminder, type ReminderList } from "./shared";
 
 /** Profil przypomnienia jako WYŚRODKOWANY MODAL — obowiązujący wzorzec profilu
  * rekordu w tym panelu (CLAUDE.md: nie wysuwany panel z prawej). Węższy niż
@@ -130,9 +131,19 @@ export function TrescPrzypomnienia({
             {!r.termin && (
               <WierszUwaga>Przypomnienie bez terminu jest w porządku — nie liczy się jako zaległość.</WierszUwaga>
             )}
+            {/* Seria, która nie ma już KIEDY wystąpić, wygląda dokładnie tak
+                samo, jak żywa: ta sama pigułka „Co miesiąc", ta sama data.
+                Da się w ten stan wejść bez błędu — przesuwając termin za datę
+                końca — a serwer takiego zapisu świadomie nie blokuje (decyzja
+                właściciela z 2026-08-01: to bywa krok pośredni). Skoro nie
+                blokujemy, to musimy POWIEDZIEĆ; w module, w którym data
+                uruchamia powiadomienie, cicha martwa seria to obietnica bez
+                pokrycia. */}
             {r.termin && !r.parent_id && r.powtarzanie && (
               <WierszUwaga>
-                Odhaczenie zamyka to wystąpienie — termin przeskoczy na kolejny cykl, zadanie zostanie na liście.
+                {seriaMaPrzyszlosc(r)
+                  ? "Odhaczenie zamyka to wystąpienie — termin przeskoczy na kolejny cykl, zadanie zostanie na liście."
+                  : "To ostatnie wystąpienie tej serii — koniec powtarzania wypada przed kolejnym terminem, więc zadanie już nie wróci. Odhaczenie zamknie je na dobre."}
               </WierszUwaga>
             )}
           </SekcjaProfilu>
@@ -197,8 +208,13 @@ export function TrescPrzypomnienia({
           </SekcjaProfilu>
         </div>
 
+        {/* Data przez wspólny formatter, nie przez krojenie stringa. Poprzednia
+            wersja robiła `.slice(0,16).replace("T", ", ")`, a Postgres oddaje
+            znacznik ze SPACJĄ, nie z „T" (pamięć `znacznik-czasu-postgresa`) —
+            więc `replace` nie trafiał w nic i na ekranie stało surowe
+            „2026-08-01 22:40" zamiast polskiej daty. */}
         {r.ukonczone && r.ukonczone_at && (
-          <p className="mt-4 text-[11.5px] text-muted">Odhaczone {r.ukonczone_at.slice(0, 16).replace("T", ", ")}</p>
+          <p className="mt-4 text-[11.5px] text-muted">Odhaczone {formatPlDateTime(r.ukonczone_at)}</p>
         )}
       </div>
   );

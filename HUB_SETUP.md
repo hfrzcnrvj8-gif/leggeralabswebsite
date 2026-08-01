@@ -10725,3 +10725,136 @@ Poczta była ostatnim modułem bez `StanListy`. Kosztowało to zdanie „Nic —
 wszystko obsłużone" wyświetlane przy sześciu wiadomościach odsianych filtrem
 kategorii. **`opacity-60` na tekście pustego stanu jest zakazane** — zmierzone
 2,84:1 wobec tła karty, przy progu AA 4,5. To zwykle jedyna treść na ekranie.
+
+---
+
+## Moduł 66 — Przypomnienia (2026-08-01)
+
+Audyt modułu, w którym **data nie opisuje, tylko URUCHAMIA**. Pełny wynik
+i pomiary: `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md` → „Stan po module
+Przypomnienia". Tutaj tylko wzorce, które obowiązują dalej.
+
+### `odczytajOpcjonalna()` — trzy przypadki zamiast dwóch
+
+**Wzorzec do powielenia w każdej trasie z polem „opcjonalna data / opcjonalny
+tekst".** Do tego audytu `PATCH` sprawdzał jeden warunek — `typeof raw ===
+"string"` — a wszystko inne wpadało do gałęzi „wyczyść". Skutek:
+`{"termin": 20260901}` (liczba zamiast tekstu) **kasowała termin** i odpowiadała
+`{"ok":true}`. W module, w którym termin uruchamia powiadomienie, cicha zamiana
+śmiecia na „nigdy" jest najgorszą z możliwych podmian, bo zadanie zostaje na
+liście, wygląda normalnie i nigdy się nie odzywa.
+
+Trzy przypadki, nie dwa: brak / `null` / `""` = **ZDEJMIJ**, tekst = **USTAW**,
+cokolwiek innego = **400 z powodem**.
+
+### Cicha ODMOWA jest tym samym, co cicha PODMIANA
+
+Warunek w `WHERE` zapytania (`… AND termin IS NOT NULL`) sprawia, że `UPDATE`
+nie zmienia nic, a trasa i tak oddaje `{"ok":true}`. Użytkownik ustawia godzinę
+14:00, dostaje potwierdzenie i nie ma godziny. **Reguła: jeśli zapis nie ma
+prawa wejść, trasa ma odmówić z powodem, a nie zapytać bazę o nic.**
+
+### Walidacja PRZED pierwszym zapisem (bo nie ma transakcji)
+
+`neon()` to klient HTTP — nie ma `BEGIN/COMMIT`. Trasa złożona z ciągu
+`UPDATE`-ów z walidacją przy każdym zapisuje część pól, a potem oddaje 400;
+panel pisze wtedy „nie udało się zapisać zmiany" i **kłamie**. Wzorzec:
+
+1. **Faza 1** — kształt wszystkich pól, bez oglądania się na bazę.
+2. **Faza 2** — jeden `SELECT` stanu i reguły liczone od stanu **PO** patchu
+   (inaczej `{"termin":"…","godzina":"…"}` w jednym żądaniu wywraca się samo
+   na sobie), plus sprawdzenie istnienia wszystkich kluczy obcych.
+3. **Faza 3** — zapisy. Od tego miejsca nic już nie może oddać 400.
+
+### Klucz obcy to nie walidacja — daje 500, nie 400
+
+Nieistniejące `parent_id` leciało prosto na `REFERENCES` i wracało jako „coś
+się popsuło" na danych, o których dokładnie wiadomo, co jest z nimi nie tak.
+Każde pole wskazujące na inny rekord sprawdzaj `SELECT`-em przed zapisem.
+
+### Zagnieżdżanie w odczycie musi być odporne na cykl w danych
+
+`GET` zagnieżdżał podzadanie pod każdym rodzicem, którego znalazł. Para
+A→B / B→A wpychała każde zadanie w drugie i **żadne nie trafiało na najwyższy
+poziom** — dwa zadania znikały z listy bez śladu. Zapis takiej pary już nie
+przejdzie, ale **odczyt i tak musi być odporny na to, co siedzi w bazie od
+wcześniej**: zagnieżdżamy wyłącznie pod rodzicem, który sam nie ma rodzica.
+Przy okazji to jedyny poprawny kształt — lista rysuje jedno wcięcie, więc
+„wnuk" i tak nigdy się nie renderował.
+
+### Sygnał „leży od…" — brak terminu nie jest zaległością
+
+`PROG_LEZY_DNI = 90` w `lib/reminders.ts`, bliźniak `Przypomnienie
+.progLezeniaDni` w apce. Termin jest w tym module **opcjonalny** i to jest
+cecha, nie brak — ale nic takiego wpisu nie pilnuje, więc bez tego licznika
+sprawa może przeleżeć rok. Sygnał jest **miękki z rozmysłem**: sama liczba
+miesięcy, szarym tekstem, **bez pigułki „zaległe" i bez wpływu na sortowanie**.
+Czerwień byłaby kłamstwem o stanie — `isOverdue` dla braku terminu zwraca
+`false` i tak zostaje. Próg 90, nie 30: sygnał po miesiącu odzywałby się przy
+większości takich spraw i nauczyłby go ignorować.
+
+### Odhaczenie zadania zabiera jego KROKI
+
+Decyzja właściciela z 2026-08-01, wzorzec Apple Reminders. Wcześniej rodzic
+znikał z listy, a nieodhaczone kroki wyskakiwały na jej wierzch bez wcięcia —
+„Kupić farbę" bez „Remontu biura" nad sobą wygląda na zadanie wzięte znikąd.
+Trzy reguły, wszystkie na **serwerze** (żeby panel i apka nie powtarzały ich
+w dwóch językach):
+
+- odhaczenie rodzica → kroki odhaczone;
+- **cofnięcie** odhaczenia → kroki zostają zrobione (nie kaskadujemy w drugą
+  stronę);
+- kolejne wystąpienie serii → kroki **wracają na start**, bo to kolejny raz ta
+  sama robota.
+
+### Seria bez przyszłości musi się PRZEDSTAWIĆ
+
+Da się wejść w stan, w którym pigułka mówi „Co miesiąc", a powtórzenia nie
+będzie: wystarczy przesunąć termin za `powtarzanie_do`. Serwer takiego zapisu
+**świadomie nie blokuje** (bywa krokiem pośrednim — poprawiasz jedno pole przed
+drugim), więc jedyną obroną jest powiedzenie tego wprost. `seriaMaPrzyszlosc()`
+liczy to od **kotwicy** (`powtarzanie_od`), nie od bieżącego terminu, i łapie
+też przypadek, w którym koniec jest późniejszy od terminu, ale nie mieści się
+między nimi ani jeden krok rytmu. Bliźniak w apce:
+`Przypomnienie.seriaMaPrzyszlosc`.
+
+### Pusty stan: jeden zestaw słów na dwa powody to znów kłamstwo
+
+Ta sama usterka, co w Poczcie tydzień wcześniej. Szukanie frazy bez trafień
+odpowiadało „żadne nie należy do wybranej listy" — na liście „Wszystkie".
+`filtrTytul`/`filtrOpis` w `StanListy` mają być **dobierane do powodu**.
+I odwrotnie: przełącznik, który tylko DOKŁADA wiersze (`Pokaż ukończone`),
+nigdy nie jest powodem pustki i nie wolno go liczyć do „filtr aktywny".
+
+### Cel dotykowy: rośnie TRAFIENIE, nie rysunek
+
+Próg to **24×24 px** (WCAG 2.5.8). Kółko odhaczenia miało 18, ikony wiersza po
+15. Zabieg: `-m-1.5 p-1.5` na przycisku — padding powiększa obszar, ujemny
+margines cofa wpływ na układ. Gdy przycisk niesie własne tło albo obramowanie
+(kółko), rysunek schodzi do wewnętrznego `<span>`, inaczej urósłby razem
+z obszarem. **Ten sam wzorzec 15 px stoi w Katalogu i NIE został ruszony** —
+zakres poza modułem, do rozstrzygnięcia przez właściciela.
+
+### `formatPlDateTime` nie ufa już `new Date()`
+
+Znacznik z Neona ma spację zamiast „T" i strefę bez dwukropka. Node to zjada,
+przeglądarka nie musi — a ta funkcja renderuje się po stronie **klienta**.
+Idzie teraz przez `parsePgTimestamp`, jak wszystko inne (pamięć
+`znacznik-czasu-postgresa`). Awaria była cicha: `Invalid Date` → zwracany surowy
+string → na ekranie zapis prosto z bazy.
+
+### Seed dev-bazy dostał Przypomnienia
+
+Do tego audytu `ensureSeeded()` nie tworzył ani jednego przypomnienia, więc
+moduł był lokalnie **zawsze pusty**, a stany biorące się z upływu czasu („leży
+od…", seria bez przyszłości) nie dawały się odtworzyć w ogóle — `created_at`
+nie da się ustawić przez API. Dwie listy, dziewięć pozycji, w tym zadanie
+z krokami i obie odmiany serii.
+
+### Powiadomienia planuje TELEFON — serwer nie wysyła nic
+
+`vercel.json` nie ma crona dla przypomnień i **to nie jest brak**. Alarmy
+czasowe i geofence ustawia apka (`StoperPrzypomnienia.swift`,
+`GeofencePrzypomnien.swift`), bo serwer nie ma kanału push (darmowe konto
+Apple). Skutek praktyczny do zapamiętania: bez zainstalowanej apki
+przypomnienie jest wyłącznie wpisem na liście.

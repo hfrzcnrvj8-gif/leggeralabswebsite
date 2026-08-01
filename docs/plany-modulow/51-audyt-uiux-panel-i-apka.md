@@ -1393,3 +1393,236 @@ nigdy nie było — teraz 404 z własnym zdaniem. Temat przechodzi przez
   wysyłki: `disabled={!configured}` wyłącza sam przycisk „Odpisz", więc bez
   atrapy `MAIL_IMAP_HOST`/`MAIL_USER`/`MAIL_PASS` nie da się dojść nawet do
   formularza odpowiedzi ani do szkicu AI.
+
+---
+
+## Stan po module Przypomnienia (2026-08-01, Moduł 66)
+
+**Ten moduł miał własne, trzecie ryzyko — i brief trafił.** Projekty, Faktury,
+Katalog i Koszty miały ciche podmiany śmiecia na wartość domyślną. Poczta ich
+nie miała. Przypomnienia stoją pośrodku, ale ważniejsze jest co innego: **to
+jedyny moduł, w którym data nie tylko OPISUJE, ale URUCHAMIA.** Zły termin
+w koszcie maluje wiersz na pomarańczowo; zły termin tutaj decyduje, czy
+powiadomienie przyjdzie dziś, za rok, czy nigdy.
+
+**Najpierw dwa fakty, które przestawiły plan:**
+
+1. **Serwer nie wysyła w tym module NICZEGO.** `vercel.json` ma trzy crony —
+   leady, poczta, łowca — przypomnień wśród nich nie ma. Alarmy planuje TELEFON
+   lokalnie (`StoperPrzypomnienia.swift`, `UNCalendarNotificationTrigger`;
+   geofence przez `CLCircularRegion`). Konkret 4 z briefu („idempotencja
+   wysyłki, jak w `lib/mailGuard.ts`") jest więc **bezprzedmiotowy w tej
+   postaci** — nie ma czego zabezpieczać przed podwójnym wysłaniem, bo nic nie
+   wychodzi poza bazę. Zapisane wprost, bo połowa podejrzeń o „automat" dotyczy
+   w tym panelu rzeczy, które są tylko kolorem na liście.
+2. **Autoryzacja bez zarzutu: 9/9 uchwytów HTTP z realną bramką.** Brief to
+   przewidywał i miał rację.
+
+### Co zmieniono
+
+**1. Śmieć w polu daty KASOWAŁ termin i odpowiadał `{"ok":true}`.**
+`PATCH` sprawdzał `typeof raw === "string"`, więc `{"termin": 20260901}` —
+liczba zamiast tekstu, realny wynik pomyłki w kliencie — wpadała do gałęzi
+„zdejmij termin". W module, w którym termin uruchamia powiadomienie, cicha
+zamiana śmiecia na **„nigdy"** jest najgorszą z możliwych podmian: zadanie
+zostaje na liście, wygląda normalnie i nigdy się nie odezwie. Teraz trzy
+przypadki zamiast dwóch (`odczytajOpcjonalna()`): brak/`null`/`""` znaczy
+ZDEJMIJ, tekst znaczy USTAW, cokolwiek innego to 400 z powodem.
+
+**2. Trzy ciche NO-OPY, każdy z `{"ok":true}`.** Godzina na przypomnieniu bez
+terminu, cykl na podzadaniu, `powtarzanie_do` bez cyklu — każdy z tych warunków
+siedział w `WHERE` zapytania, więc `UPDATE` nie zmieniał nic, a trasa i tak
+mówiła „zapisano". Ustawiasz 14:00, dostajesz potwierdzenie, godziny nie ma.
+**Cicha odmowa jest w skutkach tym samym, co cicha podmiana** — użytkownik widzi
+„zapisano" i wierzy w stan, którego nie ma. Teraz trzy różne 400 z powodem.
+
+**3. `PATCH` nie był atomowy — komunikat o błędzie KŁAMAŁ.** Trasa była ciągiem
+osobnych `UPDATE`-ów z walidacją przy każdym. Ciało `{"tytul":"PO",
+"termin":"0202-01-01"}` zapisywało tytuł, po czym oddawało 400; panel pokazywał
+„Nie udało się zapisać zmiany", a zmiana częściowo weszła. Przebudowane na
+dwie fazy: **najpierw komplet sprawdzeń (także tych zależnych od stanu
+w bazie), potem zapisy.** Neon nie daje transakcji w kliencie HTTP, więc
+atomowość bierzemy stąd, że po pierwszym zapisie nie ma już czego odrzucić.
+Reguły liczy się od stanu PO patchu, nie przed — inaczej
+`{"termin":"…","godzina":"…"}` w jednym żądaniu wywracałoby się samo na sobie.
+
+**4. Para „rodzic ↔ dziecko" kasowała dwa zadania z listy — bez śladu.**
+`PATCH` bronił tylko przed „sam sobie rodzicem". Układ A→B, B→A zapisywał się
+bez mrugnięcia, a zagnieżdżanie w `GET` wpychało wtedy każde zadanie w drugie
+i **żadne nie trafiało na najwyższy poziom**. Zmierzone: oba znikają. Teraz
+rodzic musi ISTNIEĆ i sam być pozycją najwyższego poziomu (kroki są
+jednopoziomowe — „wnuk" i tak nigdy się nie rysował, bo lista rysuje jedno
+wcięcie). Odczyt dostał drugą warstwę: `GET` zagnieżdża wyłącznie pod rodzicem
+bez rodzica, więc jest odporny na to, co siedzi w bazie od wcześniej.
+
+**5. Nieistniejące `parent_id` / `lista_id` dawało 500.** Klucz obcy odbijał
+zapis, a trasa oddawała „coś się popsuło" na dane, o których dokładnie
+wiadomo, co jest z nimi nie tak. Teraz 400 z nazwą pola, sprawdzane PRZED
+zapisem — inaczej odbicie wywracałoby się w środku ciągu zapisów.
+
+**6. Priorytet spoza skali zmieniał się w SWOJE PRZECIWIEŃSTWO.**
+`normalizePriority` robiło z `99` trójkę (do obrony), ale ze stringa `"wysoki"`
+— **zero, czyli „Brak"**. Ktoś prosi o najwyższy priorytet, dostaje żaden,
+i słyszy „ok". Teraz 400.
+
+**7. Literówka w kluczu cyklu dawała zadanie, które wygląda na cykliczne
+i nigdy nie wraca.** `normalizujCykl` zwraca `null` i na `""`, i na
+`"co tydzień"` zamiast `co_tydzien`, więc bez rozróżnienia tych dwóch
+przypadków pomyłka zapisywała się w ciszy. Złapane **na własnej sondzie**:
+pierwsze przejście testów serii pokazało `powtarzanie: null` we wszystkich
+przypadkach i przez chwilę wyglądało na to, że powtarzanie w tym module jest
+martwe. Nie było — to sonda podawała złe klucze, a trasa je przyjmowała.
+Teraz `null`/`""` dalej znaczy „nie powtarza się", a nieznany tekst to 400.
+
+**8. `POST /lists` i `PATCH /lists/:id` odpowiadały INACZEJ na tę samą
+wartość.** Nieznany kolor: PATCH pisał „invalid kolor", POST po cichu zapisywał
+fiolet i mówił „ok". Ujednolicone na 400.
+
+**9. Odhaczenie zadania zostawiało jego kroki luzem na liście** (decyzja
+właściciela). Rodzic znikał z widoku, a nieodhaczone kroki wyskakiwały na
+wierzch bez wcięcia i bez związku z czymkolwiek — „Kupić farbę" bez „Remontu
+biura" nad sobą wygląda na zadanie wzięte znikąd. **Wybrany wariant: odhaczenie
+zabiera kroki ze sobą** (wzorzec Apple Reminders). W drugą stronę NIE
+kaskadujemy — cofnięcie odhaczenia rodzica nie ma odhaczać kroków, które
+naprawdę są zrobione. Przy serii jest odwrotnie i celowo: kolejne wystąpienie
+to kolejny raz ta sama robota, więc jego kroki wracają na start razem
+z terminem. Zrobione na SERWERZE, żeby panel i apka nie powtarzały reguły
+w dwóch językach.
+
+**10. Sprawy bez terminu mogły umrzeć w ciszy** (decyzja właściciela). Termin
+jest tu OPCJONALNY i to jest cecha, nie brak — ale skoro nic takiego wpisu nie
+pilnuje (żaden alarm, żaden kolor, żadna zaległość), „oddzwonić do Kowalskiego"
+mogło przeleżeć rok. **Wybrany wariant: miękki sygnał po 90 dniach** — „leży od
+4 miesięcy", szarym tekstem, **bez pigułki „zaległe" i bez wpływu na
+sortowanie**. Czerwień byłaby kłamstwem o stanie: `isOverdue` dla braku terminu
+zwraca `false` i tak zostaje. Próg 90, nie 30 — sygnał po miesiącu odzywałby
+się przy większości takich spraw i nauczyłby go ignorować.
+
+**11. Martwa seria wyglądała identycznie jak żywa** (decyzja właściciela).
+Ustawiasz „co miesiąc, do 31 grudnia", potem przesuwasz termin na przyszły
+czerwiec — pigułka dalej mówi „Co miesiąc", a powtórzenia nie będzie.
+**Wybrany wariant: przyjąć zapis i powiedzieć wprost** (bywa krokiem
+pośrednim, blokada zamykałaby drogę, którą właściciel może właśnie iść).
+W profilu staje zdanie „To ostatnie wystąpienie tej serii". `seriaMaPrzyszlosc()`
+liczy to dokładnie — od KOTWICY serii, nie od bieżącego terminu, i wyłapuje
+też podchwytliwy przypadek, w którym koniec jest PÓŹNIEJSZY od terminu, ale
+nie mieści się między nimi ani jeden krok rytmu.
+
+**12. Pusty stan podawał zły powód.** Szukanie frazy bez trafień odpowiadało
+„Przypomnienia są, ale żadne nie należy do wybranej listy" — na liście
+„Wszystkie", gdzie żadna lista wybrana nie jest. Ta sama usterka, co w Poczcie
+tydzień wcześniej. Teraz osobne słowa dla szukania i dla listy; `zUkonczonymi`
+świadomie **nie liczy się** do filtra, bo ten przełącznik tylko DOKŁADA
+wiersze i nigdy nie jest powodem pustki.
+
+**13. Cele dotykowe poniżej progu.** Kółko odhaczenia 18×18, trzy ikony wiersza
+po 15×15, przy progu 24×24 (WCAG 2.5.8) — i to na przycisku naciskanym w tym
+module najczęściej. Po zmianie 26×26, przez padding cofnięty ujemnym
+marginesem: rośnie TRAFIENIE, nie rysunek, więc układ wiersza się nie ruszył.
+
+**14. Brak menu pod prawym przyciskiem.** Jedenaście modułów je ma;
+Przypomnienia były jednym z trzech bez. Dołożone wspólnym `useContextMenu`:
+odhacz, flaga, zdejmij termin, otwórz, usuń.
+
+**15. Data odhaczenia wyciekała surowa z bazy.** `ukonczone_at.slice(0,16)
+.replace("T", ", ")` — Postgres oddaje znacznik ze SPACJĄ, nie z „T", więc
+`replace` nie trafiał w nic i na ekranie stało „2026-08-01 22:40". Idzie teraz
+przez `formatPlDateTime`, a sama ta funkcja **przestała ufać `new Date()`**
+i używa `parsePgTimestamp` — Node zjada format Neona, przeglądarka nie musi,
+a to jest kod renderowany po stronie klienta.
+
+### Apka — cztery zmiany, wszystkie z parytetu
+
+- **Cały moduł MILCZAŁ haptycznie**, przy 45 wywołaniach `odczuj?` w reszcie
+  apki — i to moduł o najczęstszym ruchu palcem. Dołożone `zmiana` (lekka),
+  nie `akcja`: komentarz przy `Ruch.zmiana()` opisuje dokładnie ten przypadek
+  („przy średnim po piętnastu zadaniach z listy robi się z tego młotek").
+  Sygnał idzie PO odpowiedzi serwera, żeby odrzucony zapis nie wibrował jak
+  udany.
+- **Nie dało się zmienić nazwy ani koloru listy.** `PATCH
+  /api/reminders/lists/:id` istniał od początku modułu, a `APIClient` go nie
+  wołał — dowód luki dokładnie wzorcem z pamięci `apka-luki-wobec-panelu`.
+  Skutek: literówka w nazwie znaczyła „skasuj i załóż od nowa", a to zdejmuje
+  wszystkie przypomnienia do „Bez listy" i każe je wpinać po jednym. Nazwa
+  idzie przez `.alert` z polem, nie przez trzeci `.sheet` na tym widoku — dwa
+  arkusze już tam są, a trzeci by nie zadziałał.
+- **Model nie znał `created_at` ani `powtarzanie_od`**, więc nie miał z czego
+  policzyć obu nowych sygnałów. Dołożone w trzech miejscach każde (właściwość,
+  `CodingKeys`, `init(from:)`) — pominięcie trzeciego kompiluje się bez słowa
+  i daje pole zawsze `nil` (pamięć `swift-opcjonalny-var-zawsze-nil`).
+- **Kaskada kroków także lokalnie**, żeby przez ułamek sekundy do powrotu
+  z serwera nie było widać zadania odhaczonego z nieodhaczonymi krokami.
+
+### Czego NIE zmieniono (i dlaczego)
+
+- **Brak crona dla przypomnień zostaje.** Powiadomienia planuje telefon i to
+  jest świadome: serwer nie ma kanału push do apki (darmowe konto Apple), więc
+  trzyma wyłącznie dane. Zapisane jako fakt, nie jako brak do naprawienia.
+- **`isOverdue` — parytet potwierdzony, zero zmian.** Panel `r.termin < dzisISO`,
+  apka `termin < dzis` — obie kalendarzowo, przez porównanie tekstu, bez
+  odejmowania po UTC. Konkret z briefu (pamięć `audyt-6-kod`) dotyczył innego
+  modułu i tutaj nie obowiązuje.
+- **Rytm serii nie dryfuje — sprawdzone na żywo.** Cztery kolejne odhaczenia
+  „co miesiąc od 31 stycznia" dały 31.08 → 30.09 → 31.10 → 30.11, czyli rytm
+  wraca do 31. po miesiącach, które go nie mają. Kotwica (`powtarzanie_od`)
+  działa. Zero zmian.
+- **Termin w przeszłości przechodzi i ma przechodzić.** Poczta odrzuca datę
+  wsteczną przy planowaniu wysyłki, bo wysłać w przeszłości się nie da.
+  Przypomnienie z datą wsteczną to zwykła zaległość („miałem to zrobić
+  w piątek") — odrzucanie jej byłoby przeniesieniem reguły tam, gdzie nie
+  pasuje.
+- **Kasowanie listy zostaje bez zmian.** `ON DELETE SET NULL` + licznik
+  osieroconych w odpowiedzi + zdanie w oknie potwierdzenia („3 przypomnienia
+  trafi do «Bez listy» — nie znikną"). Sprawdzone sondą: przypomnienia
+  przeżywają. Kasowanie ZADANIA kaskaduje na kroki i tak ma być.
+- **Dwa równoległe `PATCH` na tym samym rekordzie — bez zmian.** Zmierzone:
+  wygrywa ostatni, spójnie (tytuł i priorytet z tego samego żądania, bez
+  przeplotu). Panel jest jednoosobowy; blokada optymistyczna byłaby ceremonią
+  bez powodu.
+- **Ten sam wzorzec 15 px stoi w Katalogu** (`CatalogDashboard.tsx`) —
+  zmierzone i zapisane, ale NIE zmienione: to zakres poza tym modułem.
+  **Do rozstrzygnięcia, czy przejść tym przez cały panel.**
+
+### Pomiary
+
+- **Sonda 401: 9/9 uchwytów** w `app/api/reminders` (liczone per
+  `export async function`, nie per plik).
+- **Sonda biznesowa, przed i po:** rok „0202" i 9999 → 400 (było i jest);
+  liczba w polu daty → **było `{"ok":true}` + skasowany termin**, jest 400;
+  godzina bez terminu → było `{"ok":true}` + zgubiona godzina, jest 400;
+  `priorytet:"wysoki"` → było `{"ok":true}` + zero, jest 400; literówka
+  w cyklu → było `{"ok":true}` + brak cyklu, jest 400; nieistniejący rodzic →
+  było **500**, jest 400; cykl A↔B → było „ok" + **dwa zadania znikają
+  z listy**, jest 400; częściowy zapis przed 400 → było, nie ma.
+- **Cele dotykowe:** przed 15×15 i 18×18, po **26×26**; próg WCAG 2.5.8 to
+  24×24. Zmierzone `getBoundingClientRect` w podglądzie.
+- **Kaskada kroków sprawdzona end-to-end na symulatorze**: „Remont biura"
+  z dwoma krokami → po odhaczeniu licznik 9 → 6, lista „Dom" 4 → 1, żaden krok
+  nie został luzem.
+- **Zmiana koloru listy z apki potwierdzona w bazie** (`Praca → orange` przez
+  `GET /api/reminders/lists` po stuknięciu w symulatorze) — dowód, że trasa
+  jest realnie wołana, a nie tylko podpięta.
+- **`npm test`: 189/189** (było 178, doszło 11 w `test/przypomnienia.test.ts`).
+- **Seed dev-bazy dostał Przypomnienia** — do tej sesji moduł był lokalnie
+  ZAWSZE pusty, a stany biorące się z upływu czasu („leży od…", martwa seria)
+  nie dawały się odtworzyć w ogóle, bo `created_at` nie da się ustawić przez API.
+
+### Pułapki tej sesji
+
+- **Sonda ze złymi kluczami wyglądała jak martwa funkcja.** Pierwsze przejście
+  testów serii podało `"co tydzień"` zamiast `co_tydzien` i pokazało
+  `powtarzanie: null` wszędzie — przez chwilę wyglądało to na „powtarzanie
+  w tym module nie działa". Ten sam kształt błędu, co `grep` z briefu, który
+  nie rozwinął ścieżek z `[id]`: **narzędzie pomiaru myli się w stronę paniki.**
+  Rozstrzygnął dopiero słownik w `lib/recurrence.ts`. Przy okazji wyszło
+  prawdziwe znalezisko — trasa te klucze PRZYJMOWAŁA.
+- **`querySelectorAll('button')` bez wykluczenia nawigacji przeniosło podgląd
+  na stronę publiczną** w środku pomiaru — dokładnie tak, jak ostrzegał brief.
+- **`visibilityState: "hidden"` potwierdzone pomiarem**: modal profilu nie
+  kończy przenikania, więc zrzut ekranu go nie pokazuje mimo poprawnego kodu.
+  Wszystkie trzy zdania profilu odczytane z DOM-u, nie ze zrzutu.
+- **`simctl launch` na działającej apce nie podaje zmiennych środowiskowych** —
+  drugi start zwrócił ten sam PID i apka dalej gadała z produkcją. Dopiero
+  `terminate` + jeden `launch` z `SIMCTL_CHILD_*` wpiął ją w lokalny panel.
+- **Build apki odmawia przy nieaktualnym stemplu wersji** (`Stempel wskazuje
+  rewizję …, a repozytorium stoi na …`) — najpierw `Skrypty/stempel-wersji.sh`.

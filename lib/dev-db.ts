@@ -1133,6 +1133,64 @@ async function ensureSeeded(): Promise<void> {
            ($5,'[próbka] Termin minął dawno','Czerwień — powyżej progu 14 dni',$6,'12:00',60)`,
         [randomUUID(), iso(3), randomUUID(), iso(-1), randomUUID(), iso(-25)]
       );
+
+      // ——— PRZYPOMNIENIA (audyt Modułu 66, 2026-08-01) ———
+      //
+      // Do tego audytu seed nie tworzył ANI JEDNEGO przypomnienia, więc moduł
+      // był lokalnie zawsze pusty: każda sesja nad jego wyglądem zaczynała się
+      // od ręcznego wpisywania danych, a stany, które biorą się z UPŁYWU CZASU
+      // (bezterminowe leżące kwartał, seria bez przyszłości), nie dawały się
+      // odtworzyć w ogóle — `created_at` nie da się ustawić przez API.
+      //
+      // Dobrane tak, żeby jeden rzut oka pokazywał wszystkie stany, które
+      // wyglądają inaczej:
+      //
+      // - „Przejrzeć stare notatki" — bezterminowe, leżące ponad próg 90 dni:
+      //   jedyny wiersz, na którym widać sygnał „leży od…". Nic innego takich
+      //   spraw nie pilnuje.
+      // - „Remont biura" + dwa kroki — odhaczenie rodzica ma je zabrać ze sobą.
+      // - „Rozliczenie z księgową" (seria ŻYWA, bez daty końca) i „Przegląd
+      //   samochodu" (seria BEZ PRZYSZŁOŚCI, koniec wypada przed kolejnym
+      //   wystąpieniem) — wyglądają identycznie poza jednym zdaniem w profilu,
+      //   więc obie muszą być w seedzie, inaczej nie da się tego porównać.
+      //
+      // Komentarze stoją TUTAJ, nie w środku zapytania: `--` w SQL-u ucina
+      // wszystko do końca linii, a to jest dokładnie ta pułapka, na której już
+      // raz zniknęła połowa zapytania (pamięć `sql-komentarz-tnie-zapytanie`).
+      const { ensureRemindersSchema } = await import("./db");
+      await ensureRemindersSchema();
+      const listaPraca = randomUUID();
+      const listaDom = randomUUID();
+      await raw(
+        `INSERT INTO reminder_lists (id, nazwa, kolor, kolejnosc) VALUES ($1,'Praca','purple',0),($2,'Dom','green',1)`,
+        [listaPraca, listaDom]
+      );
+      const remRemont = randomUUID();
+      const remRozliczenie = randomUUID();
+      await raw(
+        `INSERT INTO reminders (id, tytul, notatka, termin, godzina, priorytet, lista_id, flaga, parent_id,
+                                powtarzanie, powtarzanie_do, powtarzanie_od, created_at) VALUES
+           ($1,'Oddzwonić do księgowej','',$2,'09:30',3,$3,false,NULL,NULL,NULL,NULL, now() - interval '2 days'),
+           ($4,'Dopytać o fakturę za serwery','Druga próba — pierwszy mail bez odpowiedzi.',$5,NULL,2,$3,true,NULL,NULL,NULL,NULL, now() - interval '9 days'),
+           ($6,'Przejrzeć stare notatki z konferencji','',NULL,NULL,0,NULL,false,NULL,NULL,NULL,NULL, now() - interval '142 days'),
+           ($7,'Kiedyś przeczytać dokumentację KSeF','',NULL,NULL,0,$3,false,NULL,NULL,NULL,NULL, now() - interval '5 days'),
+           ($8,'Remont biura','',NULL,NULL,1,$9,false,NULL,NULL,NULL,NULL, now() - interval '20 days'),
+           ($10,'Kupić farbę','',NULL,NULL,0,$9,false,$8,NULL,NULL,NULL, now() - interval '20 days'),
+           ($11,'Zadzwonić po ekipę','',NULL,NULL,0,$9,false,$8,NULL,NULL,NULL, now() - interval '19 days'),
+           ($12,'Rozliczenie z księgową','',$13,'12:00',2,$3,false,NULL,'co_miesiac',NULL,$13, now() - interval '60 days'),
+           ($14,'Przegląd samochodu','',$15,NULL,1,$9,false,NULL,'co_rok',$16,$15, now() - interval '30 days')`,
+        [
+          randomUUID(), iso(-3), listaPraca,
+          randomUUID(), iso(1),
+          randomUUID(),
+          randomUUID(),
+          remRemont, listaDom,
+          randomUUID(),
+          randomUUID(),
+          remRozliczenie, iso(5),
+          randomUUID(), iso(10), iso(20),
+        ]
+      );
     })();
   }
   await seedPromise;

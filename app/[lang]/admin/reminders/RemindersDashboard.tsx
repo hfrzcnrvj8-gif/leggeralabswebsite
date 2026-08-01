@@ -11,7 +11,7 @@ import { StanListy } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
 import { ExpandingIconButton } from "../ExpandingIconButton";
-import { Popover, MenuRow } from "../Menu";
+import { Popover, MenuRow, ContextMenu, ContextMenuItem, MenuDivider, useContextMenu } from "../Menu";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { ReminderDetail } from "./ReminderDetail";
 import { SeriaTag } from "../CyklPicker";
@@ -45,6 +45,12 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
   const poleNowego = useRef<HTMLInputElement>(null);
   const [szukaj, setSzukaj] = useState("");
   const szukajRef = useRef<HTMLInputElement>(null);
+
+  // Menu pod prawym przyciskiem — ten sam `useContextMenu`, co w jedenastu
+  // pozostałych modułach. Przypomnienia były (obok Notatnika i Kalendarza)
+  // jednym z trzech miejsc bez niego, więc odruch „prawy przycisk na wierszu"
+  // działał wszędzie poza nimi. Zmierzone przy audycie Modułu 66.
+  const ctl = useContextMenu<Reminder>();
 
   const dzisISO = todayLocalISO();
 
@@ -284,6 +290,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
               onOtworz={() => setOtwarte(r.id)}
               onPatch={patch}
               onUsun={usun}
+              onMenu={(e) => ctl.openAt(e, r)}
               {...wiersz(indeksy.get(r.id) ?? -1)}
             />
             {/* Podzadania z wcięciem — zagnieżdżenie robi API (`podzadania`),
@@ -301,6 +308,7 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
                       onOtworz={() => setOtwarte(s.id)}
                       onPatch={patch}
                       onUsun={usun}
+                      onMenu={(e) => ctl.openAt(e, s)}
                       {...wiersz(indeksy.get(s.id) ?? -1)}
                     />
                   </li>
@@ -313,22 +321,80 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
 
       {/* Do paczki E awaria wczytania zostawiała `reminders === null`, czyli
           licznik na zawsze pokazywał „Wczytuję…", a lista była po prostu
-          pusta — bez słowa o tym, że panel nie odpowiedział. */}
+          pusta — bez słowa o tym, że panel nie odpowiedział.
+
+          Audyt Modułu 66 dołożył ROZRÓŻNIENIE POWODU: jeden zestaw słów
+          obsługiwał dwa różne stany, więc szukanie frazy, która nic nie
+          znajduje, odpowiadało „żadne nie należy do wybranej listy" — zdaniem
+          fałszywym, gdy żadna lista nie jest wybrana. To ta sama usterka, którą
+          Poczta naprawiała u siebie w Module 65: pusty stan podający zły powód
+          wysyła po złe wyjście. `zUkonczonymi` świadomie NIE liczy się do
+          filtra — ten przełącznik tylko DOKŁADA wiersze, więc nigdy nie jest
+          powodem pustki. */}
       {(reminders === null ? !!blad : widoczne.length === 0) && (
         <div className="card-paper mt-4 rounded-2xl">
           <StanListy
             blad={blad}
             onPonow={wczytaj}
-            filtrAktywny={wybranaLista !== WSZYSTKIE || zUkonczonymi || !!szukaj.trim()}
+            filtrAktywny={wybranaLista !== WSZYSTKIE || !!szukaj.trim()}
             onWyczyscFiltr={() => { setWybranaLista(WSZYSTKIE); setZUkonczonymi(false); setSzukaj(""); }}
-            filtrTytul="Ta lista jest pusta"
-            filtrOpis="Przypomnienia są, ale żadne nie należy do wybranej listy."
+            {...(szukaj.trim()
+              ? {
+                  filtrTytul: "Nic nie pasuje do szukanej frazy",
+                  filtrOpis: `Żadne przypomnienie nie zawiera „${szukaj.trim()}” w tytule ani w notatce — także wśród kroków.`,
+                }
+              : {
+                  filtrTytul: "Ta lista jest pusta",
+                  filtrOpis: "Przypomnienia są, ale żadne nie należy do wybranej listy.",
+                })}
             ikona={IconCircleCheck}
             tytul="Nic tu jeszcze nie ma"
             opis="Przypomnienie to jedyne miejsce w panelu na rzecz bez terminu w kalendarzu — „oddzwonić”, „dopytać o fakturę”. Wpisz je w pole wyżej."
           />
         </div>
       )}
+
+      <ContextMenu ctl={ctl}>
+        {(r, close) => {
+          const run = (fn: () => void) => {
+            close();
+            fn();
+          };
+          return (
+            <>
+              <ContextMenuItem
+                icon={<IconCircleCheck size={14} />}
+                label={r.ukonczone ? "Cofnij odhaczenie" : "Odhacz"}
+                onClick={() => run(() => patch(r.id, { ukonczone: !r.ukonczone }))}
+              />
+              <ContextMenuItem
+                icon={r.flaga ? <IconFlagFilled size={14} /> : <IconFlag size={14} />}
+                label={r.flaga ? "Zdejmij flagę" : "Oznacz flagą"}
+                onClick={() => run(() => patch(r.id, { flaga: !r.flaga }))}
+              />
+              {r.termin && (
+                <ContextMenuItem
+                  icon={<IconPlus size={14} />}
+                  label="Zdejmij termin"
+                  onClick={() => run(() => patch(r.id, { termin: null }))}
+                />
+              )}
+              <MenuDivider />
+              <ContextMenuItem
+                icon={<IconArrowUpRight size={14} />}
+                label="Otwórz"
+                onClick={() => run(() => setOtwarte(r.id))}
+              />
+              <MenuDivider />
+              <ContextMenuItem
+                icon={<IconTrash size={14} />}
+                label="Usuń"
+                onClick={() => run(() => void usun(r))}
+              />
+            </>
+          );
+        }}
+      </ContextMenu>
 
       <ReminderDetail
         reminder={otwarty}
@@ -352,6 +418,7 @@ function WierszPrzypomnienia({
   onOtworz,
   onPatch,
   onUsun,
+  onMenu,
   className,
   ...reszta
 }: {
@@ -362,22 +429,36 @@ function WierszPrzypomnienia({
   onOtworz: () => void;
   onPatch: (id: string, pola: Record<string, unknown>) => void;
   onUsun: (r: Reminder) => void;
+  onMenu: (e: React.MouseEvent) => void;
   /** Podświetlenie kursora j/k — składane przez `wiersz()` z `klawiatura.ts`. */
   className?: string;
   "data-kursor"?: "1";
 }) {
   return (
-    <div className={`group flex items-start gap-3 rounded-lg py-1.5 ${className ?? ""}`} {...reszta}>
+    <div
+      className={`group flex items-start gap-3 rounded-lg py-1.5 ${className ?? ""}`}
+      onContextMenu={onMenu}
+      {...reszta}
+    >
+      {/* Obszar kliknięcia 26 px, kółko dalej 18 px. Zmierzone przy audycie
+          Modułu 66: same kółko miało 18×18, a trzy ikony po prawej po 15×15 —
+          poniżej progu 24×24 z WCAG 2.5.8, i to na przycisku, który w tym
+          module naciska się najczęściej ze wszystkich. Powiększamy TRAFIENIE,
+          nie rysunek: `-m-1` cofa `p-1`, więc układ wiersza się nie rusza. */}
       <button
         onClick={() => onPatch(r.id, { ukonczone: !r.ukonczone })}
         aria-label={r.ukonczone ? "Cofnij odhaczenie" : "Odhacz"}
-        className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors ${
-          r.ukonczone
-            ? "border-brand-purple bg-brand-purple text-white"
-            : "border-[var(--hairline)] hover:border-brand-purple"
-        }`}
+        className="-m-1 mt-[-2px] flex shrink-0 items-center justify-center p-1"
       >
-        {r.ukonczone && <IconCheck size={12} stroke={3} />}
+        <span
+          className={`flex h-[18px] w-[18px] items-center justify-center rounded-full border transition-colors ${
+            r.ukonczone
+              ? "border-brand-purple bg-brand-purple text-white"
+              : "border-[var(--hairline)] hover:border-brand-purple"
+          }`}
+        >
+          {r.ukonczone && <IconCheck size={12} stroke={3} />}
+        </span>
       </button>
 
       <button onClick={onOtworz} className="min-w-0 flex-1 text-left">
@@ -413,7 +494,7 @@ function WierszPrzypomnienia({
       <button
         onClick={() => onPatch(r.id, { flaga: !r.flaga })}
         aria-label={r.flaga ? "Zdejmij flagę" : "Oznacz flagą"}
-        className={`mt-0.5 shrink-0 transition-opacity ${
+        className={`-m-1.5 mt-[-2px] shrink-0 p-1.5 transition-opacity ${
           r.flaga ? "text-brand-gold opacity-100" : "text-muted opacity-0 hover:text-brand-gold focus:opacity-100 group-hover:opacity-100"
         }`}
       >
@@ -430,7 +511,7 @@ function WierszPrzypomnienia({
           onOtworz();
         }}
         title="Otwórz przypomnienie"
-        className="mt-0.5 shrink-0 text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
+        className="-m-1.5 mt-[-2px] shrink-0 p-1.5 text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
       >
         <IconArrowUpRight size={15} />
       </Link>
@@ -438,7 +519,7 @@ function WierszPrzypomnienia({
       <button
         onClick={() => onUsun(r)}
         aria-label="Usuń"
-        className="mt-0.5 shrink-0 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
+        className="-m-1.5 mt-[-2px] shrink-0 p-1.5 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
       >
         <IconTrash size={15} />
       </button>
