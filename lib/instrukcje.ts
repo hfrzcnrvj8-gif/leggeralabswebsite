@@ -56,7 +56,7 @@ export const WSTEP = {
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Na razie opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury oraz Katalog — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
+    "Na razie opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury, Katalog oraz Koszty — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -930,6 +930,84 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "j / k, Enter", opis: "Kursor po liście i otwarcie edycji (panel). ⌘N albo „n” — nowy komponent." },
       { tytul: "Prawy przycisk myszy / przytrzymanie", opis: "Menu: otwórz profil, edytuj, skopiuj nazwę lub cenę, usuń." },
       { tytul: "Przesunięcie w lewo (telefon)", opis: "Usuwa komponent — z pytaniem o potwierdzenie." },
+    ],
+  },
+
+  /* ─────────────────────────────── KOSZTY ───────────────────────────── */
+  {
+    id: "koszty",
+    nazwa: "Koszty",
+    gdzie: "Panel: menu po lewej → Koszty. Telefon i iPad: „Więcej” → Koszty.",
+    poCoTo:
+      "Rejestr pieniędzy WYCHODZĄCYCH — faktury od dostawców, abonamenty, sprzęt, ZUS. To jedyny moduł patrzący w drugą stronę niż reszta panelu, i to z niego powstaje rejestr zakupów dla księgowej.",
+    kiedy:
+      "Wpisujesz koszt wtedy, kiedy dostajesz fakturę albo paragon — najczęściej w drodze, dlatego na telefonie „nowy koszt” od razu otwiera aparat. Wyjmujesz całość raz w miesiącu, jako plik CSV dla księgowej.",
+    kroki: [
+      {
+        tytul: "1. Kwota netto i stawka VAT liczą resztę same",
+        opis:
+          "Wpisujesz netto i wybierasz stawkę — brutto przelicza się samo i nie da się go nadpisać ręcznie. Kwota ujemna jest dozwolona: tak wpisuje się fakturę korygującą od dostawcy (zwrot, rabat po fakcie).",
+      },
+      {
+        tytul: "2. Odliczenie VAT to decyzja, nie domysł",
+        opis:
+          "Do wyboru 100% (zwykły koszt firmowy), 50% (np. samochód używany też prywatnie) albo 0% (np. reprezentacja). Panel NICZEGO tu nie zgaduje po kategorii ani po opisie — wybór jest zawsze Twój, bo to on decyduje, ile VAT-u odliczysz.",
+      },
+      {
+        tytul: "3. Faktura w obcej walucie potrzebuje kursu",
+        opis:
+          "Wybierz walutę faktury i wpisz kurs do złotego z dnia poprzedzającego jej wystawienie — tak liczy to ustawa o VAT. Bez kursu koszt zapisze się, ale NIE wejdzie do żadnej sumy ani do wykresu, i będzie o tym mówił wprost. Kwoty widzisz podwójnie: w walucie faktury i w przybliżeniu w złotych.",
+      },
+      {
+        tytul: "4. Termin płatności to co innego niż data płatności",
+        opis:
+          "Termin mówi, DO KIEDY masz zapłacić — bierzesz go z faktury dostawcy. Data płatności mówi, KIEDY zapłaciłeś, i wpisuje się sama, gdy oznaczysz koszt jako opłacony. Po minięciu terminu data na liście robi się pomarańczowa, a po dwóch tygodniach czerwona.",
+      },
+      {
+        tytul: "5. Załącznik to Twój dowód",
+        opis:
+          "Skan albo PDF faktury (do 8 MB) trzyma się przy koszcie. Na telefonie robisz zdjęcie paragonu, a odczyt AI proponuje pola — proponuje, nie zapisuje. Zawsze zatwierdzasz sam.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Koszty cykliczne",
+        opis:
+          "Szablon abonamentu (hosting, licencje) tworzy nowy koszt-SZKIC, gdy nadejdzie jego data. Szkic czeka na Twoje sprawdzenie i opłacenie — nic nie płaci się samo. Szablon ma własną walutę, ale nie ma kursu: kurs jest z konkretnego dnia, a szablon nie wie, kiedy odpali.",
+      },
+      {
+        tytul: "Import z KSeF",
+        opis:
+          "Pobiera faktury, na których jesteś nabywcą, i tworzy z nich gotowe koszty z oryginałem w załączniku. KSeF podaje walutę faktury, ale nie zawsze kurs — takiemu kosztowi trzeba kurs dopisać, żeby wszedł do sum.",
+      },
+      {
+        tytul: "Ostrzeżenie o duplikacie i o amortyzacji",
+        opis:
+          "Ten sam NIP, kwota i data co przy innym wpisie? Panel zapyta, czy to nie dubel — możesz to wyciszyć raz na zawsze. Sprzęt powyżej 10 000 zł netto dostaje przypomnienie o amortyzacji. Oba są miękkie: niczego nie blokują i niczego nie rozliczają za Ciebie.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Kurs 1,00 przy walucie obcej to prawie zawsze pomyłka",
+        opis:
+          "Znaczy „1 euro = 1 złoty” i zaniża koszt kilkakrotnie — dlatego panel o tym krzyczy. Jeśli widzisz to ostrzeżenie, wpisz prawdziwy kurs.",
+      },
+      {
+        tytul: "Suma miesiąca jest zawsze w złotych",
+        opis:
+          "Koszty w euro czy dolarach wchodzą do niej po Twoim kursie. Te bez kursu są z niej wyłączone, a pod kwotą widnieje, ile ich jest — żeby suma nigdy nie udawała kompletnej.",
+      },
+      {
+        tytul: "Koszt zakupu komponentu to CO INNEGO",
+        opis:
+          "Cena, za jaką kupujesz sprzęt do odsprzedaży, mieszka w Katalogu i służy do liczenia marży. Ten moduł to realne wydatki firmy. Dwie różne rzeczy o podobnej nazwie.",
+      },
+    ],
+    skroty: [
+      { tytul: "„/” albo ⌘F", opis: "Szukanie po dostawcy, opisie i nazwie projektu — panel, telefon i iPad tak samo." },
+      { tytul: "j / k, Enter", opis: "Kursor po liście i otwarcie kosztu (panel). ⌘N albo „n” — nowy koszt." },
+      { tytul: "⌘N na telefonie", opis: "Otwiera APARAT, nie pusty formularz — bo nowy koszt w drodze to zdjęcie paragonu. Świadome odstępstwo od panelu." },
+      { tytul: "Prawy przycisk myszy / przytrzymanie", opis: "Menu: otwórz, skopiuj kwotę lub dane do przelewu, zmień status, usuń." },
     ],
   },
 ];

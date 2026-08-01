@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureCostsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { guessVatRate } from "@/lib/costs";
+import { guessVatRate, isWaluta, DOMYSLNA_WALUTA } from "@/lib/costs";
 import { getKsefConfig, queryPurchaseInvoices, downloadInvoiceXml } from "@/lib/ksef-api";
 
 export const runtime = "nodejs";
@@ -72,14 +72,22 @@ export async function POST(req: NextRequest) {
         const zalTyp = xml ? "application/xml" : "";
         const zalDane = xml ? Buffer.from(xml, "utf8").toString("base64") : null;
 
+        // Waluta faktury (Moduł 63). `queryPurchaseInvoices` czytało ją z KSeF
+        // od początku (`currency`), ale import ją WYRZUCAŁ — faktura w euro
+        // lądowała w bazie jako gołe liczby i wchodziła do sum jak złotówki.
+        // Kursu KSeF w tym miejscu nie podaje, więc zostaje pusty: koszt jest
+        // wtedy widoczny jako niekompletny i świadomie NIE wchodzi do sum
+        // (patrz `maPrzelicznik`), dopóki właściciel nie wpisze kursu.
+        const waluta = isWaluta(m.currency) ? m.currency.trim() : DOMYSLNA_WALUTA;
+
         await sql`
           INSERT INTO costs (
             id, dostawca_nazwa, dostawca_nip, kategoria, opis, data_wydatku,
-            kwota_netto, vat_stawka, kwota_brutto, status,
+            kwota_netto, vat_stawka, kwota_brutto, waluta, status,
             ksef_numer, ksef_tryb, zalacznik_nazwa, zalacznik_typ, zalacznik_dane
           ) VALUES (
             ${id}, ${m.sellerName}, ${m.sellerNip.replace(/[^0-9]/g, "")}, 'Inne', ${opis}, ${dataWydatku},
-            ${m.netAmount}, ${vatStawka}, ${m.grossAmount}, 'Nieopłacony',
+            ${m.netAmount}, ${vatStawka}, ${m.grossAmount}, ${waluta}, 'Nieopłacony',
             ${m.ksefNumber}, ${cfg.env}, ${zalNazwa}, ${zalTyp}, ${zalDane}
           )
           ON CONFLICT (ksef_numer) DO NOTHING;

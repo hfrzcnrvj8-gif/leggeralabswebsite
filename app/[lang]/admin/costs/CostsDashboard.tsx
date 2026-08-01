@@ -9,6 +9,7 @@ import { type Cost, type PaymentMethod, COST_STATUSES, COST_CATEGORIES, PAYMENT_
 import { PaymentMethodIcon } from "../icons";
 import { formatPlDate } from "@/lib/projects";
 import { todayLocalISO } from "@/lib/dates";
+import { stopienPilnosci, opisPilnosci, PILNOSC_TEXT } from "@/lib/kolorStanu";
 import { useUI, useRegisterActions, useCopy } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
@@ -28,7 +29,7 @@ import { ExportCsvButton } from "../components";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Tooltip } from "../Tooltip";
 import { DateField } from "../DatePicker";
-import { StatusTag } from "./shared";
+import { StatusTag, wPln, maPrzelicznik, dniPoTerminieKosztu } from "./shared";
 import { CostEditor } from "./CostEditor";
 import { RecurringCostsPanel } from "./RecurringCostsPanel";
 import { SpendTrendChart } from "./SpendTrendChart";
@@ -230,14 +231,33 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
 
   const kpi = useMemo(() => {
     const list = costs ?? [];
-    const thisMonth = todayLocalISO().slice(0, 7);
+    const thisMonthDay = todayLocalISO();
+    const thisMonth = thisMonthDay.slice(0, 7);
     let miesiac = 0;
     let nieoplacone = 0;
+    // Najdłuższa zaległość wśród nieopłaconych — to ona, a nie sama kwota,
+    // rozstrzyga kolor kafelka (patrz komentarz przy renderze).
+    let najstarszaZaleglosc = 0;
+    // Koszty, których nie da się przeliczyć (waluta obca bez kursu — import
+    // z KSeF). Liczymy je osobno i mówimy o nich wprost, zamiast doliczać
+    // kursem 1 i zaniżać sumę bez śladu.
+    let bezKursu = 0;
     for (const c of list) {
-      if (c.data_wydatku?.slice(0, 7) === thisMonth) miesiac += c.kwota_brutto;
-      if (c.status === "Nieopłacony") nieoplacone += c.kwota_brutto;
+      // `wPln` — koszt w EUR wchodził do tych sum jako złotówki (Moduł 63).
+      // KPI są zawsze w PLN, bo inaczej „Wydatki tego miesiąca" nie miałyby
+      // jednej jednostki.
+      if (!maPrzelicznik(c.waluta, c.kurs_pln)) {
+        bezKursu++;
+        continue;
+      }
+      const brutto = wPln(c.kwota_brutto, c.kurs_pln);
+      if (c.data_wydatku?.slice(0, 7) === thisMonth) miesiac += brutto;
+      if (c.status === "Nieopłacony") {
+        nieoplacone += brutto;
+        najstarszaZaleglosc = Math.max(najstarszaZaleglosc, dniPoTerminieKosztu(c, thisMonthDay) ?? 0);
+      }
     }
-    return { miesiac, nieoplacone };
+    return { miesiac, nieoplacone, najstarszaZaleglosc, bezKursu };
   }, [costs]);
 
   if (!costs) {
@@ -315,10 +335,31 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
             <div className="card-paper rounded-xl border hairline p-3">
               <div className="text-[11px] text-muted">Koszty w tym miesiącu</div>
               <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.miesiac)}</div>
+              {/* Wykluczenie nie może być ciche — suma bez tej adnotacji
+                  wyglądałaby na kompletną. */}
+              {kpi.bezKursu > 0 && (
+                <div className="mt-1 text-[10.5px] leading-snug text-brand-orange">
+                  {kpi.bezKursu === 1 ? "1 koszt bez kursu" : `${kpi.bezKursu} koszty bez kursu`} — nie wliczone
+                </div>
+              )}
             </div>
             <div className="card-paper rounded-xl border hairline p-3">
               <div className="text-[11px] text-muted">Nieopłacone</div>
-              <div className={`mt-0.5 text-lg font-semibold ${kpi.nieoplacone > 0 ? "text-red-400" : "text-[var(--fg)]"}`}>
+              {/* Kolor idzie z RAMPY PILNOŚCI, nie z samego faktu, że coś jest
+                  nieopłacone. Do Modułu 63 stało tu `text-red-400` wpisane
+                  z palca — czyli kafelek świecił na czerwono ZAWSZE, gdy tylko
+                  firma miała jakikolwiek niezapłacony rachunek. To wprost
+                  zaprzeczało regule zapisanej piętro wyżej, przy
+                  `COST_STATUS_CLASS` („świadomie NIE czerwień — nieopłacony
+                  koszt to zdrowy, normalny stan przez większość życia"), i
+                  odbierało czerwieni znaczenie: kolor, który świeci zawsze,
+                  przestaje cokolwiek znaczyć. Teraz czerwień pojawia się
+                  dopiero, gdy realnie minął termin. */}
+              <div
+                className={`mt-0.5 text-lg font-semibold ${
+                  kpi.najstarszaZaleglosc > 0 ? PILNOSC_TEXT[stopienPilnosci(kpi.najstarszaZaleglosc)] : "text-[var(--fg)]"
+                }`}
+              >
                 {formatMoney(kpi.nieoplacone)}
               </div>
             </div>
@@ -366,6 +407,7 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
                       <th className="p-2.5 text-right font-medium">Brutto</th>
                       <th className="p-2.5 font-medium">Płatność</th>
                       <th className="p-2.5 font-medium">Status</th>
+                      <th className="p-2.5 font-medium">Termin</th>
                       <th className="p-2.5 font-medium">Data wydatku</th>
                       <th className="p-2.5"></th>
                     </tr>
@@ -390,7 +432,15 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
                         </td>
                         <td className="p-2.5 text-muted">{c.kategoria}</td>
                         <td className="p-2.5 text-muted">{c.project_tytul ?? "—"}</td>
-                        <td className="p-2.5 text-right tabular-nums">{formatMoney(c.kwota_brutto)}</td>
+                        <td className="p-2.5 text-right tabular-nums">
+                          {formatMoney(c.kwota_brutto, c.waluta)}
+                          {/* Równowartość w złotych pod kwotą oryginalną — bez
+                              niej wiersz w EUR nie daje się porównać z resztą
+                              listy ani z KPI, które są zawsze w PLN. */}
+                          {c.kurs_pln != null && (
+                            <div className="text-[11px] text-muted">≈ {formatMoney(wPln(c.kwota_brutto, c.kurs_pln))}</div>
+                          )}
+                        </td>
                         <td className="p-2.5 text-muted">
                           {c.metoda_platnosci ? (
                             <Tooltip label={PAYMENT_METHOD_LABEL[c.metoda_platnosci as PaymentMethod] ?? c.metoda_platnosci}>
@@ -403,6 +453,7 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
                         <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                           <StatusTag status={c.status} onChange={(v) => updateStatus(c.id, v)} />
                         </td>
+                        <TerminKosztu cost={c} />
                         <td className="p-2.5 text-muted">{c.data_wydatku ? formatPlDate(c.data_wydatku) : "—"}</td>
                         <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
@@ -520,4 +571,30 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
       </ContextMenu>
     </div>
   );
+}
+
+/**
+ * Termin płatności w wierszu listy (Moduł 63).
+ *
+ * Kolor bierze się z RAMPY PILNOŚCI (`stopienPilnosci`), a nie z osobnej mapy
+ * kosztów: to ta sama oś co przy fakturach sprzedażowych, tylko obrócona —
+ * tam ktoś nie zapłacił nam, tu my nie zapłaciliśmy komuś. Czerwień jest więc
+ * końcem rampy, nie trzecim kolorem statusu (`COST_STATUS_CLASS` dalej mówi
+ * złoto/zieleń). Na jednym wierszu wychodzą dwie osie i tylko dwie: STAN
+ * w pigułce statusu, PILNOŚĆ na dacie.
+ *
+ * Koszt opłacony nie bywa spóźniony — `dniPoTerminieKosztu` zwraca wtedy
+ * `null`, więc data gaśnie do szarości sama, bez warunku w widoku.
+ */
+function TerminKosztu({ cost }: { cost: Cost }) {
+  const dni = dniPoTerminieKosztu(cost, todayLocalISO());
+  const stopien = stopienPilnosci(dni);
+  if (!cost.termin_platnosci) return <td className="p-2.5 text-muted">—</td>;
+  const opis = opisPilnosci(dni);
+  const tresc = (
+    <span className={stopien === "wTerminie" ? "text-muted" : `font-medium ${PILNOSC_TEXT[stopien]}`}>
+      {formatPlDate(cost.termin_platnosci)}
+    </span>
+  );
+  return <td className="p-2.5">{opis ? <Tooltip label={opis}>{tresc}</Tooltip> : tresc}</td>;
 }

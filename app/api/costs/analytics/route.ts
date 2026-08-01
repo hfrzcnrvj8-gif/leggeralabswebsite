@@ -29,12 +29,32 @@ export async function GET(req: NextRequest) {
   }
   const from = `${months[0]}-01`;
 
+  // Kwoty przeliczone na PLN kursem kosztu (Moduł 63). Surowe `kwota_brutto`
+  // dodawałoby euro do złotówek: 100 EUR i 100 PLN wchodziły do tej samej sumy
+  // jako to samo. `COALESCE(kurs_pln, 1)` bo koszt w PLN kursu nie ma —
+  // patrz `kursDoPln()` w lib/costs.ts.
   const rows = await sql`
-    SELECT to_char(data_wydatku, 'YYYY-MM') AS miesiac, kategoria, SUM(kwota_brutto)::float8 AS suma
+    SELECT to_char(data_wydatku, 'YYYY-MM') AS miesiac, kategoria,
+      SUM(kwota_brutto * COALESCE(kurs_pln, 1))::float8 AS suma
     FROM costs
     WHERE data_wydatku >= ${from}::date
+      AND (waluta = 'PLN' OR kurs_pln IS NOT NULL)
     GROUP BY miesiac, kategoria;
   `;
+
+  // Koszty w obcej walucie BEZ kursu (import z KSeF nie zawsze go zna) są
+  // z wykresu wyłączone — z kursem 1 zaniżałyby słupek o rząd wielkości i nikt
+  // by tego nie zauważył. Ich liczba wraca do UI, żeby wykluczenie nie było
+  // ciche: „niewliczone" musi być widoczne, inaczej wykres kłamie przez
+  // przemilczenie.
+  const bezKursu = Number(
+    (
+      await sql`
+        SELECT COUNT(*)::int AS ile FROM costs
+        WHERE data_wydatku >= ${from}::date AND waluta <> 'PLN' AND kurs_pln IS NULL;
+      `
+    )[0]?.ile ?? 0
+  );
 
   // Pivot: dla każdej znanej kategorii (stała kolejność COST_CATEGORIES,
   // patrz dataviz — kolejność kategoryczna nigdy się nie zmienia) tablica
@@ -51,5 +71,5 @@ export async function GET(req: NextRequest) {
     byCategory[kategoria][idx] += Number(r.suma);
   }
 
-  return NextResponse.json({ months, categories: COST_CATEGORIES, byCategory });
+  return NextResponse.json({ months, categories: COST_CATEGORIES, byCategory, bezKursu });
 }

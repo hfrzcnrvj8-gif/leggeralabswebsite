@@ -151,7 +151,10 @@ function TemplateForm({
         body: JSON.stringify(p),
       });
       if (!res.ok) {
-        toast("Nie udało się zapisać.", "error");
+        // Powód z bramki zapisu dosłownie (Moduł 63) — np. „Data następnego
+        // wystąpienia: «0202-01-01» to nie jest poprawna data".
+        const dane = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast(dane?.error || "Nie udało się zapisać.", "error");
         return;
       }
       onSaved();

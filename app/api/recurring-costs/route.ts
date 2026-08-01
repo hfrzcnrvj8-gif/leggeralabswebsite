@@ -2,13 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureCostsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { COST_CATEGORIES, VAT_RATES } from "@/lib/costs";
-import { RECURRING_CYCLES, todayISO } from "@/lib/recurring";
+import { czytajPolaCyklu, DOMYSLNA_WALUTA, isWaluta } from "@/lib/costs";
+import { todayISO } from "@/lib/recurring";
 
 export const runtime = "nodejs";
 
+/** Odporność po stronie ODCZYTU — bramka zapisu nie naprawia tego, co już
+ * siedzi w bazie. Nieznana waluta czyta się jako PLN, bo dokładnie to znaczyły
+ * wszystkie szablony sprzed Modułu 63 (a `formatMoney` na nieznanym kodzie
+ * rzuca i wywala cały ekran, nie jeden wiersz). */
 function parseRow(r: Record<string, unknown>): Record<string, unknown> {
-  return { ...r, kwota_netto: Number(r.kwota_netto) };
+  return {
+    ...r,
+    kwota_netto: Number(r.kwota_netto),
+    waluta: isWaluta(r.waluta) ? String(r.waluta).trim() : DOMYSLNA_WALUTA,
+  };
 }
 
 /** GET /api/recurring-costs — lista szablonów kosztów cyklicznych. */
@@ -27,17 +35,21 @@ export async function POST(req: NextRequest) {
   try {
     await ensureCostsSchema();
     const sql = getSql();
-    const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
-    const cykl = typeof body.cykl === "string" && (RECURRING_CYCLES as readonly string[]).includes(body.cykl) ? body.cykl : "miesiecznie";
-    const kategoria = typeof body.kategoria === "string" && (COST_CATEGORIES as readonly string[]).includes(body.kategoria) ? body.kategoria : "Subskrypcje";
-    const vatStawka = typeof body.vat_stawka === "string" && (VAT_RATES as readonly string[]).includes(body.vat_stawka) ? body.vat_stawka : "23";
-    const kwotaNetto = Number.isFinite(Number(body.kwota_netto)) ? Number(body.kwota_netto) : 0;
-    const nextRun = typeof body.next_run === "string" && body.next_run.trim() ? body.next_run.slice(0, 10) : todayISO();
+
+    // Bramka zapisu (Moduł 63). Wcześniej `next_run` szedł do bazy surowym
+    // `slice(0, 10)`: sonda zapisała tędy rok „0202" w polu sterującym
+    // automatem, który generuje szkice kosztów.
+    const wynik = czytajPolaCyklu(body, { next_run: todayISO() });
+    if (wynik.blad != null) return NextResponse.json({ error: wynik.blad }, { status: 400 });
+    const f = wynik.pola;
 
     const id = randomUUID();
     await sql`
-      INSERT INTO recurring_costs (id, nazwa, dostawca_nazwa, dostawca_nip, kategoria, kwota_netto, vat_stawka, cykl, next_run, active)
-      VALUES (${id}, ${str(body.nazwa, 200)}, ${str(body.dostawca_nazwa, 300)}, ${str(body.dostawca_nip, 30)}, ${kategoria}, ${kwotaNetto}, ${vatStawka}, ${cykl}, ${nextRun}, true);
+      INSERT INTO recurring_costs (id, nazwa, dostawca_nazwa, dostawca_nip, dostawca_konto,
+        kategoria, opis, kwota_netto, vat_stawka, waluta, metoda_platnosci, cykl, next_run, active)
+      VALUES (${id}, ${f.nazwa}, ${f.dostawca_nazwa}, ${f.dostawca_nip}, ${f.dostawca_konto},
+        ${f.kategoria}, ${f.opis}, ${f.kwota_netto}, ${f.vat_stawka}, ${f.waluta},
+        ${f.metoda_platnosci}, ${f.cykl}, ${f.next_run}, ${f.active});
     `;
     return NextResponse.json({ ok: true, id });
   } catch (err) {

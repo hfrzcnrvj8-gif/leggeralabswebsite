@@ -1099,3 +1099,140 @@ Nowy `test/katalog.test.ts` — 11 przypadków bramki zapisu, częściowego
   dokumentu (Moduł 47, reguła bez zmian).
 - **Apka nie ma pickera „Z katalogu"** — pozycje oferty składa się przy biurku
   (decyzja z Modułu 47). Katalog ma za to pełny CRUD na telefonie.
+
+---
+
+## Stan po module „Koszty" (2026-08-01)
+
+Moduł 63. Punkt startu: panel `86fb2ab`, apka `f48f474` (wydanie 176).
+
+### Inwentarz pomylił się PO RAZ CZWARTY — i po raz czwarty w obie strony
+
+Wiersz „Koszty" w `59-spojnosc-ui.md` pokazywał 1 ❌ (Klawiatura) i 3 ⚠️
+(Klikalność, Gesty/menu, Nawigacja). **Zmierzone: nieaktualne były wszystkie
+cztery.** Sprzątnęły je paczki C, E i G, których nikt do tabeli nie wpisał.
+
+To ten sam wynik, co przy Projektach, Fakturach i Katalogu. Wniosek już nie
+jest hipotezą: **tabela inwentarza opisuje stan z dnia jej spisania i nie
+nadąża za paczkami przekrojowymi**. Puszczaj sondę nawet tam, gdzie stoi ✅ —
+realna praca cztery razy z rzędu leżała poza tabelą.
+
+### Co było realną pracą
+
+**1. Sześć cichych podmian, jedna z nich PODATKOWA.** Sonda `curl` na żywym
+serwerze, przed poprawką:
+
+```
+POST  {"kategoria":"CO-TO-JEST","vat_stawka":"999","kwota_netto":-5000}
+      → 200; zapisane: „Inne", „23", brutto −6150
+PATCH {"vat_odliczenie_procent":999}  na koszcie z ustawionym 0%
+      → 200; zapisane: 100
+POST  {"kwota_netto":9e15}            → 200; analityka pokazała potem 1,1e16
+POST  /api/recurring-costs {"next_run":"0202-01-01"}
+      → 200; zapisane DOSŁOWNIE
+DELETE nieistniejącego kosztu         → 200 {"ok":true}
+```
+
+Najgroźniejsza jest druga. `vat_odliczenie_procent` ma skutek podatkowy:
+właściciel oznacza koszt reprezentacyjny jako „0% — nie odliczam VAT-u", a
+śmieciowy zapis po cichu przestawia go na **najkorzystniejszą i najtrudniejszą
+do obrony** wartość „100%" — i odpowiada `{"ok":true}`. W interfejsie wygląda
+to na świadomy wybór. To jest dokładnie ten kształt ryzyka, o którym mówi
+brief: zła liczba w koszcie nie wygląda na złą.
+
+Piąta pozycja to pułapka `<input type="date">` z `CLAUDE.md` („0202" zamiast
+„2026") — tyle że w polu, które steruje **automatem** generującym koszty.
+Szablon z rokiem 0202 nie odpala się nigdy i nikt się o tym nie dowiaduje.
+
+**Naprawa:** `czytajPolaKosztu()` i `czytajPolaCyklu()` w `lib/costs.ts`,
+wzorem `czytajPolaKatalogu()` — jedna bramka dla `POST` i `PATCH`, słowniki
+przez `zeSlownika` → 400 z powodem, liczby z sufitem, daty przez
+`isPlausibleDateString`. Plus `normalizeCostRow()` po stronie ODCZYTU, bo
+bramka nie naprawia tego, co już siedzi w bazie. `DELETE` nieistniejącego
+oddaje 404. Test: `test/koszty.test.ts` (czysta funkcja, bez bazy).
+
+**PATCH był NAPRAWDĘ częściowy** i taki został — w odróżnieniu od Katalogu,
+który cicho kasował nieprzysłane pola. Sonda to potwierdziła, a test pilnuje,
+żeby przepisanie trasy tego nie zepsuło.
+
+**2. Waluta i kurs** (decyzja właściciela, wariant pełny). Koszty były
+milcząco złotówkowe, a faktura od zagranicznego dostawcy to najbardziej
+naturalny koszt tej firmy. Doszły `waluta` + `kurs_pln`, przez jeden słownik
+`lib/waluty.ts`.
+
+Kurs jest **NULLOWALNY świadomie**: `null` znaczy „koszt w PLN, nie dotyczy",
+a zapisane `1` przy EUR znaczyłoby „1 EUR = 1 zł", czyli cichy błąd o rząd
+wielkości. Dlatego bramka wymaga kursu wprost dla każdej waluty innej niż PLN.
+
+**Poprawka poszła przez wszystkie sumy naraz** (lekcja 4 briefu): KPI, wykres
+trendu (`SUM(kwota_brutto * COALESCE(kurs_pln, 1))`) i rejestr zakupów. CSV ma
+teraz kolumny PARAMI — kwota z dokumentu w jego walucie (musi zgadzać się
+z papierem) i ta sama kwota w złotych (wchodzi do rejestru); wiersz RAZEM
+sumuje wyłącznie kolumny PLN.
+
+**3. Termin płatności** (decyzja właściciela). Koszt miał `data_platnosci` =
+„kiedy zapłacono", ale **nie miał pola „do kiedy zapłacić"** — więc żaden
+koszt nie mógł być spóźniony i nic o nim nie przypominało. Przegapiony przelew
+do dostawcy był niewidzialny.
+
+Czerwień po terminie idzie **rampą pilności** (`stopienPilnosci`,
+`PILNOSC_TEXT`), nie jako trzeci kolor statusu: pigułka dalej mówi
+złoto/zieleń (STAN), a data mówi JAK PILNIE. Dwie osie na wiersz, zgodnie
+z regułą Modułu 59.
+
+**4. Import z KSeF gubił walutę.** `queryPurchaseInvoices` czytało `currency`
+od początku — import ją **wyrzucał**. Faktura w euro lądowała jako gołe liczby.
+Naprawione; KSeF nie podaje jednak kursu, więc może powstać koszt „100 EUR,
+kurs nieznany". Taki koszt:
+- **nie wchodzi do żadnej sumy** (`maPrzelicznik`) — kurs 1 zaniżyłby go
+  o rząd wielkości bez objawu;
+- **jest o tym głośno powiedziane** („N kosztów bez kursu — nie wliczone" przy
+  KPI, „brak kursu" w wierszu apki, puste kolumny PLN w CSV). Ciche pominięcie
+  byłoby gorsze od złej liczby: wykres kłamałby przez przemilczenie;
+- **da się mimo to edytować** — bramka nie wymaga kursu, dopóki żądanie nie
+  dotyka waluty ani kursu. Inaczej rekordu nie dałoby się w ogóle ruszyć.
+
+### Znalezione przy okazji, poza zakresem briefu
+
+- **KPI „Nieopłacone" świeciło `text-red-400` ZAWSZE**, gdy tylko istniał
+  jakikolwiek niezapłacony rachunek — wpisane z palca, poza paletą marki
+  i **wbrew regule zapisanej piętro wyżej w tym samym pliku** (komentarz przy
+  `COST_STATUS_CLASS`: „świadomie NIE czerwień — nieopłacony koszt to zdrowy,
+  normalny stan"). Kolor, który świeci zawsze, przestaje cokolwiek znaczyć.
+  Teraz idzie rampą: czerwień dopiero po realnym terminie.
+- **Edytor nie cofał optymistycznej podmiany po odrzuceniu zapisu.** Do tej
+  pory nie miało jak wyjść, bo trasa przyjmowała wszystko. Po wprowadzeniu
+  bramki właściciel widziałby na ekranie wartość, której nie ma w bazie.
+  Doszło cofnięcie i **dosłowny powód z bramki** zamiast „Nie udało się
+  zapisać".
+- **Lista kosztów w apce miała własny formater z zaszytym `"PLN"`** — ten sam
+  błąd, który Katalog naprawiał u siebie w Module 62. Kwota w euro rysowała
+  się ze złotówkowym symbolem.
+
+### Pomiary
+
+- **Sonda 401: 17/17 uchwytów** w `app/api/costs` + `app/api/recurring-costs`
+  (liczone per `export async function`, nie per plik). Bez wyjątków.
+- **Kontrast (klon + kompozycja rgba na tle panelu `rgb(8,9,10)`):**
+  termin w terminie `6,13` · po terminie (pomarańcz) `7,11` · zaniedbane
+  (czerwień) `5,62`. Wszystkie ponad próg WCAG AA 4,5. Klasy realnie się
+  generują — to nie był przypadek martwej klasy.
+- **`npm test`: 170/170.**
+
+**Pułapka pomiarowa, na której straciłem czas:** pierwszy pomiar terminu dał
+niemal biel (`rgb(247,248,248)`) tam, gdzie zrzut pokazywał czerwień. Powód:
+`termin.querySelector('span')` trafia w opakowanie `Tooltipa`
+(`display: contents`), które koloru nie niesie i dziedziczy `--fg`. Mierz
+NAJGŁĘBSZY węzeł z tekstem, nie pierwszy `<span>`.
+
+### Świadome decyzje
+
+- **Kwota ujemna PRZECHODZI.** Faktura korygująca od dostawcy („korekta
+  w minus", zwrot, rabat potransakcyjny) to realny dokument zakupowy i musi
+  dać się zapisać. Zatruta analityka z sondy brała się z RZĘDU WIELKOŚCI
+  (9e15), nie ze znaku — i to odcina sufit 100 mln.
+- **Szablon cykliczny ma walutę, ale NIE ma kursu.** Kurs jest z konkretnego
+  dnia, a szablon nie zna dnia, w którym wygeneruje kolejny koszt.
+- **Kurs wpisywany ręcznie, bez pobierania z NBP.** Automatyczne źródło kursów
+  to osobny zakres (który dokument, z którego dnia, co przy weekendzie) —
+  ta sama granica, którą Katalog postawił przy swojej walucie.

@@ -2069,6 +2069,22 @@ async function createCostsSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS recurring_costs_active_idx ON recurring_costs(active, next_run);`;
 
+  // Moduł 63 (2026-08-01) — waluta i kurs kosztu. Do tej pory każdy koszt był
+  // milcząco w złotówkach: faktura za chmurę/licencje z UE wpisywała się jako
+  // gołe liczby i wchodziła do sum tak, jakby to były złote. Kurs jest
+  // NULLOWALNY świadomie — `null` znaczy „koszt w PLN, kurs nie dotyczy",
+  // podczas gdy zapisane `1` przy EUR znaczyłoby „1 EUR = 1 PLN", czyli cichy
+  // błąd o rząd wielkości. Sumy liczą `kwota * COALESCE(kurs_pln, 1)`.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS waluta TEXT NOT NULL DEFAULT 'PLN';`;
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS kurs_pln NUMERIC;`;
+  await sql`ALTER TABLE recurring_costs ADD COLUMN IF NOT EXISTS waluta TEXT NOT NULL DEFAULT 'PLN';`;
+  // Moduł 63 — TERMIN płatności, różny od `data_platnosci` (kiedy zapłacono).
+  // Bez tego pola nieopłacona faktura od dostawcy mogła leżeć w panelu
+  // dowolnie długo i nic o niej nie przypominało: system nie wiedział, do
+  // kiedy była do zapłaty, więc rampa pilności nie miała się o co oprzeć.
+  await sql`ALTER TABLE costs ADD COLUMN IF NOT EXISTS termin_platnosci DATE;`;
+  await sql`CREATE INDEX IF NOT EXISTS costs_termin_idx ON costs(status, termin_platnosci);`;
+
   await markSchemaApplied("costs");
 }
 

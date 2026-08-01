@@ -10598,3 +10598,67 @@ Neutralny (biały) tint chrome spływa środowiskiem z `GlownaBelka` i wygrywa
 z rolą przycisku. Każda akcja kasująca w `swipeActions` potrzebuje JAWNEGO
 `.tint(.ciemnaCzerwien)` — Katalog był jedynym modułem bez tej linii i jego
 „Usuń" rysowało się białe. Objaw widać wyłącznie na zrzucie.
+
+## Audyt Kosztów (Moduł 63, 2026-08-01)
+
+Pełny wynik i pomiary: `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md`
+→ „Stan po module Koszty". Tu tylko wzorce, które od teraz obowiązują.
+
+### `czytajPolaKosztu()` / `czytajPolaCyklu()` — bramka zapisu kosztów
+
+Trzecia para po `czytajPolaKatalogu()` i strażnikach faktur, ten sam kształt:
+jedna funkcja dla `POST` i `PATCH`, słownik przez `zeSlownika` → **400
+z powodem** zamiast cichej podmiany na wartość domyślną, liczby z sufitem,
+daty przez `isPlausibleDateString`.
+
+**Dlaczego akurat tu było najgroźniej:** `vat_odliczenie_procent` ma skutek
+podatkowy. Koszt oznaczony świadomie jako „0% — reprezentacja" po śmieciowym
+`PATCH`-u wracał na „100% — pełne odliczenie" i odpowiadał `{"ok":true}`,
+czyli sam z siebie ustawiał się na wartość najkorzystniejszą i najtrudniejszą
+do obrony przy kontroli. W interfejsie wyglądało to na świadomy wybór.
+
+`normalizeCostRow()` stoi osobno, po stronie ODCZYTU — bramka nie naprawia
+tego, co już siedzi w bazie.
+
+### `kurs_pln` jest NULLOWALNY i to jest cała istota kolumny
+
+`null` = „koszt w złotych, kurs nie dotyczy". Zapisane `1` przy EUR znaczyłoby
+„1 EUR = 1 zł", czyli cichy błąd o rząd wielkości — dlatego bramka wymaga
+kursu wprost dla każdej waluty innej niż PLN, zamiast podstawiać jedynkę.
+
+**Konsekwencja, o której trzeba pamiętać przy KAŻDYM nowym sumowaniu kosztów:**
+sumować wolno wyłącznie `kwota * COALESCE(kurs_pln, 1)`, i tylko wiersze, dla
+których `maPrzelicznik()` jest prawdą. Import z KSeF zna walutę faktury, ale
+nie zawsze kurs, więc istnieje stan „100 EUR, kurs nieznany". Taki koszt jest
+z sum **wyłączony**, ale wyłączenie musi być WIDOCZNE („N kosztów bez kursu —
+nie wliczone"). Ciche pominięcie kłamie gorzej niż zła liczba: wykres wygląda
+wtedy na kompletny.
+
+### Czerwień po terminie idzie rampą pilności, nie statusem
+
+Koszt niesie trzy osie (status, termin, kwota), a kolorem mogą mówić najwyżej
+dwie. Pigułka statusu została przy skali STANU (złoto „mój ruch" / zieleń
+„opłacone"), a `stopienPilnosci` + `PILNOSC_TEXT` malują DATĘ. To ta sama oś,
+co przy fakturach sprzedażowych, tylko obrócona: tam ktoś nie zapłacił nam,
+tu my nie zapłaciliśmy komuś.
+
+Przy okazji poszło `text-red-400` wpisane z palca w KPI „Nieopłacone" — kafelek
+świecił czerwienią ZAWSZE, gdy istniał jakikolwiek niezapłacony rachunek,
+wbrew regule zapisanej piętro wyżej w tym samym pliku. **Kolor, który świeci
+zawsze, przestaje cokolwiek znaczyć.**
+
+### Bramka zapisu wymaga cofania optymistycznej podmiany w UI
+
+Dopóki trasa przyjmowała wszystko, rozjazd „ekran pokazuje co innego niż baza"
+nie miał jak powstać. Po wprowadzeniu bramki **każdy edytor z optymistycznym
+`setState` musi zapamiętać stan sprzed podmiany i cofnąć go przy odpowiedzi
+≠ 2xx** — inaczej właściciel widzi wartość, której nie ma w bazie, aż do
+przeładowania ekranu. I musi pokazywać **dosłowny powód z bramki**: „Koszt
+w walucie EUR wymaga kursu do PLN" mówi, co zrobić; „Nie udało się zapisać"
+nie mówi nic.
+
+### Pułapka pomiarowa: `querySelector('span')` trafia w Tooltip
+
+`Tooltip` renderuje opakowanie z `display: contents`, które nie niesie koloru
+i dziedziczy `--fg`. Pomiar kontrastu przez pierwszy `<span>` w komórce zwrócił
+niemal biel tam, gdzie ekran był czerwony. **Mierz najgłębszy węzeł z tekstem.**

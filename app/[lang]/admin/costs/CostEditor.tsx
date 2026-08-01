@@ -30,7 +30,13 @@ import {
   costBrutto,
   vatDoOdliczenia,
   formatMoney,
+  WALUTY,
+  kursDoPln,
+  wPln,
+  dniPoTerminieKosztu,
 } from "@/lib/costs";
+import { todayLocalISO } from "@/lib/dates";
+import { opisPilnosci } from "@/lib/kolorStanu";
 import { lookupSupplierByNip, normalizeAccountNumber } from "@/lib/vies";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -133,6 +139,13 @@ export function CostEditor({
 
   const patch = useCallback(
     async (body: Partial<Cost> & Record<string, unknown>) => {
+      // Stan sprzed optymistycznej podmiany — do COFNIĘCIA, gdy serwer odrzuci
+      // zapis. Do Modułu 63 nic się tu nie cofało, bo trasa przyjmowała
+      // wszystko: śmieć wracał jako `{"ok":true}`, więc rozjazd „ekran pokazuje
+      // co innego niż baza" nie miał jak powstać. Teraz bramka potrafi
+      // odmówić — i bez tego cofnięcia właściciel widziałby wartość, której
+      // nie ma w bazie, aż do przeładowania ekranu.
+      const przed = cost;
       setCost((prev) => (prev ? { ...prev, ...body } : prev));
       setSaveState("saving");
       const res = await fetch(`/api/costs/${id}`, {
@@ -153,10 +166,14 @@ export function CostEditor({
         }
       } else {
         setSaveState("idle");
-        toast("Nie udało się zapisać.", "error");
+        setCost(przed);
+        // Powód z bramki dosłownie — „Koszt w walucie EUR wymaga kursu do PLN"
+        // mówi, co zrobić; „Nie udało się zapisać" nie mówi nic.
+        const dane = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast(dane?.error || "Nie udało się zapisać.", "error");
       }
     },
-    [id, flashSaved, onChange, toast, refreshHints]
+    [id, cost, flashSaved, onChange, toast, refreshHints]
   );
 
   const lookupSupplier = useCallback(async () => {
@@ -624,8 +641,76 @@ export function CostEditor({
           </Popover>
         </WierszPola>
 
+        <WierszPola etykieta="Waluta" title="Waluta faktury od dostawcy">
+          <Popover
+            align="left"
+            width={140}
+            trigger={(open) => (
+              <button
+                onClick={open}
+                className="flex w-full items-center justify-between rounded-md border hairline px-2.5 py-1.5 text-left text-[13px] text-[var(--fg)] hover:bg-[var(--hairline)]"
+              >
+                {cost.waluta}
+              </button>
+            )}
+          >
+            {(close) => (
+              <div>
+                {WALUTY.map((w) => (
+                  <MenuRow
+                    key={w}
+                    label={w}
+                    selected={cost.waluta === w}
+                    onClick={() => {
+                      // Przy przejściu na walutę obcą podsuwamy 1,00 jako
+                      // wartość DO POPRAWIENIA, żeby zapis nie odbił się o
+                      // bramkę zanim właściciel zdąży wpisać kurs. Pole niżej
+                      // krzyczy, dopóki kurs to 1.
+                      patch(w === "PLN" ? { waluta: w, kurs_pln: null } : { waluta: w, kurs_pln: cost.kurs_pln ?? 1 });
+                      close();
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </Popover>
+        </WierszPola>
+
+        {/* Kurs pokazuje się TYLKO dla waluty obcej — przy PLN nie ma czego
+            przeliczać, a puste pole „kurs: 1,00" sugerowałoby, że przeliczenie
+            było. */}
+        {cost.waluta !== "PLN" && (
+          <WierszPola etykieta="Kurs do PLN" title="Kurs z dnia poprzedzającego wystawienie faktury (art. 31a ustawy o VAT)">
+            <input
+              type="number"
+              step="0.0001"
+              defaultValue={cost.kurs_pln ?? 1}
+              key={cost.waluta}
+              onBlur={(e) => {
+                const v = Number(e.target.value);
+                if (Number.isFinite(v) && v > 0 && v !== cost.kurs_pln) patch({ kurs_pln: v });
+              }}
+              className={poleCls}
+            />
+          </WierszPola>
+        )}
+
+        {cost.waluta !== "PLN" && kursDoPln(cost.kurs_pln) === 1 && (
+          <WierszUwaga>
+            Kurs wynosi 1,0000 — czyli 1 {cost.waluta} = 1 zł. Wpisz kurs z dnia poprzedzającego wystawienie faktury,
+            inaczej ten koszt zaniży sumy miesiąca i rejestr zakupów.
+          </WierszUwaga>
+        )}
+
         <WierszPola etykieta="Kwota brutto">
-          <div className="text-[13px] font-medium text-[var(--fg)]">{formatMoney(costBrutto(cost.kwota_netto, cost.vat_stawka))}</div>
+          <div className="text-[13px] font-medium text-[var(--fg)]">
+            {formatMoney(costBrutto(cost.kwota_netto, cost.vat_stawka), cost.waluta)}
+            {cost.kurs_pln != null && (
+              <span className="ml-1.5 text-[11px] font-normal text-muted">
+                ≈ {formatMoney(wPln(costBrutto(cost.kwota_netto, cost.vat_stawka), cost.kurs_pln))}
+              </span>
+            )}
+          </div>
         </WierszPola>
 
         <WierszPola etykieta="Odliczenie VAT" title="Jaki procent VAT-u z tej faktury odliczasz">
@@ -652,7 +737,7 @@ export function CostEditor({
         </WierszPola>
         <WierszPola etykieta="VAT do odliczenia">
           <div className="text-[13px] font-medium text-[var(--fg)]">
-            {formatMoney(vatDoOdliczenia(cost.kwota_netto, cost.vat_stawka, cost.vat_odliczenie_procent))}
+            {formatMoney(vatDoOdliczenia(cost.kwota_netto, cost.vat_stawka, cost.vat_odliczenie_procent), cost.waluta)}
           </div>
         </WierszPola>
         </SekcjaProfilu>
@@ -664,9 +749,20 @@ export function CostEditor({
         <WierszPola etykieta="Data wpływu" title="Data wpływu faktury — jeśli inna niż wystawienia">
           <DateField value={cost.data_wplywu ?? ""} onChange={(v) => patch({ data_wplywu: v })} placeholder="Jeśli inna niż wystawienia" />
         </WierszPola>
-        <WierszPola etykieta="Data płatności">
+        {/* Termin (do kiedy zapłacić) stoi PRZED datą płatności (kiedy
+            zapłacono) — w tej kolejności czyta się je jako zobowiązanie
+            i jego wykonanie, a nie jako dwa podobne pola dat. */}
+        <WierszPola etykieta="Termin płatności" title="Do kiedy zapłacić — po tym terminie koszt zaczyna świecić na liście">
+          <DateField value={cost.termin_platnosci ?? ""} onChange={(v) => patch({ termin_platnosci: v })} placeholder="Z faktury dostawcy" />
+        </WierszPola>
+        <WierszPola etykieta="Data płatności" title="Kiedy faktycznie zapłacono">
           <DateField value={cost.data_platnosci ?? ""} onChange={(v) => patch({ data_platnosci: v })} placeholder="Ustaw datę" />
         </WierszPola>
+        {(() => {
+          const dni = dniPoTerminieKosztu(cost, todayLocalISO());
+          const opis = opisPilnosci(dni);
+          return opis ? <WierszUwaga>{opis}</WierszUwaga> : null;
+        })()}
         </SekcjaProfilu>
 
         {/* Opis i załącznik bez wierszy — treść wielolinijkowa i blok akcji nie

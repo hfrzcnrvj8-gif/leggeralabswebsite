@@ -188,7 +188,7 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Faktury | ✅² | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Katalog | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅ | ✅⁴ | ✅ |
 | Kalkulator | ✅ | — | — | ❌ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
-| Koszty | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Koszty | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅ | ✅ | ✅ | ✅⁵ | ✅ |
 | Poczta | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Kalendarz | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
@@ -222,6 +222,14 @@ się na niekorzyść. Co dokładnie zmierzono:
   fałszywy alarm — dokładnie ta pułapka, o której mówi lista kontrolna.
 - **Dotyk** (Leady): wiersz tabeli 73 px. „⚠️" z 28.07 dotyczyło celów poniżej
   44 px, których panel ma wszędzie tyle samo — patrz przypis ¹ przy Projektach.
+
+⁵ **Koszty przeszły pełną listę 2026-08-01** (Moduł 63) — wynik i pomiary
+w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Koszty". Jedyne ❌
+(Klawiatura) było NIEAKTUALNE, a wszystkie trzy ⚠️ też — sprzątnęły je paczki
+C, E i G, których nikt do tabeli nie wpisał. **Czwarty raz z rzędu inwentarz
+mylił się w obie strony**: 4 z 4 pozycji nieaktualne, a realną pracą było
+znowu coś spoza tabeli — brak WALUTY, brak TERMINU PŁATNOŚCI i sześć cichych
+podmian w trasach, z których jedna miała skutek podatkowy.
 
 ⁴ **Katalog przeszedł pełną listę 2026-08-01** (Moduł 62) — wynik i pomiary
 w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Katalog". Z czterech ❌

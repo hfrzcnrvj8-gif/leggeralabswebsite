@@ -22,6 +22,14 @@ export {
   costBrutto,
   vatDoOdliczenia,
   formatMoney,
+  // Moduł 63 — waluta, kurs i termin płatności.
+  WALUTY,
+  DOMYSLNA_WALUTA,
+  type Waluta,
+  kursDoPln,
+  wPln,
+  maPrzelicznik,
+  dniPoTerminieKosztu,
 } from "@/lib/costs";
 
 import { COST_STATUSES, COST_STATUS_CLASS, type CostStatus } from "@/lib/costs";
