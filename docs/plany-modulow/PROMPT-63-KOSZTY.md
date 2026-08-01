@@ -82,8 +82,9 @@ stratę, i czy mówi to tym samym kolorem — **albo czy świadomie nie mówi ni
 - **`lib/instrukcje.ts` ma ósmy moduł (Katalog).** Zmiana gestu, skrótu albo
   miejsca kontrolki = poprawka tam, w tym samym commicie.
 
-**Zanim ruszysz kod:** sprawdź `git log`, czy zmiany z 01.08 są w repo (sesje
-audytowe kończą się poleceniem dla właściciela, nie commitem Claude'a).
+**Punkt startu jest w repo** (ta sesja wyjątkowo commitowała sama):
+panel `86fb2ab`, apka `f48f474` (wydanie 176). Zacznij od `git log` i upewnij
+się, że to nadal wierzchołek — jeśli nie, ktoś pracował po drodze.
 
 **ZANIM ZACZNIESZ — przeczytaj:**
 - `CLAUDE.md` — zasady projektu, w tym design system.
