@@ -18,7 +18,11 @@ export {
   hasPriceRange,
   type CatalogCategory,
 } from "@/lib/catalog";
-export { formatMoney, type CatalogItem } from "@/lib/invoices";
+export { formatMoney, etykietaVat, VAT_RATES, type CatalogItem } from "@/lib/invoices";
+export { WALUTY, DOMYSLNA_WALUTA, type Waluta } from "@/lib/waluty";
+/** Marża ujemna = strata, i tylko ona dostaje w katalogu czerwień (trzecia
+ * rola czerwieni w słowniku, Moduł 62). */
+export { klasaStraty } from "@/lib/kolorStanu";
 
 import { CatalogCategoryIcon } from "../icons";
 import { catalogCategoryLabel } from "@/lib/catalog";

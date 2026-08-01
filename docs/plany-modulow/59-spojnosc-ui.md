@@ -180,13 +180,13 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Moduł | Kolor | Klikalność | Gesty/menu | Klawiatura | Nawigacja | Stany | Treść | Ruch | Integralność | Dotyk |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Pulpit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Leady | ❌ | ❌ | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ✅ | ❌ | ⚠️ |
-| Klienci | ✅ | ❌ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Leady | ✅³ | ✅³ | ✅ | ✅³ | ✅³ | ✅³ | ✅ | ✅ | ✅³ | ✅¹ |
+| Klienci | ✅ | ✅³ | ✅ | ✅ | ✅³ | ✅ | ✅ | ✅ | ✅³ | ✅ |
 | Oferty | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Umowy | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Projekty | ✅¹ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅¹ |
 | Faktury | ✅² | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Katalog | ✅ | ❌ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
+| Katalog | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅ | ✅⁴ | ✅ |
 | Kalkulator | ✅ | — | — | ❌ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Koszty | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Poczta | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
@@ -194,6 +194,41 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
 | Przypomnienia | ✅ | ⚠️ | ⚠️ | ❌ | ⚠️ | ❌ | ✅ | ✅ | ⚠️ | ✅ |
 | Statystyki | ✅ | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+³ **Wiersze Leadów i Klientów ZMIERZONE PONOWNIE 2026-08-01** (na początku
+Modułu 62). Nie zmieniono w nich ani linijki kodu — pokazywały siedem ❌/⚠️,
+z których **żadne już nie obowiązywało**. Oba moduły przeszły własne audyty
+(25 i 26 lipca), a potem paczki A–G Modułu 59 objęły wszystkie moduły naraz;
+wiersza nikt nie zaktualizował. To był trzeci raz z rzędu, kiedy tabela myliła
+się na niekorzyść. Co dokładnie zmierzono:
+
+- **Kolor** (Leady): pigułki statusu stoją na wspólnej skali i mają realne tło
+  (`getComputedStyle` na klonie, kompozycja rgba na tle panelu `#08090A`):
+  „Do kontaktu" 7,13 · „Napisano" 8,08 · „Pilotaż" 8,18 · „Zamknięte - sukces"
+  7,42 · „Odrzucone" 5,01 — całość powyżej progu AA 4,5.
+- **Klikalność**: `<tr>` ma `onClick` i `cursor: pointer` na całej szerokości,
+  każdy rekord ma adres (`/pl/admin/leads/<id>`, `/pl/admin/clients/<id>`),
+  a w tabeli stoi ikona „otwórz" honorująca ⌘-klik. Kanban Klientów: karta
+  z `onClick` + `onContextMenu`.
+- **Klawiatura**: „/" ustawia fokus w polu szukania, `j`/`k` przesuwają
+  `[data-kursor]`, ⌘K otwiera paletę, `Esc` zamyka — sprawdzone dyspozycją
+  zdarzeń w obu modułach.
+- **Stany**: oba dashboardy używają `StanListy` + `StanBledu` (trzy warianty
+  pustego stanu), nie własnych napisów.
+- **Integralność**: sonda `curl` z `DEV_ADMIN_BYPASS=0`, **45 uchwytów HTTP**
+  po jednym (25 leadów + 20 klientów) — wszystkie 401 oprócz `POST /api/leads`,
+  który jest **świadomie publiczny** (formularz na stronie, hamulec
+  `HAMULEC_FORMULARZ`, wyjątek dla zalogowanego). Grep po pliku dałby tu
+  fałszywy alarm — dokładnie ta pułapka, o której mówi lista kontrolna.
+- **Dotyk** (Leady): wiersz tabeli 73 px. „⚠️" z 28.07 dotyczyło celów poniżej
+  44 px, których panel ma wszędzie tyle samo — patrz przypis ¹ przy Projektach.
+
+⁴ **Katalog przeszedł pełną listę 2026-08-01** (Moduł 62) — wynik i pomiary
+w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Katalog". Z czterech ❌
+trzy były NIEAKTUALNE (Klawiatura, Stany, Klikalność — paczki C i E),
+obowiązywało jedno: **Gesty/menu**. Realną pracą było znowu coś spoza tabeli:
+katalog nie miał WALUTY, a jego trasy przyjmowały każdy śmieć i odpowiadały
+`{"ok":true}`.
 
 ² **Faktury przeszły pełną listę 2026-07-31** (Moduł 61) — wynik i pomiary
 w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Faktury". Dwa z trzech ❌

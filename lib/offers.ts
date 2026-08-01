@@ -8,6 +8,7 @@ import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedCl
 import { todayLocalISO, parsePgTimestamp } from "./dates";
 import { round2 } from "./invoices";
 import { mapaStanow } from "./kolorStanu";
+import { WALUTY, DOMYSLNA_WALUTA, isWaluta, type Waluta } from "./waluty";
 
 /** Język wydruku oferty — jak w fakturach (lib/invoices.ts), niezależny od
  * języka panelu. Typ i lista dzielone przez lib/documents.ts. */
@@ -31,13 +32,11 @@ export function isOfferStatus(v: unknown): v is OfferStatus {
  * akceptacji oferta przepisuje się wprost na fakturę. Do tego modułu oferta
  * waluty nie miała w ogóle: dokument był trójjęzyczny (PL/EN/DE), ale wydruk
  * liczył zawsze w złotówkach, więc oferta po niemiecku pokazywała „6.000,00 zł". */
-export const OFFER_CURRENCIES = ["PLN", "EUR", "USD", "GBP"] as const;
-export type OfferCurrency = (typeof OFFER_CURRENCIES)[number];
-export const DEFAULT_OFFER_CURRENCY: OfferCurrency = "PLN";
+export const OFFER_CURRENCIES = WALUTY;
+export type OfferCurrency = Waluta;
+export const DEFAULT_OFFER_CURRENCY: OfferCurrency = DOMYSLNA_WALUTA;
 
-export function isOfferCurrency(v: unknown): v is OfferCurrency {
-  return typeof v === "string" && (OFFER_CURRENCIES as readonly string[]).includes(v);
-}
+export const isOfferCurrency = isWaluta;
 
 /** Powody odrzucenia oferty — krótka, ZAMKNIĘTA lista (decyzja właściciela
  * 2026-07-26), żeby dało się kiedyś policzyć, na czym realnie przegrywamy.

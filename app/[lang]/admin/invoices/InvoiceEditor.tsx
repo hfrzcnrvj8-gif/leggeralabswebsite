@@ -41,6 +41,7 @@ import {
   itemNetto,
   itemBrutto,
   formatMoney,
+  etykietaVat,
   INVOICE_STATUS_CLASS,
   totalPaid,
   isInvoiceOverdue,
@@ -228,9 +229,23 @@ export function InvoiceEditor({
     loadCatalog();
   }, [loadCatalog]);
 
+  /** Pozycja katalogu → pozycja faktury. Kwota jest MIGAWKĄ (późniejsza zmiana
+   *  ceny w katalogu nie rusza wystawionych dokumentów) i wchodzi BEZ
+   *  przeliczenia — panel nie zna kursów. Dlatego przy różnicy walut pytamy
+   *  wprost, zamiast po cichu wpisać 18 000 EUR tam, gdzie katalog mówił
+   *  18 000 zł (Moduł 62). */
   const addFromCatalog = useCallback(
-    (c: CatalogItem) => addItem({ nazwa: c.nazwa, cena_netto: c.cena_netto, vat_stawka: c.vat_stawka, jednostka: c.jednostka }),
-    [addItem]
+    async (c: CatalogItem) => {
+      const walutaFaktury = invoice?.waluta || "PLN";
+      if (c.waluta !== walutaFaktury) {
+        const zgoda = await confirm(
+          `Cena tej pozycji jest w ${c.waluta}, a faktura wystawiana jest w ${walutaFaktury}. Panel nie przelicza kursów — kwota ${c.cena_netto} wejdzie bez zmiany. Wstawić?`
+        );
+        if (!zgoda) return;
+      }
+      addItem({ nazwa: c.nazwa, cena_netto: c.cena_netto, vat_stawka: c.vat_stawka, jednostka: c.jednostka });
+    },
+    [addItem, confirm, invoice?.waluta]
   );
 
   const saveToCatalog = useCallback(
@@ -242,7 +257,15 @@ export function InvoiceEditor({
       const res = await fetch("/api/catalog", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nazwa: it.nazwa, cena_netto: it.cena_netto, vat_stawka: it.vat_stawka, jednostka: it.jednostka }),
+        // Waluta faktury jedzie razem z kwotą — bez tego pozycja z faktury
+        // w EUR lądowała w katalogu jako cena w złotówkach (Moduł 62).
+        body: JSON.stringify({
+          nazwa: it.nazwa,
+          cena_netto: it.cena_netto,
+          waluta: invoice?.waluta || "PLN",
+          vat_stawka: it.vat_stawka,
+          jednostka: it.jednostka,
+        }),
       });
       if (res.ok) {
         setCatalog(((await res.json()) as { items: CatalogItem[] }).items);
@@ -251,13 +274,22 @@ export function InvoiceEditor({
         toast("Nie udało się zapisać do katalogu.", "error");
       }
     },
-    [toast]
+    [toast, invoice?.waluta]
   );
 
-  const deleteFromCatalog = useCallback(async (catId: string) => {
-    setCatalog((prev) => prev.filter((c) => c.id !== catId));
-    await fetch(`/api/catalog/${catId}`, { method: "DELETE" });
-  }, []);
+  const deleteFromCatalog = useCallback(
+    async (catId: string) => {
+      // Wiersz znika dopiero po potwierdzeniu z serwera — inaczej nieudane
+      // usunięcie wygląda jak udane (ta sama poprawka co na liście Katalogu).
+      const res = await fetch(`/api/catalog/${catId}`, { method: "DELETE" });
+      if (!res.ok) {
+        toast("Nie udało się usunąć z katalogu.", "error");
+        return;
+      }
+      setCatalog((prev) => prev.filter((c) => c.id !== catId));
+    },
+    [toast]
+  );
 
   // --- Klienci z bazy (do szybkiego wypełnienia nabywcy) ---
   useEffect(() => {
@@ -872,8 +904,9 @@ export function InvoiceEditor({
                   {(close) => (
                     <CatalogPicker
                       catalog={catalog}
+                      walutaDokumentu={invoice?.waluta || "PLN"}
                       onPick={(c) => {
-                        addFromCatalog(c);
+                        void addFromCatalog(c);
                         close();
                       }}
                       onDelete={deleteFromCatalog}
@@ -1572,10 +1605,14 @@ export function InvoiceEditor({
 
 function CatalogPicker({
   catalog,
+  walutaDokumentu,
   onPick,
   onDelete,
 }: {
   catalog: CatalogItem[];
+  /** Waluta faktury — pozycja katalogu w innej walucie dostaje ostrzeżenie
+   *  przy cenie, bo panel świadomie nie przelicza kursów (Moduł 62). */
+  walutaDokumentu: string;
   onPick: (c: CatalogItem) => void;
   onDelete: (id: string) => void;
 }) {
@@ -1610,9 +1647,12 @@ function CatalogPicker({
               <span className="min-w-0">
                 <span className="block truncate text-[13px] text-[var(--fg)]">{c.nazwa}</span>
                 <span className="block text-[11px] text-muted">
-                  {formatMoney(c.cena_netto)} / {c.jednostka} · VAT {c.vat_stawka === "zw" || c.vat_stawka === "np" ? c.vat_stawka : `${c.vat_stawka}%`}
+                  {formatMoney(c.cena_netto, c.waluta)} / {c.jednostka} · VAT {etykietaVat(c.vat_stawka)}
                   {hasPriceRange(c.cena_min, c.cena_max) && (
-                    <span className="text-brand-cyan"> · {formatMoney(c.cena_min as number)}–{formatMoney(c.cena_max as number)}</span>
+                    <span className="text-brand-cyan"> · {formatMoney(c.cena_min as number, c.waluta)}–{formatMoney(c.cena_max as number, c.waluta)}</span>
+                  )}
+                  {c.waluta !== walutaDokumentu && (
+                    <span className="text-brand-orange"> · cena w {c.waluta}, faktura w {walutaDokumentu}</span>
                   )}
                 </span>
               </span>

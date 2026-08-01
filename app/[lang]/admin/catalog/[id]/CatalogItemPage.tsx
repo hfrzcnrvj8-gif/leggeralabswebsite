@@ -17,6 +17,8 @@ import {
   catalogMarginPercent,
   hasPriceRange,
   formatMoney,
+  etykietaVat,
+  klasaStraty,
   type CatalogItem,
 } from "../shared";
 
@@ -115,12 +117,15 @@ export function CatalogItemPage({ id, lang }: { id: string; lang: Locale }) {
 
               <SekcjaProfilu tytul="Cena">
                 <WierszPola etykieta="Cena netto">
-                  {formatMoney(item.cena_netto)} / {item.jednostka}
+                  {formatMoney(item.cena_netto, item.waluta)} / {item.jednostka}
                 </WierszPola>
-                <WierszPola etykieta="Stawka VAT">{item.vat_stawka}%</WierszPola>
+                <WierszPola etykieta="Waluta">{item.waluta}</WierszPola>
+                {/* `{item.vat_stawka}%` pisało na tym ekranie „zw.%" i „np.%" —
+                    jedyne miejsce w panelu, które nie znało tego wyjątku. */}
+                <WierszPola etykieta="Stawka VAT">{etykietaVat(item.vat_stawka)}</WierszPola>
                 <WierszPola etykieta="Widełki">
                   {hasPriceRange(item.cena_min, item.cena_max)
-                    ? `${formatMoney(item.cena_min as number)} – ${formatMoney(item.cena_max as number)}`
+                    ? `${formatMoney(item.cena_min as number, item.waluta)} – ${formatMoney(item.cena_max as number, item.waluta)}`
                     : "—"}
                 </WierszPola>
               </SekcjaProfilu>
@@ -129,14 +134,20 @@ export function CatalogItemPage({ id, lang }: { id: string; lang: Locale }) {
                   dla klienta. Osobna sekcja mówi to samym podziałem. */}
               <SekcjaProfilu tytul="Tylko dla Ciebie">
                 <WierszPola etykieta="Koszt zakupu">
-                  {item.koszt_zakupu != null ? formatMoney(item.koszt_zakupu) : "—"}
+                  {item.koszt_zakupu != null ? formatMoney(item.koszt_zakupu, item.waluta) : "—"}
                 </WierszPola>
                 <WierszPola etykieta="Marża">
                   {(() => {
                     const m = catalogMargin(item.cena_netto, item.koszt_zakupu);
                     const p = catalogMarginPercent(item.cena_netto, item.koszt_zakupu);
                     if (m == null) return "—";
-                    return `${formatMoney(m)}${p != null ? ` (${p.toFixed(0)}%)` : ""}`;
+                    // Ujemna marża = strata i tylko ona dostaje czerwień.
+                    return (
+                      <span className={klasaStraty(m, "text-[var(--fg)]")}>
+                        {formatMoney(m, item.waluta)}
+                        {p != null ? ` (${p.toFixed(0)}%)` : ""}
+                      </span>
+                    );
                   })()}
                 </WierszPola>
               </SekcjaProfilu>

@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { IconPlus, IconTrash, IconPencil, IconInfoCircle, IconBoxMultiple, IconArrowUpRight } from "@tabler/icons-react";
+import { useRouter } from "next/navigation";
+import { IconPlus, IconTrash, IconPencil, IconInfoCircle, IconBoxMultiple, IconArrowUpRight, IconCoin, IconTag } from "@tabler/icons-react";
 import { Modal } from "../Modal";
 import { FilterPills, FilterPillsBar } from "../FilterPills";
-import { useUI, useRegisterActions } from "../ui";
+import { ContextMenu, ContextMenuItem, MenuDivider, MenuLabel, useContextMenu } from "../Menu";
+import { useUI, useRegisterActions, useCopy } from "../ui";
 import { StanListy } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
@@ -13,7 +15,6 @@ import { ExpandingIconButton } from "../ExpandingIconButton";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { CatalogCategoryIcon } from "../icons";
 import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
-import { VAT_RATES } from "@/lib/invoices";
 import {
   CATALOG_CATEGORIES,
   CATALOG_CATEGORY_LABELS,
@@ -23,6 +24,11 @@ import {
   catalogMarginPercent,
   hasPriceRange,
   formatMoney,
+  etykietaVat,
+  klasaStraty,
+  VAT_RATES,
+  WALUTY,
+  DOMYSLNA_WALUTA,
   KategoriaTag,
   type CatalogItem,
   type CatalogCategory,
@@ -37,6 +43,13 @@ const JEDNOSTKI = ["szt.", "kpl.", "mies.", "godz.", "usł.", "lic."];
 
 export function CatalogDashboard({ lang }: { lang: string }) {
   const { toast, confirm } = useUI();
+  const router = useRouter();
+  const copy = useCopy();
+  /** Prawy przycisk myszy na wierszu — do Modułu 62 Katalog był jedynym
+   *  modułem listowym panelu bez menu kontekstowego (Oferty, Faktury, Koszty
+   *  i Klienci miały je od dawna). Menu jest SKRÓTEM: wszystko z niego da się
+   *  zrobić też widocznym przyciskiem w wierszu. */
+  const ctl = useContextMenu<CatalogItem>();
   const [items, setItems] = useState<CatalogItem[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -74,10 +87,17 @@ export function CatalogDashboard({ lang }: { lang: string }) {
     async (c: CatalogItem) => {
       if (!(await confirm(`Usunąć „${c.nazwa}" z katalogu? Oferty i faktury, które z niej korzystały, zostają nietknięte.`)))
         return;
+      const res = await fetch(`/api/catalog/${c.id}`, { method: "DELETE" });
+      // Wiersz znika DOPIERO po potwierdzeniu z serwera. Wcześniej znikał od
+      // razu, a odpowiedzi nikt nie czytał — nieudane usunięcie wyglądało
+      // identycznie jak udane aż do przeładowania strony.
+      if (!res.ok) {
+        toast("Nie udało się usunąć komponentu.", "error");
+        return;
+      }
       setItems((prev) => prev?.filter((x) => x.id !== c.id) ?? null);
-      await fetch(`/api/catalog/${c.id}`, { method: "DELETE" });
     },
-    [confirm]
+    [confirm, toast]
   );
 
   useRegisterActions([{ id: "add", label: "+ Dodaj komponent", run: otworzNowy }], [otworzNowy]);
@@ -179,7 +199,13 @@ export function CatalogDashboard({ lang }: { lang: string }) {
       {/* Do paczki E ten ekran przy awarii wczytania zostawał na „Wczytuję…"
           w nieskończoność — `items` nigdy nie przestawało być `null`. */}
       {items === null && !blad ? (
-        <p className="mt-6 text-center text-[13px] text-muted">Wczytuję…</p>
+        // Szkielet W KSZTAŁCIE TREŚCI zamiast napisu „Wczytuję…" na środku
+        // (lista kontrolna, punkt 6) — ekran nie podskakuje, gdy dane wejdą.
+        <div className="mt-4 space-y-1.5" aria-hidden>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-[84px] animate-pulse rounded-xl bg-[var(--plyta)]" />
+          ))}
+        </div>
       ) : plaskie.length === 0 ? (
         <div className="card-paper mt-6 rounded-2xl">
           <StanListy
@@ -221,6 +247,7 @@ export function CatalogDashboard({ lang }: { lang: string }) {
                       lang={lang}
                       onEdytuj={() => otworzEdycje(c)}
                       onUsun={() => usun(c)}
+                      onMenu={(e) => ctl.openAt(e, c)}
                       pokazKategorie={false}
                       {...wiersz(indeksy.get(c.id) ?? -1)}
                     />
@@ -231,6 +258,37 @@ export function CatalogDashboard({ lang }: { lang: string }) {
           ))}
         </div>
       )}
+
+      <ContextMenu ctl={ctl}>
+        {(c, close) => {
+          const run = (fn: () => void) => {
+            close();
+            fn();
+          };
+          return (
+            <>
+              <ContextMenuItem
+                icon={<IconArrowUpRight size={14} />}
+                label="Otwórz"
+                onClick={() => run(() => router.push(`/${lang}/admin/catalog/${c.id}`))}
+              />
+              <ContextMenuItem icon={<IconPencil size={14} />} label="Edytuj" onClick={() => run(() => otworzEdycje(c))} />
+
+              <MenuDivider />
+              <MenuLabel>Kopiuj</MenuLabel>
+              <ContextMenuItem icon={<IconTag size={14} />} label="Nazwę" onClick={() => run(() => void copy(c.nazwa, "Nazwa"))} />
+              <ContextMenuItem
+                icon={<IconCoin size={14} />}
+                label="Cenę netto"
+                onClick={() => run(() => void copy(formatMoney(c.cena_netto, c.waluta), "Cena netto"))}
+              />
+
+              <MenuDivider />
+              <ContextMenuItem icon={<IconTrash size={14} />} label="Usuń" danger onClick={() => run(() => void usun(c))} />
+            </>
+          );
+        }}
+      </ContextMenu>
 
       {formOtwarty && (
         <CatalogFormModal
@@ -253,6 +311,7 @@ function WierszKomponentu({
   lang,
   onEdytuj,
   onUsun,
+  onMenu,
   pokazKategorie,
   className,
   ...reszta
@@ -261,6 +320,7 @@ function WierszKomponentu({
   lang: string;
   onEdytuj: () => void;
   onUsun: () => void;
+  onMenu: (e: React.MouseEvent) => void;
   pokazKategorie: boolean;
   /** Podświetlenie kursora j/k — składane przez `wiersz()` z `klawiatura.ts`. */
   className?: string;
@@ -271,7 +331,11 @@ function WierszKomponentu({
   const zakres = hasPriceRange(c.cena_min, c.cena_max);
 
   return (
-    <div className={`group card-paper flex items-start gap-3 rounded-xl px-3 py-2.5 ${className ?? ""}`} {...reszta}>
+    <div
+      className={`group card-paper flex items-start gap-3 rounded-xl px-3 py-2.5 ${className ?? ""}`}
+      onContextMenu={onMenu}
+      {...reszta}
+    >
       <CatalogCategoryIcon kind={c.kategoria} size={16} className="mt-0.5 shrink-0 text-muted" />
       <button onClick={onEdytuj} className="min-w-0 flex-1 text-left">
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -282,17 +346,23 @@ function WierszKomponentu({
         {c.opis && <span className="mt-0.5 block truncate text-[12px] text-muted">{c.opis}</span>}
         <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px]">
           <span className="text-[var(--fg)]">
-            {formatMoney(c.cena_netto)}
+            {formatMoney(c.cena_netto, c.waluta)}
             <span className="text-muted"> / {c.jednostka} netto</span>
           </span>
           {zakres && (
             <span className="text-brand-cyan">
-              widełki {formatMoney(c.cena_min as number)}–{formatMoney(c.cena_max as number)}
+              widełki {formatMoney(c.cena_min as number, c.waluta)}–{formatMoney(c.cena_max as number, c.waluta)}
             </span>
           )}
           {marza != null && (
-            <span className="text-muted" title="Twoja marża — nie trafia do klienta">
-              marża {formatMoney(marza)}
+            // Czerwień TYLKO przy marży ujemnej (sprzedaż poniżej kosztu) —
+            // trzecia rola czerwieni ze słownika. Marża dodatnia zostaje
+            // neutralna: kolor, który świeci zawsze, przestaje znaczyć.
+            <span
+              className={klasaStraty(marza)}
+              title={marza < 0 ? "Sprzedajesz poniżej kosztu zakupu" : "Twoja marża — nie trafia do klienta"}
+            >
+              marża {formatMoney(marza, c.waluta)}
               {marzaProc != null && ` (${marzaProc.toFixed(0)}%)`}
             </span>
           )}
@@ -349,6 +419,7 @@ export function CatalogFormModal({
 }) {
   const [nazwa, setNazwa] = useState(initial?.nazwa ?? "");
   const [kat, setKat] = useState<string>(initial?.kategoria ?? DEFAULT_CATALOG_CATEGORY);
+  const [waluta, setWaluta] = useState<string>(initial?.waluta ?? DOMYSLNA_WALUTA);
   const [cena, setCena] = useState(initial ? String(initial.cena_netto) : "");
   const [cenaMin, setCenaMin] = useState(initial?.cena_min != null ? String(initial.cena_min) : "");
   const [cenaMax, setCenaMax] = useState(initial?.cena_max != null ? String(initial.cena_max) : "");
@@ -369,10 +440,20 @@ export function CatalogFormModal({
       onError("Podaj nazwę komponentu.");
       return;
     }
+    // Widełki odwrotne serwer odrzuca (400); tutaj mówimy o tym od razu, bez
+    // podróży w obie strony. Do Modułu 62 przechodziły i UI po prostu je
+    // UKRYWAŁ, więc zła dana siedziała w bazie bez żadnego objawu.
+    const min = cenaMin.trim() === "" ? null : Number(cenaMin.replace(",", "."));
+    const max = cenaMax.trim() === "" ? null : Number(cenaMax.replace(",", "."));
+    if (min != null && max != null && Number.isFinite(min) && Number.isFinite(max) && min > max) {
+      onError("Widełki „od” są wyższe niż „do” — zamień je miejscami.");
+      return;
+    }
     setZapisuje(true);
     const body = {
       nazwa: nazwa.trim(),
       kategoria: kat,
+      waluta,
       cena_netto: cena,
       cena_min: cenaMin,
       cena_max: cenaMax,
@@ -395,12 +476,16 @@ export function CatalogFormModal({
         });
     setZapisuje(false);
     if (!res.ok) {
-      onError("Nie udało się zapisać komponentu.");
+      // Powód z serwera, nie własne „coś poszło nie tak": bramka zapisu
+      // (Moduł 62) odpowiada zdaniem, które da się przeczytać i naprawić
+      // („Koszt zakupu nie może być ujemny").
+      const powod = await res.json().catch(() => null);
+      onError((powod as { error?: string } | null)?.error || "Nie udało się zapisać komponentu.");
       return;
     }
     const dane = (await res.json()) as { items: CatalogItem[] };
     onSaved(dane.items);
-  }, [nazwa, kat, cena, cenaMin, cenaMax, jednostka, vat, koszt, dostawca, opis, initial, onSaved, onError]);
+  }, [nazwa, kat, waluta, cena, cenaMin, cenaMax, jednostka, vat, koszt, dostawca, opis, initial, onSaved, onError]);
 
   return (
     <Modal open onClose={onClose} card="my-auto w-full max-w-lg">
@@ -441,6 +526,18 @@ export function CatalogFormModal({
             <Pole label="Cena bazowa" hint="Ta kwota (netto) wpada na pozycję oferty/faktury.">
               <input value={cena} onChange={(e) => setCena(e.target.value)} inputMode="decimal" placeholder="0" className={inputCls} />
             </Pole>
+            {/* Waluta ceny katalogowej (Moduł 62). Do tego modułu katalog
+                waluty nie miał, więc pozycja wstawiona do oferty w EUR brała
+                cenę w złotówkach jako liczbę euro — po cichu. */}
+            <Pole label="Waluta" hint="Panel nie przelicza kursów. Wstawiając pozycję do dokumentu w innej walucie, sprawdzi się kwotę.">
+              <select value={waluta} onChange={(e) => setWaluta(e.target.value)} className={inputCls}>
+                {WALUTY.map((w) => (
+                  <option key={w} value={w}>
+                    {w}
+                  </option>
+                ))}
+              </select>
+            </Pole>
             <Pole label="Widełki od">
               <input value={cenaMin} onChange={(e) => setCenaMin(e.target.value)} inputMode="decimal" placeholder="—" className={inputCls} />
             </Pole>
@@ -451,7 +548,7 @@ export function CatalogFormModal({
               <select value={vat} onChange={(e) => setVat(e.target.value)} className={inputCls}>
                 {VAT_RATES.map((v) => (
                   <option key={v} value={v}>
-                    {v === "zw" ? "zw." : v === "np" ? "np." : `${v}%`}
+                    {etykietaVat(v)}
                   </option>
                 ))}
               </select>
@@ -472,11 +569,17 @@ export function CatalogFormModal({
             </Pole>
             {marza != null && (
               <WierszPola etykieta="Marża">
-                <span className="text-[13px] text-[var(--fg)]">
-                  {formatMoney(marza)}
+                <span className={`text-[13px] ${klasaStraty(marza, "text-[var(--fg)]")}`}>
+                  {formatMoney(marza, waluta)}
                   {marzaProc != null && <span className="text-muted"> ({marzaProc.toFixed(0)}% ceny)</span>}
                 </span>
               </WierszPola>
+            )}
+            {marza != null && marza < 0 && (
+              <WierszUwaga>
+                <IconInfoCircle size={13} className="mt-0.5 shrink-0" /> Cena jest niższa od kosztu zakupu — na tej
+                pozycji dokładasz.
+              </WierszUwaga>
             )}
           </SekcjaProfilu>
 

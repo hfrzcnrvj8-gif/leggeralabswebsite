@@ -5,6 +5,7 @@
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
 import { todayLocalISO, daysBetweenISO } from "./dates";
 import { mapaStanow, STAN_CLASS, type Stan } from "./kolorStanu";
+import { WALUTY, isWaluta, type Waluta } from "./waluty";
 // Type-only (erased przy kompilacji) — bez cyklu w runtime: wartości płyną
 // tylko z invoices.ts do ksef.ts, nigdy w drugą stronę.
 import type { KsefStatus, KsefTryb } from "./ksef";
@@ -156,10 +157,19 @@ export const INVOICE_STATUS_CLASS: Record<string, string> = {
 export const VAT_RATES = ["23", "8", "5", "0", "zw", "np"] as const;
 export type VatRate = (typeof VAT_RATES)[number];
 
-/** Waluty dostępne na fakturze. EUR odblokowuje kod QR do przelewu SEPA
- * (standard EPC069-12 jest zdefiniowany wyłącznie dla EUR). */
-export const INVOICE_CURRENCIES = ["PLN", "EUR", "USD", "GBP"] as const;
-export type InvoiceCurrency = (typeof INVOICE_CURRENCIES)[number];
+/** Stawka VAT do pokazania człowiekowi. Istnieje, bo warunek „czy to liczba,
+ * czy zwolnienie" był rozpisywany z palca w każdym miejscu osobno — i profil
+ * komponentu katalogu, który dostał go najpóźniej, jako jedyny o nim zapomniał
+ * i pisał **„zw.%"** (Moduł 62). */
+export function etykietaVat(v: string): string {
+  return v === "zw" ? "zw." : v === "np" ? "np." : `${v}%`;
+}
+
+/** Waluty dostępne na fakturze — od Modułu 62 jeden słownik dla całego
+ * produktu (`lib/waluty.ts`); nazwa modułowa zostaje, żeby nic nie musiało się
+ * przenosić. */
+export const INVOICE_CURRENCIES = WALUTY;
+export type InvoiceCurrency = Waluta;
 
 /** Strażnik waluty — bliźniak `isOfferCurrency` (lib/offers.ts). Oferty dostały
  * go przy swoim audycie, Faktury/Umowy/faktury cykliczne zostały bez niego, bo
@@ -168,9 +178,7 @@ export type InvoiceCurrency = (typeof INVOICE_CURRENCIES)[number];
  * i zapisywał obcięte `"BITCOIN-I-"`, po czym `formatMoney` rzucał
  * `RangeError: Invalid currency code` i **cała lista faktur** szła w error
  * boundary — nie jeden wiersz, cały ekran. */
-export function isInvoiceCurrency(v: unknown): v is InvoiceCurrency {
-  return typeof v === "string" && (INVOICE_CURRENCIES as readonly string[]).includes(v.trim());
-}
+export const isInvoiceCurrency = isWaluta;
 
 /** Typ dokumentu: zwykła faktura / proforma (niefiskalna, własna numeracja,
  * nie liczy się do KPI/przychodu) / zaliczkowa (na poczet przyszłej faktury
@@ -326,6 +334,11 @@ export type CatalogItem = {
   id: string;
   nazwa: string;
   cena_netto: number;
+  /** Waluta CENY KATALOGOWEJ (Moduł 62). Do 2026-08-01 katalog waluty nie miał
+   * w ogóle — ceny były gołymi liczbami, a UI wołało `formatMoney` bez drugiego
+   * argumentu, czyli twardo w złotówkach. Pozycja wstawiona do oferty w EUR
+   * brała więc cenę PLN jako liczbę EUR, po cichu. */
+  waluta: string;
   vat_stawka: string;
   jednostka: string;
   kategoria: string;

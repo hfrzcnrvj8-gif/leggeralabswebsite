@@ -961,3 +961,141 @@ Dołożony po audycie, decyzją właściciela. Trzy rzeczy warte zapamiętania:
   rozróżniał tylko 1 od reszty. Nowy `odmienPl()` w `lib/dates.ts` (z wyjątkiem
   12–14, przez który naiwne `n % 10` pisze „12 faktury"), użyty też w sąsiednim
   kaflu DSO, który miał ten sam błąd. Test w `test/daty.test.ts`.
+
+## Stan po module „Katalog" (2026-08-01)
+
+Moduł 62, pełna lista kontrolna na trzech platformach. Panel `22d251a`, apka
+wydanie 176. Brief: `docs/plany-modulow/PROMPT-62-KATALOG.md`.
+
+### Czego NIE trzeba było robić
+
+Z czterech ❌ w inwentarzu **trzy były nieaktualne**, zanim ktokolwiek je tknął
+— i to jest już REGUŁA, nie zbieg okoliczności (trzeci moduł z rzędu):
+
+- **Klawiatura** — `useSkrotyListy` (`/`, `j`/`k`, Enter) i `PoleSzukania`
+  siedzą w `CatalogDashboard.tsx` od paczki C.
+- **Stany** — „Wczytuję…" bez końca zniknęło w paczce E; jest `StanListy`
+  z `blad`/`onPonow` i trzema wariantami pustego stanu.
+- **Klikalność** — podstrona `/admin/catalog/<id>` istnieje od paczki E, wiersz
+  ma ikonę „otwórz" honorującą ⌘-klik.
+
+Obowiązywało **jedno: Gesty/menu** — Katalog był jedynym modułem listowym
+panelu bez menu pod prawym przyciskiem myszy (Oferty, Faktury, Koszty i Klienci
+mają je od dawna).
+
+**Przed Katalogiem zmierzono ponownie wiersze Leadów i Klientów** (siedem ❌/⚠️,
+wszystkie nieaktualne) — szczegóły i liczby w `59-spojnosc-ui.md`, przypis ³.
+
+### Znalezisko główne: katalog nie miał waluty
+
+Oferty i faktury mają cztery waluty (PLN/EUR/USD/GBP) i strażnika zapisu.
+Katalog nie miał kolumny `waluta` w ogóle, a UI wołało `formatMoney(cena)` bez
+drugiego argumentu, czyli twardo w złotówkach. Pozycja wyceniona u dostawcy
+w euro wchodziła do dokumentu jako ta sama liczba złotych — **bez żadnego
+objawu**, bo obie kwoty wyglądają poprawnie.
+
+Decyzja właściciela: **kolumna `waluta` w katalogu**, nie „ustalmy, że zawsze
+PLN". Panel świadomie NIE przelicza kursów, więc:
+
+- pozycja w innej walucie niż dokument jest oznaczona **w pickerze**
+  (`brand-orange`, przy cenie), a jej wstawienie wymaga **potwierdzenia**
+  z podaną kwotą — zamiast cichego przepisania liczby;
+- „zapisz pozycję faktury do katalogu" niesie walutę faktury;
+- odczyt jest odporny: nieznany kod waluty z bazy czyta się jako PLN, bo
+  `formatMoney` na złym kodzie RZUCA, a rzucający formater wywala CAŁY ekran
+  (lekcja z audytu Faktur).
+
+Przy okazji: `INVOICE_CURRENCIES` i `OFFER_CURRENCIES` były dwiema kopiami tej
+samej listy z dwoma bliźniaczymi strażnikami. Katalog byłby TRZECIĄ — powstał
+`lib/waluty.ts` (jeden słownik + `isWaluta`), a nazwy modułowe zostały jako
+re-eksporty, więc nic w kodzie nie musiało się przenosić.
+
+### Cztery ciche podmiany — znowu `{"ok":true}`
+
+Sonda różnicowa (wyślij śmieć → przeczytaj → porównaj) na `POST /api/catalog`:
+
+| wysłane | zapisane | odpowiedź |
+|---|---|---|
+| `kategoria: "hopla"` | `"inne"` | 200 |
+| `vat_stawka: "999"` | `"23"` | 200 |
+| `koszt_zakupu: -99` | `-99` | 200 |
+| `cena_min: 9000, cena_max: 100` | zapisane odwrotnie | 200 |
+| `cena_netto: 1e30` | `1e30` | 200 |
+
+Trzy z nich są **niewidoczne w interfejsie**: zła kategoria i zły VAT wyglądają
+na wybrane świadomie, a odwrotne widełki UI po prostu UKRYWA (`hasPriceRange`
+zwraca `false`), więc zła dana siedzi w bazie bez objawu. `1e30` malowało
+w wierszu listy 31-cyfrową liczbę.
+
+Teraz obie trasy idą przez jeden `czytajPolaKatalogu()` (`lib/catalog.ts`):
+słowniki przez `zeSlownika` → 400 z powodem, liczby z sufitem 100 mln, widełki
+min ≤ max. **Cena ujemna jest dozwolona świadomie** (decyzja właściciela): rabat
+wystawia się jako osobną pozycję dokumentu z kwotą na minusie, więc pozycja
+„Rabat za referencję" musi dać się trzymać w katalogu. Ujemny KOSZT — 400.
+
+### `PATCH` zachowywał się jak `PUT`
+
+Zmierzone przy okazji: `PATCH {"nazwa":"…","cena_netto":…}` **kasował** jednostkę,
+widełki i koszt zakupu, bo trasa przepisywała wszystkie pola z ciała żądania,
+a brakujące brały wartość domyślną. Panel i apka wysyłają komplet, więc objawu
+nie było — ale przy dokładaniu kolumny `waluta` przestawało to być teoretyczne:
+starsza wersja apki cofałaby każdą pozycję do PLN przy każdej edycji.
+`czytajPolaKatalogu` przyjmuje teraz stan istniejący: **klucza nie ma w ciele →
+pole zostaje takie, jakie było.**
+
+### Marża ujemna: trzecia rola czerwieni
+
+`getComputedStyle`: marża −3000 zł pisała się `rgb(138,143,152)` — tą samą
+szarością, co +3000 zł, na obu platformach (apka miała nawet komentarz „kolor
+niesie status, nie liczbę"). Decyzja właściciela: **strata dostaje czerwień**.
+
+Do słownika dołożona FORMA, nie kolor na miejscu — `STRATA_TEXT` i
+`klasaStraty()` w `lib/kolorStanu.ts`, `Znaczenie.strata` w `Theme.swift`
+(#CE6A70 po obu stronach). Zakres jest wąski celowo: to nie jest kolor dla
+„każdej liczby ujemnej", tylko dla liczby, która oznacza stratę. Zmierzone po
+zmianie: `rgb(206,106,112)`, kontrast **5,62** na karcie (AA). Marża dodatnia
+zostaje neutralna — kolor, który świeci zawsze, przestaje znaczyć.
+
+### Sonda integralności
+
+`DEV_ADMIN_BYPASS=0`, per UCHWYT HTTP: **5/5 uchwytów katalogu** oddaje 401 bez
+sesji (GET/POST listy, GET/PATCH/DELETE pozycji).
+
+**Migawka potwierdzona pomiarem**, nie kodem: pozycja wstawiona do oferty za
+1000 zł została przy 1000 zł po zmianie ceny komponentu na 7777 i po usunięciu
+komponentu z katalogu. Kaskady nie ma i nie powinno jej być.
+
+`DELETE` nieistniejącej pozycji oddawał `{"ok":true}` — teraz 404, bo w UI
+kasowanie czegoś, czego nie ma, wygląda identycznie jak kasowanie udane.
+
+### Drobne, które wyszły przy okazji
+
+- **`{item.vat_stawka}%`** na profilu komponentu pisało **„zw.%"** i „np.%" —
+  jedyne miejsce w panelu, które nie znało tego wyjątku. Powstał wspólny
+  `etykietaVat()` (warunek był rozpisany z palca w trzech miejscach).
+- **Usuwanie z listy nie czytało odpowiedzi** — wiersz znikał z ekranu przed
+  potwierdzeniem z serwera, więc nieudane usunięcie wyglądało jak udane aż do
+  przeładowania. To samo w pickerze katalogu w edytorze faktury.
+- **Ładowanie**: napis „Wczytuję…" na środku → szkielet w kształcie treści.
+- **Apka: „Usuń" na swipie było BIAŁE.** Neutralny (biały) tint chrome spływa
+  środowiskiem z `GlownaBelka` i wygrywa z samą rolą `.destructive` —
+  Przypomnienia, Subskrypcje i reszta mają jawny `.tint(.ciemnaCzerwien)` od
+  dawna, Katalog jako jedyny go nie miał. Złapane ZRZUTEM z symulatora.
+- **Apka kasowała bez pytania** — panel pyta od zawsze. Jest alert
+  z nazwą komponentu i zdaniem, że dokumenty zostają nietknięte.
+- **Apka nie rozróżniała „nic nie pasuje" od „katalog pusty"** — przy frazie bez
+  wyników ekran po prostu pustoszał, co wygląda jak awaria wczytywania.
+
+### Testy
+
+Nowy `test/katalog.test.ts` — 11 przypadków bramki zapisu, częściowego
+`PATCH`-a i odporności odczytu. **155/155 przechodzi.**
+
+### Zostawione świadomie
+
+- **Kurs walutowy.** Panel nie przelicza i mówi o tym wprost. Dołożenie kursów
+  to nowy zakres (źródło kursów NBP, data kursu, przeliczenie na dokumencie).
+- **Koszt zakupu dalej TYLKO w katalogu** — nie kopiuje się na pozycję
+  dokumentu (Moduł 47, reguła bez zmian).
+- **Apka nie ma pickera „Z katalogu"** — pozycje oferty składa się przy biurku
+  (decyzja z Modułu 47). Katalog ma za to pełny CRUD na telefonie.

@@ -254,6 +254,41 @@ export const PILNOSC_HEX: Record<Exclude<Pilnosc, "wTerminie">, string> = {
   zaniedbane: "#CE6A70",
 };
 
+/* ─────────────────────────── TRZECIA ROLA CZERWIENI ────────────────────────
+ *
+ * Nagłówek tego pliku wymienia dwie role czerwieni: obietnica zerwana (koniec
+ * rampy pilności) i awaria/akcja niszcząca. Moduł 62 dokłada trzecią, węższą:
+ * **liczba, która wyszła przeciwko Tobie** — marża poniżej zera, czyli
+ * sprzedaż poniżej kosztu zakupu.
+ *
+ * Dlaczego to nie jest ani stan, ani pilność: katalog nie ma statusu ani
+ * terminu, więc obie istniejące osie go nie dotyczą. A jednak „marża −3000 zł"
+ * pisana tą samą szarością co „marża +3000 zł" (tak było do 2026-08-01 na obu
+ * platformach, zmierzone `getComputedStyle` → `rgb(138,143,152)`) znaczy
+ * dokładnie tyle, co nic — wzrok przechodzi obok straty.
+ *
+ * Dlaczego FORMA, a nie klasa wpisana w katalogu: brakująca forma w słowniku
+ * jest zaproszeniem do rozjazdu — kto potrzebuje kształtu, którego słownik nie
+ * ma, wpisuje kolor z palca. Dokładnie tak wróciła druga forma statusu
+ * w Projektach (dwa razy) i w Fakturach.
+ *
+ * Zakres jest wąski celowo: to NIE jest kolor dla „każdej liczby ujemnej".
+ * Rabat na dokumencie jest ujemny i całkowicie zdrowy; czerwienią mówimy
+ * o liczbie, która oznacza stratę.
+ *
+ * Odpowiednik w apce: `Stan.strata` w `LeggeraHub/Views/Theme.swift`.
+ */
+
+/** Liczba oznaczająca stratę — sam kolor tekstu (marża ujemna). */
+export const STRATA_TEXT = "text-brand-red-soft";
+
+/** Klasa dla liczby, która MOŻE oznaczać stratę: czerwień tylko wtedy, gdy
+ * naprawdę jest poniżej zera, w przeciwnym razie neutralnie. Jedno miejsce,
+ * żeby nikt nie musiał pisać tego warunku drugi raz. */
+export function klasaStraty(wartosc: number | null | undefined, neutralna = "text-muted"): string {
+  return wartosc != null && wartosc < 0 ? STRATA_TEXT : neutralna;
+}
+
 /** Zdanie tłumaczące, co ten kolor znaczy — pilność bez powodu jest ozdobą. */
 export function opisPilnosci(dniPoTerminie: number | null | undefined): string | null {
   const stopien = stopienPilnosci(dniPoTerminie);

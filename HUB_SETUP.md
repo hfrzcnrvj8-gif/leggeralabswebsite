@@ -10527,3 +10527,74 @@ każdy „wyglądałby poprawnie i nic nie robił":
 
 **Dokładając w apce drogę do istniejącego ekranu, sprawdź, skąd ten ekran bierze
 swój rekord — nie tylko szczegóły.**
+
+---
+
+## Audyt Katalogu (Moduł 62, 2026-08-01)
+
+Pełny zapis wyniku: `docs/plany-modulow/51-audyt-uiux-panel-i-apka.md` →
+„Stan po module Katalog". Tu tylko wzorce, które **obowiązują od teraz**,
+każdy z powodem.
+
+### `lib/waluty.ts` — jeden słownik walut dla całego produktu
+
+`WALUTY` + `isWaluta`, a `INVOICE_CURRENCIES`/`OFFER_CURRENCIES` są jego
+re-eksportami. Powód: były dwiema kopiami tej samej listy z dwoma bliźniaczymi
+strażnikami, a audyt Ofert dodał strażnika u siebie i zostawił dziurę
+w trzech innych modułach na miesiąc. **Dokładając walutę gdziekolwiek, bierz
+ją stąd — nie wypisuj listy trzeci raz.**
+
+### Waluta w katalogu — i zakaz cichego przeliczania
+
+`service_catalog.waluta` (domyślnie `PLN`, bo tyle znaczyły wszystkie wiersze
+sprzed tej zmiany). Panel **nie zna kursów**, więc pozycja w innej walucie niż
+dokument: (1) jest oznaczona w pickerze `brand-orange`, (2) wymaga
+potwierdzenia z podaną kwotą przed wstawieniem. Cicha zamiana 18 000 zł na
+18 000 € jest błędem, którego nikt nie zauważy — pytanie jest tańsze niż kurs.
+
+### `czytajPolaKatalogu()` — bramka zapisu w TRASIE, nie w formularzu
+
+Jedna funkcja dla `POST` i `PATCH` (`lib/catalog.ts`). Trzy rzeczy, które warto
+powtórzyć przy każdym module:
+
+1. **Śmieć ze słownika → 400 z powodem**, nigdy cicha wartość domyślna
+   (`zeSlownika`). Trzy z czterech podmian w katalogu nie dawały ŻADNEGO
+   objawu w interfejsie.
+2. **`PATCH` jest CZĘŚCIOWY**: klucza nie ma w ciele żądania → pole zostaje
+   nietknięte. Wcześniej trasa zachowywała się jak `PUT` i kasowała wszystko,
+   czego nie przysłano. Objawu nie było, dopóki wszyscy klienci wysyłali
+   komplet — dokładając NOWĄ kolumnę, starsza wersja apki zaczęłaby ją zerować
+   przy każdej edycji.
+3. **Odporność po stronie ODCZYTU osobno od bramki zapisu**
+   (`normalizeCatalogRow`): bramka nie naprawia danych, które już są w bazie,
+   a do produkcyjnej bazy nie ma dostępu z panelu. Nieznana waluta czyta się
+   jako PLN, bo `formatMoney` na złym kodzie RZUCA, a rzucający formater wywala
+   cały ekran w error boundary.
+
+**Liczba ujemna nie zawsze jest błędem**: cena w katalogu MOŻE być ujemna
+(rabat wystawia się jako osobną pozycję dokumentu), koszt zakupu — nie. Sufit
+kwoty 100 mln jest barierą absurdu, nie regułą biznesową.
+
+### Trzecia rola czerwieni: `STRATA_TEXT` / `Znaczenie.strata`
+
+Marża poniżej zera dostaje `text-brand-red-soft` (panel) i `Color.czerwienStraty`
+(apka) — ten sam `#CE6A70`. To NIE jest kolor dla każdej liczby ujemnej, tylko
+dla liczby oznaczającej stratę; marża dodatnia zostaje neutralna. Dołożone jako
+FORMA do słownika (`klasaStraty()`), bo brakująca forma to zaproszenie do
+wpisania koloru z palca — tak wracała druga forma statusu w Projektach (dwa
+razy) i w Fakturach.
+
+### Kasowanie: potwierdzenie z serwera przed zniknięciem z ekranu
+
+Lista katalogu (i picker w edytorze faktury) usuwały wiersz z widoku i nie
+czytały odpowiedzi — nieudane usunięcie wyglądało jak udane aż do przeładowania.
+Wzorzec: `const res = await fetch(...); if (!res.ok) { toast(...); return; }`
+**dopiero potem** `setItems(...)`. `DELETE` nieistniejącego rekordu oddaje 404,
+nie `{"ok":true}`.
+
+### Apka: `role: .destructive` NIE wystarczy
+
+Neutralny (biały) tint chrome spływa środowiskiem z `GlownaBelka` i wygrywa
+z rolą przycisku. Każda akcja kasująca w `swipeActions` potrzebuje JAWNEGO
+`.tint(.ciemnaCzerwien)` — Katalog był jedynym modułem bez tej linii i jego
+„Usuń" rysowało się białe. Objaw widać wyłącznie na zrzucie.

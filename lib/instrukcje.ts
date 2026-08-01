@@ -56,7 +56,7 @@ export const WSTEP = {
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Na razie opisane są Pulpit, Leady, Klienci, Oferty oraz Umowy i NDA — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
+    "Na razie opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury oraz Katalog — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -857,6 +857,79 @@ export const MODULY: ModulInstrukcji[] = [
         opis:
           "Publiczny link pokazuje dokument w stanie z chwili wysyłki. Zmiana czegokolwiek później (o ile w ogóle przejdzie przez blokadę) nie zmieni tego, co klient już widział.",
       },
+    ],
+  },
+
+  /* ────────────────────────────── KATALOG ───────────────────────────── */
+  {
+    id: "katalog",
+    nazwa: "Katalog",
+    gdzie: "Panel: menu po lewej → Katalog. Telefon i iPad: „Więcej” → Katalog. Przy pozycjach oferty i faktury: przycisk „Z katalogu”.",
+    poCoTo:
+      "Magazyn części, z których składasz oferty i faktury — sprzęt, software, robocizna, serwis. To jedyne miejsce, w którym mieszka KOSZT ZAKUPU, czyli druga połowa każdej marży.",
+    kiedy:
+      "Wpisujesz komponent wtedy, kiedy poznajesz jego cenę — po wycenie od dostawcy, często w drodze (dlatego telefon ma pełną edycję). Wyjmujesz go przy biurku, składając ofertę.",
+    kroki: [
+      {
+        tytul: "1. Cena bazowa to ta, która wchodzi na dokument",
+        opis:
+          "Cena bazowa (netto) jest kwotą, którą przycisk „Z katalogu” wstawia na pozycję oferty albo faktury. Widełki „od–do” są tylko podpowiedzią zakresu dla Ciebie — nigdzie się same nie wstawiają. Dolna granica nie może być wyższa od górnej; taki zapis odbije się z komunikatem, zamiast po cichu zniknąć z widoku.",
+      },
+      {
+        tytul: "2. Koszt zakupu i marża są wyłącznie Twoje",
+        opis:
+          "Koszt zakupu żyje TYLKO w katalogu. Nie kopiuje się na pozycję dokumentu i nie ma jak trafić na wydruk ani na publiczny link dla klienta. Marża liczy się od ceny sprzedaży (ile z ceny jest zyskiem). Jeśli wyjdzie ujemna — czyli sprzedajesz poniżej kosztu — pokaże się na czerwono, w panelu i w telefonie.",
+      },
+      {
+        tytul: "3. Waluta pozycji jest jej własna",
+        opis:
+          "Komponent kupowany w euro trzymaj w euro. Panel NIE przelicza kursów: wstawiając taką pozycję do dokumentu w innej walucie, dostaniesz pytanie i kwota wejdzie bez zmiany. To świadome — kurs z dnia zakupu zna tylko właściciel.",
+      },
+      {
+        tytul: "4. Pozycja na dokumencie to niezależna kopia",
+        opis:
+          "W chwili wstawienia dokument zapisuje własną kopię nazwy, ceny, VAT-u i jednostki. Późniejsza zmiana ceny w katalogu — albo usunięcie komponentu — nie rusza ani jednej wystawionej oferty czy faktury. Działa to tak samo, jak dane nabywcy przepisane z karty klienta.",
+      },
+      {
+        tytul: "5. Pozycję z faktury można odłożyć do katalogu",
+        opis:
+          "Ikona zakładki obok wiersza faktury zapisuje tę pozycję jako komponent — razem z walutą dokumentu. Wpisujesz raz, korzystasz zawsze.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Katalog startowy",
+        opis:
+          "Przy pierwszym uruchomieniu wjeżdża gotowa biblioteka komponentów wdrożenia lokalnego LLM (trzy poziomy sprzętu, software, robocizna, serwis). Możesz ją dowolnie zmieniać i kasować — to punkt wyjścia, nie zestaw obowiązkowy.",
+      },
+      {
+        tytul: "Kategorie zwijają się same",
+        opis:
+          "Nagłówki widać tylko dla kategorii, które mają choć jedną pozycję, a licznik przy pigułce filtra pokazuje, ile ich jest. Pusta kategoria nie zajmuje miejsca.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Zmiana ceny nie działa wstecz — i to jest zamierzone",
+        opis:
+          "Podniesienie ceny komponentu nie podniesie kwot na dokumentach, które już powstały. Jeśli chcesz zaktualizować ofertę, wstaw pozycję jeszcze raz.",
+      },
+      {
+        tytul: "Cena ujemna jest dozwolona",
+        opis:
+          "Bo rabat wystawia się jako osobną pozycję dokumentu, z kwotą na minusie. Przy takiej pozycji nie podawaj kosztu zakupu — inaczej „marża” zaświeci na czerwono, choć nic złego się nie dzieje.",
+      },
+      {
+        tytul: "Usunięcie komponentu jest bezpieczne",
+        opis:
+          "Dokumenty, które z niego korzystały, mają własne kopie pozycji i nic im się nie stanie. Zniknie tylko klocek z biblioteki — i stary link do jego profilu.",
+      },
+    ],
+    skroty: [
+      { tytul: "„/” albo ⌘F", opis: "Szukanie po nazwie, opisie i dostawcy — panel, telefon i iPad tak samo." },
+      { tytul: "j / k, Enter", opis: "Kursor po liście i otwarcie edycji (panel). ⌘N albo „n” — nowy komponent." },
+      { tytul: "Prawy przycisk myszy / przytrzymanie", opis: "Menu: otwórz profil, edytuj, skopiuj nazwę lub cenę, usuń." },
+      { tytul: "Przesunięcie w lewo (telefon)", opis: "Usuwa komponent — z pytaniem o potwierdzenie." },
     ],
   },
 ];

@@ -1104,6 +1104,12 @@ async function createInvoicesSchema(): Promise<void> {
   await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS cena_min NUMERIC;`;
   await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS cena_max NUMERIC;`;
   await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS koszt_zakupu NUMERIC;`;
+  //   waluta        — Moduł 62. Katalog waluty NIE miał, a oferty i faktury
+  //                   mają cztery — więc pozycja wstawiona do oferty w EUR
+  //                   brała cenę w złotówkach jako liczbę euro. Domyślne 'PLN'
+  //                   jest zgodne z tym, co wszystkie istniejące wiersze i tak
+  //                   znaczyły.
+  await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS waluta TEXT NOT NULL DEFAULT 'PLN';`;
   await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS dostawca TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS opis TEXT NOT NULL DEFAULT '';`;
   await sql`CREATE INDEX IF NOT EXISTS service_catalog_kategoria_idx ON service_catalog(kategoria);`;

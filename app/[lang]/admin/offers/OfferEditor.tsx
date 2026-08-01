@@ -247,8 +247,18 @@ export function OfferEditor({
     };
   }, []);
 
+  /** Kwota z katalogu wchodzi na pozycję BEZ przeliczenia (panel nie zna
+   *  kursów), więc przy różnicy walut pytamy wprost — inaczej pozycja wyceniona
+   *  na 18 000 zł trafiłaby do oferty w EUR jako 18 000 € (Moduł 62). */
   const addFromCatalog = useCallback(
     async (c: CatalogItem) => {
+      const walutaOferty = offer?.waluta || DEFAULT_OFFER_CURRENCY;
+      if (c.waluta !== walutaOferty) {
+        const zgoda = await confirm(
+          `Cena tej pozycji jest w ${c.waluta}, a oferta jest w ${walutaOferty}. Panel nie przelicza kursów — kwota ${c.cena_netto} wejdzie bez zmiany. Wstawić?`
+        );
+        if (!zgoda) return;
+      }
       const res = await fetch(`/api/offers/${id}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -262,7 +272,7 @@ export function OfferEditor({
       setItems(data.items);
       onChange?.();
     },
-    [id, onChange, toast]
+    [id, onChange, toast, confirm, offer?.waluta]
   );
 
   const applyTemplate = useCallback(
@@ -1012,9 +1022,10 @@ export function OfferEditor({
                     {(close) => (
                       <OfferCatalogPickerBody
                         catalog={catalog}
+                        walutaDokumentu={waluta}
                         onPick={(c) => {
                           close();
-                          addFromCatalog(c);
+                          void addFromCatalog(c);
                         }}
                       />
                     )}
@@ -1610,7 +1621,16 @@ function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" }) {
  * cenę bazową (tę wstawi na pozycję) + ewentualne widełki. Koszt zakupu/marża
  * NIE są tu widoczne — to picker do składania oferty dla klienta, nie ekran
  * zarządzania katalogiem. */
-function OfferCatalogPickerBody({ catalog, onPick }: { catalog: CatalogItem[]; onPick: (c: CatalogItem) => void }) {
+function OfferCatalogPickerBody({
+  catalog,
+  walutaDokumentu,
+  onPick,
+}: {
+  catalog: CatalogItem[];
+  /** Waluta oferty — pozycja w innej walucie dostaje ostrzeżenie przy cenie. */
+  walutaDokumentu: string;
+  onPick: (c: CatalogItem) => void;
+}) {
   const [q, setQ] = useState("");
   const needle = q.trim().toLowerCase();
   const filtered = needle ? catalog.filter((c) => c.nazwa.toLowerCase().includes(needle)) : catalog;
@@ -1641,9 +1661,12 @@ function OfferCatalogPickerBody({ catalog, onPick }: { catalog: CatalogItem[]; o
             <span className="min-w-0">
               <span className="block truncate text-[13px] text-[var(--fg)]">{c.nazwa}</span>
               <span className="block text-[11px] text-muted">
-                {formatMoney(c.cena_netto)} / {c.jednostka}
+                {formatMoney(c.cena_netto, c.waluta)} / {c.jednostka}
                 {hasPriceRange(c.cena_min, c.cena_max) && (
-                  <span className="text-brand-cyan"> · {formatMoney(c.cena_min as number)}–{formatMoney(c.cena_max as number)}</span>
+                  <span className="text-brand-cyan"> · {formatMoney(c.cena_min as number, c.waluta)}–{formatMoney(c.cena_max as number, c.waluta)}</span>
+                )}
+                {c.waluta !== walutaDokumentu && (
+                  <span className="text-brand-orange"> · cena w {c.waluta}, oferta w {walutaDokumentu}</span>
                 )}
               </span>
             </span>

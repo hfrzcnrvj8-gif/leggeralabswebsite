@@ -1,33 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { VAT_RATES, type CatalogItem } from "@/lib/invoices";
-import { normalizeCategory } from "@/lib/catalog";
+import { type CatalogItem } from "@/lib/invoices";
+import { czytajPolaKatalogu, normalizeCatalogRow } from "@/lib/catalog";
 
 export const runtime = "nodejs";
-
-function optionalNumber(v: unknown): number | null {
-  if (v === "" || v == null) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function normalizeRow(r: Record<string, unknown>): CatalogItem {
-  return {
-    id: String(r.id),
-    nazwa: String(r.nazwa ?? ""),
-    cena_netto: Number(r.cena_netto ?? 0),
-    vat_stawka: String(r.vat_stawka ?? "23"),
-    jednostka: String(r.jednostka ?? "szt."),
-    kategoria: normalizeCategory(r.kategoria),
-    cena_min: optionalNumber(r.cena_min),
-    cena_max: optionalNumber(r.cena_max),
-    koszt_zakupu: optionalNumber(r.koszt_zakupu),
-    dostawca: String(r.dostawca ?? ""),
-    opis: String(r.opis ?? ""),
-    created_at: String(r.created_at ?? ""),
-  };
-}
 
 /** GET /api/catalog/:id — jedna pozycja katalogu. Admin-only.
  *
@@ -41,54 +18,65 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const sql = getSql();
   const rows = await sql`SELECT * FROM service_catalog WHERE id = ${id};`;
   if (!rows[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ item: normalizeRow(rows[0] as Record<string, unknown>) });
+  return NextResponse.json({ item: normalizeCatalogRow(rows[0] as Record<string, unknown>) as CatalogItem });
 }
 
 /** PATCH /api/catalog/:id — edytuj pozycję katalogu. Admin-only. Zwraca całą
- * odświeżoną listę (jak POST), żeby UI nie musiał scalać ręcznie. */
+ * odświeżoną listę (jak POST), żeby UI nie musiał scalać ręcznie.
+ *
+ * Aktualizacja jest CZĘŚCIOWA naprawdę: pole, którego nie ma w ciele żądania,
+ * zostaje takie, jakie było (patrz `czytajPolaKatalogu`). Do Modułu 62 ta
+ * trasa zachowywała się jak `PUT` i po cichu kasowała wszystko, czego nie
+ * przysłano. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const nazwa = (typeof body.nazwa === "string" ? body.nazwa : "").trim().slice(0, 500);
-  if (!nazwa) return NextResponse.json({ error: "Podaj nazwę pozycji." }, { status: 400 });
 
   await ensureInvoicesSchema();
   const sql = getSql();
-  const existing = await sql`SELECT id FROM service_catalog WHERE id = ${id};`;
+  const existing = await sql`SELECT * FROM service_catalog WHERE id = ${id};`;
   if (!existing[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const cena = Number(body.cena_netto);
-  const vat =
-    typeof body.vat_stawka === "string" && (VAT_RATES as readonly string[]).includes(body.vat_stawka)
-      ? body.vat_stawka
-      : "23";
-  const jednostka = (typeof body.jednostka === "string" ? body.jednostka : "szt.").slice(0, 20) || "szt.";
+  const wynik = czytajPolaKatalogu(body, normalizeCatalogRow(existing[0] as Record<string, unknown>));
+  if (wynik.blad != null) return NextResponse.json({ error: wynik.blad }, { status: 400 });
+  const f = wynik.pola;
+
   await sql`
     UPDATE service_catalog SET
-      nazwa = ${nazwa},
-      cena_netto = ${Number.isFinite(cena) ? cena : 0},
-      vat_stawka = ${vat},
-      jednostka = ${jednostka},
-      kategoria = ${normalizeCategory(body.kategoria)},
-      cena_min = ${optionalNumber(body.cena_min)},
-      cena_max = ${optionalNumber(body.cena_max)},
-      koszt_zakupu = ${optionalNumber(body.koszt_zakupu)},
-      dostawca = ${(typeof body.dostawca === "string" ? body.dostawca : "").slice(0, 200)},
-      opis = ${(typeof body.opis === "string" ? body.opis : "").slice(0, 1000)}
+      nazwa = ${f.nazwa},
+      cena_netto = ${f.cena_netto},
+      waluta = ${f.waluta},
+      vat_stawka = ${f.vat_stawka},
+      jednostka = ${f.jednostka},
+      kategoria = ${f.kategoria},
+      cena_min = ${f.cena_min},
+      cena_max = ${f.cena_max},
+      koszt_zakupu = ${f.koszt_zakupu},
+      dostawca = ${f.dostawca},
+      opis = ${f.opis}
     WHERE id = ${id};
   `;
   const rows = await sql`SELECT * FROM service_catalog ORDER BY nazwa ASC;`;
-  return NextResponse.json({ ok: true, items: rows.map((r) => normalizeRow(r as Record<string, unknown>)) });
+  return NextResponse.json({
+    ok: true,
+    items: rows.map((r) => normalizeCatalogRow(r as Record<string, unknown>)) as CatalogItem[],
+  });
 }
 
 /** DELETE /api/catalog/:id — usuń pozycję z katalogu (nie rusza faktur/ofert,
- * które z niej korzystały — pozycje dokumentów to niezależne kopie). Admin-only. */
+ * które z niej korzystały — pozycje dokumentów to niezależne kopie). Admin-only.
+ *
+ * Nieistniejący rekord dostaje 404, a nie ciche `{"ok":true}`: kasowanie
+ * czegoś, czego nie ma, wygląda w UI identycznie jak kasowanie udane, więc
+ * błąd (zdublowana zakładka, stary link) nie miał jak się pokazać. */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   await ensureInvoicesSchema();
   const sql = getSql();
+  const istnieje = await sql`SELECT id FROM service_catalog WHERE id = ${id};`;
+  if (!istnieje[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
   await sql`DELETE FROM service_catalog WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }
