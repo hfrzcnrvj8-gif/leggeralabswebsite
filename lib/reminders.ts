@@ -169,10 +169,11 @@ export function maGeofence(r: Pick<Reminder, "lokalizacja_lat" | "lokalizacja_lo
   return typeof r.lokalizacja_lat === "number" && typeof r.lokalizacja_lon === "number";
 }
 
-/** `HH:MM` — ten sam kształt, co `events.godzina`. */
-export function isPlausibleTimeString(v: string): boolean {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
-}
+/** `HH:MM` — ten sam kształt, co `events.godzina`. Definicja przeniesiona do
+ * `lib/dates.ts` (audyt Notatnika 2026-08-02), bo tej samej bramki potrzebują
+ * też Kalendarz i „Do kalendarza" w Notatniku. Re-eksport zostaje, żeby trasy
+ * Przypomnień importowały dalej z jednego miejsca. */
+export { isPlausibleTimeString } from "./dates";
 
 /** Czy przypomnienie jest po terminie. Bez terminu — nigdy (to nie zaległość,
  * tylko świadomie odłożona sprawa). Ukończone — nigdy. Reguła jest

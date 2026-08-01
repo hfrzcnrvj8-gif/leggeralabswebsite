@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema, ensureLinksSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString, formatPlDate } from "@/lib/projects";
+import { isPlausibleTimeString } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,14 @@ export async function POST(
   if (!isPlausibleDateString(data)) {
     return NextResponse.json({ error: "invalid data" }, { status: 400 });
   }
+  // Godzina jest opcjonalna (pusta = wydarzenie całodniowe), ale podana MUSI
+  // być godziną. Bez tej bramki `{"godzina":"trzynasta"}` przechodziło i
+  // lądowało w wydarzeniu kalendarza — kolumna jest TEXT-em, więc baza tego
+  // nie zatrzyma (zmierzone sondą, audyt Notatnika 2026-08-02).
   const godzina = typeof body?.godzina === "string" && body.godzina.trim() ? body.godzina.trim() : null;
+  if (godzina !== null && !isPlausibleTimeString(godzina)) {
+    return NextResponse.json({ error: "invalid godzina" }, { status: 400 });
+  }
 
   await ensureHubSchema();
   await ensureLinksSchema();

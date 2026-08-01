@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema, ensureEventAttendeesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { todayLocalISO } from "@/lib/dates";
+import { todayLocalISO, isPlausibleTimeString } from "@/lib/dates";
 import { isPlausibleDateString } from "@/lib/projects";
 import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import { normalizujCykl } from "@/lib/recurrence";
@@ -90,7 +90,13 @@ export async function POST(req: NextRequest) {
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
   const id = randomUUID();
   const opis = str(body?.opis, 2000);
+  // Pusta godzina = wydarzenie całodniowe; podana MUSI być godziną. Kolumna
+  // jest TEXT-em, więc bez tej bramki wchodził tu dowolny napis (audyt
+  // Notatnika 2026-08-02 — ta sama dziura była w trzech miejscach naraz).
   const godzina = typeof body?.godzina === "string" && body.godzina.trim() ? body.godzina.trim() : null;
+  if (godzina !== null && !isPlausibleTimeString(godzina)) {
+    return NextResponse.json({ error: "invalid godzina" }, { status: 400 });
+  }
   const leadId = typeof body?.lead_id === "string" && body.lead_id.trim() ? body.lead_id : null;
   const projectId = typeof body?.project_id === "string" && body.project_id.trim() ? body.project_id : null;
   const clientId = typeof body?.client_id === "string" && body.client_id.trim() ? body.client_id : null;

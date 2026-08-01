@@ -10858,3 +10858,98 @@ czasowe i geofence ustawia apka (`StoperPrzypomnienia.swift`,
 `GeofencePrzypomnien.swift`), bo serwer nie ma kanału push (darmowe konto
 Apple). Skutek praktyczny do zapamiętania: bez zainstalowanej apki
 przypomnienie jest wyłącznie wpisem na liście.
+
+---
+
+## Audyt Notatnika (2026-08-02)
+
+Pełna lista kontrolna Modułu 59 przeszła przez Notatnik. Wynik i pomiary:
+`docs/plany-modulow/51-audyt-uiux-panel-i-apka.md` → „Stan po module Notatnik".
+Poniżej wzorce, które z tej sesji **obowiązują w całym panelu**.
+
+### `odczytajTekst()` / `odczytajFlage()` — trzy przypadki zamiast dwóch
+
+`lib/notes.ts`. Rodzina `odczytajOpcjonalna()` z Modułu 66, przeniesiona na
+pola tekstowe i logiczne: **brak pola ≠ pole puste ≠ śmieć w polu**.
+
+**Uzasadnienie:** `typeof v === "string" ? v : ""` traktowało „to nie jest
+tekst" jako „użytkownik chce wyczyścić", więc `PATCH {"tresc": 12345}`
+**kasowało treść notatki** i odpowiadało `{"ok":true}`. Ta sama pułapka przy
+fladze: `body.pinned === true` robiło z `"tak"` — odpięcie, czyli śmieć
+zamieniał się w PRZECIWIEŃSTWO intencji. Dziś `null` czyści, tekst ustawia,
+cokolwiek innego dostaje 400 z nazwą pola.
+
+### Sufit treści: JEDNA definicja, a przekroczenie to 400, nie `slice()`
+
+`NOTE_LIMITS` w `lib/notes.ts`, wołane przez POST i PATCH.
+
+**Uzasadnienie:** każda z tras miała własny sufit — POST tnął treść na 8000
+znaków po cichu (wklejenie 20 000 zapisywało 8000 i oddawało `{"ok":true}`),
+PATCH nie tnął wcale. Ta sama notatka zapisana dwiema drogami wychodziła różnej
+długości. **Ucięty tekst kłamie gorzej niż odmowa** — ta sama zasada, dla której
+eksporty świadomie nie mają sufitu. Limit treści (100 000 znaków ≈ 30 stron)
+jest wysoki celowo: ma łapać pomyłkę (wklejony plik), a nie długą notatkę
+ze spotkania.
+
+### `DELETE … RETURNING id` — 404, gdy nie było czego usuwać
+
+**Uzasadnienie:** kasowanie na ślepo wygląda w UI identycznie jak kasowanie
+udane, więc zdublowana zakładka i stary link nie mają jak się pokazać.
+Domknięte wcześniej w Katalogu i Kosztach, teraz w trzech miejscach Notatnika.
+`RETURNING` zamiast `rowCount`, bo `neon()` oddaje zwykłą tablicę.
+
+### Klucz obcy sprawdzany SELECT-em PRZED zapisem
+
+**Uzasadnienie:** klucz obcy to nie walidacja — nieistniejące `client_id`
+kończyło się gołym 500 zamiast komunikatu. Lekcja z Modułu 66, tu potwierdzona
+drugi raz.
+
+### Inwariant „wykluczające się pola" egzekwuje SERWER, nie kontrolka
+
+**Uzasadnienie:** `noteLinkValue()` stoi na założeniu, że najwyżej jedno
+z `client_id`/`lead_id` jest niepuste, a pilnował tego wyłącznie `LinkPicker`.
+Żądanie z oboma polami zapisywało oba i cicho łamało założenie, na którym
+opiera się cała reszta modułu. Reguła ogólna: **jeśli czysta logika w `lib/`
+zakłada coś o danych, bramka na to musi stać w trasie.**
+
+### `isPlausibleTimeString` mieszka w `lib/dates.ts`, obok daty
+
+**Uzasadnienie:** powstał w Module 66 wewnątrz `lib/reminders.ts` i był wołany
+wyłącznie przez Przypomnienia — a godziny pilnują TRZY moduły. `events.godzina`
+jest TEXT-em, więc `{"godzina":"trzynasta"}` przechodziło przez „Do kalendarza"
+w Notatniku i przez obie trasy Kalendarza. Walidator przeniesiony (re-eksport
+w `reminders.ts` zostaje) i wpięty w trzech miejscach naraz — poprawka idzie
+przez wszystkie moduły, nie przez ten audytowany.
+
+### Pusty stan: słowa dobiera PRZYCZYNA, nie zakładka
+
+**Uzasadnienie:** trzeci raz z rzędu (Poczta, Przypomnienia, Notatnik) jeden
+zestaw słów obsługiwał dwie różne przyczyny pustki. Tu: archiwum Z WPISEM plus
+fraza bez trafień pisało „Archiwum jest puste — nic jeszcze nie schowałeś
+z biurka". **Obecność `StanListy` niczego nie dowodzi** — trzeba przejść każdą
+drogę do pustego ekranu osobno (brak rekordów, fraza, filtr, zakładka)
+i sprawdzić, czy zdanie na ekranie jest prawdziwe w KAŻDEJ z nich.
+
+### `StanBledu` należy się też PROFILOWI, nie tylko liście
+
+**Uzasadnienie:** paczka E wycięła wiecznie pulsujący szkielet z list, ale
+`NoteDetailPanel` został z `if (!res.ok) return;` — przy awarii trasy modal
+pulsował bez końca i bez żadnej drogi wyjścia. Poprawka wzorca zatrzymała się
+w połowie modułu, bo nikt nie sprawdził drugiego komponentu renderującego ten
+sam rekord. **Moduł ma zwykle DWA miejsca pokazujące rekord — popraw oba.**
+
+### `EditableTextarea maxWysokosc` — sufit tylko tam, gdzie jest siatka
+
+`app/[lang]/admin/components.tsx`, **domyślnie bez limitu**.
+
+**Uzasadnienie:** pole rośnie do pełnej wysokości treści, co jest właściwe
+w PROFILU (czytasz jedną rzecz), ale nie na KARCIE w siatce: notatka przy
+dopuszczalnym maksimum dawała kartę 2340 px, czyli jeden rekord wypychał resztę
+poza ekran. Limit jest opcjonalny, żeby nie zmienić zachowania modułów, które
+z tego pola już korzystają.
+
+### Cel dotykowy: rośnie TRAFIENIE, nie rysunek — także dla znaków
+
+`-m-1.5 p-1.5` jak w Module 66, **ale znak typograficzny bywa za wąski na sam
+padding**: „⤢" miał 6×17 px, więc dostał jawne `h-6 w-6` z centrowaniem.
+Próg 24×24 (WCAG 2.5.8).

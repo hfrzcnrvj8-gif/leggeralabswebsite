@@ -191,7 +191,7 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Koszty | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅ | ✅ | ✅ | ✅⁵ | ✅ |
 | Poczta | ✅ | ✅ | ✅ | ✅⁶ | ✅ | ✅⁶ | ✅ | ✅ | ✅⁶ | ✅ |
 | Kalendarz | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Notatnik | ✅ | ✅ | ✅ | ❌ | ⚠️ | ❌ | ⚠️ | ✅ | ⚠️ | ✅ |
+| Notatnik | ✅ | ✅⁸ | ✅⁸ | ✅⁸ | ✅⁸ | ✅⁸ | ✅⁸ | ✅ | ✅⁸ | ✅ |
 | Przypomnienia | ✅ | ✅⁷ | ✅⁷ | ✅⁷ | ✅⁷ | ✅⁷ | ✅ | ✅ | ✅⁷ | ✅ |
 | Statystyki | ✅ | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
@@ -267,6 +267,44 @@ tylko na niekorzyść:
   **9/9 uchwytów z realną bramką 401**, ale walidacja miała cztery dziury,
   w tym `{"termin": 20260901}` (liczba zamiast tekstu), która **KASOWAŁA
   termin** i odpowiadała `{"ok":true}`. Szczegóły w `51-…`.
+
+⁸ **Notatnik przeszedł pełną listę 2026-08-02** — wynik i pomiary
+w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Notatnik". **Siódmy raz
+z rzędu inwentarz mylił się w obie strony**, tym razem najmocniej ze
+wszystkich: z pięciu wpisów **dwa były nieaktualne, trzy obowiązywały**.
+
+- **Klawiatura ❌ — NIEAKTUALNE.** Paczka C podpięła `useSkrotyListy`, do tabeli
+  nikt tego nie wpisał (szósty raz). Zmierzone dyspozycją zdarzeń: `/` ustawia
+  fokus w szukaniu, `j`/`k`/`↓` przesuwają kursor po kartach (0→1→0), `Enter`
+  otwiera profil — modal był w DOM z pełną treścią, tylko niewidoczny przez
+  zamrożony `requestAnimationFrame` podglądu (0 klatek, `visibilityState:
+  hidden`), więc rozstrzygnął odczyt DOM, nie zrzut.
+- **Nawigacja ⚠️ — NIEAKTUALNE.** `/pl/admin/notes/<id>` działa, a nieistniejące
+  id dostaje własny ekran („Nie ma takiej notatki" + „← Wróć do notatnika"),
+  inny niż awaria.
+- **Stany ❌ — OBOWIĄZYWAŁO, i to na DWA sposoby.** `StanListy` i `StanBledu` są
+  zaimportowane od paczki E — i to właśnie usypiało czujność. (1) Pusty stan
+  **kłamał o powodzie**: archiwum z wpisem + fraza bez trafień pisało „Archiwum
+  jest puste — nic jeszcze nie schowałeś z biurka". Trzeci raz ten sam błąd po
+  Poczcie i Przypomnieniach, więc słowa dobiera dziś PRZYCZYNA, a o pustym
+  archiwum wolno mówić tylko wtedy, gdy archiwum jest jedynym zawężeniem.
+  (2) **Profil notatki wisiał na wiecznym szkielecie** przy awarii trasy:
+  `if (!res.ok) return;` zostawiało `note === null` bez żadnej drogi wyjścia.
+  Paczka E naprawiła to na LIŚCIE, ale nie w `NoteDetailPanel` — zmierzone
+  podmianą `fetch` na 500.
+- **Treść ⚠️ — OBOWIĄZYWAŁO.** Karta notatki nie miała sufitu wysokości:
+  pole rosło do pełnej treści, więc notatka przy dopuszczalnym maksimum dawała
+  kartę **2340 px** (pomiar kontrolowany przy szerokości karty 380 px), czyli
+  jeden rekord wypychał resztę siatki poza ekran. Dziś karta tnie na 240 px
+  i przewija się wewnątrz; w profilu limitu nie ma, bo tam czyta się jedną rzecz.
+- **Integralność ⚠️ — OBOWIĄZYWAŁO.** Sonda: **13/13 uchwytów HTTP z realną
+  bramką 401**, ale walidacja miała siedem dziur — w tym `{"tresc": 12345}`,
+  które **KASOWAŁO treść notatki** i odpowiadało `{"ok":true}`. Szczegóły w `51-…`.
+- **Dwie pozycje fałszywie zielone**, dokładnie jak przy Przypomnieniach:
+  **Klikalność** (pinezka i archiwum po 14×14 px, „⤢" aż **6×17 px** przy progu
+  24×24 z WCAG 2.5.8 — dziś 26×26 i 24×24) oraz **Gesty/menu** (`useContextMenu`
+  miał zero trafień; po tej sesji bez menu pod prawym przyciskiem został już
+  tylko Kalendarz).
 
 ⁵ **Koszty przeszły pełną listę 2026-08-01** (Moduł 63) — wynik i pomiary
 w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Koszty". Jedyne ❌

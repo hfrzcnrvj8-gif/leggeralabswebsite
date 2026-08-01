@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
+import { isPlausibleTimeString } from "@/lib/dates";
 import { normalizujCykl, pominieteDoTekstu, pominieteZTekstu, rozbierzIdWystapienia } from "@/lib/recurrence";
 
 export const runtime = "nodejs";
@@ -54,6 +55,18 @@ export async function PATCH(
   await ensureHubSchema();
   const sql = getSql();
   const str = (v: unknown) => (typeof v === "string" ? v : "");
+
+  // Godzina sprawdzana PRZED pierwszym zapisem, nie przy swoim `UPDATE`: ta
+  // trasa zapisuje pole po polu, więc odmowa w środku zostawiłaby część zmian
+  // zapisanych mimo błędu. Sama bramka jest tu, bo bez niej w `events.godzina`
+  // (TEXT) lądował dowolny napis — audyt Notatnika 2026-08-02.
+  if ("godzina" in body) {
+    const raw = body.godzina;
+    const value = typeof raw === "string" && raw.trim() ? raw.trim() : null;
+    if (value !== null && !isPlausibleTimeString(value)) {
+      return NextResponse.json({ error: "invalid godzina" }, { status: 400 });
+    }
+  }
 
   if ("tytul" in body) {
     await sql`UPDATE events SET tytul = ${str(body.tytul)} WHERE id = ${id};`;

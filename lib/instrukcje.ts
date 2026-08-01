@@ -1159,6 +1159,83 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "Prawy przycisk myszy", opis: "Menu wiersza: odhacz, flaga, zdejmij termin, otwórz, usuń." },
     ],
   },
+  {
+    id: "notatnik",
+    nazwa: "Notatnik",
+    gdzie: "Panel: menu po lewej → Notatnik. Telefon: zakładka „Więcej” → Notatnik. iPad: pasek boczny.",
+    poCoTo:
+      "Miejsce na to, co pada w rozmowie, ZANIM stanie się leadem, zadaniem albo wydarzeniem. To jedyny moduł, w którym nie ma żadnej rubryki do wypełnienia — piszesz zdaniami, a dopiero potem decydujesz, czym to ma być.",
+    kiedy:
+      "Kiedy nie chcesz jeszcze zakładać rekordu, a szkoda zgubić myśl: pomysł na usługę, ustalenia z rozmowy, „sprawdzić, czy im się to opłaca”. Rzecz z terminem idzie do Przypomnień, rzecz z godziną i miejscem — do Kalendarza.",
+    kroki: [
+      {
+        tytul: "1. Wpisz notatkę w pole na górze",
+        opis:
+          "Pierwsza linia stanie się tytułem, reszta treścią. Zapis: przycisk „Zapisz notatkę” albo Cmd+Enter — nie musisz sięgać po mysz.",
+      },
+      {
+        tytul: "2. Dopisz tagi, jeśli chcesz je potem grupować",
+        opis:
+          "Pole pod treścią, po przecinku. Tagi pojawiają się jako pigułki nad listą i filtrują ją jednym kliknięciem. Wybrany tag zostaje po zamknięciu panelu.",
+      },
+      {
+        tytul: "3. Powiąż z klientem albo leadem",
+        opis:
+          "Kontrolka „— powiąż —”. Notatka może należeć do klienta ALBO do leada, nigdy do obu naraz — panel tego pilnuje i odmówi, gdyby coś próbowało ustawić dwa jednocześnie.",
+      },
+      {
+        tytul: "4. Przypnij to, do czego wracasz",
+        opis:
+          "Pinezka po lewej stronie tytułu. Przypięte stoją na górze listy i mają własną zakładkę.",
+      },
+      {
+        tytul: "5. Przekuj notatkę w coś większego",
+        opis:
+          "„→ Przekuj w projekt” zakłada projekt z tytułem i treścią notatki, razem z listą powitalną. „Do kalendarza” rozwija małe pole daty i godziny i tworzy wydarzenie. Oba zabierają powiązanie notatki ze sobą.",
+      },
+      {
+        tytul: "6. Sprzątaj archiwum, nie koszem",
+        opis:
+          "Ikona archiwum chowa notatkę z biurka, zostawiając ją do odczytania. Trwałe usunięcie jest dopiero w zakładce „Archiwum” — świadomie o jedno kliknięcie dalej.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Przekucie da się kliknąć dwa razy i nic się nie zdublouje",
+        opis:
+          "Notatka pamięta, że projekt (albo wydarzenie) z niej powstał. Drugie kliknięcie — także z drugiej karty przeglądarki albo z telefonu — otwiera to, co już jest, zamiast zakładać kolejny rekord. Pilnuje tego serwer, nie przycisk.",
+      },
+      {
+        tytul: "Szukanie zagląda też do dziennika notatki",
+        opis:
+          "Pole „Szukaj” obejmuje tytuł, treść, tagi ORAZ wpisy dziennika — słowo zapisane w logu jest znajdowalne.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Notatka nie przypomni o sobie sama",
+        opis:
+          "To jedyny moduł bez terminu i bez alarmu — nic z niego nie zadzwoni. Jeśli rzecz ma się o siebie upomnieć, przekuj ją w przypomnienie albo wydarzenie.",
+      },
+      {
+        tytul: "Bardzo długa notatka zwija się na kafelku",
+        opis:
+          "Na liście treść przewija się wewnątrz kafelka, żeby jedna długa notatka nie zepchnęła reszty poza ekran. Całość widać po otwarciu profilu („⤢”), gdzie nic nie jest ucinane.",
+      },
+      {
+        tytul: "Rysunek robi się tylko rysikiem, na iPadzie",
+        opis:
+          "Odręczny szkic (Apple Pencil) dołączysz z iPada. W panelu i na telefonie możesz go obejrzeć i usunąć, ale nie narysować.",
+      },
+    ],
+    skroty: [
+      { tytul: "„/”", opis: "Kursor do wyszukiwarki. Esc czyści frazę i oddaje fokus liście." },
+      { tytul: "j / k, Enter", opis: "Kursor po kafelkach (rzędami) i otwarcie profilu notatki." },
+      { tytul: "n albo ⌘N", opis: "Kursor do pola nowej notatki." },
+      { tytul: "Cmd+Enter", opis: "Zapisuje notatkę wpisywaną w polu na górze, bez sięgania po przycisk." },
+      { tytul: "Prawy przycisk myszy", opis: "Menu kafelka: otwórz, przypnij, przekuj w projekt, archiwum, usuń (tylko z archiwum)." },
+    ],
+  },
 ];
 
 /** Moduł po `id` — do podstrony i do kotwic. */

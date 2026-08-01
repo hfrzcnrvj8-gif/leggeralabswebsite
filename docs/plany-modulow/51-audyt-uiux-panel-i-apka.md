@@ -1626,3 +1626,154 @@ a to jest kod renderowany po stronie klienta.
   `terminate` + jeden `launch` z `SIMCTL_CHILD_*` wpiął ją w lokalny panel.
 - **Build apki odmawia przy nieaktualnym stemplu wersji** (`Stempel wskazuje
   rewizję …, a repozytorium stoi na …`) — najpierw `Skrypty/stempel-wersji.sh`.
+
+---
+
+## Stan po module Notatnik (2026-08-02)
+
+**Ten moduł miał własne, czwarte ryzyko — i tym razem brief trafił co do
+zdania.** Projekty, Faktury, Katalog i Koszty miały ciche PODMIANY (śmieć →
+wartość domyślna). Przypomnienia dołożyły ciche ODMOWY (warunek w `WHERE`).
+Poczta nie miała ani jednego. Notatnik okazał się **najostrzejszym wariantem
+rodziny 1**, bo tutaj treść jest JEDYNĄ wartością rekordu: w koszcie śmieć
+psuje liczbę, którą widać obok innych liczb, a tu kasuje jedyne, co w notatce
+jest — i to bez śladu, bo notatnik nie ma żadnej sumy, na której dałoby się
+zauważyć ubytek.
+
+**Zdanie z briefu, które okazało się najważniejsze:** „NIE zakładaj, że
+Stany są nieaktualne, mimo że `StanListy` i `StanBledu` SĄ zaimportowane".
+Były zaimportowane od paczki E — i właśnie to usypiało czujność. Obie usterki
+stanów obowiązywały.
+
+### Sonda — 13 uchwytów HTTP, po jednym
+
+**Autoryzacja: 13/13 daje 401** (`DEV_ADMIN_BYPASS=0`, port 3111). Siódmy raz
+z rzędu bez jednego znaleziska. Liczba bramek zgadzała się z liczbą uchwytów
+już przed sondą, ale to była przesłanka, nie dowód — sonda kosztowała kwadrans.
+
+**Walidacja miała siedem dziur.** Wszystkie odpowiadały `{"ok":true}`:
+
+| co wysłano | co się działo | dziś |
+|---|---|---|
+| `PATCH {"tresc": 12345}` | **treść notatki WYKASOWANA** | 400 „tresc musi być tekstem albo null" |
+| `PATCH {"pinned": "tak"}` | notatka zostawała odpięta — śmieć znaczył PRZECIWIEŃSTWO | 400 |
+| `PATCH {"archived": 1}` | jw. | 400 |
+| `POST` z 20 000 znaków | zapisywało 8000, końcówka ginęła bez ostrzeżenia | limit wspólny 100 000, powyżej 400 z liczbą znaków |
+| `PATCH` z 20 000 znaków | zapisywało 20 000 — **inny sufit niż POST** | ten sam limit co POST |
+| `DELETE` nieistniejącego (notatka, wpis logu, załącznik) | 200 `{"ok":true}` w trzech miejscach | 404 |
+| `PATCH {client_id: <nieistniejący>}` | gołe 500 | 400 „nie ma takiego klienta" |
+| `PATCH {client_id, lead_id}` naraz | **oba zapisane** — złamany inwariant `noteLinkValue()` | 400, wyłączność egzekwuje serwer |
+| `POST /schedule {"godzina":"trzynasta"}` | **wchodziło do wydarzenia w Kalendarzu** | 400 „invalid godzina" |
+
+**Idempotencja przekucia trzyma** — i to była jedyna rzecz, którą brief
+podejrzewał, a która okazała się zrobiona dobrze. Dwa `POST /promote` po kolei
+oddają ten sam `id` z `existing: true`; **dwa równoległe też** (zmierzone
+`&`-em, powstał jeden projekt). Wzorzec odpowiedzi to `existing`, nie `reused`
+jak w Poczcie — rozjazd nazewnictwa, ale nie usterka; zostawione.
+
+**Godzina to nie była usterka Notatnika, tylko trzech modułów naraz.**
+`isPlausibleTimeString` powstał w Module 66 i był wołany WYŁĄCZNIE przez
+Przypomnienia. Kolumna `events.godzina` jest TEXT-em, więc `POST /api/events`
+i `PATCH /api/events/:id` przyjmowały dowolny napis tak samo. Walidator
+przeniesiony do `lib/dates.ts` (obok `isPlausibleDateString`) i wpięty
+w trzech miejscach — poprawka poszła przez wszystkie moduły, zgodnie z regułą
+Modułu 59, a nie tylko przez ten audytowany.
+
+### Inwentarz — siódmy raz w obie strony, i najmocniej z dotychczasowych
+
+| pozycja | inwentarz | pomiar |
+|---|---|---|
+| Klawiatura | ❌ | **nieaktualne** — `/`, `j`/`k`/`↓`, `Enter`, ⌘K działają |
+| Nawigacja | ⚠️ | **nieaktualne** — adres rekordu + własny ekran 404 |
+| Stany | ❌ | **obowiązywało, na dwa sposoby** |
+| Treść | ⚠️ | **obowiązywało** — karta bez sufitu wysokości |
+| Integralność | ⚠️ | **obowiązywało** — siedem dziur wyżej |
+| Klikalność | ✅ | **fałszywie zielone** — „⤢" miał 6×17 px |
+| Gesty/menu | ✅ | **fałszywie zielone** — zero `useContextMenu` |
+
+Dwa wpisy nieaktualne, pięć realnych (w tym dwa spoza tabeli). To odwrotny
+rozkład niż przy Katalogu i Kosztach, gdzie nieaktualne było wszystko.
+
+### Co zmieniono
+
+**Stany — pusty ekran kłamał o POWODZIE (trzeci raz po Poczcie i Przypomnieniach).**
+Archiwum z wpisem + fraza bez trafień pisało „Archiwum jest puste — nic jeszcze
+nie schowałeś z biurka". Oba zdania nieprawdziwe. Dziś słowa dobiera przyczyna,
+a o pustym archiwum wolno mówić tylko wtedy, gdy archiwum jest JEDYNYM
+zawężeniem; szukanie w archiwum mówi wprost, że szuka tylko tam. Zmierzone
+cztery drogi osobno, każda oddzielnie.
+
+**Stany — profil notatki wisiał na wiecznym szkielecie.** `if (!res.ok) return;`
+przy awarii zostawiało `note === null` i pulsującą płytę bez żadnej drogi
+wyjścia poza zamknięciem okna. Paczka E naprawiła to na LIŚCIE, ale nie
+w `NoteDetailPanel` — czyli poprawka zatrzymała się w połowie modułu.
+Zmierzone podmianą `fetch` na 500, bo danymi nie dało się tego wywołać
+(`notes.id` jest TEXT-em, więc byle jakie id daje uczciwe 404, nie awarię).
+
+**Treść — karta bez sufitu.** Pole rosło do pełnej wysokości treści; przy
+dopuszczalnym maksimum dawało kartę **2340 px** (pomiar kontrolowany przy
+realnej szerokości karty 380 px), czyli jeden rekord wypychał resztę siatki
+poza ekran. `EditableTextarea` dostał opcjonalne `maxWysokosc` — **domyślnie
+bez limitu**, żeby nie ruszyć modułów, które już z niego korzystają. Karta tnie
+na 240 px i przewija się wewnątrz, profil zostaje bez limitu, bo tam czyta się
+jedną rzecz. Po zmianie: 6872 px → 516 px.
+
+**Klikalność.** Pinezka i archiwum 14×14, „⤢" **6×17** przy progu 24×24
+(WCAG 2.5.8). Rośnie TRAFIENIE, nie rysunek (`-m-1.5 p-1.5`); „⤢" jest za wąski
+na sam padding, więc dostał jawne 24×24. Po zmianie 0 celów poniżej progu.
+
+**Gesty.** Menu pod prawym przyciskiem wspólnym `useContextMenu`. Po tej sesji
+**bez menu został już tylko Kalendarz**.
+
+**Apka: Notatnik milczał haptycznie.** Zero sygnałów przy 51 w reszcie sklepu —
+ten sam brak, co Przypomnienia przed Modułem 66, i znowu niezauważony. Sygnały
+dołożone w `AppStore` (nie w widoku — tak stanowi reguła Fazy 15), po
+odpowiedzi serwera: `.zmiana` przy zapisie/przypięciu/archiwum/powiązaniu/
+usunięciu, `.sukces` przy przekuciu i planowaniu (tworzą rekord w innym module),
+`.odmowa` przy niepowodzeniu. Rysunek sygnalizuje w `wyslijRysunekNotatki`,
+a nie w `utworzNotatkeZTytulem`, bo zapis idzie dwoma krokami — jeden czyn
+palca ma wibrować raz.
+
+### Czego NIE zmieniono i dlaczego
+
+- **Dziennik notatki nie istnieje w apce** (`GET`/`POST /api/notes/:id/activity`).
+  To NIE jest luka — metody usunięto świadomie w audycie Fazy 13.4 jako martwe
+  (żaden widok ich nie wołał), z komentarzem „wraca razem z UI, nie sam".
+  Poza tym parytet z panelem jest pełny.
+- **`existing` vs `reused`** — dwa nazewnictwa tej samej idempotencji
+  (Notatnik vs Poczta). Zmiana ruszyłaby kontrakt apki bez zysku dla właściciela.
+- **`PATCH /api/events/:id` zapisuje pole po polu**, więc odmowa w środku
+  zostawia część zmian zapisanych. Bramkę godziny postawiono PRZED pierwszym
+  zapisem, ale samego rozjazdu nie przepisywano na dwufazowy — to zakres
+  Kalendarza, nie Notatnika. **Do prompta następnego modułu.**
+- **Ikony 15×15 w Katalogu** — zapisane w Module 66, nadal nietknięte.
+
+### Liczby
+
+- **`npm test`: 197/197** (było 189; doszło 8 w `test/notatnik.test.ts`).
+- **`tsc --noEmit`: czysto.** Build apki: sukces.
+- Przekucie wykonane z apki na LOKALNYM panelu (`POST /promote` → 200),
+  czyli surowsze trasy nie odcięły żadnej drogi, którą apka realnie chodzi.
+
+### Pułapki tej sesji
+
+- **Pomiar klawiatury dał trzy różne wyniki, zanim dał prawdziwy.** Kolejno:
+  odczyt przed renderem (0 kart), odczyt WARTOŚCI `data-kursor` zamiast pozycji
+  (zawsze „1"), odczyt DOM przed przerysowaniem Reacta (kursor „nie rusza się").
+  Dopiero dyspozycja z `await` na klatkę i porównanie INDEKSU karty pokazała
+  0→1→0. Trzy fałszywe alarmy pod rząd, wszystkie w stronę paniki.
+- **`rAF: 0` klatek potwierdzone pomiarem** — modal profilu jest w DOM
+  z pełną treścią przy `opacity: 0`. Rozstrzygnął odczyt DOM, nie zrzut.
+- **Konsola pokazywała błąd składni długo po jego naprawieniu** (bufor
+  skumulowany). Rozstrzygnęło: brak złego znaku w pliku + `tsc` czysto +
+  strona 200 + nowe słowa pustych stanów na ekranie.
+- **Polski cudzysłów zamykający `"` w literale TypeScriptu kończy string.**
+  `tsc` złapał to od razu, ale Turbopack zgłaszał to jeszcze wiele przeładowań
+  później — patrz punkt wyżej.
+- **Menu kontekstowe nie zamyka się od syntetycznych zdarzeń** — sprawdzone
+  kontrolnie w Przypomnieniach, gdzie zachowuje się IDENTYCZNIE. Właściwość
+  wspólnego `Popover`, nie skutek tej zmiany. Bez porównania z modułem
+  odniesienia wyglądałoby to na świeżo wprowadzoną usterkę.
+- **Współrzędne symulatora podane w pikselach zrzutu dwa razy trafiły w pustkę**
+  (zrzut 1378 px, przestrzeń dotyku 834 pkt, przelicznik ≈0,605) — mimo że
+  ostrzeżenie stało w briefie.

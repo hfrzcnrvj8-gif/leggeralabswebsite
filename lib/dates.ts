@@ -44,6 +44,19 @@ export function daysBetweenISO(a: string, b: string): number {
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
 }
 
+/** Czy tekst jest godziną „HH:MM". Odpowiednik `isPlausibleDateString()` dla
+ * pory dnia — i z tego samego powodu: kolumna `godzina` jest w bazie TEXT-em,
+ * więc bez tej bramki wchodzi do niej dowolny napis.
+ *
+ * Mieszka TUTAJ, a nie w `lib/reminders.ts` (gdzie powstał przy Module 66),
+ * bo pilnują nią godziny TRZY moduły — Przypomnienia, Kalendarz i Notatnik
+ * („Do kalendarza"). Audyt Notatnika 2026-08-02 zastał go wołanego wyłącznie
+ * przez Przypomnienia: `{"godzina":"trzynasta"}` przechodziło przez
+ * `POST /api/notes/:id/schedule` i lądowało w wydarzeniu kalendarza. */
+export function isPlausibleTimeString(v: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+}
+
 /** "HH:MM" czasu ściennego Europe/Warsaw danego dnia → poprawny UTC ISO, z
  * uwzględnieniem czasu letniego/zimowego (do snoozeOptions() w lib/mail.ts).
  * Metoda: sformatuj "przybliżony" znacznik (tak jakby podana data+godzina

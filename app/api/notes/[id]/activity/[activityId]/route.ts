@@ -15,6 +15,12 @@ export async function DELETE(
   const { id, activityId } = await params;
   await ensureHubSchema();
   const sql = getSql();
-  await sql`DELETE FROM notes_activity WHERE id = ${activityId} AND note_id = ${id};`;
+  // 404 zamiast kasowania na ślepo — patrz komentarz przy DELETE /api/notes/:id.
+  const usuniete = await sql`
+    DELETE FROM notes_activity WHERE id = ${activityId} AND note_id = ${id} RETURNING id;
+  `;
+  if (!usuniete[0]) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   return NextResponse.json({ ok: true });
 }

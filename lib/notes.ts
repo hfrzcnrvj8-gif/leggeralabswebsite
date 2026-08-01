@@ -61,6 +61,66 @@ export type NoteActivity = {
   created_at: string;
 };
 
+/** Sufity pól notatki. JEDNA definicja dla POST i PATCH — do audytu
+ * 2026-08-02 każda z tych tras miała własną: POST tnął treść na 8000 znaków
+ * po cichu (wklejenie 20 000 zapisywało 8000 i oddawało `{"ok":true}`),
+ * a PATCH nie miał sufitu w ogóle — ta sama notatka zapisana dwiema drogami
+ * wychodziła różnej długości. Dziś przekroczenie sufitu to 400 z nazwą pola,
+ * nie cichy `slice()`: ucięty tekst kłamie gorzej niż odmowa (ta sama zasada,
+ * co przy eksportach bez sufitu).
+ *
+ * Treść ma sufit wysoki (≈30 stron maszynopisu) świadomie — Notatnik to
+ * jedyne miejsce w panelu na tekst dowolnej długości, więc limit ma łapać
+ * pomyłkę (wklejony plik), a nie długą notatkę ze spotkania. */
+export const NOTE_LIMITS = { tytul: 300, tresc: 100_000, tagi: 500 } as const;
+
+/** Wynik odczytu pola z ciała żądania — trzy przypadki zamiast dwóch, wzorem
+ * `odczytajOpcjonalna()` z Przypomnień (Moduł 66). Bez rozróżnienia „nie
+ * podano" od „podano śmieć" PATCH Notatnika robił z liczby w polu `tresc`
+ * PUSTĄ treść i odpowiadał `{"ok":true}` — czyli kasował notatkę na życzenie,
+ * którego nikt nie wyraził (zmierzone sondą 2026-08-02). */
+export type OdczytPola =
+  | { rodzaj: "brak" }
+  | { rodzaj: "ustaw"; wartosc: string }
+  | { rodzaj: "blad"; powod: string };
+
+/** Pole tekstowe notatki. `null` znaczy „wyczyść" (kolumny są NOT NULL, więc
+ * pustka to `""`, nie NULL) — ale WYŁĄCZNIE `null`, nigdy liczba czy obiekt.
+ * `przytnij` jest wyłączone dla treści: w notatce wcięcia i puste linie są
+ * częścią zapisu, a nie przypadkiem. */
+export function odczytajTekst(
+  body: Record<string, unknown>,
+  pole: "tytul" | "tresc" | "tagi",
+  opcje?: { przytnij?: boolean }
+): OdczytPola {
+  if (!(pole in body)) return { rodzaj: "brak" };
+  const raw = body[pole];
+  if (raw === null) return { rodzaj: "ustaw", wartosc: "" };
+  if (typeof raw !== "string") {
+    return { rodzaj: "blad", powod: `${pole} musi być tekstem albo null` };
+  }
+  const wartosc = opcje?.przytnij === false ? raw : raw.trim();
+  const max = NOTE_LIMITS[pole];
+  if (wartosc.length > max) {
+    return { rodzaj: "blad", powod: `${pole}: za długie (limit ${max} znaków, przysłano ${wartosc.length})` };
+  }
+  return { rodzaj: "ustaw", wartosc };
+}
+
+/** Pole logiczne (`pinned`, `archived`). Do audytu 2026-08-02 trasa liczyła
+ * `body.pinned === true`, więc `"tak"` znaczyło „odepnij" — śmieć zamieniał
+ * się w PRZECIWIEŃSTWO tego, co wołający miał na myśli, i to z `{"ok":true}`.
+ * To ta sama pułapka, którą Moduł 66 wyciął przy `priorytet`. */
+export function odczytajFlage(
+  body: Record<string, unknown>,
+  pole: string
+): { rodzaj: "brak" } | { rodzaj: "ustaw"; wartosc: boolean } | { rodzaj: "blad"; powod: string } {
+  if (!(pole in body)) return { rodzaj: "brak" };
+  const raw = body[pole];
+  if (typeof raw !== "boolean") return { rodzaj: "blad", powod: `${pole} musi być true albo false` };
+  return { rodzaj: "ustaw", wartosc: raw };
+}
+
 export function parseTags(tagi: string): string[] {
   return tagi
     .split(",")

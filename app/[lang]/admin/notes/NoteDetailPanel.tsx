@@ -18,6 +18,8 @@ import type { Locale } from "@/i18n/config";
 import { EditableText, EditableTextarea } from "../components";
 import { LinkPicker } from "../LinkPicker";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
+import { StanBledu } from "../StanPusty";
+import { komunikatBledu } from "../dane";
 import { useUI } from "../ui";
 import { formatPlDate } from "@/lib/projects";
 import { noteLinkValue, type Note, NoteBadges, NoteScheduleForm, useNoteActions } from "./shared";
@@ -38,17 +40,28 @@ export function NoteDetailPanel({
 }) {
   const [note, setNote] = useState<Note | null>(null);
   const [missing, setMissing] = useState(false);
+  // Trzeci stan obok „mam rekord" i „nie ma takiego": „nie udało się wczytać".
+  // Bez niego awaria trasy (500, zerwana sieć) kończyła się `return` przy
+  // `note === null`, czyli szkieletem pulsującym BEZ KOŃCA — dokładnie tym,
+  // co paczka E wycięła z listy, ale nie z profilu (zmierzone 2026-08-02
+  // podmianą `fetch` na 500: modal pokazywał pustą, pulsującą płytę).
+  const [blad, setBlad] = useState<string | null>(null);
   const { confirm } = useUI();
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/notes/${id}`);
-    if (res.status === 404) {
-      setMissing(true);
-      return;
+    try {
+      const res = await fetch(`/api/notes/${id}`);
+      if (res.status === 404) {
+        setMissing(true);
+        return;
+      }
+      if (!res.ok) throw new Error(`Serwer odpowiedział ${res.status}.`);
+      const data = (await res.json()) as { note: Note };
+      setNote(data.note);
+      setBlad(null);
+    } catch (e) {
+      setBlad(komunikatBledu(e));
     }
-    if (!res.ok) return;
-    const data = (await res.json()) as { note: Note };
-    setNote(data.note);
   }, [id]);
 
   useEffect(() => {
@@ -70,7 +83,16 @@ export function NoteDetailPanel({
     );
   }
 
+  // Szkielet TYLKO wtedy, gdy naprawdę czekamy — przy awarii pulsował bez
+  // końca i nie dawał ŻADNEJ drogi wyjścia poza zamknięciem modalu.
   if (!note) {
+    if (blad) {
+      return (
+        <div className="card-paper rounded-2xl">
+          <StanBledu blad={blad} onPonow={load} />
+        </div>
+      );
+    }
     return <div className="h-64 animate-pulse rounded-2xl bg-[var(--hairline)]" />;
   }
 
@@ -84,10 +106,13 @@ export function NoteDetailPanel({
       }`}
     >
       <div className="flex items-start gap-2">
+        {/* Trafienie ≥24 px, ikona dalej 15 px — patrz komentarz przy karcie
+            w NotesDashboard (audyt Notatnika 2026-08-02, próg WCAG 2.5.8). */}
         <button
           onClick={() => togglePin(note)}
           title={note.pinned ? "Odepnij" : "Przypnij na górze listy"}
-          className="shrink-0 rounded-md px-1 py-0.5 text-[15px] transition-opacity hover:opacity-100"
+          aria-label={note.pinned ? "Odepnij" : "Przypnij na górze listy"}
+          className="-m-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[15px] transition-opacity hover:opacity-100"
           style={{ opacity: note.pinned ? 1 : 0.35 }}
         >
           {note.pinned ? <IconPinFilled size={15} /> : <IconPin size={15} />}
@@ -99,7 +124,7 @@ export function NoteDetailPanel({
           <button
             onClick={onClose}
             aria-label="Zamknij"
-            className="shrink-0 text-muted hover:text-[var(--fg)]"
+            className="-m-1 flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-[var(--fg)]"
           >
             ✕
           </button>

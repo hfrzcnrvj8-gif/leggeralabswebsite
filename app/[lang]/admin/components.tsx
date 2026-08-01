@@ -100,7 +100,22 @@ export function EditableText({
 }
 
 // Rośnie razem z treścią zamiast ucinać długi tekst w sztywnej wysokości.
-export function EditableTextarea({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+/** `maxWysokosc` (px) ogranicza rozrost pola — bez niego pole rośnie do pełnej
+ * wysokości treści, co jest właściwe w PROFILU rekordu (czytasz jedną rzecz),
+ * ale nie na KARCIE w siatce: notatka przy dopuszczalnym sufitze treści dawała
+ * kartę wysoką na 2340 px, czyli jeden rekord wypychał wszystkie pozostałe
+ * poza ekran (zmierzone przy audycie Notatnika 2026-08-02, szerokość karty
+ * 380 px). Domyślnie BEZ limitu, żeby nie zmieniać zachowania modułów, które
+ * już z tego pola korzystają. */
+export function EditableTextarea({
+  value,
+  onSave,
+  maxWysokosc,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  maxWysokosc?: number;
+}) {
   const [v, setV] = useState(value);
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => setV(value), [value]);
@@ -109,11 +124,14 @@ export function EditableTextarea({ value, onSave }: { value: string; onSave: (v:
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const pelna = el.scrollHeight;
+    // Przy limicie pole przewija się WEWNĄTRZ zamiast rozpychać kartę.
+    el.style.height = `${maxWysokosc ? Math.min(pelna, maxWysokosc) : pelna}px`;
+    el.style.overflowY = maxWysokosc && pelna > maxWysokosc ? "auto" : "hidden";
   };
   useEffect(() => {
     resize();
-  }, [v]);
+  }, [v, maxWysokosc]);
 
   // Przelicz także przy zmianie SZEROKOŚCI pola, nie tylko treści. Wysokość
   // zależy od zawijania tekstu, więc pomiar zrobiony przy innej szerokości jest

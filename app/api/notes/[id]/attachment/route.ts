@@ -68,7 +68,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   await ensureHubSchema();
   const sql = getSql();
-  await sql`DELETE FROM note_attachments WHERE note_id = ${id};`;
+  // 404, gdy nie było czego usuwać — patrz komentarz przy DELETE /api/notes/:id.
+  const usuniete = await sql`DELETE FROM note_attachments WHERE note_id = ${id} RETURNING id;`;
+  if (!usuniete[0]) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   await sql`UPDATE notes SET has_attachment = false, updated_at = now() WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }
