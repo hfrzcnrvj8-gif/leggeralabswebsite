@@ -23,8 +23,10 @@ Osiem audytów pod rząd ustawiło rytm, którego trzymaj się dalej:
 
 ## Punkt startu — zmierzone 2026-08-02, po audycie Notatnika
 
-`git log` ma pokazać commit audytu Notatnika (panel) i commit haptyki (apka).
-Jeśli nie — ktoś pracował po drodze, sprawdź co.
+`git log` ma pokazać **`c9d0344`** (panel — „Audyt Notatnika…") i **`8105a57`**
+(apka — „Notatnik: haptyka przy gardłach…"). Jeśli nie — ktoś pracował po
+drodze, sprawdź co (`git log` PRZED `git add`; równoległa sesja już raz
+wchłonęła cudze zmiany).
 
 ### Wiersz „Kalendarz" — NAJPIERW ROZSTRZYGNIJ, CZY TO W OGÓLE PRACA
 
