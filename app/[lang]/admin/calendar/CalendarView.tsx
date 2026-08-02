@@ -1,7 +1,17 @@
 "use client";
 
-import { createContext, useContext, useEffect, useCallback, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   IconArrowsMaximize,
   IconArrowsMinimize,
@@ -14,6 +24,7 @@ import {
   IconFolder,
   IconLink,
   IconTarget,
+  IconTrash,
   IconUser,
 } from "@tabler/icons-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,7 +43,7 @@ import { PasekBledu } from "../StanPusty";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { Modal } from "../Modal";
 import { EventInvitePanel } from "./EventInvitePanel";
-import { Popover } from "../Menu";
+import { ContextMenu, ContextMenuItem, MenuDivider, Popover, useContextMenu } from "../Menu";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { LinkPicker } from "../LinkPicker";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
@@ -48,6 +59,29 @@ type KindStyle = { border: string; bg: string; text: string; dot: string; label:
  * szumem w pięciu sygnaturach naraz. */
 const InviteContext = createContext<((e: HubEvent) => void) | null>(null);
 
+/** Menu pod prawym przyciskiem dla WYDARZENIA (audyt Kalendarza 2026-08-02).
+ *
+ * Kalendarz był ostatnim modułem panelu bez `useContextMenu` — zmierzone po
+ * Notatniku. Menu wisi na wydarzeniu, a NIE na komórce dnia: dzień ma jedną
+ * akcję („pokaż, co tu jest"), a menu należy się dopiero rekordowi z więcej
+ * niż jedną (lista kontrolna Modułu 59, kategoria 3). Wszystko z menu da się
+ * zrobić też widocznym przyciskiem — menu jest skrótem, nie jedyną drogą.
+ *
+ * Kontekst z tego samego powodu, co `InviteContext`: wydarzenie rysują cztery
+ * komponenty na trzech poziomach zagnieżdżenia i żaden z pośrednich nie ma nic
+ * wspólnego z menu. */
+const MenuWydarzeniaContext = createContext<((e: ReactMouseEvent, ev: HubEvent) => void) | null>(null);
+
+/** Podpięcie menu do elementu rysującego wydarzenie. Zwraca pusty obiekt, gdy
+ * kontekstu nie ma — te same komponenty mają działać także bez providera. */
+function menuWydarzenia(
+  otworz: ((e: ReactMouseEvent, ev: HubEvent) => void) | null,
+  wydarzenie: HubEvent
+): { onContextMenu?: (e: ReactMouseEvent) => void } {
+  if (!otworz) return {};
+  return { onContextMenu: (e) => otworz(e, wydarzenie) };
+}
+
 /** Przycisk „zaproś klienta" przy wydarzeniu. Zwraca `null`, gdy kontekst nie
  * jest dostępny — tak, żeby te same komponenty dało się kiedyś użyć poza
  * kalendarzem, bez wysypywania się na braku providera. */
@@ -60,7 +94,7 @@ function InviteButton({ event, className = "" }: { event: HubEvent; className?: 
         ev.stopPropagation();
         openInvite(event);
       }}
-      className={`shrink-0 text-muted hover:text-brand-cyan ${className}`}
+      className={`-m-1 flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-brand-cyan ${className}`}
       aria-label="Wyślij zaproszenie"
       title="Wyślij klientowi zaproszenie na to spotkanie"
     >
@@ -296,6 +330,8 @@ const periodSlideVariants = {
 
 export function CalendarView({ lang }: { lang: string }) {
   const { toast, confirm, choose } = useUI();
+  const router = useRouter();
+  const menuCtl = useContextMenu<HubEvent>();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [monthIdx, setMonthIdx] = useState(now.getMonth());
@@ -844,6 +880,32 @@ export function CalendarView({ lang }: { lang: string }) {
 
   return (
     <InviteContext.Provider value={setInviteEvent}>
+    <MenuWydarzeniaContext.Provider value={menuCtl.openAt}>
+    {/* Menu wydarzenia. Trzy pozycje to dokładnie te same trzy afordancje, co
+        ikony w wierszu — menu jest SKRÓTEM, nie jedyną drogą. */}
+    <ContextMenu ctl={menuCtl}>
+      {(e, close) => (
+        <>
+          <ContextMenuItem
+            icon={<IconArrowUpRight size={14} />}
+            label="Otwórz wydarzenie"
+            onClick={() => { close(); router.push(`/${lang}/admin/calendar/${encodeURIComponent(e.id)}`); }}
+          />
+          <ContextMenuItem
+            icon={<IconMailShare size={14} />}
+            label="Wyślij zaproszenie"
+            onClick={() => { close(); setInviteEvent(e); }}
+          />
+          <MenuDivider />
+          <ContextMenuItem
+            icon={<IconTrash size={14} />}
+            label={e.seria_id ? "Usuń (okazja albo seria)…" : "Usuń wydarzenie"}
+            danger
+            onClick={() => { close(); void deleteEvent(e.id); }}
+          />
+        </>
+      )}
+    </ContextMenu>
     {/* z=205: okno bywa otwierane z podglądu dnia, czyli Z WNĘTRZA popovera
         (`z-[200]`) — patrz komentarz przy `zClass` w Modal.tsx. */}
     <Modal open={inviteEvent !== null} onClose={() => setInviteEvent(null)} z={205} card="my-auto w-full max-w-3xl">
@@ -1022,6 +1084,7 @@ export function CalendarView({ lang }: { lang: string }) {
                                 onDragEnd={(ev) => {
                                   ev.currentTarget.style.opacity = "1";
                                 }}
+                                {...menuWydarzenia(menuCtl.openAt, e)}
                                 className={`w-full cursor-grab truncate rounded border-l-2 ${style.border} ${style.bg} px-1 text-[10px] ${style.text} transition-[opacity,transform] hover:-translate-y-px`}
                                 title="Przeciągnij, by zmienić dzień"
                               >
@@ -1132,6 +1195,7 @@ export function CalendarView({ lang }: { lang: string }) {
         </div>
       </div>
     </div>
+    </MenuWydarzeniaContext.Provider>
     </InviteContext.Provider>
   );
 }
@@ -1336,6 +1400,9 @@ function DayAgendaList({
   onTickReminder: (deadlineId: string) => void;
   compact?: boolean;
 }) {
+  // Hook PRZED wcześniejszym `return` pustego stanu — inaczej lista raz go
+  // woła, a raz nie, i React wywraca się na zmiennej liczbie hooków.
+  const otworzMenu = useContext(MenuWydarzeniaContext);
   if (events.length === 0 && dls.length === 0) {
     return <p className={`text-sm text-muted opacity-60 ${compact ? "text-[12px]" : "mb-3"}`}><IconCalendar size={15} className="mr-1.5 inline align-[-2px] opacity-70" />Brak wydarzeń tego dnia.</p>;
   }
@@ -1398,6 +1465,7 @@ function DayAgendaList({
               onDragEnd={(ev) => {
                 (ev as unknown as React.DragEvent<HTMLLIElement>).currentTarget.style.opacity = "1";
               }}
+              {...menuWydarzenia(otworzMenu, e)}
               className={`cursor-grab overflow-hidden rounded-lg border-l-[3px] ${style.border} bg-[var(--bg-soft)] px-2.5 py-1.5 text-sm transition-[opacity,transform] hover:-translate-y-px hover:shadow-sm`}
               title="Przeciągnij, by zmienić dzień"
             >
@@ -1420,18 +1488,31 @@ function DayAgendaList({
                       {e.uczestnicy_tak ?? 0}/{e.uczestnicy_total}
                     </span>
                   )}
+                  {/* Trójka ikon wiersza mierzyła 14×14 (koperta), 13×13
+                      („otwórz") i 10,7×20 („✕") — poniżej progu 24×24 z WCAG
+                      2.5.8, a „✕" najwęziej w całym panelu. Rośnie TRAFIENIE,
+                      nie rysunek: `-m-1` cofa padding, więc rytm wiersza
+                      zostaje. Znak typograficzny jest za wąski na sam padding
+                      i dostaje jawne `h-6 w-6` (wzorzec z Notatnika). */}
                   <InviteButton event={e} />
                   {/* Adres rekordu (paczka E) — wydarzenie da się w końcu
                       wkleić w rozmowę. `encodeURIComponent`, bo id wystąpienia
                       serii ma w środku `~` (patrz `idWystapienia`). */}
                   <Link
                     href={`/${lang}/admin/calendar/${encodeURIComponent(e.id)}`}
-                    className="text-muted hover:text-[var(--fg)]"
+                    className="-m-1 flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-[var(--fg)]"
                     title="Otwórz wydarzenie"
                   >
                     <IconArrowUpRight size={13} />
                   </Link>
-                  <button onClick={() => onDelete(e.id)} className="text-muted hover:text-red-400" aria-label="Usuń" title="Usuń">✕</button>
+                  <button
+                    onClick={() => onDelete(e.id)}
+                    className="-m-1 flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-red-400"
+                    aria-label="Usuń"
+                    title="Usuń"
+                  >
+                    ✕
+                  </button>
                 </span>
               </div>
               {hasLinks && (
@@ -1522,7 +1603,13 @@ function DayPeekContent({
             ›
           </button>
         </div>
-        <button onClick={close} className="text-muted hover:text-[var(--fg)]" aria-label="Zamknij">✕</button>
+        <button
+          onClick={close}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-[var(--hairline)] hover:text-[var(--fg)]"
+          aria-label="Zamknij"
+        >
+          ✕
+        </button>
       </div>
       <DayAgendaList
         lang={lang}
@@ -1813,6 +1900,7 @@ function TimelineGridRow({
   onDropDay?: (id: string, day: string) => void;
   onSlotClick?: (time: string, e: React.MouseEvent) => void;
 }) {
+  const otworzMenu = useContext(MenuWydarzeniaContext);
   const totalMin = (DAY_RANGE.endHour - DAY_RANGE.startHour) * 60;
   const layout = layoutTimedEvents(events);
   const now = new Date();
@@ -1891,6 +1979,7 @@ function TimelineGridRow({
             onDragEnd={(ev) => {
               (ev as unknown as React.DragEvent<HTMLDivElement>).currentTarget.style.opacity = "1";
             }}
+            {...menuWydarzenia(otworzMenu, e)}
             className={`absolute cursor-grab overflow-hidden rounded border-l-2 ${style.border} ${style.bg} p-1 text-[10px] ${style.text}`}
             style={{ top: `${top}%`, height: `${height}%`, left: `${left}%`, width: `calc(${width}% - 2px)` }}
             title={`${e.godzina} ${e.tytul} — przeciągnij, by zmienić czas`}
@@ -1898,9 +1987,13 @@ function TimelineGridRow({
             <div className="flex items-center justify-between gap-1">
               <span className="truncate">{e.godzina} {e.tytul}</span>
               <InviteButton event={e} className={`${style.text} opacity-70 hover:opacity-100`} />
+              {/* To samo trafienie 24×24, co w agendzie dnia. `-m-1` zjada
+                  `p-1` bloku, więc przycisk sięga jego krawędzi i nic nie
+                  wystaje poza `overflow-hidden` — a blok godzinny ma 48 px na
+                  godzinę, czyli domyślne wydarzenie mieści próg z zapasem. */}
               <button
                 onClick={(ev) => { ev.stopPropagation(); onDelete(e.id); }}
-                className={`shrink-0 ${style.text} opacity-70 hover:text-red-400 hover:opacity-100`}
+                className={`-m-1 flex h-6 w-6 shrink-0 items-center justify-center ${style.text} opacity-70 hover:text-red-400 hover:opacity-100`}
                 aria-label="Usuń"
               >
                 ✕

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { IconFileText } from "@tabler/icons-react";
+import { IconFileText, IconRotate } from "@tabler/icons-react";
 import {
   dobierz,
   opisKlienta,
@@ -18,6 +18,7 @@ import {
 import { DOC_GRADIENT } from "@/lib/documents";
 import { PasekMarkiDokumentu } from "../DocGradient";
 import { SekcjaProfilu, WierszPola, WierszUwaga } from "../ProfileSection";
+import { useUI, useRegisterActions } from "../ui";
 
 const ZADANIA: { id: Zadanie; label: string }[] = [
   { id: "chat", label: "Czat / asystent" },
@@ -72,11 +73,39 @@ function fmt(n: number) {
 }
 
 export function KalkulatorDashboard() {
+  const { toast } = useUI();
   const [w, setW] = useState<Wejscie>(DOMYSLNE_WEJSCIE);
+  /** Czy ktokolwiek odpowiedział na cokolwiek.
+   *
+   * Ankieta startuje z WYPEŁNIONYMI wartościami wyjściowymi, więc ekran od
+   * pierwszej sekundy pokazuje komplet: Tier, kartę i widełki ceny. Do audytu
+   * 2026-08-02 nic nie odróżniało tego stanu od wyniku prawdziwej rozmowy —
+   * a przycisk „Eksportuj PDF" robił z niego dokument z dzisiejszą datą
+   * i nagłówkiem „DLA KLIENTA". Pusty stan ma mówić prawdę o POWODZIE (reguła
+   * z Notatnika); tu powodem jest „jeszcze nikt nie odpowiedział".
+   *
+   * Flaga, a nie porównanie z `DOMYSLNE_WEJSCIE`: kolejność w `zadania` zmienia
+   * się przy odznaczaniu i zaznaczaniu, więc porównanie mówiłoby „wypełnione"
+   * przy dokładnie domyślnych odpowiedziach. */
+  const [dotknieto, setDotknieto] = useState(false);
   const rek = useMemo(() => dobierz(w), [w]);
-  const set = <K extends keyof Wejscie>(k: K, v: Wejscie[K]) => setW((p) => ({ ...p, [k]: v }));
-  const toggleZadanie = (z: Zadanie) =>
+  const set = <K extends keyof Wejscie>(k: K, v: Wejscie[K]) => {
+    setDotknieto(true);
+    setW((p) => ({ ...p, [k]: v }));
+  };
+  const toggleZadanie = (z: Zadanie) => {
+    setDotknieto(true);
     setW((p) => ({ ...p, zadania: p.zadania.includes(z) ? p.zadania.filter((x) => x !== z) : [...p.zadania, z] }));
+  };
+
+  /** Droga powrotna — „co da się zmienić, da się cofnąć". Bez niej jedynym
+   * sposobem na czystą ankietę przed kolejną rozmową było przeładowanie
+   * strony, czyli wiedza spoza interfejsu. */
+  const wyczysc = () => {
+    setW(DOMYSLNE_WEJSCIE);
+    setDotknieto(false);
+    toast("Ankieta wyczyszczona.");
+  };
 
   // Panel nie generuje PDF serwerowo (jak faktury/oferty) — drukujemy przez
   // przeglądarkę: klasa na <body> odsłania tylko `.wydruk-doboru` (globals.css),
@@ -90,6 +119,18 @@ export function KalkulatorDashboard() {
     window.addEventListener("afterprint", sprzataj);
     window.print();
   };
+
+  // Moduł bez rekordu do dodania, więc bez pozycji `id: "add"` (i bez skrótu
+  // „n", który jest do niej przypisany na sztywno w `AppShell`). Kalkulator
+  // wnosił do palety ZERO — jedyne dwie rzeczy, które da się tu zrobić, były
+  // wyłącznie pod myszą. Skok do modułu: chord `g d` (`AppShell`).
+  useRegisterActions(
+    [
+      { id: "drukuj", label: "Eksportuj rekomendację (PDF)", run: drukuj },
+      { id: "wyczysc", label: "Wyczyść odpowiedzi", run: wyczysc },
+    ],
+    [w, dotknieto]
+  );
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
@@ -209,6 +250,12 @@ export function KalkulatorDashboard() {
             </div>
 
             <div className="space-y-4 p-4">
+              {!dotknieto && (
+                <p className="rounded-lg border border-brand-cyan/30 bg-brand-cyan/10 px-3 py-2 text-[12px] text-[var(--fg)]">
+                  Ankieta jeszcze nietknięta — poniżej stoją wartości wyjściowe, nie odpowiedzi klienta. Wydruk powie
+                  o tym wprost, dopóki czegoś nie zmienisz.
+                </p>
+              )}
               <div>
                 <div className="text-[18px] font-bold text-[var(--fg)]">
                   Model {rek.params}B · {rek.quant}
@@ -262,10 +309,17 @@ export function KalkulatorDashboard() {
           >
             <IconFileText size={16} /> Eksportuj PDF (styl oferty)
           </button>
+          <button
+            onClick={wyczysc}
+            disabled={!dotknieto}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border hairline px-3 py-2 text-sm text-muted transition-colors hover:text-[var(--fg)] disabled:opacity-40 disabled:hover:text-muted"
+          >
+            <IconRotate size={16} /> Wyczyść odpowiedzi
+          </button>
         </aside>
       </div>
 
-      <WydrukSpecyfikacji rek={rek} w={w} />
+      <WydrukSpecyfikacji rek={rek} w={w} dotknieto={dotknieto} />
     </div>
   );
 }
@@ -273,7 +327,7 @@ export function KalkulatorDashboard() {
 /** Jednostronicowy dokument w stylu oferty — jasny, z gradientem marki. Na
  * ekranie ukryty (globals.css `.wydruk-doboru`), widoczny tylko przy druku.
  * Style inline (jawne kolory), bo panel jest ciemny, a kartka ma być biała. */
-function WydrukSpecyfikacji({ rek, w }: { rek: Rekomendacja; w: Wejscie }) {
+function WydrukSpecyfikacji({ rek, w, dotknieto }: { rek: Rekomendacja; w: Wejscie; dotknieto: boolean }) {
   const atrament = "#1a1626";
   const szary = "#6b6580";
   const dot: Record<NotatkaTyp, string> = { info: "#0e8ba8", ostrzezenie: "#b26a00", dobre: "#2f8f52" };
@@ -302,8 +356,14 @@ function WydrukSpecyfikacji({ rek, w }: { rek: Rekomendacja; w: Wejscie }) {
           </div>
         </div>
 
+        {/* Nagłówek zależy od tego, czy ktokolwiek odpowiedział. Dokument
+            z dzisiejszą datą i napisem „DLA KLIENTA" nad domyślnymi liczbami
+            twierdziłby, że rozmowa się odbyła — to najkosztowniejsze możliwe
+            kłamstwo tego ekranu, bo idzie na zewnątrz. */}
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: szary }}>DLA KLIENTA</div>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5, color: dotknieto ? szary : "#b26a00" }}>
+            {dotknieto ? "DLA KLIENTA" : "WARTOŚCI WYJŚCIOWE — ANKIETY NIE WYPEŁNIONO"}
+          </div>
           <div style={{ fontSize: 12, marginTop: 2 }}>{opisKlienta(w)}</div>
         </div>
 

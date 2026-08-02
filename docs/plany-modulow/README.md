@@ -240,3 +240,11 @@ kolejnym module i przy każdej nowej funkcji.
 
 Powstał, bo wzorce poprawiane były w module, nad którym akurat trwała praca —
 i ta sama lista zachowywała się inaczej w czterech miejscach.
+
+**Tabela jest wypełniona w całości od 2026-08-02** — piętnaście modułów,
+dziesięć kategorii, trzynaście rund audytu od 25 lipca. Zanim powielisz tę
+listę przy nowej funkcji, przeczytaj sekcję „Domknięcie tabeli" na końcu
+`59-spojnosc-ui.md`: dwie trzecie jej wskazań okazały się nieaktualne,
+najcięższe usterki przyszły SPOZA dziesięciu kategorii, a wnioski są trzy
+(nie wypełniaj kolumn z kodu · dołóż kategorię „co trasa robi ze śmieciem" ·
+poprawka przekrojem = przejście tabeli tego samego dnia).

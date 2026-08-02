@@ -94,21 +94,42 @@ function wagiGB(p: number, q: "Q4" | "Q8"): number {
   return p * (q === "Q8" ? 1.05 : 0.55);
 }
 
+/** Liczby wejściowe sprowadzone do sensownego zakresu — JEDNO miejsce dla
+ * całego modułu.
+ *
+ * Powód rozdzielenia (audyt Kalkulatora 2026-08-02): `dobierz()` liczyło
+ * z `min(szczyt, uzytkownicy)`, a `opisKlienta()` — z surowego `szczyt`,
+ * więc odpowiedź „5 użytkowników, 50 równoczesnych" dawała WYDRUK DLA KLIENTA
+ * mówiący „5 użytkowników (50 równoczesnych)" nad rekomendacją policzoną dla
+ * pięciu: Tier 2 i 50–80 tys. zł zamiast Tier 3 i 153–256 tys. Dokument
+ * przeczył sam sobie, i to o trzykrotność ceny. Dziś obie drogi biorą te same
+ * liczby, a o samym przycięciu mówi notatka (`dobierz()` niżej) — cicha
+ * podmiana zamieniona na widoczny ślad. */
+export function znormalizuj(w: Wejscie): { uzytk: number; szczyt: number; ragGB: number; przycietySzczyt: boolean } {
+  const uzytk = Math.max(1, w.uzytkownicy || 1);
+  const zadany = Math.max(1, w.szczyt || 1);
+  return {
+    uzytk,
+    szczyt: Math.min(zadany, uzytk),
+    ragGB: Math.max(0, w.ragGB || 0),
+    przycietySzczyt: zadany > uzytk,
+  };
+}
+
 /** Zwięzły opis odpowiedzi klienta — do nagłówka wydruku/PDF. */
 export function opisKlienta(w: Wejscie): string {
+  const { uzytk, szczyt, ragGB } = znormalizuj(w);
   const prio = { koszt: "koszt/szybkość", zrownowazony: "zrównoważony", jakosc: "jakość" }[w.priorytet];
   const ktx = { krotki: "krótki", sredni: "średni", dlugi: "długi" }[w.kontekst];
   const tryb = { biuro: "biurowy 8/5", wazna: "ważny", krytyczna: "krytyczny 24/7" }[w.uptime];
   const zad = (["chat", "kod", "rag", "dlugie", "tlumaczenia"] as Zadanie[])
     .filter((z) => w.zadania.includes(z))
     .map((z) => ZADANIE_KROTKA[z]);
-  return `${w.uzytkownicy} użytkowników (${w.szczyt} równoczesnych) · zadania: ${zad.length ? zad.join(", ") : "ogólne"} · priorytet: ${prio} · kontekst: ${ktx} · dane RAG: ${Math.round(w.ragGB)} GB · tryb: ${tryb}`;
+  return `${uzytk} użytkowników (${szczyt} równoczesnych) · zadania: ${zad.length ? zad.join(", ") : "ogólne"} · priorytet: ${prio} · kontekst: ${ktx} · dane RAG: ${Math.round(ragGB)} GB · tryb: ${tryb}`;
 }
 
 export function dobierz(w: Wejscie): Rekomendacja {
-  const uzytk = Math.max(1, w.uzytkownicy || 1);
-  const szczyt = Math.max(1, Math.min(w.szczyt || 1, uzytk));
-  const ragGB = Math.max(0, w.ragGB || 0);
+  const { uzytk, szczyt, ragGB, przycietySzczyt } = znormalizuj(w);
 
   // model + kwantyzacja
   const quant: "Q4" | "Q8" = w.priorytet === "jakosc" ? "Q8" : "Q4";
@@ -218,6 +239,13 @@ export function dobierz(w: Wejscie): Rekomendacja {
 
   // notatki
   const notatki: Notatka[] = [];
+  // Przycięcie szczytu MUSI być widoczne — inaczej pole dalej pokazuje liczbę,
+  // której wynik nie użył, a wydruk niósłby ją do klienta jako fakt.
+  if (przycietySzczyt)
+    notatki.push({
+      typ: "ostrzezenie",
+      tekst: `Równoczesnych podano więcej (${Math.max(1, w.szczyt || 1)}) niż użytkowników łącznie (${uzytk}) — liczę dla ${szczyt}. Jeśli naprawdę tylu ma pracować naraz, podnieś liczbę użytkowników.`,
+    });
   notatki.push({
     typ: "info",
     tekst: `VRAM to wąskie gardło: ${params}B w ${quant} ≈ ${Math.round(wagiGB(params, quant))} GB wag; z kontekstem i ${szczyt} równoczesnymi doliczam zapas → ${Math.ceil(vram)} GB.`,

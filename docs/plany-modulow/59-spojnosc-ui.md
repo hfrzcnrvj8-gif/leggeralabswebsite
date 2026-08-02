@@ -187,10 +187,10 @@ oraz zliczanie po kodzie obu repozytoriów. Kolumna = kategoria z listy wyżej.
 | Projekty | ✅¹ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅¹ |
 | Faktury | ✅² | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Katalog | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅⁴ | ✅ | ✅⁴ | ✅ |
-| Kalkulator | ✅ | — | — | ❌ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Kalkulator | ✅ | — | — | ✅⁹ | ✅ | ✅⁹ | ✅⁹ | ✅ | ✅⁹ | ✅ |
 | Koszty | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅⁵ | ✅ | ✅ | ✅ | ✅⁵ | ✅ |
 | Poczta | ✅ | ✅ | ✅ | ✅⁶ | ✅ | ✅⁶ | ✅ | ✅ | ✅⁶ | ✅ |
-| Kalendarz | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Kalendarz | ✅ | ✅⁹ | ✅⁹ | ✅⁹ | ✅ | ✅ | ✅ | ✅ | ✅⁹ | ✅ |
 | Notatnik | ✅ | ✅⁸ | ✅⁸ | ✅⁸ | ✅⁸ | ✅⁸ | ✅⁸ | ✅ | ✅⁸ | ✅ |
 | Przypomnienia | ✅ | ✅⁷ | ✅⁷ | ✅⁷ | ✅⁷ | ✅⁷ | ✅ | ✅ | ✅⁷ | ✅ |
 | Statystyki | ✅ | — | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -305,6 +305,58 @@ wszystkich: z pięciu wpisów **dwa były nieaktualne, trzy obowiązywały**.
   24×24 z WCAG 2.5.8 — dziś 26×26 i 24×24) oraz **Gesty/menu** (`useContextMenu`
   miał zero trafień; po tej sesji bez menu pod prawym przyciskiem został już
   tylko Kalendarz).
+
+⁹ **Kalkulator i Kalendarz przeszły pełną listę 2026-08-02** — ostatnie dwa
+wiersze tabeli. Wynik i pomiary w `51-audyt-uiux-panel-i-apka.md` → „Stan po
+module Kalkulator i Kalendarz". **Ósmy raz z rzędu inwentarz mylił się w obie
+strony**, a najciężej tam, gdzie stało ✅.
+
+- **Kalendarz · Klawiatura ❌ — NIEAKTUALNE, i to od początku.** Moduł ma
+  WŁASNY słownik klawiszy: `←`/`→` (poprzedni i następny okres), `t` (dziś),
+  `1`/`2`/`3` (miesiąc/tydzień/dzień). Wszystkie sześć sprawdzone dyspozycją
+  zdarzeń — `defaultPrevented` ORAZ faktyczna zmiana etykiety okresu
+  (Sierpień→Wrzesień→Październik→Wrzesień→Sierpień, potem „27 Lipiec –
+  2 Sierpień" i „2 Sierpień"). `/` i `j` nie robią nic i tak ma być: siatka dni
+  nie ma liniowej listy wierszy, po której kursor miałby chodzić, a `/` bez
+  pola szukania byłby martwym skrótem. **Wiersz idzie na ✅, nie na „—"**
+  (brief zakładał „—"): kategoria dotyczy tego modułu i jest w nim spełniona.
+- **Kalendarz · Klikalność ✅ — FAŁSZYWIE ZIELONE** (trzeci raz z rzędu).
+  Zmierzone `getBoundingClientRect` przy `innerWidth: 1280`: koperta „zaproś"
+  **14×14**, „otwórz wydarzenie" **13×13**, „✕ usuń" **10,7×20**, „✕ zamknij"
+  podglądu dnia **12,2×24**, przy progu 24×24 z WCAG 2.5.8. Dziś wszystkie
+  24×24. Pastylki w siatce miesiąca (16 px) zostają — to gęsta siatka
+  kalendarza, a klikalne jest całe pole dnia (132 px).
+- **Kalendarz · Gesty/menu ✅ — FAŁSZYWIE ZIELONE.** Kalendarz był OSTATNIM
+  modułem bez `useContextMenu`. Menu wisi na WYDARZENIU, nie na komórce dnia
+  (dzień ma jedną akcję), w trzech miejscach naraz: pastylka miesiąca, wiersz
+  agendy, blok siatki godzin.
+- **Kalendarz · Integralność ✅ — FAŁSZYWIE ZIELONE, i to najciężej z całej
+  tabeli.** Sonda: **12/12 uchwytów HTTP z realną bramką 401**, ale walidacja
+  miała JEDENAŚCIE dziur. `PATCH` był ostatnią trasą w panelu zapisującą pole
+  po polu, więc `{"tytul":"PO","data":"0202-01-01"}` zapisywało tytuł i oddawało
+  400. Do tego pięć cichych podmian (śmieć w `tytul`/`opis`/`lokalizacja`
+  kasował pole, literówka w kluczu cyklu **kasowała serię**, śmieć w
+  `alert_minut_przed` zdejmował powiadomienie), dwie ciche odmowy z `{"ok":true}`
+  i trzy razy 200 albo gołe 500 tam, gdzie należało się 404 lub 400.
+- **Kalkulator · Klawiatura ❌ — OBOWIĄZYWAŁO, ale nie tak, jak zapisano.**
+  Ankieta przechodzi się Tabem w całości (20 natywnych kontrolek), więc nie
+  o dostępność chodziło. Realny brak: moduł wnosił do palety poleceń ZERO i nie
+  miał chordu `g`, czyli obie jego akcje były wyłącznie pod myszą. Dziś ⌘K zna
+  „Eksportuj rekomendację (PDF)" i „Wyczyść odpowiedzi", a `g d` skacze do
+  modułu. Bez pozycji `id: "add"` świadomie — to moduł bez rekordu do dodania.
+- **Kalkulator · Stany ⚠️ — OBOWIĄZYWAŁO.** Ankieta startuje WYPEŁNIONA, więc
+  ekran od pierwszej sekundy pokazuje komplet z ceną, a „Eksportuj PDF" robił
+  z tego dokument z dzisiejszą datą i nagłówkiem „DLA KLIENTA". Dziś panel mówi
+  wprost, że ankieta jest nietknięta, wydruk dostaje inny nagłówek, a „Wyczyść
+  odpowiedzi" daje drogę powrotną. Dwie pozostałe drogi do nietypowego ekranu
+  NIE DOTYCZĄ i jest to zapisane: moduł nie wykonuje żądań (brak awarii sieci)
+  i zawsze zwraca komplet (brak „wyniku bez wyniku").
+- **Kalkulator · Treść i Integralność ✅ → ✅ z korektą.** Znalezisko spoza
+  tabeli: `dobierz()` liczyło z `min(szczyt, użytkownicy)`, a `opisKlienta()`
+  z surowego `szczyt`, więc wydruk DLA KLIENTA potrafił mówić „5 użytkowników
+  (50 równoczesnych)" nad rekomendacją policzoną dla pięciu — **Tier 2 i 50–80
+  tys. zł zamiast Tier 3 i 153–256 tys.** Dokument przeczył sam sobie
+  o trzykrotność ceny. Ta sama usterka siedziała w apce.
 
 ⁵ **Koszty przeszły pełną listę 2026-08-01** (Moduł 63) — wynik i pomiary
 w `51-audyt-uiux-panel-i-apka.md` → „Stan po module Koszty". Jedyne ❌
@@ -783,11 +835,18 @@ i załadowanie każdego dotkniętego ekranu czyste.
 | Projekty | tylko cyfry statusu przy otwartym profilu — ani `/`, ani `j/k` |
 | Faktury, Koszty, Katalog, Przypomnienia | **nic** — i żadnego pola szukania |
 | Notatnik | pole szukania było, klawiatury nie |
-| Kalendarz | nic (świadomie zostaje bez `/` i `j/k` — patrz `HUB_SETUP.md`) |
+| Kalendarz | **własny słownik: `←`/`→`, `t`, `1`/`2`/`3`** — bez `/` i `j/k` świadomie (patrz `HUB_SETUP.md`) |
 
 Nowe wspólne części: `admin/klawiatura.ts` (`useSkrotyListy`, `KLASA_KURSORA`)
 i `admin/PoleSzukania.tsx`. Reguła, kontrakt klawiszy i uzasadnienie miejsca
 pola: `HUB_SETUP.md` → „Moduł 59, paczka C".
+
+**Korekta z 2026-08-02:** wiersz Kalendarza mówił do tej daty po prostu „nic",
+i było to nieprawdą — moduł miał własny słownik klawiszy od tej samej paczki.
+Słowo „nic" w tabeli pomyłek kosztowało tyle, że prompt ostatniego modułu
+planował dokładanie skrótów do miejsca, w którym działało już sześć. **Wiersz
+„co było" opisuje BRAK WSPÓLNEGO hooka, a nie brak klawiatury** — te dwie
+rzeczy zlały się tu w jedno słowo.
 
 ### Co wyszło przy okazji i zostało naprawione w tej samej paczce
 
@@ -1020,3 +1079,82 @@ startowy na „dzień" (zmiana cofnięta), a samą implementację przepisano tak
 **Wszystkie paczki z Modułu 59 są zamknięte** (Pulpit, A, B, C, D, D+, E, F,
 F+, G). Lista kontrolna na górze tego dokumentu zostaje jako narzędzie do
 POWIELANIA przy każdym nowym module — nie jako zamknięte zadanie.
+
+---
+
+## Domknięcie tabeli — czy ta lista sprawdziła się jako narzędzie (2026-08-02)
+
+Piętnaście modułów, dziesięć kategorii, trzynaście rund audytu od 25 lipca do
+2 sierpnia. Tabela jest wypełniona w całości. Poniżej rachunek, bo bez niego
+nie da się odpowiedzieć, czy powielać tę listę przy nowych funkcjach.
+
+### Rachunek
+
+Liczone są pozycje inwentarza z 28.07, które NIE stały na ✅ — czyli te, na
+które lista wskazała palcem. „Spoza tabeli" to znaleziska w polach oznaczonych
+wtedy jako ✅ albo w ogóle nieopisanych żadną kategorią.
+
+| runda | pozycji ≠ ✅ | nieaktualnych | obowiązywało | spoza tabeli |
+|---|---|---|---|---|
+| Faktury (61) | 3 | 2 | 1 | kilka (waluta z PATCH-a wywalała listę) |
+| Leady + Klienci (ponowny pomiar) | 7 | **7** | 0 | 0 |
+| Katalog (62) | 4 | 3 | 1 | 3 |
+| Koszty (63) | 4 | **4** | 0 | 3 |
+| Poczta (65) | 2 | 1 | 1 | 1 (podwójna wysyłka) |
+| Przypomnienia (66) | 6 | 2 | **4** | 0 |
+| Notatnik | 5 | 2 | **3** | 2 |
+| Kalkulator + Kalendarz | 3 | 1 | 2 | **4** |
+| **razem** | **34** | **22** | **12** | **≥ 13** |
+
+Rundy Projektów, Ofert i Umów są poza tym rachunkiem: przeszły własne audyty,
+zanim zaczęto prowadzić ten zapis, i ich przypisy nie podają liczb.
+
+### Co z tego wynika
+
+**Dwie trzecie wskazań tabeli było nieaktualnych.** 22 z 34 pozycji nie
+obowiązywało już w chwili sprawdzania — najczęściej dlatego, że sprzątnęły je
+paczki A–G, które szły przez wszystkie moduły naraz, a wiersza nikt potem nie
+poprawiał. Rekord: Leady i Klienci pokazywały siedem ❌/⚠️, z których **żadne**
+nie obowiązywało. To nie jest wada listy jako pomysłu, tylko koszt tego, że
+inwentarz z 28.07 był HIPOTEZĄ spisaną z kodu, a nie pomiarem — i że
+naprawialiśmy przekrojami, a numerowaliśmy modułami.
+
+**Najcięższe rzeczy przychodziły SPOZA tabeli.** Co najmniej trzynaście
+znalezisk siedziało w polach oznaczonych wtedy na ✅ albo poza wszystkimi
+dziesięcioma kategoriami. Wśród nich: podwójna wysyłka maila zerwanym
+żądaniem, śmieć w dacie kasujący termin przypomnienia, śmieć w treści kasujący
+notatkę, literówka w kluczu cyklu kasująca serię wydarzeń, wydruk kalkulatora
+podający trzykrotnie za niską cenę. **Żadnej z nich lista nie przewidywała**,
+bo wszystkie mieszkają w warstwie „co robi trasa z niepoprawnym wejściem",
+a lista opisuje warstwę „co widzi i czuje użytkownik".
+
+**Kategoria „Integralność" okazała się najgorzej zmierzona.** Stała na ✅
+w większości wierszy, a sonda znalazła dziury w sześciu modułach na osiem —
+w Kalendarzu jedenaście naraz. Powód jest prosty: ✅ postawiono na podstawie
+GREPU po `isAuthed()`, czyli sprawdzono bramkę wejścia, a nie to, co trasa robi
+po jej przekroczeniu. Autoryzacja przez wszystkie osiem rund nie dała ani
+jednego znaleziska (**≈100 uchwytów HTTP, wszystkie 401**); walidacja wejścia
+dała ich kilkadziesiąt.
+
+### Czy powielać tę listę
+
+**Tak — ale nie jako inwentarz do wypełnienia z góry.** Trzy poprawki:
+
+1. **Nie wypełniaj kolumn z kodu.** Wpis bez pomiaru myli w obie strony i myli
+   drożej niż puste pole: „✅" usypia (Klikalność i Gesty w Notatniku,
+   Integralność w Kalendarzu), a „❌" wysyła na robotę, która jest już zrobiona
+   (osiem razy). Zostawiaj „?" do czasu pomiaru.
+2. **Dołóż jedenastą kategorię: „co trasa robi ze śmieciem".** Trzy rodziny
+   z ośmiu rund: cicha PODMIANA (śmieć → wartość domyślna, `{"ok":true}`),
+   cicha ODMOWA (warunek w `WHERE`, `UPDATE` nie zmienia nic, trasa mówi
+   „zapisano") i BRAK 404 przy `DELETE`/`PATCH` nieistniejącego. Kwadrans sondy
+   `curl` per uchwyt znajduje więcej niż cała reszta listy razem wzięta.
+3. **Kiedy poprawka idzie przekrojem, przejdź tabelę tego samego dnia.**
+   Cały dług „nieaktualnych wskazań" wziął się z paczek A–G: naprawiały
+   piętnaście modułów naraz, a wiersze zostały z datą sprzed naprawy.
+
+**Dwa wiersze zostają niedomknięte i trzeba to powiedzieć wprost:** Oferty
+i Umowy noszą ⚠️ przy Kolorze i Gestach z 28.07, choć oba moduły przeszły
+własne audyty 26 i 27 lipca. Nikt tych czterech pól nie zmierzył ponownie. Po
+ośmiu rundach zakład jest taki, że są nieaktualne — ale to zakład, nie pomiar,
+i dokładnie takiego zdania ta tabela ma w przyszłości nie zawierać.

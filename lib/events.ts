@@ -72,6 +72,87 @@ export type HubEvent = {
   uczestnicy_tak?: number;
 };
 
+/* ── Czytanie pól z ciała żądania (audyt Kalendarza, 2026-08-02) ─────────── */
+
+/** Sufity pól tekstowych wydarzenia. JEDNA definicja dla POST i PATCH.
+ *
+ * Do tego audytu każda z tych tras miała własną: POST tnął tytuł na 300 znaków
+ * po cichu, a PATCH nie miał sufitu w ogóle — ta sama treść zapisana dwiema
+ * drogami wychodziła różnej długości (zmierzone sondą: PATCH przyjął tytuł
+ * 5000-znakowy, który w komórce siatki dnia rozpycha cały tydzień). Dziś
+ * przekroczenie sufitu to 400 z liczbą znaków, nie cichy `slice()` — ucięty
+ * tekst kłamie gorzej niż odmowa (ta sama reguła, co `NOTE_LIMITS`). */
+export const EVENT_LIMITS = { tytul: 300, opis: 2000, lokalizacja: 300 } as const;
+
+/** Wynik odczytu jednego pola — CZTERY przypadki zamiast dwóch, wzorem
+ * `odczytajOpcjonalna()` z Przypomnień (Moduł 66) i `odczytajTekst()`
+ * z Notatnika. Bez rozróżnienia „nie podano" od „podano śmieć" PATCH
+ * Kalendarza robił z liczby w polu `tytul` PUSTY tytuł, z literówki w kluczu
+ * cyklu — skasowaną serię, a ze śmiecia w `alert_minut_przed` — zdjęty alert.
+ * Wszystko z odpowiedzią `{"ok":true}` (zmierzone sondą 2026-08-02). */
+export type OdczytPolaWydarzenia<T> =
+  | { rodzaj: "brak" }
+  | { rodzaj: "zdejmij" }
+  | { rodzaj: "ustaw"; wartosc: T }
+  | { rodzaj: "blad"; powod: string };
+
+/** Pole tekstowe o stałej kolumnie NOT NULL (`tytul`, `opis`). `null` i pusty
+ * napis znaczą „wyczyść" — ale WYŁĄCZNIE one, nigdy liczba czy obiekt. */
+export function odczytajTekstWydarzenia(
+  body: Record<string, unknown>,
+  pole: keyof typeof EVENT_LIMITS
+): OdczytPolaWydarzenia<string> {
+  if (!(pole in body)) return { rodzaj: "brak" };
+  const raw = body[pole];
+  if (raw === null) return { rodzaj: "zdejmij" };
+  if (typeof raw !== "string") return { rodzaj: "blad", powod: `${pole} musi być tekstem albo null` };
+  const wartosc = raw.trim();
+  const max = EVENT_LIMITS[pole];
+  if (wartosc.length > max) {
+    return { rodzaj: "blad", powod: `${pole}: za długie (limit ${max} znaków, przysłano ${wartosc.length})` };
+  }
+  return wartosc ? { rodzaj: "ustaw", wartosc } : { rodzaj: "zdejmij" };
+}
+
+/** Pole opcjonalne trzymane jako tekst: data, godzina, klucz cyklu, id
+ * powiązania. Sam kształt — sens (czy to data, czy istniejący klient) sprawdza
+ * trasa, bo tylko ona wie, o które pole chodzi. */
+export function odczytajOpcjonalnyTekst(
+  body: Record<string, unknown>,
+  pole: string
+): OdczytPolaWydarzenia<string> {
+  if (!(pole in body)) return { rodzaj: "brak" };
+  const raw = body[pole];
+  if (raw === null || raw === "") return { rodzaj: "zdejmij" };
+  if (typeof raw !== "string") return { rodzaj: "blad", powod: `${pole} musi być tekstem albo null` };
+  const trimmed = raw.trim();
+  return trimmed ? { rodzaj: "ustaw", wartosc: trimmed } : { rodzaj: "zdejmij" };
+}
+
+/** Pole liczbowe ze skali (`czas_trwania_min`, `alert_minut_przed`). Liczba
+ * spoza skali NIE jest przycinana ani zamieniana na `null` — to ta sama
+ * pułapka, którą Moduł 66 wyciął przy `priorytet`: śmieć zamieniał się
+ * w przeciwieństwo tego, co wołający miał na myśli („przypomnij mi na pewno"
+ * stawało się „nie przypominaj"), i to z `{"ok":true}`. */
+export function odczytajLiczbeWydarzenia(
+  body: Record<string, unknown>,
+  pole: string,
+  min: number,
+  max: number
+): OdczytPolaWydarzenia<number> {
+  if (!(pole in body)) return { rodzaj: "brak" };
+  const raw = body[pole];
+  if (raw === null) return { rodzaj: "zdejmij" };
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return { rodzaj: "blad", powod: `${pole} musi być liczbą albo null` };
+  }
+  const wartosc = Math.round(raw);
+  if (wartosc < min || wartosc > max) {
+    return { rodzaj: "blad", powod: `${pole}: poza zakresem ${min}–${max} (przysłano ${wartosc})` };
+  }
+  return { rodzaj: "ustaw", wartosc };
+}
+
 export function todayISO(): string {
   return todayLocalISO();
 }

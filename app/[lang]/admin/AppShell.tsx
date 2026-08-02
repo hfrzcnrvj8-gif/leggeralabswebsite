@@ -131,6 +131,12 @@ const GO_CHORDS: Record<string, string> = {
   p: "/projects",
   n: "/notes",
   c: "/calendar",
+  // „d" jak dobór — „k" należy do Klientów. Dołożone przy audycie Kalkulatora
+  // (2026-08-02): moduł był jedynym, do którego prowadził wyłącznie klik
+  // w pasku bocznym. Katalog, Przypomnienia i Zdrowie dalej chordu NIE mają —
+  // zmierzone, świadomie nietknięte, bo wolne litery są dla nich naciągane
+  // i wybór skrótu dla cudzego modułu należy do jego wiersza, nie do tego.
+  d: "/kalkulator",
   l: "/leads",
   k: "/clients",
   o: "/offers",

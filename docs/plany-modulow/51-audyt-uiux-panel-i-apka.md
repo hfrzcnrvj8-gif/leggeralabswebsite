@@ -1777,3 +1777,198 @@ palca ma wibrować raz.
 - **Współrzędne symulatora podane w pikselach zrzutu dwa razy trafiły w pustkę**
   (zrzut 1378 px, przestrzeń dotyku 834 pkt, przelicznik ≈0,605) — mimo że
   ostrzeżenie stało w briefie.
+
+---
+
+## Stan po module Kalkulator i Kalendarz (2026-08-02)
+
+**To domyka tabelę Modułu 59** — piętnaście modułów, dziesięć kategorii.
+Podsumowanie całej listy jako narzędzia: `59-spojnosc-ui.md`, sekcja końcowa.
+
+Dwa wiersze, dwa zupełnie różne moduły. Kalendarz ma **najwięcej pól ze
+wszystkich rekordów panelu** (czternaście kolumn) i był ostatnią trasą `PATCH`
+bez podziału na sprawdzanie i zapis. Kalkulator jest jedynym ekranem, którego
+wynik **wychodzi na zewnątrz jako dokument dla klienta**, a nie zostaje
+w bazie — i to zmienia, co w nim znaczy „usterka stanu".
+
+### Sonda — 12 uchwytów HTTP, po jednym
+
+**Autoryzacja: 12/12 daje 401** (`DEV_ADMIN_BYPASS=0`, port 3007). Ósmy raz
+z rzędu bez jednego znaleziska. `GET /api/calendar/ics` też oddaje 401, ale
+z własnej bramki (token w query, fail-closed bez `CALENDAR_ICS_SECRET`) —
+to świadomy wyjątek dla subskrypcji z Apple/Google Calendar, nie luka.
+Kalkulator nie ma ani jednej trasy: liczy w przeglądarce.
+
+**Walidacja miała jedenaście dziur.** Wszystkie odpowiadały `{"ok":true}`:
+
+| co wysłano | co się działo | dziś |
+|---|---|---|
+| `PATCH {"tytul": 123}` | **tytuł WYKASOWANY** — pusta pastylka w siatce dnia | 400 „tytul musi być tekstem albo null" |
+| `PATCH {"opis": 42}` | opis wykasowany | 400 |
+| `PATCH {"lokalizacja": 999}` | miejsce spotkania zdjęte | 400 |
+| `PATCH {"alert_minut_przed": "pietnascie"}` | **alert zdjęty** — powiadomienie po prostu nie przyszło | 400 |
+| `PATCH {"czas_trwania_min": 99999}` | czas trwania zdjęty (spoza skali → `null`) | 400 z zakresem 1–1440 |
+| `PATCH {"powtarzanie": "co tydzien"}` | literówka w kluczu **KASOWAŁA serię** razem z „do kiedy" i pominiętymi wystąpieniami | 400 „invalid powtarzanie" |
+| `PATCH {"data": 20260901}` | data NIE zmieniona, trasa mówiła „zapisano" | 400 |
+| `PATCH {"powtarzanie_do": …}` na jednorazowym | warunek siedział w `WHERE`, `UPDATE` nie ruszał nic | 400 „powtarzanie_do requires powtarzanie" |
+| `PATCH {"data_koniec"}` wcześniejszy niż `data` | zapisane; `expandEventDays()` cicho sprowadzało wydarzenie do jednego dnia | 400 (warunek był TYLKO w POST) |
+| `PATCH`/`DELETE` nieistniejącego wydarzenia | 200 `{"ok":true}` | 404 |
+| `PATCH`/`POST {lead_id/client_id/project_id: <widmo>}` | gołe 500 | 400 „… does not exist" |
+
+**Główne znalezisko z briefu potwierdzone i wycięte.** `{"tytul":"PO",
+"data":"0202-01-01"}` zapisywało tytuł i oddawało 400 — panel pisał wtedy „Nie
+udało się zaktualizować wydarzenia", a zmiana częściowo weszła. Trasa jest dziś
+**trójfazowa** (kształt pól → reguły z bazy → zapisy), wzorem Modułu 66
+i Notatnika. Po poprawce ta sama sonda zostawia tytuł nietknięty.
+
+**POST i PATCH rozjeżdżały się też w drugą stronę.** POST tnął tytuł na 300
+znaków po cichu (5000 → 300), PATCH nie tnął wcale (5000 → 5000) — ta sama
+treść dwiema drogami wychodziła różnej długości, dokładnie jak w Notatniku.
+Dziś obie trasy czytają pola tymi samymi funkcjami z `lib/events.ts`
+(`EVENT_LIMITS`, `odczytajTekstWydarzenia`, `odczytajOpcjonalnyTekst`,
+`odczytajLiczbeWydarzenia`), a przekroczenie sufitu to 400 z liczbą znaków.
+
+### Inwentarz — ósmy raz w obie strony
+
+| pozycja | inwentarz | pomiar |
+|---|---|---|
+| Kalendarz · Klawiatura | ❌ | **nieaktualne** — sześć skrótów działa |
+| Kalendarz · Klikalność | ✅ | **fałszywie zielone** — „✕" miał 10,7×20 px |
+| Kalendarz · Gesty/menu | ✅ | **fałszywie zielone** — zero `useContextMenu` |
+| Kalendarz · Integralność | ✅ | **fałszywie zielone** — jedenaście dziur wyżej |
+| Kalkulator · Klawiatura | ❌ | **obowiązywało, ale nie tak, jak zapisano** |
+| Kalkulator · Stany | ⚠️ | **obowiązywało** |
+
+**Klawiatura Kalendarza — brief zgadywał „—", pomiar mówi ✅.** Lista „gdzie
+mieszka wzorzec" pisała przy Kalendarzu „nic", a to nieprawda: moduł ma własny
+słownik klawiszy i wszystkie sześć działa. Zmierzone dyspozycją zdarzeń,
+sprawdzając `defaultPrevented` **oraz faktyczną zmianę okresu i widoku**:
+`→` Sierpień→Wrzesień→Październik, `←` z powrotem, `t` na Sierpień,
+`2` → „27 Lipiec – 2 Sierpień", `3` → „2 Sierpień", `1` → „Sierpień 2026".
+`/` i `j` mają `defaultPrevented: false` i nie robią nic — słusznie.
+Dlatego wiersz idzie na **✅ z przypisem, a nie na „—"**: kategoria dotyczy tego
+modułu i jest w nim spełniona; „nie dotyczy" byłoby zdaniem fałszywym.
+
+**Klikalność Kalendarza — trzeci moduł z rzędu fałszywie zielony.** Zmierzone
+`getBoundingClientRect` przy `innerWidth: 1280`: koperta „zaproś" **14×14**,
+„otwórz wydarzenie" **13×13**, „✕ usuń" **10,7×20** (najwęższy przycisk
+zmierzony w całym panelu — Notatnik miał 6×17, ale w polu, nie na akcji
+niszczącej), „✕ zamknij" podglądu dnia **12,2×24**. Po zmianie wszystkie
+**24×24**: rośnie TRAFIENIE, nie rysunek (`-m-1` zjada padding rodzica).
+
+**Gesty — Kalendarz był OSTATNIM modułem bez menu pod prawym przyciskiem.**
+Dołożone wspólnym `useContextMenu` na WYDARZENIU, nie na komórce dnia: dzień
+ma jedną akcję, a menu należy się rekordowi z więcej niż jedną. Trzy pozycje
+(otwórz, wyślij zaproszenie, usuń) to dokładnie te trzy ikony, które stoją
+w wierszu — menu jest skrótem, nie jedyną drogą. Podpięte w trzech miejscach
+rysujących wydarzenie (pastylka miesiąca, wiersz agendy, blok siatki godzin)
+przez `MenuWydarzeniaContext` — kontekst, nie prop, wzorem istniejącego
+`InviteContext`, bo dzieli je od `CalendarView` do pięciu warstw.
+
+### Kalkulator — „Klawiatura ❌" znaczyło co innego, niż wyglądało
+
+Ankieta **przechodzi się Tabem w całości** (20 kontrolek, wszystkie natywne),
+więc gdyby chodziło o dostępność z klawiatury, wiersz byłby ✅. Realny brak był
+gdzie indziej: moduł wnosił do palety poleceń **ZERO** i nie miał chordu `g`,
+czyli jedyne dwie rzeczy, które da się na tym ekranie zrobić, były wyłącznie
+pod myszą. Dziś `⌘K` zna „Eksportuj rekomendację (PDF)" i „Wyczyść odpowiedzi",
+a `g d` skacze do modułu („d" jak dobór — „k" należy do Klientów).
+
+Bez pozycji `id: "add"` świadomie: to moduł bez rekordu do dodania, a skrót
+`n` jest w `AppShell` przypisany na sztywno właśnie do niej.
+
+### Kalkulator — „Stany ⚠️" obowiązywało, i to najdroższą pomyłką sesji
+
+Trzy drogi do nietypowego ekranu, każda sprawdzona osobno:
+
+1. **Nikt nie odpowiedział na żadne pytanie.** Ankieta startuje WYPEŁNIONA
+   wartościami wyjściowymi, więc od pierwszej sekundy stoi komplet: Tier,
+   karta, widełki ceny. Nic tego nie odróżniało od wyniku prawdziwej rozmowy —
+   a przycisk „Eksportuj PDF" robił z tego dokument z dzisiejszą datą
+   i nagłówkiem **„DLA KLIENTA"**. Dziś panel mówi wprost, że ankieta jest
+   nietknięta, wydruk dostaje nagłówek „WARTOŚCI WYJŚCIOWE — ANKIETY NIE
+   WYPEŁNIONO", a przycisk „Wyczyść odpowiedzi" daje drogę powrotną (był tylko
+   przeładowanie strony, czyli wiedza spoza interfejsu).
+2. **Zerwane połączenie** — nie dotyczy: moduł nie wykonuje ani jednego
+   żądania. Zapisane, żeby następny audyt nie szukał tu `StanBledu`.
+3. **Rekomendacja bez wyniku** — nie istnieje: `dobierz()` zawsze zwraca
+   komplet, a ankieta bez zaznaczonego zadania mówi „ogólne", nie pustkę.
+
+**Znalezisko spoza tabeli: dokument potrafił przeczyć sam sobie o trzykrotność
+ceny.** `dobierz()` liczyło z `min(szczyt, użytkownicy)`, a `opisKlienta()` —
+z surowego `szczyt`. Odpowiedź „5 użytkowników, 50 równoczesnych" dawała wydruk
+DLA KLIENTA mówiący „5 użytkowników (**50** równoczesnych)" nad rekomendacją
+policzoną dla pięciu: **Tier 2 i 50–80 tys. zł zamiast Tier 3 i 153–256 tys.**
+Pole formularza dalej pokazywało 50, więc nic nie zdradzało podmiany. Dziś obie
+drogi biorą liczby z jednego `znormalizuj()`, a o samym przycięciu mówi
+ostrzeżenie w notatkach — cicha podmiana zamieniona na widoczny ślad. **Ta sama
+usterka siedziała w apce** (`KalkulatorDoboruView.swift`) i została naprawiona
+razem z panelem.
+
+### Apka
+
+**Kalendarz MILCZAŁ haptyką** — trzeci moduł z rzędu z tym samym brakiem
+(Przypomnienia, Notatnik, teraz Kalendarz), przy ~60 sygnałach w reszcie
+sklepu. Dołożone w `AppStore` (nie w widoku — reguła Fazy 15), PO odpowiedzi
+serwera, w pięciu miejscach: dodanie, zapis, przesunięcie godziny, usunięcie
+wydarzenia i usunięcie uczestnika. Odmowa własnej bramki („koniec przed
+początkiem") wibruje tak samo jak odmowa serwera — dla palca to jedno zdarzenie.
+Wysyłka zaproszenia odzywała się już wcześniej, przez wspólne `wyslijIObsluz`.
+
+**Kalkulator w apce zostaje CICHY, świadomie.** Nie zmienia żadnych danych,
+a `Dotyk` mówi wprost: haptykę dostaje zmiana danych wywołana palcem,
+przeglądanie milczy. Zapisane, żeby nie wracało jako „brak".
+
+**Surowsze trasy nie odcięły apce żadnej drogi.** Oba ekrany zapisu wydarzenia
+mają przycisk wyłączony przy pustym tytule (`disabled(... isEmpty ...)`), więc
+nowej odmowy „tytul must not be empty" nie da się z apki wywołać. `zapisz…`
+wysyła komplet pól z `nil` dla pustych — a `nil` we wszystkich nowych czytnikach
+dalej znaczy „zdejmij".
+
+### Czego NIE zmieniono i dlaczego
+
+- **Pastylki w siatce miesiąca mają 16 px wysokości.** To gęsta siatka
+  kalendarza, nie lista akcji — tak samo robi Apple Calendar, a podniesienie
+  progu zabrałoby jeden z trzech widocznych wpisów na dzień. Klikalne jest
+  całe pole dnia (132 px). Zmierzone, zostawione.
+- **Katalog, Przypomnienia i Zdrowie nadal nie mają chordu `g`.** Wolne litery
+  są dla nich naciągane, a wybór skrótu dla cudzego modułu należy do jego
+  wiersza, nie do tego. Zmierzone, zapisane.
+- **Ikony 15×15 w Katalogu** — zapisane w Module 66, potem w Notatniku,
+  **nadal nietknięte**. To już trzeci moduł, który je odnotowuje; jeśli mają
+  zostać poprawione, to jedną przemyślaną rundą przez cały panel.
+- **Komunikaty błędów tras są po części po angielsku** („invalid data",
+  „not found"), a po części po polsku (z czytników pól). Tak samo jest
+  w Notatniku i Przypomnieniach — ujednolicenie to osobna decyzja, nie skutek
+  uboczny audytu.
+
+### Liczby
+
+- **`npm test`: 209/209** (było 197; doszło 12 w `test/kalendarz.test.ts`).
+- **`tsc --noEmit`: czysto.** Build apki: sukces (wydanie 181).
+- Ekrany załadowane po każdej paczce: `/pl/admin/calendar`,
+  `/pl/admin/kalkulator`, `/pl/admin/instrukcje` — wszystkie 200,
+  `window.onerror` i `unhandledrejection` puste.
+
+### Pułapki tej sesji
+
+- **`innerWidth` w podglądzie bywa ZEREM**, a wtedy `getBoundingClientRect`
+  zwraca szerokości ściśnięte przez `flex-shrink`: przyciski `h-6 w-6` mierzyły
+  się jako 17×24, a komórki dnia jako 12 px. Wygląda to jak prawdziwe
+  znalezisko klikalności. Rozstrzyga sprawdzenie `innerWidth` PRZED odczytem —
+  zrzut ekranu wystawia kartę na wierzch i przywraca układ.
+- **`AnimatePresence mode="wait"` nie kończy przejścia przy zamrożonym `rAF`**,
+  więc przełączenie widoku na Dzień zostawia siatkę miesiąca w połowie
+  wygaszenia i nowy widok NIE montuje się wcale. Podmiana
+  `window.requestAnimationFrame` na `setTimeout` **nie pomaga** — framer-motion
+  trzyma własną referencję. Obejściem był podgląd dnia (`Popover`), który stoi
+  poza tym przejściem, i to w nim zmierzono ikony.
+- **Konsola znowu pokazywała błąd składni długo po naprawie** (bufor
+  skumulowany, wskazywał linię 1193 z nieistniejącego już stanu pliku).
+  Rozstrzygnęło: aktualna treść pliku + `tsc` czysto + strona 200 + menu
+  kontekstowe otwierające się na ekranie z trzema właściwymi pozycjami.
+- **Odczyt `.disabled` przez referencję pobraną PRZED zmianą stanu kłamie** —
+  to ten sam węzeł DOM, więc pokazuje stan PO. Przycisk „Wyczyść odpowiedzi"
+  wyglądał na niewyszarzony; rozstrzygnął pomiar po świeżym przeładowaniu.
+- **Stempel wersji apki blokuje build**, dopóki nie odpowiada rewizji
+  repozytorium — `Skrypty/stempel-wersji.sh` PRZED `xcodebuild`, jak w briefie.

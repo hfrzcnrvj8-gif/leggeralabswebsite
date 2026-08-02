@@ -10953,3 +10953,152 @@ z tego pola już korzystają.
 `-m-1.5 p-1.5` jak w Module 66, **ale znak typograficzny bywa za wąski na sam
 padding**: „⤢" miał 6×17 px, więc dostał jawne `h-6 w-6` z centrowaniem.
 Próg 24×24 (WCAG 2.5.8).
+
+---
+
+## Audyt Kalkulatora i Kalendarza (2026-08-02)
+
+Domknięcie tabeli Modułu 59 — ostatnie dwa wiersze. Pełny wynik i pomiary:
+`docs/plany-modulow/51-audyt-uiux-panel-i-apka.md` → „Stan po module Kalkulator
+i Kalendarz"; rachunek całej listy jako narzędzia: `59-spojnosc-ui.md`,
+sekcja „Domknięcie tabeli".
+
+### `PATCH /api/events/:id` jest TRÓJFAZOWY — ostatnia taka trasa w panelu
+
+Kształt wszystkich pól → reguły zależne od stanu w bazie → dopiero zapisy.
+
+**Uzasadnienie:** sprawdzenie daty stało w środku ciągu `UPDATE`-ów, więc ciało
+`{"tytul":"PO","data":"0202-01-01"}` zapisywało tytuł i oddawało 400 — panel
+pisał „Nie udało się zaktualizować wydarzenia", a zmiana częściowo weszła.
+Neon nie ma transakcji w kliencie HTTP, więc atomowość bierze się stąd, że po
+pierwszym zapisie nie ma już czego odrzucić. Ten sam podział mają Przypomnienia
+(Moduł 66) i Notatnik; **żadna nowa trasa PATCH nie ma prawa go nie mieć.**
+
+### `EVENT_LIMITS` i czytniki pól w `lib/events.ts`
+
+`odczytajTekstWydarzenia` (tekst albo `null`), `odczytajOpcjonalnyTekst`
+(data/godzina/klucz cyklu/id powiązania) i `odczytajLiczbeWydarzenia`
+(skala z jawnym zakresem) — rodzina `odczytajTekst()` z Notatnika
+i `odczytajOpcjonalna()` z Przypomnień.
+
+**Uzasadnienie:** POST i PATCH miały własne reguły i różniły się w OBIE strony
+— POST tnął tytuł na 300 znaków po cichu, PATCH nie tnął wcale (przyjął 5000),
+POST traktował literówkę w kluczu cyklu jako „bez powtarzania", a PATCH jako
+skasowanie serii. Dziś obie trasy czytają pola tym samym kodem, a przekroczenie
+sufitu to 400 z liczbą znaków, nie `slice()`.
+
+### Śmieć w polu liczbowym to 400, nie `null`
+
+`{"alert_minut_przed":"pietnascie"}` i `{"czas_trwania_min":99999}` odpowiadały
+`{"ok":true}` i ZDEJMOWAŁY wartość.
+
+**Uzasadnienie:** w polu, które steruje powiadomieniem, cicha zamiana śmiecia
+na „nigdy" jest najgorszą z możliwych podmian — powiadomienie po prostu nie
+przychodzi i nikt nie wie dlaczego. Ta sama lekcja, co przy `priorytet`
+w Module 66 i `termin` w Przypomnieniach.
+
+### Warunek w `WHERE` to CICHA ODMOWA, nie zabezpieczenie
+
+`powtarzanie_do` zapisywało się przez `... WHERE id = $1 AND powtarzanie IS NOT
+NULL`, więc na wydarzeniu jednorazowym `UPDATE` nie zmieniał nic, a trasa
+odpowiadała „zapisano".
+
+**Uzasadnienie:** cicha odmowa jest w skutkach tym samym, co cicha podmiana —
+użytkownik widzi „zapisano" i wierzy w stan, którego nie ma. Reguła stoi dziś
+w kodzie trasy, sprawdzana na stanie PO patchu (nie na punkcie wyjścia), i
+zwraca 400 z powodem.
+
+### Ta sama reguła musi stać w POST **i** w PATCH
+
+`data_koniec < data` było sprawdzane wyłącznie przy tworzeniu.
+
+**Uzasadnienie:** edycją dało się zrobić wydarzenie kończące się przed swoim
+początkiem, a `expandEventDays()` cicho sprowadzało je z powrotem do jednego
+dnia — koniec po prostu znikał, bez błędu i bez śladu.
+
+### `MenuWydarzeniaContext` — menu kontekstowe przez kontekst, nie prop
+
+`app/[lang]/admin/calendar/CalendarView.tsx`, bliźniak istniejącego
+`InviteContext`. Kalendarz był **ostatnim modułem panelu bez `useContextMenu`**.
+
+**Uzasadnienie:** wydarzenie rysują trzy komponenty na trzech poziomach
+zagnieżdżenia (pastylka miesiąca, wiersz agendy, blok siatki godzin), a żaden
+z pośrednich nie ma nic wspólnego z menu — przewleczenie propa byłoby szumem
+w pięciu sygnaturach. Menu wisi na WYDARZENIU, nie na komórce dnia: dzień ma
+jedną akcję, a menu należy się rekordowi z więcej niż jedną.
+
+### Kalendarz ma WŁASNY słownik klawiszy i to jest w porządku
+
+`←`/`→` (poprzedni i następny okres), `t` (dziś), `1`/`2`/`3`
+(miesiąc/tydzień/dzień). Bez `/` i bez `j`/`k`.
+
+**Uzasadnienie:** siatka dni nie ma liniowej listy wierszy, po której kursor
+miałby chodzić, a `/` bez pola szukania byłby martwym skrótem — martwy skrót
+jest tym samym, co martwy przycisk (reguła z paczki C). Klawisze odpowiadają
+jeden do jednego widocznym przyciskom paska. **To jest ta sama kategoria, co
+cyfry statusu w Leadach i `r`/`f`/`e` w Poczcie**, którą `klawiatura.ts`
+świadomie zostawia modułom.
+
+### Chord `g d` — Kalkulator
+
+`AppShell.tsx` → `GO_CHORDS`. „d" jak dobór, bo „k" należy do Klientów.
+Katalog, Przypomnienia i Zdrowie chordu dalej NIE mają — zmierzone, świadomie
+nietknięte.
+
+### Ekran bez rekordu też należy do palety poleceń
+
+Kalkulator rejestruje „Eksportuj rekomendację (PDF)" i „Wyczyść odpowiedzi",
+**bez pozycji `id: "add"`**.
+
+**Uzasadnienie:** moduł wnosił do `⌘K` zero, więc obie jego akcje były
+wyłącznie pod myszą. `id: "add"` odpada, bo skrót `n` jest w `AppShell`
+przypisany na sztywno właśnie do tej pozycji, a tu nie ma czego dodawać.
+
+### Ankieta wypełniona wartościami wyjściowymi MUSI się do tego przyznać
+
+`KalkulatorDashboard.tsx` → flaga `dotknieto`. Panel pisze „ankieta jeszcze
+nietknięta", a wydruk zamiast „DLA KLIENTA" dostaje nagłówek „WARTOŚCI
+WYJŚCIOWE — ANKIETY NIE WYPEŁNIONO".
+
+**Uzasadnienie:** ekran od pierwszej sekundy pokazuje komplet z ceną, a
+„Eksportuj PDF" robił z tego dokument z dzisiejszą datą — dokument, który
+wychodzi na zewnątrz i twierdzi, że rozmowa się odbyła. Flaga, a nie
+porównanie z `DOMYSLNE_WEJSCIE`: kolejność w `zadania` zmienia się przy
+odznaczaniu, więc porównanie mówiłoby „wypełnione" przy dokładnie domyślnych
+odpowiedziach.
+
+### `znormalizuj()` w `lib/dobor.ts` — jedne liczby dla wyniku i dla wydruku
+
+**Uzasadnienie:** `dobierz()` liczyło z `min(szczyt, użytkownicy)`, a
+`opisKlienta()` z surowego `szczyt`, więc wydruk DLA KLIENTA potrafił mówić
+„5 użytkowników (50 równoczesnych)" nad rekomendacją policzoną dla pięciu —
+Tier 2 i 50–80 tys. zł zamiast Tier 3 i 153–256 tys. Dokument przeczył sam
+sobie o trzykrotność ceny, a pole formularza dalej pokazywało 50, więc nic tego
+nie zdradzało. Samo przycięcie zostawia dziś **ostrzeżenie w notatkach**: cicha
+podmiana zamieniona na widoczny ślad. Ta sama poprawka poszła do apki
+(`KalkulatorDoboruView.swift`) — moduły są bliźniakami.
+
+### Apka: Kalendarz odzywa się haptyką, Kalkulator milczy świadomie
+
+`AppStore.swift` — sygnał PO odpowiedzi serwera, w pięciu miejscach: dodanie,
+zapis, przesunięcie godziny, usunięcie wydarzenia, usunięcie uczestnika.
+Odmowa własnej bramki („koniec przed początkiem") wibruje tak samo jak odmowa
+serwera.
+
+**Uzasadnienie:** cały moduł MILCZAŁ — trzeci raz z rzędu ten sam brak
+(Przypomnienia, Notatnik, Kalendarz) przy ~60 sygnałach w reszcie sklepu.
+Kalkulator zostaje cichy, bo nie zmienia żadnych danych, a `Dotyk` mówi wprost:
+haptykę dostaje zmiana danych wywołana palcem, przeglądanie milczy.
+
+### Artefakt narzędzia: `innerWidth: 0` udaje znalezisko klikalności
+
+Gdy karta podglądu nie jest na wierzchu, `innerWidth` bywa zerem, a wtedy
+`getBoundingClientRect` zwraca szerokości ściśnięte przez `flex-shrink`:
+przyciski `h-6 w-6` mierzą się jako 17×24, komórki dnia jako 12 px.
+
+**Uzasadnienie zapisu:** wygląda to dokładnie jak prawdziwy problem z celem
+dotykowym. Sprawdzaj `innerWidth` PRZED odczytem rozmiarów; zrzut ekranu
+wystawia kartę na wierzch i przywraca układ. Osobno: `AnimatePresence
+mode="wait"` przy zamrożonym `rAF` **nie montuje nowego widoku wcale**,
+a podmiana `window.requestAnimationFrame` na `setTimeout` nie pomaga —
+framer-motion trzyma własną referencję.

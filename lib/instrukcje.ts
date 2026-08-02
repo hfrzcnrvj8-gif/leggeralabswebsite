@@ -56,7 +56,7 @@ export const WSTEP = {
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Na razie opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury, Katalog, Koszty oraz Poczta — moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Kolejne dopisujemy tu po domknięciu każdego z nich, więc ten spis rośnie razem z aplikacją.",
+    "Opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury, Katalog, Koszty, Poczta, Przypomnienia, Notatnik, Kalendarz i Kalkulator doboru — czyli wszystkie moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Poza spisem zostaje Zdrowie systemu, ekran wyłącznie diagnostyczny.",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -1234,6 +1234,188 @@ export const MODULY: ModulInstrukcji[] = [
       { tytul: "n albo ⌘N", opis: "Kursor do pola nowej notatki." },
       { tytul: "Cmd+Enter", opis: "Zapisuje notatkę wpisywaną w polu na górze, bez sięgania po przycisk." },
       { tytul: "Prawy przycisk myszy", opis: "Menu kafelka: otwórz, przypnij, przekuj w projekt, archiwum, usuń (tylko z archiwum)." },
+    ],
+  },
+
+  /* ───────────────────────────── KALENDARZ ──────────────────────────── */
+  {
+    id: "kalendarz",
+    nazwa: "Kalendarz",
+    gdzie: "Panel: menu po lewej → Kalendarz (albo „g” a potem „c”). Telefon: zakładka Kalendarz. iPad: pasek boczny.",
+    poCoTo:
+      "Jedno miejsce, w którym widać CZAS: spotkania, które umówiłeś, oraz terminy, które wynikają z reszty panelu — płatności faktur, kamienie milowe projektów, oddzwonienia do leadów, przypomnienia. Wpisujesz tu tylko pierwsze; resztę kalendarz zbiera sam.",
+    kiedy:
+      "Przed umówieniem czegokolwiek („czy mam wtedy wolne?”) i rano, żeby zobaczyć dzień. Rzecz bez godziny i miejsca należy do Przypomnień, luźna myśl — do Notatnika.",
+    kroki: [
+      {
+        tytul: "1. Wybierz widok: Miesiąc, Tydzień albo Dzień",
+        opis:
+          "Przełącznik u góry po lewej, albo cyfry 1 / 2 / 3 z klawiatury. Miesiąc pokazuje, gdzie jest gęsto; Tydzień i Dzień mają siatkę godzin, w której wydarzenia można przeciągać.",
+      },
+      {
+        tytul: "2. Poruszaj się strzałkami, wracaj „t”",
+        opis:
+          "Strzałki ← i → przesuwają o okres widoku (miesiąc, tydzień albo dzień). „t” wraca na dziś — to te same trzy przyciski, co na pasku.",
+      },
+      {
+        tytul: "3. Kliknij dzień, żeby zobaczyć jego zawartość",
+        opis:
+          "Otwiera się lekki podgląd zakotwiczony przy komórce, nie pełny ekran. Strzałki ‹ / › w jego nagłówku przerzucają dni bez zamykania okienka.",
+      },
+      {
+        tytul: "4. Dodaj wydarzenie zdaniem, nie formularzem",
+        opis:
+          "Pole „Nowe wydarzenie…” rozumie zapis typu „jutro 14:00 call z klientem” — datę i godzinę wyciąga sam, resztę zostawia jako tytuł. Skrót „n” otwiera to pole (jeśli trzeba, najpierw przełącza na widok dnia).",
+      },
+      {
+        tytul: "5. Powiąż spotkanie z klientem, leadem albo projektem",
+        opis:
+          "Kontrolki „Klient / lead” i „Projekt” pod polem tytułu. Jedno wydarzenie ma JEDNO powiązanie — wybór klienta zdejmuje lead i projekt. Dzięki temu spotkanie widać potem w profilu tamtego rekordu.",
+      },
+      {
+        tytul: "6. Zaproś klienta kopertą",
+        opis:
+          "Ikona koperty przy wydarzeniu wysyła prawdziwe zaproszenie kalendarzowe (.ics), które wpada do Apple lub Google Calendar odbiorcy. Przy wydarzeniu pojawia się wtedy licznik „ilu potwierdziło”.",
+      },
+      {
+        tytul: "7. Przeciągnij, żeby przenieść",
+        opis:
+          "W miesiącu przeciągnięcie zmienia dzień, w siatce godzin — dzień i godzinę (z dokładnością do 15 minut). Wydarzenia z serii są z gestu wyłączone celowo: przesunęłyby CAŁĄ serię.",
+      },
+      {
+        tytul: "8. Podłącz kalendarz do telefonu — „Subskrybuj”",
+        opis:
+          "Przycisk na pasku daje adres, który wkleja się w Apple albo Google Calendar. Od tej chwili wydarzenia z panelu widać w systemowym kalendarzu bez logowania.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Terminy z innych modułów wchodzą tu SAME",
+        opis:
+          "Płatność faktury, kamień milowy projektu, oddzwonienie do leada, przypomnienie z terminem — nikt ich tu nie wpisuje. Kolorem idzie PILNOŚĆ (jak blisko albo jak długo po terminie), a rodzaj wpisu niesie ikona. Lista rodzajów stoi w panelu po lewej.",
+      },
+      {
+        tytul: "Wydarzenie powtarzalne to JEDEN wpis, nie kopie",
+        opis:
+          "Seria siedzi w bazie jako jeden wzorzec z regułą („co tydzień do 31 grudnia”), a kolejne wystąpienia rysują się z niej w locie. Dlatego edycja dotyczy całej serii — wyjątek jest tylko przy usuwaniu, gdzie panel pyta: ta okazja czy cała seria.",
+      },
+      {
+        tytul: "Odmowa zapisu nie zostawia połowy zmian",
+        opis:
+          "Zapis wydarzenia najpierw sprawdza WSZYSTKIE pola, a dopiero potem cokolwiek zapisuje. Jeśli data jest niemożliwa, nie zapisze się też tytuł — komunikat „nie udało się” znaczy dokładnie tyle, że nie weszło nic.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Usunięcie spotkania NIE odwołuje go u zaproszonych",
+        opis:
+          "U nich zostaje w kalendarzu, dopóki nie wyślesz odwołania (koperta → „Odwołaj spotkanie”). Panel ostrzega o tym w oknie potwierdzenia, ale to najłatwiejszy sposób, żeby ktoś przyjechał na odwołane spotkanie.",
+      },
+      {
+        tytul: "Edycja wystąpienia serii zmienia CAŁĄ serię",
+        opis:
+          "Kliknięcie w konkretny czwartek i zmiana godziny przestawia wszystkie czwartki. Jeśli chodzi o jeden raz — usuń tę okazję i dodaj osobne wydarzenie.",
+      },
+      {
+        tytul: "Kalendarz nie ma szukania ani chodzenia po liście",
+        opis:
+          "Nie ma tu „/” ani j/k, bo nie ma listy wierszy, po której kursor miałby chodzić — zamiast tego klawisze odpowiadają przyciskom paska. Wydarzenia szukaj paletą ⌘K.",
+      },
+      {
+        tytul: "Wydarzenie całodniowe to takie BEZ godziny",
+        opis:
+          "Zostawienie pustej godziny nie jest brakiem danych — tak zapisuje się urlop czy wyjazd. Takie wpisy stoją w pasku nad siatką godzin, nie w niej.",
+      },
+    ],
+    skroty: [
+      { tytul: "1 / 2 / 3", opis: "Przełącza widok: Miesiąc, Tydzień, Dzień." },
+      { tytul: "← / →", opis: "Poprzedni i następny okres — to samo, co „◀ ▶” na pasku." },
+      { tytul: "t", opis: "Wraca na dziś." },
+      { tytul: "n", opis: "Kursor do pola „Nowe wydarzenie…” (przełącza na widok dnia, jeśli trzeba)." },
+      { tytul: "g potem c", opis: "Skok do Kalendarza z dowolnego miejsca panelu." },
+      { tytul: "Prawy przycisk myszy", opis: "Menu wydarzenia: otwórz, wyślij zaproszenie, usuń." },
+    ],
+  },
+
+  /* ──────────────────────────── KALKULATOR ──────────────────────────── */
+  {
+    id: "kalkulator",
+    nazwa: "Kalkulator doboru",
+    gdzie: "Panel: menu po lewej → Kalkulator (albo „g” a potem „d”). Telefon i iPad: zakładka „Więcej” → Kalkulator doboru.",
+    poCoTo:
+      "Zamienia odpowiedzi klienta na konkretną rekomendację sprzętu pod lokalny model językowy: kartę i VRAM, RAM, dyski, NAS, UPS, sieć oraz widełki kosztu. To punkt wyjścia do wyceny, nie wiążąca specyfikacja.",
+    kiedy:
+      "W trakcie rozmowy rozpoznawczej albo tuż po niej — zanim powstanie oferta. Wynik da się wydrukować jako jednostronicowy dokument w stylu oferty i wysłać jako PDF.",
+    kroki: [
+      {
+        tytul: "1. Przejdź ankietę od góry",
+        opis:
+          "Pięć sekcji: skala, model i zadania, dane do RAG, niezawodność, to co klient już ma. Wynik po prawej przelicza się na żywo, przy każdej zmianie — nie ma przycisku „policz”.",
+      },
+      {
+        tytul: "2. Podaj OBIE liczby użytkowników",
+        opis:
+          "„Użytkownicy łącznie” to ile osób ma dostęp, „Szczyt” — ilu naraz w godzinie największego ruchu. Drugie napędza liczbę i moc kart, więc jest ważniejsze dla ceny.",
+      },
+      {
+        tytul: "3. Rozmiar modelu zostaw na „Auto”, dopóki nie wiesz lepiej",
+        opis:
+          "Auto dobiera wielkość z priorytetu i zadań (kodowanie i długie dokumenty podnoszą minimum). Ręczny wybór jest po to, żeby sprawdzić „a gdyby”.",
+      },
+      {
+        tytul: "4. Zaznacz, co klient już ma",
+        opis:
+          "NAS, sieć, UPS. Zaznaczone znika z wyceny i pojawia się w notatkach jako „do reużycia — odejmij”.",
+      },
+      {
+        tytul: "5. Przeczytaj notatki pod wynikiem",
+        opis:
+          "To one tłumaczą dobór: skąd tyle VRAM-u, dlaczego dwie karty, co zrobić przy spadku płynności. Kropka przy notatce mówi, czy to informacja, ostrzeżenie, czy dobra wiadomość.",
+      },
+      {
+        tytul: "6. Wydrukuj albo zapisz jako PDF",
+        opis:
+          "„Eksportuj PDF (styl oferty)” otwiera okno druku z jednostronicowym dokumentem: nagłówek marki, odpowiedzi klienta, tabela sprzętu, koszt i uzasadnienie doboru.",
+      },
+      {
+        tytul: "7. Przed kolejną rozmową wyczyść odpowiedzi",
+        opis:
+          "„Wyczyść odpowiedzi” przywraca wartości wyjściowe. Przycisk jest wyszarzony, dopóki niczego nie zmieniłeś.",
+      },
+    ],
+    automaty: [
+      {
+        tytul: "Wszystko liczy się z zapasem, deterministycznie",
+        opis:
+          "Bez żadnego modelu AI — to zwykłe reguły: VRAM = wagi modelu × narzut na kontekst i równoległość × 1,15; RAM ≥ 2× VRAM; UPS ≥ 1,4× poboru mocy; pojemności zaokrąglane w górę. Te same reguły liczą w panelu i w apce.",
+      },
+      {
+        tytul: "Nierealne odpowiedzi są przycinane, ale nie po cichu",
+        opis:
+          "Jeśli „równoczesnych” wyjdzie więcej niż użytkowników łącznie, wynik liczy się dla liczby użytkowników — i mówi o tym ostrzeżeniem w notatkach. Ten sam przycięty zestaw liczb trafia do wydruku, więc dokument nie może przeczyć samemu sobie.",
+      },
+    ],
+    pulapki: [
+      {
+        tytul: "Ankieta startuje wypełniona — to NIE są odpowiedzi klienta",
+        opis:
+          "Zanim czegokolwiek dotkniesz, po prawej stoją wartości wyjściowe i kompletna rekomendacja. Panel pisze o tym wprost, a wydruk zamiast „DLA KLIENTA” dostaje nagłówek „WARTOŚCI WYJŚCIOWE — ANKIETY NIE WYPEŁNIONO”, żeby przypadkowy PDF nie udawał ustaleń z rozmowy.",
+      },
+      {
+        tytul: "Ceny to widełki, nie oferta",
+        opis:
+          "Rozrzut na 2026 rok, do potwierdzenia u dostawcy. Ostateczny dobór potwierdza się testem modelu na danych klienta — dopiero to jest podstawa do wyceny.",
+      },
+      {
+        tytul: "Kalkulator niczego nie zapisuje",
+        opis:
+          "Nie ma tu rekordów, historii ani powiązania z klientem. Wynik żyje do przeładowania strony — jeśli ma zostać, wydrukuj go albo przenieś do oferty.",
+      },
+    ],
+    skroty: [
+      { tytul: "g potem d", opis: "Skok do Kalkulatora z dowolnego miejsca panelu („d” jak dobór — „k” należy do Klientów)." },
+      { tytul: "⌘K / Ctrl+K", opis: "Paleta poleceń zna dwie akcje tego ekranu: „Eksportuj rekomendację (PDF)” i „Wyczyść odpowiedzi”." },
+      { tytul: "Tab", opis: "Cała ankieta przechodzi się klawiaturą — pola, listy i pigułki zadań są zwykłymi kontrolkami. Nie ma tu „/” ani j/k, bo nie ma listy rekordów." },
     ],
   },
 ];
