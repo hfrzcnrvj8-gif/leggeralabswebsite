@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
+import { projektPoPodpisieUmowy } from "@/lib/przepisanie";
+import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -31,6 +33,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // (audyt Modułu 11; ten sam błąd Moduł 58 naprawił po stronie apki).
   const label = CONTRACT_TYP_LABEL[contract.typ as ContractTyp] ?? "Umowa";
   await logClientEvent(sql, clientId, "contract_signed", `Podpis odnotowany ręcznie — ${label.toLowerCase()}`, null, id);
+
+  // Podpisana umowa = formalny start pracy (luka B6). Projekt dostaje daty
+  // z umowy i wychodzi z „Planowania". Wspólne z publiczną drogą podpisu —
+  // patrz lib/przepisanie.ts.
+  await projektPoPodpisieUmowy(sql, contract, todayLocalISO());
 
   return NextResponse.json({ ok: true });
 }

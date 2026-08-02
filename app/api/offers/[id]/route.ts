@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
 import { OFFER_LANGS, isOfferStatus, isOfferCurrency, isOfferRejectReason, rejectReasonLabel } from "@/lib/offers";
 import { blokadaOferty, POLA_MIMO_BLOKADY_OFERTY, ruszaTresc } from "@/lib/blokadaDokumentu";
+import { czasRealizacjiTygodnie, naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const rows = await sql`SELECT * FROM offers WHERE id = ${id};`;
   const offer = rows[0];
   if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // Dociągnięcie poprawek z karty klienta, DOPÓKI oferta jest szkicem
+  // (decyzja właściciela 2026-08-02, Faza 1). Po wysyłce nic już nie rusza —
+  // dokument „u klienta" ma zostać tym, co klient dostał. „Poszło do klienta"
+  // rozstrzyga `wyslana_at`, nie token ani status (lekcja z Fazy 0b).
+  const swiezeDane = await odswiezDaneKlientaWSzkicu(sql, "oferta", offer, {
+    szkic: !offer.wyslana_at && !offer.accepted_at,
+  });
+  if (swiezeDane) Object.assign(offer, naKolumnyDokumentu(swiezeDane));
+
   const items = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
   const sections = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
   const contracts = await sql`
@@ -154,6 +165,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const v = dateOrNull(body.wazna_do);
       if (v === undefined) return NextResponse.json({ error: "invalid wazna_do" }, { status: 400 });
       await sql`UPDATE offers SET wazna_do = ${v}, updated_at = now() WHERE id = ${id};`;
+    }
+    // Czas realizacji w tygodniach (luka B5) — przycinany, nie odrzucany:
+    // to pole podpowiadające, nie kwota. Patrz czasRealizacjiTygodnie().
+    if ("czas_realizacji_tygodnie" in body) {
+      const v = czasRealizacjiTygodnie(body.czas_realizacji_tygodnie);
+      await sql`UPDATE offers SET czas_realizacji_tygodnie = ${v}, updated_at = now() WHERE id = ${id};`;
     }
 
     return NextResponse.json({ ok: true });

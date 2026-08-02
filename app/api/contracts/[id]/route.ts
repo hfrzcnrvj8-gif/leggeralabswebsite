@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaStatusuUmowy, blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc } from "@/lib/blokadaDokumentu";
+import { naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
 import { isPlausibleDateString } from "@/lib/projects";
 import { DOC_LANGS } from "@/lib/documents";
 import {
@@ -34,6 +35,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const rows = await sql`SELECT * FROM contracts WHERE id = ${id};`;
   const contract = rows[0];
   if (!contract) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // Dociągnięcie poprawek z karty klienta, dopóki dokument nie poszedł do
+  // drugiej strony i nie jest podpisany (Faza 1, decyzja właściciela
+  // 2026-08-02). O „poszło" rozstrzyga `sent_at`, o podpisie `accepted_at` —
+  // status jest polem wolnym mimo blokady, więc nie może o tym decydować
+  // (ta sama lekcja, co przy blokadzie umowy w audycie Modułu 11).
+  const swiezeDane = await odswiezDaneKlientaWSzkicu(sql, "umowa", contract, {
+    szkic: !contract.sent_at && !contract.accepted_at,
+  });
+  if (swiezeDane) Object.assign(contract, naKolumnyDokumentu(swiezeDane));
+
   // Aneks NIE dostaje przedruku klauzul (audyt Modułu 11). Na wydruku ich nie
   // ma świadomie — obowiązują dalej z umowy-matki, a przedruk sugerowałby, że
   // aneks je zastępuje. Trasa jednak oddawała pełne `CONTRACT_CLAUSES` także

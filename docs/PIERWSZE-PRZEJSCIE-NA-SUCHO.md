@@ -4,6 +4,16 @@
 dev-login). **Punkt startu:** `635f737`. **Nic nie zostało naprawione** — to
 jest lista, nie zestaw poprawek.
 
+> **Ten dokument jest MIGAWKĄ z 2026-08-02 i celowo się go nie aktualizuje.**
+> Aktualny stan każdego znaleziska mówią dwa źródła, które nie potrafią się
+> zestarzeć, bo sprawdzają dane: `npm run przejscie` (znaczniki `luka`
+> w `scripts/przejscie/przejscie.ts`) i ekran *Zdrowie*. Postęp prac opisuje
+> `docs/PLAN-ZAPLECZE.md`.
+>
+> Stan na 2026-08-02, po Fazie 1: **B1–B6 zamknięte.** Otwarte zostają A1–A5
+> (Faza 2), C1–C4 (Faza 3), D1–D4 (Faza 4), E i F (Faza 5) oraz G (do
+> rozstrzygnięcia osobno).
+
 ## Co zostało przeprowadzone
 
 Wymyślony klient: **Drukarnia Helios sp. z o.o.** (Kraków, poligrafia), osoba

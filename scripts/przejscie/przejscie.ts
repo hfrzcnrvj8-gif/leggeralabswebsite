@@ -92,6 +92,12 @@ const pominiete: string[] = [];
  * Robi ręcznie to, co panel powinien zrobić sam — żeby droga mogła iść dalej
  * i żeby dało się przetestować wszystko ZA luką.
  *
+ * **Od Fazy 1 nieużywane i to jest wynik, nie martwy kod**: jedyne obejście
+ * (dopisywanie e-maila klienta do oferty, skutek luki B1) zniknęło razem
+ * z luką. Zostawiamy mechanizm, bo kolejne fazy planu mogą go potrzebować,
+ * a licznik `↻ obejścia` ma pokazywać zero jako ZMIERZONE, nie jako brak
+ * pomiaru.
+ *
  * Liczba obejść to osobny wynik przejścia: mówi, ile razy właściciel musi
  * załatać przepływ palcami, zanim dojdzie od leada do zapłaconej faktury.
  */
@@ -218,19 +224,40 @@ async function przejscie(): Promise<void> {
     klient1?.email === "m.zielinska@drukarniahelios.pl" && klient1?.miasto === "Kraków"
   );
 
-  // ── TU siedzi B1 ──
+  // ── B1 zamknięte w Fazie 1 (lib/przepisanie.ts) ──
   sprawdz(
     "dokument oferty dostaje adres klienta, nie samą nazwę",
     !!o1.offer.klient_ulica && !!o1.offer.klient_miasto,
-    "B1",
+    undefined,
     `klient_ulica="${o1.offer.klient_ulica}" klient_miasto="${o1.offer.klient_miasto}" — karta klienta ma komplet`
   );
   sprawdz(
     "dokument oferty dostaje e-mail klienta",
     !!o1.offer.klient_email,
-    "B1",
+    undefined,
     `klient_email="${o1.offer.klient_email}"`
   );
+
+  // Odświeżanie danych w SZKICU (decyzja właściciela 2026-08-02): poprawka na
+  // karcie klienta ma dogonić dokument, dopóki ten nie poszedł do klienta.
+  // Sprawdzamy powód, nie kod — zmieniamy JEDNO pole i patrzymy, czy to
+  // dokładnie ono się przeniosło.
+  if (klientId) {
+    await api("PATCH", `/api/clients/${klientId}`, { ulica: "ul. Nadwiślańska 14 lok. 3" });
+    const oPoPoprawce = await pobierzOferte(ofertaId!);
+    sprawdz(
+      "poprawka adresu na karcie klienta dogania ofertę-szkic",
+      oPoPoprawce.offer.klient_ulica === "ul. Nadwiślańska 14 lok. 3",
+      undefined,
+      `na ofercie: "${oPoPoprawce.offer.klient_ulica}"`
+    );
+  } else {
+    pominiete.push("odświeżanie danych klienta w szkicu — oferta nie dostała karty klienta");
+  }
+
+  // Czas realizacji — od tego zależy termin umowy i projektu (luka B5).
+  // Wpisany RAZ, tutaj; dalej nikt go już nie podaje z palca.
+  await api("PATCH", `/api/offers/${ofertaId}`, { czas_realizacji_tygodnie: 4 });
 
   // Pozycje — bez nich nie ma czego fakturować.
   for (const p of [
@@ -246,20 +273,17 @@ async function przejscie(): Promise<void> {
   // ── 4. Wysyłka ─────────────────────────────────────────────────────────
   krok("Wysyłka oferty");
 
-  // Bez tego wysyłka odbija się o brak maila (skutek B1) i cała droga za nią
-  // zostaje nieprzetestowana. Właściciel musi zrobić dokładnie to samo:
-  // otworzyć picker klienta i wybrać PONOWNIE tego samego, już wybranego.
+  // Do Fazy 1 stało tu obejście: ręczne dopisanie e-maila klienta, bo bez
+  // niego wysyłka odbijała się o własną bramkę (skutek B1) i cała droga za
+  // nią zostawała niesprawdzona. Zostaje asercja, która pilnuje, żeby to
+  // obejście nie musiało wrócić.
   const przedWysylka = await pobierzOferte(ofertaId!);
-  if (!przedWysylka.offer.klient_email) {
-    await obejscie("B1", "ręczne dopisanie e-maila klienta do dokumentu oferty", async () => {
-      await api("PATCH", `/api/offers/${ofertaId}`, {
-        klient_email: "m.zielinska@drukarniahelios.pl",
-        klient_ulica: "ul. Nadwiślańska 14",
-        klient_kod: "30-701",
-        klient_miasto: "Kraków",
-      });
-    });
-  }
+  sprawdz(
+    "oferta jest gotowa do wysyłki bez dopisywania czegokolwiek ręcznie",
+    !!przedWysylka.offer.klient_email,
+    undefined,
+    "bez maila klienta wysyłka odbija się o własną bramkę"
+  );
 
   const wyslana = await api("POST", `/api/offers/${ofertaId}/send`);
   wymagaj(wyslana.status === 200, `wysyłka → ${wyslana.status} ${JSON.stringify(wyslana.dane)}`);
@@ -316,22 +340,34 @@ async function przejscie(): Promise<void> {
     `next_followup = ${lead3.next_followup}, next_action = „${lead3.next_action}”`
   );
 
-  // ── TU siedzi B2 ──
+  // ── B2 zamknięte w Fazie 1 ──
   const f1 = await pobierzFakture(fakturaId);
   sprawdz(
     "faktura z oferty dostaje e-mail nabywcy",
     !!f1.invoice.klient_email,
-    "B2",
+    undefined,
     `klient_email="${f1.invoice.klient_email}" — a to dokument, który się WYSYŁA mailem`
   );
+  sprawdz(
+    "faktura z oferty dostaje też adres nabywcy",
+    !!f1.invoice.klient_ulica && !!f1.invoice.klient_miasto,
+    undefined,
+    `ulica="${f1.invoice.klient_ulica}" miasto="${f1.invoice.klient_miasto}"`
+  );
 
-  // ── TU siedzi B6 ──
+  // ── B6 zamknięte w Fazie 1 ──
   const p1 = await pobierzProjekt(projektId);
   sprawdz(
     "projekt ze sprzedanego zlecenia nie stoi w „Pomysł”",
     p1.project.status !== "Pomysł",
-    "B6",
+    undefined,
     `status = ${p1.project.status}`
+  );
+  sprawdz(
+    "projekt nie nazywa się od słowa „Oferta”",
+    !/^oferta\s*[—–-]/i.test(String(p1.project.tytul ?? "")),
+    undefined,
+    `tytuł projektu = „${p1.project.tytul}”`
   );
 
   // ── 6. Umowa ───────────────────────────────────────────────────────────
@@ -344,20 +380,21 @@ async function przejscie(): Promise<void> {
   sprawdz("umowa przepisuje zakres prac z pozycji oferty", (u1.zakres_prac ?? "").includes("Audyt procesów i danych"));
   sprawdz("umowa przepisuje kwotę z oferty", Number(u1.cena) === 8000);
 
-  // ── TU siedzi B5 ──
+  // ── B5 zamknięte w Fazie 1 ──
+  // Oferta podała 4 tygodnie od akceptacji; umowa ma z tego policzyć datę.
   sprawdz(
-    "umowa dostaje termin realizacji",
-    !!u1.termin_realizacji,
-    "B5",
-    "sekcja „Terminy” z oferty nie przechodzi — termin wpisuje się drugi raz"
+    "umowa dostaje termin realizacji policzony z czasu podanego w ofercie",
+    String(u1.termin_realizacji ?? "").slice(0, 10) === zaDni(28),
+    undefined,
+    `termin_realizacji = ${u1.termin_realizacji}, spodziewany ${zaDni(28)} (dziś + 4 tyg.)`
   );
 
-  // ── TU siedzi B3 ──
+  // ── B3 zamknięte w Fazie 1 ──
   const f2 = await pobierzFakture(fakturaId);
   sprawdz(
     "faktura wie o umowie po jej wygenerowaniu",
     !!f2.invoice.contract_id,
-    "B3",
+    undefined,
     "faktura pokazuje „umowy — brak —”, choć umowa dotyczy tego samego zlecenia"
   );
 
@@ -382,8 +419,20 @@ async function przejscie(): Promise<void> {
   sprawdz(
     "projekt z podpisanej umowy dostaje termin",
     !!p2.project.termin,
-    "B6",
+    undefined,
     `umowa ma termin_realizacji = ${u2.termin_realizacji}, projekt ma termin = ${p2.project.termin}`
+  );
+  sprawdz(
+    "projekt z podpisanej umowy dostaje datę startu",
+    !!p2.project.start,
+    undefined,
+    `start = ${p2.project.start}`
+  );
+  sprawdz(
+    "podpis umowy formalnie uruchamia projekt",
+    p2.project.status === "W trakcie",
+    undefined,
+    `status = ${p2.project.status}`
   );
 
   // ── 8. Faktura ─────────────────────────────────────────────────────────

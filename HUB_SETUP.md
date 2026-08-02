@@ -11102,3 +11102,98 @@ wystawia kartę na wierzch i przywraca układ. Osobno: `AnimatePresence
 mode="wait"` przy zamrożonym `rAF` **nie montuje nowego widoku wcale**,
 a podmiana `window.requestAnimationFrame` na `setTimeout` nie pomaga —
 framer-motion trzyma własną referencję.
+
+---
+
+## Faza 1 planu zaplecza — jedno przepisanie danych (2026-08-02)
+
+Faza 1 z `docs/PLAN-ZAPLECZE.md`. Zamknęła sześć znalezisk pierwszego
+przejścia „na sucho" (B1–B6) jednym mechanizmem, nie sześcioma łatkami.
+
+### `lib/przepisanie.ts` — jedno miejsce, które wie, jak nazywają się pola
+
+Mapa „dane klienta → kolumny dokumentu" istniała w **pięciu kopiach**:
+`OfferEditor.pickClient`, `InvoiceEditor.pickClient`, gałąź umowy i gałąź DPA
+w `POST /api/contracts`, `acceptOffer`. Każda gubiła co innego — stąd oferta
+z leada bez adresu (B1), faktura bez e-maila nabywcy (B2) i umowa bez terminu
+(B5).
+
+**Dokładając nowy rodzaj dokumentu, dokładasz wpis do `RODZAJE_DOKUMENTU`** —
+nie piszesz przepisywania od nowa. Plik świadomie **nie importuje `lib/db.ts`**
+(przyjmuje `sql` parametrem), żeby dało się go zaimportować także z komponentu
+`"use client"`; inaczej pickery w edytorach musiałyby trzymać szóstą kopię mapy.
+
+Co jest w środku:
+
+- `zKlienta` / `zLeada` / `zDokumentu` — czytanie źródeł do wspólnego kształtu
+  `DaneKlienta`. Karta klienta jest źródłem pierwszego wyboru: **jako jedyna
+  ma NIP**.
+- `naKolumnyDokumentu` — kształt gotowy do `PATCH /api/<moduł>/[id]`.
+- `zapiszDaneKlienta(sql, rodzaj, id, dane)` — jeden `UPDATE` na rodzaj. Trzy
+  jawne gałęzie zamiast nazwy tabeli w zmiennej: `sql` jest tagged template,
+  więc nazwy tabeli nie da się podstawić parametrem, a sklejanie jej ze stringa
+  to droga do wstrzyknięcia.
+- `terminZCzasuRealizacji`, `czasRealizacjiOpis`, `tytulProjektuZOferty`,
+  `projektPoPodpisieUmowy`.
+
+### Kopia czy odczyt — rozstrzygnięte (decyzja właściciela)
+
+**Kopia + auto-odświeżanie, dopóki dokument jest szkicem.** Dokument dostaje
+komplet przy założeniu; póki jest szkicem, `GET /api/{offers,contracts,
+invoices}/[id]` dociąga poprawki z karty klienta (`odswiezDaneKlientaWSzkicu`).
+Od wysyłki nic już nie rusza — dokument „u klienta" ma zostać tym, co klient
+dostał.
+
+Trzy rzeczy, których nie wolno tu zepsuć:
+
+1. **„Szkic" rozstrzygają znaczniki, nie status.** Oferta: `wyslana_at`
+   i `accepted_at`. Umowa: `sent_at` i `accepted_at`. Faktura: `numer`.
+   Status jest polem wolnym mimo blokady (patrz audyt Modułu 11), więc nie
+   może o tym decydować.
+2. **Puste pole karty NIE kasuje** tego, co wpisano ręcznie na dokumencie
+   (`scalDaneKlienta`) — odświeżanie nie może cofać cudzej roboty.
+3. **Zapis tylko przy realnej różnicy** — inaczej zwykły odczyt przestawiałby
+   `updated_at`, po którym idą sortowania i liczniki ciszy.
+
+### Czas realizacji: tygodnie, nie data (B5)
+
+Nowa kolumna `offers.czas_realizacji_tygodnie` (0 = nie podano), karta
+„Realizacja" w edytorze oferty, rubryka na wydruku obok „Ważna do".
+**W tygodniach od akceptacji, nie datą** — tak się realnie mówi klientowi,
+zanim wiadomo, kiedy podpisze. Konkretną datę wylicza dopiero
+`POST /api/contracts` przy generowaniu umowy (dzień akceptacji + N tygodni),
+a projekt dziedziczy ją przy podpisie. Termin wpisuje się RAZ.
+
+Uwaga na przyszłość: `terminZCzasuRealizacji` sprawdza datę przez
+`isPlausibleDateString`, nie własnym `/^\d{4}-/`. Pierwsza wersja miała własny
+wzorzec i przepuszczała rok „0202" (pułapka `<input type="date">`) — czyli
+wpisywała bzdurną datę **na umowę**. Wyszło z testu jednostkowego, nie
+z przejścia i nie z przeglądarki.
+
+### Skutki, które przestały zależeć od tego, kto kliknął
+
+- **Akceptacja oferty** → projekt „Planowanie" (nie „Pomysł" — to zlecenie już
+  sprzedane) i tytuł bez przedrostka „Oferta — ".
+- **Podpis umowy** → projekt „W trakcie" + `start` = dzień podpisu + `termin`
+  z umowy. Wspólne dla obu dróg podpisu (`projektPoPodpisieUmowy`), tym samym
+  precedensem co `lib/offerAccept.ts`. Nie nadpisuje dat wpisanych ręcznie
+  i nie cofa projektu z „Testy"/"Wdrożone"/"Wstrzymane".
+- **Generowanie umowy** dopina `contract_id` wstecz do faktury z tej samej
+  oferty (B3) — tylko tam, gdzie pole jest jeszcze puste.
+
+### Formularz „Nowy lead" (B4)
+
+Doszła sekcja „Kontakt": osoba, telefon, e-mail, miasto, branża — wszystko
+opcjonalne. Trasa `POST /api/leads` przyjmowała te pola od zawsze; brakowało
+wyłącznie miejsca, żeby je podać, więc po telefonie od klienta rekord powstawał
+pusty.
+
+### Jak to jest pilnowane
+
+- `test/przepisanie.test.ts` — reguły, które da się sprawdzić bez bazy.
+- `npm run przejscie` — po fazie **35 działa · 5 znanych luk · 0 regresji ·
+  0 obejść · 0 pominiętych** (przed: 21 · 12 · 0 · 1 · 2).
+- `lib/spojnosc.ts` — trzy czujki na żywych danych: „Dokument wysłany do
+  klienta ma jego adres", „Faktura z oferty ma te same dane nabywcy co oferta",
+  „Faktura zna umowę", „Projekt z podpisaną umową ma termin". Znaczniki `luka`
+  zdjęte razem z naprawą — **reguły zostają**.

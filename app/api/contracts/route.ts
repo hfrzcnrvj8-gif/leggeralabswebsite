@@ -4,6 +4,7 @@ import { getSql, ensureContractsSchema, ensureOffersSchema, ensureLeadsSchema, e
 import { isAuthed } from "@/lib/auth";
 import type { Offer, OfferItem } from "@/lib/offers";
 import type { Lead } from "@/lib/leads";
+import { terminZCzasuRealizacji, zDokumentu, zKlienta, zLeada, zapiszDaneKlienta } from "@/lib/przepisanie";
 
 export const runtime = "nodejs";
 
@@ -70,18 +71,40 @@ export async function POST(req: NextRequest) {
     const zakresPrac = items.map((it) => `- ${it.nazwa} (${it.ilosc} ${it.jednostka})`).join("\n");
     const cena = items.reduce((sum, it) => sum + Number(it.ilosc) * Number(it.cena), 0);
 
+    // Termin realizacji z oferty (luka B5): oferta niesie LICZBĘ TYGODNI od
+    // akceptacji, umowa — konkretną datę. Liczymy ją dopiero tutaj, bo dopiero
+    // teraz znamy dzień akceptacji. Bez tego termin wpisywało się drugi raz,
+    // z pamięci. `null`, gdy oferta nie podała czasu — wtedy jak dotąd.
+    const terminRealizacji = terminZCzasuRealizacji(
+      typeof offer.accepted_at === "string" ? offer.accepted_at : null,
+      (offer as unknown as Record<string, unknown>).czas_realizacji_tygodnie
+    );
+
     const id = randomUUID();
     await sql`
       INSERT INTO contracts (
         id, typ, lead_id, client_id, project_id, offer_id,
-        klient_nazwa, klient_nip, klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email,
-        zakres_prac, cena, waluta, jezyk
+        zakres_prac, cena, waluta, termin_realizacji, jezyk
       ) VALUES (
         ${id}, 'umowa', ${offer.lead_id}, ${offer.client_id}, ${offer.project_id}, ${offerId},
-        ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_ulica}, ${offer.klient_kod}, ${offer.klient_miasto}, ${offer.klient_kraj}, ${offer.klient_email},
-        ${zakresPrac}, ${cena}, ${offer.waluta || "PLN"}, ${offer.jezyk}
+        ${zakresPrac}, ${cena}, ${offer.waluta || "PLN"}, ${terminRealizacji}, ${offer.jezyk}
       );
     `;
+    // Dane klienta przez jedno przepisanie (lib/przepisanie.ts) — ta lista pól
+    // była tu przepisana z palca po raz trzeci.
+    await zapiszDaneKlienta(sql, "umowa", id, zDokumentu(offer as unknown as Record<string, unknown>));
+
+    // ── Faktura dowiaduje się o umowie (luka B3) ────────────────────────────
+    // Szkic faktury powstaje przy AKCEPTACJI oferty, umowa dopiero potem —
+    // i nic ich dotąd nie łączyło wstecz, więc na fakturze widniało
+    // „WYNIKA Z: … umowy — brak —”, choć umowa leżała podpisana obok.
+    // Dopinamy tylko tam, gdzie pole jest jeszcze puste: raz przypisanej
+    // umowy nie podmieniamy pod ręką właściciela.
+    await sql`
+      UPDATE invoices SET contract_id = ${id}, updated_at = now()
+      WHERE offer_id = ${offerId} AND contract_id IS NULL;
+    `;
+
     await logClientEvent(sql, offer.client_id, "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`, null, id);
     return NextResponse.json({ ok: true, id });
   }
@@ -98,15 +121,8 @@ export async function POST(req: NextRequest) {
       const klientRows = await sql`SELECT * FROM clients WHERE id = ${clientId};`;
       const klient = klientRows[0] as Record<string, unknown> | undefined;
       if (!klient) return NextResponse.json({ error: "not found" }, { status: 404 });
-      await sql`
-        INSERT INTO contracts (
-          id, typ, client_id, klient_nazwa, klient_nip, klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email
-        ) VALUES (
-          ${id}, 'dpa', ${clientId}, ${String(klient.nazwa ?? "")}, ${String(klient.nip ?? "")},
-          ${String(klient.ulica ?? "")}, ${String(klient.kod ?? "")}, ${String(klient.miasto ?? "")},
-          ${String(klient.kraj ?? "")}, ${String(klient.email ?? "")}
-        );
-      `;
+      await sql`INSERT INTO contracts (id, typ, client_id) VALUES (${id}, 'dpa', ${clientId});`;
+      await zapiszDaneKlienta(sql, "umowa", id, zKlienta(klient));
       await logClientEvent(sql, clientId, "contract_created", "Przygotowano umowę powierzenia danych (DPA)", null, id);
       return NextResponse.json({ ok: true, id });
     }
@@ -139,15 +155,13 @@ export async function POST(req: NextRequest) {
     if (existingNda.length > 0) {
       return NextResponse.json({ ok: true, id: existingNda[0].id, existing: true });
     }
-    await sql`
-      INSERT INTO contracts (
-        id, typ, lead_id, client_id,
-        klient_nazwa, klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email
-      ) VALUES (
-        ${id}, 'nda', ${leadId}, ${lead.client_id ?? null},
-        ${lead.firma}, ${lead.ulica}, ${lead.kod}, ${lead.miasto}, ${lead.kraj}, ${lead.email}
-      );
-    `;
+    await sql`INSERT INTO contracts (id, typ, lead_id, client_id) VALUES (${id}, 'nda', ${leadId}, ${lead.client_id ?? null});`;
+    // Karta klienta, gdy lead ją już ma (ma NIP, lead nie ma) — inaczej sam
+    // lead. Jedno przepisanie, `lib/przepisanie.ts`.
+    const klientNdaRow = lead.client_id
+      ? (await sql`SELECT nazwa, nip, ulica, kod, miasto, kraj, email FROM clients WHERE id = ${lead.client_id};`)[0]
+      : undefined;
+    await zapiszDaneKlienta(sql, "umowa", id, klientNdaRow ? zKlienta(klientNdaRow) : zLeada(lead as unknown as Record<string, unknown>));
     if (lead.client_id) await logClientEvent(sql, lead.client_id, "nda_created", "Utworzono NDA", null, id);
     return NextResponse.json({ ok: true, id });
   }

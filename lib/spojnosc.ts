@@ -35,8 +35,15 @@ import { getSql } from "./db";
  */
 
 /** Numer znaleziska z docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md, jeśli reguła
- *  pilnuje czegoś, co dziś jest znaną, nienaprawioną luką. */
-export type Luka = "A2" | "B1" | "B2" | "B3" | "B5" | "B6" | "C1" | "C3" | "C4";
+ *  pilnuje czegoś, co dziś jest znaną, NIENAPRAWIONĄ luką.
+ *
+ *  **Znacznik zdejmuje się razem z naprawą, reguła zostaje.** Po Fazie 1
+ *  (`docs/PLAN-ZAPLECZE.md`) zeszły stąd B1, B3, B5 i B6 — nie dlatego, że
+ *  przestały nas obchodzić, tylko dlatego, że przestały być luką: te reguły
+ *  stoją teraz jako czujki nad tym, co już działa. Lista, która tego nie
+ *  odróżnia, starzeje się dokładnie tak, jak tabela Modułu 59 (34 wskazania,
+ *  22 nieaktualne). */
+export type Luka = "A2" | "C1" | "C3" | "C4";
 
 export type Naruszenie = {
   /** Zdanie o KONKRETNYM rekordzie — z nazwą, nie z id. */
@@ -171,8 +178,9 @@ function reguly(): Regula[] {
       zdanie: "Dokument wysłany do klienta ma jego adres",
       dlaczego:
         "Adres jest na karcie klienta, ale nie przeszedł na dokument. Klient " +
-        "dostaje ofertę zaadresowaną do samej nazwy firmy.",
-      luka: "B1",
+        "dostaje ofertę zaadresowaną do samej nazwy firmy. Przepisanie robi " +
+        "od Fazy 1 jedno miejsce (lib/przepisanie.ts) — ta reguła pilnuje, " +
+        "żeby żadna droga go nie omijała.",
       powaga: "wysoka",
       zbierz: async () => {
         const r = await sql`
@@ -188,13 +196,36 @@ function reguly(): Regula[] {
       },
     },
     {
+      id: "faktura-z-oferty-gubi-dane-nabywcy",
+      zdanie: "Faktura z oferty ma te same dane nabywcy co oferta",
+      dlaczego:
+        "To jest czujka nad Fazą 1: szkic faktury powstaje przy akceptacji " +
+        "oferty i ma być jej wierną odbitką. Gdy się odezwie, znaczy to, że " +
+        "któraś droga znowu przepisuje dane po swojemu — dokładnie tak " +
+        "zginął e-mail nabywcy (luka B2) na dokumencie, który się WYSYŁA mailem.",
+      powaga: "wysoka",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT i.id, i.numer, o.tytul
+          FROM invoices i JOIN offers o ON o.id = i.offer_id
+          WHERE (COALESCE(o.klient_email, '') <> '' AND COALESCE(i.klient_email, '') = '')
+             OR (COALESCE(o.klient_ulica, '') <> '' AND COALESCE(i.klient_ulica, '') = '')
+             OR (COALESCE(o.klient_nip, '') <> '' AND COALESCE(i.klient_nip, '') = '')
+          ORDER BY i.updated_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis: `${tekst(w.numer, "szkic faktury")} z oferty „${tekst(w.tytul)}” ma mniej danych nabywcy niż sama oferta`,
+          link: `/pl/admin/invoices/${w.id}`,
+        }));
+      },
+    },
+    {
       id: "faktura-bez-umowy-mimo-podpisanej",
       zdanie: "Faktura zna umowę, która dotyczy tego samego zlecenia",
       dlaczego:
-        "Faktura powstaje przy akceptacji oferty, umowa dopiero potem — i nic " +
-        "ich nie łączy wstecz. Na fakturze widnieje „umowy — brak —”, choć " +
-        "umowa jest podpisana.",
-      luka: "B3",
+        "Faktura powstaje przy akceptacji oferty, umowa dopiero potem. Od " +
+        "Fazy 1 generowanie umowy dopina ją wstecz do faktury z tej samej " +
+        "oferty — ta reguła łapie wszystko, co przyszło inną drogą.",
       powaga: "srednia",
       zbierz: async () => {
         const r = await sql`
@@ -214,9 +245,9 @@ function reguly(): Regula[] {
       id: "projekt-z-podpisana-umowa-bez-terminu",
       zdanie: "Projekt z podpisaną umową ma termin",
       dlaczego:
-        "Umowa niesie termin realizacji, projekt go nie dziedziczy. Bez daty " +
-        "projekt nie pojawia się na osi czasu ani w przypomnieniach o terminie.",
-      luka: "B6",
+        "Umowa niesie termin realizacji, projekt bierze go przy podpisie " +
+        "(Faza 1). Bez daty projekt nie pojawia się na osi czasu ani " +
+        "w przypomnieniach o terminie.",
       powaga: "srednia",
       zbierz: async () => {
         const r = await sql`

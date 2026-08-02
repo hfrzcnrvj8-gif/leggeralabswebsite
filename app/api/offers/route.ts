@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSql, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { zasiejOsobeZMigawki } from "@/lib/clientContacts";
+import { zKlienta, zLeada, scalDaneKlienta, zapiszDaneKlienta, PUSTE_DANE_KLIENTA } from "@/lib/przepisanie";
 
 export const runtime = "nodejs";
 
@@ -46,8 +47,11 @@ export async function GET() {
   return NextResponse.json({ offers, total });
 }
 
-/** POST /api/offers — nowa oferta (szkic). Może wejść z leada (kopiujemy
- * nazwę firmy jako dane klienta). Admin-only. */
+/** POST /api/offers — nowa oferta (szkic). Może wejść z leada albo z gotowego
+ * klienta; dane klienta przepisuje `lib/przepisanie.ts` (Faza 1, luka B1 —
+ * do 2026-08-02 przechodziła sama nazwa firmy, więc panel blokował potem
+ * wysyłkę komunikatem „Uzupełnij e-mail klienta" nad danymi, które miał pod
+ * ręką na karcie klienta). Admin-only. */
 export async function POST(req: NextRequest) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -67,6 +71,9 @@ export async function POST(req: NextRequest) {
   // Moduł 30: oferta może wejść z gotowym klientem (picker przy „+ Dodaj
   // ofertę"), nie tylko wywieść go z leada. Wybór wprost wygrywa z leadem.
   let clientId = typeof body?.client_id === "string" && body.client_id.trim() ? body.client_id : null;
+  // Zapamiętany lead — po niego sięga przepisanie danych, gdy oferta wchodzi
+  // z leada, który nie ma jeszcze karty klienta (patrz niżej).
+  let leadRow: Record<string, unknown> | null = null;
 
   if (clientId && !klientNazwa) {
     const c = (await sql`SELECT nazwa FROM clients WHERE id = ${clientId};`)[0];
@@ -82,6 +89,7 @@ export async function POST(req: NextRequest) {
         osoba_kontaktowa, linkedin_url, zrodlo, zrodlo_kategoria, notatki
       FROM leads WHERE id = ${leadId};
     `)[0];
+    leadRow = lead ?? null;
     const firma = typeof lead?.firma === "string" ? lead.firma : "";
     if (!klientNazwa) klientNazwa = firma;
     if (!tytul) tytul = firma ? `Oferta — ${firma}` : "";
@@ -123,6 +131,22 @@ export async function POST(req: NextRequest) {
     INSERT INTO offers (id, tytul, lead_id, klient_nazwa, client_id)
     VALUES (${id}, ${tytul}, ${leadId}, ${klientNazwa}, ${clientId});
   `;
+
+  // ── Komplet danych klienta na dokument (luka B1) ─────────────────────────
+  // Karta klienta jest źródłem pierwszego wyboru — jako jedyna ma NIP. Lead
+  // wchodzi tylko wtedy, gdy karty jeszcze nie ma (nie zdarza się na tej
+  // ścieżce, bo pierwsza oferta kartę zakłada, ale nie opieramy poprawności
+  // na tym, że gałąź wyżej zawsze się wykona).
+  const zrodlo = clientId
+    ? zKlienta((await sql`SELECT nazwa, nip, ulica, kod, miasto, kraj, email FROM clients WHERE id = ${clientId};`)[0])
+    : leadRow
+      ? zLeada(leadRow)
+      : { ...PUSTE_DANE_KLIENTA };
+  // Nazwa podana wprost w żądaniu wygrywa — tak wchodzą oferty zakładane bez
+  // klienta i bez leada („+ Dodaj ofertę" z samą nazwą w polu).
+  const dane = scalDaneKlienta(zrodlo, { ...PUSTE_DANE_KLIENTA, nazwa: klientNazwa });
+  await zapiszDaneKlienta(sql, "oferta", id, dane);
+
   await logClientEvent(sql, clientId, "offer_created", `Utworzono ofertę „${tytul || "(bez tytułu)"}”`, null, id);
   return NextResponse.json({ ok: true, id });
 }

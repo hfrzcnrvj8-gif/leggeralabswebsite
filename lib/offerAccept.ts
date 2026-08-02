@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { withTransaction, logClientEvent } from "./db";
 import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "./projects";
 import { isOfferExpired, itemLiczySie, DEFAULT_OFFER_CURRENCY, type Offer } from "./offers";
+import { tytulProjektuZOferty, zDokumentu, zapiszDaneKlienta } from "./przepisanie";
 
 /** Stawka VAT dla pozycji SZKICU faktury zakładanego przy akceptacji oferty.
  *
@@ -88,9 +89,16 @@ export async function acceptOffer(
 
   const templateId = opts.template?.trim() ? opts.template : undefined;
   const template = templateId ? getProjectTemplate(templateId) : undefined;
-  const tytulProjektu = offer.tytul || offer.klient_nazwa || "Projekt z oferty";
+  // Bez przedrostka „Oferta — " (luka B6): na liście projektów sprzedane
+  // zlecenie zaczynało się od słowa „Oferta". Patrz lib/przepisanie.ts.
+  const tytulProjektu = tytulProjektuZOferty(offer.tytul, offer.klient_nazwa);
   const leadId = offer.lead_id;
   const clientId = offer.client_id;
+  // Zaakceptowana oferta to zlecenie SPRZEDANE — projekt nie może stawać
+  // w „Pomysł", obok rzeczy, których jeszcze nikt nie kupił (luka B6,
+  // decyzja właściciela 2026-08-02). Na „W trakcie" przestawia go dopiero
+  // podpis umowy — patrz app/api/contracts/[id]/accept.
+  const STATUS_PO_AKCEPTACJI = "Planowanie";
 
   try {
     return await withTransaction(async (sql) => {
@@ -99,7 +107,7 @@ export async function acceptOffer(
         const exp = expandProjectTemplate(template);
         await sql`
           INSERT INTO projects (id, tytul, opis, status, priorytet, start, termin, lead_id, client_id, jezyk)
-          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, ${exp.opis}, 'Pomysł', 'Normalny', ${exp.start}, ${exp.termin}, ${leadId}, ${clientId}, ${offer.jezyk});
+          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, ${exp.opis}, ${STATUS_PO_AKCEPTACJI}, 'Normalny', ${exp.start}, ${exp.termin}, ${leadId}, ${clientId}, ${offer.jezyk});
         `;
         let mPos = 0;
         for (const m of exp.milestones) {
@@ -121,7 +129,7 @@ export async function acceptOffer(
       } else {
         await sql`
           INSERT INTO projects (id, tytul, status, priorytet, lead_id, client_id, jezyk)
-          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, 'Pomysł', 'Normalny', ${leadId}, ${clientId}, ${offer.jezyk});
+          VALUES (${projectId}, ${tytulProjektu.slice(0, 300)}, ${STATUS_PO_AKCEPTACJI}, 'Normalny', ${leadId}, ${clientId}, ${offer.jezyk});
         `;
       }
 
@@ -140,15 +148,17 @@ export async function acceptOffer(
       const invoiceId = randomUUID();
       await sql`
         INSERT INTO invoices (
-          id, lead_id, project_id, client_id, offer_id, klient_nazwa, klient_nip, klient_adres,
-          klient_ulica, klient_kod, klient_miasto, klient_kraj, waluta
+          id, lead_id, project_id, client_id, offer_id, klient_adres, waluta
         )
         VALUES (
-          ${invoiceId}, ${leadId}, ${projectId}, ${clientId}, ${offer.id}, ${offer.klient_nazwa}, ${offer.klient_nip}, ${offer.klient_adres},
-          ${offer.klient_ulica ?? ""}, ${offer.klient_kod ?? ""}, ${offer.klient_miasto ?? ""}, ${offer.klient_kraj ?? ""},
+          ${invoiceId}, ${leadId}, ${projectId}, ${clientId}, ${offer.id}, ${offer.klient_adres},
           ${offer.waluta || DEFAULT_OFFER_CURRENCY}
         );
       `;
+      // Dane nabywcy przez `lib/przepisanie.ts`, nie z listy pól przepisanej
+      // tutaj po raz drugi — ta lista gubiła `klient_email` (luka B2), czyli
+      // akurat to pole, bez którego faktury nie da się wysłać mailem.
+      await zapiszDaneKlienta(sql, "faktura", invoiceId, zDokumentu(offer as unknown as Record<string, unknown>));
       const stawka = domyslnaStawkaVat(offer.klient_kraj);
       let pos = 0;
       for (const it of kupione) {

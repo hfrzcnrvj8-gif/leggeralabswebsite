@@ -4,6 +4,8 @@ import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
+import { projektPoPodpisieUmowy } from "@/lib/przepisanie";
+import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -72,12 +74,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // szumem (ta sama zasada co przy invoice_paid — dzwoni to, co panel zrobił
   // sam). Podpis drugiej strony może paść w nocy i bez tego wpisu właściciel
   // dowiadywał się o nim dopiero wchodząc na Umowy.
+  // Ten sam skutek co przy podpisie odnotowanym w panelu (luka B6) — projekt
+  // dostaje daty z umowy i wychodzi z „Planowania". Patrz lib/przepisanie.ts.
+  const skutek = await projektPoPodpisieUmowy(sql, contract, todayLocalISO());
+
   const contractId = String(contract.id);
   await notify({
     kind: "contract_signed",
     title: `Podpis pod dokumentem: ${label.toLowerCase()}`,
     body: `${name} złożył(a) podpis pod dokumentem${contract.klient_nazwa ? ` — ${contract.klient_nazwa}` : ""}.${
-      contract.typ === "umowa" && contract.project_id ? " Projekt można przestawić na „W trakcie”." : ""
+      skutek.zmienionyStatus ? " Projekt ruszył — jest już „W trakcie”." : ""
     }`,
     entity: "contract",
     entityId: contractId,

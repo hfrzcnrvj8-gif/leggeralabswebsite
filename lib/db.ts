@@ -1270,6 +1270,13 @@ async function createOffersSchema(): Promise<void> {
   // jest czym się posłużyć.
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS migawka JSONB;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS migawka_at TIMESTAMPTZ;`;
+  // Faza 1 planu zaplecza (luka B5) — czas realizacji podawany w TYGODNIACH
+  // OD AKCEPTACJI, nie datą. Tak się realnie mówi klientowi, zanim wiadomo,
+  // kiedy podpisze; konkretną datę wylicza dopiero umowa przy generowaniu
+  // (`terminZCzasuRealizacji` w lib/przepisanie.ts). Do tej pory termin żył
+  // wyłącznie jako zdanie w sekcji „Terminy" i przepisywało się go do umowy
+  // ręcznie — czyli drugi raz. 0 = nie podano.
+  await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS czas_realizacji_tygodnie INTEGER NOT NULL DEFAULT 0;`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS offer_items (

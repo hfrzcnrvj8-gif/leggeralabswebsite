@@ -44,6 +44,13 @@ import { MiniSciezka } from "../MiniSciezka";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 import type { Client } from "@/lib/clients";
 import { lookupClientByNip } from "@/lib/vies";
+import {
+  MAX_CZAS_REALIZACJI_TYGODNIE,
+  czasRealizacjiOpis,
+  czasRealizacjiTygodnie,
+  naKolumnyDokumentu,
+  zKlienta,
+} from "@/lib/przepisanie";
 
 export function OfferEditor({
   id,
@@ -154,16 +161,10 @@ export function OfferEditor({
         patchOffer({ client_id: null });
         return;
       }
-      const patch: Partial<Offer> = {
-        client_id: c.id,
-        klient_nazwa: c.nazwa ?? "",
-        klient_nip: c.nip ?? "",
-        klient_ulica: c.ulica ?? "",
-        klient_kod: c.kod ?? "",
-        klient_miasto: c.miasto ?? "",
-        klient_kraj: c.kraj ?? "",
-        klient_email: c.email ?? "",
-      };
+      // Jedna mapa pól dla całego panelu (lib/przepisanie.ts, Faza 1) — ta
+      // lista była tu przepisana z palca, tak samo jak w edytorze faktury
+      // i w dwóch trasach umów. Każda kopia gubiła co innego.
+      const patch: Partial<Offer> = { client_id: c.id, ...naKolumnyDokumentu(zKlienta(c as unknown as Record<string, unknown>)) };
       setOffer((prev) => (prev ? { ...prev, ...patch } : prev));
       patchOffer(patch);
     },
@@ -1239,6 +1240,43 @@ export function OfferEditor({
                 „Wygasła” — do tego czasu liczy się do pipeline’u jak żywa.
               </p>
             )}
+          </div>
+
+          {/* Czas realizacji (Faza 1 planu zaplecza, luka B5). Osobna karta,
+              NIE pod nagłówkiem „Ważność": ważność to termin decyzji KLIENTA,
+              a to jest obietnica po NASZEJ stronie — zlanie ich w jedno pudełko
+              było dokładnie tym rodzajem sąsiedztwa, które każe zgadywać.
+              W TYGODNIACH od akceptacji, nie datą: datę obiecywałoby się,
+              zanim wiadomo, kiedy klient podpisze. Umowa generowana z tej
+              oferty przelicza to na konkretny termin, a projekt dziedziczy go
+              przy podpisie — dzięki temu termin wpisuje się RAZ, nie trzy razy. */}
+          <div className="card-paper rounded-xl border hairline p-4">
+            <h3 className="mb-2 text-[11px] uppercase tracking-wide text-muted">Realizacja</h3>
+            <div>
+              <Field label="Czas realizacji">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={MAX_CZAS_REALIZACJI_TYGODNIE}
+                    value={offer.czas_realizacji_tygodnie || ""}
+                    onChange={(e) =>
+                      setOffer((p) => (p ? { ...p, czas_realizacji_tygodnie: czasRealizacjiTygodnie(e.target.value) } : p))
+                    }
+                    onBlur={(e) => patchOffer({ czas_realizacji_tygodnie: czasRealizacjiTygodnie(e.target.value) })}
+                    placeholder="—"
+                    title="Ile tygodni od akceptacji zajmie realizacja"
+                    className="w-16 rounded-lg border hairline bg-transparent px-2 py-1 text-[13px] outline-none"
+                  />
+                  <span className="text-[12px] text-muted">tyg. od akceptacji</span>
+                </div>
+              </Field>
+              <p className="mt-1.5 text-[11px] text-muted">
+                {offer.czas_realizacji_tygodnie > 0
+                  ? `Na dokumencie: „${czasRealizacjiOpis(offer.czas_realizacji_tygodnie)}”. Umowa policzy z tego konkretną datę, a projekt weźmie ją przy podpisie.`
+                  : "Bez tego umowa i projekt zostaną bez terminu, a Ty wpiszesz go drugi raz."}
+              </p>
+            </div>
           </div>
 
           {/* Ślad otwarcia (runda 2 Modułu 57) — odpowiedź na pytanie, które

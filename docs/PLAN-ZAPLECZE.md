@@ -146,30 +146,55 @@ jest wynikiem poprawnym — to znaczy, że siatka łapie.
 
 ---
 
-## Faza 1 — jedno przepisanie danych klienta na dokument
+## Faza 1 — jedno przepisanie danych klienta na dokument — ✅ ZROBIONE 2026-08-02
 
-**Zamyka:** B1 (oferta bierze tylko nazwę), B2 (pusty e-mail na fakturze),
-B4 (formularz leada), B5 (terminy oferty → umowa), B6 (projekt bez dat),
-B3 (faktura nie wie o umowie).
+**Zamknęła:** B1 (oferta bierze tylko nazwę), B2 (pusty e-mail na fakturze),
+B3 (faktura nie wie o umowie), B4 (formularz leada), B5 (terminy oferty →
+umowa), B6 (projekt bez dat, bez statusu, z nazwą od słowa „Oferta").
 
-Dziś każde przejście przepisuje dane po swojemu i każde gubi co innego.
-Lead → oferta gubi adres i mail. Oferta → faktura gubi mail. Oferta → umowa
-gubi termin. Umowa → projekt gubi daty.
+Powstało `lib/przepisanie.ts` — jedno miejsce, które wie, jak nazywają się
+kolumny klienta na dokumencie. Mapa istniała wcześniej w **pięciu kopiach**
+(`OfferEditor.pickClient`, `InvoiceEditor.pickClient`, gałąź umowy i gałąź DPA
+w `POST /api/contracts`, `acceptOffer`) i każda gubiła co innego. Kto dokłada
+nowy rodzaj dokumentu, dokłada wpis do `RODZAJE_DOKUMENTU`.
 
-Powstaje **jedno miejsce**, przez które przechodzi każde „załóż dokument
-z czegoś", z jawną mapą pól. Kto dokłada nowy rodzaj dokumentu, dokłada wpis
-do mapy — nie pisze przepisywania od nowa.
+**Wynik przejścia po fazie: 35 działa · 5 znanych luk · 0 regresji ·
+0 obejść · 0 pominiętych** (przed: 21 · 12 · 0 · 1 · 2). Pozostałe pięć luk
+to A2 ×2 (Faza 2) oraz C1, C3, C4 (Faza 3). Kontrola spójności na tych samych
+danych: trzy reguły Fazy 1 zielone.
 
-Dwie decyzje do podjęcia w fazie:
+### Decyzje właściciela podjęte przy starcie fazy
 
-1. Czy dane klienta na dokumencie to **kopia** (dziś), czy **odczyt z karty
-   klienta do momentu wysłania**. Kopia jest bezpieczniejsza prawnie, odczyt
-   wygodniejszy. Skłaniam się do: odczyt do wysyłki, kopia od wysyłki — to
-   naturalnie łączy się z Fazą 2.
-2. Czy `contract_id` na fakturze uzupełniamy wstecz przy generowaniu umowy
-   (tak — to jedna linia i usuwa „umowy — brak —").
+1. **Kopia + auto-odświeżanie, dopóki dokument jest szkicem.** Dokument
+   dostaje komplet przy założeniu; póki jest szkicem, każde otwarcie dociąga
+   poprawki z karty klienta (`odswiezDaneKlientaWSzkicu`). Od wysyłki nic już
+   nie rusza. Daje efekt „odczyt do wysyłki, kopia od wysyłki" bez
+   przepisywania wydruków i stron publicznych. Puste pole karty **nie kasuje**
+   tego, co wpisano ręcznie — odświeżanie nie może cofać cudzej roboty.
+2. **`contract_id` uzupełniany wstecz** przy generowaniu umowy — tak, i tylko
+   tam, gdzie jest jeszcze pusty.
+3. **Czas realizacji podaje się w TYGODNIACH od akceptacji**, nie datą (nowa
+   kolumna `offers.czas_realizacji_tygodnie`, karta „Realizacja" w edytorze,
+   rubryka na wydruku). Tak się realnie mówi klientowi, zanim wiadomo, kiedy
+   podpisze; konkretną datę wylicza dopiero umowa.
+4. **Akceptacja oferty → projekt „Planowanie"; podpis umowy → „W trakcie"**
+   plus daty z umowy. Skutek podpisu jest wspólny dla obu dróg
+   (`projektPoPodpisieUmowy`) — nie może zależeć od tego, kto kliknął.
 
-**Sprawdzenie:** zdania z 0a o przenoszeniu danych przechodzą na zielono.
+### Czego się przy tym nauczyliśmy
+
+- **Test złapał to, czego kod nie pokazywał.** Pierwsza wersja
+  `terminZCzasuRealizacji` sprawdzała datę własnym `/^\d{4}-\d{2}-\d{2}$/`
+  i przepuszczała rok „0202" (pułapka `<input type="date">` z `CLAUDE.md`) —
+  czyli wpisywała bzdurną datę **na umowę**. Wyszło dopiero z testu
+  jednostkowego, nie z przejścia i nie z przeglądarki.
+- **Pole trafiło najpierw pod zły nagłówek.** „Czas realizacji" wylądował
+  w karcie „WAŻNOŚĆ", a to co innego: ważność jest terminem decyzji KLIENTA,
+  czas realizacji obietnicą po NASZEJ stronie. Widać to było dopiero na
+  zrzucie, nie w kodzie. Ma własną kartę „Realizacja".
+- **Licznik obejść zrobił swoje.** Jedyne obejście (dopisywanie e-maila
+  klienta do oferty) zniknęło razem z luką B1 — i to jest ZMIERZONE zero,
+  nie brak pomiaru. Mechanizm `obejscie()` zostaje na kolejne fazy.
 
 ---
 

@@ -14,6 +14,7 @@ import {
   obliczZwrot,
 } from "@/lib/offers";
 import { formatPlDateTime } from "@/lib/dates";
+import { czasRealizacjiOpis, czasRealizacjiTygodnie } from "@/lib/przepisanie";
 import { type CompanySettings } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
 import { PasekMarkiDokumentu, KwotaGradientem } from "../../../DocGradient";
@@ -31,6 +32,10 @@ type Dict = {
   ref: string;
   issueDate: string;
   validUntil: string;
+  /** Faza 1 planu zaplecza (luka B5) — czas realizacji podawany w tygodniach
+   * od akceptacji. Do tej pory termin żył wyłącznie jako zdanie w sekcji
+   * „Terminy", więc szablon potrafił dopisać drugi, sprzeczny (znalezisko A4). */
+  leadTime: string;
   seller: string;
   buyer: string;
   taxId: string;
@@ -86,12 +91,24 @@ type Dict = {
   reverseChargeNote: string;
 };
 
+/** „ok. 3 tygodnie od akceptacji" w języku dokumentu. Polska odmiana
+ * mieszka w `lib/przepisanie.ts` (używa jej też edytor), dwie pozostałe
+ * wersje są tu, bo poza wydrukiem nikt ich nie potrzebuje. */
+function czasRealizacjiNaWydruk(lang: OfferLang, tygodnie: unknown): string {
+  const n = czasRealizacjiTygodnie(tygodnie);
+  if (!n) return "—";
+  if (lang === "en") return `approx. ${n} ${n === 1 ? "week" : "weeks"} from acceptance`;
+  if (lang === "de") return `ca. ${n} ${n === 1 ? "Woche" : "Wochen"} ab Annahme`;
+  return czasRealizacjiOpis(n);
+}
+
 const DICT: Record<OfferLang, Dict> = {
   pl: {
     doc: "Oferta",
     ref: "Nr ref.",
     issueDate: "Data przygotowania",
     validUntil: "Ważna do",
+    leadTime: "Czas realizacji",
     seller: "Wystawca",
     buyer: "Dla",
     taxId: "NIP",
@@ -146,6 +163,7 @@ const DICT: Record<OfferLang, Dict> = {
     ref: "Ref. no.",
     issueDate: "Date prepared",
     validUntil: "Valid until",
+    leadTime: "Lead time",
     seller: "From",
     buyer: "For",
     taxId: "Tax ID (NIP)",
@@ -200,6 +218,7 @@ const DICT: Record<OfferLang, Dict> = {
     ref: "Referenz-Nr.",
     issueDate: "Erstellungsdatum",
     validUntil: "Gültig bis",
+    leadTime: "Realisierungszeit",
     seller: "Von",
     buyer: "Für",
     taxId: "Steuernummer (NIP)",
@@ -454,6 +473,17 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
               <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">{t.validUntil}</div>
               <div className="font-medium text-neutral-800">{dateStr(offer.wazna_do, lang)}</div>
             </div>
+            {/* Czas realizacji (luka B5) — na dokumencie stoi w tej samej
+                rubryce co daty, żeby klient czytał go razem z ważnością,
+                a nie wyławiał ze zdania w sekcji „Terminy". */}
+            {czasRealizacjiTygodnie(offer.czas_realizacji_tygodnie) > 0 && (
+              <div>
+                <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">{t.leadTime}</div>
+                <div className="font-medium text-neutral-800">
+                  {czasRealizacjiNaWydruk(lang, offer.czas_realizacji_tygodnie)}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Strony */}

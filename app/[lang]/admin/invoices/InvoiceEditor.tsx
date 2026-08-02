@@ -67,6 +67,7 @@ import { ShareLinkControl } from "../ShareLinkControl";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { MiniSciezka } from "../MiniSciezka";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
+import { naKolumnyDokumentu, zKlienta } from "@/lib/przepisanie";
 
 export function InvoiceEditor({
   id,
@@ -311,16 +312,9 @@ export function InvoiceEditor({
         patchInvoice({ client_id: null });
         return;
       }
-      const patch: Partial<Invoice> = {
-        client_id: c.id,
-        klient_nazwa: c.nazwa ?? "",
-        klient_nip: c.nip ?? "",
-        klient_ulica: c.ulica ?? "",
-        klient_kod: c.kod ?? "",
-        klient_miasto: c.miasto ?? "",
-        klient_kraj: c.kraj ?? "",
-        klient_email: c.email ?? "",
-      };
+      // Jedna mapa pól — patrz lib/przepisanie.ts (Faza 1). Bliźniak w
+      // OfferEditor.pickClient; zmieniając jedno, sprawdź drugie.
+      const patch: Partial<Invoice> = { client_id: c.id, ...naKolumnyDokumentu(zKlienta(c as unknown as Record<string, unknown>)) };
       setInvoice((prev) => (prev ? { ...prev, ...patch } : prev));
       patchInvoice(patch);
     },

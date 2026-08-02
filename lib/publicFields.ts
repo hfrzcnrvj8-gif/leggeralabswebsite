@@ -131,6 +131,10 @@ export const OFFER_PUBLIC_FIELDS = [
   "tytul",
   "uwagi",
   "wazna_do",
+  // Faza 1 (luka B5) — czas realizacji drukuje się obok ważności, więc musi
+  // przejść także na publiczny link. Pominięte pole nie wywala błędu: klient
+  // zobaczyłby po prostu pustą rubrykę.
+  "czas_realizacji_tygodnie",
   "accepted_at",
   "accepted_by_name",
   "klient_nazwa",

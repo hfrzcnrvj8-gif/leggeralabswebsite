@@ -87,6 +87,16 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const [addFirma, setAddFirma] = useState("");
   const [addKategoria, setAddKategoria] = useState<string>("Ręcznie dodane");
   const [addSzczegoly, setAddSzczegoly] = useState("");
+  /* Faza 1 planu zaplecza (luka B4): formularz miał DWA pola — firmę i źródło.
+     Po telefonie od klienta nie było gdzie wpisać osoby, telefonu, maila ani
+     miasta, więc rekord powstawał pusty, a resztę dopisywało się w profilu,
+     którego najpierw trzeba było poszukać. Trasa POST /api/leads przyjmowała
+     te pola od zawsze — brakowało wyłącznie miejsca, żeby je podać. */
+  const [addOsoba, setAddOsoba] = useState("");
+  const [addTelefon, setAddTelefon] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [addMiasto, setAddMiasto] = useState("");
+  const [addBranza, setAddBranza] = useState("");
   const [addBusy, setAddBusy] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   // Menu pod prawym przyciskiem przy ikonie eksportu (Moduł 34). Do tej pory
@@ -193,6 +203,11 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         firma,
+        osoba_kontaktowa: addOsoba.trim(),
+        telefon: addTelefon.trim(),
+        email: addEmail.trim(),
+        miasto: addMiasto.trim(),
+        branza: addBranza.trim(),
         zrodlo_kategoria: addKategoria,
         zrodlo: addSzczegoly.trim(),
         status: "Do kontaktu",
@@ -205,11 +220,16 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       setAddFirma("");
       setAddSzczegoly("");
       setAddKategoria("Ręcznie dodane");
+      setAddOsoba("");
+      setAddTelefon("");
+      setAddEmail("");
+      setAddMiasto("");
+      setAddBranza("");
       load();
     } else {
       toast("Nie udało się dodać leada.", "error");
     }
-  }, [addFirma, addKategoria, addSzczegoly, toast, load, leads, confirm]);
+  }, [addFirma, addKategoria, addSzczegoly, addOsoba, addTelefon, addEmail, addMiasto, addBranza, toast, load, leads, confirm]);
 
   const deleteLead = useCallback(async (id: string, firma: string) => {
     const ok = await confirm(`Usunąć "${firma}" z listy?`, { danger: true });
@@ -875,7 +895,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
       {/* Nowy lead — węższe okno (jak edytory faktur/ofert), bo to trzy pola,
           nie profil. Kategoria źródła jest tu OBOWIĄZKOWA w tym sensie, że ma
           domyślkę i widać ją od razu — patrz komentarz przy `submitNewLead`. */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} card="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-6">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} card="card-paper my-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border hairline p-6">
         <h2 className="text-lg font-semibold">Nowy lead</h2>
         <form
           onSubmit={(e) => {
@@ -930,6 +950,61 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
             </WierszPola>
             <WierszUwaga>
               Szczegóły źródła to jedno zdanie dla Ciebie — np. „polecił Kowalski", „spotkanie w izbie gospodarczej".
+            </WierszUwaga>
+          </SekcjaProfilu>
+
+          {/* Faza 1 planu zaplecza (luka B4). Wszystko poniżej jest
+              OPCJONALNE — lead zakładany „na szybko" dalej wymaga samej firmy.
+              Ale gdy lead powstaje zaraz po telefonie, te dane są w głowie
+              TERAZ, a nie za pół godziny, gdy trzeba będzie odszukać rekord
+              na liście. Trasa przyjmowała je od zawsze; brakowało pól.
+              Te same dane przechodzą potem na kartę klienta i na dokumenty
+              (patrz lib/przepisanie.ts), więc wpisane raz nie wracają. */}
+          <SekcjaProfilu tytul="Kontakt">
+            <WierszPola etykieta="Osoba">
+              <input
+                value={addOsoba}
+                onChange={(e) => setAddOsoba(e.target.value)}
+                placeholder="np. Marta Zielińska"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszPola etykieta="Telefon">
+              <input
+                type="tel"
+                value={addTelefon}
+                onChange={(e) => setAddTelefon(e.target.value)}
+                placeholder="601 220 330"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszPola etykieta="E-mail">
+              <input
+                type="email"
+                value={addEmail}
+                onChange={(e) => setAddEmail(e.target.value)}
+                placeholder="kontakt@firma.pl"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszPola etykieta="Miasto">
+              <input
+                value={addMiasto}
+                onChange={(e) => setAddMiasto(e.target.value)}
+                placeholder="Kraków"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszPola etykieta="Branża">
+              <input
+                value={addBranza}
+                onChange={(e) => setAddBranza(e.target.value)}
+                placeholder="Poligrafia"
+                className="w-full rounded-lg border hairline bg-transparent py-1.5 outline-none"
+              />
+            </WierszPola>
+            <WierszUwaga>
+              Reszta adresu, strona i notatki czekają w profilu leada — tu jest tylko to, co pada w pierwszej rozmowie.
             </WierszUwaga>
           </SekcjaProfilu>
           <div className="flex justify-end gap-2 pt-1">

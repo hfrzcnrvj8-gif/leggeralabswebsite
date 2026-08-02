@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaFaktury, POLA_MIMO_BLOKADY_FAKTURY, ruszaTresc } from "@/lib/blokadaDokumentu";
+import { naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
 import { isPlausibleDateString } from "@/lib/projects";
 import {
   INVOICE_LANGS,
@@ -31,6 +32,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const rows = await sql`SELECT * FROM invoices WHERE id = ${id};`;
   const invoice = rows[0];
   if (!invoice) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // Dociągnięcie poprawek z karty klienta, dopóki faktura jest SZKICEM —
+  // czyli dopóki nie ma numeru (patrz blokadaFaktury). Faza 1, decyzja
+  // właściciela 2026-08-02. Wystawiona faktura jest nienaruszalna.
+  const swiezeDane = await odswiezDaneKlientaWSzkicu(sql, "faktura", invoice, {
+    szkic: !String(invoice.numer ?? "").trim(),
+  });
+  if (swiezeDane) Object.assign(invoice, naKolumnyDokumentu(swiezeDane));
+
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
   const payments = await sql`SELECT * FROM invoice_payments WHERE invoice_id = ${id} ORDER BY data ASC;`;

@@ -200,6 +200,13 @@ export type Offer = {
    * w wierszu (patrz lib/shareLinks.ts); to pole decyduje o dostępie. */
   share_revoked_at: string | null;
   wazna_do: string | null;
+  /** Ile TYGODNI od akceptacji zajmie realizacja (Faza 1 planu zaplecza,
+   * luka B5). 0 = nie podano. Umowa generowana z tej oferty przelicza to na
+   * konkretną datę (`terminZCzasuRealizacji` w lib/przepisanie.ts), a projekt
+   * dziedziczy ją przy podpisie — dzięki temu termin wpisuje się RAZ.
+   * Świadomie liczba tygodni, nie data: datę obiecywałoby się, zanim wiadomo,
+   * kiedy klient podpisze (decyzja właściciela 2026-08-02). */
+  czas_realizacji_tygodnie: number;
   status: OfferStatus;
   jezyk: OfferLang;
   waluta: OfferCurrency;

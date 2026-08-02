@@ -43,9 +43,11 @@ wskazania, z czego 22 nieaktualne, bo nikt nie przechodził jej po naprawach.
 ## Dwie dodatkowe miary
 
 **`↻ obejścia`** — ile razy trzeba załatać przepływ ręcznie, żeby w ogóle
-dojść do końca. Dziś jedno: dopisanie e-maila klienta do oferty, bo bez niego
-wysyłka odbija się o własną bramkę (skutek luki B1). Ta liczba powinna spaść
-do zera po Fazie 1.
+dojść do końca. **Od Fazy 1: zero.** Jedyne obejście (dopisanie e-maila
+klienta do oferty, bo bez niego wysyłka odbijała się o własną bramkę — skutek
+luki B1) zniknęło razem z luką. Mechanizm `obejscie()` zostaje w skrypcie
+świadomie: zero ma być ZMIERZONE, nie być brakiem pomiaru, a kolejne fazy mogą
+go potrzebować.
 
 **`⊘ pominięte`** — czego dany przebieg NIE sprawdził. Bez tego skrypt
 udawałby, że pokrycie jest pełne.
