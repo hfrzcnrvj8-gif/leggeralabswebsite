@@ -446,17 +446,24 @@ nazwami dwie funkcje wyżej.
 
 ## Faza 5 — wygląd
 
-**Na koniec, zgodnie z ustaleniem.** Zebrane, żeby nie zginęły:
+**Na koniec, zgodnie z ustaleniem — i jako OSTATNIA faza planu.** Zaplecze jest
+domknięte: przejście na zielono (68), ekran *Zdrowie* bez naruszeń, lista
+znanych luk pusta. Zebrane, żeby nie zginęły:
 
-- `.glass` traci `backdrop-filter` w **zbudowanym** CSS (zostaje tylko
-  `-webkit-`) → chrome bez rozmycia
-- okna `useUI().confirm/prompt` renderują się poza `.admin-linear` i są
-  **jasne** w ciemnym panelu
-- wiersz „Daty" wychodzi poza kartę projektu (`x` 1030–1113 wobec karty do
-  1102)
-- nazwa kamienia milowego ucięta w pół słowa, bez wielokropka
-- otwarty próg 24×24 w Katalogu (`CatalogDashboard.tsx`) — trzeci moduł
-  z rzędu to odnotowuje, patrz `HANDOFF.md`
+| nr | co |
+|---|---|
+| **E1** | `.glass` traci `backdrop-filter` w **zbudowanym** CSS (zostaje tylko `-webkit-`) → chrome bez rozmycia. Przyczyna w buildzie, nie w źródle — `app/globals.css:105` deklaruje obie właściwości |
+| **E2** | okna `useUI()` renderują się poza `.admin-linear` i są **jasne** w ciemnym panelu. **Od Fazy 4 jest ich cztery, nie trzy** — doszło okno potwierdzenia |
+| **E3** | wiersz „Daty" wychodzi poza kartę projektu (`x` 1030–1113 wobec karty do 1102) |
+| **E4** | nazwa kamienia milowego ucięta w pół słowa, bez wielokropka |
+| **D2** | nowy lead ląduje poza ekranem: trafia na 10. pozycję z 11 (sortowanie po „ostatni kontakt", nowy nie ma żadnego), lista się nie przewija, nic go nie podświetla. **Przeniesione tu z Fazy 4** decyzją właściciela (2026-08-02) — to zachowanie listy, nie bariera przed nieodwracalnym skutkiem |
+| **F** | otwarty próg 24×24 w Katalogu (`CatalogDashboard.tsx`) — trzeci moduł z rzędu to odnotowuje, patrz `HANDOFF.md` |
+
+**Czym się mierzy tę fazę.** `npm run przejscie` sprawdzi tu mało — to faza
+o wyglądzie. Dowodem jest **pomiar**, nie zrzut ekranu: `getComputedStyle`
+na zbudowanym CSS (E1, E2), geometria elementu (E3, E4), pozycja rekordu na
+liście po dodaniu (D2). Podgląd w przeglądarce ma zamrożony rAF i bywa 0×0 —
+patrz `HANDOFF.md` → „Uwagi, które mają realny wpływ".
 
 ---
 
