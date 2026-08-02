@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-02, po Fazie 2 planu zaplecza
+# Handoff — stan na 2026-08-02, po Fazie 3 planu zaplecza
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,13 +7,23 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- Panel: `8ce1c25` „Faza 2: jedna bramka decyduje, co wolno wysłać do klienta"
-- Repozytorium czyste i wypchnięte. `tsc` czysto, `npm test` **250/250**.
-- `npm run przejscie`: **47 działa · 3 znane luki · 0 regresji · 0 obejść ·
-  0 pominiętych**.
+- Panel: dwa ostatnie commity to „Faza 3: panel proponuje skutek zdarzenia,
+  właściciel zatwierdza" i ten handoff.
+- Repozytorium czyste i wypchnięte. `tsc` czysto, `npm test` **262/262**.
+- `npm run przejscie`: **59 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+  0 pominiętych** — przy serwerze świeżo po restarcie. Kilka przebiegów pod
+  rząd wyczerpuje hamulec publicznych linków (5/60 min) i wtedy wynik to
+  58 działa · 3 pominięte: obie publiczne drogi (akceptacja oferty i opinia)
+  idą wtedy przez panel. To zamierzone zachowanie hamulca, nie regresja —
+  po `npm run dev` od nowa wraca 59.
 
 Jeśli `git log` pokazuje co innego — ktoś pracował po drodze, sprawdź co
 (`git log` PRZED `git add`; równoległa sesja już raz wchłonęła cudze zmiany).
+
+**Lista znanych luk z pierwszego przejścia jest pusta.** Wszystkie A, B i C
+zamknięte (poza A5, patrz „Otwarte poza planem"). To znaczy, że każde nowe
+`⚠ ZNANA LUKA` w przejściu jest czymś, co dopiero co dołożyliśmy — a każda
+`✗ REGRESJA` psuje build.
 
 ## Gdzie jesteśmy w planie
 
@@ -29,124 +39,97 @@ naraz.
 | 0b | kontrola spójności jako ekran *Zdrowie* | ✅ |
 | 1 | jedno przepisanie danych klienta (`lib/przepisanie.ts`) | ✅ |
 | 2 | jedna bramka „czy to wolno wysłać" (`lib/bramkaWysylki.ts`) | ✅ |
-| **3** | **komplet skutków zdarzenia — jako propozycje** | **← teraz** |
-| 4 | lista działań nieodwracalnych i potwierdzenia | ⏳ |
+| 3 | komplet skutków zdarzenia jako propozycje (`lib/propozycje.ts`) | ✅ |
+| **4** | **lista działań nieodwracalnych i potwierdzenia** | **← teraz** |
 | 5 | wygląd (zebrane usterki wizualne) | ⏳ |
 
-## Co zamknęła Faza 2 — żeby nie robić tego drugi raz
+## Co zamknęła Faza 3 — żeby nie robić tego drugi raz
 
-- `lib/bramkaWysylki.ts` — **jedna** odpowiedź „co jest nie tak z tym
-  dokumentem, zanim wyjdzie": lista blokad i ostrzeżeń, nie `tak/nie`.
-  Blokada → **400 na trasie**, same ostrzeżenia → **409**, przechodzone
-  `mimo_ostrzezen: true` („Wyślij mimo to"). Zgoda **nie** obchodzi blokady.
-- Pyta ją **pięć tras** (`offers|contracts|invoices/[id]/send`,
-  `projects/[id]/request-review`, `client-followups/[id]/send`) i siedem
-  miejsc w panelu. **Nowa wysyłka = wołanie bramki w TRASIE**; przycisk
-  w interfejsie nie jest blokadą.
-- W interfejsie: `PasekBramki` + `useWysylkaZBramka()`
-  (`app/[lang]/admin/BramkaWysylki.tsx`).
-- **Migawka obejmuje wystawcę**: oferta i umowa przy wysyłce, faktura przy
-  wystawieniu (nie miała migawki w ogóle). Blok liczy `wystawcaDoMigawki()`
-  z `lib/publicFields.ts` — publiczne trasy przepuszczają przez tę białą listę
-  także migawkę, żeby prywatne ustawienia właściciela nie wyszły tylnymi drzwiami.
-- Szkice maili dostają imię z *Dane firmy* → „Podpisuje umowy"
-  (`danePodpisu()` w `lib/documents.ts`). Puste pole zostawia nawias
-  świadomie — bramka wtedy zatrzyma wysyłkę i powie, gdzie go uzupełnić.
+- **`lib/propozycje.ts`** — trzy deterministyczne reguły (`opinia-zamyka-
+  projekt`, `wygrany-lead-bez-przypomnienia`, `oplacony-klient-aktywny`).
+  Reguła to **zapytanie o stan bazy**, nie wpis robiony w trasie przy
+  zdarzeniu. Dzięki temu obie drogi opinii (publiczny formularz i wpis ręczny)
+  rodzą tę samą propozycję, reguły działają wstecz, a „jedna na rekord"
+  wychodzi z samego SQL-a.
+- **W bazie tylko odrzucenia** (`propozycje_decyzje`, klucz główny na parze
+  reguła+rekord). „Nie teraz" jest trwałe i na zawsze — z drogą powrotu
+  („Odłożone (N) — przywróć").
+- **Interfejs**: `app/[lang]/admin/Propozycje.tsx`, jedna sekcja w czterech
+  ekranach — Pulpit (wszystkie) plus Leady/Klienci/Projekty (swoje).
+  **Dokładając regułę, nie ruszasz ani trasy, ani interfejsu.**
+- **`lib/skutkiProjektu.ts`** — komplet skutków wejścia w „Wdrożone" (oś
+  klienta + dwa kontakty kontrolne). Wcześniej siedział wewnątrz `PATCH
+  /api/projects/:id`, więc każda inna droga robiła połowę roboty w ciszy.
+- **Granica automat/propozycja** (decyzja właściciela, teraz w `CLAUDE.md`):
+  skutek wywołany Twoim kliknięciem i oczywisty → automat; skutek z zewnątrz
+  albo nieoczywisty → propozycja. Akceptacja oferty dalej sama zamyka leada.
+- **Ekran *Zdrowie* milczy na świadomie odłożonych** propozycjach, ale nadal
+  mówi o czekających.
 
-Szczegóły i lekcje: `HUB_SETUP.md` → „Faza 2 zaplecza", `docs/PLAN-ZAPLECZE.md`.
+Szczegóły i lekcje: `HUB_SETUP.md` → „Faza 3 zaplecza", `docs/PLAN-ZAPLECZE.md`.
 
 ---
 
-# Faza 3 — skutki zdarzenia, komplet — jako propozycje
+# Faza 4 — nieodwracalność i potwierdzenia
 
-**Zasada, zatwierdzona przez właściciela: panel proponuje, właściciel
-zatwierdza.**
+**Zamyka:** D1 (faktura bez potwierdzenia), D3 (modal nie blokuje tła),
+D4 (brak „Zapisz" w Danych firmy). D2 (nowy lead ląduje poza ekranem) plan
+przypisuje Fazie 5 — potwierdź to przy starcie, bo to graniczny przypadek.
 
-Dziś panel robi jedno i drugie niekonsekwentnie: lead przestawia się sam przy
-akceptacji oferty, klient nie przestawia się nigdy. Ujednolicamy **w stronę
-propozycji**.
+Powstaje **jawna lista działań nieodwracalnych** i reguła: każde z nich pyta,
+każde nie-nieodwracalne nie pyta. Dziś jest odwrotnie w najgorszym miejscu —
+wystawienie faktury nadaje trwały numer w serii bez pytania, a „oznacz umowę
+jako podpisaną" pyta.
+
+Na liście na pewno: wystawienie faktury, wysłanie dokumentu do klienta,
+unieważnienie linku, usunięcie czegokolwiek, wysyłka do KSeF.
 
 ## Trzy luki, które to zamyka
 
-| nr | co się dzieje dziś | gdzie siedzi zdarzenie |
-|---|---|---|
-| **C1** | klient wystawił opinię, projekt **zostaje** „W trakcie" | `app/api/projects/review/public/[token]/submit/route.ts` (droga klienta) oraz `app/api/projects/[id]/review/route.ts` (wpis ręczny) — **dwie drogi, jeden skutek**, wzorem `lib/offerAccept.ts` |
-| **C3** | lead „Zamknięte - sukces" **zostaje** z żywym `next_followup` — przypomnienie każe oddzwonić w sprawie zamkniętej | `lib/offerAccept.ts` (~w. 198, tam status leada się przestawia) |
-| **C4** | faktura opłacona, klient **dalej** ma status „Prospekt" | `app/api/invoices/[id]/payments/` |
-
-**C2 (mail mówi „zakończony", projekt jest „W trakcie") zamknęła Faza 2** jako
-ostrzeżenie bramki (`mail-mowi-zakonczony`) — plan wprost mówi, że to blokada,
-nie propozycja.
-
-Wszystkie trzy są dziś widoczne jako czerwone reguły na ekranie *Zdrowie*
-(`lib/spojnosc.ts`, znaczniki `luka: "C1" | "C3" | "C4"`) i jako `⚠ ZNANA LUKA`
-w `npm run przejscie`. **Po naprawie zdejmij znaczniki w OBU miejscach** —
-inaczej przejście zgłosi `★ NAPRAWIONE` i będzie miało rację.
-
-## Gdzie mieszkają propozycje
-
-**W istniejącym „Wymaga działania dziś"** — na Pulpicie i w module, którego
-dotyczą. **Nowego modułu nie robimy.**
-
-- Kafel „Wymaga działania dziś": `app/[lang]/admin/DashboardHome.tsx` (~w. 500)
-- Dane: `app/api/hub/today/route.ts` — jedno `Promise.all`, potem filtry
-  `isOverdue` / `isProjectOverdue` / `isInvoiceOverdue` / `dueFollowups`
-
-To świadomie **nie jest** „Skrzynka propozycji AI"
-(`ai-propozycje-orchestrator-plan`) — tamta jest odłożona na koniec i dotyczy
-treści generowanych przez model. Tu **nie ma modelu**: deterministyczne reguły,
-zgodnie z „Świadome decyzje produktowe" w `CLAUDE.md`. Jeśli tamta skrzynka
-kiedyś powstanie, będzie można je połączyć — ale nie odwrotnie.
-
-## Kształt propozycji
-
-Jedno zdanie, jeden przycisk „zrób to", jeden „nie teraz".
-
-| zdarzenie | propozycja |
+| nr | co się dzieje dziś |
 |---|---|
-| faktura opłacona | „Drukarnia Helios zapłaciła — przestawić klienta na Aktywny?" |
-| klient przysłał opinię | „Opinia przyszła — zamknąć projekt jako Wdrożone?" |
-| wygrany lead z żywym przypomnieniem | „Lead wygrany, ale ma zaplanowane demo na 5.08 — zdjąć przypomnienie?" |
-
-**„Nie teraz" musi być TRWAŁE** — propozycja odrzucona nie wraca następnego
-dnia. To jest różnica między pomocnym panelem a natrętnym. Czyli: ślad w bazie,
-nie stan w przeglądarce.
+| **D1** | „Wystaw fakturę" nadaje trwały numer (`FV 93/2026`) i jest nieodwracalne — zero potwierdzenia. Dla porównania „Oznacz jako podpisaną" na umowie potwierdzenia wymaga. **Mocniejsze działanie ma słabszą barierę.** |
+| **D3** | Przy otwartym oknie „Nazwa kamienia milowego" da się kliknąć pigułkę *Status* pod spodem — dwie warstwy interakcji naraz |
+| **D4** | „Dane firmy" mają jeden przycisk: *Zamknij*. Zapisują pole po polu, przy opuszczeniu pola — a wygląda jak formularz z OK/Anuluj |
 
 ## Co rozstrzygnąć z właścicielem NA STARCIE
 
-To są decyzje produktowe, nie techniczne — nie zgaduj:
+Nie zgaduj — to decyzje produktowe:
 
-1. **Jedna propozycja na zdarzenie czy na rekord?** Klient z trzema opłaconymi
-   fakturami — jedna propozycja czy trzy?
-2. **Co znaczy „nie teraz"?** Odrzucenie raz na zawsze, czy odłożenie na N dni?
-3. **Czy propozycje wchodzą też do apki iOS**, czy na razie tylko panel.
-4. **Czy istniejące automaty zostają automatami?** Lead przestawia się sam przy
-   akceptacji oferty. Plan mówi „ujednolicamy w stronę propozycji", ale to jest
-   zmiana czegoś, co dziś działa — warto potwierdzić wprost.
+1. **Co dokładnie trafia na listę nieodwracalnych?** Pięć pozycji wyżej to
+   propozycja z planu, nie ustalenie.
+2. **Jak wygląda potwierdzenie rzeczy naprawdę nieodwracalnej** — zwykłe
+   „Na pewno?", czy mocniejsze (przepisanie numeru, wpisanie słowa)?
+3. **Czy potwierdzenie da się wyłączyć** dla działań powtarzanych codziennie
+   (np. wysyłka dokumentu), czy pyta zawsze.
+4. **Czy „Dane firmy" dostają przycisk Zapisz** (zmiana modelu na
+   OK/Anuluj), czy zostają przy zapisie pole-po-polu z wyraźnym komunikatem.
 
-## Sprawdzenie fazy (wprost z planu)
+## Sprawdzenie fazy
 
-> Po przejściu testowej drogi na Pulpicie stoją dokładnie te propozycje,
-> których się spodziewamy — ani jednej więcej.
-
-Czyli: `npm run przejscie` rozszerzone o asercje na liście propozycji, plus
-zdjęcie znaczników `C1`/`C3`/`C4` z przejścia i z `lib/spojnosc.ts`.
+Ta faza jest głównie o interfejsie, więc `npm run przejscie` sprawdzi mniej niż
+zwykle — ale sondę da się zrobić i tu: **trasa nieodwracalnego działania nie
+może wykonać go bez jawnego potwierdzenia w żądaniu.** Inaczej „potwierdzenie"
+jest ozdobą interfejsu, dokładnie tak jak przed Fazą 2 bramka wysyłki mieszkała
+w przyciskach zamiast w trasach.
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
 
 - `npm run dev` w jednym oknie, `npm run przejscie` w drugim. Dev-baza to
   PGlite w pamięci procesu — **restart serwera = czysta baza**.
 - `npx tsc --noEmit -p tsconfig.json` po każdej paczce zmian (pełny
-  `next build` failuje w sandboxie z EPERM).
-- `npm test` — 250 testów nad czystymi funkcjami z `lib/`.
+  `next build` failuje w sandboxie z EPERM). **`tsc` nie wie nic o więzach
+  bazy** — `NOT NULL` wychodzi dopiero z przejścia (Faza 3, `next_action`).
+- `npm test` — 262 testy nad czystymi funkcjami z `lib/`.
 - **Każda nowa trasa w `app/api` jest domyślnie OTWARTA** —
   `if (!(await isAuthed()))` sprawdzaj per uchwyt HTTP, nie per plik.
 - Migracje w `lib/db.ts`, między `schemaUpToDate()` a `markSchemaApplied()`.
   **Zapytanie nie-DDL w migracji MUSI iść przez `inMigration()`**, inaczej
   w dev zakleszcza seeder i wszystkie `/api/*` wiszą kilkadziesiąt sekund.
 - Podgląd w przeglądarce ma **zamrożony rAF** (karta „hidden"): animacje
-  framer-motion stoją na wpół przezroczyste. To artefakt narzędzia, nie błąd —
-  sprawdzaj treść przez DOM, nie przez sam zrzut.
+  framer-motion nie kończą się, więc element usunięty ze stanu potrafi zostać
+  w DOM. To artefakt narzędzia — rozstrzyga przeładowanie strony albo pomiar
+  liczby klatek rAF, nie zrzut ekranu.
 - Kończąc: `rm -f .git/index.lock && git add -A && git commit && git push`.
 
 ---
@@ -168,11 +151,17 @@ zdjęcie znaczników `C1`/`C3`/`C4` z przejścia i z `lib/spojnosc.ts`.
 - **Włączenie 2FA na produkcji** — silnik gotowy od Modułu 41. Drogi powrotu:
   papierowe kody zapasowe + ten sam sekret na drugim urządzeniu (NIE
   „wyłącznik w Vercelu").
+- **Propozycje w apce iOS** — świadomie poza Fazą 3 (decyzja właściciela).
+  Trasa `/api/hub/propozycje` jest gotowa do zawołania bez zmian po stronie
+  serwera; brakuje wyłącznie ekranu w SwiftUI.
 
 ## Czego NIE zaczynać bez wyraźnej prośby
 
-- **Orchestrator propozycji AI** („Skrzynka propozycji AI") — odłożony na koniec.
+- **Orchestrator propozycji AI** („Skrzynka propozycji AI") — odłożony na
+  koniec. Propozycje z Fazy 3 to co innego: deterministyczne reguły, bez modelu.
 - **Nowy punkt użycia lokalnego LLM** poza pięcioma zbudowanymi.
+- **Zamiana istniejących automatów na propozycje** — granica jest ustalona
+  i zapisana w `CLAUDE.md`.
 - **Moduł 16 — wsparcie posprzedażowe.** Do pierwszego klienta.
 - **Przeprowadzka na NAS** poza etapem 1.
 - Wszystko z sekcji „Świadome decyzje produktowe" w `CLAUDE.md`.
@@ -180,8 +169,8 @@ zdjęcie znaczników `C1`/`C3`/`C4` z przejścia i z `lib/spojnosc.ts`.
 ## Uczciwa etykieta stanu
 
 **Kompletny funkcjonalnie, przeaudytowany, nieużywany produkcyjnie.** Od
-2 sierpnia doszło coś, czego wcześniej nie było: **dwa narzędzia, które
-sprawdzają dane, a nie kod** — przejście „na sucho" i kontrola spójności na
-ekranie *Zdrowie*. Czego dalej nie ma: ani jednego prawdziwego klienta, ani
-jednej faktury wystawionej naprawdę. Następny krok, który realnie zmienia stan,
-jest nietechniczny: rejestracja działalności.
+2 sierpnia doszły dwa narzędzia, które sprawdzają DANE, a nie kod — przejście
+„na sucho" i kontrola spójności na ekranie *Zdrowie* — i po Fazie 3 oba
+pokazują zero. Czego dalej nie ma: ani jednego prawdziwego klienta, ani jednej
+faktury wystawionej naprawdę. Następny krok, który realnie zmienia stan, jest
+nietechniczny: rejestracja działalności.
