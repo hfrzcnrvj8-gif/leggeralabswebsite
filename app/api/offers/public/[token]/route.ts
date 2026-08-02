@@ -29,7 +29,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   // właściciela 2026-07-27). Bez tego dokument „u klienta" zmieniał się razem
   // z bazą, a przy sporze nie było czego pokazać. Fallback na dane żywe
   // dotyczy ofert wysłanych przed tą zmianą — te migawki nie mają.
-  const migawka = (offer.migawka ?? null) as { offer?: Record<string, unknown>; items?: unknown[]; sections?: unknown[] } | null;
+  const migawka = (offer.migawka ?? null) as {
+    offer?: Record<string, unknown>;
+    items?: unknown[];
+    sections?: unknown[];
+    wystawca?: Record<string, unknown> | null;
+  } | null;
   const zMigawki = migawka && Array.isArray(migawka.items);
   let items = zMigawki
     ? (migawka.items as Record<string, unknown>[])
@@ -79,7 +84,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   const naglowek = zMigawki && migawka?.offer
     ? { ...migawka.offer, ...Object.fromEntries(ZAWSZE_ZYWE.map((k) => [k, (offer as Record<string, unknown>)[k]])) }
     : offer;
-  const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
+  // Wystawca z MIGAWKI (Faza 2, znalezisko A2) — dane firmy z chwili wysyłki,
+  // nie z chwili otwarcia. Bez tego zmiana nazwy, NIP-u albo numeru konta
+  // zmieniała wstecz dokument, który klient wciąż może otworzyć. Fallback na
+  // żywe ustawienia dotyczy ofert wysłanych przed tą zmianą — te migawki
+  // bloku wystawcy nie mają; z pustym blokiem klient zobaczyłby „—”.
+  const wystawcaZMigawki = migawka?.wystawca ?? null;
+  const settings = wystawcaZMigawki ? [] : await sql`SELECT * FROM company_settings WHERE id = 'default';`;
 
   // Ślad otwarcia (runda 2 Modułu 57). Do tej pory po wysłaniu maila zapadała
   // cisza — nie dało się odróżnić „nie przeczytał" od „przeczytał i się
@@ -139,6 +150,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     // Sekcje idą w całości — to treść napisana przez właściciela DLA klienta,
     // nie kolumny rekordu, więc nie ma tu czego przesiewać białą listą.
     sections,
-    settings: settings[0] ? pickFields(settings[0], COMPANY_SETTINGS_PUBLIC_FIELDS) : null,
+    settings: pickFields(wystawcaZMigawki ?? settings[0] ?? {}, COMPANY_SETTINGS_PUBLIC_FIELDS),
   });
 }

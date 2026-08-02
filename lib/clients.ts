@@ -10,7 +10,7 @@
 // zanim jest oferta). Patrz lib/db.ts ensureClientsSchema.
 
 import { todayLocalISO, daysBetweenISO } from "./dates";
-import { type DocLang } from "./documents";
+import { type DocLang, type DanePodpisu } from "./documents";
 import { mapaStanow, mapaKropek, type Stan } from "./kolorStanu";
 
 export type Client = {
@@ -281,7 +281,11 @@ export function buildNurtureMessage(
   project: { tytul: string },
   client: { nazwa: string; osoba_kontaktowa: string } | null,
   review: { url: string; submitted: boolean } | null,
-  lang: DocLang = "pl"
+  lang: DocLang = "pl",
+  /** Faza 2 (A1) — kto podpisuje. Ta sama wada, co w szkicach z
+   *  lib/projects.ts: szkic kończył się nawiasem „[Twoje imię]", a trasa
+   *  `POST /api/client-followups/[id]/send` wysyłała go bez mrugnięcia. */
+  podpis: DanePodpisu | null = null
 ): string {
   const nazwaKlienta = client?.nazwa ? ` (${client.nazwa})` : "";
 
@@ -299,7 +303,7 @@ It's been two weeks since we wrapped up "${project.tytul}"${nazwaKlienta} — ho
 And if you know anyone who could use similar help, feel free to send them my way — always appreciated!
 
 Best,
-[Your name]`;
+${podpis?.imie ?? "[Your name]"}`;
     }
     return `${greeting}
 
@@ -308,7 +312,7 @@ It's been three months since we wrapped up "${project.tytul}"${nazwaKlienta} —
 And if you know anyone who could use similar help, feel free to send them my way — always appreciated!
 
 Best,
-[Your name]`;
+${podpis?.imie ?? "[Your name]"}`;
   }
 
   if (lang === "de") {
@@ -325,7 +329,7 @@ seit dem Abschluss von „${project.tytul}"${nazwaKlienta} sind zwei Wochen verg
 Und falls Sie jemanden kennen, dem eine ähnliche Unterstützung helfen würde — ich freue mich immer über Empfehlungen!
 
 Viele Grüße,
-[Ihr Name]`;
+${podpis?.imie ?? "[Ihr Name]"}`;
     }
     return `${greeting}
 
@@ -334,7 +338,7 @@ seit dem Abschluss von „${project.tytul}"${nazwaKlienta} sind drei Monate verg
 Und falls Sie jemanden kennen, dem eine ähnliche Unterstützung helfen würde — ich freue mich immer über Empfehlungen!
 
 Viele Grüße,
-[Ihr Name]`;
+${podpis?.imie ?? "[Ihr Name]"}`;
   }
 
   const greeting = client?.osoba_kontaktowa ? `Cześć ${client.osoba_kontaktowa},` : "Cześć,";
@@ -350,7 +354,7 @@ Minęły dwa tygodnie odkąd zamknęliśmy „${project.tytul}"${nazwaKlienta} �
 I jeśli znasz kogoś, komu przydałaby się podobna pomoc — śmiało polecaj, zawsze to doceniam!
 
 Pozdrawiam,
-[Twoje imię]`;
+${podpis?.imie ?? "[Twoje imię]"}`;
   }
   return `${greeting}
 
@@ -359,7 +363,7 @@ Minęły trzy miesiące odkąd zamknęliśmy „${project.tytul}"${nazwaKlienta}
 I jeśli znasz kogoś, komu przydałaby się podobna pomoc — śmiało polecaj, zawsze to doceniam!
 
 Pozdrawiam,
-[Twoje imię]`;
+${podpis?.imie ?? "[Twoje imię]"}`;
 }
 
 function daysSince(dateStr: string | null): number | null {

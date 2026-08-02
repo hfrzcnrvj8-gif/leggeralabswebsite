@@ -15,6 +15,37 @@ export const DOC_LOCALE: Record<DocLang, string> = { pl: "pl-PL", en: "en-GB", d
  * jak we `.text-liquid`, żeby zostać czytelnym na białym papierze. */
 export const DOC_GRADIENT = "linear-gradient(120deg, #7C3AED 0%, #E0A93B 100%)";
 
+/**
+ * Kto podpisuje maile wychodzące z panelu — Faza 2 planu
+ * `docs/PLAN-ZAPLECZE.md`, znalezisko A1.
+ *
+ * Szkice maili (powitanie, podsumowanie projektu, kontakt kontrolny) kończyły
+ * się dosłownie na „[Twoje imię]" — i tak, z nawiasem, jeden z nich poszedł do
+ * klienta. Panel ZNAŁ imię: siedzi w „Danych firmy" jako „Podpisuje umowy".
+ * Od Fazy 2 szkic dostaje je od razu.
+ *
+ * **Puste `osoba_podpisujaca` zostawia nawias świadomie.** Zgadywanie imienia
+ * z nazwy firmy albo wpisywanie go na sztywno dałoby podpis, którego nikt nie
+ * zatwierdził — a nawias zatrzyma wysyłkę na bramce (`lib/bramkaWysylki.ts`)
+ * i powie właścicielowi, gdzie go uzupełnić. Cisza byłaby gorsza niż nawias.
+ */
+export type DanePodpisu = { imie: string; email: string; telefon: string };
+
+export function danePodpisu(settings: Record<string, unknown> | null | undefined): DanePodpisu | null {
+  const t = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const imie = t(settings?.osoba_podpisujaca);
+  if (!imie) return null;
+  return { imie, email: t(settings?.email), telefon: t(settings?.telefon) };
+}
+
+/** Linia kontaktu do wstawienia w szkicu maila: „Patryk Piecyk,
+ *  kontakt@… / +48 …". Bez kontaktu zostaje sam nawias do uzupełnienia. */
+export function liniaKontaktu(p: DanePodpisu | null, zapas: string): string {
+  if (!p) return zapas;
+  const kontakt = [p.email, p.telefon].filter(Boolean).join(" / ");
+  return kontakt ? `${p.imie}, ${kontakt}` : p.imie;
+}
+
 export type ClientAddressLike = {
   klient_ulica: string;
   klient_kod: string;

@@ -17,6 +17,8 @@ import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { type Client, clientOverdueReason } from "@/lib/clients";
 import { todayLocalISO } from "@/lib/dates";
 import { useUI } from "./ui";
+import { PasekBramki, useWysylkaZBramka } from "./BramkaWysylki";
+import { sprawdzMailPrzedWysylka } from "@/lib/bramkaWysylki";
 import { StanBledu } from "./StanPusty";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
@@ -125,6 +127,8 @@ function sumPln(entries: [string, number][]): number {
  * To jest strona, od której zaczynasz każdy dzień pracy. */
 export function DashboardHome({ lang }: { lang: Locale }) {
   const { toast, confirm } = useUI();
+  // Bramka wysyłki (Faza 2) — okno przed wysyłką kontaktu kontrolnego.
+  const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [data, setData] = useState<TodayData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // Szkic kontaktu retencyjnego (Moduł 17) — na raz otwarty jest tylko jeden,
@@ -266,15 +270,12 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   const sendFollowupDraft = async (followupId: string) => {
     if (!draftText.trim() || draftSending) return;
     setDraftSending(true);
-    const res = await fetch(`/api/client-followups/${followupId}/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: draftText }),
-    });
+    // Bramka wysyłki (Faza 2) — ten szkic też kończył się „[Twoje imię]"
+    // i też szedł jednym kliknięciem (znalezisko A1, drugie miejsce).
+    const res = await wyslij(`/api/client-followups/${followupId}/send`, { body: { body: draftText } });
     setDraftSending(false);
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {
-      toast(body.error ?? "Nie udało się wysłać wiadomości.", "error");
+      if (!res.anulowane) toast(res.dane.error ?? "Nie udało się wysłać wiadomości.", "error");
       return;
     }
     setData((prev) => (prev ? { ...prev, dueFollowups: prev.dueFollowups.filter((f) => f.id !== followupId) } : prev));
@@ -726,6 +727,11 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                                   rows={7}
                                   className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
                                 />
+                                {/* Bramka wysyłki (Faza 2, A1) — liczona
+                                    w przeglądarce, bo patrzy na treść, którą
+                                    właściciel właśnie pisze. Ta sama funkcja
+                                    odmawia potem na trasie. */}
+                                <PasekBramki className="mt-2" bramka={sprawdzMailPrzedWysylka({ tresc: draftText })} />
                                 <button
                                   onClick={() => sendFollowupDraft(f.id)}
                                   disabled={!draftText.trim() || draftSending || !draftEmail}
@@ -1088,6 +1094,8 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           {data.counts.invoices} faktur, {data.counts.offers} ofert.
         </span>
       </div>
+
+      {oknoBramki}
     </div>
   );
 }

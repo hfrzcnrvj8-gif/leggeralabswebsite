@@ -3,6 +3,7 @@ import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaStatusuUmowy, blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
+import { sprawdzDokumentPrzedWysylka } from "@/lib/bramkaWysylki";
 import { isPlausibleDateString } from "@/lib/projects";
 import { DOC_LANGS } from "@/lib/documents";
 import {
@@ -73,11 +74,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       )[0] ?? null
     : null;
 
+  // BRAMKA WYSYŁKI (Faza 2) — patrz bliźniacza adnotacja w GET /api/offers/:id.
+  // Ten sam wynik, którym `/send` odmówi; edytor rysuje z niego pasek.
+  const wystawca = (await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0] ?? null;
+  const bramka = sprawdzDokumentPrzedWysylka({ rodzaj: "umowa", dokument: contract, wystawca });
+
   return NextResponse.json({
     contract: { ...contract, cena: Number(contract.cena) },
     clauses,
     aneksy,
     matka,
+    bramka,
   });
 }
 

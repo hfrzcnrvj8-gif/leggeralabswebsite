@@ -34,6 +34,8 @@ import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
 import { formatPlDateTime, todayLocalISO, daysBetweenISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/documents";
 import { useUI } from "../ui";
+import { PasekBramki, useWysylkaZBramka } from "../BramkaWysylki";
+import type { WynikBramki } from "@/lib/bramkaWysylki";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, MenuDivider, MenuLabel, PropertyMenu, useContextMenu, ContextMenu, ContextMenuItem } from "../Menu";
 import { Tooltip } from "../Tooltip";
@@ -66,6 +68,10 @@ export function OfferEditor({
   onDeleted?: (id: string) => void;
 }) {
   const { toast, confirm, prompt } = useUI();
+  // Bramka wysyłki (Faza 2) — pasek liczy SERWER przy odczycie oferty, bo
+  // dane wystawcy siedzą w osobnej tabeli, do której edytor nigdy nie sięgał.
+  const [bramka, setBramka] = useState<WynikBramki | null>(null);
+  const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [offer, setOffer] = useState<Offer | null>(null);
   const [items, setItems] = useState<OfferItem[]>([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
@@ -114,11 +120,13 @@ export function OfferEditor({
       items: OfferItem[];
       sections: OfferSection[];
       contract: { id: string; status: string } | null;
+      bramka?: WynikBramki;
     };
     setOffer(data.offer);
     setItems(data.items);
     setSections(data.sections ?? []);
     setContract(data.contract ?? null);
+    setBramka(data.bramka ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -629,10 +637,12 @@ export function OfferEditor({
 
   const sendOfferEmail = useCallback(async () => {
     setSending(true);
-    const res = await fetch(`/api/offers/${id}/send`, { method: "POST" });
+    // Bramka wysyłki (Faza 2) — `wyslij` sam pokazuje listę zastrzeżeń
+    // i powtarza żądanie, jeśli właściciel wybierze „Wyślij mimo to".
+    const res = await wyslij(`/api/offers/${id}/send`);
     setSending(false);
     if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { status?: string; shareToken?: string };
+      const data = res.dane as { status?: string; shareToken?: string };
       toast("Oferta wysłana mailem.");
       setOffer((p) =>
         p
@@ -646,11 +656,10 @@ export function OfferEditor({
           : p
       );
       onChange?.();
-    } else {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(data.error ?? "Nie udało się wysłać oferty.", "error");
+    } else if (!res.anulowane) {
+      toast(res.dane.error ?? "Nie udało się wysłać oferty.", "error");
     }
-  }, [id, toast, onChange]);
+  }, [id, toast, onChange, wyslij]);
 
   if (!offer) {
     return (
@@ -1472,10 +1481,18 @@ export function OfferEditor({
             Kopiuj link dla klienta
           </button>
 
+          {/* Bramka wysyłki (Faza 2) — lista „co jest nie tak” stoi PRZY
+              przycisku, a nie w komunikacie błędu po kliknięciu. Przycisk
+              zostaje aktywny mimo blokad: odmawia trasa, a okno wymienia
+              wszystkie powody naraz. Wcześniej był tu `disabled` na samym
+              braku e-maila klienta — czyli szósta kopia jednej reguły, i to
+              akurat ta, która przepuszczała dokument bez wystawcy (A2). */}
+          <PasekBramki bramka={bramka} />
+
           <button
             onClick={sendOfferEmail}
-            disabled={sending || !offer.klient_email}
-            title={offer.klient_email ? "Wyślij link do oferty na e-mail klienta" : "Uzupełnij e-mail klienta"}
+            disabled={sending}
+            title="Wyślij link do oferty na e-mail klienta"
             className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
@@ -1591,6 +1608,8 @@ export function OfferEditor({
       >
         <OknoOdrzucenia onCancel={() => setRejectOpen(false)} onConfirm={rejectOffer} />
       </Modal>
+
+      {oknoBramki}
     </div>
   );
 }

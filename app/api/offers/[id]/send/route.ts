@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
+import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
+import { wystawcaDoMigawki } from "@/lib/publicFields";
 
 export const runtime = "nodejs";
 
@@ -19,16 +21,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Moduł 40 — wysyłka nie może iść unieważnionym linkiem. Świadomie NIE
     // regenerujemy tokenu po cichu: nowy link to osobna, jawna decyzja.
     if (offer.share_revoked_at) return NextResponse.json({ error: "Link do tej oferty jest unieważniony — wygeneruj nowy przed wysyłką." }, { status: 409 });
-    if (!offer.klient_email) return NextResponse.json({ error: "Brak adresu e-mail klienta — uzupełnij go w edytorze." }, { status: 400 });
+
+    const pozycjeDoMigawki = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
+    const sekcjeDoMigawki = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
+    const wystawca = wystawcaDoMigawki((await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0]);
+
+    // BRAMKA WYSYŁKI (Faza 2) — jedna funkcja odpowiada, co jest nie tak
+    // z dokumentem, zanim wyjdzie. Zastąpiła własne `if (!klient_email)`:
+    // ta trasa blokowała brak maila KLIENTA, ale przepuszczała dokument bez
+    // wystawcy (znalezisko A2 — oferta wyszła i została zaakceptowana
+    // z rubryką „Wystawca —”). Odmowa stoi TUTAJ, nie w edytorze: blokada
+    // w interfejsie nie jest blokadą.
+    const bramka = sprawdzDokumentPrzedWysylka({
+      rodzaj: "oferta",
+      dokument: offer,
+      wystawca,
+      pozycje: pozycjeDoMigawki,
+      sekcje: sekcjeDoMigawki,
+    });
+    const odmowa = odmowaBramki(bramka, mimoOstrzezen(await req.json().catch(() => null)));
+    if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
 
     // MIGAWKA — robimy ją PRZED wysyłką maila, żeby link w mailu od pierwszej
     // sekundy prowadził do treści, która właśnie poszła. Kolejność ma tu
     // znaczenie: mail wychodzi raz, migawkę da się powtórzyć.
-    const pozycjeDoMigawki = await sql`SELECT * FROM offer_items WHERE offer_id = ${id} ORDER BY position ASC;`;
-    const sekcjeDoMigawki = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
+    //
+    // `wystawca` dołączył w Fazie 2: bez niego publiczny link czytał dane
+    // firmy NA ŻYWO, więc zmiana nazwy albo numeru konta zmieniała wstecz
+    // dokument, który klient wciąż mógł otworzyć (znalezisko A2, druga część).
     await sql`
       UPDATE offers SET
-        migawka = ${JSON.stringify({ offer, items: pozycjeDoMigawki, sections: sekcjeDoMigawki })},
+        migawka = ${JSON.stringify({ offer, items: pozycjeDoMigawki, sections: sekcjeDoMigawki, wystawca })},
         migawka_at = now()
       WHERE id = ${id};
     `;

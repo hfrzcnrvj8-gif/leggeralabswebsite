@@ -3,6 +3,7 @@ import { getSql, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import type { DocLang } from "@/lib/documents";
+import { sprawdzMailPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
 
 export const runtime = "nodejs";
 
@@ -23,7 +24,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = (await req.json().catch(() => null)) as { body?: unknown } | null;
   const text = typeof body?.body === "string" ? body.body.trim() : "";
-  if (!text) return NextResponse.json({ error: "Brak treści wiadomości." }, { status: 400 });
 
   try {
     await ensureHubSchema();
@@ -49,6 +49,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!clientRow?.email) {
       return NextResponse.json({ error: "Brak adresu e-mail klienta — uzupełnij go w karcie klienta." }, { status: 400 });
     }
+
+    // BRAMKA WYSYŁKI (Faza 2) — najpoważniejsze znalezisko całego przejścia
+    // (A1): stąd wyszedł do klienta mail podpisany dosłownie „[Twoje imię]",
+    // a niżej stało „[uzupełnij, jeśli jest plan na kolejne kroki]". Jedno
+    // kliknięcie, kod 200, żadnego ostrzeżenia. Ta trasa sprawdzała wyłącznie,
+    // czy treść jest niepusta.
+    //
+    // Sprawdzenie stoi TUTAJ, nie tylko w panelu: mail wychodzi z trasy.
+    const bramka = sprawdzMailPrzedWysylka({ tresc: text, statusProjektu: String(project.status ?? "") });
+    const odmowa = odmowaBramki(bramka, mimoOstrzezen(body));
+    if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
 
     const tytul = typeof project.tytul === "string" && project.tytul ? project.tytul : "projekt";
     const lang = ((project.jezyk as string) in SUBJECT ? project.jezyk : "pl") as DocLang;

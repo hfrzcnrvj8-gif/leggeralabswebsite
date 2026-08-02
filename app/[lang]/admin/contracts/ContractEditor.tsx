@@ -28,6 +28,8 @@ import { todayLocalISO } from "@/lib/dates";
 import { DOC_LANGS, DOC_LANG_LABEL } from "@/lib/documents";
 import { formatMoney, INVOICE_CURRENCIES } from "@/lib/invoices";
 import { useUI } from "../ui";
+import { PasekBramki, useWysylkaZBramka } from "../BramkaWysylki";
+import type { WynikBramki } from "@/lib/bramkaWysylki";
 import { DateField } from "../DatePicker";
 import { ClientLinkChip, EditableText } from "../components";
 import { PropertyMenu } from "../Menu";
@@ -56,6 +58,10 @@ export function ContractEditor({
   onDeleted?: (id: string) => void;
 }) {
   const { toast, confirm } = useUI();
+  // Bramka wysyłki (Faza 2) — pasek liczy SERWER przy odczycie dokumentu:
+  // dane wystawcy siedzą w osobnej tabeli, do której edytor nie sięgał.
+  const [bramka, setBramka] = useState<WynikBramki | null>(null);
+  const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [contract, setContract] = useState<Contract | null>(null);
   /** Rodzina dokumentu z `GET /api/contracts/:id` — aneksy tej umowy albo
    * umowa-matka tego aneksu. Do audytu Modułu 11 obie strony tego powiązania
@@ -73,10 +79,16 @@ export function ContractEditor({
   const load = useCallback(async () => {
     const res = await fetch(`/api/contracts/${id}`);
     if (!res.ok) return;
-    const data = (await res.json()) as { contract: Contract; aneksy?: AneksWiersz[]; matka?: MatkaWiersz | null };
+    const data = (await res.json()) as {
+      contract: Contract;
+      aneksy?: AneksWiersz[];
+      matka?: MatkaWiersz | null;
+      bramka?: WynikBramki;
+    };
     setContract(data.contract);
     setAneksy(data.aneksy ?? []);
     setMatka(data.matka ?? null);
+    setBramka(data.bramka ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -111,10 +123,12 @@ export function ContractEditor({
 
   const send = useCallback(async () => {
     setSending(true);
-    const res = await fetch(`/api/contracts/${id}/send`, { method: "POST" });
+    // Bramka wysyłki (Faza 2) — `wyslij` sam pokazuje listę zastrzeżeń
+    // i powtarza żądanie po „Wyślij mimo to".
+    const res = await wyslij(`/api/contracts/${id}/send`);
     setSending(false);
     if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { status?: string; shareToken?: string };
+      const data = res.dane as { status?: string; shareToken?: string };
       toast("Wysłano mailem.");
       // share_token dopisujemy od razu, żeby „Unieważnij link" (Moduł 40)
       // pojawił się bez przeładowania edytora.
@@ -128,11 +142,10 @@ export function ContractEditor({
           : p
       );
       onChange?.();
-    } else {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(data.error ?? "Nie udało się wysłać.", "error");
+    } else if (!res.anulowane) {
+      toast(res.dane.error ?? "Nie udało się wysłać.", "error");
     }
-  }, [id, toast, onChange]);
+  }, [id, toast, onChange, wyslij]);
 
   const markSigned = useCallback(async () => {
     const ok = await confirm("Oznaczyć jako podpisaną (np. podpis papierowy poza panelem)?");
@@ -959,15 +972,23 @@ export function ContractEditor({
               (409) od audytu Modułu 11, więc przycisk byłby obietnicą bez
               pokrycia. Apka ukrywała go tak samo od dawna. */}
           {!signed && contract.status !== "Odrzucona" && (
+          <>
+          {/* Bramka wysyłki (Faza 2) — lista braków stoi PRZY przycisku, nie
+              w komunikacie po kliknięciu. Przycisk zostaje aktywny mimo
+              blokad: odmawia trasa, a okno wymienia wszystkie powody naraz.
+              Wcześniej stał tu `disabled` na samym braku e-maila — jedna
+              reguła z ośmiu, których ten dokument wymaga. */}
+          <PasekBramki bramka={bramka} />
           <button
             onClick={send}
-            disabled={sending || !contract.klient_email}
-            title={contract.klient_email ? "Wyślij link do podpisu na e-mail" : "Uzupełnij e-mail"}
+            disabled={sending}
+            title="Wyślij link do podpisu na e-mail"
             className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
             Wyślij mailem
           </button>
+          </>
           )}
 
           {/* Przypomnienie — tylko dla dokumentu, który realnie czeka na
@@ -1018,6 +1039,8 @@ export function ContractEditor({
           }}
         />
       </Modal>
+
+      {oknoBramki}
     </div>
   );
 }

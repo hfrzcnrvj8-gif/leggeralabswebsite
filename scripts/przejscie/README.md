@@ -11,6 +11,9 @@ npm run przejscie    # w drugim
 Powstało jako Faza 0 planu `docs/PLAN-ZAPLECZE.md`, po ręcznym przejściu
 opisanym w `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md`.
 
+Ostatni wynik (po Fazie 2): **47 działa · 3 znane luki · 0 regresji ·
+0 obejść · 0 pominiętych**. Trzy luki to C1, C3 i C4 — cała Faza 3.
+
 ## Po co, skoro jest `npm test`
 
 `npm test` to 34 pliki nad **czystymi funkcjami** z `lib/` — arytmetyka

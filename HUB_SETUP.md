@@ -11197,3 +11197,67 @@ pusty.
   klienta ma jego adres", „Faktura z oferty ma te same dane nabywcy co oferta",
   „Faktura zna umowę", „Projekt z podpisaną umową ma termin". Znaczniki `luka`
   zdjęte razem z naprawą — **reguły zostają**.
+
+## Faza 2 zaplecza — jedna bramka „czy to wolno wysłać" (2026-08-02)
+
+Druga faza planu `docs/PLAN-ZAPLECZE.md`. Zamknęła znaleziska A1–A4 pierwszego
+przejścia „na sucho": mail z `[Twoje imię]`, dokument bez wystawcy, brak adresu
+sprzedawcy na ofercie i umowie, sprzeczny termin z szablonu.
+
+### Jedna funkcja zamiast siedmiu różnych sprawdzeń
+
+`lib/bramkaWysylki.ts` (czysta logika, bez `db.ts` — woła ją i trasa, i
+przeglądarka) odpowiada na pytanie „co jest nie tak z tym dokumentem, zanim
+wyjdzie". Zwraca **listę**, nie `true/false`, bo część rzeczy to **blokada**
+(brak wystawcy, nawias `[…]` w mailu, brak adresu na umowie), a część
+**ostrzeżenie** (dwa różne terminy w dokumencie, oferta bez sekcji, mail
+mówiący „zakończony" przy projekcie w trakcie).
+
+- **Blokada → 400 na trasie.** Nie da się przejść.
+- **Same ostrzeżenia → 409**, panel pokazuje listę i powtarza żądanie
+  z `mimo_ostrzezen: true` po kliknięciu „Wyślij mimo to". Ta zgoda **nie**
+  obchodzi blokady — trasa sprawdza to jeszcze raz.
+
+Pyta ją pięć tras (`offers|contracts|invoices/[id]/send`,
+`projects/[id]/request-review`, `client-followups/[id]/send`) i siedem miejsc
+w interfejsie. **Dokładając nową wysyłkę, zawołaj bramkę w trasie** — sam
+przycisk w panelu nie jest blokadą.
+
+W interfejsie: `PasekBramki` (lista przy przycisku, dane z `GET` dokumentu)
+i `useWysylkaZBramka()` (okno przed wysyłką + powtórzenie żądania) —
+`app/[lang]/admin/BramkaWysylki.tsx`.
+
+### Migawka obejmuje wystawcę
+
+Oferta i umowa miały migawkę treści, ale **żadna nie zamrażała naszych danych**,
+a faktura nie miała migawki w ogóle. Zmiana nazwy firmy albo numeru konta
+przepisywała wstecz każdy dokument, który klient wciąż może otworzyć — łącznie
+z opłaconą fakturą. Od teraz:
+
+- oferta i umowa: blok `wystawca` w migawce **przy wysyłce**,
+- faktura: `migawka = { wystawca }` **przy wystawieniu** (od nadania numeru
+  dokument jest niezmienny; wysyłek bywa kilka),
+- dokumenty sprzed zmiany dostają blok migracją (`lib/db.ts`), a dane seeda
+  w dev — w `ensureSeeded()`.
+
+Blok liczy `wystawcaDoMigawki()` z `lib/publicFields.ts` — ta sama biała lista
+pól, którą publiczne trasy wydają z żywych ustawień, i przez którą przechodzi
+teraz także migawka. Prywatne ustawienia właściciela (rezerwa podatkowa,
+domyślne uwagi edytora) nie mają prawa tam trafić.
+
+### Podpis w szkicach maili
+
+`buildProjectClosingSummary`, `buildOnboardingWelcomeMessage`
+i `buildNurtureMessage` przyjmują `DanePodpisu` (`lib/documents.ts`,
+`danePodpisu()`) — imię z *Dane firmy* → „Podpisuje umowy", plus e-mail
+i telefon w linii kontaktu. **Puste pole zostawia nawias świadomie**: bramka
+zatrzyma wtedy wysyłkę i powie, gdzie go uzupełnić.
+
+### Jak to jest pilnowane
+
+- `test/bramkaWysylki.test.ts` — 24 testy reguł bez bazy.
+- `npm run przejscie` — **47 działa · 3 znane luki · 0 regresji · 0 obejść ·
+  0 pominiętych**, w tym trzy sondy: powód odmowy (nie kod), ostrzeżenie
+  kontra blokada, mail z nawiasem.
+- `lib/spojnosc.ts` — reguła „Migawka wysłanego dokumentu zawiera dane
+  wystawcy" obejmuje teraz także faktury; znacznik `luka: "A2"` zdjęty.

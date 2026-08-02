@@ -3,6 +3,7 @@ import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaFaktury, POLA_MIMO_BLOKADY_FAKTURY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
+import { sprawdzDokumentPrzedWysylka } from "@/lib/bramkaWysylki";
 import { isPlausibleDateString } from "@/lib/projects";
 import {
   INVOICE_LANGS,
@@ -70,10 +71,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       zaliczka = { ...zr, brutto: invoiceTotals(zItems as unknown as InvoiceItem[]).brutto };
     }
   }
+  // BRAMKA WYSYŁKI (Faza 2) — patrz bliźniacza adnotacja w GET /api/offers/:id.
+  // Wystawca z migawki (zamrożonej przy wystawieniu), bo klient widzi migawkę;
+  // dla szkicu migawki jeszcze nie ma, więc liczymy z żywych ustawień.
+  const wystawcaZMigawki = ((invoice.migawka ?? null) as { wystawca?: Record<string, unknown> } | null)?.wystawca ?? null;
+  const bramka = sprawdzDokumentPrzedWysylka({
+    rodzaj: "faktura",
+    dokument: invoice,
+    wystawca: wystawcaZMigawki ?? settings[0] ?? null,
+  });
+
   return NextResponse.json({
     invoice,
     items: numItems(items),
     settings: settings[0] ?? null,
+    bramka,
     payments: payments.map((p) => ({ ...p, kwota: Number(p.kwota) })),
     reminders,
     korekty,

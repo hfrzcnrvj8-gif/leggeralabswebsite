@@ -55,6 +55,24 @@ export const COMPANY_SETTINGS_PUBLIC_FIELDS = [
   "stawka_odsetek_ustawowych",
 ] as const;
 
+/**
+ * Blok wystawcy do MIGAWKI dokumentu — Faza 2 planu `docs/PLAN-ZAPLECZE.md`.
+ *
+ * Migawka ma być tym, CO KLIENT ZOBACZYŁ. Do 2026-08-02 nie obejmowała
+ * wystawcy: oferta, umowa i faktura brały dane firmy na żywo z
+ * `company_settings` przy każdym otwarciu publicznego linku. Zmiana nazwy
+ * firmy, NIP-u albo numeru konta zmieniała **wstecz** każdy dokument, który
+ * klient wciąż mógł otworzyć — najostrzej fakturę (znalezisko A2, jedyne
+ * z całego przejścia ze skutkiem prawnym).
+ *
+ * Zamrażamy dokładnie te pola, które wydruk czyta — czyli tę samą białą
+ * listę, którą publiczna trasa wydaje z żywych ustawień. Gdyby listy się
+ * rozjechały, klient zobaczyłby pod linkiem coś innego niż na wydruku.
+ */
+export function wystawcaDoMigawki(settings: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  return settings ? pickFields(settings, COMPANY_SETTINGS_PUBLIC_FIELDS) : null;
+}
+
 /** Faktura — pola czytane przez `InvoicePrint` (razem z pomocnikami
  * `clientAddressLines` / `recipientAddressLines` z lib/invoices.ts).
  * `koryguje_id` i `rozlicza_zaliczke_id` zostają: publiczny wydruk renderuje

@@ -3,6 +3,7 @@ import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent }
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { INVOICE_TYPE_LABEL, type InvoiceDocType } from "@/lib/invoices";
+import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
 
 export const runtime = "nodejs";
 
@@ -20,8 +21,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Moduł 40 — wysyłka nie może iść unieważnionym linkiem. Świadomie NIE
     // regenerujemy tokenu po cichu: nowy link to osobna, jawna decyzja.
     if (inv.share_revoked_at) return NextResponse.json({ error: "Link do tej faktury jest unieważniony — wygeneruj nowy przed wysyłką." }, { status: 409 });
-    if (!inv.numer) return NextResponse.json({ error: "Wystaw najpierw fakturę — szkicu nie da się wysłać klientowi." }, { status: 400 });
-    if (!inv.klient_email) return NextResponse.json({ error: "Brak adresu e-mail nabywcy — uzupełnij go w edytorze." }, { status: 400 });
+    // BRAMKA WYSYŁKI (Faza 2) — ta sama funkcja, co przy ofercie i umowie.
+    // Zastąpiła dwa własne `if` (numer, e-mail nabywcy); doszło do nich to,
+    // czego ta trasa nie sprawdzała: kompletność wystawcy i adres nabywcy.
+    //
+    // Wystawcę bierzemy z MIGAWKI faktury (zamrożonej przy wystawieniu), a nie
+    // z żywych ustawień — bramka ma odpowiedzieć na pytanie „co zobaczy
+    // klient pod tym linkiem", a klient widzi migawkę.
+    const wystawcaZMigawki = ((inv.migawka ?? null) as { wystawca?: Record<string, unknown> } | null)?.wystawca ?? null;
+    const wystawca = wystawcaZMigawki ?? (await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0] ?? null;
+    const bramka = sprawdzDokumentPrzedWysylka({ rodzaj: "faktura", dokument: inv, wystawca });
+    const odmowa = odmowaBramki(bramka, mimoOstrzezen(await req.json().catch(() => null)));
+    if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
 
     const token = await ensureInvoiceShareToken(sql, id, typeof inv.share_token === "string" ? inv.share_token : null);
     const url = `${req.nextUrl.origin}/pl/faktura/${token}`;

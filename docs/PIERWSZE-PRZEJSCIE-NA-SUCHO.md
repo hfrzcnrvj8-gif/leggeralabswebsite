@@ -10,9 +10,10 @@ jest lista, nie zestaw poprawek.
 > w `scripts/przejscie/przejscie.ts`) i ekran *Zdrowie*. Postęp prac opisuje
 > `docs/PLAN-ZAPLECZE.md`.
 >
-> Stan na 2026-08-02, po Fazie 1: **B1–B6 zamknięte.** Otwarte zostają A1–A5
-> (Faza 2), C1–C4 (Faza 3), D1–D4 (Faza 4), E i F (Faza 5) oraz G (do
-> rozstrzygnięcia osobno).
+> Stan na 2026-08-02, po Fazie 2: **B1–B6 i A1–A4 zamknięte.** Otwarte
+> zostają A5 (jedna rubryka, dwie role na wydruku umowy — nie mieściło się
+> w zakresie Fazy 2, patrz plan), C1–C4 (Faza 3), D1–D4 (Faza 4), E i F
+> (Faza 5) oraz G (do rozstrzygnięcia osobno).
 
 ## Co zostało przeprowadzone
 

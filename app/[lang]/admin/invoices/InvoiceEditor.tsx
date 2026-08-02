@@ -58,6 +58,8 @@ import type { Client } from "@/lib/clients";
 import { lookupClientByNip } from "@/lib/vies";
 import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
+import { PasekBramki, useWysylkaZBramka } from "../BramkaWysylki";
+import type { WynikBramki } from "@/lib/bramkaWysylki";
 import { DateField } from "../DatePicker";
 import { Popover, MenuRow, PropertyMenu } from "../Menu";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
@@ -86,6 +88,10 @@ export function InvoiceEditor({
   onOpenInvoice?: (id: string) => void;
 }) {
   const { toast, confirm } = useUI();
+  // Bramka wysyłki (Faza 2) — pasek liczy SERWER przy odczycie faktury,
+  // z wystawcy ZAMROŻONEGO w migawce przy wystawieniu (to jego widzi klient).
+  const [bramka, setBramka] = useState<WynikBramki | null>(null);
+  const { wyslij, oknoBramki } = useWysylkaZBramka();
   // Po wystawieniu faktura jest dokumentem urzędowym — nie wolno jej edytować
   // (zmiany wyłącznie przez korektę). Ref trzyma aktualny stan blokady, żeby
   // funkcje zapisu mogły odmówić edycji nawet gdyby ominąć blokadę w UI.
@@ -145,7 +151,9 @@ export function InvoiceEditor({
       korekty: { id: string; numer: string | null; data_wystawienia: string | null; status?: string }[];
       koryguje: { id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null;
       zaliczka: { id: string; numer: string | null; status?: string; ksef_status?: string; ksef_numer?: string | null; brutto: number } | null;
+      bramka?: WynikBramki;
     };
+    setBramka(data.bramka ?? null);
     setInvoice(data.invoice);
     setItems(data.items);
     setSettings(data.settings);
@@ -495,19 +503,20 @@ export function InvoiceEditor({
 
   const sendInvoiceEmail = useCallback(async () => {
     setSending(true);
-    const res = await fetch(`/api/invoices/${id}/send`, { method: "POST" });
+    // Bramka wysyłki (Faza 2) — `wyslij` sam pokazuje listę zastrzeżeń
+    // i powtarza żądanie po „Wyślij mimo to".
+    const res = await wyslij(`/api/invoices/${id}/send`);
     setSending(false);
     if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { shareToken?: string };
+      const data = res.dane as { shareToken?: string };
       toast("Wysłano e-mail z linkiem do faktury.");
       // share_token dopisujemy od razu, żeby „Unieważnij link" (Moduł 40)
       // pojawił się bez przeładowania edytora.
       setInvoice((p) => (p ? { ...p, share_token: data.shareToken ?? p.share_token } : p));
-    } else {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(data.error ?? "Nie udało się wysłać maila.", "error");
+    } else if (!res.anulowane) {
+      toast(res.dane.error ?? "Nie udało się wysłać maila.", "error");
     }
-  }, [id, toast]);
+  }, [id, toast, wyslij]);
 
   const sendToKsef = useCallback(async () => {
     const ok = await confirm(
@@ -1515,10 +1524,14 @@ export function InvoiceEditor({
 
           {!isDraft && (
             <div className="space-y-1.5">
+              {/* Bramka wysyłki (Faza 2) — lista braków PRZY przycisku.
+                  Przycisk zostaje aktywny mimo blokad: odmawia trasa, a okno
+                  wymienia wszystkie powody naraz, nie tylko pierwszy. */}
+              <PasekBramki bramka={bramka} />
               <button
                 onClick={sendInvoiceEmail}
-                disabled={sending || !invoice.klient_email}
-                title={invoice.klient_email ? "Wyślij link do faktury na e-mail nabywcy" : "Uzupełnij e-mail nabywcy"}
+                disabled={sending}
+                title="Wyślij link do faktury na e-mail nabywcy"
                 className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
@@ -1593,6 +1606,8 @@ export function InvoiceEditor({
           )}
         </div>
       </div>
+
+      {oknoBramki}
     </div>
   );
 }

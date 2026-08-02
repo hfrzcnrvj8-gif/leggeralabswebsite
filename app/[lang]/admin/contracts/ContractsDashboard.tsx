@@ -26,6 +26,7 @@ import {
 } from "@/lib/contracts";
 import { formatMoney } from "@/lib/invoices";
 import { useUI, useRegisterActions } from "../ui";
+import { useWysylkaZBramka } from "../BramkaWysylki";
 import { StanListy, StanBledu } from "../StanPusty";
 import { PoleSzukania } from "../PoleSzukania";
 import { useSkrotyListy } from "../klawiatura";
@@ -38,6 +39,8 @@ import { OknoOdrzucenia } from "../RejectDialog";
 
 export function ContractsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
+  // Bramka wysyłki (Faza 2) — okno z listą zastrzeżeń, wspólne z profilem.
+  const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [contracts, setContracts] = useState<Contract[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -190,16 +193,17 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
   /** Wysyłka mailem — ta sama trasa co w profilu. */
   const wyslijDokument = useCallback(
     async (c: Contract) => {
-      const res = await fetch(`/api/contracts/${c.id}/send`, { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      // Bramka wysyłki (Faza 2) — ta sama, co w profilu dokumentu. Wysyłka
+      // z listy nie może omijać sprawdzenia tylko dlatego, że jest szybsza.
+      const res = await wyslij(`/api/contracts/${c.id}/send`);
       if (!res.ok) {
-        toast(data.error ?? "Nie udało się wysłać.", "error");
+        if (!res.anulowane) toast(res.dane.error ?? "Nie udało się wysłać.", "error");
         return;
       }
       toast("Wysłano mailem.");
       await load();
     },
-    [toast, load]
+    [toast, load, wyslij]
   );
 
   const przypomnij = useCallback(
@@ -611,6 +615,8 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
           />
         )}
       </Modal>
+
+      {oknoBramki}
     </div>
   );
 }

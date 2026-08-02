@@ -1191,6 +1191,55 @@ async function ensureSeeded(): Promise<void> {
           randomUUID(), iso(10), iso(20),
         ]
       );
+
+      // Migawki wystawcy (Faza 2, `docs/PLAN-ZAPLECZE.md`) — seed wstawia
+      // dokumenty prosto INSERT-em, więc omija trasy, które migawkę robią.
+      // Bez tego ekran „Zdrowie" świeci lokalnie na czerwono od pierwszego
+      // uruchomienia, wskazując rekordy, których nikt nigdy nie wysyłał —
+      // a czerwień, którą trzeba ignorować, przestaje cokolwiek znaczyć.
+      // Migracja na produkcji robi to samo dla dokumentów sprzed zmiany.
+      await raw(
+        `UPDATE invoices SET
+           migawka = jsonb_build_object('wystawca', jsonb_build_object(
+             'nazwa', cs.nazwa, 'nip', cs.nip, 'adres', cs.adres, 'ulica', cs.ulica,
+             'kod', cs.kod, 'miasto', cs.miasto, 'kraj', cs.kraj, 'email', cs.email,
+             'telefon', cs.telefon, 'konto', cs.konto, 'bank_nazwa', cs.bank_nazwa,
+             'swift', cs.swift, 'osoba_podpisujaca', cs.osoba_podpisujaca,
+             'vat_payer', cs.vat_payer, 'zwolnienie_podstawa', cs.zwolnienie_podstawa)),
+           migawka_at = now()
+         FROM company_settings cs
+         WHERE cs.id = 'default' AND invoices.migawka IS NULL
+           AND invoices.status <> 'Szkic' AND COALESCE(invoices.numer, '') <> ''`,
+        []
+      );
+      await raw(
+        `UPDATE contracts SET
+           migawka = COALESCE(migawka, '{}'::jsonb) || jsonb_build_object('wystawca', jsonb_build_object(
+             'nazwa', cs.nazwa, 'nip', cs.nip, 'adres', cs.adres, 'ulica', cs.ulica,
+             'kod', cs.kod, 'miasto', cs.miasto, 'kraj', cs.kraj, 'email', cs.email,
+             'telefon', cs.telefon, 'konto', cs.konto, 'bank_nazwa', cs.bank_nazwa,
+             'swift', cs.swift, 'osoba_podpisujaca', cs.osoba_podpisujaca,
+             'vat_payer', cs.vat_payer, 'zwolnienie_podstawa', cs.zwolnienie_podstawa)),
+           migawka_at = COALESCE(migawka_at, now())
+         FROM company_settings cs
+         WHERE cs.id = 'default' AND contracts.sent_at IS NOT NULL
+           AND (contracts.migawka IS NULL OR NOT jsonb_exists(contracts.migawka, 'wystawca'))`,
+        []
+      );
+      await raw(
+        `UPDATE offers SET
+           migawka = COALESCE(migawka, '{}'::jsonb) || jsonb_build_object('wystawca', jsonb_build_object(
+             'nazwa', cs.nazwa, 'nip', cs.nip, 'adres', cs.adres, 'ulica', cs.ulica,
+             'kod', cs.kod, 'miasto', cs.miasto, 'kraj', cs.kraj, 'email', cs.email,
+             'telefon', cs.telefon, 'konto', cs.konto, 'bank_nazwa', cs.bank_nazwa,
+             'swift', cs.swift, 'osoba_podpisujaca', cs.osoba_podpisujaca,
+             'vat_payer', cs.vat_payer, 'zwolnienie_podstawa', cs.zwolnienie_podstawa)),
+           migawka_at = COALESCE(migawka_at, now())
+         FROM company_settings cs
+         WHERE cs.id = 'default' AND offers.wyslana_at IS NOT NULL
+           AND (offers.migawka IS NULL OR NOT jsonb_exists(offers.migawka, 'wystawca'))`,
+        []
+      );
     })();
   }
   await seedPromise;

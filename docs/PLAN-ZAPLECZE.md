@@ -198,10 +198,63 @@ danych: trzy reguły Fazy 1 zielone.
 
 ---
 
-## Faza 2 — jedna bramka „czy to wolno wysłać"
+## Faza 2 — jedna bramka „czy to wolno wysłać" — ✅ ZROBIONE 2026-08-02
 
-**Zamyka:** A1 (mail z `[Twoje imię]`), A2 (dokument bez wystawcy + migawka),
-A3 (adres sprzedawcy), A4 (sprzeczny termin z szablonu).
+**Zamknęła:** A1 (mail z `[Twoje imię]`), A2 (dokument bez wystawcy +
+migawka), A3 (adres sprzedawcy), A4 (sprzeczny termin z szablonu).
+
+Powstało `lib/bramkaWysylki.ts` — jedna funkcja odpowiadająca „co jest nie tak
+z tym dokumentem, zanim wyjdzie", plus `app/[lang]/admin/BramkaWysylki.tsx`
+(pasek przy dokumencie + okno przed wysyłką). Pyta ją **siedem** miejsc
+wysyłających: trzy edytory, dwie listy, mail zamykający projekt i kontakt
+kontrolny na Pulpicie — i, co ważniejsze, **pięć tras**, bo odmowa musi paść
+tam, a nie w interfejsie.
+
+**Wynik przejścia po fazie: 47 działa · 3 znane luki · 0 regresji · 0 obejść ·
+0 pominiętych** (przed: 35 · 5 · 0 · 0 · 0). Pozostałe trzy luki to C1, C3, C4
+— cała Faza 3. Kontrola spójności na czystych danych: reguła „Migawka
+wysłanego dokumentu zawiera dane wystawcy" zielona, znacznik `A2` zdjęty.
+
+### Decyzje właściciela podjęte przy starcie fazy
+
+1. **Migawka wystawcy obejmuje też FAKTURĘ**, nie tylko ofertę i umowę.
+   Faktura nie miała migawki w ogóle — publiczny link zawsze czytał żywe
+   „Dane firmy". Zamraża ją **wystawienie** (nadanie numeru), nie wysyłka: od
+   numeru dokument jest niezmienny, a wysyłek bywa kilka.
+2. **Panel sam podstawia imię** z „Danych firmy" → „Podpisuje umowy" do
+   szkiców maili. Nawiasy, których nie da się wypełnić automatycznie, dalej
+   blokują wysyłkę. Puste pole zostawia nawias świadomie — cisza byłaby gorsza.
+3. **Pasek w edytorze + okno przed wysyłką.** Pasek mówi o brakach zawczasu,
+   okno zatrzymuje w momencie kliknięcia.
+4. **Ostrzeżenie przechodzi się jednym kliknięciem** „Wyślij mimo to", bez
+   podawania powodu.
+
+### Czego się przy tym nauczyliśmy
+
+- **Test złapał regułę, która nie działała dokładnie na swoim przypadku.**
+  Wykrywanie sprzecznych terminów (A4) dzieliło tekst na zdania po kropce —
+  i rozbijało „Czas realizacji: ok. 2 tygodnie" na kropce w „ok.", przez co
+  fragment z liczbą tracił słowo „realizacji". Reguła milczała dokładnie tam,
+  gdzie powstała. Wyszło z testu jednostkowego, nie z kodu i nie z przeglądarki.
+- **Backfill migawki omal nie wypuścił prywatnych danych.** Pierwsza wersja
+  migracji robiła `to_jsonb(company_settings)` — czyli razem z rezerwą
+  podatkową i domyślnymi uwagami edytora, do bloku, który czyta publiczny
+  link. Biała lista pól jest jedna (`lib/publicFields.ts`) i obowiązuje też
+  po stronie zapisu; publiczne trasy przepuszczają przez nią teraz również
+  migawkę, więc żadne przyszłe pole nie wyjdzie tylnymi drzwiami.
+- **Siedem miejsc wysyłki, nie cztery.** Plan wymieniał cztery; przy robocie
+  wyszły jeszcze dwie listy i kontakt kontrolny z Pulpitu (ten sam szkic
+  z „[Twoje imię]", ta sama trasa bez sprawdzenia). Bramka, która obowiązuje
+  tylko tam, gdzie akurat zajrzałem, nie jest bramką.
+- **Dev-seed umiał zapalić ekran „Zdrowie" na czerwono.** Seed wstawia
+  dokumenty prosto `INSERT`-em, więc omija trasy robiące migawkę — siedem
+  naruszeń na starcie, wszystkie fałszywe. Czerwień, którą trzeba ignorować,
+  przestaje cokolwiek znaczyć, więc seed też dostał migawki.
+- **A5 zostaje otwarte.** „ZLECENIODAWCA / WYKONAWCA" w jednej rubryce to
+  treść dokumentu prawnego, nie reguła wysyłki — nie mieści się w tej fazie
+  i nie ma go w jej zakresie.
+
+### Pierwotny opis zakresu
 
 Dziś każde miejsce sprawdza co innego: oferta blokuje wysyłkę przy braku maila
 **klienta**, ale nie przy braku **wystawcy**. Mail zamykający nie sprawdza nic.

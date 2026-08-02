@@ -22,6 +22,7 @@ import { formatMoney } from "@/lib/invoices";
 import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
+import { useWysylkaZBramka } from "../BramkaWysylki";
 import { StanListy, StanBledu } from "../StanPusty";
 import { PoleSzukania } from "../PoleSzukania";
 import { useSkrotyListy } from "../klawiatura";
@@ -45,6 +46,8 @@ const PO_TERMINIE = "__po_terminie__";
 
 export function OffersDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt } = useUI();
+  // Bramka wysyłki (Faza 2) — okno z listą zastrzeżeń, wspólne z profilem.
+  const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [offers, setOffers] = useState<OfferRow[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -235,22 +238,22 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
 
   const sendOffer = useCallback(
     async (o: OfferRow) => {
-      if (!o.klient_email) {
-        toast("Brak adresu e-mail klienta — uzupełnij go w ofercie.", "error");
-        return;
-      }
-      const ok = await confirm(`Wysłać ofertę na ${o.klient_email}?`, {});
+      // Sprawdzenia „czy jest e-mail" nie ma tu już osobno — od Fazy 2 pyta
+      // o to bramka wysyłki, razem z resztą reguł (i po stronie trasy).
+      const ok = await confirm(
+        o.klient_email ? `Wysłać ofertę na ${o.klient_email}?` : "Wysłać tę ofertę mailem?",
+        {}
+      );
       if (!ok) return;
-      const res = await fetch(`/api/offers/${o.id}/send`, { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const res = await wyslij(`/api/offers/${o.id}/send`);
       if (!res.ok) {
-        toast(data.error ?? "Nie udało się wysłać oferty.", "error");
+        if (!res.anulowane) toast(res.dane.error ?? "Nie udało się wysłać oferty.", "error");
         return;
       }
       await load();
       toast("Oferta wysłana mailem.");
     },
-    [confirm, load, toast]
+    [confirm, load, toast, wyslij]
   );
 
   /** Ten sam adres co w profilu oferty — patrz `copyClientLink`
@@ -838,6 +841,8 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         opis="Powiązanie decyduje o tym, czy oferta trafi na kartę klienta i czy po zamknięciu projektu panel przypomni o kontakcie. Możesz je dodać także później."
         leadNote="założy klienta"
       />
+
+      {oknoBramki}
     </div>
   );
 }

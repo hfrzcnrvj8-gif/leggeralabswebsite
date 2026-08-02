@@ -62,8 +62,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     }
   }
 
-  const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
-
   // Druga strona widzi MIGAWKĘ z chwili wysyłki, nie dane żywe (audyt
   // Modułu 11). Umowa jest edytowalna aż do podpisu, więc bez tego dokument
   // pod linkiem zmieniał się razem z bazą — a przy sporze nie było czego
@@ -82,10 +80,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       }
     : contract;
 
+  // Wystawca też z migawki (Faza 2, znalezisko A2) — nasze dane na dokumencie
+  // do podpisu nie mogą zmieniać się po jego wysłaniu. Fallback na żywe
+  // ustawienia dotyczy umów wysłanych przed tą zmianą.
+  const wystawcaZMigawki = (migawka?.wystawca ?? null) as Record<string, unknown> | null;
+  const settings = wystawcaZMigawki ? [] : await sql`SELECT * FROM company_settings WHERE id = 'default';`;
+
   // Biała lista pól (lib/publicFields.ts) — bez accepted_ip i
   // accepted_user_agent osoby podpisującej (Audyt 1, ustalenie 5).
   return NextResponse.json({
     contract: { ...pickFields(widok, CONTRACT_PUBLIC_FIELDS), cena: Number(widok.cena) },
-    settings: settings[0] ? pickFields(settings[0], COMPANY_SETTINGS_PUBLIC_FIELDS) : null,
+    settings: pickFields(wystawcaZMigawki ?? settings[0] ?? {}, COMPANY_SETTINGS_PUBLIC_FIELDS),
   });
 }

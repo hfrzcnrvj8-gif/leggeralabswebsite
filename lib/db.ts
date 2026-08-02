@@ -4,6 +4,7 @@ import { inMigration } from "./migration-ctx";
 import { czyNeon, getOwnSql, withOwnTransaction } from "./own-db";
 import { MAIL_NUDGE_DAYS, type NudgeThread } from "./mail";
 import { STARTER_CATALOG } from "./catalogStarter";
+import { wystawcaDoMigawki } from "./publicFields";
 import {
   SZABLON_PIERWSZY_KONTAKT_ID,
   SZABLON_PIERWSZY_KONTAKT_NAZWA,
@@ -996,6 +997,43 @@ async function createInvoicesSchema(): Promise<void> {
   //   ksef_qr — link KOD I (weryfikujący) do kodu QR na wizualizacji faktury,
   //   budowany po przyjęciu: {baza}/invoice/{NIP}/{DD-MM-RRRR}/{hash Base64URL}
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ksef_qr TEXT;`;
+  // Migawka wystawcy (Faza 2, `docs/PLAN-ZAPLECZE.md`, znalezisko A2).
+  // Oferta i umowa miały migawkę od dawna, faktura — NIE MIAŁA ŻADNEJ:
+  // publiczny link czytał `company_settings` na żywo, więc zmiana nazwy firmy
+  // albo numeru konta zmieniała wstecz fakturę, którą klient dostał i opłacił.
+  // Ze wszystkich trzech dokumentów to najostrzejszy przypadek prawny.
+  //
+  // Zamrażamy przy WYSTAWIENIU, nie przy wysyłce: numer w serii nadaje
+  // wystawienie i od tego momentu dokument jest z definicji niezmienny
+  // (PATCH już wtedy odmawia — 409). Wysyłka mailem jest późniejsza i bywa
+  // wielokrotna.
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS migawka JSONB;`;
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS migawka_at TIMESTAMPTZ;`;
+  // Faktury wystawione PRZED tą zmianą dostają migawkę z dzisiejszych
+  // ustawień. To nie jest fałszowanie historii: publiczny link i tak
+  // pokazywał im dziś żywe dane, więc zamrożenie niczego u klienta nie
+  // zmienia — zatrzymuje tylko dalszy dryf. Alternatywa (zostawić je bez
+  // migawki) znaczyłaby, że ekran „Zdrowie" świeci na czerwono wiecznie,
+  // wskazując rekordy, z którymi nie da się nic zrobić.
+  //
+  // `inMigration()` jest obowiązkowe: to zapytanie nie-DDL, a filtr `isDDL()`
+  // w dev-bazie łapie tylko CREATE/ALTER/DROP — bez tego seeder zakleszcza
+  // się i wszystkie `/api/*` w dev wiszą (patrz lib/migration-ctx.ts).
+  //
+  // Blok liczymy w TypeScripcie przez `wystawcaDoMigawki`, a nie `to_jsonb(cs)`
+  // w SQL-u: `to_jsonb` wzięłoby CAŁY wiersz ustawień, razem z rezerwą
+  // podatkową i domyślnymi uwagami edytora — czyli prywatne dane właściciela
+  // wjechałyby do migawki, którą czyta publiczny link. Biała lista pól jest
+  // jedna (`lib/publicFields.ts`) i tu też obowiązuje.
+  await inMigration(async () => {
+    const ust = (await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0];
+    const wystawca = wystawcaDoMigawki(ust);
+    if (!wystawca) return [];
+    return sql`
+      UPDATE invoices SET migawka = ${JSON.stringify({ wystawca })}, migawka_at = now()
+      WHERE migawka IS NULL AND status <> 'Szkic' AND COALESCE(numer, '') <> '';
+    `;
+  });
   // Tryb wpisywania cen w edytorze (netto/brutto) — patrz komentarz przy
   // Invoice.ceny_brutto w lib/invoices.ts. Wyłącznie UI, baza zawsze netto.
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ceny_brutto BOOLEAN NOT NULL DEFAULT false;`;
@@ -1270,6 +1308,20 @@ async function createOffersSchema(): Promise<void> {
   // jest czym się posłużyć.
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS migawka JSONB;`;
   await sql`ALTER TABLE offers ADD COLUMN IF NOT EXISTS migawka_at TIMESTAMPTZ;`;
+  // Wystawca w migawce (Faza 2, znalezisko A2) — patrz bliźniacza adnotacja
+  // przy `invoices.migawka`. Oferty wysłane przed tą zmianą dostają blok
+  // z dzisiejszych ustawień: publiczny link i tak pokazywał im dane żywe,
+  // więc to nie zmienia nic u klienta, tylko zatrzymuje dalszy dryf.
+  await inMigration(async () => {
+    const wystawca = wystawcaDoMigawki((await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0]);
+    if (!wystawca) return [];
+    return sql`
+      UPDATE offers SET
+        migawka = COALESCE(migawka, '{}'::jsonb) || ${JSON.stringify({ wystawca })}::jsonb,
+        migawka_at = COALESCE(migawka_at, now())
+      WHERE wyslana_at IS NOT NULL AND (migawka IS NULL OR NOT jsonb_exists(migawka, 'wystawca'));
+    `;
+  });
   // Faza 1 planu zaplecza (luka B5) — czas realizacji podawany w TYGODNIACH
   // OD AKCEPTACJI, nie datą. Tak się realnie mówi klientowi, zanim wiadomo,
   // kiedy podpisze; konkretną datę wylicza dopiero umowa przy generowaniu
@@ -1652,6 +1704,17 @@ async function createContractsSchema(): Promise<void> {
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS platnosci_opis TEXT NOT NULL DEFAULT '';`;
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS migawka JSONB;`;
   await sql`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS migawka_at TIMESTAMPTZ;`;
+  // Wystawca w migawce (Faza 2, A2) — jak przy ofertach i fakturach.
+  await inMigration(async () => {
+    const wystawca = wystawcaDoMigawki((await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0]);
+    if (!wystawca) return [];
+    return sql`
+      UPDATE contracts SET
+        migawka = COALESCE(migawka, '{}'::jsonb) || ${JSON.stringify({ wystawca })}::jsonb,
+        migawka_at = COALESCE(migawka_at, now())
+      WHERE sent_at IS NOT NULL AND (migawka IS NULL OR NOT jsonb_exists(migawka, 'wystawca'));
+    `;
+  });
 
   await markSchemaApplied("contracts");
 }

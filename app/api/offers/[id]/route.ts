@@ -5,6 +5,7 @@ import { isPlausibleDateString } from "@/lib/projects";
 import { OFFER_LANGS, isOfferStatus, isOfferCurrency, isOfferRejectReason, rejectReasonLabel } from "@/lib/offers";
 import { blokadaOferty, POLA_MIMO_BLOKADY_OFERTY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { czasRealizacjiTygodnie, naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
+import { sprawdzDokumentPrzedWysylka } from "@/lib/bramkaWysylki";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     WHERE offer_id = ${id} AND typ = 'umowa'
     ORDER BY created_at ASC LIMIT 1;
   `;
-  return NextResponse.json({ offer, items: numItems(items), sections, contract: contracts[0] ?? null });
+  // BRAMKA WYSYŁKI (Faza 2) — ten sam wynik, który trasa `/send` zamieni na
+  // odmowę, tylko policzony zawczasu: edytor rysuje z niego pasek „co jest nie
+  // tak", żeby właściciel dowiedział się o brakach PRZED kliknięciem „Wyślij”,
+  // a nie z komunikatu błędu. Liczone tu, a nie w przeglądarce, bo dane
+  // wystawcy siedzą w osobnej tabeli i edytor nigdy ich nie wołał.
+  const wystawca = (await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0] ?? null;
+  const bramka = sprawdzDokumentPrzedWysylka({ rodzaj: "oferta", dokument: offer, wystawca, pozycje: items, sekcje: sections });
+
+  return NextResponse.json({ offer, items: numItems(items), sections, contract: contracts[0] ?? null, bramka });
 }
 
 /** PATCH /api/offers/:id — aktualizacja pól nagłówka oferty. */

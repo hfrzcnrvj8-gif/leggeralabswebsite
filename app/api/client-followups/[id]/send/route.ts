@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { NURTURE_OFFSETS } from "@/lib/clients";
 import type { DocLang } from "@/lib/documents";
+import { sprawdzMailPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const payload = (await req.json().catch(() => null)) as { body?: unknown } | null;
   const text = typeof payload?.body === "string" ? payload.body.trim() : "";
-  if (!text) return NextResponse.json({ error: "Brak treści wiadomości." }, { status: 400 });
+
+  // BRAMKA WYSYŁKI (Faza 2) — piąta trasa, którą przejście „na sucho" ominęło,
+  // a która ma dokładnie tę samą wadę co `request-review` (znalezisko A1):
+  // szkic kontaktu kontrolnego też kończył się na „[Twoje imię]", a jedyne
+  // sprawdzenie brzmiało „czy treść jest niepusta". Bramka nie może obowiązywać
+  // tylko tam, gdzie akurat zajrzałem.
+  const bramka = sprawdzMailPrzedWysylka({ tresc: text });
+  const odmowa = odmowaBramki(bramka, mimoOstrzezen(payload));
+  if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
 
   try {
     await ensureFollowupsSchema();

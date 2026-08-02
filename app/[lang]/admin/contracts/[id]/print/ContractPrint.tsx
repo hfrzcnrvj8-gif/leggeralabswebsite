@@ -15,7 +15,7 @@ import {
   clientAddressLines,
   contractReference,
 } from "@/lib/contracts";
-import { type CompanySettings } from "@/lib/invoices";
+import { type CompanySettings, companyAddressLines } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT, type DocLang } from "@/lib/documents";
 import { PasekMarkiDokumentu, KwotaGradientem } from "../../../DocGradient";
 import { DocLogoMark } from "../../../DocLogoMark";
@@ -431,7 +431,13 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
             <div>
               <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.seller}</div>
               <div className="whitespace-pre-line font-medium text-neutral-900">{settings?.nazwa || "—"}</div>
-              {settings?.adres && <div className="mt-0.5 whitespace-pre-line text-neutral-500">{settings.adres}</div>}
+              {/* Adres wykonawcy (znalezisko A3). Umowa IDENTYFIKUJE strony,
+                  a drukowała samą nazwę, NIP i e-mail — bo czytała `adres`,
+                  czyli pole sprzed rozbicia adresu na ulicę/kod/miasto, dziś
+                  puste. Ten sam pomocnik co na fakturze i ofercie. */}
+              {companyAddressLines(settings ?? { ulica: "", kod: "", miasto: "", kraj: "", adres: "" }).map((line, i) => (
+                <div key={i} className="mt-0.5 text-neutral-500">{line}</div>
+              ))}
               {settings?.nip && <div className="mt-0.5 text-neutral-500">{t.taxId}: {settings.nip}</div>}
               {settings?.email && <div className="mt-0.5 text-neutral-500">{settings.email}</div>}
             </div>

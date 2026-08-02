@@ -3,7 +3,7 @@
 // dashboardu, dzienny raport mailowy). Wzorowane 1:1 na lib/leads.ts.
 
 import { todayLocalISO } from "./dates";
-import { type DocLang } from "./documents";
+import { type DocLang, type DanePodpisu, liniaKontaktu } from "./documents";
 import { mapaStanow, mapaKropek, mapaTekstow, mapaHexow, type Stan } from "./kolorStanu";
 
 export type Project = {
@@ -123,7 +123,10 @@ export const ONBOARDING_INCOMPLETE_HINT =
  * wysyła sam, zgodnie z decyzją właściciela przy starcie Modułu 14). */
 export function buildOnboardingWelcomeMessage(
   project: { tytul: string },
-  client: { nazwa: string; osoba_kontaktowa: string } | null
+  client: { nazwa: string; osoba_kontaktowa: string } | null,
+  /** Faza 2 (A1) — kto podpisuje. `null` zostawia „[Twoje imię]", a bramka
+   *  wysyłki nie przepuści maila z nawiasem. Patrz `danePodpisu`. */
+  podpis: DanePodpisu | null = null
 ): string {
   const powitanie = client?.osoba_kontaktowa
     ? `Cześć ${client.osoba_kontaktowa},`
@@ -136,7 +139,7 @@ export function buildOnboardingWelcomeMessage(
 Dziękuję za podpisanie umowy — zaczynamy pracę nad „${project.tytul}"${nazwaKlienta}!
 
 Krótkie podsumowanie, jak będziemy współpracować:
-- Kontakt: [Twoje imię], [e-mail/telefon]
+- Kontakt: ${liniaKontaktu(podpis, "[Twoje imię], [e-mail/telefon]")}
 - Statusy będę wysyłać: [ustal częstotliwość, np. co tydzień mailem]
 - Kolejny krok: [co dzieje się teraz — np. spotkanie kickoff / zebranie dostępów]
 
@@ -146,7 +149,7 @@ Krótkie podsumowanie, jak będziemy współpracować:
 Razem z tym mailem daj znać, jeśli masz pytania — chętnie je wyjaśnię przed startem.
 
 Pozdrawiam,
-[Twoje imię]`;
+${podpis?.imie ?? "[Twoje imię]"}`;
 }
 
 /** Miękka podpowiedź przy statusie "Wdrożone", dopóki opinia nie została
@@ -179,7 +182,10 @@ export function buildProjectClosingSummary(
   client: { nazwa: string; osoba_kontaktowa: string } | null,
   milestones: { nazwa: string; termin: string | null }[],
   reviewUrl: string,
-  lang: DocLang = "pl"
+  lang: DocLang = "pl",
+  /** Faza 2 (A1) — to jest TEN mail, który wyszedł do klienta podpisany
+   *  „[Twoje imię]". `null` zostawia nawias, a bramka wysyłki go zatrzyma. */
+  podpis: DanePodpisu | null = null
 ): string {
   const nazwaKlienta = client?.nazwa ? ` (${client.nazwa})` : "";
   const etapy = milestones.length
@@ -203,7 +209,7 @@ ${reviewUrl}
 Thanks again, and see you on the next project!
 
 Best,
-[Your name]`;
+${podpis?.imie ?? "[Your name]"}`;
   }
 
   if (lang === "de") {
@@ -223,7 +229,7 @@ ${reviewUrl}
 Nochmals vielen Dank und bis zum nächsten Projekt!
 
 Viele Grüße,
-[Ihr Name]`;
+${podpis?.imie ?? "[Ihr Name]"}`;
   }
 
   const powitanie = client?.osoba_kontaktowa ? `Cześć ${client.osoba_kontaktowa},` : "Cześć,";
@@ -242,7 +248,7 @@ ${reviewUrl}
 Dziękuję jeszcze raz i do zobaczenia przy kolejnym projekcie!
 
 Pozdrawiam,
-[Twoje imię]`;
+${podpis?.imie ?? "[Twoje imię]"}`;
 }
 
 /** Średnia z trzech wymiarów oceny (jakość/terminowość/komunikacja) — null,

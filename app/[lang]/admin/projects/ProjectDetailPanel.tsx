@@ -25,6 +25,9 @@ import {
   PROJECT_HEALTH_TEXT,
   ProjectIconPicker,
 } from "./shared";
+import { danePodpisu } from "@/lib/documents";
+import { sprawdzMailPrzedWysylka } from "@/lib/bramkaWysylki";
+import { PasekBramki, useWysylkaZBramka } from "../BramkaWysylki";
 import { EditableText, EditableTextarea, ClientLinkChip } from "../components";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { LinkPicker, type LinkValue } from "../LinkPicker";
@@ -98,6 +101,8 @@ export function ProjectDetailPanel({
   const welcomeMsgInitialized = useRef(false);
   const [reviewUrl, setReviewUrl] = useState("");
   const [reviewDraft, setReviewDraft] = useState("");
+  // Bramka wysyłki (Faza 2) — okno przed wysyłką maila zamykającego.
+  const { wyslij, oknoBramki } = useWysylkaZBramka();
   const reviewDraftInitialized = useRef(false);
   const [requestingReview, setRequestingReview] = useState(false);
   const [manualReviewOpen, setManualReviewOpen] = useState(false);
@@ -167,12 +172,24 @@ export function ProjectDetailPanel({
     }
     setClient(loadedClient);
 
+    // Podpis pod szkicami maili (Faza 2, znalezisko A1). Panel ZNAŁ imię
+    // właściciela — „Dane firmy” → „Podpisuje umowy” — i nie używał go, więc
+    // do klienta poszedł mail podpisany dosłownie „[Twoje imię]”. Puste pole
+    // zostawia nawias świadomie: bramka wysyłki go wtedy zatrzyma i powie,
+    // gdzie go uzupełnić.
+    const podpis = danePodpisu(
+      await fetch("/api/settings")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d?.settings ?? null)
+        .catch(() => null)
+    );
+
     // Szkic wiadomości powitalnej wypełnia się raz, po pierwszym pełnym
     // załadowaniu (projekt + ewentualny klient) — dalej edytowalny ręcznie,
     // nie nadpisywany przy kolejnych odświeżeniach danych.
     if (!welcomeMsgInitialized.current) {
       welcomeMsgInitialized.current = true;
-      setWelcomeMsg(buildOnboardingWelcomeMessage(data.project, loadedClient));
+      setWelcomeMsg(buildOnboardingWelcomeMessage(data.project, loadedClient, podpis));
     }
 
     // Zamknięcie i opinia (Moduł 15): link generuje się raz, przy pierwszym
@@ -187,7 +204,9 @@ export function ProjectDetailPanel({
         setReviewUrl(rData.url);
         if (!reviewDraftInitialized.current) {
           reviewDraftInitialized.current = true;
-          setReviewDraft(buildProjectClosingSummary(data.project, loadedClient, data.milestones, rData.url, data.project.jezyk));
+          setReviewDraft(
+            buildProjectClosingSummary(data.project, loadedClient, data.milestones, rData.url, data.project.jezyk, podpis)
+          );
         }
       }
     }
@@ -705,15 +724,13 @@ export function ProjectDetailPanel({
   const requestReview = async () => {
     if (!reviewDraft.trim() || requestingReview) return;
     setRequestingReview(true);
-    const res = await fetch(`/api/projects/${id}/request-review`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: reviewDraft }),
-    });
+    // Bramka wysyłki (Faza 2) — to jest TEN przycisk, którym wyszedł do
+    // klienta mail podpisany „[Twoje imię]" (znalezisko A1). Odmawia trasa;
+    // `wyslij` tylko pokazuje, co i dlaczego.
+    const res = await wyslij(`/api/projects/${id}/request-review`, { body: { body: reviewDraft } });
     setRequestingReview(false);
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {
-      toast(data.error ?? "Nie udało się wysłać wiadomości.", "error");
+      if (!res.anulowane) toast(res.dane.error ?? "Nie udało się wysłać wiadomości.", "error");
       return;
     }
     toast("Wysłano podsumowanie i prośbę o opinię.");
@@ -1070,6 +1087,15 @@ export function ProjectDetailPanel({
                       onChange={(e) => setReviewDraft(e.target.value)}
                       rows={7}
                       className="w-full rounded-xl border hairline bg-transparent px-3 py-2 text-[12.5px] text-[var(--fg)] placeholder:text-muted"
+                    />
+                    {/* Bramka wysyłki (Faza 2, znalezisko A1) — jedyny pasek
+                        liczony W PRZEGLĄDARCE, bo reguły maila patrzą na
+                        TREŚĆ, którą właściciel właśnie pisze: nawias znika
+                        z listy w tej samej sekundzie, w której go wypełni.
+                        Ta sama funkcja odmawia potem na trasie. */}
+                    <PasekBramki
+                      className="mt-2"
+                      bramka={sprawdzMailPrzedWysylka({ tresc: reviewDraft, statusProjektu: project.status })}
                     />
                     <button
                       onClick={requestReview}
@@ -1792,6 +1818,8 @@ export function ProjectDetailPanel({
           </div>
         )}
       </ViewSwitch>
+
+      {oknoBramki}
     </div>
   );
 }

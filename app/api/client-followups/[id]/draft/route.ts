@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureFollowupsSchema, ensureHubSchema, ensureClientsSchema, ensureProjectReviewToken } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { buildNurtureMessage, NURTURE_OFFSETS } from "@/lib/clients";
-import type { DocLang } from "@/lib/documents";
+import { danePodpisu, type DocLang } from "@/lib/documents";
 
 export const runtime = "nodejs";
 
@@ -54,12 +54,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
+  // Podpis z „Danych firmy" (Faza 2, A1) — szkic dostaje imię od razu,
+  // zamiast kończyć się nawiasem „[Twoje imię]", który raz już poszedł
+  // do klienta dosłownie.
+  const podpis = danePodpisu((await sql`SELECT osoba_podpisujaca, email, telefon FROM company_settings WHERE id = 'default';`)[0]);
+
   const text = buildNurtureMessage(
     days,
     { tytul },
     client ? { nazwa: client.nazwa, osoba_kontaktowa: client.osoba_kontaktowa } : null,
     reviewInfo,
-    lang
+    lang,
+    podpis
   );
 
   return NextResponse.json({ text, days, clientEmail: client?.email ?? null });

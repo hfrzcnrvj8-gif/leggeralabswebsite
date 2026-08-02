@@ -10,6 +10,8 @@ import {
   type ContractTyp,
   type PoprzednieWarunki,
 } from "@/lib/contracts";
+import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
+import { wystawcaDoMigawki } from "@/lib/publicFields";
 
 export const runtime = "nodejs";
 
@@ -27,7 +29,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Moduł 40 — wysyłka nie może iść unieważnionym linkiem. Świadomie NIE
     // regenerujemy tokenu po cichu: nowy link to osobna, jawna decyzja.
     if (contract.share_revoked_at) return NextResponse.json({ error: "Link do tego dokumentu jest unieważniony — wygeneruj nowy przed wysyłką." }, { status: 409 });
-    if (!contract.klient_email) return NextResponse.json({ error: "Brak adresu e-mail — uzupełnij go w edytorze." }, { status: 400 });
 
     const typ = contract.typ as ContractTyp;
     const label0 = CONTRACT_TYP_LABEL[typ] ?? "Umowa";
@@ -73,6 +74,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
+    // BRAMKA WYSYŁKI (Faza 2) — ta sama funkcja, co przy ofercie i fakturze.
+    // Zastąpiła własne `if (!klient_email)`: trasa pilnowała adresu odbiorcy,
+    // ale przepuszczała umowę bez wystawcy i bez adresu drugiej strony —
+    // a to dokument, który IDENTYFIKUJE strony (znaleziska A2 i A3).
+    const wystawca = wystawcaDoMigawki((await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0]);
+    const bramka = sprawdzDokumentPrzedWysylka({ rodzaj: "umowa", dokument: contract, wystawca });
+    const odmowa = odmowaBramki(bramka, mimoOstrzezen(await req.json().catch(() => null)));
+    if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
+
     const token = await ensureContractShareToken(sql, id, typeof contract.share_token === "string" ? contract.share_token : null);
     const segment = typ === "nda" ? "nda" : "umowa";
     const url = `${req.nextUrl.origin}/pl/${segment}/${token}`;
@@ -102,9 +112,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // wersję, a nie pierwszą. Umowa (inaczej niż oferta) jest edytowalna aż do
     // podpisu, więc bez tego dokument „u drugiej strony" zmieniałby się razem
     // z bazą.
-    const migawka = Object.fromEntries(
-      CONTRACT_MIGAWKA_POLA.map((k) => [k, (contract as Record<string, unknown>)[k]])
-    );
+    //
+    // `wystawca` dołączył w Fazie 2 (znalezisko A2): bez niego publiczna
+    // strona umowy czytała dane firmy NA ŻYWO, więc zmiana nazwy albo adresu
+    // zmieniała wstecz dokument, który druga strona ma podpisać.
+    const migawka = {
+      ...Object.fromEntries(CONTRACT_MIGAWKA_POLA.map((k) => [k, (contract as Record<string, unknown>)[k]])),
+      wystawca,
+    };
     await sql`UPDATE contracts SET migawka = ${JSON.stringify(migawka)}, migawka_at = now() WHERE id = ${id};`;
 
     let status = String(contract.status);

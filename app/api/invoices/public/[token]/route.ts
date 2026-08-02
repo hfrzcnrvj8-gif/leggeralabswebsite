@@ -26,12 +26,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   // strona ma to wiedzieć, żeby nie szukała literówki w adresie.
   if (invoice.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${invoice.id} ORDER BY position ASC;`;
-  const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
+  // Wystawca z MIGAWKI zrobionej przy wystawieniu (Faza 2, znalezisko A2).
+  // Sama faktura nie potrzebuje migawki treści — jest niezmienna od nadania
+  // numeru, więc żywy wiersz JEST tym, co klient dostał. Zmienne były
+  // wyłącznie NASZE dane, bo siedzą w osobnej tabeli ustawień: zmiana nazwy
+  // firmy albo numeru konta przepisywała wstecz opłacony dokument. Fallback
+  // na żywe ustawienia dotyczy faktur wystawionych przed tą zmianą.
+  const wystawcaZMigawki = ((invoice.migawka ?? null) as { wystawca?: Record<string, unknown> } | null)?.wystawca ?? null;
+  const settings = wystawcaZMigawki ? [] : await sql`SELECT * FROM company_settings WHERE id = 'default';`;
   // Biała lista pól (Moduł 40, patrz lib/publicFields.ts) — czarna lista
   // wypuszczała każdą nowo dodaną kolumnę, w tym drugi token (wezwania).
   return NextResponse.json({
     invoice: pickFields(invoice, INVOICE_PUBLIC_FIELDS),
     items: numItems(items),
-    settings: settings[0] ? pickFields(settings[0], COMPANY_SETTINGS_PUBLIC_FIELDS) : null,
+    settings: pickFields(wystawcaZMigawki ?? settings[0] ?? {}, COMPANY_SETTINGS_PUBLIC_FIELDS),
   });
 }

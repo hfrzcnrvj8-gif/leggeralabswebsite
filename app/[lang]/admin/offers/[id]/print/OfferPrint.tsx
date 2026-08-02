@@ -15,7 +15,7 @@ import {
 } from "@/lib/offers";
 import { formatPlDateTime } from "@/lib/dates";
 import { czasRealizacjiOpis, czasRealizacjiTygodnie } from "@/lib/przepisanie";
-import { type CompanySettings } from "@/lib/invoices";
+import { type CompanySettings, companyAddressLines } from "@/lib/invoices";
 import { docMoney, docDate, DOC_GRADIENT } from "@/lib/documents";
 import { PasekMarkiDokumentu, KwotaGradientem } from "../../../DocGradient";
 import { DocLogoMark } from "../../../DocLogoMark";
@@ -491,7 +491,15 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
             <div>
               <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">{t.seller}</div>
               <div className="whitespace-pre-line font-medium text-neutral-900">{settings?.nazwa || "—"}</div>
-              {settings?.adres && <div className="mt-0.5 whitespace-pre-line text-neutral-500">{settings.adres}</div>}
+              {/* Adres wystawcy (znalezisko A3): do Fazy 2 stało tu samo
+                  `settings.adres` — pole SPRZED rozbicia adresu na
+                  ulicę/kod/miasto. Właściciel wpisuje dane w nowe pola, więc
+                  stare jest puste i oferta drukowała samą nazwę z NIP-em,
+                  podczas gdy faktura pokazywała pełny adres. Ten sam pomocnik
+                  co na fakturze — z fallbackiem na stare pole. */}
+              {companyAddressLines(settings ?? { ulica: "", kod: "", miasto: "", kraj: "", adres: "" }).map((line, i) => (
+                <div key={i} className="mt-0.5 text-neutral-500">{line}</div>
+              ))}
               {settings?.nip && (
                 <div className="mt-0.5 text-neutral-500">
                   {t.taxId}: {settings.nip}
@@ -688,7 +696,9 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
               <div>
                 <div className="mb-1 font-semibold uppercase tracking-wide text-neutral-400">{t.footerCompany}</div>
                 <div className="font-medium text-neutral-700">{settings?.nazwa || "—"}</div>
-                {settings?.adres && <div className="whitespace-pre-line">{settings.adres}</div>}
+                {companyAddressLines(settings ?? { ulica: "", kod: "", miasto: "", kraj: "", adres: "" }).map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
                 {settings?.nip && <div>{t.taxId}: {settings.nip}</div>}
               </div>
               <div>

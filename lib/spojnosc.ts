@@ -38,12 +38,13 @@ import { getSql } from "./db";
  *  pilnuje czegoś, co dziś jest znaną, NIENAPRAWIONĄ luką.
  *
  *  **Znacznik zdejmuje się razem z naprawą, reguła zostaje.** Po Fazie 1
- *  (`docs/PLAN-ZAPLECZE.md`) zeszły stąd B1, B3, B5 i B6 — nie dlatego, że
+ *  (`docs/PLAN-ZAPLECZE.md`) zeszły stąd B1, B3, B5 i B6, po Fazie 2 — A2
+ *  (migawka obejmuje wystawcę) — nie dlatego, że
  *  przestały nas obchodzić, tylko dlatego, że przestały być luką: te reguły
  *  stoją teraz jako czujki nad tym, co już działa. Lista, która tego nie
  *  odróżnia, starzeje się dokładnie tak, jak tabela Modułu 59 (34 wskazania,
  *  22 nieaktualne). */
-export type Luka = "A2" | "C1" | "C3" | "C4";
+export type Luka = "C1" | "C3" | "C4";
 
 export type Naruszenie = {
   /** Zdanie o KONKRETNYM rekordzie — z nazwą, nie z id. */
@@ -146,7 +147,6 @@ function reguly(): Regula[] {
         "zmiana nazwy firmy, NIP-u albo konta zmienia wstecz każdy dokument, " +
         "który klient wciąż może otworzyć. To jedyne z tych naruszeń, które ma " +
         "skutek prawny.",
-      luka: "A2",
       powaga: "wysoka",
       zbierz: async () => {
         const of = await sql`
@@ -161,7 +161,21 @@ function reguly(): Regula[] {
             AND (migawka IS NULL OR NOT jsonb_exists(migawka, 'wystawca'))
           ORDER BY updated_at DESC LIMIT 20;
         `;
+        // Faktura dołączyła w Fazie 2 — i to ona jest tu najostrzejsza.
+        // Migawkę dostaje przy WYSTAWIENIU (nadaniu numeru), nie przy
+        // wysyłce: od numeru dokument jest niezmienny, a wysyłek bywa kilka.
+        // Dlatego pytamy o `numer`, nie o ślad wysyłki.
+        const fa = await sql`
+          SELECT id, numer FROM invoices
+          WHERE status <> 'Szkic' AND COALESCE(numer, '') <> ''
+            AND (migawka IS NULL OR NOT jsonb_exists(migawka, 'wystawca'))
+          ORDER BY updated_at DESC LIMIT 20;
+        `;
         return [
+          ...fa.map((w) => ({
+            opis: `faktura ${tekst(w.numer, "(bez numeru)")} nie ma zamrożonych danych sprzedawcy`,
+            link: `/pl/admin/invoices/${w.id}`,
+          })),
           ...of.map((w) => ({
             opis: `oferta „${tekst(w.tytul)}” jest u klienta bez zamrożonych danych wystawcy`,
             link: `/pl/admin/offers/${w.id}`,

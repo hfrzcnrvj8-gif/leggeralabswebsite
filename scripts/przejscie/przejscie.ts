@@ -267,8 +267,30 @@ async function przejscie(): Promise<void> {
   ]) {
     await api("POST", `/api/offers/${ofertaId}/items`, { nazwa: p.nazwa, ilosc: 1, jednostka: "kpl.", cena: p.cena });
   }
+  // Sekcje opisowe — od Fazy 2 ich brak jest OSTRZEŻENIEM przy wysyłce
+  // („bez sekcji oferta jest samym cennikiem"). Główna droga ma pokazywać
+  // dokument, który realnie wychodzi do klienta, więc pisze je tak jak
+  // właściciel: zakres i terminy.
+  await api("POST", `/api/offers/${ofertaId}/sections`, {
+    tytul: "Zakres prac",
+    tresc: "Przegląd procesu ofertowania, prototyp lokalnego modelu i raport z rekomendacjami.",
+  });
+  await api("POST", `/api/offers/${ofertaId}/sections`, {
+    tytul: "Terminy",
+    tresc: "Realizacja: 4 tygodnie od akceptacji oferty.",
+  });
+
   const o2 = await pobierzOferte(ofertaId!);
   sprawdz("pozycje oferty sumują się do 8000 zł", suma(o2.items) === 8000, undefined, `suma = ${suma(o2.items)}`);
+  // Faza 2 (A4) — sekcja mówi 4 tygodnie i pole mówi 4 tygodnie, więc bramka
+  // ma MILCZEĆ. Sprzeczność sprawdza test jednostkowy; tutaj pilnujemy, żeby
+  // zgodny dokument nie dostawał ostrzeżenia (fałszywy alarm usypia czujność).
+  sprawdz(
+    "zgodne terminy w ofercie nie wywołują ostrzeżenia",
+    !(o2.bramka?.ostrzezenia ?? []).some((z: any) => z.id === "sprzeczne-terminy"),
+    undefined,
+    `ostrzeżenia: ${(o2.bramka?.ostrzezenia ?? []).map((z: any) => z.id).join(", ") || "brak"}`
+  );
 
   // ── 4. Wysyłka ─────────────────────────────────────────────────────────
   krok("Wysyłka oferty");
@@ -290,10 +312,30 @@ async function przejscie(): Promise<void> {
   const o3 = await pobierzOferte(ofertaId!);
 
   sprawdz(
-    "migawka wysłanego dokumentu obejmuje blok wystawcy",
-    !!o3.offer.migawka && Object.keys(o3.offer.migawka).some((k) => /wystawc|firma|sprzedawc/i.test(k)),
-    "A2",
+    "migawka wysłanej oferty obejmuje blok wystawcy",
+    !!o3.offer.migawka?.wystawca?.nazwa,
+    undefined,
     `klucze migawki: ${o3.offer.migawka ? Object.keys(o3.offer.migawka).join(", ") : "brak migawki"}`
+  );
+  // Migawka ma być tym, CO KLIENT ZOBACZYŁ — więc sprawdzamy to od strony
+  // klienta, nie po kolumnie w bazie. Zmieniamy nazwę firmy i patrzymy, czy
+  // publiczny link dalej pokazuje tę z chwili wysyłki (Faza 2, A2).
+  const publiczna = async (token: string) => (await api("GET", `/api/offers/public/${token}`)).dane;
+  const przedZmiana = await publiczna(String(o3.offer.share_token));
+  await api("PATCH", "/api/settings", { nazwa: "Nazwa zmieniona po wysyłce" });
+  const poZmianie = await publiczna(String(o3.offer.share_token));
+  await api("PATCH", "/api/settings", DANE_FIRMY); // zawsze przywracamy
+  sprawdz(
+    "zmiana nazwy firmy nie przepisuje wstecz dokumentu, który klient już ma",
+    poZmianie?.settings?.nazwa === DANE_FIRMY.nazwa && przedZmiana?.settings?.nazwa === DANE_FIRMY.nazwa,
+    undefined,
+    `pod linkiem klienta: „${poZmianie?.settings?.nazwa}” po zmianie ustawień na „Nazwa zmieniona po wysyłce”`
+  );
+  sprawdz(
+    "migawka nie wypuszcza prywatnych ustawień właściciela",
+    !("rezerwa_vat_procent" in (poZmianie?.settings ?? {})) && !("domyslne_uwagi" in (poZmianie?.settings ?? {})),
+    undefined,
+    `pola wystawcy u klienta: ${Object.keys(poZmianie?.settings ?? {}).join(", ")}`
   );
   sprawdz("wysłana oferta dostaje token do udostępnienia", !!o3.offer.share_token);
 
@@ -443,6 +485,16 @@ async function przejscie(): Promise<void> {
   const f3 = await pobierzFakture(fakturaId);
   sprawdz("wystawienie nadaje numer", !!f3.invoice.numer, undefined, `numer = ${f3.invoice.numer}`);
   sprawdz("wystawienie uzupełnia daty", !!f3.invoice.data_wystawienia && !!f3.invoice.termin_platnosci);
+  // Faza 2 (A2) — faktura nie miała migawki W OGÓLE. To najostrzejszy prawnie
+  // przypadek: dokument, który klient dostał i opłacił, zmieniał się razem
+  // z „Danymi firmy". Migawkę robi WYSTAWIENIE, bo od numeru dokument jest
+  // niezmienny (wysyłek bywa kilka).
+  sprawdz(
+    "wystawienie zamraża dane sprzedawcy na fakturze",
+    !!f3.invoice.migawka?.wystawca?.nip,
+    undefined,
+    `migawka faktury: ${f3.invoice.migawka ? Object.keys(f3.invoice.migawka).join(", ") : "brak"}`
+  );
 
   const proba = await api("PATCH", `/api/invoices/${fakturaId}`, { klient_nazwa: "PRÓBA PODMIANY" });
   const f4 = await pobierzFakture(fakturaId);
@@ -532,14 +584,17 @@ async function przejscie(): Promise<void> {
   const bezWystawcy = await api("POST", `/api/offers/${sondaId}/send`);
   await api("PATCH", "/api/settings", DANE_FIRMY); // zawsze przywracamy
 
-  const powod = String(bezWystawcy.dane?.error ?? "");
+  // POWODU szukamy po identyfikatorach reguł, nie po treści komunikatu:
+  // dwie różne przyczyny dawały wcześniej ten sam kod 400 i pierwsza wersja
+  // tego skryptu ogłosiła lukę A2 za naprawioną, choć dokument dalej
+  // wychodził anonimowy.
+  const powody = (o: any): string[] => (o?.dane?.bramka?.blokady ?? []).map((b: any) => b.id);
   sprawdz(
-    "wysyłka odmawia, gdy dokument nie ma wystawcy",
-    bezWystawcy.status >= 400 && !/e-?mail/i.test(powod),
-    "A2",
+    "wysyłka odmawia — i to Z POWODU braku wystawcy",
+    bezWystawcy.status === 400 && powody(bezWystawcy).includes("wystawca-bez-nazwy"),
+    undefined,
     `oferta ma komplet danych klienta; po wyczyszczeniu „Danych firmy” ` +
-      `POST /send → ${bezWystawcy.status} (${powod || "bez błędu"}) — ` +
-      `dokument wychodzi do klienta anonimowy`
+      `POST /send → ${bezWystawcy.status}, powody: ${powody(bezWystawcy).join(", ") || "(brak listy)"}`
   );
 
   const brakMaila = await api("POST", "/api/offers", { klient_nazwa: `Sonda maila [${ZNACZNIK}]` });
@@ -547,9 +602,91 @@ async function przejscie(): Promise<void> {
   const odmowa = await api("POST", `/api/offers/${brakMailaId}/send`);
   sprawdz(
     "wysyłka odmawia z podanym wprost powodem, gdy brakuje maila klienta",
-    odmowa.status >= 400 && typeof odmowa.dane?.error === "string" && odmowa.dane.error.length > 10,
+    odmowa.status === 400 && powody(odmowa).includes("odbiorca-bez-emaila"),
     undefined,
-    `→ ${odmowa.status} ${JSON.stringify(odmowa.dane)}`
+    `→ ${odmowa.status}, powody: ${powody(odmowa).join(", ") || "(brak listy)"}`
+  );
+  sprawdz(
+    "odmowa nie miesza powodów — brak maila to nie brak wystawcy",
+    !powody(odmowa).includes("wystawca-bez-nazwy"),
+    undefined,
+    `powody: ${powody(odmowa).join(", ")}`
+  );
+
+  // ── 12. Sonda: ostrzeżenie da się przejść, blokady nie ─────────────────
+  krok("Sonda: ostrzeżenie kontra blokada");
+  const sondaOstrz = await api("POST", "/api/offers", { klient_nazwa: `Sonda ostrzeżenia [${ZNACZNIK}]` });
+  const sondaOstrzId = id(sondaOstrz.dane);
+  wymagaj(!!sondaOstrzId, `nie udało się założyć oferty do sondy ostrzeżeń: ${JSON.stringify(sondaOstrz.dane)}`);
+  // Komplet danych odbiorcy MUSI wejść osobnym PATCH-em — `POST /api/offers`
+  // ich nie przyjmuje. Bez tego odmowa przyszłaby z powodu BLOKADY (brak
+  // maila), a sonda ma mierzyć zachowanie przy samym OSTRZEŻENIU.
+  await api("PATCH", `/api/offers/${sondaOstrzId}`, {
+    klient_email: "sonda@przyklad.pl",
+    klient_ulica: "ul. Testowa 1",
+    klient_kod: "30-001",
+    klient_miasto: "Kraków",
+  });
+  // Pozycja bez ani jednej sekcji = „sam cennik", czyli OSTRZEŻENIE.
+  await api("POST", `/api/offers/${sondaOstrzId}/items`, { nazwa: "Audyt", ilosc: 1, jednostka: "kpl.", cena: 1000 });
+
+  const zOstrzezeniem = await api("POST", `/api/offers/${sondaOstrzId}/send`);
+  sprawdz(
+    "samo ostrzeżenie zatrzymuje wysyłkę pytaniem, a nie odmową",
+    zOstrzezeniem.status === 409 && (zOstrzezeniem.dane?.bramka?.ostrzezenia ?? []).length > 0,
+    undefined,
+    `→ ${zOstrzezeniem.status} ${JSON.stringify(zOstrzezeniem.dane?.bramka ?? zOstrzezeniem.dane)}`
+  );
+  const mimoOstrzezen = await api("POST", `/api/offers/${sondaOstrzId}/send`, { mimo_ostrzezen: true });
+  sprawdz(
+    "„Wyślij mimo to” przechodzi ostrzeżenie",
+    mimoOstrzezen.status === 200,
+    undefined,
+    `→ ${mimoOstrzezen.status} ${JSON.stringify(mimoOstrzezen.dane)}`
+  );
+
+  // …ale ta sama zgoda NIE MOŻE obejść blokady. Inaczej okno w panelu byłoby
+  // furtką dookoła reguły, której trasa ma pilnować.
+  const sondaBlok = await api("POST", "/api/offers", { klient_nazwa: `Sonda blokady [${ZNACZNIK}]` });
+  const sondaBlokId = id(sondaBlok.dane);
+  const naSile = await api("POST", `/api/offers/${sondaBlokId}/send`, { mimo_ostrzezen: true });
+  sprawdz(
+    "„Wyślij mimo to” NIE obchodzi blokady",
+    naSile.status === 400,
+    undefined,
+    `→ ${naSile.status} ${JSON.stringify(naSile.dane?.error ?? naSile.dane)}`
+  );
+
+  // ── 13. Sonda: mail z niewypełnionym nawiasem (A1) ─────────────────────
+  // Najpoważniejsze znalezisko przejścia: do klienta poszło dosłownie
+  // „Pozdrawiam, [Twoje imię]". Trasa sprawdzała tylko, czy treść jest
+  // niepusta. Projekt z tej drogi ma klienta z mailem, więc odmowa może
+  // przyjść WYŁĄCZNIE z powodu nawiasu — inaczej sonda mierzyłaby nie to.
+  krok("Sonda: mail zamykający");
+  const zNawiasem = await api("POST", `/api/projects/${projektId}/request-review`, {
+    body: "Projekt zakończony — dziękuję!\n\nPozdrawiam,\n[Twoje imię]",
+  });
+  const powodyMaila = (zNawiasem.dane?.bramka?.blokady ?? []).map((b: any) => b.id);
+  sprawdz(
+    "mail z niewypełnionym „[Twoje imię]” nie wychodzi do klienta",
+    zNawiasem.status === 400 && powodyMaila.includes("mail-z-nawiasami"),
+    undefined,
+    `→ ${zNawiasem.status}, powody: ${powodyMaila.join(", ") || "(brak listy)"}`
+  );
+  // Ostrzeżenie „mail mówi o zakończeniu, a projekt jest w trakcie" jest tu
+  // PRAWDZIWE, dopóki żyje luka C1 (opinia nie domyka projektu — Faza 3).
+  // Dlatego przechodzimy je świadomie zgodą, zamiast omijać temat innym
+  // zdaniem w mailu: sonda ma pokazać, że zgoda działa, a nie że nie było
+  // czego przechodzić.
+  const bezNawiasu = await api("POST", `/api/projects/${projektId}/request-review`, {
+    body: `Projekt zakończony — dziękuję za współpracę!\n\nPozdrawiam,\n${DANE_FIRMY.osoba_podpisujaca}`,
+    mimo_ostrzezen: true,
+  });
+  sprawdz(
+    "ten sam mail z podstawionym podpisem przechodzi",
+    bezNawiasu.status === 200,
+    undefined,
+    `→ ${bezNawiasu.status} ${JSON.stringify(bezNawiasu.dane)}`
   );
 }
 

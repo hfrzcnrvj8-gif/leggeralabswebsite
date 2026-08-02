@@ -4,6 +4,7 @@ import { INVOICE_TYPE_LABEL, type InvoiceDocType } from "@/lib/invoices";
 import { isAuthed } from "@/lib/auth";
 import { formatInvoiceNumber } from "@/lib/invoices";
 import { fetchNbpRateBeforeDate } from "@/lib/nbp";
+import { wystawcaDoMigawki } from "@/lib/publicFields";
 
 export const runtime = "nodejs";
 
@@ -99,7 +100,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const today = new Date();
     const year = today.getFullYear();
 
-    const settingsRows = await sql`SELECT domyslny_termin_dni, vat_payer FROM company_settings WHERE id = 'default';`;
+    const settingsRows = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
     const terminDni = Number(settingsRows[0]?.domyslny_termin_dni ?? 14);
     const vatPayer = Boolean(settingsRows[0]?.vat_payer);
 
@@ -151,6 +152,22 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         throw err;
       }
     }
+    // MIGAWKA WYSTAWCY (Faza 2, znalezisko A2) — dane sprzedawcy z chwili
+    // wystawienia. Od tego momentu faktura jest niezmienna (PATCH odmawia
+    // 409), więc nasze dane też nie mogą się na niej zmieniać: zmiana nazwy
+    // firmy albo numeru konta zmieniała wstecz dokument, który klient dostał
+    // i opłacił.
+    //
+    // Tylko przy PIERWSZYM wystawieniu — ponowne wystawienie (ta trasa jest
+    // idempotentna, numer wtedy zostaje) nie może podmienić wystawcy na
+    // dzisiejszego.
+    if (!inv.migawka) {
+      await sql`
+        UPDATE invoices SET migawka = ${JSON.stringify({ wystawca: wystawcaDoMigawki(settingsRows[0]) })}, migawka_at = now()
+        WHERE id = ${id} AND migawka IS NULL;
+      `;
+    }
+
     const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
     const typLabel = INVOICE_TYPE_LABEL[(inv.typ_dokumentu as InvoiceDocType) ?? "faktura"];
     await logClientEvent(sql, clientId, "invoice_issued", `Wystawiono: ${typLabel} nr ${numer}`, null, id);
