@@ -37,33 +37,24 @@ export function ShareLinkControl({
   /** Wołane po udanej operacji; `url` tylko przy wygenerowaniu nowego linku. */
   onChanged: (revokedAt: string | null, url?: string) => void;
 }) {
-  const { confirm, toast } = useUI();
+  const { toast, zadanie } = useUI();
   const [busy, setBusy] = useState(false);
 
   if (!hasToken) return null;
 
   const run = async (action: "revoke" | "regenerate") => {
-    if (action === "revoke") {
-      const ok = await confirm(
-        `Unieważnić link do ${etykieta}? Każdy, kto go ma — także osoba, której klient przesłał maila dalej — przestanie mieć dostęp. Nowy link można wygenerować później.`,
-        { danger: true }
-      );
-      if (!ok) return;
-    } else {
-      const ok = await confirm(
-        `Wygenerować nowy link do ${etykieta}? Poprzedni przestanie działać na zawsze. Nowy trzeba wysłać klientowi ponownie — sam z siebie nigdzie nie pójdzie.`
-      );
-      if (!ok) return;
-    }
+    // Pyta TRASA (Faza 4) — obie drogi odbierają klientowi dostęp do adresu,
+    // który już dostał mailem. Treść okna przychodzi z odpowiedzi 428, więc
+    // nie ma tu drugiego `confirm()` mówiącego to samo innymi słowami.
     setBusy(true);
-    const res = await fetch(`/api/share-links/${kind}/${id}`, {
+    const w = await zadanie(`/api/share-links/${kind}/${id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: { action },
     });
     setBusy(false);
-    const data = (await res.json().catch(() => ({}))) as { revokedAt?: string; url?: string; error?: string };
-    if (!res.ok) {
+    if (w.anulowane) return;
+    const data = w.dane as { revokedAt?: string; url?: string; error?: string };
+    if (!w.ok) {
       toast(data.error ?? "Nie udało się zmienić linku", "error");
       return;
     }

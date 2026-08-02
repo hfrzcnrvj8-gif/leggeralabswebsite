@@ -3,6 +3,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { SPRING, TWEEN_EXIT } from "@/lib/motion";
+import {
+  OknoPotwierdzenia,
+  wykonajZadanie,
+  type OpcjeZadania,
+  type StanPotwierdzenia,
+  type WynikZadania,
+} from "./Potwierdzenie";
 
 type ToastItem = { id: string; message: string; type: "success" | "error" };
 type ConfirmState = { message: string; danger?: boolean; resolve: (v: boolean) => void } | null;
@@ -32,6 +39,16 @@ type UIContextType = {
   prompt: (message: string, opts?: { placeholder?: string }) => Promise<string | null>;
   /** Pytanie z kilkoma wyjściami; `null` = użytkownik anulował. */
   choose: (message: string, options: ChoiceOption[]) => Promise<string | null>;
+  /**
+   * Żądanie do API, które samo obsługuje barierę „to jest nieodwracalne"
+   * (Faza 4). Używaj go WSZĘDZIE, gdzie panel kasuje rekord, wysyła dokument,
+   * wystawia fakturę albo unieważnia link — okno i jego treść przychodzą
+   * z trasy, więc tutaj nie ma czego konfigurować ani o czym zapomnieć.
+   *
+   * Nie owijaj tego dodatkowym `confirm()` — byłyby dwa pytania pod rząd
+   * o to samo, a to najkrótsza droga do klikania „tak" bez czytania.
+   */
+  zadanie: (url: string, opcje?: OpcjeZadania) => Promise<WynikZadania>;
   contextActions: Action[];
   setContextActions: (actions: Action[]) => void;
 };
@@ -94,6 +111,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
   const [promptState, setPromptState] = useState<PromptState>(null);
   const [promptValue, setPromptValue] = useState("");
   const [chooseState, setChooseState] = useState<ChooseState>(null);
+  const [potwierdzenieState, setPotwierdzenieState] = useState<StanPotwierdzenia | null>(null);
   const [contextActions, setContextActions] = useState<Action[]>([]);
   const promptInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,6 +142,23 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const zadanie = useCallback(
+    (url: string, opcje?: OpcjeZadania) =>
+      wykonajZadanie(url, opcje, (opis, doPrzepisania) =>
+        new Promise<string | null | false>((resolve) => {
+          setPotwierdzenieState({
+            opis,
+            doPrzepisania,
+            resolve: (v) => {
+              setPotwierdzenieState(null);
+              resolve(v);
+            },
+          });
+        })
+      ),
+    []
+  );
+
   useEffect(() => {
     if (promptState) {
       const t = window.setTimeout(() => promptInputRef.current?.focus(), 30);
@@ -144,9 +179,31 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
     setChooseState(null);
   };
 
+  /**
+   * ZNALEZISKO D3 — „modal nie blokuje tego, co pod nim".
+   *
+   * Overlay `fixed inset-0` blokował MYSZ (sprawdzone `elementsFromPoint`:
+   * na wierzchu stoi overlay), ale nie blokował KLAWIATURY: przy otwartym
+   * oknie „Nazwa kamienia milowego" tabulatorem dawało się dojść do 44
+   * elementów tła i wcisnąć je Enterem. Dwie warstwy interakcji naraz — tyle
+   * że drugą drogą, niż się wydawało z opisu.
+   *
+   * `inert` wyłącza CAŁE poddrzewo z trafień myszy, fokusu i czytników
+   * ekranu — niezależnie od tego, jaki kto ma z-index. To ważne, bo menu
+   * i popovery panelu żyją na `z-[200]`, czyli wyżej niż overlay tych okien
+   * (`z-[110]`); samo podbijanie z-indeksów byłoby wyścigiem bez końca.
+   *
+   * Opakowanie ma `display: contents`, więc nie tworzy pudełka i nie rusza
+   * układu — sprawdzone w przeglądarce: fokus jest blokowany, a bez `inert`
+   * wraca.
+   */
+  const cosOtwarte = !!(confirmState || promptState || chooseState || potwierdzenieState);
+
   return (
-    <UIContext.Provider value={{ toast, confirm, prompt, choose, contextActions, setContextActions }}>
-      {children}
+    <UIContext.Provider value={{ toast, confirm, prompt, choose, zadanie, contextActions, setContextActions }}>
+      <div style={{ display: "contents" }} inert={cosOtwarte}>
+        {children}
+      </div>
 
       {/* Toasty */}
       <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-xs flex-col gap-2">
@@ -276,6 +333,15 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Potwierdzenie działania nieodwracalnego (Faza 4). Treść okna
+          przychodzi z TRASY (odpowiedź 428), nie jest tu zapisana — patrz
+          nagłówek `Potwierdzenie.tsx`. Renderowane raz, na cały panel, tak
+          samo jak confirm/prompt: dzięki temu żaden z kilkunastu ekranów,
+          które kasują rekordy, nie musi o nim pamiętać. */}
+      <AnimatePresence>
+        {potwierdzenieState && <OknoPotwierdzenia key="potwierdzenie" stan={potwierdzenieState} />}
       </AnimatePresence>
 
       {/* Prompt modal — zastępuje window.prompt */}

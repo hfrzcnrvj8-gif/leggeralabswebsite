@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { blokadaStatusuUmowy, blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
 import { sprawdzDokumentPrzedWysylka } from "@/lib/bramkaWysylki";
@@ -275,9 +276,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
  *
  * Pomyłkę w podpisanym dokumencie zamyka się statusem albo aneksem — nie
  * usunięciem, bo drugą kopię ma druga strona. */
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
+
   await ensureContractsSchema();
   const sql = getSql();
 
@@ -292,6 +294,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       { error: `${zdanie} — drugą kopię ma druga strona, więc dokumentu nie usuwamy. Zmianę warunków wprowadza aneks.` },
       { status: 409 }
     );
+  }
+
+  // POTWIERDZENIE (Faza 4) — usunięcie rekordu głównego jest nieodwracalne.
+  // Po sprawdzeniach: podpisanego dokumentu i tak nie usuwamy, więc nie ma
+  // o co pytać.
+  const odmowaPotw = odmowaPotwierdzenia("umowa-usun", odczytajPotwierdzenie(req.headers));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
   }
 
   // Umowa z aneksami zostaje nawet jako szkic: `poprzednie` aneksu przeżyje

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureCostsSchema, ensureLinksSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { todayLocalISO } from "@/lib/dates";
 import { costBrutto, czytajPolaKosztu, normalizeCostRow, type PolaKosztu } from "@/lib/costs";
 
@@ -148,9 +149,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
  * z panelem — nie miał jak się pokazać. Załącznik siedzi w kolumnach tego
  * samego wiersza (`zalacznik_dane`), więc znika razem z nim; sonda
  * potwierdziła, że osieroconych plików nie ma. */
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
+
+  // POTWIERDZENIE (Faza 4) — usunięcie rekordu głównego jest nieodwracalne.
+  const odmowaPotw = odmowaPotwierdzenia("koszt-usun", odczytajPotwierdzenie(req.headers));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
   await ensureCostsSchema();
   const sql = getSql();
   const istnieje = await sql`SELECT id FROM costs WHERE id = ${id};`;

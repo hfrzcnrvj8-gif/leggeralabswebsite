@@ -390,18 +390,57 @@ propozycje, których się spodziewamy — ani jednej więcej.
 
 ---
 
-## Faza 4 — nieodwracalność i potwierdzenia
+## Faza 4 — nieodwracalność i potwierdzenia — ✅ ZROBIONE 2026-08-02
 
-**Zamyka:** D1 (faktura bez potwierdzenia), D3 (modal nie blokuje tła),
-D4 (brak „Zapisz" w Danych firmy).
+**Zamknęła D1, D3 i D4.** D2 przeniesione do Fazy 5 decyzją właściciela — to
+zachowanie listy (sortowanie, przewinięcie, podświetlenie), nie bariera przed
+nieodwracalnym skutkiem.
 
-Powstaje **jawna lista działań nieodwracalnych** i reguła: każde z nich pyta,
-każde nie-nieodwracalne nie pyta. Dziś jest odwrotnie w najgorszym miejscu —
-wystawienie faktury nadaje trwały numer w serii bez pytania, a „oznacz umowę
-jako podpisaną" pyta.
+Powstała **jawna lista działań nieodwracalnych** (`lib/nieodwracalne.ts`)
+i reguła działająca w obie strony: **co nieodwracalne — pyta, co odwracalne —
+nie pyta.**
 
-Na liście na pewno: wystawienie faktury, wysłanie dokumentu do klienta,
-unieważnienie linku, usunięcie czegokolwiek, wysyłka do KSeF.
+### Cztery decyzje właściciela
+
+1. **Na liście:** wystawienie faktury i wysyłka do KSeF, wysłanie dokumentu do
+   klienta (9 dróg), unieważnienie/wymiana publicznego linku, usunięcie
+   **głównego** rekordu (lead, klient, projekt, faktura, oferta, umowa,
+   notatka, koszt) plus dwa usunięcia masowe. **Świadomie POZA listą**
+   drobiazgi: pozycja faktury, uczestnik wydarzenia, zadanie, kamień milowy,
+   przypomnienie, szablon. Repozytorium ma 41 uchwytów `DELETE`; gdyby każdy
+   pytał, potwierdzenia klikałoby się na ślepo.
+2. **Dwa poziomy.** *Zwykłe* — okno „Na pewno?". *Mocne* — przepisanie frazy
+   identyfikującej rekord; zarezerwowane dla czterech rzeczy nie do odkręcenia
+   niczym: wystawienie faktury, KSeF, usunięcie klienta, usunięcie projektu
+   (oraz masowe usunięcie klientów — przepisuje się LICZBĘ zaznaczonych).
+3. **Pyta zawsze** — bez „nie pytaj ponownie" i bez wyłącznika w Ustawieniach.
+   Wyłącznik prowadzi do stanu, w którym bariera formalnie jest, a realnie jej
+   nie ma, i nikt nie pamięta, kiedy się wyłączyła.
+4. **„Dane firmy" dostają Zapisz i Anuluj** (D4) — zmiany siedzą w pamięci,
+   zamknięcie z niezapisanymi pyta.
+
+### Bariera mieszka w TRASIE
+
+Trasa odmawia kodem **428** z opisem potwierdzenia; panel dowiaduje się
+o barierze dopiero z tej odpowiedzi i z niej bierze treść okna. Panel
+FIZYCZNIE nie wie, co jest nieodwracalne — więc lista nie może rozjechać się
+na kopię panelową i serwerową (lekcja Fazy 2).
+
+Jedyne, czego trasa nie odsyła, to wymagana fraza: odesłanie jej zamieniłoby
+mocne potwierdzenie w formalność. Wartość do przepisania podaje panel, który
+ma rekord na ekranie; **porównuje serwer, z danych w bazie.**
+
+**Skutek dla apki iOS:** kontrakt się zmienił, apka tych działań nie potwierdza
+i dostanie 428 z czytelnym komunikatem. Decyzja właściciela: szczelnie od razu,
+apka do osobnej sesji — brief `docs/natywna-aplikacja/35-brief-potwierdzenia.md`.
+
+### Przy okazji
+
+`lib/shareLinks.ts` czytał kolumny `review_share_token`/`review_share_revoked_at`,
+których nie ma w schemacie (są `review_token`/`review_revoked_at`) — „skopiuj
+link do formularza opinii" kończyło się **500**, podczas gdy te same przyciski
+przy ofercie i umowie działały. Rozjazd był w jednym pliku z poprawnymi
+nazwami dwie funkcje wyżej.
 
 ---
 

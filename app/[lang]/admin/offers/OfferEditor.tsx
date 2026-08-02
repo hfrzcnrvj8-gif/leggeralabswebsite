@@ -67,7 +67,7 @@ export function OfferEditor({
   onChange?: () => void;
   onDeleted?: (id: string) => void;
 }) {
-  const { toast, confirm, prompt } = useUI();
+  const { toast, confirm, prompt, zadanie } = useUI();
   // Bramka wysyłki (Faza 2) — pasek liczy SERWER przy odczycie oferty, bo
   // dane wystawcy siedzą w osobnej tabeli, do której edytor nigdy nie sięgał.
   const [bramka, setBramka] = useState<WynikBramki | null>(null);
@@ -462,14 +462,15 @@ export function OfferEditor({
 
   const remove = useCallback(async () => {
     if (!offer) return;
-    const ok = await confirm(`Usunąć ofertę "${offer.tytul || "(bez tytułu)"}"?`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/offers/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast("Oferta usunięta.");
-      onDeleted?.(id);
+    const w = await zadanie(`/api/offers/${id}`, { method: "DELETE" });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć.", "error");
+      return;
     }
-  }, [offer, id, confirm, toast, onDeleted]);
+    toast("Oferta usunięta.");
+    onDeleted?.(id);
+  }, [offer, id, zadanie, toast, onDeleted]);
 
   const duplicateOffer = useCallback(async () => {
     setDuplicating(true);

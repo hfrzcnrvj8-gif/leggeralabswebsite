@@ -38,7 +38,7 @@ import { Modal } from "../Modal";
 import { OknoOdrzucenia } from "../RejectDialog";
 
 export function ContractsDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm, prompt } = useUI();
+  const { toast, confirm, prompt, zadanie } = useUI();
   // Bramka wysyłki (Faza 2) — okno z listą zastrzeżeń, wspólne z profilem.
   const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [contracts, setContracts] = useState<Contract[] | null>(null);
@@ -125,17 +125,16 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
 
   const deleteContract = useCallback(
     async (id: string, nazwa: string) => {
-      const ok = await confirm(`Usunąć dokument "${nazwa || "(bez nazwy)"}"?`, { danger: true });
-      if (!ok) return;
-      const res = await fetch(`/api/contracts/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        toast("Nie udało się usunąć.", "error");
+      const w = await zadanie(`/api/contracts/${id}`, { method: "DELETE" });
+      if (w.anulowane) return;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się usunąć.", "error");
         return;
       }
       setContracts((prev) => prev?.filter((c) => c.id !== id) ?? prev);
       toast("Dokument usunięty.");
     },
-    [confirm, toast]
+    [zadanie, toast]
   );
 
   /** Zmiana statusu z pigułki na liście.
@@ -208,10 +207,10 @@ export function ContractsDashboard({ lang }: { lang: Locale }) {
 
   const przypomnij = useCallback(
     async (id: string) => {
-      const res = await fetch(`/api/contracts/${id}/remind`, { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        toast(data.error ?? "Nie udało się wysłać przypomnienia.", "error");
+      const w = await zadanie(`/api/contracts/${id}/remind`, { method: "POST" });
+      if (w.anulowane) return;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
         return;
       }
       toast("Przypomnienie wysłane.");

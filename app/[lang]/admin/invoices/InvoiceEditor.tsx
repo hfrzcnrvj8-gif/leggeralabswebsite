@@ -87,7 +87,7 @@ export function InvoiceEditor({
   /** Przeskok do powiązanej faktury (oryginał ↔ korekta) bez zamykania modalu. */
   onOpenInvoice?: (id: string) => void;
 }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   // Bramka wysyłki (Faza 2) — pasek liczy SERWER przy odczycie faktury,
   // z wystawcy ZAMROŻONEGO w migawce przy wystawieniu (to jego widzi klient).
   const [bramka, setBramka] = useState<WynikBramki | null>(null);
@@ -400,9 +400,20 @@ export function InvoiceEditor({
 
   const issue = useCallback(async () => {
     setIssuing(true);
-    const res = await fetch(`/api/invoices/${id}/issue`, { method: "POST" });
-    if (res.ok) {
-      const { numer } = (await res.json()) as { numer: string };
+    // ZNALEZISKO D1 — do Fazy 4 ten przycisk nadawał trwały numer w serii bez
+    // jednego pytania, podczas gdy odwracalne „oznacz umowę jako podpisaną"
+    // potwierdzenia wymagało. Pyta TRASA; `doPrzepisania` podaje tylko to, co
+    // okno ma pokazać do przepisania (porównuje serwer, z danych w bazie).
+    const w = await zadanie(`/api/invoices/${id}/issue`, {
+      method: "POST",
+      doPrzepisania: invoice?.klient_nazwa ?? null,
+    });
+    if (w.anulowane) {
+      setIssuing(false);
+      return;
+    }
+    if (w.ok) {
+      const numer = w.dane.numer as string;
       // "Zapłacono od razu" — sprzedaż gotówkowa: jeden klik zamiast osobnego
       // wejścia do sekcji Płatności po wystawieniu, żeby dopisać tę samą kwotę.
       if (paidNow) {
@@ -421,24 +432,21 @@ export function InvoiceEditor({
       onChange?.();
     } else {
       setIssuing(false);
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(data.error ?? "Nie udało się wystawić faktury.", "error");
+      toast(w.dane.error || "Nie udało się wystawić faktury.", "error");
     }
-  }, [id, load, onChange, toast, paidNow, items, settings]);
+  }, [id, load, onChange, toast, paidNow, items, settings, zadanie, invoice]);
 
   const remove = useCallback(async () => {
     if (!invoice) return;
-    const ok = await confirm(`Usunąć fakturę ${invoice.numer ?? "(szkic)"}?`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast("Faktura usunięta.");
-      onDeleted?.(id);
-    } else {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(data.error ?? "Nie udało się usunąć.", "error");
+    const w = await zadanie(`/api/invoices/${id}`, { method: "DELETE" });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć.", "error");
+      return;
     }
-  }, [invoice, id, confirm, toast, onDeleted]);
+    toast("Faktura usunięta.");
+    onDeleted?.(id);
+  }, [invoice, id, zadanie, toast, onDeleted]);
 
   const cancelInvoice = useCallback(async () => {
     if (!invoice) return;
@@ -519,13 +527,20 @@ export function InvoiceEditor({
   }, [id, toast, wyslij]);
 
   const sendToKsef = useCallback(async () => {
-    const ok = await confirm(
-      "Wysłać fakturę do KSeF na środowisko TESTOWE? To bezpieczne — faktura testowa nie ma mocy prawnej i nie idzie do prawdziwego urzędu."
-    );
-    if (!ok) return;
+    // Pyta TRASA (Faza 4, poziom „mocne" — przepisanie numeru faktury).
+    // Wcześniejsze `confirm()` mówiło „to bezpieczne, bo środowisko testowe";
+    // po przełączeniu na produkcję (PO_REJESTRACJI, pkt KSeF) to zdanie stałoby
+    // się nieprawdą w miejscu, w którym nikt by go już nie czytał.
     setKsefSending(true);
-    const res = await fetch(`/api/invoices/${id}/ksef/send`, { method: "POST" });
-    const data = (await res.json().catch(() => ({}))) as {
+    const w = await zadanie(`/api/invoices/${id}/ksef/send`, {
+      method: "POST",
+      doPrzepisania: invoice?.numer ?? null,
+    });
+    if (w.anulowane) {
+      setKsefSending(false);
+      return;
+    }
+    const data = w.dane as {
       ok?: boolean;
       stage?: string;
       ksefNumber?: string | null;
@@ -543,21 +558,21 @@ export function InvoiceEditor({
     }
     await load();
     onChange?.();
-  }, [id, confirm, toast, load, onChange]);
+  }, [id, zadanie, invoice, toast, load, onChange]);
 
   const sendReminder = useCallback(async () => {
     setReminding(true);
-    const res = await fetch(`/api/invoices/${id}/remind`, { method: "POST" });
+    const w = await zadanie(`/api/invoices/${id}/remind`, { method: "POST" });
     setReminding(false);
-    if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { level?: number };
-      toast(data.level === 3 ? "Wysłano formalne wezwanie do zapłaty." : `Wysłano przypomnienie (${REMINDER_LEVEL_LABEL[data.level ?? 1]?.toLowerCase() ?? "poziom " + data.level}).`);
+    if (w.anulowane) return;
+    if (w.ok) {
+      const level = w.dane.level as number | undefined;
+      toast(level === 3 ? "Wysłano formalne wezwanie do zapłaty." : `Wysłano przypomnienie (${REMINDER_LEVEL_LABEL[level ?? 1]?.toLowerCase() ?? "poziom " + level}).`);
       await load();
     } else {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(data.error ?? "Nie udało się wysłać przypomnienia.", "error");
+      toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
     }
-  }, [id, load, toast]);
+  }, [id, load, toast, zadanie]);
 
   const addPayment = useCallback(async () => {
     const kwota = Number(newPaymentKwota);

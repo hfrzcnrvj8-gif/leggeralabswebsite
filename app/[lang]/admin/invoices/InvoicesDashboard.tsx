@@ -18,6 +18,7 @@ import { KSEF_STATUS_CLASS, KSEF_STATUS_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
 import { daysBetweenISO, todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
+import { nowaSeria } from "../Potwierdzenie";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
@@ -44,7 +45,7 @@ import { NewDocumentDialog, type NewDocumentLink } from "../NewDocumentDialog";
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number };
 
 export function InvoicesDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -52,6 +53,10 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const ctl = useContextMenu<InvoiceRow>();
   const copy = useCopy();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Niezapisane zmiany w „Danych firmy" — ref, nie stan: czyta to wyłącznie
+  // uchwyt zamknięcia modala, a przerysowywanie listy faktur przy każdej
+  // literze wpisanej w ustawieniach byłoby czystą stratą.
+  const ustawieniaBrudne = useRef(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
@@ -101,18 +106,16 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
 
   const deleteInvoice = useCallback(
     async (id: string, numer: string | null) => {
-      const ok = await confirm(`Usunąć fakturę ${numer ?? "(szkic)"}?`, { danger: true });
-      if (!ok) return;
-      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        toast(data.error ?? "Nie udało się usunąć.", "error");
+      const w = await zadanie(`/api/invoices/${id}`, { method: "DELETE" });
+      if (w.anulowane) return;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się usunąć.", "error");
         return;
       }
       setInvoices((prev) => prev?.filter((i) => i.id !== id) ?? prev);
       toast("Faktura usunięta.");
     },
-    [confirm, toast]
+    [zadanie, toast]
   );
 
   const updateStatus = useCallback(
@@ -177,22 +180,22 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const bulkDelete = useCallback(async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych faktur? Wystawionych (z numerem) nie da się usunąć — trzeba je anulować pojedynczo.`, {
-      danger: true,
-    });
-    if (!ok) return;
+    // Jedna zgoda na całą serię (patrz `nowaSeria`). Wystawione faktury i tak
+    // odbije trasa — one nie pytają o potwierdzenie, tylko odmawiają wprost.
+    const seria = nowaSeria();
     setBulkBusy(true);
     let removed = 0;
     for (const id of ids) {
-      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
-      if (res.ok) removed += 1;
+      const w = await zadanie(`/api/invoices/${id}`, { method: "DELETE", seria });
+      if (w.anulowane) break;
+      if (w.ok) removed += 1;
     }
     setBulkBusy(false);
     await load();
     clearSelection();
     if (removed === ids.length) toast(`Usunięto ${removed} faktur.`);
     else toast(`Usunięto ${removed} z ${ids.length} — reszta to wystawione faktury (ustaw status "Anulowana" zamiast usuwać).`, "error");
-  }, [selectedIds, confirm, toast, clearSelection, load]);
+  }, [selectedIds, zadanie, toast, clearSelection, load]);
 
   useRegisterActions([{ id: "add", label: "+ Nowa faktura", hint: "N", run: createInvoice }], [createInvoice]);
 
@@ -623,14 +626,32 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
         )}
       </Modal>
 
-      {/* Modal danych firmy */}
+      {/* Modal danych firmy. Od Fazy 4 (znalezisko D4) formularz ma Zapisz
+          i Anuluj, więc kliknięcie w tło albo Escape nie może po cichu
+          porzucić wpisanych zmian — pytamy, zanim okno zniknie. */}
       <Modal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={() => {
+          if (!ustawieniaBrudne.current) {
+            setSettingsOpen(false);
+            return;
+          }
+          confirm("Porzucić niezapisane zmiany w danych firmy?", { danger: true }).then((ok) => {
+            if (!ok) return;
+            ustawieniaBrudne.current = false;
+            setSettingsOpen(false);
+          });
+          return false;
+        }}
         z={95}
         card="card-paper my-auto w-full max-w-lg rounded-2xl border hairline p-5 sm:p-6"
       >
-        <CompanySettingsPanel onClose={() => setSettingsOpen(false)} />
+        <CompanySettingsPanel
+          onClose={() => setSettingsOpen(false)}
+          onBrudne={(b) => {
+            ustawieniaBrudne.current = b;
+          }}
+        />
       </Modal>
 
       {/* Modal faktur cyklicznych */}

@@ -1,29 +1,99 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IconX } from "@tabler/icons-react";
 import { type CompanySettings, DEFAULT_COMPANY_SETTINGS } from "@/lib/invoices";
 import { useUI } from "../ui";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 
-export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
-  const { toast } = useUI();
+/**
+ * ZNALEZISKO D4 — „Dane firmy" nie miały przycisku Zapisz.
+ *
+ * Okno miało jedno wyjście („Zamknij") i zapisywało pole po polu, przy
+ * opuszczeniu pola. Wyglądało dokładnie jak formularz z OK/Anuluj, więc
+ * łatwo było uwierzyć, że zamknięcie oznacza porzucenie zmian — a zmiany
+ * były już w bazie i szły na każdą kolejną fakturę.
+ *
+ * Decyzja właściciela (2026-08-02): klasyczny formularz. Zmiany siedzą
+ * w pamięci, „Zapisz" wysyła je razem, zamknięcie z niezapisanymi zmianami
+ * pyta. To zachowanie zgodne z tym, jak okno WYGLĄDA — o to szło w D4.
+ */
+export function CompanySettingsPanel({
+  onClose,
+  onBrudne,
+}: {
+  onClose: () => void;
+  /** Zgłasza na zewnątrz, czy są niezapisane zmiany — modal nadrzędny pyta
+   *  o nie przy zamknięciu kliknięciem w tło albo Escape'em, których ten
+   *  komponent nie widzi. */
+  onBrudne?: (brudne: boolean) => void;
+}) {
+  const { toast, confirm } = useUI();
+  /** Stan ZAPISANY — to, co naprawdę siedzi w bazie. */
+  const [zapisane, setZapisane] = useState<CompanySettings | null>(null);
+  /** Stan EDYTOWANY — bufor, z którego nic nie wychodzi do bazy bez „Zapisz". */
   const [s, setS] = useState<CompanySettings | null>(null);
+  const [zapisywanie, setZapisywanie] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
-      .then((d) => setS({ ...DEFAULT_COMPANY_SETTINGS, ...(d.settings ?? {}) }));
+      .then((d) => {
+        const dane = { ...DEFAULT_COMPANY_SETTINGS, ...(d.settings ?? {}) };
+        setZapisane(dane);
+        setS(dane);
+      });
   }, []);
 
-  const patch = async (p: Partial<CompanySettings>) => {
+  /** Zmiana pola — TYLKO w buforze. Żadnego żądania. */
+  const patch = (p: Partial<CompanySettings>) => {
     setS((prev) => (prev ? { ...prev, ...p } : prev));
+  };
+
+  // Co się różni od stanu zapisanego. Liczone z porównania, nie ze śledzenia
+  // „ktoś coś kliknął": wpisanie wartości i cofnięcie jej z powrotem nie jest
+  // zmianą, a pytanie o porzucenie niezmienionych danych byłoby fałszywym
+  // alarmem — czyli dokładnie tym, co uczy klikać bez czytania.
+  const zmienione = useMemo(() => {
+    if (!s || !zapisane) return {} as Partial<CompanySettings>;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(s) as (keyof CompanySettings)[]) {
+      if (s[k] !== zapisane[k]) out[k] = s[k];
+    }
+    return out as Partial<CompanySettings>;
+  }, [s, zapisane]);
+  const brudne = Object.keys(zmienione).length > 0;
+
+  useEffect(() => {
+    onBrudne?.(brudne);
+  }, [brudne, onBrudne]);
+
+  const zapisz = async () => {
+    if (!brudne || !s) return;
+    setZapisywanie(true);
     const res = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(p),
+      body: JSON.stringify(zmienione),
     });
-    if (!res.ok) toast("Nie udało się zapisać.", "error");
+    setZapisywanie(false);
+    if (!res.ok) {
+      toast("Nie udało się zapisać.", "error");
+      return;
+    }
+    setZapisane(s);
+    onBrudne?.(false);
+    toast("Dane firmy zapisane.");
+    onClose();
+  };
+
+  const anuluj = async () => {
+    if (brudne) {
+      const ok = await confirm("Porzucić niezapisane zmiany w danych firmy?", { danger: true });
+      if (!ok) return;
+    }
+    onBrudne?.(false);
+    onClose();
   };
 
   if (!s) {
@@ -34,11 +104,13 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold">Dane firmy (sprzedawca)</h2>
-        <button onClick={onClose} className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]">
+        <button onClick={anuluj} className="flex items-center gap-1 rounded-full border hairline px-2.5 py-1 text-xs text-muted hover:text-[var(--fg)]">
           <IconX size={13} /> Zamknij
         </button>
       </div>
-      <p className="mt-1 text-[12px] text-muted">Te dane trafiają na każdą fakturę. Możesz je zmienić w każdej chwili.</p>
+      <p className="mt-1 text-[12px] text-muted">
+        Te dane trafiają na każdą fakturę. Zmiany zapisuje przycisk <span className="text-[var(--fg)]">Zapisz</span> na dole — zamknięcie okna ich nie zapisuje.
+      </p>
 
       {/* Moduł 59, paczka F — ustawienia sprzedawcy w tych samych wierszach
           „etykieta po lewej", co profile rekordów. To najbliższy odpowiednik
@@ -169,6 +241,27 @@ export function CompanySettingsPanel({ onClose }: { onClose: () => void }) {
           </WierszPola>
         </SekcjaProfilu>
       </div>
+
+      {/* Pasek zapisu — przyklejony do dołu okna, bo lista ustawień jest
+          dłuższa niż ekran, a przycisk, do którego trzeba doscrollować, jest
+          przyciskiem, którego się nie znajduje. */}
+      <div className="sticky bottom-0 -mx-5 mt-5 flex items-center justify-end gap-2 border-t hairline bg-[var(--bg)] px-5 pt-3 sm:-mx-6 sm:px-6">
+        <span className="mr-auto text-[11px] text-muted">
+          {brudne
+            ? `Niezapisane zmiany: ${Object.keys(zmienione).length}`
+            : "Wszystko zapisane"}
+        </span>
+        <button onClick={anuluj} className="rounded-full border hairline px-3 py-1.5 text-xs">
+          Anuluj
+        </button>
+        <button
+          onClick={zapisz}
+          disabled={!brudne || zapisywanie}
+          className="rounded-full bg-[var(--fg)] px-3 py-1.5 text-xs font-medium text-[var(--bg)] hover:opacity-90 disabled:opacity-40"
+        >
+          {zapisywanie ? "Zapisuję…" : "Zapisz"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -187,10 +280,14 @@ function NumberField({
   placeholder?: string;
   suffix?: string;
 }) {
+  // Tu bufor ZOSTAJE — inaczej „11," w trakcie wpisywania byłoby liczbą
+  // niepoprawną i pole kasowałoby się pod palcem. Ale wartość trafia do
+  // bufora formularza już przy pisaniu (gdy da się ją odczytać), nie dopiero
+  // na `onBlur` — patrz komentarz przy `SFieldInput`.
   const [v, setV] = useState(value == null ? "" : String(value));
   useEffect(() => setV(value == null ? "" : String(value)), [value]);
-  const commit = () => {
-    const trimmed = v.trim().replace(",", ".");
+  const commit = (tekst: string) => {
+    const trimmed = tekst.trim().replace(",", ".");
     if (!trimmed) {
       onSave(null);
       return;
@@ -204,8 +301,11 @@ function NumberField({
         type="text"
         inputMode="decimal"
         value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={commit}
+        onChange={(e) => {
+          setV(e.target.value);
+          commit(e.target.value);
+        }}
+        onBlur={() => commit(v)}
         placeholder={placeholder}
         className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"
       />
@@ -235,16 +335,20 @@ function SField({
 }
 
 /** Samo pole, bez wiersza — dla miejsc, gdzie w jednym wierszu stoją dwa
- *  (kod i miasto). Bufor lokalny, żeby pisanie nie strzelało PATCH-em na
- *  każdą literę; zapis dopiero, gdy wartość naprawdę się zmieniła. */
+ *  (kod i miasto).
+ *
+ *  Od Fazy 4 pisze WPROST do bufora formularza, bez własnego stanu i bez
+ *  czekania na `onBlur`. Bufor lokalny istniał po to, żeby pisanie nie
+ *  strzelało PATCH-em na każdą literę — a od D4 zmiana pola nie wysyła już
+ *  niczego. Zostawienie zapisu na `onBlur` niosłoby realne ryzyko: kliknięcie
+ *  „Zapisz" tuż po wpisaniu wartości opierałoby się na kolejności zdarzeń
+ *  blur → click, a gubi się wtedy dokładnie to pole, które właśnie się
+ *  wpisało. */
 function SFieldInput({ value, onSave, placeholder }: { value: string; onSave: (v: string) => void; placeholder?: string }) {
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
   return (
     <input
-      value={v}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => v !== value && onSave(v)}
+      value={value}
+      onChange={(e) => onSave(e.target.value)}
       placeholder={placeholder}
       className="w-full rounded-lg border hairline bg-transparent py-1.5 text-[var(--fg)] placeholder:text-muted"
     />
@@ -252,13 +356,10 @@ function SFieldInput({ value, onSave, placeholder }: { value: string; onSave: (v
 }
 
 function SFieldTextarea({ value, onSave, placeholder }: { value: string; onSave: (v: string) => void; placeholder?: string }) {
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
   return (
     <textarea
-      value={v}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => v !== value && onSave(v)}
+      value={value}
+      onChange={(e) => onSave(e.target.value)}
       placeholder={placeholder}
       rows={2}
       className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-sm text-[var(--fg)] placeholder:text-muted"

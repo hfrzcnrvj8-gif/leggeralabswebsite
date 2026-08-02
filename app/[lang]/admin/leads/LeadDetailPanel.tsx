@@ -63,7 +63,7 @@ export function LeadDetailPanel({
   onDeleted?: (id: string) => void;
   onFieldChange?: (id: string, field: string, value: string) => void;
 }) {
-  const { confirm, toast } = useUI();
+  const { confirm, toast, zadanie } = useUI();
   const [lead, setLead] = useState<Lead | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [notFound, setNotFound] = useState(false);
@@ -169,11 +169,12 @@ export function LeadDetailPanel({
 
   const deleteLead = async () => {
     if (!lead) return;
-    const ok = await confirm(`Usunąć "${lead.firma}" z rejestru? Tego nie da się cofnąć.`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/leads/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      toast("Nie udało się usunąć leada.", "error");
+    // Pytanie zadaje TRASA (Faza 4) — bez własnego `confirm()`, żeby nie było
+    // dwóch okien pod rząd o to samo.
+    const w = await zadanie(`/api/leads/${id}`, { method: "DELETE" });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć leada.", "error");
       return;
     }
     toast("Lead usunięty.");

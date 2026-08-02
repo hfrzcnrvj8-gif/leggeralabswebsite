@@ -4,6 +4,7 @@ import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, ensureInvoiceWez
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { daysOverdue, reminderLevelForDays, reminderEmailText, dunningEmailText, dunningReference, lateInterestAmount } from "@/lib/invoices";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         { status: 409 }
       );
     }
+    // POTWIERDZENIE (Faza 4) — dopiero tu, bo dopiero teraz wiadomo, KTÓRA to
+    // wiadomość: poziom 3 to formalne wezwanie do zapłaty, a to zupełnie inny
+    // list niż uprzejme przypomnienie. Okno ma powiedzieć prawdę o tym, co
+    // wychodzi, więc pyta osobnym zdaniem dla każdego z nich.
+    const odmowaPotw = odmowaPotwierdzenia(
+      level === 3 ? "wezwanie-wyslij" : "faktura-przypomnij",
+      odczytajPotwierdzenie(req.headers)
+    );
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+    }
+
     const brutto = Number(inv.brutto);
     const waluta = String(inv.waluta || "PLN");
     const terminPlatnosci = inv.termin_platnosci ? String(inv.termin_platnosci) : null;

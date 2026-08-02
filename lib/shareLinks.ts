@@ -118,14 +118,30 @@ async function odczytajToken(sql: Sql, kind: ShareLinkKind, id: string): Promise
       rows = await sql`SELECT wezwanie_share_token AS share_token, wezwanie_share_revoked_at AS share_revoked_at FROM invoices WHERE id = ${id};`;
       break;
     case "project":
-      rows = await sql`SELECT review_share_token AS share_token, review_share_revoked_at AS share_revoked_at FROM projects WHERE id = ${id};`;
+      // Kolumny nazywają się `review_token` i `review_revoked_at` — bez
+      // przedrostka `share_`, inaczej niż w pozostałych czterech tabelach.
+      // Do 2026-08-02 stało tu `review_share_token`, czyli kolumna, która nie
+      // istnieje: `ensure` dla formularza opinii kończył się 500 i nie dało
+      // się skopiować linku do opinii, choć te same przyciski przy ofercie
+      // i umowie działały. `revokeShareLink`/`regenerateShareLink` w tym samym
+      // pliku używały nazw poprawnych, więc rozjazd nie rzucał się w oczy
+      // przy czytaniu.
+      rows = await sql`SELECT review_token AS share_token, review_revoked_at AS share_revoked_at FROM projects WHERE id = ${id};`;
       break;
   }
   const r = rows[0];
   if (!r) return null;
   return {
     token: typeof r.share_token === "string" ? r.share_token : null,
-    revokedAt: typeof r.share_revoked_at === "string" ? r.share_revoked_at : null,
+    // Neon (HTTP) oddaje TIMESTAMPTZ jako tekst, PGlite w dev jako `Date` —
+    // sam `typeof === "string"` zgłaszałby w dev „link nieunieważniony" dla
+    // linku, który JEST unieważniony. Ta sama normalizacja co w
+    // `revokeShareLink` niżej.
+    revokedAt: r.share_revoked_at instanceof Date
+      ? r.share_revoked_at.toISOString()
+      : typeof r.share_revoked_at === "string"
+        ? r.share_revoked_at
+        : null,
   };
 }
 

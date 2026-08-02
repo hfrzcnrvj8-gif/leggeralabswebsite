@@ -57,7 +57,7 @@ export function ContractEditor({
   onChange?: () => void;
   onDeleted?: (id: string) => void;
 }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   // Bramka wysyłki (Faza 2) — pasek liczy SERWER przy odczycie dokumentu:
   // dane wystawcy siedzą w osobnej tabeli, do której edytor nie sięgał.
   const [bramka, setBramka] = useState<WynikBramki | null>(null);
@@ -217,11 +217,11 @@ export function ContractEditor({
    * ofertach. Panel nie ma własnego szablonu maila. */
   const przypomnij = useCallback(async () => {
     setReminding(true);
-    const res = await fetch(`/api/contracts/${id}/remind`, { method: "POST" });
+    const w = await zadanie(`/api/contracts/${id}/remind`, { method: "POST" });
     setReminding(false);
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    if (!res.ok) {
-      toast(data.error ?? "Nie udało się wysłać przypomnienia.", "error");
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
       return;
     }
     toast("Przypomnienie wysłane.");
@@ -269,10 +269,9 @@ export function ContractEditor({
 
   const remove = useCallback(async () => {
     if (!contract) return;
-    const ok = await confirm(`Usunąć dokument "${contract.klient_nazwa || "(bez nazwy)"}"?`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/contracts/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    const w = await zadanie(`/api/contracts/${id}`, { method: "DELETE" });
+    if (w.anulowane) return;
+    if (w.ok) {
       toast("Dokument usunięty.");
       onDeleted?.(id);
       return;
@@ -280,9 +279,8 @@ export function ContractEditor({
     // Od audytu Modułu 11 trasa potrafi ODMÓWIĆ (dokument podpisany albo ma
     // aneksy) — jej zdanie tłumaczy dlaczego, więc pokazujemy je dosłownie.
     // Wcześniej przycisk po prostu nic nie robił.
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    toast(data.error ?? "Nie udało się usunąć.", "error");
-  }, [contract, id, confirm, toast, onDeleted]);
+    toast(w.dane.error || "Nie udało się usunąć.", "error");
+  }, [contract, id, zadanie, toast, onDeleted]);
 
   if (!contract) {
     return (

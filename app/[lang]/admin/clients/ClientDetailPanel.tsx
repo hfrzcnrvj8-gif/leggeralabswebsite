@@ -159,7 +159,7 @@ export function ClientDetailPanel({
   onDeleted?: (id: string) => void;
   onFieldChange?: (id: string, field: string, value: string) => void;
 }) {
-  const { confirm, toast } = useUI();
+  const { confirm, toast, zadanie } = useUI();
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
@@ -314,13 +314,11 @@ export function ClientDetailPanel({
 
   const deleteClient = async () => {
     if (!client) return;
-    const ok = await confirm(`Usunąć "${client.nazwa}" z rejestru klientów? Powiązane oferty/faktury/projekty zostaną, tylko odpięte.`, {
-      danger: true,
-    });
-    if (!ok) return;
-    const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      toast("Nie udało się usunąć klienta.", "error");
+    // Poziom „mocne" (Faza 4) — okno i jego treść przychodzą z trasy.
+    const w = await zadanie(`/api/clients/${id}`, { method: "DELETE", doPrzepisania: client.nazwa });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć klienta.", "error");
       return;
     }
     toast("Klient usunięty.");

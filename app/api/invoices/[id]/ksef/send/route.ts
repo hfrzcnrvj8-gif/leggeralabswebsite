@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { DEFAULT_COMPANY_SETTINGS, invoiceTotals, type Invoice, type InvoiceItem, type CompanySettings } from "@/lib/invoices";
 import { buildFA3Xml, validateForFA3, nipDigits, type KsefStatus, type CorrectionContext, type AdvanceContext } from "@/lib/ksef";
 import { getKsefConfig, sendInvoiceToKsef } from "@/lib/ksef-api";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia, type PotwierdzenieZZadania } from "@/lib/nieodwracalne";
 import type { Sql } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -76,9 +77,9 @@ export const maxDuration = 60;
  * wynik na fakturze. Bramka test/prod siedzi w getKsefConfig/sendInvoiceToKsef
  * — produkcja jest technicznie niedostępna do czasu rejestracji firmy.
  */
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return runSend(id);
+  return runSend(id, odczytajPotwierdzenie(req.headers));
 }
 
 /**
@@ -90,7 +91,19 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
-  if (req.nextUrl.searchParams.get("send") === "1") return runSend(id);
+  // Ta sama bariera co w POST — inaczej „drzwiami dla diagnostyki" dałoby się
+  // wysłać fakturę do urzędu bez pytania, a bariera na jednej z dwóch dróg to
+  // dokładnie ten błąd, który Faza 2 naprawiała przy bramce wysyłki.
+  // Nagłówków nie da się dopisać, klikając adres w przeglądarce, więc TU (i
+  // tylko tu) potwierdzenie jedzie parametrami: `&potwierdzam=ksef-wyslij
+  // &fraza=<numer faktury>`. Skutek uboczny na plus: przypadkowy prefetch
+  // adresu z `?send=1` nie wyśle już niczego.
+  if (req.nextUrl.searchParams.get("send") === "1") {
+    return runSend(id, {
+      dzialanie: req.nextUrl.searchParams.get("potwierdzam"),
+      fraza: req.nextUrl.searchParams.get("fraza"),
+    });
+  }
 
   // Tryb „na sucho": walidacja + podgląd XML, bez ruchu sieciowego do KSeF.
   await ensureInvoicesSchema();
@@ -115,7 +128,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 }
 
-async function runSend(id: string) {
+async function runSend(id: string, potwierdzenie: PotwierdzenieZZadania) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   // CAŁOŚĆ w try/catch — żeby ŻADEN błąd (env, sieć, DB, nieoczekiwany wyjątek)
@@ -143,6 +156,15 @@ async function runSend(id: string) {
     const validation = validateForFA3(invoice, items, company, correction, advance);
     if (validation.errors.length) {
       return NextResponse.json({ ok: false, stage: "walidacja", validation }, { status: 400 });
+    }
+
+    // POTWIERDZENIE (Faza 4) — po walidacji, przed jedynym ruchem, którego nie
+    // da się odkręcić: dokumentu przyjętego przez KSeF nie wycofuje się stamtąd
+    // wcale, zmiana wymaga korekty. Fraza do przepisania to numer faktury, bo
+    // ten już istnieje (KSeF przyjmuje tylko wystawione).
+    const odmowa = odmowaPotwierdzenia("ksef-wyslij", potwierdzenie, invoice.numer || null);
+    if (odmowa) {
+      return NextResponse.json({ error: odmowa.error, potwierdzenie: odmowa.potwierdzenie }, { status: odmowa.status });
     }
 
     const xml = buildFA3Xml(invoice, items, company, correction, advance);

@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { INVOICE_TYPE_LABEL, type InvoiceDocType } from "@/lib/invoices";
 import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const bramka = sprawdzDokumentPrzedWysylka({ rodzaj: "faktura", dokument: inv, wystawca });
     const odmowa = odmowaBramki(bramka, mimoOstrzezen(await req.json().catch(() => null)));
     if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
+
+    // POTWIERDZENIE (Faza 4) — PO bramce: najpierw „czy to wolno wysłać”,
+    // dopiero potem „czy na pewno teraz”. Odwrotna kolejność kazałaby
+    // potwierdzać wysyłkę dokumentu, który i tak nie ma prawa wyjść.
+    const odmowaPotw = odmowaPotwierdzenia("faktura-wyslij", odczytajPotwierdzenie(req.headers));
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+    }
 
     const token = await ensureInvoiceShareToken(sql, id, typeof inv.share_token === "string" ? inv.share_token : null);
     const url = `${req.nextUrl.origin}/pl/faktura/${token}`;

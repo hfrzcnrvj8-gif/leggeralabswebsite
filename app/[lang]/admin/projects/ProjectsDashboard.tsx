@@ -23,6 +23,7 @@ import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Tooltip } from "../Tooltip";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
+import { nowaSeria } from "../Potwierdzenie";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
@@ -47,7 +48,7 @@ function isTypingTarget(el: EventTarget | null): boolean {
 }
 
 export function ProjectsDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm, prompt } = useUI();
+  const { toast, confirm, prompt, zadanie } = useUI();
   const [projects, setProjects] = useState<Project[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -168,16 +169,16 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const addProject = useCallback(() => createProject(), [createProject]);
 
   const deleteProject = useCallback(async (id: string, tytul: string) => {
-    const ok = await confirm(`Usunąć "${tytul}"?`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      toast("Nie udało się usunąć.", "error");
+    // Poziom „mocne" (Faza 4) — trasa poprosi o przepisanie tytułu projektu.
+    const w = await zadanie(`/api/projects/${id}`, { method: "DELETE", doPrzepisania: tytul });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć.", "error");
       return;
     }
     setProjects((prev) => prev?.filter((p) => p.id !== id) ?? prev);
     toast("Projekt usunięty.");
-  }, [confirm, toast]);
+  }, [zadanie, toast]);
 
   const filtered = useMemo(() => {
     let list = projects ?? [];
@@ -270,17 +271,23 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const bulkDelete = useCallback(async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych projektów?`, { danger: true });
-    if (!ok) return;
+    // Jedna zgoda na całą serię — z punktu widzenia właściciela to JEDNO
+    // działanie. Trasa pyta przy pierwszym projekcie, `seria` niesie tę zgodę
+    // do pozostałych (patrz `nowaSeria`).
+    const seria = nowaSeria();
     setBulkBusy(true);
+    const udane = new Set<string>();
     for (const id of ids) {
-      await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      const w = await zadanie(`/api/projects/${id}`, { method: "DELETE", seria });
+      if (w.anulowane) break;
+      if (w.ok) udane.add(id);
     }
     setBulkBusy(false);
-    setProjects((prev) => prev?.filter((p) => !selectedIds.has(p.id)) ?? prev);
-    toast(`Usunięto ${ids.length} projektów.`);
+    if (udane.size === 0) return;
+    setProjects((prev) => prev?.filter((p) => !udane.has(p.id)) ?? prev);
+    toast(`Usunięto ${udane.size} ${udane.size === 1 ? "projekt" : "projektów"}.`);
     clearSelection();
-  }, [selectedIds, confirm, toast, clearSelection]);
+  }, [selectedIds, zadanie, toast, clearSelection]);
 
   useRegisterActions(
     [{ id: "add", label: "+ Dodaj projekt", hint: "N", run: addProject }],

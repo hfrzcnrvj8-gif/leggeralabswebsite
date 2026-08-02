@@ -11,6 +11,7 @@ import {
   type PoprzednieWarunki,
 } from "@/lib/contracts";
 import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { wystawcaDoMigawki } from "@/lib/publicFields";
 
 export const runtime = "nodejs";
@@ -82,6 +83,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const bramka = sprawdzDokumentPrzedWysylka({ rodzaj: "umowa", dokument: contract, wystawca });
     const odmowa = odmowaBramki(bramka, mimoOstrzezen(await req.json().catch(() => null)));
     if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
+
+    // POTWIERDZENIE (Faza 4) — PO bramce: najpierw „czy to wolno wysłać”,
+    // dopiero potem „czy na pewno teraz”. Odwrotna kolejność kazałaby
+    // potwierdzać wysyłkę dokumentu, który i tak nie ma prawa wyjść.
+    const odmowaPotw = odmowaPotwierdzenia("umowa-wyslij", odczytajPotwierdzenie(req.headers));
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+    }
 
     const token = await ensureContractShareToken(sql, id, typeof contract.share_token === "string" ? contract.share_token : null);
     const segment = typ === "nda" ? "nda" : "umowa";

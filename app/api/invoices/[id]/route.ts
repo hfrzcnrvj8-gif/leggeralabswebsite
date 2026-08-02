@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { blokadaFaktury, POLA_MIMO_BLOKADY_FAKTURY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
 import { sprawdzDokumentPrzedWysylka } from "@/lib/bramkaWysylki";
@@ -248,9 +249,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
  * dziurę w numeracji, niezgodną z wymogiem jej ciągłości (art. 106e ustawy o
  * VAT). Zamiast tego trzeba ustawić status "Anulowana". Tylko szkice (bez
  * numeru) można kasować bez ograniczeń. */
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
+
   await ensureInvoicesSchema();
   const sql = getSql();
   const rows = await sql`SELECT numer FROM invoices WHERE id = ${id};`;
@@ -262,6 +264,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       { status: 400 }
     );
   }
+
+  // POTWIERDZENIE (Faza 4) — usunięcie rekordu głównego jest nieodwracalne.
+  // Po sprawdzeniach: nie ma sensu pytać „na pewno?" o fakturę, której i tak
+  // nie wolno usunąć.
+  const odmowaPotw = odmowaPotwierdzenia("faktura-usun", odczytajPotwierdzenie(req.headers));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
+
   await sql`DELETE FROM invoices WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }

@@ -25,7 +25,7 @@ export type { Note, NoteActivity, NoteTab } from "@/lib/notes";
 /** Akcje notatki. `onChanged` woła się po każdej udanej zmianie — wołający
  * decyduje, czy przeładować listę, czy pojedynczy rekord. */
 export function useNoteActions(onChanged: () => void) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   const router = useRouter();
 
   const patch = useCallback(
@@ -63,20 +63,19 @@ export function useNoteActions(onChanged: () => void) {
    * (decyzja właściciela 2026-07-17: archiwum główne, usuwanie w tle). */
   const remove = useCallback(
     async (note: Note) => {
-      const ok = await confirm("Usunąć tę notatkę bezpowrotnie? Tej operacji nie da się cofnąć.", {
-        danger: true,
-      });
-      if (!ok) return false;
-      const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        toast("Nie udało się usunąć.", "error");
+      // Pytanie zadaje TRASA (Faza 4) — treść okna przychodzi z niej, więc nie
+      // ma tu drugiego `confirm()` mówiącego to samo innymi słowami.
+      const w = await zadanie(`/api/notes/${note.id}`, { method: "DELETE" });
+      if (w.anulowane) return false;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się usunąć.", "error");
         return false;
       }
       onChanged();
       toast("Notatka usunięta.");
       return true;
     },
-    [confirm, onChanged, toast]
+    [zadanie, onChanged, toast]
   );
 
   /** „Przekuj w projekt". Serwer pilnuje, żeby nie powstał drugi projekt —

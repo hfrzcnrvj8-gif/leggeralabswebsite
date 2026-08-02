@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { sendEmail } from "@/lib/email";
 import { CONTRACT_TYP_LABEL, contractSilenceDays, type ContractTyp } from "@/lib/contracts";
 
@@ -53,6 +54,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const segment = typ === "nda" ? "nda" : "umowa";
     const url = `${req.nextUrl.origin}/pl/${segment}/${token}`;
     const dni = contractSilenceDays({ status: contract.status, sent_at: contract.sent_at });
+
+    // POTWIERDZENIE (Faza 4) — po sprawdzeniach, przed mailem.
+    const odmowaPotw = odmowaPotwierdzenia("umowa-przypomnij", odczytajPotwierdzenie(req.headers));
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+    }
 
     await sendEmail({
       to: String(contract.klient_email),

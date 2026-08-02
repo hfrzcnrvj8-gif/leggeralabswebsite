@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { sendEmail } from "@/lib/email";
 import { CLOSED_OFFER_STATUSES, type OfferStatus } from "@/lib/offers";
 import { formatPlDate } from "@/lib/projects";
@@ -38,6 +39,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     if (!offer.klient_email) {
       return NextResponse.json({ error: "Brak adresu e-mail klienta — uzupełnij go w edytorze." }, { status: 400 });
+    }
+
+    // POTWIERDZENIE (Faza 4) — po sprawdzeniach, przed mailem.
+    const odmowaPotw = odmowaPotwierdzenia("oferta-przypomnij", odczytajPotwierdzenie(req.headers));
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
     }
 
     const token = await ensureOfferShareToken(sql, id, typeof offer.share_token === "string" ? offer.share_token : null);

@@ -11352,3 +11352,136 @@ kliknął.**
   statusu.
 - `lib/spojnosc.ts` — znaczniki `luka` C1/C3/C4 zdjęte; reguły zostają jako
   czujki nad tym, co już działa. **Lista znanych luk jest pusta.**
+
+---
+
+## Faza 4 zaplecza — nieodwracalność i potwierdzenia (2026-08-02)
+
+**Zamknęła D1, D3 i D4** z pierwszego przejścia „na sucho". Reguła, zatwierdzona
+przez właściciela: **co nieodwracalne — pyta, co odwracalne — nie pyta.**
+
+Przed tą fazą było odwrotnie w najgorszym miejscu: „Wystaw fakturę" nadawało
+trwały numer w serii (`FV 93/2026`) i nie pytało o nic, a odwracalne „oznacz
+umowę jako podpisaną" potwierdzenia wymagało. **Mocniejsze działanie miało
+słabszą barierę.**
+
+### Co widzi właściciel
+
+Okno z **konkretnym skutkiem**, nie z „tej operacji nie można cofnąć":
+
+> **Wystawić fakturę?**
+> Faktura dostanie trwały numer w serii i od tej chwili nie da się jej
+> edytować — zostaje korekta albo anulowanie. Numer zostanie zużyty na zawsze,
+> także po anulowaniu.
+> *Przepisz nazwę nabywcy, aby potwierdzić* → `[pole]`
+> **Anuluj** · **Wystaw fakturę**
+
+Przycisk nosi czasownik działania, nie „OK". Zdanie, które nie mówi CO się
+stanie, jest formalnością do odklikania — na tym poległo „Oznacz jako
+podpisaną".
+
+### Dwa poziomy
+
+| poziom | jak wygląda | dla czego |
+|---|---|---|
+| **zwykłe** | okno „Na pewno?" z opisem skutku | wysyłka dokumentu (9 dróg), unieważnienie i wymiana publicznego linku, usunięcie leada/faktury/oferty/umowy/notatki/kosztu, masowe usunięcie ofert |
+| **mocne** | trzeba przepisać frazę identyfikującą rekord | wystawienie faktury (nazwa nabywcy), KSeF (numer faktury), usunięcie klienta (nazwa), usunięcie projektu (tytuł), masowe usunięcie klientów (LICZBA zaznaczonych) |
+
+Przepisanie jest odporne na wielkość liter i nadmiarowe spacje, ale **nie** na
+polskie znaki: „Lodz" zamiast „Łódź" się nie zgadza. Bariera ma zmusić do
+PRZECZYTANIA, nie do trafienia w Shift.
+
+**Pyta zawsze.** Nie ma „nie pytaj ponownie" ani wyłącznika w Ustawieniach —
+decyzja właściciela. Wyjątek jednego rodzaju: przy operacji masowej („usuń 5
+zaznaczonych leadów") pyta RAZ, bo z punktu widzenia właściciela to jedno
+działanie; zgoda żyje tylko przez tę jedną pętlę (`nowaSeria()`).
+
+### Czego na liście NIE MA — świadomie
+
+Drobiazgów, choć technicznie też znikają bezpowrotnie: pozycji faktury,
+uczestnika wydarzenia, zadania, kamienia milowego, pozycji katalogu,
+przypomnienia, wydarzenia, szablonu. Repozytorium ma **41 uchwytów `DELETE`**;
+gdyby każdy pytał, potwierdzenia klikałoby się na ślepo i cała faza byłaby
+pracą wykonaną przeciwko sobie. Nie ma tu też zwykłego maila z Poczty — to
+codzienna korespondencja, nie dokument.
+
+### Gdzie to mieszka (i dlaczego akurat tam)
+
+- **`lib/nieodwracalne.ts`** — cała lista i reguła. Czysta logika, bez
+  `lib/db.ts`, bo używa jej i trasa, i panel.
+- **Bariery pilnuje TRASA.** Bez nagłówka `x-potwierdzenie` trasa oddaje
+  **428 Precondition Required** z opisem potwierdzenia. Panel dowiaduje się
+  o barierze dopiero z tej odpowiedzi — **nie ma zapisanej listy u siebie**,
+  więc nie może się z nią rozjechać. To wprost lekcja Fazy 2: bramka wysyłki
+  działała tylko tam, gdzie ktoś zajrzał.
+- **`app/[lang]/admin/Potwierdzenie.tsx`** — okno + `wykonajZadanie()`.
+  Renderowane RAZ, przez `AdminUIProvider`, tak jak `confirm`/`prompt`: żaden
+  z kilkunastu ekranów kasujących rekordy nie musi wstawiać własnego węzła.
+- **`useUI().zadanie(url, opcje)`** — tego używaj wszędzie, gdzie panel kasuje,
+  wysyła, wystawia albo unieważnia. **Nie owijaj tego `confirm()`-em.**
+- Fraza wymagana **nie jedzie w odpowiedzi 428** — tylko jej etykieta („nazwę
+  klienta"). Odesłanie wartości zamieniłoby mocne potwierdzenie w formalność:
+  wystarczyłoby przepisać ją z odmowy do kolejnego żądania. Wartość do
+  pokazania podaje panel (`doPrzepisania`), **porównuje serwer** z danych
+  w bazie.
+- Nagłówek, nie ciało żądania — połowa listy to `DELETE`, a `DELETE` z ciałem
+  bywa gubiony po drodze. Fraza jedzie przez `encodeURIComponent`, bo nagłówki
+  HTTP niosą tylko latin-1, a przepisuje się „Wdrożenie w Łodzi".
+
+### D3 — modal nie blokował tego, co pod nim
+
+Opis z przejścia mówił o kliknięciu pigułki *Status* spod otwartego okna.
+Pomiar pokazał co innego: **myszy overlay bronił poprawnie** (`elementsFromPoint`
+na wierzchu ma overlay), ale **klawiatury nie** — przy otwartym oknie „Nazwa
+kamienia milowego" tabulatorem dawało się dojść do **44 elementów tła** i wcisnąć
+je Enterem. Dwie warstwy interakcji naraz, tyle że inną drogą, niż wynikało
+z opisu.
+
+Naprawa: `AdminUIProvider` opakowuje treść panelu w `display: contents`
+z atrybutem **`inert`**, gdy otwarte jest którekolwiek z okien
+(confirm/prompt/choose/potwierdzenie). `inert` wyłącza całe poddrzewo z trafień
+myszy, fokusu i czytników ekranu **niezależnie od z-indeksów** — a to ważne,
+bo menu i popovery panelu żyją na `z-[200]`, czyli wyżej niż te okna
+(`z-[110]`). Podbijanie z-indeksów byłoby wyścigiem bez końca.
+
+### D4 — „Dane firmy" bez przycisku Zapisz
+
+Okno miało jedno wyjście („Zamknij") i zapisywało pole po polu, przy
+opuszczeniu pola — a wyglądało jak formularz z OK/Anuluj. Decyzja właściciela:
+**klasyczny formularz.** Zmiany siedzą w pamięci, „Zapisz" wysyła je razem,
+zamknięcie z niezapisanymi (także kliknięciem w tło i Escape'em) pyta. Pasek
+zapisu jest przyklejony do dołu okna i mówi, ile pól czeka.
+
+Pola piszą teraz wprost do bufora formularza, bez czekania na `onBlur`:
+zapis na blurze opierałby „Zapisz" na kolejności zdarzeń blur → click i gubił
+dokładnie to pole, które właśnie się wpisało.
+
+### Przy okazji: „skopiuj link do opinii" nie działało wcale
+
+`lib/shareLinks.ts` czytał kolumny `review_share_token` i
+`review_share_revoked_at`, których w schemacie nie ma (są `review_token`
+i `review_revoked_at`). `POST /api/share-links/project/:id` z akcją `ensure`
+kończył się **500**, podczas gdy te same przyciski przy ofercie i umowie
+działały. Rozjazd siedział w jednym pliku dwie funkcje od nazw poprawnych.
+
+### Skutek dla apki iOS
+
+**Kontrakt tras się zmienił.** Apka nie potwierdza tych działań, więc
+wystawienie faktury, wysyłka dokumentu i usunięcie rekordu z telefonu dostaną
+428 z czytelnym komunikatem, dopóki apka nie nauczy się potwierdzać. Decyzja
+właściciela: **szczelnie od razu**, bez furtki dla apki — bariera z dziurą na
+jedną drogę to ten sam błąd, który naprawiała Faza 2. Brief:
+`docs/natywna-aplikacja/35-brief-potwierdzenia.md`.
+
+### Sprawdzenie
+
+`npm run przejscie` — **68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+0 pominiętych** (przed: 59). Dziewięć nowych sprawdzeń w kroku „Sonda:
+nieodwracalność": wystawienie bez potwierdzenia nie nadaje numeru, zgoda na
+INNE działanie nie przepuszcza, błędnie przepisana nazwa nie przechodzi,
+odmowa nie zdradza frazy, po trzech odmowach numeru dalej nie ma, komplet
+zgoda + fraza przechodzi (także przy innej wielkości liter), usunięcie bez
+zgody nie kasuje rekordu, z zgodą kasuje — i **działanie odwracalne nadal nie
+pyta o nic** (reguła działa w obie strony).
+
+`npm test` — **281** (19 nowych nad `lib/nieodwracalne.ts`).

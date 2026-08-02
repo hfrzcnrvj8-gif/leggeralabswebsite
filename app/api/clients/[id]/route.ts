@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureClientsSchema, ensureContractsSchema, ensureFollowupsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import {
   zbudujSciezki,
   type OfferRow,
@@ -353,11 +354,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
  * Faktury/umowy zostają z migawką danych (obowiązek podatkowy 5 lat).
  * Audyt zmian kasujemy jawnie — nie ma FK, więc kaskada bazy by go nie ruszyła
  * i zostałyby surowe stare/nowe e-maile klienta (RODO, Audyt 2). */
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   await ensureClientsSchema();
   const sql = getSql();
+
+  // POTWIERDZENIE (Faza 4), poziom „mocne" — znika cała historia kontaktów
+  // i osoby kontaktowe, a tego nie odtworzy żaden inny zapis w panelu.
+  // Nazwę czytamy z bazy, bo to SERWER rozstrzyga, czy przepisano właściwą
+  // (gdyby porównywał panel, bariera byłaby ozdobą).
+  const istnieje = await sql`SELECT nazwa FROM clients WHERE id = ${id};`;
+  if (!istnieje[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const odmowaPotw = odmowaPotwierdzenia(
+    "klient-usun",
+    odczytajPotwierdzenie(req.headers),
+    typeof istnieje[0].nazwa === "string" ? istnieje[0].nazwa : null
+  );
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
+
   await sql`DELETE FROM clients WHERE id = ${id};`;
   await deleteFieldChanges("client", id);
   return NextResponse.json({ ok: true });

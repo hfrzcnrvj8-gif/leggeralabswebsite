@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureContractsSchema, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import {
   isPlausibleDateString,
   formatPlDate,
@@ -348,7 +349,7 @@ export async function PATCH(
 
 /** DELETE /api/projects/:id — remove a project (cascades tasks/activity). Admin-only. */
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!(await isAuthed())) {
@@ -357,6 +358,21 @@ export async function DELETE(
   const { id } = await params;
   await ensureHubSchema();
   const sql = getSql();
+
+  // POTWIERDZENIE (Faza 4), poziom „mocne" — kasowanie projektu kaskaduje na
+  // kamienie milowe, zadania i zapisany czas. Tytuł czyta serwer, bo to on
+  // rozstrzyga, czy przepisano właściwy.
+  const istnieje = await sql`SELECT tytul FROM projects WHERE id = ${id};`;
+  if (!istnieje[0]) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const odmowaPotw = odmowaPotwierdzenia(
+    "projekt-usun",
+    odczytajPotwierdzenie(req.headers),
+    typeof istnieje[0].tytul === "string" ? istnieje[0].tytul : null
+  );
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
+
   await sql`DELETE FROM projects WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }

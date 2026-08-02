@@ -129,6 +129,43 @@ async function api(
   return { status: odp.status, dane };
 }
 
+/**
+ * Żądanie z JAWNYM potwierdzeniem działania nieodwracalnego (Faza 4).
+ *
+ * Świadomie osobna funkcja, a nie „`api()`, które samo dopina nagłówek":
+ * gdyby zwykłe `api()` potwierdzało wszystko z automatu, przejście
+ * przestałoby cokolwiek mówić o barierze — każde żądanie przechodziłoby tak
+ * samo jak przed Fazą 4. Tu trzeba wskazać działanie z nazwy, dokładnie tak
+ * jak musi to zrobić panel i apka.
+ *
+ * `fraza` dotyczy poziomu „mocne" (wystawienie faktury, KSeF, usunięcie
+ * klienta/projektu) — serwer porównuje ją z tym, co ma w bazie.
+ */
+async function apiZPotwierdzeniem(
+  metoda: string,
+  sciezka: string,
+  dzialanie: string,
+  body?: unknown,
+  fraza?: string
+): Promise<{ status: number; dane: any }> {
+  const naglowki: Record<string, string> = { "x-potwierdzenie": dzialanie };
+  if (body) naglowki["Content-Type"] = "application/json";
+  if (fraza != null) naglowki["x-potwierdzenie-fraza"] = encodeURIComponent(fraza);
+  const odp = await fetch(`${BAZA}${sciezka}`, {
+    method: metoda,
+    headers: naglowki,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const tekst = await odp.text();
+  let dane: any = null;
+  try {
+    dane = tekst ? JSON.parse(tekst) : null;
+  } catch {
+    dane = { _niePoprawnyJSON: tekst.slice(0, 300) };
+  }
+  return { status: odp.status, dane };
+}
+
 /** Wywala przejście od razu — bez tego rekordu nie ma czego sprawdzać dalej. */
 function wymagaj(warunek: boolean, komunikat: string): asserts warunek {
   if (!warunek) {
@@ -307,7 +344,7 @@ async function przejscie(): Promise<void> {
     "bez maila klienta wysyłka odbija się o własną bramkę"
   );
 
-  const wyslana = await api("POST", `/api/offers/${ofertaId}/send`);
+  const wyslana = await apiZPotwierdzeniem("POST", `/api/offers/${ofertaId}/send`, "oferta-wyslij");
   wymagaj(wyslana.status === 200, `wysyłka → ${wyslana.status} ${JSON.stringify(wyslana.dane)}`);
   const o3 = await pobierzOferte(ofertaId!);
 
@@ -483,7 +520,17 @@ async function przejscie(): Promise<void> {
 
   // ── 8. Faktura ─────────────────────────────────────────────────────────
   krok("Faktura");
-  const wyst = await api("POST", `/api/invoices/${fakturaId}/issue`);
+  // Faza 4 (D1) — wystawienie ma poziom „mocne": trzeba przepisać nazwę
+  // nabywcy. Fraza jedzie tu z tego samego pola, które panel pokazuje w oknie,
+  // a porównuje ją SERWER z danych w bazie.
+  const fakturaPrzedWystawieniem = await pobierzFakture(fakturaId);
+  const wyst = await apiZPotwierdzeniem(
+    "POST",
+    `/api/invoices/${fakturaId}/issue`,
+    "faktura-wystaw",
+    undefined,
+    fakturaPrzedWystawieniem.invoice.klient_nazwa
+  );
   wymagaj(wyst.status === 200, `wystawienie → ${wyst.status} ${JSON.stringify(wyst.dane)}`);
 
   const f3 = await pobierzFakture(fakturaId);
@@ -700,7 +747,7 @@ async function przejscie(): Promise<void> {
   );
 
   await api("PATCH", "/api/settings", { nazwa: "", nip: "" });
-  const bezWystawcy = await api("POST", `/api/offers/${sondaId}/send`);
+  const bezWystawcy = await apiZPotwierdzeniem("POST", `/api/offers/${sondaId}/send`, "oferta-wyslij");
   await api("PATCH", "/api/settings", DANE_FIRMY); // zawsze przywracamy
 
   // POWODU szukamy po identyfikatorach reguł, nie po treści komunikatu:
@@ -718,7 +765,7 @@ async function przejscie(): Promise<void> {
 
   const brakMaila = await api("POST", "/api/offers", { klient_nazwa: `Sonda maila [${ZNACZNIK}]` });
   const brakMailaId = id(brakMaila.dane);
-  const odmowa = await api("POST", `/api/offers/${brakMailaId}/send`);
+  const odmowa = await apiZPotwierdzeniem("POST", `/api/offers/${brakMailaId}/send`, "oferta-wyslij");
   sprawdz(
     "wysyłka odmawia z podanym wprost powodem, gdy brakuje maila klienta",
     odmowa.status === 400 && powody(odmowa).includes("odbiorca-bez-emaila"),
@@ -749,14 +796,14 @@ async function przejscie(): Promise<void> {
   // Pozycja bez ani jednej sekcji = „sam cennik", czyli OSTRZEŻENIE.
   await api("POST", `/api/offers/${sondaOstrzId}/items`, { nazwa: "Audyt", ilosc: 1, jednostka: "kpl.", cena: 1000 });
 
-  const zOstrzezeniem = await api("POST", `/api/offers/${sondaOstrzId}/send`);
+  const zOstrzezeniem = await apiZPotwierdzeniem("POST", `/api/offers/${sondaOstrzId}/send`, "oferta-wyslij");
   sprawdz(
     "samo ostrzeżenie zatrzymuje wysyłkę pytaniem, a nie odmową",
     zOstrzezeniem.status === 409 && (zOstrzezeniem.dane?.bramka?.ostrzezenia ?? []).length > 0,
     undefined,
     `→ ${zOstrzezeniem.status} ${JSON.stringify(zOstrzezeniem.dane?.bramka ?? zOstrzezeniem.dane)}`
   );
-  const mimoOstrzezen = await api("POST", `/api/offers/${sondaOstrzId}/send`, { mimo_ostrzezen: true });
+  const mimoOstrzezen = await apiZPotwierdzeniem("POST", `/api/offers/${sondaOstrzId}/send`, "oferta-wyslij", { mimo_ostrzezen: true });
   sprawdz(
     "„Wyślij mimo to” przechodzi ostrzeżenie",
     mimoOstrzezen.status === 200,
@@ -768,7 +815,7 @@ async function przejscie(): Promise<void> {
   // furtką dookoła reguły, której trasa ma pilnować.
   const sondaBlok = await api("POST", "/api/offers", { klient_nazwa: `Sonda blokady [${ZNACZNIK}]` });
   const sondaBlokId = id(sondaBlok.dane);
-  const naSile = await api("POST", `/api/offers/${sondaBlokId}/send`, { mimo_ostrzezen: true });
+  const naSile = await apiZPotwierdzeniem("POST", `/api/offers/${sondaBlokId}/send`, "oferta-wyslij", { mimo_ostrzezen: true });
   sprawdz(
     "„Wyślij mimo to” NIE obchodzi blokady",
     naSile.status === 400,
@@ -782,7 +829,7 @@ async function przejscie(): Promise<void> {
   // niepusta. Projekt z tej drogi ma klienta z mailem, więc odmowa może
   // przyjść WYŁĄCZNIE z powodu nawiasu — inaczej sonda mierzyłaby nie to.
   krok("Sonda: mail zamykający");
-  const zNawiasem = await api("POST", `/api/projects/${projektId}/request-review`, {
+  const zNawiasem = await apiZPotwierdzeniem("POST", `/api/projects/${projektId}/request-review`, "opinia-popros", {
     body: "Projekt zakończony — dziękuję!\n\nPozdrawiam,\n[Twoje imię]",
   });
   const powodyMaila = (zNawiasem.dane?.bramka?.blokady ?? []).map((b: any) => b.id);
@@ -797,7 +844,7 @@ async function przejscie(): Promise<void> {
   // pada. Sonda ma sprawdzać, że mail Z PODPISEM wychodzi — a nie zależeć od
   // tego, czy akurat jest co przechodzić zgodą (to sprawdza krok wyżej,
   // na ofercie bez sekcji).
-  const bezNawiasu = await api("POST", `/api/projects/${projektId}/request-review`, {
+  const bezNawiasu = await apiZPotwierdzeniem("POST", `/api/projects/${projektId}/request-review`, "opinia-popros", {
     body: `Projekt zakończony — dziękuję za współpracę!\n\nPozdrawiam,\n${DANE_FIRMY.osoba_podpisujaca}`,
     mimo_ostrzezen: true,
   });
@@ -806,6 +853,131 @@ async function przejscie(): Promise<void> {
     bezNawiasu.status === 200,
     undefined,
     `→ ${bezNawiasu.status} ${JSON.stringify(bezNawiasu.dane)}`
+  );
+
+  // ── 15. Sonda: nieodwracalność (Faza 4, D1) ────────────────────────────
+  // Sprawdzenie tej fazy. Ta faza jest głównie o interfejsie, ale jedno da
+  // się zmierzyć od strony danych i to jest rzecz najważniejsza: **trasa
+  // działania nieodwracalnego nie może go wykonać bez jawnego potwierdzenia
+  // w żądaniu.** Inaczej potwierdzenie jest ozdobą okna — dokładnie tak, jak
+  // przed Fazą 2 bramka wysyłki mieszkała w przyciskach zamiast w trasach.
+  //
+  // Mierzymy na ŚWIEŻYM szkicu faktury, nie na fakturze z tej drogi: tamta
+  // ma już numer, a ponowne wystawienie jest idempotentne i świadomie NIE
+  // pyta (powtórzenie czegoś, co się stało, nie jest nieodwracalne).
+  krok("Sonda: nieodwracalność");
+  const sondaFv = await api("POST", "/api/invoices", {
+    klient_nazwa: `Sonda nieodwracalności [${ZNACZNIK}]`,
+  });
+  const sondaFvId = id(sondaFv.dane);
+  wymagaj(!!sondaFvId, `nie udało się założyć faktury do sondy: ${JSON.stringify(sondaFv.dane)}`);
+  await api("POST", `/api/invoices/${sondaFvId}/items`, {
+    nazwa: "Usługa",
+    ilosc: 1,
+    cena_netto: 1000,
+    vat_stawka: "23",
+  });
+
+  const bezZgody = await api("POST", `/api/invoices/${sondaFvId}/issue`);
+  sprawdz(
+    "wystawienie faktury BEZ potwierdzenia nie nadaje numeru",
+    bezZgody.status === 428 && bezZgody.dane?.potwierdzenie?.dzialanie === "faktura-wystaw",
+    undefined,
+    `→ ${bezZgody.status} ${JSON.stringify(bezZgody.dane?.error ?? bezZgody.dane)}`
+  );
+
+  // Zgoda na jedno działanie nie może przepuszczać innego — inaczej jeden
+  // nagłówek wpisany gdziekolwiek otwierałby całą listę.
+  const cudzaZgoda = await apiZPotwierdzeniem("POST", `/api/invoices/${sondaFvId}/issue`, "lead-usun");
+  sprawdz(
+    "potwierdzenie INNEGO działania nie przepuszcza wystawienia",
+    cudzaZgoda.status === 428,
+    undefined,
+    `→ ${cudzaZgoda.status} ${JSON.stringify(cudzaZgoda.dane?.error ?? cudzaZgoda.dane)}`
+  );
+
+  // Poziom „mocne”: sama zgoda nie wystarczy, trzeba przepisać nazwę nabywcy.
+  const zlaFraza = await apiZPotwierdzeniem(
+    "POST",
+    `/api/invoices/${sondaFvId}/issue`,
+    "faktura-wystaw",
+    undefined,
+    "cokolwiek innego"
+  );
+  sprawdz(
+    "wystawienie z BŁĘDNIE przepisaną nazwą nabywcy nie przechodzi",
+    zlaFraza.status === 428 && zlaFraza.dane?.potwierdzenie?.powod === "fraza-sie-nie-zgadza",
+    undefined,
+    `→ ${zlaFraza.status} ${JSON.stringify(zlaFraza.dane?.error ?? zlaFraza.dane)}`
+  );
+
+  // Odmowa NIE MOŻE zdradzać wymaganej wartości — inaczej wystarczyłoby
+  // przepisać ją z odpowiedzi do kolejnego żądania i „mocne” potwierdzenie
+  // byłoby formalnością.
+  sprawdz(
+    "odmowa nie zdradza frazy, którą trzeba przepisać",
+    !JSON.stringify(zlaFraza.dane).includes("Sonda nieodwracalności"),
+    undefined,
+    `treść odmowy: ${JSON.stringify(zlaFraza.dane).slice(0, 200)}`
+  );
+
+  // Numer nie mógł się nadać przy ŻADNEJ z trzech odmów.
+  const poOdmowach = await pobierzFakture(sondaFvId!);
+  sprawdz(
+    "po trzech odmowach faktura wciąż nie ma numeru",
+    !poOdmowach.invoice.numer,
+    undefined,
+    `numer = ${poOdmowach.invoice.numer ?? "(brak)"}`
+  );
+
+  // …i dopiero komplet zgoda + poprawna fraza wystawia. Inna wielkość liter
+  // ma przechodzić: bariera ma zmusić do PRZECZYTANIA, nie do trafienia
+  // w klawisz Shift.
+  const zZgoda = await apiZPotwierdzeniem(
+    "POST",
+    `/api/invoices/${sondaFvId}/issue`,
+    "faktura-wystaw",
+    undefined,
+    `sonda NIEODWRACALNOŚCI [${ZNACZNIK}]`
+  );
+  sprawdz(
+    "z potwierdzeniem i poprawną nazwą (inna wielkość liter) wystawienie przechodzi",
+    zZgoda.status === 200 && !!zZgoda.dane?.numer,
+    undefined,
+    `→ ${zZgoda.status} ${JSON.stringify(zZgoda.dane?.error ?? zZgoda.dane)}`
+  );
+
+  // Usunięcie rekordu głównego — druga kategoria z listy, inny uchwyt HTTP
+  // (`DELETE` nie niesie ciała, więc potwierdzenie jedzie nagłówkiem).
+  const sondaLead = await api("POST", "/api/leads", { firma: `Sonda usuwania [${ZNACZNIK}]` });
+  const sondaLeadId = id(sondaLead.dane);
+  wymagaj(!!sondaLeadId, `nie udało się założyć leada do sondy: ${JSON.stringify(sondaLead.dane)}`);
+  const usunBezZgody = await api("DELETE", `/api/leads/${sondaLeadId}`);
+  const leadDalejJest = await pobierzLead(sondaLeadId!);
+  sprawdz(
+    "usunięcie leada BEZ potwierdzenia nie kasuje rekordu",
+    usunBezZgody.status === 428 && !!leadDalejJest.id,
+    undefined,
+    `→ ${usunBezZgody.status}, lead ${leadDalejJest.id ? "istnieje" : "ZNIKNĄŁ"}`
+  );
+  const usunZeZgoda = await apiZPotwierdzeniem("DELETE", `/api/leads/${sondaLeadId}`, "lead-usun");
+  const leadPoUsunieciu = await pobierzLead(sondaLeadId!);
+  sprawdz(
+    "to samo usunięcie z potwierdzeniem przechodzi",
+    usunZeZgoda.status === 200 && !leadPoUsunieciu.id,
+    undefined,
+    `→ ${usunZeZgoda.status}, lead ${leadPoUsunieciu.id ? "WCIĄŻ istnieje" : "usunięty"}`
+  );
+
+  // Reguła działa w OBIE strony: co odwracalne, nie pyta. Gdyby zaczęło
+  // pytać, potwierdzenia rozmnożyłyby się po panelu i przestały cokolwiek
+  // znaczyć — a to jest ta sama choroba co D1, tylko z drugiej strony.
+  const odwracalne = await api("PATCH", `/api/invoices/${sondaFvId}`, { status: "Anulowana" });
+  sprawdz(
+    "działanie ODWRACALNE (zmiana statusu faktury) nadal nie pyta o nic",
+    odwracalne.status === 200,
+    undefined,
+    `→ ${odwracalne.status} ${JSON.stringify(odwracalne.dane?.error ?? "")}`
   );
 }
 

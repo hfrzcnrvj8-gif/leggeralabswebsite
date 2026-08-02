@@ -5,6 +5,7 @@ import { isAuthed } from "@/lib/auth";
 import { formatInvoiceNumber } from "@/lib/invoices";
 import { fetchNbpRateBeforeDate } from "@/lib/nbp";
 import { wystawcaDoMigawki } from "@/lib/publicFields";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 
 export const runtime = "nodejs";
 
@@ -53,7 +54,7 @@ async function computeNextNumer(sql: Sql, inv: Record<string, unknown>, year: nu
  * kurs NBP do VAT. Numer nadawany dopiero tu, żeby szkice nie zużywały
  * numeracji — każdy typ ma własną serię z prefiksem: faktura/zaliczkowa
  * ("FV n/rok"), korekta ("KOR n/rok"), proforma ("PF n/rok"). Admin-only. */
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   try {
@@ -95,6 +96,28 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         },
         { status: 400 }
       );
+    }
+
+    // POTWIERDZENIE (Faza 4, znalezisko D1) — dopiero TU, po walidacjach: nie
+    // ma sensu pytać „na pewno?" o fakturę, która za chwilę i tak odmówi
+    // wystawienia z powodu pustej pozycji.
+    //
+    // Pytamy tylko wtedy, gdy numer ma dopiero zostać nadany. Ta trasa jest
+    // idempotentna (ponowne wystawienie zachowuje numer), a powtórzenie
+    // czegoś, co już się stało, nie jest nieodwracalne — więc nie pyta. Cała
+    // reguła tej fazy działa w obie strony.
+    if (!(typeof inv.numer === "string" && inv.numer)) {
+      const odmowa = odmowaPotwierdzenia(
+        "faktura-wystaw",
+        odczytajPotwierdzenie(req.headers),
+        typeof inv.klient_nazwa === "string" ? inv.klient_nazwa : null
+      );
+      if (odmowa) {
+        return NextResponse.json(
+          { error: odmowa.error, potwierdzenie: odmowa.potwierdzenie },
+          { status: odmowa.status }
+        );
+      }
     }
 
     const today = new Date();

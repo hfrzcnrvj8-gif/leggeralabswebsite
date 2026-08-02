@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureLeadsSchema, ensureClientsSchema, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { isPlausibleDateString } from "@/lib/projects";
 import { isLeadStatus } from "@/lib/leads";
 import { rematchUnassigned } from "@/lib/mailSync";
@@ -187,14 +188,19 @@ export async function PATCH(
 }
 
 /** DELETE /api/leads/:id — remove a lead. Admin-only. */
-export async function DELETE(
-  _req: NextRequest,
+export async function DELETE(req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!(await isAuthed())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+
+  // POTWIERDZENIE (Faza 4) — usunięcie rekordu głównego jest nieodwracalne.
+  const odmowaPotw = odmowaPotwierdzenia("lead-usun", odczytajPotwierdzenie(req.headers));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
   await ensureLeadsSchema();
   const sql = getSql();
   await sql`DELETE FROM leads WHERE id = ${id};`;

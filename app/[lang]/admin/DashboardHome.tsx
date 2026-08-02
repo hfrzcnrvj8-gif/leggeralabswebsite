@@ -130,7 +130,7 @@ function sumPln(entries: [string, number][]): number {
  * działania (leady, projekty), co jest w kalendarzu, i ostatnie notatki.
  * To jest strona, od której zaczynasz każdy dzień pracy. */
 export function DashboardHome({ lang }: { lang: Locale }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   // Bramka wysyłki (Faza 2) — okno przed wysyłką kontaktu kontrolnego.
   const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [data, setData] = useState<TodayData | null>(null);
@@ -169,11 +169,11 @@ export function DashboardHome({ lang }: { lang: Locale }) {
    * ofertach: apka i panel nie mają własnych szablonów maila. */
   const przypomnijOUmowie = async (id: string) => {
     setPrzypominam(id);
-    const res = await fetch(`/api/contracts/${id}/remind`, { method: "POST" });
+    const w = await zadanie(`/api/contracts/${id}/remind`, { method: "POST" });
     setPrzypominam(null);
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(d.error ?? "Nie udało się wysłać przypomnienia.", "error");
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
       return;
     }
     toast("Przypomnienie wysłane.");
@@ -335,10 +335,10 @@ export function DashboardHome({ lang }: { lang: Locale }) {
    * z tej listy i nie wraca — dopiero ponowna wysyłka oferty zeruje znacznik
    * (patrz isOfferStale). */
   const remindOffer = async (id: string) => {
-    const res = await fetch(`/api/offers/${id}/remind`, { method: "POST" });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast(body?.error ?? "Nie udało się wysłać przypomnienia.", "error");
+    const w = await zadanie(`/api/offers/${id}/remind`, { method: "POST" });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
       return;
     }
     setData((prev) => (prev ? { ...prev, staleOffers: prev.staleOffers.filter((o) => o.id !== id) } : prev));
@@ -346,10 +346,10 @@ export function DashboardHome({ lang }: { lang: Locale }) {
   };
 
   const remindInvoice = async (id: string, numer: string | null) => {
-    const res = await fetch(`/api/invoices/${id}/remind`, { method: "POST" });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast(body?.error ?? "Nie udało się wysłać przypomnienia.", "error");
+    const w = await zadanie(`/api/invoices/${id}/remind`, { method: "POST" });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
       return;
     }
     toast(`Przypomnienie wysłane${numer ? ` (${numer})` : ""}.`);

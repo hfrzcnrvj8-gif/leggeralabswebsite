@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { logFieldChangesBatch, deleteFieldChangesBatch } from "@/lib/auditLog";
 
@@ -116,6 +117,14 @@ export async function DELETE(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const ids = readIds(body);
   if (!ids) return NextResponse.json({ error: "invalid ids" }, { status: 400 });
+
+  // POTWIERDZENIE (Faza 4), poziom „mocne" — przepisuje się LICZBĘ
+  // zaznaczonych. Przy masowym usuwaniu realne ryzyko nie polega na tym, że
+  // ktoś pomyli klienta, tylko na tym, że nie zauważy, ilu ich zaznaczył.
+  const odmowaPotw = odmowaPotwierdzenia("klienci-usun-masowo", odczytajPotwierdzenie(req.headers), String(ids.length));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
 
   await ensureClientsSchema();
   const sql = getSql();

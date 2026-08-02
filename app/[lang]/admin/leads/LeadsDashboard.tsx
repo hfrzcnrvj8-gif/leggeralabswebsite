@@ -33,6 +33,7 @@ import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
 import { Propozycje } from "../Propozycje";
+import { nowaSeria } from "../Potwierdzenie";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/invoices";
@@ -50,7 +51,7 @@ type ViewMode = "kanban" | "table" | "kandydaci";
 const OVERDUE_SKROT = 5;
 
 export function LeadsDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E): dopóki tego pola nie było, zerwane
   // połączenie kończyło się listą „Brak leadów pasujących do filtrów" — czyli
@@ -232,17 +233,18 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     }
   }, [addFirma, addKategoria, addSzczegoly, addOsoba, addTelefon, addEmail, addMiasto, addBranza, toast, load, leads, confirm]);
 
-  const deleteLead = useCallback(async (id: string, firma: string) => {
-    const ok = await confirm(`Usunąć "${firma}" z listy?`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/leads/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      toast("Nie udało się usunąć leada.", "error");
+  // Pytanie zadaje TRASA (Faza 4) — stąd brak `confirm()` przed żądaniem.
+  // Dwa okna pod rząd o to samo uczyłyby klikać „tak" bez czytania.
+  const deleteLead = useCallback(async (id: string) => {
+    const w = await zadanie(`/api/leads/${id}`, { method: "DELETE" });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć leada.", "error");
       return;
     }
     setLeads((prev) => prev?.filter((l) => l.id !== id) ?? prev);
     toast("Lead usunięty.");
-  }, [confirm, toast]);
+  }, [zadanie, toast]);
 
   const seedInitial = useCallback(async () => {
     if (!leads) return;
@@ -336,17 +338,26 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
   const bulkDelete = useCallback(async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych leadów?`, { danger: true });
-    if (!ok) return;
+    // Jedna zgoda na całą serię: z punktu widzenia właściciela to JEDNO
+    // działanie, więc trasa pyta przy pierwszym rekordzie, a `seria` niesie
+    // tę zgodę do pozostałych. Pytanie przy każdym z kilkunastu leadów
+    // zamieniłoby barierę w klikanie na ślepo.
+    const seria = nowaSeria();
     setBulkBusy(true);
+    const udane = new Set<string>();
     for (const id of ids) {
-      await fetch(`/api/leads/${id}`, { method: "DELETE" });
+      const w = await zadanie(`/api/leads/${id}`, { method: "DELETE", seria });
+      if (w.anulowane) break;
+      if (w.ok) udane.add(id);
     }
     setBulkBusy(false);
-    setLeads((prev) => prev?.filter((l) => !selectedIds.has(l.id)) ?? prev);
-    toast(`Usunięto ${ids.length} leadów.`);
+    if (udane.size === 0) return;
+    // Z listy znikają tylko te, które NAPRAWDĘ zniknęły z bazy — inaczej
+    // nieudane usunięcie wyglądałoby na udane aż do przeładowania.
+    setLeads((prev) => prev?.filter((l) => !udane.has(l.id)) ?? prev);
+    toast(`Usunięto ${udane.size} ${udane.size === 1 ? "leada" : "leadów"}.`);
     clearSelection();
-  }, [selectedIds, confirm, toast, clearSelection]);
+  }, [selectedIds, zadanie, toast, clearSelection]);
 
   const zrodla = useMemo(() => [...new Set((leads ?? []).map(leadSourceLabel))], [leads]);
   const miasta = useMemo(

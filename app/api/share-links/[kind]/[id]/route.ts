@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
 import { getSql, ensureOffersSchema, ensureContractsSchema, ensureInvoicesSchema, ensureHubSchema } from "@/lib/db";
 import { isShareLinkKind, revokeShareLink, regenerateShareLink, ensureShareLink, type ShareLinkKind } from "@/lib/shareLinks";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ kin
   const action = body.action;
   if (action !== "revoke" && action !== "regenerate" && action !== "ensure") {
     return NextResponse.json({ error: "Nieznana operacja." }, { status: 400 });
+  }
+
+  // POTWIERDZENIE (Faza 4) — obie drogi odbierają klientowi dostęp do adresu,
+  // który już dostał mailem. „ensure" go NIE odbiera (oddaje istniejący albo
+  // zakłada pierwszy), więc świadomie nie pyta — reguła działa w obie strony.
+  if (action === "revoke" || action === "regenerate") {
+    const odmowaPotw = odmowaPotwierdzenia(
+      action === "revoke" ? "link-uniewaznij" : "link-wygeneruj-nowy",
+      odczytajPotwierdzenie(req.headers)
+    );
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+    }
   }
 
   await ensureSchemaFor(kind);

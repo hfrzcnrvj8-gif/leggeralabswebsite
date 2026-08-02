@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { isOfferStatus } from "@/lib/offers";
 
 export const runtime = "nodejs";
@@ -97,6 +98,12 @@ export async function DELETE(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const ids = readIds(body);
   if (!ids) return NextResponse.json({ error: "invalid ids" }, { status: 400 });
+
+  // POTWIERDZENIE (Faza 4) — usunięcie rekordów głównych jest nieodwracalne.
+  const odmowaPotw = odmowaPotwierdzenia("oferty-usun-masowo", odczytajPotwierdzenie(req.headers));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
 
   await ensureOffersSchema();
   const sql = getSql();

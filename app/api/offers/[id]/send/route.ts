@@ -3,6 +3,7 @@ import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent } fro
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { wystawcaDoMigawki } from "@/lib/publicFields";
 
 export const runtime = "nodejs";
@@ -41,6 +42,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     const odmowa = odmowaBramki(bramka, mimoOstrzezen(await req.json().catch(() => null)));
     if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
+
+    // POTWIERDZENIE (Faza 4) — PO bramce: najpierw „czy to wolno wysłać”,
+    // dopiero potem „czy na pewno teraz”. Odwrotna kolejność kazałaby
+    // potwierdzać wysyłkę dokumentu, który i tak nie ma prawa wyjść.
+    const odmowaPotw = odmowaPotwierdzenia("oferta-wyslij", odczytajPotwierdzenie(req.headers));
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+    }
 
     // MIGAWKA — robimy ją PRZED wysyłką maila, żeby link w mailu od pierwszej
     // sekundy prowadził do treści, która właśnie poszła. Kolejność ma tu

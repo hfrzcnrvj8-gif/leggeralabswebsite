@@ -46,7 +46,7 @@ type HistoryHit = {
 };
 
 export function ClientsDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   const [clients, setClients] = useState<Client[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -172,17 +172,19 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
 
   const deleteClient = useCallback(
     async (id: string, nazwa: string) => {
-      const ok = await confirm(`Usunąć "${nazwa}" z rejestru klientów?`, { danger: true });
-      if (!ok) return;
-      const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        toast("Nie udało się usunąć klienta.", "error");
+      // Poziom „mocne" (Faza 4) — trasa poprosi o przepisanie nazwy klienta,
+      // a `doPrzepisania` podaje wartość do pokazania w oknie. Porównuje
+      // SERWER, z danych w bazie; to tutaj jest tylko tym, co widać.
+      const w = await zadanie(`/api/clients/${id}`, { method: "DELETE", doPrzepisania: nazwa });
+      if (w.anulowane) return;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się usunąć klienta.", "error");
         return;
       }
       setClients((prev) => prev?.filter((c) => c.id !== id) ?? prev);
       toast("Klient usunięty.");
     },
-    [confirm, toast]
+    [zadanie, toast]
   );
 
   /** Jedno pole na wielu klientach — jedno żądanie zamiast N (Moduł 54, krok
@@ -275,24 +277,26 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
   const bulkDelete = useCallback(async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych klientów?`, { danger: true });
-    if (!ok) return;
     setBulkBusy(true);
-    const res = await fetch("/api/clients/bulk", {
+    // Poziom „mocne": przepisuje się LICZBĘ zaznaczonych. Przy masowym
+    // usuwaniu ryzykiem nie jest pomylenie klienta, tylko niezauważenie, ilu
+    // ich właściwie jest w zaznaczeniu.
+    const w = await zadanie("/api/clients/bulk", {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
+      body: { ids },
+      doPrzepisania: String(ids.length),
     });
     setBulkBusy(false);
-    if (!res.ok) {
-      toast("Nie udało się usunąć klientów.", "error");
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć klientów.", "error");
       return;
     }
     setClients((prev) => prev?.filter((c) => !selectedIds.has(c.id)) ?? prev);
     setTotal((t) => Math.max(t - ids.length, 0));
     toast(`Usunięto ${ids.length} klientów.`);
     clearSelection();
-  }, [selectedIds, confirm, toast, clearSelection]);
+  }, [selectedIds, zadanie, toast, clearSelection]);
 
   const branze = useMemo(() => [...new Set((clients ?? []).map((c) => c.branza).filter(Boolean))], [clients]);
   const activeFilterCount = (filterStatus ? 1 : 0) + (filterBranza ? 1 : 0) + (filterKanal ? 1 : 0);

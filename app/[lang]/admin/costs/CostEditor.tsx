@@ -62,7 +62,7 @@ export function CostEditor({
    * przypadkiem zamknąć kliknięciem w tło, dopóki zapytanie nie skończy. */
   onBusyChange?: (busy: boolean) => void;
 }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   const [cost, setCost] = useState<Cost | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
@@ -191,16 +191,15 @@ export function CostEditor({
   }, [cost, patch, toast]);
 
   const remove = useCallback(async () => {
-    const ok = await confirm(`Usunąć koszt „${cost?.dostawca_nazwa || "bez nazwy dostawcy"}”?`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/costs/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      toast("Nie udało się usunąć.", "error");
+    const w = await zadanie(`/api/costs/${id}`, { method: "DELETE" });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć.", "error");
       return;
     }
     toast("Koszt usunięty.");
     onDeleted?.(id);
-  }, [id, cost, confirm, toast, onDeleted]);
+  }, [id, cost, zadanie, toast, onDeleted]);
 
   const uploadAttachment = useCallback(
     async (file: File) => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { isPlausibleDateString } from "@/lib/projects";
 import { OFFER_LANGS, isOfferStatus, isOfferCurrency, isOfferRejectReason, rejectReasonLabel } from "@/lib/offers";
 import { blokadaOferty, POLA_MIMO_BLOKADY_OFERTY, ruszaTresc } from "@/lib/blokadaDokumentu";
@@ -192,9 +193,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 /** DELETE /api/offers/:id — usuwa ofertę (kaskadowo pozycje). Projekt/faktura
  * utworzone przy akceptacji NIE są usuwane — to już osobne, samodzielne byty. */
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
+
+  // POTWIERDZENIE (Faza 4) — usunięcie rekordu głównego jest nieodwracalne.
+  const odmowaPotw = odmowaPotwierdzenia("oferta-usun", odczytajPotwierdzenie(req.headers));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
   await ensureOffersSchema();
   const sql = getSql();
   await sql`DELETE FROM offers WHERE id = ${id};`;

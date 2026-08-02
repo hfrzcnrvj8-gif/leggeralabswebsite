@@ -68,7 +68,7 @@ export function ProjectDetailPanel({
   onDeleted?: (id: string) => void;
   onFieldChange?: (id: string, field: string, value: string) => void;
 }) {
-  const { confirm, toast, prompt } = useUI();
+  const { confirm, toast, prompt, zadanie } = useUI();
   const pathname = usePathname();
   const langPrefix = pathname?.split("/")[1] ?? "pl";
   const [project, setProject] = useState<Project | null>(null);
@@ -525,11 +525,12 @@ export function ProjectDetailPanel({
 
   const deleteProject = async () => {
     if (!project) return;
-    const ok = await confirm(`Usunąć projekt "${project.tytul}"? Tego nie da się cofnąć.`, { danger: true });
-    if (!ok) return;
-    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      toast("Nie udało się usunąć projektu.", "error");
+    // Poziom „mocne" (Faza 4) — pyta TRASA, a `doPrzepisania` podaje tytuł do
+    // pokazania w oknie. Porównuje serwer, z danych w bazie.
+    const w = await zadanie(`/api/projects/${id}`, { method: "DELETE", doPrzepisania: project.tytul });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć projektu.", "error");
       return;
     }
     toast("Projekt usunięty.");

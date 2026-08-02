@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import type { DocLang } from "@/lib/documents";
 import { sprawdzMailPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 
 export const runtime = "nodejs";
 
@@ -60,6 +61,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const bramka = sprawdzMailPrzedWysylka({ tresc: text, statusProjektu: String(project.status ?? "") });
     const odmowa = odmowaBramki(bramka, mimoOstrzezen(body));
     if (odmowa) return NextResponse.json({ error: odmowa.error, bramka: odmowa.bramka }, { status: odmowa.status });
+
+    // POTWIERDZENIE (Faza 4) — PO bramce: najpierw „czy to wolno wysłać”,
+    // dopiero potem „czy na pewno teraz”. Odwrotna kolejność kazałaby
+    // potwierdzać wysyłkę dokumentu, który i tak nie ma prawa wyjść.
+    const odmowaPotw = odmowaPotwierdzenia("opinia-popros", odczytajPotwierdzenie(req.headers));
+    if (odmowaPotw) {
+      return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+    }
 
     const tytul = typeof project.tytul === "string" && project.tytul ? project.tytul : "projekt";
     const lang = ((project.jezyk as string) in SUBJECT ? project.jezyk : "pl") as DocLang;

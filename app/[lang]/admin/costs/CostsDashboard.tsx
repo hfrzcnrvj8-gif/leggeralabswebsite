@@ -119,7 +119,7 @@ function ImportKsefButton({ onImported }: { onImported: () => void }) {
 }
 
 export function CostsDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, zadanie } = useUI();
   const searchParams = useSearchParams();
   const [costs, setCosts] = useState<Cost[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
@@ -174,17 +174,16 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
 
   const deleteCost = useCallback(
     async (id: string, dostawca: string) => {
-      const ok = await confirm(`Usunąć koszt „${dostawca || "bez nazwy dostawcy"}”?`, { danger: true });
-      if (!ok) return;
-      const res = await fetch(`/api/costs/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        toast("Nie udało się usunąć.", "error");
+      const w = await zadanie(`/api/costs/${id}`, { method: "DELETE" });
+      if (w.anulowane) return;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się usunąć.", "error");
         return;
       }
       setCosts((prev) => prev?.filter((c) => c.id !== id) ?? prev);
       toast("Koszt usunięty.");
     },
-    [confirm, toast]
+    [zadanie, toast]
   );
 
   const updateStatus = useCallback(

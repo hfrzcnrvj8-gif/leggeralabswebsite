@@ -10,10 +10,11 @@ jest lista, nie zestaw poprawek.
 > w `scripts/przejscie/przejscie.ts`) i ekran *Zdrowie*. Postęp prac opisuje
 > `docs/PLAN-ZAPLECZE.md`.
 >
-> Stan na 2026-08-02, po Fazie 3: **B1–B6, A1–A4 i C1–C4 zamknięte.** Otwarte
-> zostają A5 (jedna rubryka, dwie role na wydruku umowy — nie mieściło się
-> w zakresie Fazy 2, patrz plan), D1–D4 (Faza 4), E i F (Faza 5) oraz G (do
-> rozstrzygnięcia osobno).
+> Stan na 2026-08-02, po Fazie 4: **B1–B6, A1–A4, C1–C4 oraz D1, D3 i D4
+> zamknięte.** Otwarte zostają A5 (jedna rubryka, dwie role na wydruku umowy —
+> nie mieściło się w zakresie Fazy 2, patrz plan), **D2** (nowy lead ląduje
+> poza ekranem — decyzją właściciela przeniesione do Fazy 5, bo to zachowanie
+> listy, nie bariera), E i F (Faza 5) oraz G (do rozstrzygnięcia osobno).
 >
 > C1, C3 i C4 są zamknięte **jako propozycje, nie automaty**: panel zauważa
 > skutek zdarzenia i pyta, właściciel zatwierdza jednym kliknięciem. Opis

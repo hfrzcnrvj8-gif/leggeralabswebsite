@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema, ensureLinksSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { odczytajTekst, odczytajFlage } from "@/lib/notes";
 
 export const runtime = "nodejs";
@@ -160,14 +161,19 @@ export async function PATCH(
  *
  * Zostaje mimo archiwum (decyzja właściciela 2026-07-17: „oba, archiwum
  * główne, usuwanie w tle") — w UI dostępne dopiero z zakładki Archiwum. */
-export async function DELETE(
-  _req: NextRequest,
+export async function DELETE(req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!(await isAuthed())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+
+  // POTWIERDZENIE (Faza 4) — usunięcie rekordu głównego jest nieodwracalne.
+  const odmowaPotw = odmowaPotwierdzenia("notatka-usun", odczytajPotwierdzenie(req.headers));
+  if (odmowaPotw) {
+    return NextResponse.json({ error: odmowaPotw.error, potwierdzenie: odmowaPotw.potwierdzenie }, { status: odmowaPotw.status });
+  }
   await ensureHubSchema();
   const sql = getSql();
   // `RETURNING id` zamiast kasowania na ślepo: bez tego usunięcie czegoś,

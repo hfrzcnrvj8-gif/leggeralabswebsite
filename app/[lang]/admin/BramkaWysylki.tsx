@@ -24,6 +24,7 @@ import { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { IconAlertTriangle, IconBan, IconSend, IconX } from "@tabler/icons-react";
 import type { WynikBramki, Zastrzezenie } from "@/lib/bramkaWysylki";
+import { useUI } from "./ui";
 import { SPRING, EASE_LIQUID } from "@/lib/motion";
 
 // ── Pasek przy dokumencie ──────────────────────────────────────────────────
@@ -100,36 +101,46 @@ export function useWysylkaZBramka(): {
   oknoBramki: React.ReactNode;
 } {
   const [stan, setStan] = useState<StanOkna>(null);
+  // Faza 4 — wysyłka dokumentu jest na liście działań nieodwracalnych, więc
+  // trasa oddaje 428, zanim cokolwiek wyjdzie. Obsługę tego kroku ma
+  // `useZadanieZPotwierdzeniem`; tutaj zostaje wyłącznie bramka z Fazy 2.
+  //
+  // Kolejność jest celowa i wynika z kolejności na serwerze: najpierw „czy to
+  // wolno wysłać" (bramka), dopiero potem „czy na pewno teraz"
+  // (potwierdzenie). Przy dokumencie bez zastrzeżeń właściciel widzi JEDNO
+  // okno; dwa tylko wtedy, gdy sam przechodzi ostrzeżenie „mimo to".
+  const { zadanie } = useUI();
 
-  const wyslij = useCallback(async (url: string, opcje?: { body?: Record<string, unknown> }): Promise<WynikWysylki> => {
-    const wykonaj = async (mimo: boolean) => {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...(opcje?.body ?? {}), ...(mimo ? { mimo_ostrzezen: true } : {}) }),
-      });
-      const dane = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
-      return { res, dane };
-    };
+  const wyslij = useCallback(
+    async (url: string, opcje?: { body?: Record<string, unknown> }): Promise<WynikWysylki> => {
+      const wykonaj = (mimo: boolean) =>
+        zadanie(url, {
+          method: "POST",
+          body: { ...(opcje?.body ?? {}), ...(mimo ? { mimo_ostrzezen: true } : {}) },
+        });
 
-    let { res, dane } = await wykonaj(false);
+      let wynik = await wykonaj(false);
+      if (wynik.anulowane) return { ok: false, dane: wynik.dane, anulowane: true };
 
-    // `dane.bramka` rozstrzyga, czy to odmowa bramki — samego kodu nie da się
-    // użyć jako sygnału: 409 zwraca też unieważniony link i już podpisana
-    // umowa, a 400 kilka innych rzeczy. Sprawdzaj powód, nie kod.
-    const bramka = dane.bramka as WynikBramki | undefined;
-    if (!res.ok && bramka) {
-      const zgoda = await new Promise<boolean>((rozwiaz) => setStan({ bramka, rozwiaz }));
-      setStan(null);
-      // Blokada nie ma przycisku wysyłki, więc `zgoda` może być tu `true`
-      // tylko przy samych ostrzeżeniach — ale sprawdzamy jeszcze raz, żeby
-      // przypadkowe „Potwierdź" nigdy nie obeszło blokady.
-      if (!zgoda || bramka.blokady.length > 0) return { ok: false, dane, anulowane: true };
-      ({ res, dane } = await wykonaj(true));
-    }
+      // `dane.bramka` rozstrzyga, czy to odmowa bramki — samego kodu nie da się
+      // użyć jako sygnału: 409 zwraca też unieważniony link i już podpisana
+      // umowa, a 400 kilka innych rzeczy. Sprawdzaj powód, nie kod.
+      const bramka = wynik.dane.bramka as WynikBramki | undefined;
+      if (!wynik.ok && bramka) {
+        const zgoda = await new Promise<boolean>((rozwiaz) => setStan({ bramka, rozwiaz }));
+        setStan(null);
+        // Blokada nie ma przycisku wysyłki, więc `zgoda` może być tu `true`
+        // tylko przy samych ostrzeżeniach — ale sprawdzamy jeszcze raz, żeby
+        // przypadkowe „Potwierdź" nigdy nie obeszło blokady.
+        if (!zgoda || bramka.blokady.length > 0) return { ok: false, dane: wynik.dane, anulowane: true };
+        wynik = await wykonaj(true);
+        if (wynik.anulowane) return { ok: false, dane: wynik.dane, anulowane: true };
+      }
 
-    return { ok: res.ok, dane };
-  }, []);
+      return { ok: wynik.ok, dane: wynik.dane };
+    },
+    [zadanie]
+  );
 
   const oknoBramki = (
     <AnimatePresence>
@@ -201,5 +212,7 @@ export function useWysylkaZBramka(): {
     </AnimatePresence>
   );
 
+  // Okno POTWIERDZENIA renderuje `AdminUIProvider` raz na cały panel, więc
+  // wołający wstawia w drzewo tylko okno bramki, dokładnie jak dotąd.
   return { wyslij, oknoBramki };
 }

@@ -45,7 +45,7 @@ type OfferRow = Offer & { kwota: number };
 const PO_TERMINIE = "__po_terminie__";
 
 export function OffersDashboard({ lang }: { lang: Locale }) {
-  const { toast, confirm, prompt } = useUI();
+  const { toast, confirm, prompt, zadanie } = useUI();
   // Bramka wysyłki (Faza 2) — okno z listą zastrzeżeń, wspólne z profilem.
   const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [offers, setOffers] = useState<OfferRow[] | null>(null);
@@ -114,11 +114,10 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
 
   const deleteOffer = useCallback(
     async (id: string, tytul: string) => {
-      const ok = await confirm(`Usunąć ofertę "${tytul || "(bez tytułu)"}"?`, { danger: true });
-      if (!ok) return;
-      const res = await fetch(`/api/offers/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        toast("Nie udało się usunąć.", "error");
+      const w = await zadanie(`/api/offers/${id}`, { method: "DELETE" });
+      if (w.anulowane) return;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się usunąć.", "error");
         return;
       }
       setOffers((prev) => prev?.filter((o) => o.id !== id) ?? prev);
@@ -202,24 +201,19 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
   const bulkDelete = useCallback(async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
-    const ok = await confirm(`Usunąć ${ids.length} zaznaczonych ofert?`, { danger: true });
-    if (!ok) return;
     setBulkBusy(true);
-    const res = await fetch("/api/offers/bulk", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    });
+    const w = await zadanie("/api/offers/bulk", { method: "DELETE", body: { ids } });
     setBulkBusy(false);
-    if (!res.ok) {
-      toast("Nie udało się usunąć.", "error");
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się usunąć.", "error");
       return;
     }
     setOffers((prev) => prev?.filter((o) => !selectedIds.has(o.id)) ?? prev);
     setTotal((t) => Math.max(0, t - ids.length));
     toast(`Usunięto ${ids.length} ofert.`);
     clearSelection();
-  }, [selectedIds, confirm, toast, clearSelection]);
+  }, [selectedIds, zadanie, toast, clearSelection]);
 
   /** Szybkie akcje z menu kontekstowego — świadomie te same trasy, których
    * używa profil oferty, żeby nie powstała druga implementacja tego samego. */
@@ -295,15 +289,15 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
 
   const remindOffer = useCallback(
     async (id: string) => {
-      const res = await fetch(`/api/offers/${id}/remind`, { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        toast(data.error ?? "Nie udało się wysłać przypomnienia.", "error");
+      const w = await zadanie(`/api/offers/${id}/remind`, { method: "POST" });
+      if (w.anulowane) return;
+      if (!w.ok) {
+        toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
         return;
       }
       toast("Przypomnienie wysłane.");
     },
-    [toast]
+    [toast, zadanie]
   );
 
   useRegisterActions([{ id: "add", label: "+ Nowa oferta", hint: "N", run: createOffer }], [createOffer]);

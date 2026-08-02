@@ -221,6 +221,20 @@ czekaj na Vercel → zgaduj"):
   teraz". Dokładając nowy skutek zdarzenia, przyłóż go do tej granicy; nie
   zamieniaj istniejących automatów na propozycje bez pytania. To NIE jest
   „Skrzynka propozycji AI" — tu nie ma modelu, tylko reguły SQL.
+- **Co nieodwracalne — pyta, co odwracalne — nie pyta** (Faza 4 zaplecza,
+  2026-08-02, `lib/nieodwracalne.ts`). Jawna lista działań nieodwracalnych
+  z dwoma poziomami: *zwykłe* (okno „Na pewno?") i *mocne* (przepisanie frazy
+  identyfikującej rekord — wystawienie faktury, KSeF, usunięcie klienta,
+  usunięcie projektu). **Potwierdzenia pilnuje TRASA**, nie przycisk: bez
+  nagłówka `x-potwierdzenie` trasa oddaje **428** z opisem, a panel dopiero
+  z tej odpowiedzi buduje okno (`app/[lang]/admin/Potwierdzenie.tsx`, wołane
+  przez `useUI().zadanie`). Dokładając działanie: dopisz je do listy
+  i zawołaj `odmowaPotwierdzenia()` w jego trasie — sam wpis na liście niczego
+  nie blokuje. **Nie dokładaj potwierdzeń do rzeczy odwracalnych** (drobiazgi
+  w rodzaju pozycji faktury czy zadania są POZA listą świadomie) i nie owijaj
+  `zadanie()` dodatkowym `confirm()` — dwa pytania pod rząd uczą klikać „tak"
+  bez czytania, czyli niszczą to, co ta faza zbudowała. Potwierdzenie **pyta
+  zawsze**: nie ma „nie pytaj ponownie" ani wyłącznika w Ustawieniach.
 - "Zdrowie" projektu (Na dobrej drodze/Zagrożony/Zerwany) jest ręczne i
   niezależne od statusu na tablicy — dwie osobne osie, tak jak w Linear.
 - "Cykle" w Osi czasu (`ProjectTimeline.tsx`) są WYŁĄCZNIE wizualnym
