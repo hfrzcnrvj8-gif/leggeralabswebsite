@@ -20,6 +20,7 @@ import { ContextMenu, useContextMenu } from "../Menu";
 import { Tooltip } from "../Tooltip";
 import { ContactChannelMenuItems, hasChannelActions } from "../ContactChannelMenu";
 import { daysAgoLabel } from "@/lib/dates";
+import type { NowyRekord } from "../nowyRekord";
 import { LeadMenuItems } from "./LeadContextMenu";
 
 export function KanbanBoard({
@@ -32,9 +33,13 @@ export function KanbanBoard({
   onOpen,
   activeChannel,
   onFilterChannel,
+  nowy,
 }: {
   leads: Lead[];
   lang: Locale;
+  /** Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+   * Patrz `../nowyRekord.tsx`. */
+  nowy?: NowyRekord;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onUpdate: (id: string, field: string, value: string) => void;
@@ -131,11 +136,12 @@ export function KanbanBoard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onOpen(lead.id);
                   }}
+                  data-rekord={lead.id}
                   className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-zaznaczenie/30 active:cursor-grabbing ${
                     draggingId === lead.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""} ${
-                    selectedIds.has(lead.id) ? "border-zaznaczenie/50 bg-zaznaczenie/[0.06]" : ""
-                  }`}
+                    selectedIds.has(lead.id) ? "border-zaznaczenie/50 !bg-zaznaczenie/[0.06]" : ""
+                  } ${nowy?.klasa(lead.id) ?? ""}`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
                     <span className="flex min-w-0 items-start gap-1.5">

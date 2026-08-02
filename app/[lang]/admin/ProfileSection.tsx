@@ -208,7 +208,16 @@ export function WierszPola({
         <PoleProfiluIcon etykieta={etykieta} size={13} className="shrink-0 opacity-70" />
         <span className="min-w-0 truncate">{etykieta}</span>
       </span>
-      <div className="flex min-w-0 flex-1 items-center gap-2 [&_input]:px-1.5 [&_input]:text-[13px]">
+      {/* ZNALEZISKO E3 — „wiersz «Daty» wychodzi poza kartę projektu".
+          `flex-wrap` + `gap-y`: dopóki treść się mieści, wiersz wygląda
+          dokładnie jak dotąd (jedna linijka, `min-h-[38px]`, rytm z punktu 1
+          wyżej nienaruszony). Gdy się NIE mieści, zawija się do środka płyty
+          zamiast wystawać poza kartę.
+          Zmierzone na profilu projektu: przy oknie 1280 px wiersz miał 13 px
+          zapasu, przy 1180 px przycisk terminu kończył się 2 px za krawędzią
+          płyty, a sufiks „za 40 dni" 59 px za nią. To był próg, nie stała
+          usterka — dlatego nie widać go było w zwykłym oknie. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 [&_input]:px-1.5 [&_input]:text-[13px]">
         {children}
         {sufiks}
       </div>

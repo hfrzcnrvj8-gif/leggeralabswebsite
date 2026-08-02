@@ -22,6 +22,7 @@ import { formatMoney } from "@/lib/invoices";
 import { addDaysToISO, todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
 import { useUI, useRegisterActions } from "../ui";
+import { useNowyRekord } from "../nowyRekord";
 import { useWysylkaZBramka } from "../BramkaWysylki";
 import { StanListy, StanBledu } from "../StanPusty";
 import { PoleSzukania } from "../PoleSzukania";
@@ -46,6 +47,8 @@ const PO_TERMINIE = "__po_terminie__";
 
 export function OffersDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt, zadanie } = useUI();
+  // Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+  const nowy = useNowyRekord();
   // Bramka wysyłki (Faza 2) — okno z listą zastrzeżeń, wspólne z profilem.
   const { wyslij, oknoBramki } = useWysylkaZBramka();
   const [offers, setOffers] = useState<OfferRow[] | null>(null);
@@ -107,9 +110,11 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
       // LinkPickera, żeby inne ekrany go zobaczyły bez przeładowania.
       if (link.lead_id) invalidateLinkTargets();
       await load();
+      // Znalezisko D2 — patrz komentarz w `InvoicesDashboard.tsx`.
+      nowy.pokaz(id);
       setOpenId(id);
     },
-    [toast, load]
+    [toast, load, nowy]
   );
 
   const deleteOffer = useCallback(
@@ -601,11 +606,12 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
                       key={o.id}
                       onClick={() => setOpenId(o.id)}
                       onContextMenu={(e) => ctx.openAt(e, o)}
+                      data-rekord={o.id}
                       {...wiersz(
                         i,
                         `cursor-pointer border-b hairline transition-colors hover:bg-hairline/80 ${
                           expired ? "bg-red-500/[0.04]" : ""
-                        } ${selectedIds.has(o.id) ? "bg-zaznaczenie/[0.08]" : ""}`
+                        } ${selectedIds.has(o.id) ? "bg-zaznaczenie/[0.08]" : ""} ${nowy.klasa(o.id)}`
                       )}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>

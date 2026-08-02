@@ -368,7 +368,17 @@ function WierszKomponentu({
           )}
         </span>
       </button>
-      <div className="flex shrink-0 items-center gap-1">
+      {/* ZNALEZISKO F — próg dotykowy 24×24 (WCAG 2.5.8). Trzy ikony wiersza
+          miały 15×15 px, czyli 39% powierzchni progu, i to na akcjach, z
+          których jedna KASUJE rekord. Zmierzone przed zmianą: 186 celów
+          poniżej progu na jednym ekranie — wszystkie to te same trzy ikony
+          powtórzone w 62 wierszach.
+
+          Rośnie TRAFIENIE, nie rysunek: ikona zostaje 15 px, urasta pudełko
+          wokół niej (`h-6 w-6` + wyśrodkowanie). `shrink-0` obowiązkowe —
+          w kontenerze `flex` bez niego pudełko daje się ścisnąć poniżej
+          zadanego rozmiaru i cała poprawka znika bez śladu w kodzie. */}
+      <div className="flex shrink-0 items-center gap-0.5">
         {/* Adres rekordu (paczka E) — profil komponentu pod własnym linkiem;
             zwykły klik zostaje przy formularzu edycji, bo to najczęstsza
             czynność w katalogu. */}
@@ -380,21 +390,21 @@ function WierszKomponentu({
             onEdytuj();
           }}
           title="Otwórz komponent"
-          className="text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
         >
           <IconArrowUpRight size={15} />
         </Link>
         <button
           onClick={onEdytuj}
           aria-label="Edytuj"
-          className="text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:text-[var(--fg)] focus:opacity-100 group-hover:opacity-100"
         >
           <IconPencil size={15} />
         </button>
         <button
           onClick={onUsun}
           aria-label="Usuń"
-          className="text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
         >
           <IconTrash size={15} />
         </button>

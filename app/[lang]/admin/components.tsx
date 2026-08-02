@@ -50,7 +50,7 @@ export function SummaryCard({ label, value, alert }: { label: string; value: num
       whileHover={{ y: -2 }}
       transition={SPRING}
       className={`card-paper min-w-[110px] rounded-2xl px-4 py-3 ${
-        alert ? "border-red-500/30 bg-red-500/[0.04]" : ""
+        alert ? "border-red-500/30 !bg-red-500/[0.04]" : ""
       }`}
     >
       <div className={`text-xl font-bold ${alert ? "text-red-400" : ""}`}>
@@ -92,7 +92,14 @@ export function EditableText({
       onBlur={() => {
         if (!readOnly && v !== value) onSave(v);
       }}
-      className={`w-full min-w-[6ch] rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors placeholder:text-muted placeholder:opacity-60 focus:outline-none ${
+      // `text-ellipsis` (ZNALEZISKO E4). `<input>` domyślnie tnie tekst
+      // `clip`-em, czyli w pół litery i bez żadnego znaku, że coś zostało —
+      // „Audyt procesów i danyc" wygląda jak PEŁNA nazwa, a nie jak ucięta.
+      // Zmierzone: `scrollWidth` 287 przy `clientWidth` 256 i
+      // `text-overflow: clip`. Wielokropek działa w polu NIEAKTYWNYM (po
+      // kliknięciu przeglądarka i tak przewija do kursora) — czyli dokładnie
+      // wtedy, kiedy jest potrzebny. Pełna treść siedzi w `title` wyżej.
+      className={`w-full min-w-[6ch] truncate rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-[var(--fg)] transition-colors placeholder:text-muted placeholder:opacity-60 focus:outline-none ${
         readOnly ? "cursor-default opacity-70" : "hover:border-[var(--hairline)] focus:border-zaznaczenie/60"
       }`}
     />

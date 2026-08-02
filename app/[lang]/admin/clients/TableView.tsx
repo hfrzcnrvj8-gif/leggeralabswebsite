@@ -17,6 +17,7 @@ import {
 import { Truncate } from "../components";
 import { formatPlDate } from "@/lib/projects";
 import { ContextMenu, useContextMenu } from "../Menu";
+import type { NowyRekord } from "../nowyRekord";
 import { Tooltip } from "../Tooltip";
 import { KLASA_KURSORA } from "../klawiatura";
 import { ContactChannelMenuItems, hasChannelActions } from "../ContactChannelMenu";
@@ -47,7 +48,11 @@ export function TableView({
   activeChannel,
   onFilterChannel,
   stanPusty,
+  nowy,
 }: {
+  /** Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+   * Patrz `../nowyRekord.tsx`. */
+  nowy?: NowyRekord;
   clients: Client[];
   lang: Locale;
   /** Id wiersza pod kursorem j/k. Obrys, nie tło — tło znaczy „zaznaczone
@@ -111,7 +116,10 @@ export function TableView({
               // przy okazji profilu.
               onClick={() => onOpen(client.id)}
               onContextMenu={(e) => ctl.openAt(e, client)}
-              className={`cursor-pointer border-b hairline px-4 py-4 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
+              data-rekord={client.id}
+              className={`cursor-pointer border-b hairline px-4 py-4 last:border-0 ${
+                overdueRow ? "bg-orange-500/[0.06]" : ""
+              } ${nowy?.klasa(client.id) ?? ""}`}
             >
               {/* Nazwa na całą szerokość — patrz leads/TableView.tsx (Paczka 6). */}
               <button onClick={() => onOpen(client.id)} className="block w-full text-left">
@@ -237,7 +245,10 @@ export function TableView({
                   onContextMenu={(e) => ctl.openAt(e, client)}
                   className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-hairline/80 ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
-                  } ${checked ? "bg-zaznaczenie/[0.08]" : ""} ${kursor ? KLASA_KURSORA : ""}`}
+                  } ${checked ? "bg-zaznaczenie/[0.08]" : ""} ${kursor ? KLASA_KURSORA : ""} ${
+                    nowy?.klasa(client.id) ?? ""
+                  }`}
+                  data-rekord={client.id}
                   {...(kursor ? { "data-kursor": "1" as const } : {})}
                 >
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>

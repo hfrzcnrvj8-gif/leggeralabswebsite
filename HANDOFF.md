@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-02, po Fazie 4 planu zaplecza
+# Handoff — stan na 2026-08-02, po ZAMKNIĘCIU planu zaplecza
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,8 +7,8 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- Panel: dwa ostatnie commity to „Faza 4: co nieodwracalne — pyta, co
-  odwracalne — nie pyta" i ten handoff.
+- Panel: ostatnie commity to „Faza 5: wygląd — sześć usterek zmierzonych
+  i zamkniętych" i ten handoff.
 - Repozytorium czyste i wypchnięte. `tsc` czysto, `npm test` **281/281**.
 - `npm run przejscie`: **68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
   0 pominiętych** — przy serwerze świeżo po restarcie. Kilka przebiegów pod
@@ -23,90 +23,65 @@ Jeśli `git log` pokazuje co innego — ktoś pracował po drodze, sprawdź co
 `⚠ ZNANA LUKA` w przejściu jest czymś, co dopiero co dołożyliśmy — a każda
 `✗ REGRESJA` psuje build.
 
-## Gdzie jesteśmy w planie
+## Plan zaplecza jest ZAMKNIĘTY
 
-Plan: `docs/PLAN-ZAPLECZE.md`, powstał po ręcznym przejściu opisanym
-w `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md`. Trzydzieści kilka znalezisk to nie
-trzydzieści kilka usterek, tylko **cztery brakujące mechanizmy** — każdy
-objawiający się w kilku modułach naraz. Wszystkie cztery są już zbudowane.
+Powstał po ręcznym przejściu opisanym w `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md`.
+Trzydzieści kilka znalezisk okazało się **czterema brakującymi mechanizmami**
+plus jedną fazą wyglądu. Wszystko zbudowane.
 
 | faza | co dowozi | stan |
 |---|---|---|
-| 0a | całą drogę klienta przechodzi jedno polecenie | ✅ |
+| 0a | całą drogę klienta przechodzi jedno polecenie (`npm run przejscie`) | ✅ |
 | 0b | kontrola spójności jako ekran *Zdrowie* | ✅ |
 | 1 | jedno przepisanie danych klienta (`lib/przepisanie.ts`) | ✅ |
 | 2 | jedna bramka „czy to wolno wysłać" (`lib/bramkaWysylki.ts`) | ✅ |
 | 3 | komplet skutków zdarzenia jako propozycje (`lib/propozycje.ts`) | ✅ |
 | 4 | lista działań nieodwracalnych (`lib/nieodwracalne.ts`) | ✅ |
-| **5** | **wygląd — zebrane usterki wizualne** | **← teraz, OSTATNIA** |
+| 5 | wygląd — sześć zebranych usterek | ✅ |
 
-## Co zamknęła Faza 4 — żeby nie robić tego drugi raz
+**Podsumowanie całości: `docs/PLAN-ZAPLECZE.md`, sekcja na końcu pliku.**
+Tam są cztery lekcje, które przeżyją ten plan, i pełna lista tego, czego
+świadomie nie zrobił.
 
-- **`lib/nieodwracalne.ts`** — jawna lista 22 działań i reguła działająca
-  w obie strony: **co nieodwracalne — pyta, co odwracalne — nie pyta.**
-  Dwa poziomy: *zwykłe* („Na pewno?") i *mocne* (przepisanie frazy — tylko
-  wystawienie faktury, KSeF, usunięcie klienta i projektu, masowe usunięcie
-  klientów).
-- **Bariery pilnuje TRASA**, nie przycisk. Bez nagłówka `x-potwierdzenie`
-  trasa oddaje **428** z opisem, a panel dopiero z tej odpowiedzi buduje okno.
-  Panel FIZYCZNIE nie wie, co jest nieodwracalne — więc lista nie może
-  rozjechać się na dwie kopie.
-- **Wymagana fraza nie jedzie w odpowiedzi** — tylko jej etykieta. Wartość do
-  pokazania podaje panel, **porównuje serwer** z danych w bazie.
-- **`useUI().zadanie(url, opcje)`** — jedno wejście dla całego panelu, okno
-  renderowane raz w `AdminUIProvider`. Nie owijaj go `confirm()`-em.
-- **D3**: okno blokowało mysz, ale nie klawiaturę (44 elementy tła osiągalne
-  tabulatorem). Naprawione `inert`-em na treści panelu — działa niezależnie od
-  z-indeksów, a menu panelu siedzą wyżej niż te okna.
-- **D4**: „Dane firmy" mają Zapisz i Anuluj; zamknięcie z niezapisanymi pyta.
-- **Przy okazji**: `lib/shareLinks.ts` czytał nieistniejące kolumny — „skopiuj
-  link do formularza opinii" kończyło się 500. Naprawione.
+## Co zamknęła Faza 5 — żeby nie robić tego drugi raz
 
-Szczegóły i lekcje: `HUB_SETUP.md` → „Faza 4 zaplecza", `docs/PLAN-ZAPLECZE.md`.
+Sześć usterek wyglądu, każda zamknięta POMIAREM (`getComputedStyle`,
+`getBoundingClientRect`), nie zrzutem ekranu. Szczegóły i liczby:
+`HUB_SETUP.md` → „Faza 5 zaplecza".
 
-**Dług, który ta faza świadomie zostawiła:** apka iOS nie potwierdza tych
-działań, więc wystawienie faktury, wysyłka dokumentu i usunięcie rekordu
-**z telefonu wracają dziś z 428 i nie robią nic**. To wybór właściciela
-(„szczelnie od razu", bez furtki dla apki), nie przeoczenie. Brief gotowy:
-`docs/natywna-aplikacja/35-brief-potwierdzenia.md`.
+- **E1** — `.glass` nie rozmywał, bo pipeline CSS zostawia z grupy prefiksów
+  **ostatnią** deklarację, a nieprefiksowana stała pierwsza. **Dokładając regułę
+  z prefiksem: prefiks pierwszy, standard ostatni.** Odwrotna kolejność nie daje
+  żadnego objawu ani w kodzie, ani w `tsc`.
+- **E2** — cztery okna `useUI()` i toasty renderują się poza `.admin-linear`.
+  Potrzebne są **obie** klasy: `admin-linear` (zmienne) i `text-[var(--fg)]`
+  (kolor tekstu). Sama pierwsza dała ciemne tło z czarnym tekstem, kontrast
+  ~1:1 — gorzej niż przed poprawką.
+- **E3** — kolumna właściwości projektu 320 → 360 px, plus `flex-wrap`
+  w `WierszPola` jako siatka bezpieczeństwa na każde okno i każdy moduł.
+- **E4** — `<input>` tnie tekst `clip`-em; `truncate` daje wielokropek w polu
+  nieaktywnym.
+- **D2** — `app/[lang]/admin/nowyRekord.tsx`: po dodaniu lista przewija się do
+  nowego rekordu i podświetla go. **Sortowanie NIETKNIĘTE** — decyzja
+  właściciela, nowe rekordy nie wskakują na górę. Wpięte w Leady, Klientów,
+  Projekty, Faktury i Oferty. Dwie pułapki środowiska złapane po drodze:
+  `requestAnimationFrame` nie tyka w karcie w tle, a `scrollIntoView({behavior:
+  "smooth"})` nie rusza z miejsca — stąd `setTimeout` i `behavior: "auto"`.
+- **F** — próg dotykowy **24×24 px rozstrzygnięty raz na cały panel** i wpisany
+  do `CLAUDE.md` jako DOMYŚLNY, z jawną listą wyjątków. W Katalogu było 186
+  celów poniżej progu, jest 0.
 
----
+**Runda domykająca (ten sam dzień)** — dwie rzeczy złapane przy sprawdzaniu,
+czy coś zostało. Obie naprawione i zmierzone:
 
-# Faza 5 — wygląd
-
-**Ostatnia faza planu.** Zgodnie z ustaleniem wygląd idzie na koniec — dopiero
-gdy zaplecze działa w całości. Teraz działa: przejście na zielono, ekran
-*Zdrowie* bez naruszeń, lista luk pusta.
-
-## Co jest do zrobienia (zebrane, żeby nie zginęły)
-
-| nr | co |
-|---|---|
-| **E1** | `.glass` traci `backdrop-filter` w **zbudowanym** CSS (zostaje tylko `-webkit-`) → chrome bez rozmycia. Przyczyna leży w buildzie, nie w źródle — `app/globals.css:105` deklaruje obie właściwości |
-| **E2** | okna `useUI().confirm/prompt` renderują się poza `.admin-linear` i są **jasne** w ciemnym panelu |
-| **E3** | wiersz „Daty" wychodzi poza kartę projektu (`x` 1030–1113 wobec karty do 1102) |
-| **E4** | nazwa kamienia milowego ucięta w pół słowa, bez wielokropka |
-| **D2** | nowy lead ląduje poza ekranem: trafia na 10. pozycję z 11 (sortowanie po „ostatni kontakt", nowy nie ma żadnego), lista się nie przewija, nic go nie podświetla. **Przeniesione tu z Fazy 4 decyzją właściciela** — to zachowanie listy, nie bariera |
-| **F** | otwarty próg 24×24 w Katalogu (`CatalogDashboard.tsx`) — trzeci moduł z rzędu to odnotowuje |
-
-## Uwagi, które mają realny wpływ na kształt pracy
-
-- **Podgląd w przeglądarce ma zamrożony rAF** (karta „hidden"): animacje
-  framer-motion nie kończą się, więc element usunięty ze stanu potrafi zostać
-  w DOM, a `opacity` bywa 0. Rozstrzyga przeładowanie strony albo pomiar
-  liczby klatek rAF, **nie zrzut ekranu**.
-- **Świeżo otwarta karta podglądu bywa 0×0** (`innerWidth: 0`) i wtedy każdy
-  pomiar geometrii kłamie — `h-6 w-6` mierzy się jako 17×24 i wygląda jak
-  usterka klikalności, którą nie jest. Otwórz NOWĄ kartę (`tabs_create`)
-  i sprawdź `innerWidth`, zanim cokolwiek zmierzysz.
-- **E2 dotyka teraz także okna potwierdzenia** z Fazy 4 — renderuje się w tym
-  samym miejscu co confirm/prompt. Poprawiając E2, sprawdź wszystkie cztery
-  okna `AdminUIProvider`, nie trzy.
-- **Kontrast mierz, nie zgaduj** (`getComputedStyle`), i pamiętaj, że pierwszy
-  `<span>` bywa opakowaniem `display: contents` — mierz najgłębszy węzeł.
-- **Tailwind nie generuje reguł dla `bg-[var(--x)]/40`** — krycie na zmiennej
-  CSS cicho nie działa (86 martwych klas znalezionych wcześniej). Rozstrzyga
-  `getComputedStyle`, nie wygląd w kodzie.
+- **Czerwone przyciski działań nieodwracalnych** miały 4,47:1 w spoczynku
+  i **3,76:1 na hover** — czyli stan aktywny był gorszy od spoczynku — przy
+  progu 4,5:1. `bg-red-600/90` + `hover:bg-red-600` daje 5,67:1 / 4,83:1.
+- **`bg-*` nie działa na `.card-paper` ani `.card-inset`.** `globals.css` ma
+  `.admin-linear .card-paper` — selektor POTOMKA, więc bije klasę-utility.
+  Trzy zastane miejsca żyły z martwą klasą (zaznaczenie karty leada, karty
+  klienta, alarmowy `SummaryCard`). **Dokładając tło do karty w panelu:
+  `!bg-…`.** Bez wykrzyknika klasa jest martwa i nic tego nie zgłasza.
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
 
@@ -123,17 +98,31 @@ gdy zaplecze działa w całości. Teraz działa: przejście na zielono, ekran
 
 ---
 
-## Otwarte poza planem zaplecza (nie ruszać przy okazji)
+## Co jest otwarte (nie ruszać przy okazji)
 
-- **Potwierdzenia w apce iOS** — patrz wyżej, brief gotowy. To jedyny dług
-  zostawiony przez Fazę 4 i jedyna rzecz, która dziś DZIAŁA GORZEJ niż przed
-  nią (z telefonu).
-- **Rejestracja firmy** — `PO_REJESTRACJI.md`, osiemnaście punktów. Blokuje
-  KSeF test → produkcja, prawdziwe dane w nocie prawnej, plan Vercel Pro
-  (Hobby zabrania użytku komercyjnego), przeprowadzkę na NAS. **To nie są
-  braki do naprawienia przed rejestracją.**
-- **A5 z przejścia** — „ZLECENIODAWCA / WYKONAWCA" w jednej rubryce na wydruku
-  umowy. Treść dokumentu prawnego, nie reguła wysyłki; świadomie poza Fazą 2.
+- **Rejestracja firmy** — `PO_REJESTRACJI.md`, osiemnaście punktów. **To jest
+  następny krok, który realnie zmienia stan projektu, i jest nietechniczny.**
+  Blokuje KSeF test → produkcja, prawdziwe dane w nocie prawnej, plan Vercel Pro
+  (Hobby zabrania użytku komercyjnego), przeprowadzkę na NAS. **To nie są braki
+  do naprawienia przed rejestracją.**
+- **Potwierdzenia w apce iOS** — jedyny dług zostawiony przez plan i jedyna
+  rzecz, która po nim działa GORZEJ niż przed (z telefonu): wystawienie
+  faktury, wysyłka dokumentu i usunięcie rekordu wracają z 428 i nie robią nic.
+  Wybór właściciela — „szczelnie od razu". Brief:
+  `docs/natywna-aplikacja/35-brief-potwierdzenia.md`.
+- **Propozycje z Fazy 3 w apce iOS** — trasa `/api/hub/propozycje` gotowa,
+  brakuje wyłącznie ekranu w SwiftUI.
+- **Osiem drobiazgów z sekcji F pierwszego przejścia** — kolumny „Ostatni
+  kontakt"/„Dni" nie odświeżają się po wpisie, formularz „Nowy wpis" czyści
+  tylko treść, menu „Wstaw z szablonu" nie zamyka się po wstawieniu, Escape
+  zamyka cały modal profilu, chipy terminu przesuwają się pod kursorem, kroki
+  mapy nieklikalne, lista kanałów otwiera się na checkboxie, pozycje „Skąd
+  przyszedł" bez nazw dostępnościowych. Świadomie poza Fazą 5 (zakres to było
+  dokładnie sześć pozycji). Opis: `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
+- **A5** — „ZLECENIODAWCA / WYKONAWCA" w jednej rubryce na wydruku umowy.
+  Treść dokumentu prawnego, nie reguła wysyłki.
+- **Kafel „Przychód (ten miesiąc)"** pokazuje brutto. Decyzja produktowa do
+  rozstrzygnięcia, nie usterka.
 - **Moduł 54, ostatni krok** (pliki klienta na NAS) — czeka na Moduł 55, ten na
   rejestrację.
 - **`CEIDG_TOKEN` w Vercelu** — bez niego Łowca leadów nie ma skąd brać
@@ -141,8 +130,6 @@ gdy zaplecze działa w całości. Teraz działa: przejście na zielono, ekran
 - **Włączenie 2FA na produkcji** — silnik gotowy od Modułu 41. Drogi powrotu:
   papierowe kody zapasowe + ten sam sekret na drugim urządzeniu (NIE
   „wyłącznik w Vercelu").
-- **Propozycje w apce iOS** — świadomie poza Fazą 3. Trasa
-  `/api/hub/propozycje` gotowa; brakuje wyłącznie ekranu w SwiftUI.
 
 ## Czego NIE zaczynać bez wyraźnej prośby
 
@@ -154,6 +141,8 @@ gdy zaplecze działa w całości. Teraz działa: przejście na zielono, ekran
 - **Dokładanie potwierdzeń do działań odwracalnych** — reguła Fazy 4 działa
   w obie strony i jest zapisana w `CLAUDE.md`. Drobiazgi są poza listą
   świadomie.
+- **Zmiana sortowania list, żeby nowe rekordy szły na górę** — rozstrzygnięte
+  w Fazie 5 na „nie" (przewijamy i podświetlamy).
 - **Moduł 16 — wsparcie posprzedażowe.** Do pierwszego klienta.
 - **Przeprowadzka na NAS** poza etapem 1.
 - Wszystko z sekcji „Świadome decyzje produktowe" w `CLAUDE.md`.
@@ -162,7 +151,7 @@ gdy zaplecze działa w całości. Teraz działa: przejście na zielono, ekran
 
 **Kompletny funkcjonalnie, przeaudytowany, nieużywany produkcyjnie.** Dwa
 narzędzia, które sprawdzają DANE, a nie kod — przejście „na sucho" i kontrola
-spójności na ekranie *Zdrowie* — po Fazie 4 dalej pokazują zero. Zaplecze jest
-domknięte; zostaje wygląd. Czego dalej nie ma: ani jednego prawdziwego
-klienta, ani jednej faktury wystawionej naprawdę. Następny krok, który realnie
-zmienia stan, jest nietechniczny: rejestracja działalności.
+spójności na ekranie *Zdrowie* — pokazują zero. Zaplecze domknięte, wygląd
+zrobiony. Czego dalej nie ma: ani jednego prawdziwego klienta, ani jednej
+faktury wystawionej naprawdę. Następny krok jest nietechniczny: rejestracja
+działalności.

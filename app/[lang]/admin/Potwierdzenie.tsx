@@ -168,7 +168,11 @@ export function OknoPotwierdzenia({ stan }: { stan: StanPotwierdzenia }) {
       // potwierdzenia bywa otwierane z pozycji menu kontekstowego, a okno,
       // które da się przykryć tym, z czego je otwarto, nie jest barierą
       // (część znaleziska D3).
-      className="fixed inset-0 z-[210] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+      // `admin-linear` — okno renderuje `AdminUIProvider` POZA elementem
+      // `.admin-linear` (znalezisko E2), więc bez tej klasy dziedziczyłoby jasną
+      // paletę strony publicznej: biała karta z ciemnym tekstem pośrodku
+      // ciemnego panelu. Patrz komentarz przy toastach w `ui.tsx`.
+      className="admin-linear fixed inset-0 z-[210] flex items-center justify-center bg-black/60 px-4 text-[var(--fg)] backdrop-blur-sm"
       onClick={() => stan.resolve(false)}
     >
       <motion.div
@@ -237,7 +241,7 @@ export function OknoPotwierdzenia({ stan }: { stan: StanPotwierdzenia }) {
           <button
             disabled={!zgadzaSie}
             onClick={() => stan.resolve(mocne ? wpisane : null)}
-            className="rounded-full bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full bg-red-600/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {stan.opis.przycisk}
           </button>

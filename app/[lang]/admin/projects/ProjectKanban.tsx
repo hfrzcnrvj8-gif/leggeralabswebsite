@@ -42,6 +42,7 @@ import {
 } from "../Menu";
 import { useCopy } from "../ui";
 import { KLASA_KURSORA } from "../klawiatura";
+import type { NowyRekord } from "../nowyRekord";
 
 // Status jako ikona (styl Linear) — KSZTAŁT koła oddaje etap, kolor tylko go
 // wzmacnia. Tu mieszka wyłącznie KSZTAŁT; kolor przychodzi z `PROJECT_STATUS_TEXT`,
@@ -121,8 +122,12 @@ export function ProjectKanban({
   onUpdate,
   onDelete,
   onOpen,
+  nowy,
 }: {
   projects: Project[];
+  /** Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+   * Patrz `../nowyRekord.tsx`. */
+  nowy?: NowyRekord;
   lang: Locale;
   selectedIds: Set<string>;
   /** Id karty pod kursorem j/k (Moduł 59, paczka C). Obrys neutralny, tak samo
@@ -211,11 +216,12 @@ export function ProjectKanban({
                         if (e.key === "Enter") onOpen(p.id);
                       }}
                       {...(podKursorem === p.id ? { "data-kursor": "1" as const } : {})}
+                      data-rekord={p.id}
                       className={`group relative cursor-pointer rounded-lg border bg-[var(--bg-soft)] px-3 py-2.5 transition-colors hover:border-[#3a3b40] active:cursor-grabbing ${
                         draggingId === p.id ? "opacity-40" : ""
                       } ${podKursorem === p.id ? KLASA_KURSORA : ""} ${
                         selected ? "border-zaznaczenie/60 bg-zaznaczenie/[0.06]" : "border-[var(--hairline)]"
-                      }`}
+                      } ${nowy?.klasa(p.id) ?? ""}`}
                     >
                       {/* Checkbox — na hover (lub gdy coś zaznaczone), lewy górny róg */}
                       <input

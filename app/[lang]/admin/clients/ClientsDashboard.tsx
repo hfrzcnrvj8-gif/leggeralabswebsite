@@ -26,6 +26,7 @@ import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions, isTypingTarget } from "../ui";
+import { useNowyRekord } from "../nowyRekord";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
@@ -47,6 +48,8 @@ type HistoryHit = {
 
 export function ClientsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, zadanie } = useUI();
+  // Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+  const nowy = useNowyRekord();
   const [clients, setClients] = useState<Client[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -163,6 +166,10 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
       setAddEmail("");
       setAddSzczegoly("");
       setAddKategoria("Polecenie");
+      // Znalezisko D2 — przewiń do nowego rekordu i podświetl go. Patrz
+      // `../nowyRekord.tsx`.
+      const dane = (await res.json().catch(() => null)) as { id?: string } | null;
+      nowy.pokaz(dane?.id);
       toast("Dodano klienta.");
       load();
     } else {
@@ -676,6 +683,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
               onOpen={setOpenClientId}
               activeChannel={filterKanal}
               onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
+              nowy={nowy}
             />
           ) : (
             <TableView
@@ -691,6 +699,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
               onOpen={setOpenClientId}
               activeChannel={filterKanal}
               onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
+              nowy={nowy}
             />
           )}
         </ViewSwitch>

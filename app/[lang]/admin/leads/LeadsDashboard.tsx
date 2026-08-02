@@ -33,6 +33,7 @@ import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
 import { Propozycje } from "../Propozycje";
+import { useNowyRekord } from "../nowyRekord";
 import { nowaSeria } from "../Potwierdzenie";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
@@ -52,6 +53,8 @@ const OVERDUE_SKROT = 5;
 
 export function LeadsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, zadanie } = useUI();
+  // Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+  const nowy = useNowyRekord();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E): dopóki tego pola nie było, zerwane
   // połączenie kończyło się listą „Brak leadów pasujących do filtrów" — czyli
@@ -217,6 +220,13 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     });
     setAddBusy(false);
     if (res.ok) {
+      // ZNALEZISKO D2 — sam toast nie wystarczy. Nowy lead nie ma „ostatniego
+      // kontaktu", więc sortowanie wypycha go na koniec listy, poza ekran.
+      // Trasa oddaje `{ ok: true, id }` — po tym id lista się do niego
+      // przewija i podświetla go na chwilę. Sortowanie zostaje bez zmian
+      // (decyzja właściciela). Patrz `../nowyRekord.tsx`.
+      const dane = (await res.json().catch(() => null)) as { id?: string } | null;
+      nowy.pokaz(dane?.id);
       toast("Dodano leada.");
       setAddOpen(false);
       setAddFirma("");
@@ -889,6 +899,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenLeadId}
           activeChannel={filterKanal}
           onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
+          nowy={nowy}
         />
       ) : (
         <TableView
@@ -904,6 +915,7 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
           onOpen={setOpenLeadId}
           activeChannel={filterKanal}
           onFilterChannel={(k) => setFilterKanal((prev) => (prev === k ? "" : k))}
+          nowy={nowy}
         />
       )}
       </ViewSwitch>

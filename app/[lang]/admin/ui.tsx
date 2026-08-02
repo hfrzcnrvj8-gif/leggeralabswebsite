@@ -205,8 +205,31 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      {/* Toasty */}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-xs flex-col gap-2">
+      {/*
+        ZNALEZISKO E2 — „okna potwierdzeń są jasne w ciemnym panelu".
+
+        `AdminUIProvider` opakowuje `ShellBody`, a klasa `.admin-linear` (ciemna
+        paleta panelu) siedzi DOPIERO w środku `ShellBody`. Wszystko, co ten
+        provider renderuje obok `children` — toasty i cztery okna — leży więc
+        POZA `.admin-linear` i dziedziczy jasną paletę strony publicznej.
+        Zmierzone: `.card-paper` poza panelem ma tło `rgb(255,255,255)` i tekst
+        `rgb(26,24,21)`, w panelu `rgb(13,14,16)` / `rgb(247,248,248)`.
+
+        Dlatego KAŻDY z tych pięciu kontenerów nosi `admin-linear` jawnie — ten
+        sam wzorzec, którym `Menu.tsx` i `Tooltip.tsx` ratują swoje portale
+        renderowane w `<body>`. Klasa niesie same zmienne CSS, nie rusza układu.
+
+        `text-[var(--fg)]` jest tu DRUGĄ POŁOWĄ poprawki, nie ozdobą: klasa
+        `.admin-linear` niesie same ZMIENNE, a kolor tekstu panelu ustawia
+        dopiero `text-[var(--fg)]` na jego kontenerze (`AppShell.tsx`). Po
+        dołożeniu samej `admin-linear` karta zrobiła się ciemna, a tekst został
+        czarny — zmierzone `rgb(13,14,16)` tła przy `rgb(26,24,21)` tekstu,
+        czyli kontrast ~1:1. Gorzej niż przed poprawką.
+
+        Dokładając tu szósty kontener: dopisz mu OBIE klasy. Bez nich nie będzie
+        żadnego objawu w kodzie — tylko biała karta na ciemnym tle w panelu.
+      */}
+      <div className="admin-linear pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-xs flex-col gap-2 text-[var(--fg)]">
         <AnimatePresence>
           {toasts.map((t) => (
             <motion.div
@@ -233,7 +256,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+            className="admin-linear fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 text-[var(--fg)] backdrop-blur-sm"
             onClick={() => closeConfirm(false)}
           >
             <motion.div
@@ -267,7 +290,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
                   onClick={() => closeConfirm(true)}
                   className={
                     confirmState.danger
-                      ? "rounded-full bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
+                      ? "rounded-full bg-red-600/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
                       : "rounded-md bg-[var(--fg)] px-3 py-1.5 text-xs font-medium text-[var(--bg)] hover:opacity-90"
                   }
                 >
@@ -291,7 +314,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+            className="admin-linear fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 text-[var(--fg)] backdrop-blur-sm"
             onClick={() => closeChoose(null)}
           >
             <motion.div
@@ -315,7 +338,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
                     onClick={() => closeChoose(o.value)}
                     className={
                       o.danger
-                        ? "rounded-full bg-red-500/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
+                        ? "rounded-full bg-red-600/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
                         : "rounded-full border hairline px-3 py-1.5 text-xs hover:bg-[var(--bg-soft)]"
                     }
                   >
@@ -351,7 +374,7 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+            className="admin-linear fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 text-[var(--fg)] backdrop-blur-sm"
             onClick={() => closePrompt(null)}
           >
             <motion.div

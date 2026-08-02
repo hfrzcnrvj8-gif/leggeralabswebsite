@@ -1408,8 +1408,14 @@ export function ProjectDetailPanel({
           </div>
         )}
 
+        {/* 360, nie 320 (znalezisko E3). Kolumna właściwości musi pomieścić
+            NAJSZERSZY wiersz profilu, a jest nim „Daty": etykieta 118 px +
+            dwie daty po ~78 px + strzałka + odstępy = ~178 px samej wartości.
+            Przy 320 px zostawało na wartość 163 px, więc data terminu
+            kończyła się 2 px za krawędzią płyty, a podpowiedź „za 40 dni"
+            59 px za nią (zmierzone przy oknie 1180 px). */}
         {tab === "overview" && (
-          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             {/* Kolumna główna Podglądu: kamienie milowe (rdzeń projektu). */}
             <div className="min-w-0 space-y-4">
           <div className="card-paper rounded-xl border hairline p-4">
@@ -2020,8 +2026,16 @@ function DateRangeField({
   termin: string;
   onSave: (field: "start" | "termin", value: string) => void;
 }) {
+  // `flex-nowrap` ŚWIADOMIE, mimo znaleziska E3: „25.07.2026 → 11.09.2026" to
+  // JEDNA wartość — zakres. Rozbity na dwie linijki czyta się jak dwie
+  // niezwiązane daty, więc miejsce robi mu szersza kolumna właściwości (360 px,
+  // patrz komentarz przy siatce `overview` wyżej), a nie zawijanie. Data nie
+  // może się też skracać ani truncate'ować — ucięty rok to dokładnie ta
+  // pułapka, przed którą ostrzega CLAUDE.md.
+  // Zawija się natomiast SUFIKS („za 40 dni") — robi to `WierszPola`
+  // (`ProfileSection.tsx`), i to jest siatka bezpieczeństwa na każde okno.
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex min-w-0 flex-nowrap items-center gap-1">
       <DateField value={start} onChange={(v) => onSave("start", v)} placeholder="Start" />
       <span className="shrink-0 text-muted">→</span>
       <DateField value={termin} onChange={(v) => onSave("termin", v)} placeholder="Termin" />

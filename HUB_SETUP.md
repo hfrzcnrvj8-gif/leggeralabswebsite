@@ -11485,3 +11485,205 @@ zgody nie kasuje rekordu, z zgodą kasuje — i **działanie odwracalne nadal ni
 pyta o nic** (reguła działa w obie strony).
 
 `npm test` — **281** (19 nowych nad `lib/nieodwracalne.ts`).
+
+---
+
+## Faza 5 zaplecza — wygląd, OSTATNIA faza planu (2026-08-02)
+
+**Zamknęła E1–E4, D2 i F** z pierwszego przejścia „na sucho" — sześć usterek
+wyglądu odłożonych świadomie na koniec, aż zaplecze będzie działać w całości.
+Zakres był dokładnie tych sześć pozycji (decyzja właściciela), bez szerszego
+przeglądu.
+
+**Dowodem każdej poprawki jest POMIAR, nie zrzut ekranu** — bo podgląd
+w przeglądarce ma zamrożony rAF i bywa 0×0 (patrz `CLAUDE.md` → „Znane
+pułapki"). Wszystkie liczby niżej pochodzą z `getComputedStyle`
+i `getBoundingClientRect` na żywym panelu.
+
+### E1 — „szkło" nie rozmywało, i to nie była wina źródła
+
+`app/globals.css` deklarował `backdrop-filter` **i** `-webkit-backdrop-filter`
+w pięciu regułach (`.glass`, `.glass-ios`, `.glass-sheet`, `.btn-primary`,
+`.card-surface`). W arkuszu serwowanym przez Next/Turbopack zostawała **tylko
+wersja `-webkit-`**, której przeglądarka podglądu nie obsługuje
+(`CSS.supports('-webkit-backdrop-filter', …) === false`) — efekt: chrome panelu
+jako półprzezroczysty prostokąt, tekst umowy czytany przez siatkę kalendarza.
+
+**Przyczyna: kolejność deklaracji.** Pipeline CSS zostawia z grupy prefiksów
+**ostatnią** deklarację. Nieprefiksowana stała pierwsza, więc była po cichu
+zjadana — a utility Tailwinda (`backdrop-blur-*`), które mają kolejność
+odwrotną, przeżywały bez szwanku i maskowały problem. Naprawa to zamiana
+kolejności w tych pięciu regułach: **`-webkit-` PRZED wersją standardową**,
+czyli zwyczajowa konwencja CSS.
+
+Zmierzone po zmianie na żywym `.glass`: `backdrop-filter: blur(30px)
+saturate(1.8)` zamiast `none`. Przy okazji przejrzane wszystkie pozostałe pary
+prefiksów w `globals.css` (`background-clip`, `user-select`, `mask-composite`,
+`print-color-adjust`) — te miały kolejność poprawną od początku.
+
+> **Dokładając regułę z prefiksem: prefiks pierwszy, standard ostatni.**
+> Odwrotna kolejność nie daje żadnego objawu w kodzie ani w `tsc` — właściwość
+> po prostu nie istnieje w zbudowanym arkuszu.
+
+### E2 — cztery okna `useUI()` (i toasty) były jasne w ciemnym panelu
+
+`AdminUIProvider` opakowuje `ShellBody`, a klasa `.admin-linear` (ciemna paleta)
+siedzi dopiero **w środku** `ShellBody`. Wszystko, co provider renderuje obok
+`children` — toasty i cztery okna (`confirm`, `prompt`, `choose`,
+`potwierdzenie`) — leżało więc POZA `.admin-linear` i dziedziczyło jasną paletę
+strony publicznej.
+
+Zmierzone: `.card-paper` poza panelem miał tło `rgb(255,255,255)` i tekst
+`rgb(26,24,21)`; w panelu `rgb(13,14,16)` / `rgb(247,248,248)`.
+
+Naprawa to ten sam wzorzec, którym `Menu.tsx` i `Tooltip.tsx` ratują swoje
+portale: klasa `admin-linear` na kontenerze. **Ale sama nie wystarcza** —
+`.admin-linear` niesie wyłącznie ZMIENNE CSS, a kolor tekstu ustawia dopiero
+`text-[var(--fg)]` na kontenerze panelu. Po dołożeniu samej `admin-linear`
+karta zrobiła się ciemna, a tekst został czarny: tło `rgb(13,14,16)` przy
+tekście `rgb(26,24,21)`, czyli kontrast **~1:1 — gorzej niż przed poprawką**.
+Obie klasy, na wszystkich pięciu kontenerach.
+
+Po zmianie, zmierzone na żywych oknach: tło `rgb(13,14,16)`, treść
+**18,15:1**, etykieta drugorzędna 5,94:1, toast błędu 6,98:1.
+
+### E3 — wiersz „Daty" wychodził poza kartę projektu
+
+Progowo, nie zawsze — dlatego nie widać go było w zwykłym oknie. Kolumna
+właściwości w profilu projektu miała `320px`, a najszerszy wiersz profilu
+potrzebuje: etykieta 118 px + dwie daty po ~78 px + strzałka + odstępy ≈ 375 px.
+Zmierzone przy oknie 1180 px: przycisk terminu kończył się **2 px za krawędzią
+płyty**, a podpowiedź „za 40 dni" **59 px za nią**.
+
+Dwie zmiany, każda z innego powodu:
+
+- **Kolumna 320 → 360 px.** Zakres dat („25.07.2026 → 11.09.2026") to JEDNA
+  wartość; rozbity na dwie linijki czyta się jak dwie niezwiązane daty, więc
+  `DateRangeField` zostaje `flex-nowrap`, a miejsce robi mu szersza kolumna.
+  Data nie może się też skracać — ucięty rok to pułapka opisana w `CLAUDE.md`.
+- **`WierszPola` zawija (`flex-wrap` + `gap-y`).** To siatka bezpieczeństwa na
+  KAŻDE okno i każdy moduł, nie tylko na ten wiersz: dopóki treść się mieści,
+  wiersz wygląda jak dotąd (jedna linijka, `min-h-[38px]`, rytm nienaruszony);
+  gdy się nie mieści, zawija się do środka płyty zamiast wystawać poza kartę.
+
+Zmierzone po zmianie przy 820 / 1024 / 1180 / 1440 px: **żaden wiersz profilu
+nie wychodzi poza płytę** (najgorszy przypadek 13 px zapasu do wewnątrz).
+Wiersz „Daty" ma 55 px zamiast 37 tylko wtedy, gdy jest podpowiedź terminu —
+i to jest stałe, nie skaczące.
+
+### E4 — nazwa kamienia milowego ucięta w pół słowa
+
+`EditableText` to `<input>`, a `<input>` domyślnie tnie tekst `clip`-em: bez
+wielokropka, bez żadnego znaku, że coś zostało. „Audyt procesów i danyc"
+wyglądało jak PEŁNA nazwa. Zmierzone: `scrollWidth 287` przy `clientWidth 256`
+i `text-overflow: clip`.
+
+Naprawa: `truncate` na polu. Wielokropek działa w polu NIEAKTYWNYM — czyli
+dokładnie wtedy, kiedy jest potrzebny (po kliknięciu przeglądarka i tak
+przewija do kursora). Dymek z pełną treścią (`title`) już był. Zmierzone po
+zmianie: `text-overflow: ellipsis`.
+
+### D2 — nowy rekord lądował poza ekranem
+
+Przeniesione tu z Fazy 4 decyzją właściciela: to zachowanie listy, nie bariera.
+Po „Dodano leada." rekord trafiał na **11. pozycję z 11** (lista sortuje po
+„ostatni kontakt", a nowy lead żadnego nie ma). Zmierzone: `top: 1021` przy
+oknie 800 px, `scrollTop: 0`, zero podświetlenia. Toast mówił „dodano", ekran
+nie pokazywał.
+
+**Decyzja właściciela: sortowanie zostaje bez zmian.** Kolumna „ostatni
+kontakt" ma dalej sortować czysto po dacie — nowe rekordy NIE wskakują na górę.
+Zamiast tego lista przewija się do nowego rekordu i podświetla go na ~3,8 s.
+
+`app/[lang]/admin/nowyRekord.tsx` — jeden hook na cały panel, wpięty w pięć
+modułów (Leady, Klienci, Projekty, Faktury, Oferty), po obu widokach każdego
+(tablica + tabela + karty mobilne). Trasy już oddawały `{ ok: true, id }`;
+brakowało wyłącznie tego, żeby ktokolwiek to `id` przeczytał.
+
+Dwie rzeczy, które wyszły dopiero z pomiaru:
+
+- **`setTimeout`, nie `requestAnimationFrame`.** Wiersz pojawia się dopiero po
+  `load()` i przerysowaniu, więc trzeba na niego poczekać w pętli. Pierwsza
+  wersja czekała na rAF — a rAF nie tyka w karcie w tle, więc przewinięcie nie
+  następowało wcale. To dokładnie ten artefakt, który `CLAUDE.md` opisuje jako
+  „zamrożony rAF".
+- **`behavior: "auto"`, nie `"smooth"`.** Przewijanie płynne jest animacją
+  kompozytora i w tych samych warunkach nie rusza z miejsca: zmierzone — po
+  `smooth` wiersz został na `top: 1021`, po `auto` przeskoczył na 687.
+
+Zmierzone po zmianie: lista przewinięta (`scrollTop: 334`), wiersz w widocznym
+obszarze pojemnika, obwódka `rgb(143,150,163)` (barwa ZAZNACZENIA, nie stanu —
+„to jest nowe" to chrome interfejsu, nie status rekordu).
+
+### F — próg dotykowy 24×24, rozstrzygnięty raz na cały panel
+
+Trzeci moduł z rzędu odnotowywał to samo jako otwarty punkt, więc tu zapadła
+decyzja: **24×24 px (WCAG 2.5.8) jako próg DOMYŚLNY w całym panelu, z jawną
+listą wyjątków.** Reguła wpisana do `CLAUDE.md` — razem z jedynym dziś
+wyjątkiem (pastylki w siatce miesiąca w Kalendarzu, 16 px, gęsta siatka
+z alternatywną drogą przez rozpiskę dnia).
+
+W Katalogu zmierzone przed zmianą: **186 celów poniżej progu** na jednym
+ekranie — wszystkie to te same trzy ikony wiersza („Otwórz komponent",
+„Edytuj", „Usuń") po 15×15 px, powtórzone w 62 wierszach. Jedna usterka, trzy
+miejsca w kodzie. Rośnie TRAFIENIE, nie rysunek: ikona zostaje 15 px, urasta
+pudełko wokół niej. Po zmianie: **281 celów na ekranie, 0 poniżej progu.**
+
+### Runda domykająca — dwie rzeczy złapane po fazie
+
+Obie znalezione przy sprawdzaniu, czy zostało coś do dokończenia. Obie były
+niewidoczne inaczej niż pomiarem.
+
+#### 1. Czerwone przyciski działań nieodwracalnych nie spełniały progu
+
+`bg-red-500/90` + biały tekst 12 px `font-semibold`. Kontrast **4,47:1**
+w spoczynku i **3,76:1 na hover** (`hover:bg-red-500` rozjaśniał przycisk,
+czyli stan aktywny był GORSZY od spoczynku), przy progu 4,5:1 — tekst 12 px nie
+łapie się na wyjątek dla dużego tekstu. Dotyczyło „Potwierdź" w
+`confirm(danger)`, przycisków `danger` w `choose()` i przycisku działania
+w oknie potwierdzenia (`Potwierdzenie.tsx`), czyli **wszystkich trzech miejsc,
+w których panel pyta o rzecz nieodwracalną**.
+
+Zmienione na `bg-red-600/90` + `hover:bg-red-600`. Zmierzone na żywym oknie:
+**5,67:1** w spoczynku, **4,83:1** na hover — oba przechodzą, a przycisk dalej
+jest jednoznacznie czerwony (znaczenie koloru nietknięte).
+
+> **Uwaga do liczby, którą można spotkać w starszych notatkach:** „3,76:1"
+> podane najpierw jako kontrast spoczynkowy było kolorem **bez zmieszania
+> z tłem** — `getComputedStyle` oddaje `rgba(239,68,68,0.9)`, a kontrast liczy
+> się dla koloru PO złożeniu z podłożem. Mierząc półprzezroczyste tło, złóż je
+> najpierw z tym, co pod nim leży.
+
+#### 2. Utility `bg-*` nie działa na `.card-paper` ani `.card-inset`
+
+Znalezione przy sprawdzaniu własnej poprawki D2. `globals.css` ma
+`.admin-linear .card-paper { background: … }` — **selektor POTOMKA**, więc bije
+zwykłą klasę-utility na specyficzności, niezależnie od kolejności w arkuszu.
+Skutek: w panelu żadne `bg-…` dołożone do karty nie robi nic i **nie daje
+żadnego objawu** — karta po prostu zostaje w swoim kolorze.
+
+Zmierzone: `card-paper` + `bg-zaznaczenie/[0.08]` → `rgb(13,14,16)`, czyli
+dokładnie tło karty; ta sama klasa na gołym `div` → `rgba(143,150,163,0.08)`.
+
+Trzy zastane miejsca żyły z tym po cichu:
+
+- **karta leada na tablicy** — zaznaczenie do akcji zbiorczej pokazywało samą
+  ramkę, bez podświetlenia tła,
+- **karta klienta na tablicy** — to samo,
+- **kafel `SummaryCard` w stanie `alert`** — czerwona ramka bez czerwonej
+  poświaty.
+
+Naprawione wykrzyknikiem Tailwinda (`!bg-…`), który wygrywa ze specyficznością.
+Zmierzone po zmianie: wszystkie trzy oraz podświetlenie D2 dają realny kolor
+tła różny od koloru karty.
+
+> **Dokładając tło do `.card-paper`/`.card-inset` w panelu: `!bg-…`.**
+> Bez wykrzyknika klasa jest martwa, a `tsc`, build i wygląd kodu nie powiedzą
+> o tym ani słowa. To trzeci przypadek tej rodziny w tym repozytorium (po
+> „Tailwind nie skanował `lib/`" i „krycie na zmiennej CSS").
+
+### Sprawdzenie
+
+`npm run przejscie` — **68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+0 pominiętych** (bez zmian; to faza o wyglądzie, przejście sprawdza dane).
+`npx tsc --noEmit` czysto, `npm test` **281/281**.

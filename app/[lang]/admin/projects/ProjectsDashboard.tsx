@@ -23,6 +23,7 @@ import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Tooltip } from "../Tooltip";
 import { Popover, MenuRow, MenuLabel, MenuDivider } from "../Menu";
 import { useUI, useRegisterActions } from "../ui";
+import { useNowyRekord } from "../nowyRekord";
 import { nowaSeria } from "../Potwierdzenie";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
@@ -49,6 +50,8 @@ function isTypingTarget(el: EventTarget | null): boolean {
 
 export function ProjectsDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, prompt, zadanie } = useUI();
+  // Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+  const nowy = useNowyRekord();
   const [projects, setProjects] = useState<Project[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -157,6 +160,11 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
         body: JSON.stringify({ tytul, ...(template ? { template } : {}) }),
       });
       if (res.ok) {
+        // Znalezisko D2 — nowy projekt trafia na tablicy do kolumny „Pomysł",
+        // która przy kilkunastu projektach bywa poza ekranem. Patrz
+        // `../nowyRekord.tsx`.
+        const dane = (await res.json().catch(() => null)) as { id?: string } | null;
+        nowy.pokaz(dane?.id);
         toast(tpl ? `Utworzono projekt z szablonu „${tpl.name}".` : "Dodano projekt.");
         load();
         bumpTimelineRefresh();
@@ -588,6 +596,7 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
           onUpdate={updateProject}
           onDelete={deleteProject}
           onOpen={setOpenId}
+          nowy={nowy}
         />
       ) : (
         <ProjectTimeline

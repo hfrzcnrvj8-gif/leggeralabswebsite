@@ -16,6 +16,7 @@ import {
   StatusTag,
 } from "./shared";
 import { ContextMenu, useContextMenu } from "../Menu";
+import type { NowyRekord } from "../nowyRekord";
 import { Tooltip } from "../Tooltip";
 import { ContactChannelMenuItems, hasChannelActions } from "../ContactChannelMenu";
 import { daysAgoLabel } from "@/lib/dates";
@@ -31,7 +32,11 @@ export function KanbanBoard({
   onOpen,
   activeChannel,
   onFilterChannel,
+  nowy,
 }: {
+  /** Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+   * Patrz `../nowyRekord.tsx`. */
+  nowy?: NowyRekord;
   clients: Client[];
   lang: Locale;
   selectedIds: Set<string>;
@@ -132,11 +137,12 @@ export function KanbanBoard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onOpen(client.id);
                   }}
+                  data-rekord={client.id}
                   className={`card-paper cursor-pointer rounded-xl p-2.5 transition-colors hover:border-zaznaczenie/30 active:cursor-grabbing ${
                     draggingId === client.id ? "opacity-40" : ""
                   } ${overdue ? "border-orange-500/40" : ""} ${
-                    selectedIds.has(client.id) ? "border-zaznaczenie/50 bg-zaznaczenie/[0.06]" : ""
-                  }`}
+                    selectedIds.has(client.id) ? "border-zaznaczenie/50 !bg-zaznaczenie/[0.06]" : ""
+                  } ${nowy?.klasa(client.id) ?? ""}`}
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
                     <span className="flex min-w-0 items-start gap-1.5">

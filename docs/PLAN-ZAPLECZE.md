@@ -2,9 +2,20 @@
 
 **Powstał:** 2026-08-02, po pierwszym przejściu „na sucho"
 (`docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md`). **Punkt startu:** `635f737`.
+**ZAMKNIĘTY:** 2026-08-02, po Fazie 5. Podsumowanie całości — na końcu pliku.
 
 Kolejność zatwierdzona przez właściciela. Zasada dla Fazy 3 zatwierdzona:
 **panel proponuje, właściciel zatwierdza.**
+
+| faza | co dowozi | stan |
+|---|---|---|
+| 0a | całą drogę klienta przechodzi jedno polecenie | ✅ |
+| 0b | kontrola spójności jako ekran *Zdrowie* | ✅ |
+| 1 | jedno przepisanie danych klienta (`lib/przepisanie.ts`) | ✅ |
+| 2 | jedna bramka „czy to wolno wysłać" (`lib/bramkaWysylki.ts`) | ✅ |
+| 3 | komplet skutków zdarzenia jako propozycje (`lib/propozycje.ts`) | ✅ |
+| 4 | lista działań nieodwracalnych (`lib/nieodwracalne.ts`) | ✅ |
+| 5 | wygląd — sześć zebranych usterek | ✅ |
 
 ---
 
@@ -465,6 +476,26 @@ na zbudowanym CSS (E1, E2), geometria elementu (E3, E4), pozycja rekordu na
 liście po dodaniu (D2). Podgląd w przeglądarce ma zamrożony rAF i bywa 0×0 —
 patrz `HANDOFF.md` → „Uwagi, które mają realny wpływ".
 
+### ✅ Wykonane 2026-08-02 — pomiary
+
+| nr | przed | po |
+|---|---|---|
+| **E1** | `backdrop-filter: none` na `.glass` — w zbudowanym CSS zostawała tylko wersja `-webkit-` | `blur(30px) saturate(1.8)`. Przyczyna: pipeline zostawia z grupy prefiksów OSTATNIĄ deklarację, a nieprefiksowana stała pierwsza |
+| **E2** | okna i toasty poza `.admin-linear`: tło `rgb(255,255,255)`, tekst `rgb(26,24,21)` | tło `rgb(13,14,16)`, treść **18,15:1**. Pułapka: sama klasa `admin-linear` dała ciemne tło z czarnym tekstem (**~1:1**) — potrzebne jest też `text-[var(--fg)]` |
+| **E3** | przy 1180 px termin 2 px za krawędzią płyty, podpowiedź 59 px za nią | 0 wierszy poza płytą przy 820/1024/1180/1440 px. Kolumna 320 → 360 px + `flex-wrap` w `WierszPola` |
+| **E4** | `scrollWidth 287` przy `clientWidth 256`, `text-overflow: clip` | `text-overflow: ellipsis` |
+| **D2** | pozycja 11/11, `top: 1021` przy oknie 800, `scrollTop: 0`, brak podświetlenia | lista przewinięta (`scrollTop: 334`), wiersz w widoku, obwódka na 3,8 s. Sortowanie NIETKNIĘTE (decyzja właściciela) |
+| **F** | **186 celów poniżej 24×24** na jednym ekranie Katalogu (3 ikony × 62 wiersze, po 15×15) | **281 celów, 0 poniżej progu.** Próg 24×24 wpisany do `CLAUDE.md` jako domyślny, z jawną listą wyjątków |
+
+**Runda domykająca (ten sam dzień), dwie rzeczy złapane pomiarem po fazie:**
+
+| co | przed | po |
+|---|---|---|
+| czerwone przyciski działań nieodwracalnych | **4,47:1** w spoczynku, **3,76:1 na hover** (stan aktywny gorszy od spoczynku) | **5,67:1** / **4,83:1** — `bg-red-600/90` |
+| `bg-*` na `.card-paper`/`.card-inset` | martwe — `.admin-linear .card-paper` to selektor POTOMKA i bije utility; 3 zastane miejsca po cichu bez tła | działa przez `!bg-…`; zmierzone na wszystkich czterech miejscach |
+
+Szczegóły i wnioski: `HUB_SETUP.md` → „Faza 5 zaplecza" → „Runda domykająca".
+
 ---
 
 ## Czego w tym planie NIE ma
@@ -488,3 +519,89 @@ zgłasza żadnej niespójności. Dokument bez wystawcy nie wychodzi — i odmawi
 tego trasa, nie interfejs.
 
 Wtedy, i dopiero wtedy, zabieramy się za wygląd.
+
+**Tak jest.** Przejście: 68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+0 pominiętych. Ekran *Zdrowie* bez naruszeń. Dokumentu bez wystawcy odmawia
+`lib/bramkaWysylki.ts`, wołana przez trasę. Wygląd zrobiony w Fazie 5.
+
+---
+
+# Podsumowanie całości planu (2026-08-02)
+
+## Co ten plan naprawdę zrobił
+
+Wejściem było **trzydzieści kilka znalezisk** z ręcznego przejścia drogi
+klienta. Wyjściem nie jest trzydzieści kilka łatek, tylko **cztery pliki
+w `lib/`, w których mieszka po jednej zasadzie**, plus dwa narzędzia, które
+sprawdzają DANE zamiast kodu.
+
+| plik | jedno zdanie, którego pilnuje |
+|---|---|
+| `lib/przepisanie.ts` | dane klienta na dokument przepisuje jedno miejsce |
+| `lib/bramkaWysylki.ts` | co wolno wysłać do klienta, decyduje jedna bramka |
+| `lib/propozycje.ts` | skutek zdarzenia panel proponuje, właściciel zatwierdza |
+| `lib/nieodwracalne.ts` | co nieodwracalne — pyta, co odwracalne — nie pyta |
+
+I dwa narzędzia:
+
+- **`npm run przejscie`** (Faza 0a) — jedno polecenie przechodzi całą drogę od
+  leada do opinii i sprawdza dane po każdym kroku. Zastąpiło kilka godzin
+  klikania i trzy pomyłki „artefakt narzędzia kontra błąd panelu".
+- **Ekran *Zdrowie*** (Faza 0b) — kontrola spójności na ŻYWYCH danych. Powstał,
+  bo `error_log` był pusty przy każdym znalezisku: mail z niewypełnionym
+  `[Twoje imię]` wyszedł z kodem 200, oferta bez wystawcy — 200, klient został
+  „Prospektem" po opłaconej fakturze — 200.
+
+## Cztery lekcje, które przeżyją ten plan
+
+1. **Wyjątków nie było ani razu.** Wszystko, co było zepsute, kończyło się
+   kodem 200. „Wyłapywać błędy na bieżąco" nie może więc znaczyć „logować
+   wyjątki" — musi znaczyć kontrolę spójności: twarde zdania o zapleczu, które
+   da się sprawdzić i które muszą być prawdziwe.
+2. **Bariery pilnuje TRASA, nie przycisk.** Faza 2 nauczyła, że bramka
+   sprawdzana w interfejsie działa tylko tam, gdzie ktoś zajrzał — a dróg
+   wysyłki było siedem, nie cztery. Faza 4 poszła od razu tą samą drogą: panel
+   FIZYCZNIE nie zna listy działań nieodwracalnych, dowiaduje się o niej
+   z odpowiedzi 428.
+3. **Dziury są na SZWACH.** Wewnątrz modułów, przeaudytowanych po kolei
+   w Modułach 51–67, było czysto. Wszystko, co ten plan naprawiał, siedziało
+   między modułami i w tym, co wychodzi do klienta.
+4. **Dowodem jest pomiar, nie wygląd i nie dokumentacja.** Faza 5 pokazała to
+   najostrzej: źródło CSS deklarowało właściwość, której w zbudowanym arkuszu
+   nie było; poprawka kontrastu w połowie dała kontrast 1:1; przewinięcie
+   działało w kodzie i nie działało na ekranie.
+
+## Czego ten plan świadomie NIE zrobił
+
+- **Osiem drobiazgów z sekcji F pierwszego przejścia** (kolumny „Ostatni
+  kontakt"/„Dni" nie odświeżają się po wpisie, formularz „Nowy wpis" czyści
+  tylko treść, menu „Wstaw z szablonu" nie zamyka się po wstawieniu, Escape
+  zamyka cały modal profilu, chipy terminu przesuwają się pod kursorem, kroki
+  mapy nieklikalne, lista kanałów otwiera się na checkboxie, pozycje „Skąd
+  przyszedł" bez nazw dostępnościowych). Zakres Fazy 5 to były dokładnie te
+  sześć pozycji z tabeli wyżej — decyzja właściciela. Te osiem czeka.
+- **Kontrast czerwonych przycisków działań nieodwracalnych** — 3,76:1, patrz
+  wyżej.
+- **A5** — „ZLECENIODAWCA / WYKONAWCA" w jednej rubryce na wydruku umowy. To
+  treść dokumentu prawnego, nie reguła wysyłki.
+- **Kafel „Przychód (ten miesiąc)"** pokazujący brutto — decyzja produktowa
+  do rozstrzygnięcia osobno, nie usterka.
+- **Potwierdzenia w apce iOS.** Jedyny dług zostawiony przez ten plan i jedyna
+  rzecz, która po nim działa GORZEJ niż przed (z telefonu): wystawienie
+  faktury, wysyłka dokumentu i usunięcie rekordu wracają z 428 i nie robią nic.
+  Wybór właściciela — „szczelnie od razu", bez furtki dla apki. Brief gotowy:
+  `docs/natywna-aplikacja/35-brief-potwierdzenia.md`.
+- **Propozycje z Fazy 3 w apce iOS** — trasa `/api/hub/propozycje` gotowa,
+  brakuje ekranu w SwiftUI.
+
+## Stan na koniec planu
+
+**Kompletny funkcjonalnie, przeaudytowany, nieużywany produkcyjnie.** Oba
+narzędzia sprawdzające dane — przejście i ekran *Zdrowie* — pokazują zero.
+Czego dalej nie ma: ani jednego prawdziwego klienta, ani jednej faktury
+wystawionej naprawdę.
+
+**Następny krok, który realnie zmienia ten stan, jest nietechniczny:
+rejestracja działalności** (`PO_REJESTRACJI.md`, osiemnaście punktów).
+Blokuje KSeF test → produkcja, prawdziwe dane w nocie prawnej, plan Vercel Pro
+(Hobby zabrania użytku komercyjnego) i przeprowadzkę na NAS.

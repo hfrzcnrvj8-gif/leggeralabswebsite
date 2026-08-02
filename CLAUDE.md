@@ -148,6 +148,44 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
 - Globalna paleta poleceń (Cmd/Ctrl+K) + `useRegisterActions()` — każdy
   nowy moduł powinien zarejestrować swoją akcję „+ Dodaj X” z `id: "add"`
   (skrót `n`)
+- **Cel dotykowy: 24×24 px DOMYŚLNIE** (WCAG 2.5.8), w całym panelu, bez
+  względu na platformę (Faza 5, 2026-08-02 — rozstrzygnięte, bo trzy moduły
+  z rzędu odnotowywały to samo jako otwarty punkt). Rośnie **TRAFIENIE, nie
+  rysunek**: ikona zostaje 14–16 px, urasta pudełko wokół niej
+  (`flex h-6 w-6 shrink-0 items-center justify-center`, albo `-m-1 p-1`, gdy
+  nie wolno rozepchnąć rodzica). **`shrink-0` jest obowiązkowe** — w kontenerze
+  `flex` bez niego pudełko daje się ścisnąć poniżej zadanego rozmiaru i cała
+  poprawka znika bez żadnego objawu w kodzie. Sprawdzenie to jedna linijka
+  `getBoundingClientRect` po `button, a[href], [role="button"], input` — nie
+  „na oko", bo różnica 15 px od 24 px jest niewidoczna, a to 39% powierzchni.
+  **Jawne wyjątki (jedyne):** pastylki w siatce miesiąca w Kalendarzu (16 px) —
+  gęsta siatka 31 dni, gdzie próg wymusiłby przebudowę układu, a każda pastylka
+  ma alternatywną drogę (klik w dzień otwiera rozpiskę z pełnowymiarowymi
+  wierszami). Dokładając nowy wyjątek: dopisz go TUTAJ razem z powodem
+  i alternatywną drogą. Wyjątek bez wpisu w tej liście jest usterką.
+- **Tło na `.card-paper` / `.card-inset` w panelu wymaga `!bg-…`** (Faza 5,
+  runda domykająca). `globals.css` ma `.admin-linear .card-paper { background: … }`
+  — **selektor POTOMKA**, więc bije zwykłą klasę-utility na specyficzności,
+  niezależnie od kolejności w arkuszu. Bez wykrzyknika `bg-…` na karcie **nie
+  robi nic i nie daje żadnego objawu**: `tsc` przechodzi, build przechodzi, karta
+  po prostu zostaje w swoim kolorze. Zmierzone: `card-paper` +
+  `bg-zaznaczenie/[0.08]` → `rgb(13,14,16)` (tło karty), ta sama klasa na gołym
+  `div` → `rgba(143,150,163,0.08)`. Trzy zastane miejsca żyły z martwą klasą.
+  To trzeci przypadek tej rodziny w tym repo — po „Tailwind nie skanował `lib/`"
+  i „krycie na zmiennej CSS". Rozstrzyga `getComputedStyle`, nie wygląd kodu.
+- **Kontrast mierz PO ZŁOŻENIU z tłem.** `getComputedStyle` oddaje
+  `rgba(239,68,68,0.9)`, a kontrast liczy się dla koloru już zmieszanego
+  z podłożem — pominięcie tego dało raz różnicę 3,76 kontra 4,47 i błędny
+  wniosek o skali problemu. Przyciski działań nieodwracalnych stoją dziś na
+  `bg-red-600/90` + `hover:bg-red-600` (5,67:1 / 4,83:1); **stan hover sprawdzaj
+  osobno** — poprzednia wersja rozjaśniała przycisk, więc stan aktywny miał
+  kontrast GORSZY (3,76:1) niż spoczynek.
+- **Nowy rekord na liście: przewiń i podświetl** (`app/[lang]/admin/nowyRekord.tsx`,
+  Faza 5). Sortowanie list zostaje nietknięte — nowe rekordy NIE wskakują na
+  górę. Po udanym `POST` (trasy oddają `{ ok: true, id }`) wołaj
+  `nowy.pokaz(id)`, a wierszowi/karcie daj `data-rekord={id}` i
+  `nowy.klasa(id)`. Bez `data-rekord` podświetlenie zadziała, a przewinięcie
+  nie — i nic tego nie zgłosi.
 
 ## Lokalne środowisko dev (KLUCZOWE — używaj do iteracji wizualnej)
 

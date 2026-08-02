@@ -20,6 +20,7 @@ import { formatPlDate } from "@/lib/projects";
 import { ContextMenu, useContextMenu } from "../Menu";
 import { Tooltip } from "../Tooltip";
 import { KLASA_KURSORA } from "../klawiatura";
+import type { NowyRekord } from "../nowyRekord";
 import { ContactChannelMenuItems, hasChannelActions } from "../ContactChannelMenu";
 import { daysAgoLabel } from "@/lib/dates";
 import { LeadMenuItems } from "./LeadContextMenu";
@@ -46,9 +47,14 @@ export function TableView({
   activeChannel,
   onFilterChannel,
   stanPusty,
+  nowy,
 }: {
   leads: Lead[];
   lang: Locale;
+  /** Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+   * Patrz `../nowyRekord.tsx`. Opcjonalne, żeby widok dało się użyć bez tego
+   * mechanizmu (podstrona `[id]`, podglądy). */
+  nowy?: NowyRekord;
   /** Id wiersza pod kursorem j/k. Podświetlenie OBRYSEM, nie tłem: tło znaczy
    *  „zaznaczone do akcji zbiorczej" (checkbox), a do paczki C obie rzeczy
    *  wyglądały identycznie. */
@@ -124,7 +130,10 @@ export function TableView({
               // przy okazji profilu.
               onClick={() => onOpen(lead.id)}
               onContextMenu={(e) => ctl.openAt(e, lead)}
-              className={`cursor-pointer border-b hairline px-4 py-4 last:border-0 ${overdueRow ? "bg-orange-500/[0.06]" : ""}`}
+              data-rekord={lead.id}
+              className={`cursor-pointer border-b hairline px-4 py-4 last:border-0 ${
+                overdueRow ? "bg-orange-500/[0.06]" : ""
+              } ${nowy?.klasa(lead.id) ?? ""}`}
             >
               {/* Nazwa dostaje CAŁĄ szerokość (Paczka 6). Wcześniej dzieliła
                   wiersz z plakietką statusu, a statusy leadów bywają długie
@@ -284,7 +293,10 @@ export function TableView({
                   onContextMenu={(e) => ctl.openAt(e, lead)}
                   className={`cursor-pointer border-b hairline align-top transition-colors hover:bg-hairline/80 ${
                     overdueRow ? "bg-orange-500/[0.06]" : ""
-                  } ${checked ? "bg-zaznaczenie/[0.08]" : ""} ${kursor ? KLASA_KURSORA : ""}`}
+                  } ${checked ? "bg-zaznaczenie/[0.08]" : ""} ${kursor ? KLASA_KURSORA : ""} ${
+                    nowy?.klasa(lead.id) ?? ""
+                  }`}
+                  data-rekord={lead.id}
                   {...(kursor ? { "data-kursor": "1" as const } : {})}
                 >
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>

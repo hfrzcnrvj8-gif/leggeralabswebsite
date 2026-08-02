@@ -18,6 +18,7 @@ import { KSEF_STATUS_CLASS, KSEF_STATUS_LABEL } from "@/lib/ksef";
 import { formatPlDate } from "@/lib/projects";
 import { daysBetweenISO, todayLocalISO } from "@/lib/dates";
 import { useUI, useRegisterActions, useCopy } from "../ui";
+import { useNowyRekord } from "../nowyRekord";
 import { nowaSeria } from "../Potwierdzenie";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
@@ -46,6 +47,8 @@ type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number };
 
 export function InvoicesDashboard({ lang }: { lang: Locale }) {
   const { toast, confirm, zadanie } = useUI();
+  // Świeżo dodany rekord — przewinięcie i podświetlenie (znalezisko D2).
+  const nowy = useNowyRekord();
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   // Trzeci wariant pustego stanu (paczka E) — patrz komentarz w LeadsDashboard.
   const [blad, setBlad] = useState<string | null>(null);
@@ -99,9 +102,15 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
       }
       const { id } = (await res.json()) as { id: string };
       await load();
+      // Znalezisko D2. Tu nowy dokument otwiera się od razu w edytorze, więc
+      // „nie widzę go" nie występuje — ale po zamknięciu edytora wiersz i tak
+      // bywa poza ekranem. Dlatego zgłaszamy go tą samą drogą co wszędzie:
+      // podświetlenie zdąży wygasnąć, jeśli właściciel siedzi w edytorze
+      // dłużej, i to jest w porządku.
+      nowy.pokaz(id);
       setOpenId(id);
     },
-    [toast, load]
+    [toast, load, nowy]
   );
 
   const deleteInvoice = useCallback(
@@ -498,11 +507,12 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                       key={inv.id}
                       onClick={() => setOpenId(inv.id)}
                       onContextMenu={(e) => ctl.openAt(e, inv)}
+                      data-rekord={inv.id}
                       {...wiersz(
                         i,
                         `cursor-pointer border-b hairline transition-colors hover:bg-hairline/80 ${
                           PILNOSC_ROW[pilnosc]
-                        } ${selectedIds.has(inv.id) ? "bg-zaznaczenie/[0.08]" : ""}`
+                        } ${selectedIds.has(inv.id) ? "bg-zaznaczenie/[0.08]" : ""} ${nowy.klasa(inv.id)}`
                       )}
                     >
                       <td className="p-2.5" onClick={(e) => e.stopPropagation()}>
