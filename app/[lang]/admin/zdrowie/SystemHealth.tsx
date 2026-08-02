@@ -28,8 +28,11 @@ import { parsePgTimestamp } from "@/lib/dates";
 import { opisWieku, type BackupStan, type BackupRun } from "@/lib/backup";
 import { wymagaUwagi, type AutomationRun, type StanAutomatu } from "@/lib/observability";
 import type { WpisBledu } from "@/lib/errorLog";
+import type { StanSpojnosci, WynikReguly } from "@/lib/spojnosc";
 
 type Dane = {
+  spojnosc: StanSpojnosci | null;
+  bladSpojnosci: string | null;
   kopie: BackupStan | null;
   kopieHistoria: BackupRun[];
   bladKopii: string | null;
@@ -93,6 +96,88 @@ function Sekcja({ tytul, opis, children }: { tytul: string; opis: string; childr
       </div>
       {children}
     </section>
+  );
+}
+
+/** Wiersz jednej reguły spójności.
+ *
+ * Zdanie jest zawsze TWIERDZĄCE („Wygrany lead nie ma już przypomnienia"), a
+ * ikona mówi, czy jest dziś prawdziwe. Dzięki temu lista czyta się jak opis
+ * tego, co zaplecze ma robić — także wtedy, gdy wszystko jest zielone.
+ *
+ * Naruszenia schowane pod rozwinięciem, bo przy kilku regułach naraz lista
+ * rekordów zalałaby ekran. Ale LICZBA jest widoczna zawsze — inaczej trzeba by
+ * klikać w każdą regułę, żeby się dowiedzieć, że nic się nie stało. */
+function WierszReguly({ r }: { r: WynikReguly }) {
+  const [otwarte, setOtwarte] = useState(false);
+  const zle = r.naruszenia.length > 0;
+  const wysoka = zle && r.powaga === "wysoka";
+
+  return (
+    <div className={`rounded-lg border p-3 ${wysoka ? "border-brand-gold/40 bg-brand-gold/[0.06]" : "hairline"}`}>
+      <button
+        type="button"
+        onClick={() => setOtwarte((v) => !v)}
+        disabled={!zle && !r.blad}
+        className="flex w-full items-start gap-2.5 text-left disabled:cursor-default"
+      >
+        <span className={`mt-px shrink-0 ${wysoka ? "text-brand-gold" : zle ? "text-muted" : "text-muted"}`}>
+          {zle ? <IconAlertTriangle size={15} /> : <IconCircleCheck size={15} />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className={`text-[13px] ${zle ? "" : "text-muted"}`}>{r.zdanie}</span>
+            {r.luka && (
+              <span className="rounded border hairline px-1 py-px text-[10px] text-muted" title="Numer znaleziska w docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md">
+                {r.luka}
+              </span>
+            )}
+          </span>
+          {zle && (
+            <span className="mt-0.5 block text-[11px] text-muted">
+              {r.naruszenia.length}{" "}
+              {r.naruszenia.length === 1 ? "rekord" : r.naruszenia.length < 5 ? "rekordy" : "rekordów"} — {r.dlaczego}
+            </span>
+          )}
+          {r.blad && <span className="mt-0.5 block text-[11px] text-brand-gold">reguła się nie wykonała: {r.blad}</span>}
+        </span>
+        {(zle || r.blad) && (
+          <IconChevronRight
+            size={14}
+            className="mt-0.5 shrink-0 text-muted transition-transform"
+            style={{ transform: otwarte ? "rotate(90deg)" : "none", transitionTimingFunction: "var(--ease-liquid)" }}
+          />
+        )}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {otwarte && zle && (
+          <motion.ul
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18, ease: EASE_LIQUID }}
+            className="mt-2 space-y-1 overflow-hidden border-t hairline pt-2"
+          >
+            {r.naruszenia.map((n, i) => (
+              <li key={i} className="text-[12px]">
+                {n.link ? (
+                  <a
+                    href={n.link}
+                    className="text-muted underline-offset-2 transition-colors hover:text-[var(--fg)] hover:underline"
+                    style={{ transitionTimingFunction: "var(--ease-liquid)" }}
+                  >
+                    {n.opis}
+                  </a>
+                ) : (
+                  <span className="text-muted">{n.opis}</span>
+                )}
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -216,6 +301,50 @@ export function SystemHealth() {
         transition={SPRING}
         className="grid gap-3 px-4 py-4 sm:px-6 lg:grid-cols-2"
       >
+        {/* Spójność idzie PIERWSZA i na całą szerokość, bo odpowiada na inne
+            pytanie niż reszta ekranu. Kopie, automaty i błędy mówią „czy coś
+            się wywaliło". Ta sekcja mówi „czy dane są wewnętrznie sprzeczne" —
+            a wszystkie znaleziska pierwszego przejścia „na sucho" wyszły z
+            kodem 200 i nie zostawiły śladu w error_log. */}
+        <div className="lg:col-span-2">
+          <Sekcja
+            tytul="Spójność zaplecza"
+            opis="Zdania, które muszą być prawdziwe o danych. Nic tu nie rzuca wyjątku — dlatego trzeba pytać wprost."
+          >
+            {dane.bladSpojnosci ? (
+              <Pas
+                zle
+                tytul="Nie udało się sprawdzić spójności."
+                powod={dane.bladSpojnosci}
+                ikona={<IconAlertTriangle size={15} />}
+              />
+            ) : dane.spojnosc ? (
+              <>
+                <p className="mb-2.5 text-[12px] text-muted">
+                  {dane.spojnosc.naruszonych === 0 ? (
+                    <>Wszystkie {dane.spojnosc.reguly.length} reguł spełnione.</>
+                  ) : (
+                    <>
+                      <span className="text-brand-gold">
+                        {dane.spojnosc.naruszonych} z {dane.spojnosc.reguly.length} reguł
+                      </span>{" "}
+                      niespełnionych, razem {dane.spojnosc.naruszenRazem}{" "}
+                      {dane.spojnosc.naruszenRazem === 1 ? "rekord" : "rekordów"}. Kliknij regułę, żeby zobaczyć które.
+                    </>
+                  )}
+                </p>
+                <div className="space-y-2">
+                  {dane.spojnosc.reguly.map((r) => (
+                    <WierszReguly key={r.id} r={r} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <Pas zle={false} tytul="Brak danych o spójności." ikona={<IconCircleCheck size={15} />} />
+            )}
+          </Sekcja>
+        </div>
+
         <Sekcja tytul="Kopie zapasowe bazy" opis="Meldunki ze skryptu na NAS-ie — jeden na dobę.">
           {dane.bladKopii ? (
             <Pas zle tytul="Nie udało się odczytać stanu kopii." powod={dane.bladKopii} ikona={<IconAlertTriangle size={15} />} />

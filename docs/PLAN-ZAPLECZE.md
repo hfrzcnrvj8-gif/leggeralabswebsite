@@ -101,7 +101,31 @@ przez trasy). Skłaniam się do drugiego — bo połowa znalezisk siedzi właśn
 w trasach — ale to decyzja techniczna, nie produktowa, i podejmę ją po
 obejrzeniu, jak `lib/dev-db.ts` zachowuje się poza Next.
 
-### 0b. Kontrola spójności jako ekran
+### 0b. Kontrola spójności jako ekran — ✅ ZROBIONE 2026-08-02
+
+`lib/spojnosc.ts` + czwarty blok w `/api/observability` + sekcja na
+`/pl/admin/zdrowie` (pierwsza, na całą szerokość). Osiem reguł, siedem z nich
+pilnuje znanych luk, ósma stoi jako czujka nad numeracją faktur.
+
+Reguła jest **zdaniem twierdzącym** („Wygrany lead nie ma już zaplanowanego
+przypomnienia”), a ikona mówi, czy jest dziś prawdziwe — dzięki temu lista
+czyta się jak opis tego, co zaplecze ma robić, także gdy wszystko jest
+zielone. Każde naruszenie wskazuje **konkretny rekord z linkiem**, nie liczbę.
+
+Dwie rzeczy, które wyszły dopiero przy sprawdzaniu na danych:
+
+- **„Poszło do klienta” to `wyslana_at`/`sent_at`, nie `share_token`.**
+  Pierwsza wersja reguł kluczowała po tokenie i milczała na wszystkim — bo
+  dane z seeda mają status „Wysłana” bez tokenu.
+- **Przejście i kontrola spójności złapały się nawzajem na kłamstwie.**
+  Przejście raportowało lukę B6, kontrola na tych samych danych — zero
+  naruszeń. Rację miała kontrola: skrypt „podpisywał” umowę przez
+  `PATCH {status:"Podpisana"}`, trasa to odrzucała (i słusznie: *„Podpisu nie
+  ustawia się statusem”*), a skrypt połykał odmowę w ciszy i asertował skutki
+  podpisu na **niepodpisanej** umowie. Dwa narzędzia patrzące na to samo
+  z dwóch stron są warte więcej niż suma ich części.
+
+### 0b-bis. Pierwotny opis zakresu
 
 Te same zdania, ale uruchamiane na **żywych** danych, nie na testowych.
 Wchodzą na istniejący ekran *Zdrowie* (`/pl/admin/zdrowie`) — nowego modułu

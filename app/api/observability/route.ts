@@ -3,6 +3,7 @@ import { isAuthed } from "@/lib/auth";
 import { getSql, ensureBackupSchema, zPonowieniem } from "@/lib/db";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
 import { stanAutomatow, wczytajBledy, wczytajPrzebiegi } from "@/lib/errorLog";
+import { sprawdzSpojnosc } from "@/lib/spojnosc";
 
 export const runtime = "nodejs";
 
@@ -69,6 +70,19 @@ export async function GET() {
     bladBledow = e instanceof Error ? e.message : String(e);
   }
 
+  // Czwarty blok, dołożony w Fazie 0b (`docs/PLAN-ZAPLECZE.md`). Trzy powyższe
+  // odpowiadają na pytanie „czy coś się wywaliło". Ten odpowiada na inne: „czy
+  // dane są wewnętrznie sprzeczne" — bo wszystkie znaleziska pierwszego
+  // przejścia „na sucho" wyszły z kodem 200 i żadne nie trafiło do error_log.
+  let spojnosc = null;
+  let bladSpojnosci: string | null = null;
+  try {
+    spojnosc = await sprawdzSpojnosc();
+  } catch (e) {
+    console.error("[GET /api/observability] spójność", e);
+    bladSpojnosci = e instanceof Error ? e.message : String(e);
+  }
+
   return NextResponse.json({
     kopie,
     kopieHistoria,
@@ -78,5 +92,7 @@ export async function GET() {
     bladAutomatow,
     bledy,
     bladBledow,
+    spojnosc,
+    bladSpojnosci,
   });
 }

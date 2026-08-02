@@ -364,8 +364,18 @@ async function przejscie(): Promise<void> {
   // ── 7. Podpis ──────────────────────────────────────────────────────────
   krok("Podpis umowy");
   await api("POST", `/api/contracts/${umowaId}/podpis-nasz`);
-  await api("PATCH", `/api/contracts/${umowaId}`, { status: "Podpisana" });
+
+  // NIE `PATCH {status:"Podpisana"}` — trasa to odrzuca (409) i ma rację:
+  // „Podpisu nie ustawia się statusem — użyj «Oznacz jako podpisaną», żeby
+  // zapisać też datę złożenia podpisu”. Pierwsza wersja tego skryptu połykała
+  // tę odmowę w ciszy i asertowała B6 na NIEPODPISANEJ umowie, czyli
+  // sprawdzała nic. Wyszło dopiero z kontroli spójności, która na tych samych
+  // danych zgłosiła zero naruszeń.
+  const podpis = await api("POST", `/api/contracts/${umowaId}/accept`, {});
+  wymagaj(podpis.status === 200, `oznaczenie umowy jako podpisanej → ${podpis.status} ${JSON.stringify(podpis.dane)}`);
+
   const u2 = await pobierzUmowe(umowaId!);
+  sprawdz("umowa naprawdę jest podpisana, zanim sprawdzamy jej skutki", u2.status === "Podpisana", undefined, `status = ${u2.status}`);
   sprawdz("podpis po naszej stronie bierze imię z ustawień firmy", !!u2.podpis_nasz_osoba, undefined, `podpis_nasz_osoba = ${u2.podpis_nasz_osoba}`);
 
   const p2 = await pobierzProjekt(projektId);

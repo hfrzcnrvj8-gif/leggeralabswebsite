@@ -1,0 +1,293 @@
+import { getSql } from "./db";
+
+/**
+ * Kontrola spójności zaplecza — czy panel mówi prawdę o samym sobie.
+ *
+ * **Po co, skoro jest `error_log`.** Bo żadne ze znalezisk pierwszego przejścia
+ * „na sucho" (`docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md`) nie rzuciło wyjątku.
+ * Mail z „[Twoje imię]" wyszedł z kodem 200. Oferta bez wystawcy — 200. Klient
+ * został „Prospektem" po opłaconej fakturze — też 200. Log wyjątków był i jest
+ * pusty, a mimo to zaplecze kłamało.
+ *
+ * Czyli: „wiedzieć, co poszło nie tak" nie może znaczyć „logować wyjątki".
+ * Musi znaczyć — sprawdzać twarde zdania o danych, które MUSZĄ być prawdziwe.
+ *
+ * ── Czym to NIE jest ───────────────────────────────────────────────────────
+ * To nie jest walidacja przy zapisie (ta należy do tras) ani lista rzeczy do
+ * zrobienia (ta jest na Pulpicie). To jest pytanie „czy stan bazy jest
+ * wewnętrznie sprzeczny" — zadawane po fakcie, na żywych danych.
+ *
+ * ── Zasady pisania reguł ───────────────────────────────────────────────────
+ * 1. **Zdanie twierdzące, po ludzku.** „Opłacona faktura ma klienta, który nie
+ *    jest już prospektem" — nie „sprawdź status klienta". Ten plik jest
+ *    zarazem opisem tego, co zaplecze ma robić.
+ * 2. **Naruszenie musi wskazywać rekord**, nie tylko liczbę. Bez nazwy i linku
+ *    właściciel nie ma jak zareagować, a wtedy ekran zamienia się w ozdobę.
+ * 3. **Bez komentarzy `--` w środku sql``** — w tagged template nowe linie
+ *    giną i `--` wycina resztę zapytania. Uczyliśmy się tego na własnej skórze
+ *    (`sql-komentarz-tnie-zapytanie`).
+ * 4. **Każda reguła osobno.** Jedna wywrócona nie może zabrać reszty — ta sama
+ *    zasada, którą trasa /api/observability stosuje do swoich bloków.
+ * 5. **„Poszło do klienta" to `wyslana_at`/`sent_at`, nie `share_token`.**
+ *    Token bywa nadany albo unieważniony niezależnie od wysyłki, a dane z
+ *    seeda mają status „Wysłana” bez tokenu. Pierwsza wersja tych reguł
+ *    kluczowała po tokenie i milczała na wszystkim.
+ */
+
+/** Numer znaleziska z docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md, jeśli reguła
+ *  pilnuje czegoś, co dziś jest znaną, nienaprawioną luką. */
+export type Luka = "A2" | "B1" | "B2" | "B3" | "B5" | "B6" | "C1" | "C3" | "C4";
+
+export type Naruszenie = {
+  /** Zdanie o KONKRETNYM rekordzie — z nazwą, nie z id. */
+  opis: string;
+  /** Dokąd kliknąć, żeby to naprawić. */
+  link?: string;
+};
+
+export type WynikReguly = {
+  id: string;
+  zdanie: string;
+  /** Dlaczego to boli — jedno zdanie, dla kogoś, kto nie pamięta kontekstu. */
+  dlaczego: string;
+  luka?: Luka;
+  /** "wysoka" = widzi to klient albo ma skutek prawny. */
+  powaga: "wysoka" | "srednia";
+  naruszenia: Naruszenie[];
+  /** Reguła sama się wywróciła — nie mylić z „zero naruszeń". */
+  blad?: string;
+};
+
+type Regula = Omit<WynikReguly, "naruszenia" | "blad"> & {
+  zbierz: () => Promise<Naruszenie[]>;
+};
+
+const tekst = (v: unknown, zapas = "(bez nazwy)"): string =>
+  typeof v === "string" && v.trim() ? v.trim() : zapas;
+
+function reguly(): Regula[] {
+  const sql = getSql();
+  return [
+    {
+      id: "oplacona-faktura-a-klient-prospekt",
+      zdanie: "Klient z opłaconą fakturą nie jest już „Prospektem”",
+      dlaczego:
+        "Prospekt to ktoś, z kim jeszcze rozmawiam. Jeśli zapłacił fakturę, " +
+        "to nie prospekt — a wszystkie liczby liczone po statusie kłamią.",
+      luka: "C4",
+      powaga: "srednia",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT c.id AS klient_id, c.nazwa, i.numer
+          FROM invoices i JOIN clients c ON c.id = i.client_id
+          WHERE i.status = 'Opłacona' AND c.status = 'Prospekt'
+          ORDER BY i.updated_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis: `${tekst(w.nazwa)} zapłacił(a) ${tekst(w.numer, "fakturę")}, a nadal ma status „Prospekt”`,
+          link: `/pl/admin/clients/${w.klient_id}`,
+        }));
+      },
+    },
+    {
+      id: "projekt-z-opinia-niezamkniety",
+      zdanie: "Projekt, o którym klient wystawił opinię, jest zamknięty",
+      dlaczego:
+        "Opinia przychodzi na końcu współpracy. Otwarty projekt po opinii " +
+        "zawyża „w toku” i psuje wskaźnik zamkniętych projektów z opinią.",
+      luka: "C1",
+      powaga: "srednia",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT id, tytul, status FROM projects
+          WHERE review_submitted_at IS NOT NULL AND status <> 'Wdrożone'
+          ORDER BY review_submitted_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis: `„${tekst(w.tytul)}” ma opinię klienta, a status to „${tekst(w.status, "?")}”`,
+          link: `/pl/admin/projects/${w.id}`,
+        }));
+      },
+    },
+    {
+      id: "wygrany-lead-z-przypomnieniem",
+      zdanie: "Wygrany lead nie ma już zaplanowanego przypomnienia",
+      dlaczego:
+        "Po wygranej przypomnienie wskoczy do „Wymaga działania dziś” i każe " +
+        "oddzwonić w sprawie, która jest już zamknięta.",
+      luka: "C3",
+      powaga: "srednia",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT id, firma, next_followup, next_action FROM leads
+          WHERE status = 'Zamknięte - sukces' AND next_followup IS NOT NULL
+          ORDER BY next_followup ASC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis:
+            `${tekst(w.firma)} — wygrany, a ma przypomnienie na ${tekst(w.next_followup, "?")}` +
+            (tekst(w.next_action, "") ? `: „${tekst(w.next_action)}”` : ""),
+          link: `/pl/admin/leads/${w.id}`,
+        }));
+      },
+    },
+    {
+      id: "wyslany-dokument-bez-wystawcy-w-migawce",
+      zdanie: "Migawka wysłanego dokumentu zawiera dane wystawcy",
+      dlaczego:
+        "Migawka ma być tym, CO KLIENT ZOBACZYŁ. Jeśli nie obejmuje wystawcy, " +
+        "zmiana nazwy firmy, NIP-u albo konta zmienia wstecz każdy dokument, " +
+        "który klient wciąż może otworzyć. To jedyne z tych naruszeń, które ma " +
+        "skutek prawny.",
+      luka: "A2",
+      powaga: "wysoka",
+      zbierz: async () => {
+        const of = await sql`
+          SELECT id, tytul FROM offers
+          WHERE wyslana_at IS NOT NULL
+            AND (migawka IS NULL OR NOT jsonb_exists(migawka, 'wystawca'))
+          ORDER BY updated_at DESC LIMIT 20;
+        `;
+        const um = await sql`
+          SELECT id, klient_nazwa FROM contracts
+          WHERE sent_at IS NOT NULL
+            AND (migawka IS NULL OR NOT jsonb_exists(migawka, 'wystawca'))
+          ORDER BY updated_at DESC LIMIT 20;
+        `;
+        return [
+          ...of.map((w) => ({
+            opis: `oferta „${tekst(w.tytul)}” jest u klienta bez zamrożonych danych wystawcy`,
+            link: `/pl/admin/offers/${w.id}`,
+          })),
+          ...um.map((w) => ({
+            opis: `umowa dla ${tekst(w.klient_nazwa)} jest u klienta bez zamrożonych danych wystawcy`,
+            link: `/pl/admin/contracts/${w.id}`,
+          })),
+        ];
+      },
+    },
+    {
+      id: "wyslana-oferta-bez-adresu-klienta",
+      zdanie: "Dokument wysłany do klienta ma jego adres",
+      dlaczego:
+        "Adres jest na karcie klienta, ale nie przeszedł na dokument. Klient " +
+        "dostaje ofertę zaadresowaną do samej nazwy firmy.",
+      luka: "B1",
+      powaga: "wysoka",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT id, tytul, klient_nazwa FROM offers
+          WHERE wyslana_at IS NOT NULL
+            AND (COALESCE(klient_ulica, '') = '' OR COALESCE(klient_miasto, '') = '')
+          ORDER BY updated_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis: `oferta „${tekst(w.tytul)}” poszła do klienta bez adresu`,
+          link: `/pl/admin/offers/${w.id}`,
+        }));
+      },
+    },
+    {
+      id: "faktura-bez-umowy-mimo-podpisanej",
+      zdanie: "Faktura zna umowę, która dotyczy tego samego zlecenia",
+      dlaczego:
+        "Faktura powstaje przy akceptacji oferty, umowa dopiero potem — i nic " +
+        "ich nie łączy wstecz. Na fakturze widnieje „umowy — brak —”, choć " +
+        "umowa jest podpisana.",
+      luka: "B3",
+      powaga: "srednia",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT i.id, i.numer, i.project_id
+          FROM invoices i
+          JOIN contracts ct ON ct.project_id = i.project_id AND ct.typ = 'umowa'
+          WHERE i.contract_id IS NULL AND i.project_id IS NOT NULL
+          ORDER BY i.updated_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis: `${tekst(w.numer, "szkic faktury")} nie wskazuje umowy, choć projekt ją ma`,
+          link: `/pl/admin/invoices/${w.id}`,
+        }));
+      },
+    },
+    {
+      id: "projekt-z-podpisana-umowa-bez-terminu",
+      zdanie: "Projekt z podpisaną umową ma termin",
+      dlaczego:
+        "Umowa niesie termin realizacji, projekt go nie dziedziczy. Bez daty " +
+        "projekt nie pojawia się na osi czasu ani w przypomnieniach o terminie.",
+      luka: "B6",
+      powaga: "srednia",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT p.id, p.tytul
+          FROM projects p
+          JOIN contracts ct ON ct.project_id = p.id AND ct.typ = 'umowa'
+          WHERE ct.status = 'Podpisana' AND p.termin IS NULL
+          ORDER BY p.updated_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis: `„${tekst(w.tytul)}” ma podpisaną umowę i nie ma terminu`,
+          link: `/pl/admin/projects/${w.id}`,
+        }));
+      },
+    },
+    {
+      id: "wystawiona-faktura-bez-numeru",
+      zdanie: "Każda niebędąca szkicem faktura ma numer i datę wystawienia",
+      dlaczego:
+        "To integralność dokumentu księgowego. Ta reguła nie pilnuje żadnej " +
+        "znanej luki — stoi tu jako czujka, bo gdyby kiedykolwiek się odezwała, " +
+        "znaczyłoby to, że numeracja się rozjechała.",
+      powaga: "wysoka",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT id, status, numer FROM invoices
+          WHERE status <> 'Szkic'
+            AND (numer IS NULL OR COALESCE(numer, '') = '' OR data_wystawienia IS NULL)
+          ORDER BY updated_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis: `faktura w stanie „${tekst(w.status, "?")}” bez numeru albo bez daty wystawienia`,
+          link: `/pl/admin/invoices/${w.id}`,
+        }));
+      },
+    },
+  ];
+}
+
+export type StanSpojnosci = {
+  reguly: WynikReguly[];
+  /** Ile reguł ma choć jedno naruszenie. */
+  naruszonych: number;
+  /** Suma naruszeń — do jednej liczby na ekranie. */
+  naruszenRazem: number;
+};
+
+/**
+ * Uruchamia wszystkie reguły. Każda w osobnym try/catch: reguła, która sama
+ * się wywróci, nie może zabrać pozostałych ani całego ekranu.
+ */
+export async function sprawdzSpojnosc(): Promise<StanSpojnosci> {
+  const wyniki = await Promise.all(
+    reguly().map(async (r): Promise<WynikReguly> => {
+      const { zbierz, ...opis } = r;
+      try {
+        return { ...opis, naruszenia: await zbierz() };
+      } catch (e) {
+        console.error(`[spójność] reguła ${r.id}`, e);
+        return {
+          ...opis,
+          naruszenia: [],
+          blad: e instanceof Error ? e.message : String(e),
+        };
+      }
+    })
+  );
+
+  return {
+    reguly: wyniki,
+    naruszonych: wyniki.filter((w) => w.naruszenia.length > 0).length,
+    naruszenRazem: wyniki.reduce((s, w) => s + w.naruszenia.length, 0),
+  };
+}
