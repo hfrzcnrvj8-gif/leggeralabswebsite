@@ -3,6 +3,24 @@
 > Dokument nadrzędny. Każdy nowy czat pracujący nad aplikacją natywną zaczyna
 > **stąd**, nie od `docs/plany-modulow/`. Tamten folder opisuje panel webowy.
 
+> 🔴 **STAN NA 2026-08-02 — przeczytaj to, zanim zaczniesz cokolwiek innego.**
+>
+> Apka jest kompletna funkcjonalnie i przeaudytowana (Faza 13.4), ale panel
+> pojechał dalej: plan zaplecza (`docs/PLAN-ZAPLECZE.md`, fazy 0a–5) domknięty
+> 2026-08-02 **zmienił kontrakt tras**. Skutek jest konkretny i niedobry:
+>
+> 1. **Trzy grupy działań z telefonu wracają dziś z `428` i nie robią NIC** —
+>    wystawienie faktury, wysyłka dokumentu, usunięcie rekordu. Trasa wymaga
+>    nagłówka potwierdzenia (Faza 4), a apka go nie wysyła. To **jedyna rzecz
+>    w całym projekcie, która działa GORZEJ niż przed planem**, i jedyny dług,
+>    jaki plan świadomie zostawił (decyzja właściciela: „szczelnie od razu",
+>    bez furtki dla apki). **Brief gotowy: `35-brief-potwierdzenia.md`.**
+> 2. **Propozycje z Fazy 3 nie mają ekranu.** Trasa `/api/hub/propozycje`
+>    działa, brakuje wyłącznie widoku w SwiftUI. Briefu jeszcze nie ma.
+>
+> Aktualny stan całości i lista rzeczy otwartych: `HANDOFF.md` w korzeniu repo.
+> Tabela faz niżej to historia — nie wybieraj z niej następnego zadania.
+
 ## Decyzja i kontekst
 
 **2026-07-18/19: właściciel zdecydował o budowie aplikacji natywnej** po

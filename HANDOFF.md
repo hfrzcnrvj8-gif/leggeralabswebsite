@@ -84,6 +84,18 @@ czy coś zostało. Obie naprawione i zmierzone:
   klienta, alarmowy `SummaryCard`). **Dokładając tło do karty w panelu:
   `!bg-…`.** Bez wykrzyknika klasa jest martwa i nic tego nie zgłasza.
 
+## Następny krok — gotowy do wklejenia
+
+**`PROMPT-APKA-POTWIERDZENIA.md`** w korzeniu repo. Wklej jego treść (od linii
+`---` w dół) jako pierwszą wiadomość w nowym czacie i skasuj plik przy
+najbliższym commicie. Dotyczy repozytorium apki (`../leggera-hub-ios`), nie
+tego. To rekomendowany następny krok, bo jako jedyny naprawia coś **zepsutego**,
+a nie tylko niedokończonego.
+
+Jeśli wolisz zacząć od panelu, drugi kandydat to **osiem drobiazgów z sekcji F
+pierwszego przejścia** (lista niżej) — jeden wieczór, bez briefu, wystarczy
+wskazać `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
+
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
 
 - `npm run dev` w jednym oknie, `npm run przejscie` w drugim. Dev-baza to
