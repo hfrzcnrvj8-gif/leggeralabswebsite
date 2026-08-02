@@ -3,11 +3,26 @@
 **Plik tymczasowy.** Wklej treść poniżej (od linii `---` w dół) jako pierwszą
 wiadomość w nowym czacie, po czym skasuj ten plik przy najbliższym commicie.
 
+**Czat otwierasz w repo PANELU** (`poltechnickx-website`) — tak jak wszystkie
+poprzednie sesje nad apką. Briefy, dokumentacja i `CLAUDE.md` mieszkają tutaj,
+a kod apki jest wskazywany ścieżką bezwzględną.
+
 ---
 
-Zaczynamy pracę nad **aplikacją iOS**, nie nad panelem. Repo apki leży obok
-tego: `../leggera-hub-ios`. Panel (to repo) jest zamknięty i nie ruszamy go
-w tej sesji poza czytaniem.
+Zaczynamy pracę nad **aplikacją iOS**, nie nad panelem.
+
+- Czat jest otwarty w repo **panelu** — tu leżą briefy, `CLAUDE.md`
+  i dokumentacja, i tego się trzymamy.
+- Kod apki: **`/Volumes/OWC_SN850X/projekty_ai/leggera-hub-ios`** (osobne repo
+  gita, własny `origin`, ostatni commit `c48ee6b`). Apka **nie ma** własnego
+  `CLAUDE.md` — zasady projektu czytasz z panelu, a szczegóły budowania,
+  wgrywania i furtek DEBUG z jej `README.md` (duży plik, ~72 kB — szukaj
+  w nim, nie czytaj w całości).
+- Panel w tej sesji **tylko czytamy** (wzorzec `wykonajZadanie()`, kontrakt
+  428). Jeśli okaże się, że trzeba go zmienić — powiedz mi to wprost, zanim
+  cokolwiek ruszysz.
+- **Commit i push idą OSOBNO dla każdego repo.** Sprawdź `git log` w obu przed
+  `git add` — równoległa sesja już raz wchłonęła cudze zmiany.
 
 Na start przeczytaj, w tej kolejności:
 - `HANDOFF.md` — aktualny stan całości i lista rzeczy otwartych
@@ -88,5 +103,8 @@ przepuszczać innego (serwer to sprawdza, apka nie powinna tego obchodzić).
 ## Jak pracujemy
 
 Nie jestem programistą — jeśli coś wymaga decyzji nietechnicznej, pytaj wprost.
-Na koniec podaj mi polecenia do commita i pusha **dla obu repozytoriów**, jeśli
-zmieni się coś po stronie panelu (nie powinno).
+
+Na koniec podaj mi polecenia do commita i pusha **osobno dla repo apki**
+(`/Volumes/OWC_SN850X/projekty_ai/leggera-hub-ios`) i — jeśli cokolwiek się tam
+zmieni, a nie powinno — osobno dla panelu. Skasuj też ten plik promptu
+(`PROMPT-APKA-POTWIERDZENIA.md`) z repo panelu, tak jak robiliśmy z poprzednimi.
