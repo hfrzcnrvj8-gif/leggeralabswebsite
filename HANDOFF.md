@@ -7,8 +7,9 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- Panel: ostatni commit to **`1eb9446`** „Faza 5: wygląd — sześć usterek
-  zmierzonych i zamkniętych, plan zaplecza domknięty", poprzedni `18d693a`.
+- Panel: na wierzchu ten handoff, pod nim **`1eb9446`** „Faza 5: wygląd — sześć
+  usterek zmierzonych i zamkniętych, plan zaplecza domknięty", a pod nim
+  `18d693a`.
 - Repozytorium czyste i wypchnięte. `tsc` czysto, `npm test` **281/281**.
 - `npm run przejscie`: **68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
   0 pominiętych** — przy serwerze świeżo po restarcie. Kilka przebiegów pod
