@@ -53,7 +53,35 @@ To wskazanie, czego brakuje obok.
 zaplecze działa, jest przeklikanie całej drogi ręcznie. Zajęło to kilka godzin
 i trzy razy pomyliłem artefakt narzędzia z błędem panelu.
 
-### 0a. Przejście całej drogi jako test
+### 0a. Przejście całej drogi jako test — ✅ ZROBIONE 2026-08-02
+
+`npm run przejscie` (`scripts/przejscie/`, README obok). Pierwszy wynik:
+**21 działa · 12 znanych luk · 0 regresji · 1 obejście · 2 pominięte.**
+
+Rozstrzygnięta decyzja techniczna: **`fetch` do działającego `npm run dev`**,
+nie PGlite w procesie. Powód: trasy wołają `isAuthed()` przez `next/headers`,
+więc poza kontekstem żądania się nie uruchomią — a połowa znalezisk siedzi
+właśnie w trasach.
+
+Trzy rzeczy, których nie było widać przed napisaniem:
+
+- **Sprawdzać trzeba powód, nie kod.** Pierwsza wersja uznała lukę A2 za
+  naprawioną, bo `/send` zwróciło 400 — ale z powodu pustego e-maila klienta,
+  nie braku wystawcy. Rozstrzyga to dopiero sterowana sonda, zmieniająca jedną
+  rzecz naraz. Ta sama pułapka czeka w każdej kolejnej fazie.
+- **Hamulec publicznych dokumentów (5/60 min) czyni drogę KLIENTA
+  niepowtarzalną** — po kilku przebiegach akceptacja i opinia przez publiczny
+  link zwracają 429. To dobra decyzja z audytu Modułu 57 i nie osłabiamy jej;
+  skrypt dopina te kroki od strony panelu i wypisuje, czego nie sprawdził.
+- **Akceptacja od strony panelu nie zapisuje, kto zaakceptował.** Nie nazywam
+  tego luką — właściciel odnotowuje wtedy cudzą zgodę, a nie ją składa — ale
+  warto to rozstrzygnąć w Fazie 4 przy okazji listy działań nieodwracalnych.
+
+Skrypt mierzy dwie rzeczy, których nie planowałem: **liczbę obejść** (ile razy
+trzeba załatać przepływ palcami, żeby dojść do końca — dziś 1, po Fazie 1 ma
+być 0) i **liczbę pominięć** (czego przebieg nie sprawdził).
+
+### 0a-bis. Pierwotny opis zakresu
 
 Jedno polecenie przechodzi: lead → wpis w historii → oferta → wysyłka →
 akceptacja przez klienta → umowa → podpis → projekt → faktura → wystawienie →

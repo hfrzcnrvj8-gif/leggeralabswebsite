@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "node --import tsx --test test/*.test.ts",
+    "przejscie": "node --import tsx scripts/przejscie/przejscie.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.2",
