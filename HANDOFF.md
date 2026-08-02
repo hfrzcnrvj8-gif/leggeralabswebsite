@@ -90,14 +90,22 @@ Potwierdzenia w apce są **zrobione** (2026-08-02) — to była ostatnia rzecz,
 która po planie zaplecza działała gorzej niż przed nim. `PROMPT-APKA-
 POTWIERDZENIA.md` skasowany, bo zużyty.
 
-Kandydaci, w kolejności:
+**Wybrany następny moduł: „Propozycje" w apce iOS.** Brief gotowy —
+`docs/natywna-aplikacja/36-brief-propozycje.md`. Do wklejenia w nowym czacie:
+**`PROMPT-APKA-PROPOZYCJE.md`** w korzeniu repo (skasuj plik przy najbliższym
+commicie). Dotyczy repozytorium apki, nie tego.
 
-1. **Ekran „Propozycje" w apce iOS** — trasa `/api/hub/propozycje` gotowa od
-   Fazy 3, brakuje wyłącznie widoku SwiftUI. Briefu jeszcze nie ma.
-2. **Osiem drobiazgów z sekcji F pierwszego przejścia** (lista niżej) — jeden
+Najważniejsze z briefu, żeby nie zginęło: **`/api/hub/today` już zwraca pole
+`propozycje`, a apka je wyrzuca**, bo `PulpitDzis` go nie dekoduje — dla
+Pulpitu nie trzeba ani jednego nowego żądania. `PulpitDzis` ma ręczny
+`init(from:)`, więc nowe pole = trzy miejsca.
+
+Dalsi kandydaci:
+
+1. **Osiem drobiazgów z sekcji F pierwszego przejścia** (lista niżej) — jeden
    wieczór, bez briefu, wystarczy wskazać
    `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
-3. **Rejestracja firmy** — nietechniczne, ale jako jedyne realnie zmienia stan
+2. **Rejestracja firmy** — nietechniczne, ale jako jedyne realnie zmienia stan
    projektu (`PO_REJESTRACJI.md`).
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
