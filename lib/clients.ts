@@ -146,6 +146,10 @@ export const CLIENT_EVENT_KINDS = [
   "review_requested",
   "review_collected",
   "nurture_contact_sent",
+  // Faza 3 — zatwierdzona propozycja „przestaw klienta na Aktywny". Oś czasu
+  // klienta znała zmiany statusu PROJEKTU, ale nie zmiany statusu samego
+  // klienta; skoro to teraz osobne, świadome kliknięcie, ma zostawiać ślad.
+  "client_status_changed",
 ] as const;
 export type ClientEventKind = (typeof CLIENT_EVENT_KINDS)[number];
 

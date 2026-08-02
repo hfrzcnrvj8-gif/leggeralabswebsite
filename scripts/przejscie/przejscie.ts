@@ -374,11 +374,15 @@ async function przejscie(): Promise<void> {
   const lead3 = await pobierzLead(leadId!);
   sprawdz("akceptacja zamyka leada jako sukces", lead3.status === "Zamknięte - sukces");
 
-  // ── TU siedzi C3 ──
+  // ── C3, zamknięte w Fazie 3 jako PROPOZYCJA ──
+  // Uwaga na kształt tej asercji: przypomnienie ma tu jeszcze ŻYĆ. Panel nie
+  // zdejmuje go sam, bo wygrany lead z umówionym demo bywa leadem, z którym
+  // to demo i tak się odbędzie (decyzja właściciela: propozycja, nie automat).
+  // Sprawdzamy więc nie skutek, tylko to, że panel go PROPONUJE.
   sprawdz(
-    "wygrany lead nie zostaje z żywym przypomnieniem",
-    !lead3.next_followup,
-    "C3",
+    "wygrany lead z żywym przypomnieniem rodzi propozycję jego zdjęcia",
+    (await propozycjeDla(leadId!)).some((p) => p.regula === "wygrany-lead-bez-przypomnienia"),
+    undefined,
     `next_followup = ${lead3.next_followup}, next_action = „${lead3.next_action}”`
   );
 
@@ -512,14 +516,18 @@ async function przejscie(): Promise<void> {
   const f5 = await pobierzFakture(fakturaId);
   sprawdz("pełna wpłata przestawia fakturę na Opłaconą", f5.invoice.status === "Opłacona", undefined, `status = ${f5.invoice.status}`);
 
-  // ── TU siedzi C4 ──
+  // ── C4, zamknięte w Fazie 3 jako PROPOZYCJA ──
   const klient2 = klientId ? await pobierzKlienta(klientId) : null;
-  sprawdz(
-    "klient po opłaconej fakturze nie jest już „Prospektem”",
-    klient2?.status !== "Prospekt",
-    "C4",
-    `status klienta = ${klient2?.status}; ostatni_kontakt = ${klient2?.ostatni_kontakt}`
-  );
+  if (klientId) {
+    sprawdz(
+      "opłacona faktura rodzi propozycję przestawienia klienta na „Aktywny”",
+      (await propozycjeDla(klientId)).some((p) => p.regula === "oplacony-klient-aktywny"),
+      undefined,
+      `status klienta = ${klient2?.status}; ostatni_kontakt = ${klient2?.ostatni_kontakt}`
+    );
+  } else {
+    pominiete.push("propozycja „klient → Aktywny” — oferta nie dostała karty klienta");
+  }
 
   // ── 10. Opinia ─────────────────────────────────────────────────────────
   krok("Opinia");
@@ -551,15 +559,126 @@ async function przejscie(): Promise<void> {
   sprawdz("opinia zapisuje trzy oceny", p3.project.review_rating_jakosc === 5 && p3.project.review_rating_terminowosc === 4);
   sprawdz("opinia zapisuje zgodę na case study wraz z imieniem", p3.project.review_consent_case_study === true && !!p3.project.review_consent_name);
 
-  // ── TU siedzi C1 ──
+  // ── C1, zamknięte w Fazie 3 jako PROPOZYCJA ──
   sprawdz(
-    "opinia domyka projekt",
-    p3.project.status === "Wdrożone",
-    "C1",
+    "opinia rodzi propozycję domknięcia projektu",
+    (await propozycjeDla(projektId)).some((p) => p.regula === "opinia-zamyka-projekt"),
+    undefined,
     `status projektu po opinii = ${p3.project.status}`
   );
 
-  // ── 11. Sonda: czego pilnuje bramka wysyłki ────────────────────────────
+  // ── 11. Propozycje: komplet skutków zdarzenia (Faza 3) ─────────────────
+  // Sprawdzenie fazy, wprost z planu: „na Pulpicie stoją dokładnie te
+  // propozycje, których się spodziewamy — ani jednej więcej". Liczymy TYLKO
+  // po rekordach z tego przebiegu: dev-baza ma też dane z seeda, więc liczba
+  // wszystkich propozycji w bazie niczego by nie dowodziła.
+  krok("Propozycje");
+  const nasze = [leadId!, projektId, ...(klientId ? [klientId] : [])];
+  const stoja = (await pobierzPropozycje()).filter((p) => nasze.includes(p.rekordId));
+  const oczekiwane = [
+    "wygrany-lead-bez-przypomnienia",
+    "opinia-zamyka-projekt",
+    ...(klientId ? ["oplacony-klient-aktywny"] : []),
+  ];
+  sprawdz(
+    "po całej drodze stoją dokładnie te propozycje, których się spodziewamy",
+    stoja.length === oczekiwane.length && oczekiwane.every((r) => stoja.some((p) => p.regula === r)),
+    undefined,
+    `stoi ${stoja.length} (${stoja.map((p) => p.regula).join(", ") || "brak"}), ` +
+      `spodziewane ${oczekiwane.length} (${oczekiwane.join(", ")})`
+  );
+
+  // „Nie teraz" musi przeżyć odświeżenie strony — czyli siedzieć w bazie, nie
+  // w przeglądarce. Sprawdzamy to jedynym sposobem, który to naprawdę dowodzi:
+  // osobnym żądaniem, bez żadnego stanu po drodze.
+  await decyzjaOPropozycji("wygrany-lead-bez-przypomnienia", leadId!, "odrzuc");
+  const poOdrzuceniu = await propozycjeDla(leadId!);
+  sprawdz(
+    "„Nie teraz” zdejmuje propozycję i przeżywa nowe żądanie",
+    !poOdrzuceniu.some((p) => p.regula === "wygrany-lead-bez-przypomnienia"),
+    undefined,
+    `po odrzuceniu wciąż widać: ${poOdrzuceniu.map((p) => p.regula).join(", ") || "nic"}`
+  );
+
+  // Odrzucenie to nie usterka, tylko decyzja — ekran „Zdrowie" ma o niej
+  // milczeć. Inaczej świeciłby na czerwono z powodu świadomego wyboru
+  // właściciela, a czerwień, którą trzeba ignorować, przestaje coś znaczyć.
+  const zdrowie = await api("GET", "/api/observability");
+  const naruszeniaLeada = ((zdrowie.dane?.spojnosc?.reguly ?? []) as any[])
+    .flatMap((r: any) => (r.naruszenia ?? []).map((n: any) => n.rekordId))
+    .filter((x: string) => x === leadId);
+  sprawdz(
+    "świadomie odłożona propozycja nie zapala ekranu „Zdrowie”",
+    naruszeniaLeada.length === 0,
+    undefined,
+    `reguły spójności zgłaszają ten lead ${naruszeniaLeada.length} raz(y)`
+  );
+
+  await decyzjaOPropozycji("wygrany-lead-bez-przypomnienia", leadId!, "przywroc");
+  sprawdz(
+    "odłożoną propozycję da się przywrócić",
+    (await propozycjeDla(leadId!)).some((p) => p.regula === "wygrany-lead-bez-przypomnienia"),
+    undefined,
+    "bez drogi powrotu jedno pomyłkowe kliknięcie kasowałoby podpowiedź na zawsze"
+  );
+
+  // Zatwierdzenie — dopiero tu panel COKOLWIEK zmienia.
+  await decyzjaOPropozycji("wygrany-lead-bez-przypomnienia", leadId!, "zrob");
+  const lead4 = await pobierzLead(leadId!);
+  sprawdz(
+    "zatwierdzenie zdejmuje przypomnienie z wygranego leada",
+    !lead4.next_followup && !lead4.next_action,
+    undefined,
+    `next_followup = ${lead4.next_followup}, next_action = „${lead4.next_action}”`
+  );
+
+  if (klientId) {
+    await decyzjaOPropozycji("oplacony-klient-aktywny", klientId, "zrob");
+    const klient3 = await pobierzKlienta(klientId);
+    sprawdz(
+      "zatwierdzenie przestawia klienta z „Prospekta” na „Aktywnego”",
+      klient3?.status === "Aktywny",
+      undefined,
+      `status klienta = ${klient3?.status}`
+    );
+  }
+
+  await decyzjaOPropozycji("opinia-zamyka-projekt", projektId, "zrob");
+  const p4 = await pobierzProjekt(projektId);
+  sprawdz(
+    "zatwierdzenie domyka projekt jako „Wdrożone”",
+    p4.project.status === "Wdrożone",
+    undefined,
+    `status projektu = ${p4.project.status}`
+  );
+  // Zamknięcie projektu to nie sam status: przy wejściu w „Wdrożone" panel
+  // planuje klientowi dwa kontakty kontrolne (Moduł 2). Gdyby propozycja
+  // robiła sam UPDATE, zamknięcie tą drogą po cichu gubiłoby pętlę retencji —
+  // dlatego skutek liczy jedna funkcja dla obu dróg (lib/skutkiProjektu.ts).
+  if (klientId) {
+    // Szukamy kontaktów przypiętych do TEGO projektu, nie „czegoś, co wygląda
+    // na kontakt": pierwsza wersja tej asercji sprawdzała, czy odpowiedź
+    // zawiera słowo „kontakt", i przechodziła na polu `osoba_kontaktowa`.
+    const karta = await api("GET", `/api/clients/${klientId}`);
+    const nurture = ((karta.dane?.followups ?? []) as any[]).filter((f) => f.project_id === projektId);
+    sprawdz(
+      "zatwierdzenie domknięcia planuje kontakty kontrolne, jak ręczna zmiana statusu",
+      nurture.length === 2,
+      undefined,
+      `kontaktów zaplanowanych dla tego projektu: ${nurture.length} (spodziewane 2: 14 i 90 dni) — ` +
+        `propozycja ma robić CAŁY skutek zdarzenia, nie sam status`
+    );
+  }
+
+  const zostalo = (await pobierzPropozycje()).filter((p) => nasze.includes(p.rekordId));
+  sprawdz(
+    "po zatwierdzeniu wszystkich nie zostaje ani jedna propozycja z tej drogi",
+    zostalo.length === 0,
+    undefined,
+    `zostało: ${zostalo.map((p) => `${p.regula}→${p.rekordId}`).join(", ")}`
+  );
+
+  // ── 12. Sonda: czego pilnuje bramka wysyłki ────────────────────────────
   // Osobny, sterowany eksperyment — bo w głównej drodze nie da się odróżnić
   // „odmówiono z powodu wystawcy” od „odmówiono z powodu maila klienta”.
   // Bierzemy ofertę z KOMPLETNYM klientem i po kolei zabieramy dane firmy.
@@ -613,7 +732,7 @@ async function przejscie(): Promise<void> {
     `powody: ${powody(odmowa).join(", ")}`
   );
 
-  // ── 12. Sonda: ostrzeżenie da się przejść, blokady nie ─────────────────
+  // ── 13. Sonda: ostrzeżenie da się przejść, blokady nie ─────────────────
   krok("Sonda: ostrzeżenie kontra blokada");
   const sondaOstrz = await api("POST", "/api/offers", { klient_nazwa: `Sonda ostrzeżenia [${ZNACZNIK}]` });
   const sondaOstrzId = id(sondaOstrz.dane);
@@ -657,7 +776,7 @@ async function przejscie(): Promise<void> {
     `→ ${naSile.status} ${JSON.stringify(naSile.dane?.error ?? naSile.dane)}`
   );
 
-  // ── 13. Sonda: mail z niewypełnionym nawiasem (A1) ─────────────────────
+  // ── 14. Sonda: mail z niewypełnionym nawiasem (A1) ─────────────────────
   // Najpoważniejsze znalezisko przejścia: do klienta poszło dosłownie
   // „Pozdrawiam, [Twoje imię]". Trasa sprawdzała tylko, czy treść jest
   // niepusta. Projekt z tej drogi ma klienta z mailem, więc odmowa może
@@ -673,11 +792,11 @@ async function przejscie(): Promise<void> {
     undefined,
     `→ ${zNawiasem.status}, powody: ${powodyMaila.join(", ") || "(brak listy)"}`
   );
-  // Ostrzeżenie „mail mówi o zakończeniu, a projekt jest w trakcie" jest tu
-  // PRAWDZIWE, dopóki żyje luka C1 (opinia nie domyka projektu — Faza 3).
-  // Dlatego przechodzimy je świadomie zgodą, zamiast omijać temat innym
-  // zdaniem w mailu: sonda ma pokazać, że zgoda działa, a nie że nie było
-  // czego przechodzić.
+  // `mimo_ostrzezen` zostaje, choć po Fazie 3 projekt jest już „Wdrożone"
+  // i ostrzeżenie „mail mówi o zakończeniu, a projekt jest w trakcie" tu nie
+  // pada. Sonda ma sprawdzać, że mail Z PODPISEM wychodzi — a nie zależeć od
+  // tego, czy akurat jest co przechodzić zgodą (to sprawdza krok wyżej,
+  // na ofercie bez sekcji).
   const bezNawiasu = await api("POST", `/api/projects/${projektId}/request-review`, {
     body: `Projekt zakończony — dziękuję za współpracę!\n\nPozdrawiam,\n${DANE_FIRMY.osoba_podpisujaca}`,
     mimo_ostrzezen: true,
@@ -712,6 +831,37 @@ async function pobierzProjekt(id: string): Promise<any> {
 }
 async function pobierzFakture(id: string): Promise<any> {
   return (await api("GET", `/api/invoices/${id}`)).dane;
+}
+
+// ── Propozycje (Faza 3) ────────────────────────────────────────────────────
+
+type PropozycjaZTrasy = { regula: string; rekordId: string; zdanie: string };
+
+/** Cała lista, jak widzi ją Pulpit — bez filtrowania po module, bo propozycje
+ *  z jednej drogi klienta dotyczą trzech różnych modułów naraz. */
+async function pobierzPropozycje(): Promise<PropozycjaZTrasy[]> {
+  const { dane } = await api("GET", "/api/hub/propozycje");
+  return (dane?.propozycje ?? []) as PropozycjaZTrasy[];
+}
+
+async function propozycjeDla(rekordId: string): Promise<PropozycjaZTrasy[]> {
+  return (await pobierzPropozycje()).filter((p) => p.rekordId === rekordId);
+}
+
+async function decyzjaOPropozycji(
+  regula: string,
+  rekordId: string,
+  decyzja: "zrob" | "odrzuc" | "przywroc"
+): Promise<void> {
+  const odp = await api("POST", "/api/hub/propozycje", { regula, rekordId, decyzja });
+  // Cicha odmowa jest tu groźniejsza niż błąd: asercja niżej sprawdzałaby
+  // skutek, którego nikt nie próbował wykonać, i ogłosiłaby lukę za otwartą
+  // (dokładnie ten błąd, który przy podpisie umowy połknął 409 i asertował
+  // na niepodpisanym dokumencie).
+  wymagaj(
+    odp.status === 200,
+    `decyzja „${decyzja}” o propozycji ${regula} → ${odp.status} ${JSON.stringify(odp.dane)}`
+  );
 }
 
 // ── Drobiazgi ──────────────────────────────────────────────────────────────

@@ -11261,3 +11261,94 @@ zatrzyma wtedy wysyłkę i powie, gdzie go uzupełnić.
   kontra blokada, mail z nawiasem.
 - `lib/spojnosc.ts` — reguła „Migawka wysłanego dokumentu zawiera dane
   wystawcy" obejmuje teraz także faktury; znacznik `luka: "A2"` zdjęty.
+
+---
+
+## Faza 3 zaplecza — skutki zdarzenia jako propozycje (2026-08-02)
+
+**Zamknęła C1, C3, C4** — trzy ostatnie luki z pierwszego przejścia „na
+sucho". Zasada, zatwierdzona przez właściciela: **panel proponuje, właściciel
+zatwierdza.**
+
+### Co widzi właściciel
+
+Sekcja **„Propozycje"** — jedno zdanie, przycisk z czasownikiem („Zamknij
+projekt", „Zdejmij przypomnienie", „Przestaw na Aktywny") i „Nie teraz".
+Stoi w czterech miejscach: na Pulpicie (wszystkie) oraz w Leadach, Klientach
+i Projektach (tylko swoje). **Nowego modułu świadomie nie ma** — propozycja to
+sprawa do zrobienia dziś, więc mieszka tam, gdzie się na takie patrzy.
+Znika w całości, gdy nie ma o co pytać.
+
+Kolor: cyjan marki na akcji, sama krawędź na „Nie teraz". Reszta „Wymaga
+działania dziś" jest pomarańczowa, bo mówi o zaległości — propozycja nie jest
+zaległa, więc pomarańcz kłamałby (słownik koloru: kolor niesie STAN
+i PILNOŚĆ).
+
+### Trzy reguły
+
+| reguła | kiedy | co robi po zatwierdzeniu |
+|---|---|---|
+| `opinia-zamyka-projekt` | projekt ma opinię, a status ≠ „Wdrożone" | status → „Wdrożone" **plus komplet skutków** (oś klienta, dwa kontakty kontrolne) |
+| `wygrany-lead-bez-przypomnienia` | lead „Zamknięte - sukces" z żywym `next_followup` | czyści `next_followup` i `next_action` |
+| `oplacony-klient-aktywny` | klient „Prospekt" z opłaconą fakturą | status → „Aktywny” + wpis `client_status_changed` na osi |
+
+### Reguły liczą się z DANYCH, nie z zapisu przy zdarzeniu
+
+`lib/propozycje.ts` pyta bazę o stan („klient jest Prospektem, a ma opłaconą
+fakturę"). Nie ma tabeli z propozycjami — jest tylko `propozycje_decyzje`
+z odrzuceniami (klucz główny na parze reguła+rekord).
+
+To wprost lekcja z Fazy 2: bramka miała obowiązywać w czterech miejscach,
+a wysyłek okazało się siedem. Propozycja zakładana w trasie obowiązywałaby
+tylko tam, gdzie ktoś pamiętał ją dopisać. Stąd trzy rzeczy za darmo: **obie
+drogi opinii** (publiczny formularz i wpis ręczny w panelu) rodzą tę samą
+propozycję, reguły **działają wstecz**, a **„jedna na rekord"** (decyzja
+właściciela) wychodzi z samego zapytania.
+
+**Dokładając regułę:** dopisz wpis do `REGULY` w `lib/propozycje.ts` — zbierz
+(SQL) i wykonaj (zapis warunkowy „claim", żeby dwa kliknięcia nie zrobiły
+skutku dwa razy). Trasa, interfejs i licznik na Pulpicie nie wymagają zmian.
+
+### Granica: co zostaje automatem (decyzja właściciela)
+
+Automatem zostaje skutek **wywołany świadomym kliknięciem właściciela i
+oczywisty** — akceptujesz ofertę, lead robi się wygrany (`lib/offerAccept.ts`
+działa jak dotąd). Propozycją staje się skutek, który **przychodzi z zewnątrz**
+(opinia klienta, zapłata) albo **nie jest oczywisty**: wygrany lead
+z umówionym demo bywa leadem, z którym to demo i tak się odbędzie.
+
+### „Nie teraz" jest trwałe — i odwracalne
+
+Odrzucenie idzie do bazy, na zawsze dla tej pary (reguła, rekord). Do tego
+„Odłożone (N) — przywróć": bez drogi powrotu jedno pomyłkowe kliknięcie
+kasowałoby podpowiedź bezpowrotnie.
+
+**Ekran *Zdrowie* milczy na tym, co świadomie odłożono**, ale nadal mówi
+o propozycjach czekających. Czekająca to naprawdę sprzeczny stan (tyle że
+z jednoklikowym wyjściem); odrzucona to rozstrzygnięta decyzja właściciela,
+a czerwień z powodu cudzej świadomej decyzji uczy tylko ignorowania czerwieni.
+
+### Zamknięcie projektu to nie jeden `UPDATE`
+
+Przy wejściu w „Wdrożone" panel planuje jeszcze **dwa kontakty kontrolne**
+(nurture, Moduł 2) i pisze na oś klienta. Cały ten komplet siedział wewnątrz
+`PATCH /api/projects/:id`, więc każda inna droga do „Wdrożone" robiła połowę
+roboty w ciszy. Od tej fazy liczy go `lib/skutkiProjektu.ts` —
+`skutkiZmianyStatusuProjektu()`, wołane i przez trasę PATCH, i przez
+zatwierdzenie propozycji. Ten sam precedens co `lib/offerAccept.ts`
+i `projektPoPodpisieUmowy`: **skutek zdarzenia nie może zależeć od tego, kto
+kliknął.**
+
+### Jak to jest pilnowane
+
+- `test/propozycje.test.ts` — 12 testów bez bazy: treść zdania (nazwa, data po
+  polsku, brak pustych cudzysłowów i nawiasów) i widoczność (odrzucenie
+  dotyczy JEDNEJ pary, nie całej reguły ani całego rekordu).
+- `npm run przejscie` — **59 działa · 0 znanych luk · 0 regresji · 0 obejść**,
+  w tym krok „Propozycje": po całej drodze stoją dokładnie trzy spodziewane
+  propozycje (ani jedna więcej), „Nie teraz" przeżywa nowe żądanie, odłożona
+  propozycja nie zapala *Zdrowia*, da się ją przywrócić, a zatwierdzenie
+  domknięcia planuje **dwa** kontakty kontrolne — tak samo jak ręczna zmiana
+  statusu.
+- `lib/spojnosc.ts` — znaczniki `luka` C1/C3/C4 zdjęte; reguły zostają jako
+  czujki nad tym, co już działa. **Lista znanych luk jest pusta.**

@@ -20,6 +20,7 @@ import type { Note } from "@/lib/notes";
 import { todayLocalISO } from "@/lib/dates";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
 import { stanAutomatow, zapiszWyjatek } from "@/lib/errorLog";
+import { zbierzPropozycje, type StanPropozycji } from "@/lib/propozycje";
 import { wymagaUwagi, type StanAutomatu } from "@/lib/observability";
 
 export const runtime = "nodejs";
@@ -327,9 +328,23 @@ export async function GET() {
     await zapiszWyjatek("nadzor", "Nie udało się odczytać stanu automatów (Pulpit)", e);
   }
 
+  // Propozycje (Faza 3) — ta sama ostrożność co przy kopiach i automatach:
+  // osobno, w try/catch. Świadomie liczone TU, a nie tylko w /api/hub/propozycje:
+  // inaczej kafel „Wymaga działania dziś" pokazywałby mniej spraw, niż widać
+  // niżej na ekranie. Logika jest jedna (lib/propozycje.ts), wołana dwa razy —
+  // to nie to samo co dwie kopie reguł.
+  let propozycje: StanPropozycji = { propozycje: [], odrzuconych: 0 };
+  try {
+    propozycje = await zbierzPropozycje();
+  } catch (e) {
+    console.error("[GET /api/hub/today] nie udało się zebrać propozycji", e);
+    await zapiszWyjatek("propozycje", "Nie udało się zebrać propozycji (Pulpit)", e);
+  }
+
   return NextResponse.json({
     backup,
     automaty,
+    propozycje,
     overdueLeads,
     overdueClients,
     dueProjects,

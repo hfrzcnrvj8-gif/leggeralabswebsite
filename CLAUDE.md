@@ -212,6 +212,15 @@ czekaj na Vercel → zgaduj"):
   brief). Tym samym wszystkie trzy punkty z Audytu 7 są zbudowane. Każdy nowy
   punkt poza tą listą dalej wymaga wyraźnej prośby właściciela, nie zakładaj
   kolejnych z rozpędu.
+- **Panel proponuje, właściciel zatwierdza** (Faza 3 zaplecza, 2026-08-02,
+  `lib/propozycje.ts`). Granica jest zatwierdzona i przebiega tak: skutek
+  **wywołany świadomym kliknięciem właściciela i oczywisty** zostaje
+  AUTOMATEM (akceptacja oferty → lead wygrany). Skutek, który **przychodzi
+  z zewnątrz** (opinia klienta, zapłata) albo **nie jest oczywisty** (wygrany
+  lead z umówionym demo), jest PROPOZYCJĄ — jedno zdanie, „zrób to", „nie
+  teraz". Dokładając nowy skutek zdarzenia, przyłóż go do tej granicy; nie
+  zamieniaj istniejących automatów na propozycje bez pytania. To NIE jest
+  „Skrzynka propozycji AI" — tu nie ma modelu, tylko reguły SQL.
 - "Zdrowie" projektu (Na dobrej drodze/Zagrożony/Zerwany) jest ręczne i
   niezależne od statusu na tablicy — dwie osobne osie, tak jak w Linear.
 - "Cykle" w Osi czasu (`ProjectTimeline.tsx`) są WYŁĄCZNIE wizualnym

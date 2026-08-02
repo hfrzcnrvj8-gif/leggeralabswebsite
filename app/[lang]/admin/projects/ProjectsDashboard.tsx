@@ -26,6 +26,7 @@ import { useUI, useRegisterActions } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
+import { Propozycje } from "../Propozycje";
 import { pobierzJSON, komunikatBledu } from "../dane";
 
 type ViewMode = "kanban" | "timeline";
@@ -480,6 +481,13 @@ export function ProjectsDashboard({ lang }: { lang: Locale }) {
             ))}
           </div>
         )}
+
+        {/* Propozycje dotyczące projektów (Faza 3) — pod pasem terminów, bo to
+            nie zaległość, tylko pytanie („opinia przyszła — zamknąć?").
+            `empty:hidden` zdejmuje margines, gdy nie ma o co pytać. */}
+        <div className="mb-4 empty:hidden">
+          <Propozycje lang={lang} modul="projects" onZmiana={load} />
+        </div>
 
         <div className="mb-3">
           <SavedViews

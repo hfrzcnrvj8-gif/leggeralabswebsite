@@ -10,6 +10,8 @@ import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { kopieWymagajaUwagi, type BackupStan } from "@/lib/backup";
 import type { StanAutomatu } from "@/lib/observability";
+import type { StanPropozycji } from "@/lib/propozycje";
+import { Propozycje } from "./Propozycje";
 import { overdueReason } from "@/lib/leads";
 import { type Invoice, formatMoney } from "@/lib/invoices";
 import type { Offer } from "@/lib/offers";
@@ -109,6 +111,8 @@ type TodayData = {
   backup: BackupStan | null;
   /** Audyt 4 — TYLKO automaty wymagające uwagi; serwer filtruje. */
   automaty?: StanAutomatu[];
+  /** Faza 3 — skutki zdarzeń podane do zatwierdzenia (lib/propozycje.ts). */
+  propozycje?: StanPropozycji;
 };
 
 /** Sumy w różnych walutach nie da się zmergować w jedną liczbę — każda
@@ -389,7 +393,10 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.expiredOffers.length +
     data.staleOffers.length +
     data.staleContracts.length +
-    (data.wygasajaceUmowy?.length ?? 0);
+    (data.wygasajaceUmowy?.length ?? 0) +
+    // Propozycja też wymaga dziś ruchu — jednego kliknięcia. Gdyby jej tu nie
+    // było, kafel pokazywałby mniej spraw, niż widać niżej na ekranie.
+    (data.propozycje?.propozycje.length ?? 0);
 
   const revenueThisMonthPln = sumPln(data.kpi.revenueThisMonth);
   const revenueLastMonthPln = sumPln(data.kpi.revenueLastMonth);
@@ -561,6 +568,18 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           <span className="text-[11px] text-muted">Czy trzymam wzorzec pracy? Zobacz wskaźniki zdrowia biznesu.</span>
           <span className="text-[13px] font-semibold text-brand-purple">Statystyki →</span>
         </Link>
+      </div>
+
+      {/* Propozycje (Faza 3) — pełną szerokością NAD siatką, a nie jako jedna
+          z kart w dwóch kolumnach. Dwa powody: zdanie z pytaniem plus dwa
+          przyciski nie mieści się w połowie szerokości bez łamania, a to
+          osobna kategoria — reszta siatki mówi „to jest zaległe", ta sekcja
+          pyta „zrobić to?". Sekcja znika sama, gdy nie ma o co pytać. */}
+      {/* `empty:hidden` — gdy komponent nie ma o co pytać, zwraca `null`
+          i ten wrapper zostaje pusty; bez tego zostawiałby po sobie 16 px
+          powietrza nad siatką. */}
+      <div className="px-4 pt-4 empty:hidden sm:px-6">
+        <Propozycje lang={lang} wstepne={data.propozycje} onZmiana={loadToday} />
       </div>
 
       {/* `items-start` — Moduł 59. Bez tego siatka rozciąga obie sekcje

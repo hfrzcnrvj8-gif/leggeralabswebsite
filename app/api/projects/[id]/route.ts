@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureFollowupsSchema, ensureContractsSchema, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureHubSchema, ensureInvoicesSchema, ensureCostsSchema, ensureContractsSchema, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import {
   isPlausibleDateString,
   formatPlDate,
-  CLOSED_PROJECT_STATUSES,
   isProjectStatus,
   isProjectPriority,
   isProjectHealth,
@@ -13,9 +12,7 @@ import {
   PROJECT_PRIORITIES,
   PROJECT_HEALTHS,
 } from "@/lib/projects";
-import { NURTURE_OFFSETS } from "@/lib/clients";
-import { todayLocalISO } from "@/lib/dates";
-import { addDaysISO } from "@/lib/documents";
+import { skutkiZmianyStatusuProjektu } from "@/lib/skutkiProjektu";
 import { contractReference, type ContractTyp } from "@/lib/contracts";
 import type { ContractRow } from "@/lib/sciezkaDokumentow";
 
@@ -328,30 +325,19 @@ export async function PATCH(
   }
 
   if (statusChangedTo && current) {
-    const clientId = typeof current.client_id === "string" ? current.client_id : null;
-    const tytul = typeof current.tytul === "string" ? current.tytul : "Projekt";
-    await logClientEvent(sql, clientId, "project_status_changed", `Projekt „${tytul}” → ${statusChangedTo}`, null, id);
-
-    // Nurture automatyczny (Moduł 2): przy wejściu w status zamknięty
-    // ("Wdrożone") planujemy klientowi dwa przyszłe kontakty (14/90 dni),
-    // bez klikania. Idempotentnie po project_id — nie duplikuj, jeśli status
-    // wraca do "Wdrożone" po korekcie.
-    if (clientId && CLOSED_PROJECT_STATUSES.has(statusChangedTo)) {
-      await ensureFollowupsSchema();
-      const existing = await sql`
-        SELECT 1 FROM client_followups WHERE project_id = ${id} LIMIT 1;
-      `;
-      if (existing.length === 0) {
-        const today = todayLocalISO();
-        for (const offset of NURTURE_OFFSETS) {
-          await sql`
-            INSERT INTO client_followups (id, client_id, project_id, due_date, powod)
-            VALUES (${randomUUID()}, ${clientId}, ${id}, ${addDaysISO(today, offset.days)}, ${offset.powod});
-          `;
-        }
-        await logClientEvent(sql, clientId, "nurture_scheduled", "Zaplanowano kontakt kontrolny (14 i 90 dni)");
-      }
-    }
+    // Komplet skutków (wpis na osi klienta + nurture) liczy od Fazy 3 jedno
+    // miejsce — bo do „Wdrożone" prowadzi też zatwierdzenie propozycji
+    // „opinia przyszła — zamknąć projekt?" (lib/propozycje.ts), a skutek nie
+    // może zależeć od tego, którą drogą przyszedł.
+    await skutkiZmianyStatusuProjektu(
+      sql,
+      {
+        id,
+        tytul: typeof current.tytul === "string" ? current.tytul : "Projekt",
+        clientId: typeof current.client_id === "string" ? current.client_id : null,
+      },
+      statusChangedTo
+    );
   }
 
   const activity = await sql`

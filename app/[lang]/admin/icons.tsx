@@ -220,6 +220,7 @@ const CLIENT_EVENT: Record<string, TablerIcon> = {
   review_requested: IconMailbox,
   review_collected: IconStar,
   nurture_contact_sent: IconRepeat,
+  client_status_changed: IconHeartHandshake,
 };
 
 /** `null` dla nieznanego rodzaju — wołający renderuje wtedy kropkę, jak

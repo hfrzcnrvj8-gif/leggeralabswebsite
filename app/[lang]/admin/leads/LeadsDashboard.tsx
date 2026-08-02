@@ -32,6 +32,7 @@ import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
+import { Propozycje } from "../Propozycje";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/invoices";
@@ -774,6 +775,15 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Propozycje dotyczące leadów (Faza 3) — pod pasem „Wymaga działania
+          dziś", bo to nie zaległość, tylko pytanie („lead wygrany — zdjąć
+          przypomnienie?"). Tylko w widoku rejestru, jak reszta pasków. */}
+      {rejestr && (
+        <div className="mb-4 empty:hidden">
+          <Propozycje lang={lang} modul="leads" onZmiana={load} />
         </div>
       )}
 

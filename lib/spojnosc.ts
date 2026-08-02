@@ -1,4 +1,5 @@
 import { getSql } from "./db";
+import { kluczPropozycji, kluczeOdrzucone, type RegulaPropozycji } from "./propozycje";
 
 /**
  * Kontrola spójności zaplecza — czy panel mówi prawdę o samym sobie.
@@ -39,18 +40,24 @@ import { getSql } from "./db";
  *
  *  **Znacznik zdejmuje się razem z naprawą, reguła zostaje.** Po Fazie 1
  *  (`docs/PLAN-ZAPLECZE.md`) zeszły stąd B1, B3, B5 i B6, po Fazie 2 — A2
- *  (migawka obejmuje wystawcę) — nie dlatego, że
- *  przestały nas obchodzić, tylko dlatego, że przestały być luką: te reguły
- *  stoją teraz jako czujki nad tym, co już działa. Lista, która tego nie
- *  odróżnia, starzeje się dokładnie tak, jak tabela Modułu 59 (34 wskazania,
- *  22 nieaktualne). */
-export type Luka = "C1" | "C3" | "C4";
+ *  (migawka obejmuje wystawcę), po Fazie 3 — **ostatnie trzy: C1, C3 i C4**
+ *  — nie dlatego, że przestały nas obchodzić, tylko dlatego, że przestały być
+ *  luką: te reguły stoją teraz jako czujki nad tym, co już działa. Lista,
+ *  która tego nie odróżnia, starzeje się dokładnie tak, jak tabela Modułu 59
+ *  (34 wskazania, 22 nieaktualne).
+ *
+ *  Lista jest dziś PUSTA i to jest wynik, nie przeoczenie. Mechanizm zostaje
+ *  na następne znalezisko. */
+export type Luka = string;
 
 export type Naruszenie = {
   /** Zdanie o KONKRETNYM rekordzie — z nazwą, nie z id. */
   opis: string;
   /** Dokąd kliknąć, żeby to naprawić. */
   link?: string;
+  /** Rekord, którego dotyczy — potrzebny tylko regułom sparowanym
+   *  z propozycją (patrz `propozycja` niżej). */
+  rekordId?: string;
 };
 
 export type WynikReguly = {
@@ -68,6 +75,17 @@ export type WynikReguly = {
 
 type Regula = Omit<WynikReguly, "naruszenia" | "blad"> & {
   zbierz: () => Promise<Naruszenie[]>;
+  /**
+   * Reguła propozycji pilnująca tego samego (Faza 3). Ustawiona = naruszenia,
+   * które właściciel ŚWIADOMIE odrzucił („Nie teraz"), znikają z tego ekranu.
+   *
+   * Dlaczego tylko odrzucone, a nie też czekające: propozycja czekająca to
+   * naprawdę sprzeczny stan — tyle że z jednoklikowym wyjściem na Pulpicie.
+   * Odrzucona to rozstrzygnięta decyzja właściciela, a ekran, który świeci na
+   * czerwono z powodu cudzej świadomej decyzji, uczy tylko ignorowania
+   * czerwieni (ta sama lekcja, co przy dev-seedzie w Fazie 2).
+   */
+  propozycja?: RegulaPropozycji;
 };
 
 const tekst = (v: unknown, zapas = "(bez nazwy)"): string =>
@@ -82,8 +100,8 @@ function reguly(): Regula[] {
       dlaczego:
         "Prospekt to ktoś, z kim jeszcze rozmawiam. Jeśli zapłacił fakturę, " +
         "to nie prospekt — a wszystkie liczby liczone po statusie kłamią.",
-      luka: "C4",
       powaga: "srednia",
+      propozycja: "oplacony-klient-aktywny",
       zbierz: async () => {
         const r = await sql`
           SELECT c.id AS klient_id, c.nazwa, i.numer
@@ -94,6 +112,7 @@ function reguly(): Regula[] {
         return r.map((w) => ({
           opis: `${tekst(w.nazwa)} zapłacił(a) ${tekst(w.numer, "fakturę")}, a nadal ma status „Prospekt”`,
           link: `/pl/admin/clients/${w.klient_id}`,
+          rekordId: String(w.klient_id),
         }));
       },
     },
@@ -103,8 +122,8 @@ function reguly(): Regula[] {
       dlaczego:
         "Opinia przychodzi na końcu współpracy. Otwarty projekt po opinii " +
         "zawyża „w toku” i psuje wskaźnik zamkniętych projektów z opinią.",
-      luka: "C1",
       powaga: "srednia",
+      propozycja: "opinia-zamyka-projekt",
       zbierz: async () => {
         const r = await sql`
           SELECT id, tytul, status FROM projects
@@ -114,6 +133,7 @@ function reguly(): Regula[] {
         return r.map((w) => ({
           opis: `„${tekst(w.tytul)}” ma opinię klienta, a status to „${tekst(w.status, "?")}”`,
           link: `/pl/admin/projects/${w.id}`,
+          rekordId: String(w.id),
         }));
       },
     },
@@ -123,8 +143,8 @@ function reguly(): Regula[] {
       dlaczego:
         "Po wygranej przypomnienie wskoczy do „Wymaga działania dziś” i każe " +
         "oddzwonić w sprawie, która jest już zamknięta.",
-      luka: "C3",
       powaga: "srednia",
+      propozycja: "wygrany-lead-bez-przypomnienia",
       zbierz: async () => {
         const r = await sql`
           SELECT id, firma, next_followup, next_action FROM leads
@@ -136,6 +156,7 @@ function reguly(): Regula[] {
             `${tekst(w.firma)} — wygrany, a ma przypomnienie na ${tekst(w.next_followup, "?")}` +
             (tekst(w.next_action, "") ? `: „${tekst(w.next_action)}”` : ""),
           link: `/pl/admin/leads/${w.id}`,
+          rekordId: String(w.id),
         }));
       },
     },
@@ -314,11 +335,20 @@ export type StanSpojnosci = {
  * się wywróci, nie może zabrać pozostałych ani całego ekranu.
  */
 export async function sprawdzSpojnosc(): Promise<StanSpojnosci> {
+  // Świadome „Nie teraz" właściciela — patrz `propozycja` przy regule.
+  const odrzucone = await kluczeOdrzucone();
+
   const wyniki = await Promise.all(
     reguly().map(async (r): Promise<WynikReguly> => {
-      const { zbierz, ...opis } = r;
+      const { zbierz, propozycja, ...opis } = r;
       try {
-        return { ...opis, naruszenia: await zbierz() };
+        const naruszenia = await zbierz();
+        return {
+          ...opis,
+          naruszenia: propozycja
+            ? naruszenia.filter((n) => !n.rekordId || !odrzucone.has(kluczPropozycji(propozycja, n.rekordId)))
+            : naruszenia,
+        };
       } catch (e) {
         console.error(`[spójność] reguła ${r.id}`, e);
         return {

@@ -29,6 +29,7 @@ import { useUI, useRegisterActions, isTypingTarget } from "../ui";
 import { StanListy, StanBledu } from "../StanPusty";
 import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
+import { Propozycje } from "../Propozycje";
 import { pobierzJSON, komunikatBledu } from "../dane";
 import { todayLocalISO } from "@/lib/dates";
 import { formatPlDate } from "@/lib/projects";
@@ -569,6 +570,14 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
             ))}
           </div>
         )}
+
+        {/* Propozycje dotyczące klientów (Faza 3) — pod pasem zaległości, bo
+            to nie zaległość, tylko pytanie. Ten sam komponent co na Pulpicie,
+            zawężony do modułu; `empty:hidden` zdejmuje margines, gdy nie ma
+            o co pytać. */}
+        <div className="mb-4 empty:hidden">
+          <Propozycje lang={lang} modul="clients" onZmiana={load} />
+        </div>
 
         {/* Znalezione w historii — pokazujemy TYLKO wtedy, gdy fraza trafiła
             w treść, a nie w nazwę: inaczej ta sama firma stałaby raz tu i raz

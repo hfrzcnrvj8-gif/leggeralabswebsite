@@ -282,10 +282,77 @@ otworzyć. To jedyne znalezisko z przejścia, które ma skutek prawny.
 
 ---
 
-## Faza 3 — skutki zdarzenia, komplet — jako propozycje
+## Faza 3 — skutki zdarzenia, komplet — jako propozycje — ✅ ZROBIONE 2026-08-02
 
-**Zamyka:** C1 (opinia nie zamyka projektu), C2 (mail mówi „zakończony"),
-C3 (wygrany lead zostawia przypomnienie), C4 (klient zostaje „Prospektem").
+**Zamknęła:** C1 (opinia nie zamyka projektu), C3 (wygrany lead zostawia
+przypomnienie), C4 (klient zostaje „Prospektem"). C2 zamknęła Faza 2 jako
+ostrzeżenie bramki.
+
+Powstało `lib/propozycje.ts` — trzy deterministyczne reguły plus decyzje
+(`zrób` / `nie teraz` / `przywróć`), `app/api/hub/propozycje` (GET + POST)
+i `app/[lang]/admin/Propozycje.tsx` — jedna sekcja wpięta w cztery ekrany:
+Pulpit oraz Leady, Klienci i Projekty (zawężona do swojego modułu).
+
+**Wynik przejścia po fazie: 59 działa · 0 znanych luk · 0 regresji ·
+0 obejść** (przed: 47 · 3 · 0 · 0). Lista znanych luk z pierwszego przejścia
+jest po tej fazie **pusta**.
+
+### Decyzje właściciela podjęte przy starcie fazy
+
+1. **Jedna propozycja na REKORD, nie na zdarzenie.** Klient z trzema
+   opłaconymi fakturami dostaje jedną prośbę o przestawienie statusu. Klucz to
+   para (reguła, rekord) — ta sama, w której zapisuje się „nie teraz".
+2. **„Nie teraz" znaczy „na zawsze" dla tej pary**, nie „za N dni". Do tego
+   droga powrotu: „Odłożone (N) — przywróć", bo jedno pomyłkowe kliknięcie nie
+   może kasować podpowiedzi bezpowrotnie.
+3. **Na razie tylko panel**, bez apki iOS. Trasa jest gotowa do zawołania
+   z apki bez zmian po stronie serwera.
+4. **Istniejące automaty zostają automatami — z jawną granicą.** Skutek
+   wywołany świadomym kliknięciem właściciela i oczywisty (akceptacja oferty →
+   lead wygrany) zostaje automatem. Propozycją staje się skutek, który
+   przychodzi z zewnątrz (opinia, zapłata) albo nie jest oczywisty (wygrany
+   lead z umówionym demo, które i tak może się odbyć).
+
+### Jak to jest zrobione — i dlaczego tak
+
+**Propozycje wyliczają się z DANYCH, nie z zapisu przy zdarzeniu.** Reguła to
+zapytanie o stan („klient jest Prospektem, a ma opłaconą fakturę"). Wprost
+z lekcji Fazy 2: bramka miała obowiązywać w czterech miejscach, a wysyłek
+okazało się siedem. Propozycja zapisywana w trasie obowiązywałaby tylko tam,
+gdzie ktoś pamiętał ją dopisać. Stąd za darmo: obie drogi C1 (publiczny
+formularz i wpis ręczny) rodzą tę samą propozycję, reguły działają wstecz, a
+„jedna na rekord" wychodzi z samego zapytania.
+
+W bazie siedzą **tylko odrzucenia** (`propozycje_decyzje`, klucz główny na
+parze reguła+rekord) — samych propozycji nie ma czego trzymać.
+
+**Ekran *Zdrowie* milczy na tym, co właściciel świadomie odłożył**, ale nadal
+mówi o propozycjach czekających: czekająca to naprawdę sprzeczny stan, tyle że
+z jednoklikowym wyjściem; odrzucona to rozstrzygnięta decyzja, a czerwień
+z powodu cudzej świadomej decyzji uczy tylko ignorowania czerwieni.
+
+### Czego się przy tym nauczyliśmy
+
+- **Zamknięcie projektu to nie jeden `UPDATE`.** Przy wejściu w „Wdrożone"
+  panel planuje jeszcze dwa kontakty kontrolne (nurture, Moduł 2) i pisze na
+  oś klienta — a cały ten komplet siedział WEWNĄTRZ `PATCH /api/projects/:id`.
+  Propozycja robiąca sam status po cichu gubiłaby pętlę retencji. Skutek liczy
+  teraz jedna funkcja dla obu dróg (`lib/skutkiProjektu.ts`), tym samym
+  precedensem co `offerAccept` i `projektPoPodpisieUmowy`.
+- **Asercja przeszła przez przypadek.** Pierwsza wersja sprawdzenia „czy
+  zaplanował kontakt kontrolny" pytała, czy odpowiedź zawiera słowo „kontakt"
+  — i przechodziła na polu `osoba_kontaktowa`. Teraz liczy kontakty przypięte
+  do tego projektu i wymaga dokładnie dwóch.
+- **`tsc` nie wie nic o więzach bazy.** Czyszczenie przypomnienia leada
+  ustawiało `next_action = NULL`, a to kolumna `TEXT NOT NULL DEFAULT ''`.
+  Kod się kompilował, typy były czyste, trasa zwracała 500 — wyszło dopiero
+  z przejścia.
+- **Podgląd w przeglądarce zamrażał animacje** (`document.hidden`, 0 klatek
+  rAF), więc odrzucony wiersz zostawał w DOM mimo poprawnego stanu. Rozstrzyga
+  przeładowanie strony, nie zrzut ekranu — pomiar rAF odróżnia artefakt
+  narzędzia od błędu.
+
+### Pierwotny opis zakresu
 
 **Zasada, zatwierdzona: panel proponuje, właściciel zatwierdza.**
 

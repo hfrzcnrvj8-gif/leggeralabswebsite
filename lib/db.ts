@@ -652,6 +652,29 @@ async function createHubSchema(): Promise<void> {
   // kilka dat nie jest warte tej niezgodności.
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS powtarzanie_pominiete TEXT;`;
 
+  // Propozycje (Faza 3, 2026-08-02) — ślad po „nie teraz".
+  //
+  // Zapisujemy TYLKO odrzucenia, nie same propozycje: te wyliczają się z
+  // danych przy każdym odczycie (`lib/propozycje.ts`), więc nie ma czego
+  // trzymać. Gdyby leżały tu jako wiersze, trzeba by je zakładać w każdej
+  // trasie, która może wywołać zdarzenie — a Faza 2 nauczyła nas, że takich
+  // tras jest zawsze więcej, niż się wydaje.
+  //
+  // Klucz główny to para (reguła, rekord) — dokładnie ta sama, w której
+  // właściciel widzi propozycję („jedna na rekord"). Brak `ON DELETE CASCADE`
+  // i klucza obcego jest świadomy: `rekord_id` wskazuje raz projekt, raz
+  // leada, raz klienta, więc nie ma jednej tabeli, do której dałoby się go
+  // przypiąć. Osierocony wiersz po skasowanym rekordzie nic nie psuje —
+  // filtruje propozycję, której i tak już nie ma.
+  await sql`
+    CREATE TABLE IF NOT EXISTS propozycje_decyzje (
+      regula TEXT NOT NULL,
+      rekord_id TEXT NOT NULL,
+      kiedy TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (regula, rekord_id)
+    );
+  `;
+
   await markSchemaApplied("hub");
 }
 
