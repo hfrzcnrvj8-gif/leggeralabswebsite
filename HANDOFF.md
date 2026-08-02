@@ -84,17 +84,21 @@ czy coś zostało. Obie naprawione i zmierzone:
   klienta, alarmowy `SummaryCard`). **Dokładając tło do karty w panelu:
   `!bg-…`.** Bez wykrzyknika klasa jest martwa i nic tego nie zgłasza.
 
-## Następny krok — gotowy do wklejenia
+## Następny krok
 
-**`PROMPT-APKA-POTWIERDZENIA.md`** w korzeniu repo. Wklej jego treść (od linii
-`---` w dół) jako pierwszą wiadomość w nowym czacie i skasuj plik przy
-najbliższym commicie. Dotyczy repozytorium apki (`../leggera-hub-ios`), nie
-tego. To rekomendowany następny krok, bo jako jedyny naprawia coś **zepsutego**,
-a nie tylko niedokończonego.
+Potwierdzenia w apce są **zrobione** (2026-08-02) — to była ostatnia rzecz,
+która po planie zaplecza działała gorzej niż przed nim. `PROMPT-APKA-
+POTWIERDZENIA.md` skasowany, bo zużyty.
 
-Jeśli wolisz zacząć od panelu, drugi kandydat to **osiem drobiazgów z sekcji F
-pierwszego przejścia** (lista niżej) — jeden wieczór, bez briefu, wystarczy
-wskazać `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
+Kandydaci, w kolejności:
+
+1. **Ekran „Propozycje" w apce iOS** — trasa `/api/hub/propozycje` gotowa od
+   Fazy 3, brakuje wyłącznie widoku SwiftUI. Briefu jeszcze nie ma.
+2. **Osiem drobiazgów z sekcji F pierwszego przejścia** (lista niżej) — jeden
+   wieczór, bez briefu, wystarczy wskazać
+   `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
+3. **Rejestracja firmy** — nietechniczne, ale jako jedyne realnie zmienia stan
+   projektu (`PO_REJESTRACJI.md`).
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
 
@@ -118,11 +122,21 @@ wskazać `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
   Blokuje KSeF test → produkcja, prawdziwe dane w nocie prawnej, plan Vercel Pro
   (Hobby zabrania użytku komercyjnego), przeprowadzkę na NAS. **To nie są braki
   do naprawienia przed rejestracją.**
-- **Potwierdzenia w apce iOS** — jedyny dług zostawiony przez plan i jedyna
-  rzecz, która po nim działa GORZEJ niż przed (z telefonu): wystawienie
-  faktury, wysyłka dokumentu i usunięcie rekordu wracają z 428 i nie robią nic.
-  Wybór właściciela — „szczelnie od razu". Brief:
+- ~~**Potwierdzenia w apce iOS**~~ — **ZROBIONE 2026-08-02** (repo
+  `../leggera-hub-ios`). Apka uczy się bariery od serwera: 428 → arkusz →
+  powtórka z nagłówkami, w jednym miejscu (`APIClient.wyslijNaURL`). Zmierzone
+  parami na tym samym rekordzie, oba poziomy. **Zostaje do zrobienia przez
+  właściciela: jeden przebieg kontrolny na PRODUKCJI** (atrapa klienta →
+  usunięcie tą samą drogą) — nie dało się go wykonać stąd, bo apka w DEBUG
+  celuje w produkcję, a wejście wymaga hasła wpisanego na urządzeniu.
+  Szczegóły i pułapki: README apki → „Potwierdzanie działań nieodwracalnych".
+  Przy okazji wyszło, że brief mylił się w obie strony — patrz nagłówek
   `docs/natywna-aplikacja/35-brief-potwierdzenia.md`.
+- **Czy porzucenie świeżo zeskanowanego paragonu ma pytać** — `koszt-usun` jest
+  na liście nieodwracalnych, więc „Anuluj" w skanerze paragonu prosi teraz
+  o potwierdzenie usunięcia szkicu. Trasa nie odróżnia szkicu sprzed minuty od
+  kosztu sprzed miesiąca. **Decyzja po stronie panelu**, nie apki; do
+  rozstrzygnięcia, nie usterka.
 - **Propozycje z Fazy 3 w apce iOS** — trasa `/api/hub/propozycje` gotowa,
   brakuje wyłącznie ekranu w SwiftUI.
 - **Osiem drobiazgów z sekcji F pierwszego przejścia** — kolumny „Ostatni

@@ -1,7 +1,34 @@
 # Brief: apka uczy się potwierdzać działania nieodwracalne
 
 **Powstał:** 2026-08-02, przy Fazie 4 planu zaplecza (`docs/PLAN-ZAPLECZE.md`).
-**Stan:** do zrobienia w osobnej sesji nad apką.
+**Stan: ✅ ZROBIONE** 2026-08-02, repo `../leggera-hub-ios`. Opis wdrożenia
+i pułapek: README apki → „Potwierdzanie działań nieodwracalnych".
+
+## Co wyszło inaczej, niż zakładał ten brief
+
+Trzy rzeczy — zostawione tu, bo tabela niżej dalej kłamie i nie ma sensu jej
+przepisywać:
+
+1. **Tabela dotkniętych ekranów była za szeroka.** Apka nigdy nie wołała
+   `invoices/:id/issue`, `ksef/send`, `invoices/:id/send`, nie kasuje faktur,
+   ofert, umów ani projektów, a z linków publicznych używa wyłącznie `ensure`
+   (świadomie poza barierą). Realnie zepsutych było **jedenaście** akcji, nie
+   kilkanaście z tabeli — i tylko JEDNA poziomu „mocne" (`klient-usun`).
+   Sprawdzone gretem po `odmowaPotwierdzenia(` w panelu ×`APIClient`, nie z tej
+   tabeli.
+2. **Brief przeoczył osiem WŁASNYCH okien „na pewno?" w apce** (Leady, Klienci
+   ×2, Oferty ×3, Umowy ×2). Bez ich usunięcia powstałyby dwa pytania pod rząd
+   o to samo — dokładnie to, czego punkt 4 zakazuje. Niosły adres odbiorcy,
+   którego serwer nie zna; przeszedł osobnym kanałem.
+3. **`String?` z `nil` w roli sukcesu.** Pięć wysyłek zwracało „błąd albo `nil`",
+   a widoki pisały `blad ?? "Oferta wysłana."`. Rezygnacja daje `nil`, więc
+   „Anuluj" zakończyłby się zdaniem o mailu, który nie wyszedł. Naprawione
+   typem (`WynikWysylki` z `.przerwane`).
+
+Poniżej brief w wersji z 2026-08-02, bez zmian.
+
+---
+
 **Pilność:** wysoka — do czasu wykonania część działań **nie działa
 z telefonu**. To jest świadomy koszt decyzji właściciela, nie przeoczenie.
 
