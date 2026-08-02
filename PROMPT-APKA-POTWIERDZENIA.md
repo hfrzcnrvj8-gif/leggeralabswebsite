@@ -20,7 +20,9 @@ Na start przeczytaj, w tej kolejności:
 
 ## Punkt startu
 
-Panel: ostatnie commity to „Faza 5: wygląd…" (`1eb9446`) i dwa handoffy nad nim.
+Panel: ostatni commit **merytoryczny** to `1eb9446` „Faza 5: wygląd…", a nad nim
+stoją wyłącznie commity porządkowe (handoffy i dokumentacja) — jeśli widzisz ich
+kilka, to jest w porządku, tak miało być.
 Repo panelu czyste i wypchnięte, `tsc` czysto, `npm test` 281/281,
 `npm run przejscie` = 68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
 0 pominiętych. Jeśli `git log` pokazuje co innego — sprawdź, kto pracował po
