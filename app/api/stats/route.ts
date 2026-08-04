@@ -123,8 +123,20 @@ export async function GET() {
     ` as unknown as Promise<{ powod: string; ile: number }[]>,
     // Dlaczego przegrywamy oferty (runda 2 Modułu 57). Powody zbieramy od
     // 2026-07-26 przy zmianie statusu na „Odrzucona"; bez tego zestawienia
-    // były danymi, których nic nie czyta. Oferty ZASTĄPIONE nowszą wersją są
-    // pominięte — nie są przegrane, tylko nieaktualne.
+    // były danymi, których nic nie czyta.
+    //
+    // Do 2026-08-05 stał tu jeszcze warunek `superseded_at IS NULL` z
+    // uzasadnieniem „zastąpione nie są przegrane, tylko nieaktualne". Po
+    // zawężeniu `UPDATE` w trasie nowej wersji (znalezisko A3) status
+    // „Odrzucona" ma już WYŁĄCZNIE oferta, której klient naprawdę odmówił —
+    // oferta zastąpiona bez odrzucenia dostaje „Wygasłą" i tak nie wchodzi do
+    // tego zestawienia. Ten warunek robił więc dokładnie jedną rzecz: ukrywał
+    // powód odmowy, gdy właściciel zareagował na nią nową wersją. A to jest
+    // najczęstsza reakcja na „za drogo" i najcenniejsza informacja tutaj.
+    //
+    // Do liczników SKUTECZNOŚCI zastąpione dalej nie wchodzą
+    // (`offerLiczySieDoStatystyk`) — jedna rozmowa handlowa liczy się raz. To
+    // osobne pytanie: tam „ile wygrywam", tu „na czym się potykam".
     sql`
       SELECT COALESCE(NULLIF(powod_odrzucenia, ''), 'Bez podanego powodu') AS powod,
         COUNT(*)::int AS ile,
@@ -134,7 +146,7 @@ export async function GET() {
         SELECT offer_id, SUM(ilosc * cena) FILTER (WHERE NOT opcjonalna OR wybrana) AS kwota
         FROM offer_items GROUP BY offer_id
       ) t ON t.offer_id = o.id
-      WHERE o.status = 'Odrzucona' AND o.superseded_at IS NULL
+      WHERE o.status = 'Odrzucona'
       GROUP BY 1 ORDER BY ile DESC;
     ` as unknown as Promise<{ powod: string; ile: number; kwota: number }[]>,
   ]);

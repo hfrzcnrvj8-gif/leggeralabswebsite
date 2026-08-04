@@ -6,7 +6,7 @@ import { notify } from "@/lib/notificationLog";
 import { sendEmail } from "@/lib/email";
 import { offerReference } from "@/lib/offers";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
-import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
+import { strazDokumentuPublicznego } from "@/lib/rateLimit";
 import type { Offer } from "@/lib/offers";
 
 export const runtime = "nodejs";
@@ -26,22 +26,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const { token } = await params;
 
   // Hamulec (audyt Modułu 57) — patrz HAMULEC_DOKUMENT_PUBLICZNY. Prawdziwy
-  // klient podpisuje raz; sama akceptacja jest zabezpieczona „claimem", ale
-  // limit obejmuje też próby, które nie doszły do skutku.
-  const odcisk = odciskZadania(req.headers);
-  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
-  if (!limit.dozwolone) {
-    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+  // klient podpisuje raz. Od 2026-08-05 (D5) licznik zbiera POMYŁKI, a udany
+  // podpis go zeruje — pomylone nazwisko nie zabiera już prób na podpis.
+  const straz = await strazDokumentuPublicznego(req.headers);
+  if (straz.blokada) {
     return NextResponse.json(
-      { error: `Zbyt wiele prób. Spróbuj ponownie za ${limit.zaMinut} min.` },
-      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+      { error: straz.blokada.error },
+      { status: 429, headers: { "Retry-After": String(straz.blokada.zaMinut * 60) } }
     );
   }
-  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 200) : "";
-  if (!name) return NextResponse.json({ error: "Podaj imię i nazwisko." }, { status: 400 });
+  if (!name) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "Podaj imię i nazwisko." }, { status: 400 });
+  }
 
   await ensureOffersSchema();
   await ensureClientsSchema();
@@ -49,11 +49,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const rows = await sql`SELECT * FROM offers WHERE share_token = ${token} AND status != 'Szkic';`;
   const offer = rows[0] as Offer | undefined;
-  if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!offer) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   // Moduł 40: unieważnienie musi wejść też TUTAJ. Blokada samego podglądu
   // byłaby połowiczna dokładnie tam, gdzie boli najbardziej — ktoś ze starym
   // linkiem mógłby dalej zaakceptować ofertę e-podpisem.
-  if (offer.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  if (offer.share_revoked_at) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  }
 
   // Wybór klienta co do pozycji opcjonalnych (runda 2 Modułu 57). Zapisujemy
   // go PRZED akceptacją, żeby faktura i zakres projektu powstały dokładnie
@@ -85,8 +91,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   });
 
   if (!result.ok) {
+    await straz.odnotujNieudana();
     return NextResponse.json({ error: result.error, expired: result.expired, powod: result.powod }, { status: result.status });
   }
+  // Podpis doszedł do skutku — licznik pomyłek do zera. Druga próba i tak
+  // odbije się od stanu „Zaakceptowana", więc sukcesu nie musimy liczyć.
+  await straz.odnotujUdana();
 
   // Centrum powiadomień (Moduł 24 + 31) — TYLKO na publicznej trasie, nie w
   // bliźniaczym `offers/[id]/accept` (tam akceptuje sam właściciel, więc wie).

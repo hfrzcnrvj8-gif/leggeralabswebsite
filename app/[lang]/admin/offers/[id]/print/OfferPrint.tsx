@@ -12,6 +12,8 @@ import {
   offerReference,
   ocenAkceptacje,
   obliczZwrot,
+  OFFER_REJECT_REASONS,
+  type OfferRejectReason,
 } from "@/lib/offers";
 import { formatPlDateTime } from "@/lib/dates";
 import { czasRealizacjiOpis, czasRealizacjiTygodnie } from "@/lib/przepisanie";
@@ -86,6 +88,18 @@ type Dict = {
   changePlaceholder: string;
   changeSend: string;
   changeSent: string;
+  /** „Dziękuję, rezygnujemy" (C1, 2026-08-05) — trzecia droga obok akceptacji
+   * i prośby o zmianę. Powody są jedną, ZAMKNIĘTĄ listą (`OFFER_REJECT_REASONS`
+   * w lib/offers.ts), żeby dało się policzyć, na czym realnie przegrywamy —
+   * dlatego do serwera idzie zawsze POLSKA etykieta, a tłumaczymy wyłącznie to,
+   * co klient widzi. Klucz mapy = ta polska etykieta. */
+  rejectTitle: string;
+  rejectHint: string;
+  rejectReasons: Record<OfferRejectReason, string>;
+  rejectCommentPlaceholder: string;
+  rejectSend: string;
+  rejectSending: string;
+  rejectDone: string;
   roiTitle: string;
   roiSaving: string;
   roiPayback: string;
@@ -158,6 +172,19 @@ const DICT: Record<OfferLang, Dict> = {
     changePlaceholder: "np. proszę o wariant bez szkolenia i termin od października.",
     changeSend: "Wyślij prośbę o zmianę",
     changeSent: "Dziękujemy — wiadomość dotarła. Odezwiemy się z poprawioną ofertą.",
+    rejectTitle: "Dziękuję, rezygnujemy",
+    rejectHint: "Jeśli oferta odpada, zaznacz powód — to zamknie temat po naszej stronie i nie będziemy przypominać.",
+    rejectReasons: {
+      "Za drogo": "Za drogo",
+      "Nie ten termin": "Nie ten termin",
+      "Wybrali kogoś innego": "Wybraliśmy inną firmę",
+      "Brak decyzji / ucichło": "Rezygnujemy z tematu",
+      "Inny powód": "Inny powód",
+    },
+    rejectCommentPlaceholder: "Chcesz coś dodać? (opcjonalnie)",
+    rejectSend: "Wyślij decyzję",
+    rejectSending: "Zapisywanie…",
+    rejectDone: "Dziękujemy za odpowiedź — odnotowaliśmy Państwa decyzję.",
     roiTitle: "Szacowany zwrot",
     roiSaving: "Oszczędność miesięczna",
     roiPayback: "Zwrot z inwestycji",
@@ -215,6 +242,19 @@ const DICT: Record<OfferLang, Dict> = {
     changePlaceholder: "e.g. please drop the training and start in October.",
     changeSend: "Send change request",
     changeSent: "Thank you — we received it and will come back with a revised quote.",
+    rejectTitle: "Thanks, we'll pass",
+    rejectHint: "If this quote is not for you, pick a reason — we will close it on our side and stop following up.",
+    rejectReasons: {
+      "Za drogo": "Too expensive",
+      "Nie ten termin": "Wrong timing",
+      "Wybrali kogoś innego": "We chose another supplier",
+      "Brak decyzji / ucichło": "We are dropping the project",
+      "Inny powód": "Another reason",
+    },
+    rejectCommentPlaceholder: "Anything to add? (optional)",
+    rejectSend: "Send decision",
+    rejectSending: "Saving…",
+    rejectDone: "Thank you for letting us know — your decision has been recorded.",
     roiTitle: "Estimated return",
     roiSaving: "Monthly saving",
     roiPayback: "Payback period",
@@ -272,6 +312,19 @@ const DICT: Record<OfferLang, Dict> = {
     changePlaceholder: "z. B. bitte ohne Schulung und Start ab Oktober.",
     changeSend: "Änderungswunsch senden",
     changeSent: "Vielen Dank — wir haben Ihre Nachricht erhalten und melden uns mit einem überarbeiteten Angebot.",
+    rejectTitle: "Danke, wir verzichten",
+    rejectHint: "Wenn das Angebot nicht passt, wählen Sie bitte einen Grund — wir schließen den Vorgang und fragen nicht weiter nach.",
+    rejectReasons: {
+      "Za drogo": "Zu teuer",
+      "Nie ten termin": "Falscher Zeitpunkt",
+      "Wybrali kogoś innego": "Wir haben einen anderen Anbieter gewählt",
+      "Brak decyzji / ucichło": "Wir lassen das Vorhaben fallen",
+      "Inny powód": "Anderer Grund",
+    },
+    rejectCommentPlaceholder: "Möchten Sie etwas ergänzen? (optional)",
+    rejectSend: "Entscheidung senden",
+    rejectSending: "Wird gespeichert…",
+    rejectDone: "Vielen Dank für Ihre Rückmeldung — wir haben Ihre Entscheidung vermerkt.",
     roiTitle: "Geschätzte Amortisation",
     roiSaving: "Monatliche Ersparnis",
     roiPayback: "Amortisationszeit",
@@ -308,6 +361,15 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   const [zmianaTresc, setZmianaTresc] = useState("");
   const [zmianaWyslana, setZmianaWyslana] = useState(false);
   const [zmianaBusy, setZmianaBusy] = useState(false);
+  // „Dziękuję, rezygnujemy" (C1). Formularz otwiera się dopiero po kliknięciu:
+  // trzy pełne bloki obok siebie robiłyby z odmowy równorzędną propozycję,
+  // a to ma być droga dla kogoś, kto już zdecydował.
+  const [odmowaOtwarta, setOdmowaOtwarta] = useState(false);
+  const [odmowaPowod, setOdmowaPowod] = useState<OfferRejectReason>(OFFER_REJECT_REASONS[0]);
+  const [odmowaKomentarz, setOdmowaKomentarz] = useState("");
+  const [odmowaBusy, setOdmowaBusy] = useState(false);
+  const [odmowaWyslana, setOdmowaWyslana] = useState(false);
+  const [odmowaBlad, setOdmowaBlad] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -376,7 +438,13 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   // zastąpionej wyświetlał normalny przycisk „Akceptuję ofertę".
   const ocena = ocenAkceptacje(offer);
   const komunikatStanu =
-    ocena.mozna || ocena.powod === "zaakceptowana"
+    // Zaraz po kliknięciu „rezygnujemy" mówimy DZIĘKUJEMY, a nie „ta oferta
+    // została zamknięta" — to samo miejsce na ekranie, inne zdanie. Bez tego
+    // klient dostawał w odpowiedzi na swoją decyzję suchy komunikat o stanie
+    // dokumentu, jakby to nie on go przed chwilą zmienił.
+    odmowaWyslana
+      ? t.rejectDone
+      : ocena.mozna || ocena.powod === "zaakceptowana"
       ? null
       : ocena.powod === "zastapiona"
         ? t.supersededLabel
@@ -408,6 +476,32 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
     } else {
       setAcceptError("Nie udało się wysłać wiadomości.");
     }
+  };
+
+  /** C1 — decyzja odmowna klienta. Zapis idzie w te same kolumny co odrzucenie
+   *  z panelu, więc log leada, oś klienta, propozycja domknięcia leada
+   *  i blokada akceptacji tym samym linkiem robią się SAME. */
+  const submitRejection = async () => {
+    if (!token || odmowaBusy) return;
+    setOdmowaBusy(true);
+    setOdmowaBlad(null);
+    const res = await fetch(`/api/offers/public/${token}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Do serwera POLSKA etykieta z zamkniętej listy — tłumaczenie dotyczy
+      // wyłącznie tego, co widać. Slug („za-drogo") trasa słusznie odrzuci.
+      body: JSON.stringify({ powod: odmowaPowod, komentarz: odmowaKomentarz.trim(), name: signName.trim() }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    setOdmowaBusy(false);
+    if (!res.ok) {
+      setOdmowaBlad(data.error ?? "Nie udało się zapisać decyzji.");
+      return;
+    }
+    setOdmowaWyslana(true);
+    // Stan lokalny idzie za bazą, żeby strona natychmiast przestała pokazywać
+    // formularz e-podpisu — `ocenAkceptacje()` czyta status i sama go zamknie.
+    setOffer((prev) => (prev ? { ...prev, status: "Odrzucona" } : prev));
   };
 
   const submitAcceptance = async () => {
@@ -819,6 +913,70 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
                     {t.changeSend}
                   </button>
                 </>
+              )}
+            </div>
+          )}
+
+          {/* „Dziękuję, rezygnujemy" (C1) — trzecia i ostatnia droga klienta.
+              Pod tym samym warunkiem co dwie pozostałe: oferty zamkniętej nie
+              da się już odrzucić, a przycisk sugerowałby, że jest w grze.
+              Świadomie wyciszona wizualnie i zwinięta do jednego odsyłacza:
+              odmowa ma być łatwa do znalezienia, ale nie ma konkurować
+              z akceptacją o wzrok. Potwierdzenie po wysłaniu pokazuje
+              `komunikatStanu` wyżej — tu nie ma czego zostawiać. */}
+          {ocena.mozna && (
+            <div className="mt-3 text-center">
+              {odmowaOtwarta ? (
+                <div className="rounded-xl border border-neutral-200 bg-white p-4 text-left">
+                  <h2 className="mb-1 text-sm font-semibold text-neutral-900">{t.rejectTitle}</h2>
+                  <p className="mb-2.5 text-[12px] text-neutral-500">{t.rejectHint}</p>
+                  <div className="space-y-1">
+                    {OFFER_REJECT_REASONS.map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => setOdmowaPowod(r)}
+                        aria-pressed={odmowaPowod === r}
+                        className={`flex w-full items-center rounded-lg border px-3 py-2 text-left text-[13px] ${
+                          odmowaPowod === r
+                            ? "border-neutral-800 bg-neutral-50 text-neutral-900"
+                            : "border-neutral-300 text-neutral-600 hover:text-neutral-900"
+                        }`}
+                      >
+                        {t.rejectReasons[r]}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={odmowaKomentarz}
+                    onChange={(e) => setOdmowaKomentarz(e.target.value)}
+                    rows={2}
+                    placeholder={t.rejectCommentPlaceholder}
+                    className="mt-2.5 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  />
+                  {odmowaBlad && <div className="mt-2 text-[13px] text-red-600">{odmowaBlad}</div>}
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <button
+                      onClick={submitRejection}
+                      disabled={odmowaBusy}
+                      className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 disabled:opacity-40"
+                    >
+                      {odmowaBusy ? t.rejectSending : t.rejectSend}
+                    </button>
+                    <button
+                      onClick={() => setOdmowaOtwarta(false)}
+                      className="rounded-lg px-3 py-2 text-sm text-neutral-500 hover:text-neutral-800"
+                    >
+                      {t.close}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setOdmowaOtwarta(true)}
+                  className="text-[13px] text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
+                >
+                  {t.rejectTitle}
+                </button>
               )}
             </div>
           )}

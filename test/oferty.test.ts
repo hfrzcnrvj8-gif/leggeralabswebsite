@@ -13,6 +13,8 @@ import {
   offerSilenceDays,
   isOfferStale,
   offerLiczySieDoStatystyk,
+  statusPoZastapieniu,
+  waznoscDlaNowejWersji,
   ocenAkceptacje,
   obliczZwrot,
 } from "../lib/offers.ts";
@@ -135,6 +137,47 @@ test("upomnienie: po progu tak, po przypomnieniu już nie", () => {
 test("oferta zastąpiona nowszą wersją wypada z liczników", () => {
   assert.equal(offerLiczySieDoStatystyk({ superseded_at: null }), true);
   assert.equal(offerLiczySieDoStatystyk({ superseded_at: "2026-07-26 12:00:00+00" }), false);
+});
+
+// A3 (drugie przejście): nowa wersja nie może wymazać ze statusu faktu, że
+// klient powiedział „nie". Powód porażki zostawał w bazie, ale status po nim
+// kłamał — a statusem filtruje się listę i liczy skuteczność.
+test("zastąpienie: oferta, na którą klient nie zdążył odpowiedzieć, wygasa", () => {
+  assert.equal(statusPoZastapieniu("Szkic"), "Wygasła");
+  assert.equal(statusPoZastapieniu("Wysłana"), "Wygasła");
+});
+
+// D2: nowa wersja dziedziczy warunki handlowe, ale nie wsteczny termin decyzji.
+// Daty DOSŁOWNE i celowo przechodzące przez zmianę czasu (25.10.2026) — to na
+// takim przedziale `addDaysISO` gubiło dobę w kroku 4.
+test("nowa wersja: ważność wędruje, dopóki nie minęła", () => {
+  assert.equal(waznoscDlaNowejWersji("2026-11-03", "2026-10-20"), "2026-11-03");
+  // Dokładnie dziś — jeszcze obowiązuje, więc zostaje.
+  assert.equal(waznoscDlaNowejWersji("2026-10-25", "2026-10-25"), "2026-10-25");
+  // Przedział przechodzący przez zmianę czasu: żadna doba nie znika, bo nic
+  // się tu nie dodaje — porównujemy dzień kalendarzowy z dniem kalendarzowym.
+  assert.equal(waznoscDlaNowejWersji("2026-10-26", "2026-10-24"), "2026-10-26");
+});
+
+test("nowa wersja: ważność, która minęła, NIE wędruje", () => {
+  // Inaczej wersja 2 rodzi się przeterminowana i nikt tego nie zgłasza.
+  assert.equal(waznoscDlaNowejWersji("2026-10-24", "2026-10-25"), null);
+  assert.equal(waznoscDlaNowejWersji("2026-10-24", "2026-10-26"), null);
+  assert.equal(waznoscDlaNowejWersji(null, "2026-10-25"), null);
+  assert.equal(waznoscDlaNowejWersji("", "2026-10-25"), null);
+  // Znacznik z bazy bywa pełnym timestampem — liczy się sam dzień.
+  assert.equal(waznoscDlaNowejWersji("2026-11-03 00:00:00+01", "2026-10-20"), "2026-11-03");
+});
+
+test("zastąpienie: ODRZUCONA zostaje odrzucona", () => {
+  // To jest całe A3. Reakcją na „za drogo" jest nowa, tańsza wersja — i to
+  // ona kasowała informację o tym, na czym się przegrywa.
+  assert.equal(statusPoZastapieniu("Odrzucona"), "Odrzucona");
+  // Wygasła już wcześniej — nie ma czego przestawiać.
+  assert.equal(statusPoZastapieniu("Wygasła"), "Wygasła");
+  // Zaakceptowanej trasa nie dopuszcza do tego miejsca (409), ale gdyby
+  // kiedykolwiek dopuściła, „Wygasła" byłaby najgorszą z możliwych podmian.
+  assert.equal(statusPoZastapieniu("Zaakceptowana"), "Zaakceptowana");
 });
 
 // ── Runda 3 ───────────────────────────────────────────────────────────────

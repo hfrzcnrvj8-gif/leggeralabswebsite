@@ -12,7 +12,9 @@ zbudowany tak samo i celowo nie powtarza jego zasad.
 | 2 | szablon mówi tylko to, co potwierdzają dane | A4, A5, C2, C4, D3, D4 | ✅ `4eb8667` |
 | 3 | „warunki obowiązujące" jako jedno miejsce | A6, A7, A8 | ✅ `4ec5dbf` |
 | 4 | porażka jest zdarzeniem jak każde inne | B1, B2, B3, B4 | ✅ `41ae95c` |
-| 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ⬜ |
+| 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ✅ `HASH` |
+
+**Plan zamknięty 2026-08-05.** Podsumowanie całości — na końcu dokumentu.
 
 ---
 
@@ -457,6 +459,88 @@ Do zrobienia — nowe reguły w `lib/propozycje.ts`, w tym samym kształcie
   Tak samo jak `npm run przejscie` powstał po pierwszym przejściu — po to, żeby
   trzecie nie musiało sprawdzać tego samego ręcznie.
 
+### Decyzje właściciela (zapadły 2026-08-05, na starcie kroku)
+
+1. **Klient, który sam odrzuci ofertę, dostaje jedno zdanie mailem** —
+   potwierdzenie odbioru decyzji, bez próby ratowania sprzedaży. Powód: bez tego
+   kliknięcie „rezygnujemy" kończyło się ciszą i klient nie miał pewności, że
+   cokolwiek do nas dotarło.
+2. **A3 — zawężamy `UPDATE`, NIE dokładamy statusu „Zastąpiona".** Fakt
+   zastąpienia niesie już `superseded_at`, a nowa wartość w `OFFER_STATUSES`
+   dotknęłaby mapy koloru, filtra, wagi w pipelinie, kilku list stanów ORAZ
+   bliźniaczej mapy w apce iOS, która żyje w osobnym repozytorium.
+3. **D5 — hamulec liczy POMYŁKI i zeruje się po udanym wejściu**, jak przy
+   logowaniu. Próg 5/60 min bez zmian: to nie jest rozluźnienie ochrony, tylko
+   przestawienie jej na właściwy licznik.
+
+### Co się okazało przy robocie (2026-08-05)
+
+- **Brief przejrzał te sześć znalezisk po kodzie i to się opłaciło — ale
+  największa robota była tam, gdzie zapowiadał ją najkrócej.** A3 wyszedł na
+  jedną linijkę plus czysta funkcja (`statusPoZastapieniu`), a C1 — „nowa
+  powierzchnia dla klienta" — na jedną trasę wzorowaną co do kształtu na
+  `comment/route.ts`. Najwięcej czasu zjadł harness i to on znalazł wszystko,
+  czego nie widać z kodu.
+- **A3 miał drugą połowę, o której brief nie wiedział.** Po zawężeniu `UPDATE`
+  status wreszcie mówi prawdę — ale statystyka „dlaczego przegrywamy oferty"
+  (`/api/stats`) miała własny warunek `superseded_at IS NULL` z uzasadnieniem
+  „zastąpione nie są przegrane, tylko nieaktualne". Ono było słuszne, DOPÓKI
+  status „Odrzucona" mogła nosić oferta, której nikt nie odrzucił. Po poprawce
+  ten warunek robił dokładnie jedną rzecz: ukrywał powód odmowy, gdy właściciel
+  zareagował na nią nową wersją — czyli najczęstszą reakcję na „za drogo".
+  Zdjęty. Skuteczność liczy się dalej bez zastąpionych
+  (`offerLiczySieDoStatystyk`) — to osobne pytanie: tam „ile wygrywam", tu „na
+  czym się potykam".
+- **D5 miał wyjątek, którego decyzja właściciela nie mogła przewidzieć.**
+  „Liczyć tylko nieudane" jest słuszne dla akcji JEDNORAZOWYCH (podpis,
+  odrzucenie, opinia) — tam po sukcesie dokument zmienia stan i druga próba i
+  tak odbija się od claimu. Ale „poproszę o zmianę" wolno wywołać wiele razy
+  z powodzeniem i to właśnie powtarzany SUKCES jest tam nadużyciem, dla którego
+  ten hamulec powstał (każda prośba dzwoni i wysyła maila). Stąd
+  `strazDokumentuPublicznego(…, { sukcesLiczySie: true })` — jedna trasa,
+  z wypisanym powodem. Reszta decyzji bez zmian.
+- **D2 gubił cztery pola, a piąte trzeba było świadomie NIE przenieść.**
+  `wazna_do` wędruje na nową wersję tylko wtedy, gdy jeszcze nie minęła:
+  poprzedniczkę odrzuca się czasem po terminie, a odziedziczona wsteczna data
+  urodziłaby szkic od razu przeterminowany i nikt by tego nie zgłosił. Reguła
+  siedzi w `waznoscDlaNowejWersji()` z testami na DOSŁOWNYCH datach wokół 25.10
+  — porównanie napisów, bez arytmetyki na `Date`, bo to na niej krok 4 gubił
+  dobę na zmianie czasu.
+- **Sonda skłamała CZTERY razy, czwarty przebieg z rzędu.** Trzy razy zwyczajnie
+  (log leada pod `GET /api/leads/:id`, nie `/activity`; statystyka pod
+  `offerLosses.reasons`, nie `powodyOdrzucenia`; windykacja to działanie
+  NIEODWRACALNE, więc bez nagłówka potwierdzenia oddaje 428). Czwarty raz
+  ciekawiej: sprawdzenie „odrzucenie stoi na osi klienta DOKŁADNIE raz"
+  wypadało na czerwono, bo **sama sonda odrzucała ofertę dwa razy** — raz
+  slugiem przez publiczny link, raz etykietą z panelu. Asercja o krotności jest
+  bezwartościowa, jeśli wołający klika dwa razy. Rozdzielone: droga porażki
+  odrzuca raz, a pułapka „etykieta kontra slug" dostała własną sondę z własnym
+  leadem.
+- **Sonda hamulca psuła NASTĘPNY przebieg, i to był najlepszy znaleziony
+  błąd.** Pierwsza wersja zostawiała pięć pomyłek na wspólnym odcisku, więc
+  bieg numer jeden był zielony, a każdy kolejny miał sześć pominięć i wyglądał
+  na regresję. Ten sam kształt pułapki co „dev-baza żyje między przebiegami"
+  (krok 3), tylko przez stan hamulca. Sonda udaje teraz ruch z innego miejsca
+  (`x-forwarded-for` ze znacznikiem przebiegu) — mechanizm mierzony ten sam
+  i w pełni, zmienia się wyłącznie odcisk. **Limit ŁĄCZNY (60/60 min) zostaje
+  nietknięty i jest realnym sufitem: powyżej ~5 przebiegów w godzinę zacznie
+  blokować globalnie. To poprawne zachowanie zabezpieczenia, nie usterka.**
+- **Przy okazji D5 naprawił powtarzalność całego przejścia.** Do tej pory drugi
+  bieg pod rząd tracił drogę KLIENTA (akceptacja, opinia) na godzinę, bo udane
+  żądania też zjadały limit. Teraz sukces zeruje licznik, więc dwa biegi z rzędu
+  dają ten sam wynik: **101 działa · 0 regresji · 0 pominiętych**. Zmierzone
+  trzy razy pod rząd, nie wywnioskowane.
+- **Warstwa wizualna sprawdzona przez DOM, nie przez zrzut** — w tym podglądzie
+  karta jest `hidden`, `requestAnimationFrame` daje zero klatek i `read_page`
+  zwraca pustą stronę (viewport 0×0). Przy D6 to akurat wygodne: `aria-pressed`
+  mierzy się wprost. Potwierdzone w panelu: na ofercie odrzuconej jedynym
+  `.btn-primary` jest „Nowa wersja oferty", na szkicu „Wyślij mailem", a karta
+  „WAŻNOŚĆ" zamiast odliczania pisze „Data ważności nie ma już znaczenia".
+- **Nie zrobione świadomie:** apka iOS nie zna trasy odrzucenia przez klienta
+  ani karty „Odpowiedź na wersję N" — to ta sama paczka roboty po jej stronie,
+  co rozwijacz windykacji (krok 2), propozycja z aneksem (krok 3) i druga akcja
+  propozycji (krok 4). Serwer oddaje komplet.
+
 ---
 
 ## Czego ten plan nie obejmuje
@@ -472,3 +556,67 @@ Do zrobienia — nowe reguły w `lib/propozycje.ts`, w tym samym kształcie
   jest pierwszy, bo kosztuje pieniądze; krok 2 odpala się częściej. Jeśli
   wolisz zacząć od tego, co klient czyta za każdym razem — zamień je miejscami,
   nic się nie zablokuje.
+
+---
+
+## Podsumowanie planu (2026-08-05)
+
+### Co zamknęły cztery brakujące mechanizmy
+
+Drugie przejście dało 22 znaleziska. Nie było ich 22 do naprawienia — były
+cztery rzeczy, których panel nie umiał, każda widoczna w kilku miejscach naraz.
+
+| mechanizm | co znaczy, że jest | najcięższy skutek jego braku |
+|---|---|---|
+| publiczny dokument zna swój stan | jedna funkcja (`ocenAkceptacje`) odpowiada trasie i stronie | z martwej oferty powstawał projekt i faktura po nieaktualnej cenie; **umowę ODRZUCONĄ dało się podpisać** starym linkiem |
+| szablon mówi tylko to, co potwierdzają dane | zdania liczone z `invoice_reminders`, nie z dni zwłoki | pierwsza wiadomość o długu twierdziła, że jest druga — także na formalnym wezwaniu |
+| „warunki obowiązujące” jako jedno miejsce | `lib/warunkiObowiazujace.ts` + numer dokumentu, z którego pochodzą | trzy dokumenty z trzema terminami, faktura na 11 000 przy aneksie na 15 000 |
+| porażka jest zdarzeniem jak każde inne | `logZdarzenieDokumentu` na obie osie + reguły porażki w `lib/propozycje.ts` | odrzucona oferta nie robiła NIC: lead zostawał w „Do kontaktu” z podpowiedzią „Zrób pierwszy ruch” |
+
+Do tego, poza czwórką, cztery drobiazgi kroku 5 (A3, D1, D2, D6), jedna nowa
+powierzchnia dla klienta (C1 — odrzucenie oferty ze swojej strony) i jedna
+zmiana w zabezpieczeniu (D5).
+
+**Powtarzalna, mierzalna wersja tego wszystkiego:** `npm run przejscie` sprawdza
+dziś **101 zdań** o zapleczu — 68 na drodze, która się udaje, i 33 na drodze,
+która się nie udaje. Przed tym planem drugiej drogi harness nie znał w ogóle.
+
+### Co zostaje otwarte (świadomie)
+
+- **A5 z PIERWSZEGO przejścia** — na wydruku umowy rubryka
+  „ZLECENIODAWCA / WYKONAWCA” jest jedna, a role są dwie. Znana pozycja
+  z `PIERWSZE-PRZEJSCIE-NA-SUCHO.md`, nie nowa.
+- **Warstwa wizualna** — żadne z dwóch przejść jej nie sprawdzało. W tym
+  środowisku `requestAnimationFrame` daje zero klatek (karta `hidden`), więc
+  pomiary byłyby zgadywaniem. Wymaga prawdziwej przeglądarki i osobnej rundy.
+- **Apka iOS — jedna spójna paczka roboty.** Trasy oddają komplet; brakuje
+  ekranów. Zebrane z czterech kroków, warte osobnego briefu:
+  rozwijacz poziomu windykacji (krok 2), propozycja o rozjeździe z aneksem
+  i rubryka „WYNIKA Z” z aneksem (krok 3), druga akcja propozycji
+  (`akcjaAlt` / `decyzja: "zrob-alt"`) i dwie nowe sekcje Pulpitu
+  (`projektyZagrozone`, `zapomnianeSzkiceUmow`, krok 4), odrzucenie oferty
+  przez klienta i karta „Odpowiedź na wersję N” (krok 5).
+- **Łączny limit hamulca** (60 żądań/60 min ze wszystkich miejsc) ogranicza
+  przejście do ~5 przebiegów na godzinę. Zachowanie poprawne; gdyby kiedyś
+  przeszkadzało, decyzją jest podniesienie progu, nie omijanie go w sondzie.
+
+### Co powinno być TRZECIM przejściem na sucho
+
+Dwa pierwsze szły drogą sprzedaży: pierwsze tą, która się udaje, drugie tą,
+która się nie udaje. Obie są dziś obstawione harnessem, więc trzecie ma sens
+tylko wtedy, gdy pójdzie tam, gdzie harness nie sięga:
+
+1. **Oczami klienta, w prawdziwej przeglądarce.** Wszystko, co klient dostaje —
+   trzy maile, strona oferty, strona umowy, wydruk PDF, formularz opinii — na
+   telefonie i na desktopie, po polsku i po niemiecku. To jedyna warstwa
+   nietknięta przez oba przejścia i jedyna, którą widzi ktoś z zewnątrz.
+2. **Drugi rok obrotowy.** Numeracja dokumentów, wygasające terminy, retencja
+   leadów (24 mies.), faktury cykliczne przez zmianę roku. Nic z tego nie
+   pojawia się w przejściu, które trwa dziesięć minut.
+3. **Awarie i brzegi.** Zerwane żądanie w połowie wysyłki, dwie karty otwarte
+   na tym samym dokumencie, klient klikający dwa razy, `RESEND_API_KEY`
+   nieustawiony. Kilka z nich już raz coś kosztowało (idempotencja wysyłki,
+   Audyt Poczty), ale nigdy nie były przechodzone razem.
+
+Czego trzecie przejście robić NIE musi: sprawdzać ręcznie tego, co robi
+`npm run przejscie`. Od tego jest jedno polecenie i 101 zdań.

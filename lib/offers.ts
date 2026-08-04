@@ -310,6 +310,57 @@ export function offerLiczySieDoStatystyk(o: Pick<Offer, "superseded_at">): boole
   return !o.superseded_at;
 }
 
+/** Statusy, które nowa wersja wolno jej zdjąć z afisza — WYLICZONE, nie
+ * wykluczone. Poprzedniczka w jednym z nich czekała na decyzję klienta i tej
+ * decyzji już nie doczeka, więc „Wygasła" opisuje ją poprawnie. */
+const OTWARTE_PRZED_ZASTAPIENIEM = new Set<OfferStatus>(["Szkic", "Wysłana"]);
+
+/**
+ * Jaki status ma mieć oferta, którą właśnie zastąpiła nowsza wersja.
+ *
+ * **Znalezisko A3 z drugiego przejścia (2026-08-05).** Do tego dnia `UPDATE`
+ * w `POST /api/offers/:id/version` był BEZWARUNKOWY i wpisywał „Wygasła"
+ * każdej poprzedniczce — także tej, którą klient naprawdę odrzucił. Powód
+ * odrzucenia zostawał w bazie, ale status po nim kłamał: najzwyklejsza reakcja
+ * na „za drogo" (nowa, tańsza wersja) wymazywała ze statusu fakt, że ktoś
+ * powiedział nie. Jedno pole niosło dwa pytania — *dlaczego przestała
+ * obowiązywać* i *czy klient powiedział nie*.
+ *
+ * Uzasadnienie, które stało w komentarzu przy tym `UPDATE`, było SŁUSZNE, tylko
+ * węższe niż kod: „nikt jej nie odrzucił, została zastąpiona, a wrzucenie tego
+ * do statystyki przegranych fałszowałoby powody porażek". Dotyczy oferty,
+ * której nikt nie odrzucił — i dokładnie tyle teraz obejmuje.
+ *
+ * Fakt zastąpienia niesie osobna kolumna `superseded_at` (już istniała), więc
+ * nowy status „Zastąpiona" nie był potrzebny — decyzja właściciela z 2026-08-05,
+ * podjęta też dlatego, że nowa wartość w `OFFER_STATUSES` dotyka bliźniaczej
+ * mapy w apce iOS, która żyje w osobnym repozytorium.
+ */
+export function statusPoZastapieniu(status: OfferStatus): OfferStatus {
+  return OTWARTE_PRZED_ZASTAPIENIEM.has(status) ? "Wygasła" : status;
+}
+
+/**
+ * Data ważności, którą dziedziczy NOWA WERSJA oferty (znalezisko D2).
+ *
+ * Nowa wersja przejmuje warunki handlowe poprzedniczki, ale nie jej termin
+ * decyzji, jeśli ten już minął: poprzedniczkę odrzuca się czasem po terminie,
+ * a odziedziczona wsteczna data urodziłaby szkic od razu przeterminowany
+ * (`isOfferExpired` patrzy na `wazna_do` niezależnie od tego, że dokument
+ * powstał przed chwilą). Puste pole właściciel wypełnia jednym kliknięciem
+ * z gotowych okresów — pusta rubryka jest szczera, wsteczna data nie jest.
+ *
+ * Porównanie NAPISÓW `YYYY-MM-DD`, świadomie, bez arytmetyki na `Date`:
+ * dodawanie milisekund do lokalnej daty gubiło dobę na każdym przedziale
+ * przechodzącym przez zmianę czasu (krok 4, `addDaysISO`). Tu nie ma czego
+ * zgubić — dzień kalendarzowy porównuje się z dniem kalendarzowym.
+ */
+export function waznoscDlaNowejWersji(waznaDo: unknown, dzisISO: string): string | null {
+  if (typeof waznaDo !== "string" || !waznaDo) return null;
+  const dzien = waznaDo.slice(0, 10);
+  return dzien >= dzisISO ? dzien : null;
+}
+
 /** Dlaczego oferty nie da się (już) zaakceptować. Nazwy są stabilne — wracają
  * w JSON-ie tras, a panel i strona klienta dobierają po nich komunikat. */
 export type PowodOdmowyAkceptacji =

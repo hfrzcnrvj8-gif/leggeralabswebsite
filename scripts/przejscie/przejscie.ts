@@ -50,6 +50,8 @@ const DANE_FIRMY = {
   bank_nazwa: "mBank",
 };
 const ZNACZNIK = new Date().toISOString().slice(11, 19).replace(/:/g, "");
+/** Token, którego na pewno nie ma w bazie — do prób, które MAJĄ się odbić. */
+const TOKEN_NIEISTNIEJACY = "brak-takiego-tokenu-w-bazie";
 const FIRMA = `Drukarnia Helios [przejście ${ZNACZNIK}]`;
 
 // ── Zbieranie wyników ──────────────────────────────────────────────────────
@@ -112,11 +114,14 @@ async function obejscie(luka: string, opis: string, dzialanie: () => Promise<voi
 async function api(
   metoda: string,
   sciezka: string,
-  body?: unknown
+  body?: unknown,
+  naglowkiDodatkowe?: Record<string, string>
 ): Promise<{ status: number; dane: any }> {
+  const naglowki: Record<string, string> = { ...(naglowkiDodatkowe ?? {}) };
+  if (body) naglowki["Content-Type"] = "application/json";
   const odp = await fetch(`${BAZA}${sciezka}`, {
     method: metoda,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: Object.keys(naglowki).length ? naglowki : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   const tekst = await odp.text();
@@ -979,6 +984,570 @@ async function przejscie(): Promise<void> {
     undefined,
     `→ ${odwracalne.status} ${JSON.stringify(odwracalne.dane?.error ?? "")}`
   );
+
+  // ── 14. Droga, która się NIE udaje ─────────────────────────────────────
+  await drogaPorazki(umowaId!, projektId);
+
+  await sondaEtykietaKontraSlug();
+
+  // ── 15. Hamulec — NA KOŃCU, świadomie ──────────────────────────────────
+  // Sonda hamulca zostawia w bazie pięć nieudanych prób z tego samego odcisku,
+  // więc każde publiczne żądanie PO niej dostaje 429. Postawiona wyżej
+  // zabrałaby drodze porażki jej własne odrzucenie i wyglądałoby to na
+  // regresję. To jest ta sama pułapka co „dev-baza żyje między przebiegami”,
+  // tylko wewnątrz jednego przebiegu.
+  await sondaHamulca();
+}
+
+// ── Droga, która się nie udaje ─────────────────────────────────────────────
+
+/**
+ * Druga droga: oferta wraca z odmową, powstaje wersja 2, warunki zmieniają
+ * się aneksami, projekt się psuje, a faktura nie zostaje zapłacona.
+ *
+ * Powstała po drugim przejściu „na sucho” (krok 5 planu) z tego samego powodu,
+ co całe `npm run przejscie` po pierwszym: żeby trzecie przejście nie musiało
+ * przeklikiwać ręcznie tego, co już raz sprawdzono. Do 2026-08-05 harness znał
+ * WYŁĄCZNIE drogę, która się udaje — a wszystkie cztery brakujące mechanizmy
+ * z drugiego przejścia siedziały właśnie po tej drugiej stronie.
+ *
+ * Trzy sprawdzenia niżej przeniesione co do joty z sondy kroku 4 (napisanej
+ * i skasowanej): pięć wpisów w logu leada, odrzucenie na osi klienta DOKŁADNIE
+ * raz i cisza reguły przy żywej ofercie. Regresja w drugim z nich byłaby cicha,
+ * bo duble na osi czasu wyglądają jak „bogatsza historia”.
+ */
+async function drogaPorazki(umowaGlownaId: string, projektGlownyId: string): Promise<void> {
+  krok("Porażka: oferta i odmowa klienta");
+
+  const nowyLead = await api("POST", "/api/leads", {
+    firma: `Chłodnia Wisła [przejście ${ZNACZNIK}]`,
+    osoba_kontaktowa: "Karolina Bąk",
+    email: "k.bak@chlodniawisla.pl",
+    telefon: "602 330 440",
+    branza: "Chłodnictwo",
+    // Adres z palca, jak w głównej drodze: bez niego bramka wysyłki zgłasza
+    // OSTRZEŻENIE („odbiorca bez adresu") i droga porażki nie doszłaby do
+    // miejsca, o które w niej chodzi.
+    ulica: "ul. Zakładowa 7",
+    kod: "30-740",
+    miasto: "Kraków",
+    zrodlo_kategoria: "Formularz na stronie",
+  });
+  const leadId = id(nowyLead.dane);
+  wymagaj(!!leadId, `POST /api/leads (porażka) → ${nowyLead.status} ${JSON.stringify(nowyLead.dane)}`);
+
+  const nowaOferta = await api("POST", "/api/offers", { lead_id: leadId });
+  const ofertaId = id(nowaOferta.dane);
+  wymagaj(!!ofertaId, `POST /api/offers (porażka) → ${nowaOferta.status} ${JSON.stringify(nowaOferta.dane)}`);
+  const klientId: string | null = (await pobierzOferte(ofertaId!)).offer.client_id ?? null;
+
+  // Komplet warunków handlowych — te cztery pola sprawdzamy niżej po nowej
+  // wersji (D2). Bez nich sprawdzenie „wersja 2 dziedziczy" mierzyłoby zera.
+  await api("PATCH", `/api/offers/${ofertaId}`, {
+    czas_realizacji_tygodnie: 6,
+    roi_godziny: 80,
+    roi_stawka: 45,
+    wazna_do: zaDni(21),
+  });
+  await api("POST", `/api/offers/${ofertaId}/items`, { nazwa: "Wdrożenie lokalnego modelu", ilosc: 1, jednostka: "kpl.", cena: 15000 });
+  await api("POST", `/api/offers/${ofertaId}/sections`, {
+    tytul: "Zakres prac",
+    tresc: "Wdrożenie lokalnego modelu na sprzęcie klienta wraz ze szkoleniem zespołu.",
+  });
+
+  const wyslana = await apiZPotwierdzeniem("POST", `/api/offers/${ofertaId}/send`, "oferta-wyslij");
+  wymagaj(wyslana.status === 200, `wysyłka oferty (porażka) → ${wyslana.status} ${JSON.stringify(wyslana.dane)}`);
+  const oWyslana = await pobierzOferte(ofertaId!);
+  const shareToken = String(oWyslana.offer.share_token ?? "");
+  wymagaj(!!shareToken, "wysłana oferta nie dostała tokenu — nie ma czym iść drogą klienta");
+
+  // Reguła MILCZY, dopóki cokolwiek jest w grze — sprawdzenie przeniesione
+  // z sondy kroku 4. Bez tego zawężenia panel pytałby o zamknięcie leada,
+  // który właśnie dostał ofertę.
+  sprawdz(
+    "przy ŻYWEJ ofercie reguła domknięcia leada milczy",
+    !(await propozycjeDla(leadId!)).some((p) => p.regula === "odrzucona-oferta-domyka-leada"),
+    undefined,
+    `propozycje dla leada: ${(await propozycjeDla(leadId!)).map((p) => p.regula).join(", ") || "brak"}`
+  );
+
+  // ── C1: klient odrzuca ofertę SAM, ze swojej strony ────────────────────
+  // DOKŁADNIE JEDNO odrzucenie tej oferty. Pierwsza wersja tej sondy odrzucała
+  // ją dwa razy (raz slugiem przez link, raz etykietą z panelu) i sama sobie
+  // robiła dubel na osi klienta, po czym zgłaszała go jako regresję panelu.
+  // Sprawdzenie „dokładnie raz” jest bezwartościowe, jeśli wołający klika
+  // dwa razy.
+  const odmowa = await api("POST", `/api/offers/public/${shareToken}/reject`, {
+    powod: "Za drogo",
+    komentarz: "Zarząd uciął budżet, chcą sam PoC",
+    name: "Karolina Bąk",
+  });
+  let odrzucenieSprawdzone = true;
+  if (odmowa.status === 429) {
+    // Hamulec ma pierwszeństwo przed wygodą testu (Audyt 1) — mówimy wprost,
+    // czego nie sprawdzono, zamiast go rozluźniać.
+    pominiete.push("odrzucenie oferty przez PUBLICZNY link — hamulec 5/60 min (HAMULEC_DOKUMENT_PUBLICZNY)");
+    console.log("   ⊘ publiczne odrzucenie pominięte (hamulec) — zapisuję od strony panelu");
+    await api("PATCH", `/api/offers/${ofertaId}`, {
+      status: "Odrzucona",
+      powod_odrzucenia: "Za drogo",
+      komentarz_odrzucenia: "Zarząd uciął budżet, chcą sam PoC",
+    });
+    odrzucenieSprawdzone = false;
+  } else {
+    wymagaj(odmowa.status === 200, `publiczne odrzucenie → ${odmowa.status} ${JSON.stringify(odmowa.dane)}`);
+    // Druga próba tym samym linkiem musi odbić się od claimu — decyzja
+    // zapadła raz i nie da się jej przepisać z zewnątrz.
+    const drugieOdrzucenie = await api("POST", `/api/offers/public/${shareToken}/reject`, { powod: "Nie ten termin" });
+    sprawdz(
+      "tym samym linkiem nie da się odrzucić oferty drugi raz",
+      drugieOdrzucenie.status === 409,
+      undefined,
+      `→ ${drugieOdrzucenie.status} ${JSON.stringify(drugieOdrzucenie.dane?.error ?? drugieOdrzucenie.dane)}`
+    );
+  }
+
+  const oOdrzucona = await pobierzOferte(ofertaId!);
+  sprawdz(
+    "odrzucenie zapisuje powód, komentarz i datę",
+    oOdrzucona.offer.status === "Odrzucona" &&
+      oOdrzucona.offer.powod_odrzucenia === "Za drogo" &&
+      !!oOdrzucona.offer.odrzucona_at,
+    undefined,
+    `status = ${oOdrzucona.offer.status}, powód = „${oOdrzucona.offer.powod_odrzucenia}”, data = ${oOdrzucona.offer.odrzucona_at}`
+  );
+
+  // Akceptacja tym samym linkiem po odmowie — bramka z kroku 1. Klient, który
+  // odmówił, nie może „ożywić" oferty powrotem do zakładki.
+  if (odrzucenieSprawdzone) {
+    const akceptacjaPoOdmowie = await api("POST", `/api/offers/public/${shareToken}/accept`, { name: "Karolina Bąk" });
+    sprawdz(
+      "po odrzuceniu ten sam link nie pozwala już zaakceptować oferty",
+      akceptacjaPoOdmowie.status === 409,
+      undefined,
+      `→ ${akceptacjaPoOdmowie.status} ${JSON.stringify(akceptacjaPoOdmowie.dane?.error ?? akceptacjaPoOdmowie.dane)}`
+    );
+  } else {
+    pominiete.push("blokada akceptacji po odrzuceniu — publiczna droga niedostępna w tym przebiegu");
+  }
+
+  // ── B1 z kroku 4: log LEADA widzi cykl życia oferty ────────────────────
+  // `GET /api/leads/:id`, nie `/activity` — ta druga trasa ma wyłącznie POST.
+  // Pierwsza wersja tej asercji pytała pod nieistniejący adres i zgłaszała
+  // pusty log jako regresję panelu. Sonda też jest kodem (trzeci raz z rzędu).
+  const logLeada = ((await api("GET", `/api/leads/${leadId}`)).dane?.activity ?? []) as any[];
+  const rodzajeLeada = logLeada.map((w) => String(w.kind ?? ""));
+  sprawdz(
+    "log leada widzi CAŁY cykl życia oferty, z odrzuceniem włącznie",
+    rodzajeLeada.includes("offer_created") &&
+      rodzajeLeada.includes("offer_sent") &&
+      rodzajeLeada.includes("offer_rejected"),
+    undefined,
+    `wpisy w logu leada: ${rodzajeLeada.join(", ") || "brak"}`
+  );
+  const odrzuceniaWLogu = rodzajeLeada.filter((k) => k === "offer_rejected").length;
+  sprawdz(
+    "odrzucenie stoi w logu leada DOKŁADNIE raz",
+    odrzuceniaWLogu === 1,
+    undefined,
+    `wpisów offer_rejected: ${odrzuceniaWLogu} — dubel wygląda jak bogatsza historia i dlatego byłby cichy`
+  );
+
+  if (klientId) {
+    const osKlienta = ((await api("GET", `/api/clients/${klientId}`)).dane?.feed ?? []) as any[];
+    const odrzuceniaNaOsi = osKlienta.filter((w) => String(w.kind ?? "") === "offer_rejected").length;
+    sprawdz(
+      "oś czasu klienta pokazuje odrzucenie DOKŁADNIE raz",
+      odrzuceniaNaOsi === 1,
+      undefined,
+      `wpisów offer_rejected na osi klienta: ${odrzuceniaNaOsi} (log leada jest dociągany do osi — stąd ryzyko dubla)`
+    );
+  } else {
+    pominiete.push("oś czasu klienta po odrzuceniu — oferta nie dostała karty klienta");
+  }
+
+  // ── B2 z kroku 4: propozycja z DWIEMA drogami wyjścia ──────────────────
+  const poOdrzuceniu = (await propozycjeDla(leadId!)).find((p) => p.regula === "odrzucona-oferta-domyka-leada");
+  sprawdz(
+    "odrzucona oferta rodzi propozycję domknięcia leada",
+    !!poOdrzuceniu,
+    undefined,
+    `propozycje dla leada: ${(await propozycjeDla(leadId!)).map((p) => p.regula).join(", ") || "brak"}`
+  );
+  sprawdz(
+    "propozycja cytuje POWÓD odmowy, a nie sam fakt",
+    (poOdrzuceniu?.zdanie ?? "").includes("Za drogo"),
+    undefined,
+    `zdanie: „${poOdrzuceniu?.zdanie ?? "—"}”`
+  );
+
+  // ── A3 + D2: nowa wersja ───────────────────────────────────────────────
+  krok("Porażka: nowa wersja oferty");
+  const wersja = await api("POST", `/api/offers/${ofertaId}/version`);
+  const wersja2Id = id(wersja.dane);
+  wymagaj(!!wersja2Id, `POST /api/offers/:id/version → ${wersja.status} ${JSON.stringify(wersja.dane)}`);
+
+  const poprzedniczka = (await pobierzOferte(ofertaId!)).offer;
+  sprawdz(
+    "nowa wersja NIE wymazuje faktu, że klient odrzucił poprzednią",
+    poprzedniczka.status === "Odrzucona" && poprzedniczka.powod_odrzucenia === "Za drogo",
+    undefined,
+    `status poprzedniczki = ${poprzedniczka.status}, powód = „${poprzedniczka.powod_odrzucenia}” ` +
+      `— „Wygasła” tutaj kłamie o tym, na czym przegrywasz (A3)`
+  );
+  sprawdz(
+    "zastąpienie odnotowuje się osobną kolumną, nie statusem",
+    !!poprzedniczka.superseded_at,
+    undefined,
+    `superseded_at = ${poprzedniczka.superseded_at}`
+  );
+
+  const w2 = await pobierzOferte(wersja2Id!);
+  sprawdz(
+    "wersja 2 dziedziczy termin realizacji — ten sam, który wejdzie na umowę",
+    Number(w2.offer.czas_realizacji_tygodnie) === 6,
+    undefined,
+    `czas_realizacji_tygodnie = ${w2.offer.czas_realizacji_tygodnie} (spodziewane 6) — ` +
+      `zgubiony tutaj znika z DOKUMENTU, nie z podglądu`
+  );
+  sprawdz(
+    "wersja 2 dziedziczy blok zwrotu dla klienta",
+    Number(w2.offer.roi_godziny) === 80 && Number(w2.offer.roi_stawka) === 45,
+    undefined,
+    `roi_godziny = ${w2.offer.roi_godziny}, roi_stawka = ${w2.offer.roi_stawka} (spodziewane 80 i 45)`
+  );
+  sprawdz(
+    "wersja 2 dziedziczy datę ważności, dopóki ta nie minęła",
+    String(w2.offer.wazna_do ?? "").slice(0, 10) === zaDni(21),
+    undefined,
+    `wazna_do = ${w2.offer.wazna_do} (spodziewane ${zaDni(21)})`
+  );
+  sprawdz(
+    "edytor wersji 2 dostaje powód odrzucenia poprzedniczki",
+    w2.poprzednia?.status === "Odrzucona" && w2.poprzednia?.powod_odrzucenia === "Za drogo",
+    undefined,
+    `poprzednia = ${JSON.stringify(w2.poprzednia ?? null)} — ekran, na którym piszesz ODPOWIEDŹ ` +
+      `na odrzucenie, ma pokazywać odrzucenie`
+  );
+
+  // Statystyka „na czym przegrywamy" — po A3 powód odrzuconej i zastąpionej
+  // oferty musi być w niej widoczny. To jedyne miejsce, które odpowiada na to
+  // pytanie, a najzwyklejsza reakcja na odmowę (nowa wersja) kasowała odpowiedź.
+  const powody = ((await api("GET", "/api/stats")).dane?.offerLosses?.reasons ?? []) as any[];
+  sprawdz(
+    "powód odmowy zostaje w statystyce, choć odpowiedzieliśmy nową wersją",
+    powody.some((p) => String(p.powod) === "Za drogo"),
+    undefined,
+    `powody w statystyce: ${powody.map((p) => `${p.powod}×${p.ile}`).join(", ") || "brak"}`
+  );
+
+  // Reguła znów MILCZY: wersja 2 jest w grze, więc nie ma czego domykać.
+  sprawdz(
+    "przy nowej wersji w grze reguła domknięcia leada znów milczy",
+    !(await propozycjeDla(leadId!)).some((p) => p.regula === "odrzucona-oferta-domyka-leada"),
+    undefined,
+    "„jest szkic wersji 2” to trwająca rozmowa handlowa, nie porażka do zamknięcia"
+  );
+
+  // ── Krok 3 (A7): dwa aneksy i warunki OBOWIĄZUJĄCE ─────────────────────
+  krok("Porażka: dwa aneksy");
+  const aneks1 = await api("POST", `/api/contracts/${umowaGlownaId}/aneks`);
+  const aneks1Id = id(aneks1.dane);
+  wymagaj(!!aneks1Id, `POST aneks nr 1 → ${aneks1.status} ${JSON.stringify(aneks1.dane)}`);
+  await api("PATCH", `/api/contracts/${aneks1Id}`, {
+    cena: 11000,
+    zakres_prac: "Rozszerzenie o drugi model i szkolenie zespołu.",
+    termin_realizacji: zaDni(45),
+  });
+  await api("POST", `/api/contracts/${aneks1Id}/podpis-nasz`);
+  const podpisA1 = await api("POST", `/api/contracts/${aneks1Id}/accept`, {});
+  wymagaj(podpisA1.status === 200, `podpis aneksu nr 1 → ${podpisA1.status} ${JSON.stringify(podpisA1.dane)}`);
+
+  const aneks2 = await api("POST", `/api/contracts/${umowaGlownaId}/aneks`);
+  const aneks2Id = id(aneks2.dane);
+  wymagaj(!!aneks2Id, `POST aneks nr 2 → ${aneks2.status} ${JSON.stringify(aneks2.dane)}`);
+  const a2 = await pobierzUmowe(aneks2Id!);
+
+  // A7: jedno pole niosło dwa pytania. Nagłówek SŁUSZNIE wskazuje umowę-matkę
+  // (tego dokument dotyczy), ale wartości „było" mają pochodzić z aneksu nr 1.
+  sprawdz(
+    "aneks nr 2 powołuje się w nagłówku na umowę, nie na aneks nr 1",
+    String(a2.poprzednie?.reference ?? "").startsWith("UM-"),
+    undefined,
+    `reference = ${a2.poprzednie?.reference}`
+  );
+  sprawdz(
+    "aneks nr 2 bierze wartości „było” z aneksu nr 1, nie z pierwotnej umowy",
+    Number(a2.poprzednie?.cena) === 11000 && a2.poprzednie?.zrodlo?.aneks_nr === 1,
+    undefined,
+    `„było”: cena = ${a2.poprzednie?.cena} (spodziewane 11000), źródło = ${JSON.stringify(a2.poprzednie?.zrodlo ?? null)}`
+  );
+
+  // Podpisany aneks przestawia termin projektu — druga połowa A6 z kroku 3
+  // („podpisanie aneksu nie dotykało projektu w ogóle").
+  const projektPoAneksie = await pobierzProjekt(projektGlownyId);
+  sprawdz(
+    "podpisany aneks wyrównuje termin projektu do obowiązujących warunków",
+    String(projektPoAneksie.project.termin ?? "").slice(0, 10) === zaDni(45),
+    undefined,
+    `termin projektu = ${projektPoAneksie.project.termin}, aneks nr 1 mówi ${zaDni(45)}`
+  );
+
+  // ── B2/B3 z kroku 4: projekt się psuje ─────────────────────────────────
+  krok("Porażka: zerwany projekt");
+  await api("PATCH", `/api/projects/${projektGlownyId}`, { zdrowie: "Zerwany", status: "W trakcie" });
+  const propozycjeProjektu = await propozycjeDla(projektGlownyId);
+  const zerwany = propozycjeProjektu.find((p) => p.regula === "zerwany-projekt-domkniecie");
+  sprawdz(
+    "zerwany projekt rodzi propozycję domknięcia",
+    !!zerwany,
+    undefined,
+    `propozycje dla projektu: ${propozycjeProjektu.map((p) => p.regula).join(", ") || "brak"}`
+  );
+  sprawdz(
+    "zerwany projekt trafia na Pulpit, choć jego termin jest w PRZYSZŁOŚCI",
+    (((await api("GET", "/api/hub/today")).dane?.projektyZagrozone ?? []) as any[]).some(
+      (p) => String(p.id) === projektGlownyId
+    ),
+    undefined,
+    `„Projekty z minionym terminem” go nie łapie — termin ${projektPoAneksie.project.termin} jeszcze nie minął`
+  );
+  if (zerwany) {
+    await decyzjaOPropozycji("zerwany-projekt-domkniecie", projektGlownyId, "zrob");
+    const projektPoDomknieciu = await pobierzProjekt(projektGlownyId);
+    sprawdz(
+      "domknięcie zerwanego projektu ustawia „Wstrzymane”, a nie „Wdrożone”",
+      projektPoDomknieciu.project.status === "Wstrzymane",
+      undefined,
+      `status = ${projektPoDomknieciu.project.status} — „Wdrożone” znaczy ODEBRANE, a tego nikt nie odebrał`
+    );
+  }
+
+  // ── Krok 2 (A4/C2): eskalacja windykacji ───────────────────────────────
+  krok("Porażka: windykacja");
+  const fv = await api("POST", "/api/invoices", { client_id: klientId, project_id: projektGlownyId });
+  const fvId = id(fv.dane);
+  wymagaj(!!fvId, `POST /api/invoices (windykacja) → ${fv.status} ${JSON.stringify(fv.dane)}`);
+  await api("POST", `/api/invoices/${fvId}/items`, { nazwa: "Wdrożenie — etap 1", ilosc: 1, jednostka: "kpl.", cena: 6000, vat: 23 });
+  // Termin minął 14 dni temu: podpowiadany poziom to od razu „stanowcze
+  // przypomnienie" — dokładnie sytuacja z drugiego przejścia, w której
+  // PIERWSZA wiadomość twierdziła, że jest druga.
+  await api("PATCH", `/api/invoices/${fvId}`, { termin_platnosci: zaDni(-14), data_wystawienia: zaDni(-28) });
+  const fvGotowa = await pobierzFakture(fvId!);
+  const nazwaNabywcy = String(fvGotowa.invoice.klient_nazwa ?? "");
+  const wystawienie = await apiZPotwierdzeniem("POST", `/api/invoices/${fvId}/issue`, "faktura-wystaw", undefined, nazwaNabywcy);
+  wymagaj(wystawienie.status === 200, `wystawienie faktury windykacyjnej → ${wystawienie.status} ${JSON.stringify(wystawienie.dane)}`);
+
+  // C2: poziom da się WYBRAĆ, a nie tylko przyjąć podpowiedziany.
+  // Wysyłka windykacji jest działaniem NIEODWRACALNYM (Faza 4), więc trasa
+  // wymaga nagłówka potwierdzenia — bez niego oddaje 428. To nie jest luka,
+  // tylko bariera, którą panel i apka też muszą przejść.
+  const lagodne = await apiZPotwierdzeniem("POST", `/api/invoices/${fvId}/remind`, "faktura-przypomnij", { poziom: 1 });
+  sprawdz(
+    "przy 14 dniach zwłoki da się wysłać ŁAGODNE przypomnienie zamiast podpowiadanego",
+    lagodne.status === 200,
+    undefined,
+    `→ ${lagodne.status} ${JSON.stringify(lagodne.dane?.error ?? lagodne.dane)}`
+  );
+  const poPierwszym = await pobierzFakture(fvId!);
+  sprawdz(
+    "wysłane przypomnienie podnosi poziom windykacji",
+    Number(poPierwszym.invoice.reminder_level) === 1,
+    undefined,
+    `reminder_level = ${poPierwszym.invoice.reminder_level}`
+  );
+
+  // Eskalacja NIE cofa się poniżej już wysłanego poziomu (decyzja 4 z planu).
+  const wStecz = await apiZPotwierdzeniem("POST", `/api/invoices/${fvId}/remind`, "faktura-przypomnij", { poziom: 1 });
+  const poDrugim = await pobierzFakture(fvId!);
+  sprawdz(
+    "eskalacja nie cofa się poniżej poziomu, który już wyszedł do klienta",
+    Number(poDrugim.invoice.reminder_level) >= 1,
+    undefined,
+    `po ponownym „poziom 1”: ${poDrugim.invoice.reminder_level} (→ ${wStecz.status})`
+  );
+
+  const wezwanie = await apiZPotwierdzeniem("POST", `/api/invoices/${fvId}/remind`, "wezwanie-wyslij", { poziom: 3 });
+  sprawdz(
+    "eskalacja w GÓRĘ, aż do wezwania, przechodzi",
+    wezwanie.status === 200 && Number((await pobierzFakture(fvId!)).invoice.reminder_level) === 3,
+    undefined,
+    `→ ${wezwanie.status} ${JSON.stringify(wezwanie.dane?.error ?? "")}`
+  );
+}
+
+// ── Sonda: etykieta kontra slug ────────────────────────────────────────────
+
+/**
+ * `OFFER_REJECT_REASONS` to ETYKIETY („Za drogo"), nie slugi („za-drogo").
+ * Trasa odrzucenia przyjmuje decyzję klienta niezależnie od tego, co przyszło
+ * w polu `powod` — ale wartość spoza zamkniętej listy zapisuje jako PUSTY
+ * powód, bo inaczej statystyka „na czym przegrywamy" zbierałaby dowolne
+ * napisy z internetu.
+ *
+ * Sonda kroku 4 nabrała się na to i zgłosiła czerwień jako usterkę panelu.
+ * Osobny lead i osobna oferta, bo to sprawdzenie ZUŻYWA odrzucenie.
+ */
+async function sondaEtykietaKontraSlug(): Promise<void> {
+  krok("Sonda: etykieta kontra slug");
+
+  const lead = await api("POST", "/api/leads", {
+    firma: `Sonda sluga [${ZNACZNIK}]`,
+    email: "sonda@przyklad.pl",
+    ulica: "ul. Testowa 1",
+    kod: "30-001",
+    miasto: "Kraków",
+  });
+  const leadId = id(lead.dane);
+  wymagaj(!!leadId, `POST /api/leads (sonda sluga) → ${lead.status} ${JSON.stringify(lead.dane)}`);
+
+  const oferta = await api("POST", "/api/offers", { lead_id: leadId });
+  const ofertaId = id(oferta.dane);
+  wymagaj(!!ofertaId, `POST /api/offers (sonda sluga) → ${oferta.status} ${JSON.stringify(oferta.dane)}`);
+  await api("POST", `/api/offers/${ofertaId}/items`, { nazwa: "Pozycja sondy", ilosc: 1, jednostka: "kpl.", cena: 1000 });
+  await api("POST", `/api/offers/${ofertaId}/sections`, { tytul: "Zakres prac", tresc: "Zakres na potrzeby sondy." });
+
+  const wyslana = await apiZPotwierdzeniem("POST", `/api/offers/${ofertaId}/send`, "oferta-wyslij");
+  wymagaj(wyslana.status === 200, `wysyłka (sonda sluga) → ${wyslana.status} ${JSON.stringify(wyslana.dane)}`);
+  const token = String((await pobierzOferte(ofertaId!)).offer.share_token ?? "");
+  wymagaj(!!token, "oferta sondy nie dostała tokenu");
+
+  const zeSlugiem = await api("POST", `/api/offers/public/${token}/reject`, {
+    powod: "za-drogo",
+    komentarz: "sonda: slug zamiast etykiety",
+  });
+  if (zeSlugiem.status === 429) {
+    pominiete.push("etykieta kontra slug w powodzie odrzucenia — hamulec 5/60 min");
+    return;
+  }
+  const po = await pobierzOferte(ofertaId!);
+  sprawdz(
+    "decyzja klienta zapisuje się nawet przy nieznanym powodzie",
+    po.offer.status === "Odrzucona",
+    undefined,
+    `status = ${po.offer.status} — odmowa jest odmową, choćby pole „powód” przyszło śmieciowe`
+  );
+  sprawdz(
+    "slug zamiast etykiety NIE zapisuje się jako powód (statystyka zostaje czysta)",
+    !po.offer.powod_odrzucenia && String(po.offer.komentarz_odrzucenia ?? "").includes("slug"),
+    undefined,
+    `powod_odrzucenia = „${po.offer.powod_odrzucenia}”, komentarz = „${po.offer.komentarz_odrzucenia}”`
+  );
+}
+
+// ── Sonda: hamulec publicznych dokumentów (D5) ─────────────────────────────
+
+/**
+ * Hamulec ma liczyć POMYŁKI i zerować się po udanym wejściu — jak przy
+ * logowaniu (decyzja właściciela 2026-08-05, znalezisko D5). Do tego dnia
+ * liczył KAŻDE żądanie i nigdy nie zerował, więc klient, który trzy razy
+ * pomylił się przy wpisywaniu nazwiska, miał dwie próby na podpisanie umowy.
+ *
+ * **Sonda udaje ruch z INNEGO miejsca** (`x-forwarded-for`), i to nie jest
+ * sztuczka dla wygody: bez tego wyczerpywała limit wspólny z całą resztą
+ * przejścia i zabierała drogę klienta NASTĘPNEMU przebiegowi — pierwszy bieg
+ * zielony, każdy kolejny z sześcioma pominięciami. Ten sam kształt pułapki co
+ * „dev-baza żyje między przebiegami” (krok 3), tylko przez stan hamulca.
+ * Mechanizm jest mierzony ten sam i w pełni; zmienia się wyłącznie odcisk.
+ */
+async function sondaHamulca(): Promise<void> {
+  krok("Sonda: hamulec publicznych dokumentów");
+
+  // Odcisk liczy się z TREŚCI nagłówka, więc znacznik przebiegu w adresie
+  // wystarczy, żeby dwa biegi pod rząd nie dziedziczyły po sobie licznika.
+  // Bez tego drugi przebieg zastawał własne pięć pomyłek sprzed godziny
+  // i zgłaszał 429 jako regresję — złapane pomiarem, nie rozumowaniem.
+  //
+  // Limit ŁĄCZNY (60/60 min ze wszystkich miejsc naraz) zostaje nietknięty
+  // i jest realnym sufitem: sonda zostawia po sobie ~11 wierszy, więc powyżej
+  // pięciu przebiegów w ciągu godziny zacznie blokować globalnie. To jest
+  // poprawne zachowanie zabezpieczenia, nie usterka przejścia.
+  const zMiejsca = (kto: string) => ({ "x-forwarded-for": `203.0.113.${kto}-${ZNACZNIK}` });
+  const nieudanaProba = (adres: string) =>
+    // Puste imię → 400. Najtańsza możliwa pomyłka klienta i dokładnie ta,
+    // o którą chodzi w D5.
+    api("POST", `/api/offers/public/${TOKEN_NIEISTNIEJACY}/accept`, { name: "" }, zMiejsca(adres));
+
+  // ── 1. Blokada po serii pomyłek (próg 5/60 min) ────────────────────────
+  const adresA = "11";
+  let ostatni = { status: 0, dane: null as any };
+  for (let i = 0; i < 6; i++) {
+    ostatni = await nieudanaProba(adresA);
+    if (ostatni.status === 429) break;
+  }
+  sprawdz(
+    "seria pomyłek z jednego miejsca kończy się blokadą",
+    ostatni.status === 429,
+    undefined,
+    `ostatnia odpowiedź: ${ostatni.status} ${JSON.stringify(ostatni.dane?.error ?? ostatni.dane)}`
+  );
+  sprawdz(
+    "komunikat blokady mówi klientowi, CO ZROBIĆ",
+    String(ostatni.dane?.error ?? "").includes("odpowiedzieć na wiadomość"),
+    undefined,
+    `komunikat: „${ostatni.dane?.error ?? "—"}” — poprzedni („Zbyt wiele prób. Spróbuj ponownie za 60 min.”) ` +
+      `zostawiał klienta samego przed dokumentem, którego nie mógł podpisać`
+  );
+
+  // ── 2. Udane wejście ZERUJE licznik ────────────────────────────────────
+  // To jest właściwa treść D5 i jedyny sposób, żeby ją udowodnić: cztery
+  // pomyłki, potem sukces, potem znowu cztery pomyłki. Bez zerowania byłoby
+  // ich osiem, czyli dawno po progu, i ostatnie żądanie dostałoby 429.
+  const adresB = "22";
+  const cel = await ofertaDoOdrzucenia(`Sonda hamulca [${ZNACZNIK}]`);
+  if (!cel) {
+    pominiete.push("zerowanie licznika po udanym wejściu — nie udało się przygotować oferty do sondy");
+    return;
+  }
+
+  for (let i = 0; i < 4; i++) await nieudanaProba(adresB);
+  const sukces = await api(
+    "POST",
+    `/api/offers/public/${cel.token}/reject`,
+    { powod: "Nie ten termin", komentarz: "sonda zerowania licznika" },
+    zMiejsca(adresB)
+  );
+  sprawdz(
+    "po czterech pomyłkach prawdziwa decyzja klienta wciąż przechodzi",
+    sukces.status === 200,
+    undefined,
+    `→ ${sukces.status} ${JSON.stringify(sukces.dane?.error ?? sukces.dane)} (próg to 5, więc piąte żądanie ma się zmieścić)`
+  );
+
+  for (let i = 0; i < 4; i++) await nieudanaProba(adresB);
+  const poZerowaniu = await nieudanaProba(adresB);
+  sprawdz(
+    "udane wejście ZERUJE licznik pomyłek",
+    poZerowaniu.status !== 429,
+    undefined,
+    `→ ${poZerowaniu.status}: bez zerowania byłoby to dziewiąte żądanie z tego miejsca, ` +
+      `czyli dawno po progu 5 — a klient, który raz podpisał, nie ma być karany za wcześniejsze literówki`
+  );
+}
+
+/** Wysłana oferta z tokenem, gotowa do odrzucenia. Osobny lead za każdym
+ *  razem, bo odrzucenie ZUŻYWA dokument i wpływa na reguły przy leadzie. */
+async function ofertaDoOdrzucenia(nazwa: string): Promise<{ ofertaId: string; token: string } | null> {
+  const lead = await api("POST", "/api/leads", {
+    firma: nazwa,
+    email: "sonda@przyklad.pl",
+    ulica: "ul. Testowa 1",
+    kod: "30-001",
+    miasto: "Kraków",
+  });
+  const leadId = id(lead.dane);
+  if (!leadId) return null;
+
+  const oferta = await api("POST", "/api/offers", { lead_id: leadId });
+  const ofertaId = id(oferta.dane);
+  if (!ofertaId) return null;
+  await api("POST", `/api/offers/${ofertaId}/items`, { nazwa: "Pozycja sondy", ilosc: 1, jednostka: "kpl.", cena: 1000 });
+  await api("POST", `/api/offers/${ofertaId}/sections`, { tytul: "Zakres prac", tresc: "Zakres na potrzeby sondy." });
+
+  const wyslana = await apiZPotwierdzeniem("POST", `/api/offers/${ofertaId}/send`, "oferta-wyslij");
+  if (wyslana.status !== 200) return null;
+  const token = String((await pobierzOferte(ofertaId)).offer.share_token ?? "");
+  return token ? { ofertaId, token } : null;
 }
 
 // ── Odczyty ────────────────────────────────────────────────────────────────

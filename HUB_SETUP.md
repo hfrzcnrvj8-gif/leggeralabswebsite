@@ -12142,3 +12142,198 @@ oś klienta:  odrzucenie widnieje DOKŁADNIE raz, jako [system]
 ostatni kontakt:  05.08.2026 · email   (przed krokiem 4: —)
 mapa procesu:  2/15 „Pierwszy kontakt"  →  15/15 „Nurture"
 ```
+
+---
+
+## Krok 5 planu po drugim przejściu — drobiazgi i harness na drogę porażki (2026-08-05)
+
+Plan: `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`, znaleziska **A3, C1, D1, D2, D5, D6**.
+Ostatni krok tego planu — podsumowanie całości jest na końcu pliku planu.
+
+### C1 — klient odrzuca ofertę ze swojej strony
+
+Nowa trasa `POST /api/offers/public/:token/reject` i trzeci przycisk na stronie
+klienta, obok „Akceptuję ofertę" i „Wyślij prośbę o zmianę". Do tej pory klient,
+który chciał odmówić, musiał napisać maila, a właściciel musiał **pamiętać**,
+żeby przepisać powód do panelu — czyli dokładnie ta informacja, którą panel
+nazywa „jedynym miejscem, z którego da się odczytać, na czym realnie
+przegrywasz", zależała od czyjejś pamięci.
+
+Trasa jest zbudowana na kształt `comment/route.ts` i **zapisuje w te same
+kolumny co odrzucenie z panelu** (`powod_odrzucenia`, `komentarz_odrzucenia`,
+`odrzucona_at`). Dzięki temu trzy rzeczy dzieją się SAME:
+
+1. wpis ląduje naraz na osi klienta i w logu leada — jedno wywołanie
+   `logZdarzenieDokumentu(…, "offer_rejected", …)` (krok 4),
+2. propozycja `odrzucona-oferta-domyka-leada` liczy się sama, bo reguły są
+   liczone z DANYCH, nie zapisywane przy zdarzeniu (Faza 3),
+3. `ocenAkceptacje()` natychmiast blokuje akceptację tym samym linkiem (krok 1).
+
+Szczegóły warte zapamiętania:
+
+- **Powody to ETYKIETY, nie slugi.** `OFFER_REJECT_REASONS` trzyma „Za drogo",
+  nie „za-drogo". Strona klienta **tłumaczy wyłącznie to, co pokazuje** (pl/en/de,
+  klucz mapy = polska etykieta), a do serwera wysyła zawsze etykietę kanoniczną.
+  Wartość spoza listy nie jest błędem żądania — decyzja klienta zapisuje się
+  mimo to, tylko z pustym powodem, żeby statystyka nie zbierała dowolnych
+  napisów z internetu.
+- **Claim przez wyliczenie dozwolonego** (`WHERE status = 'Wysłana'`), nie przez
+  wykluczanie zakazanych. Drugie odrzucenie tym samym linkiem dostaje 409.
+- **Do klienta idzie jedno zdanie** (decyzja właściciela): potwierdzenie odbioru
+  decyzji, bez próby ratowania sprzedaży. Wysyłka „best effort" — gdyby padła,
+  decyzja i tak jest zapisana.
+- Nowy rodzaj powiadomienia `offer_rejected` (`lib/notifications.ts`,
+  `icons.tsx`) — dzwoni TYLKO trasa publiczna. Odrzucenie wpisane przez
+  właściciela w panelu nie dzwoni: wpisujący już wie.
+
+### A3 — nowa wersja nie wymazuje faktu, że klient odmówił
+
+`POST /api/offers/:id/version` ustawiał poprzedniczce `status = 'Wygasła'`
+**bezwarunkowo**. Uzasadnienie w komentarzu („nikt jej nie odrzucił, została
+zastąpiona") było słuszne, tylko węższe niż kod: przykrywało też ofertę, którą
+klient NAPRAWDĘ odrzucił. Jedno pole niosło dwa pytania — *dlaczego przestała
+obowiązywać* i *czy klient powiedział nie*.
+
+**Decyzja właściciela: zawężamy `UPDATE`, nie dokładamy statusu „Zastąpiona".**
+Fakt zastąpienia niesie już `superseded_at`; nowa wartość w `OFFER_STATUSES`
+dotknęłaby mapy koloru, filtra, wagi w pipelinie i **bliźniaczej mapy w apce
+iOS**, która żyje w osobnym repozytorium. Reguła stoi w czystej funkcji
+`statusPoZastapieniu()` (`lib/offers.ts`) z testami — nie w samym SQL-u.
+
+**Druga połowa, spoza briefu:** statystyka „dlaczego przegrywamy oferty"
+(`/api/stats` → `offerLosses`) miała własny warunek `superseded_at IS NULL`.
+Po tej poprawce robił dokładnie jedną rzecz — ukrywał powód odmowy, gdy
+odpowiedzią na nią była nowa wersja, czyli w najczęstszym przypadku. Zdjęty.
+Skuteczność liczy się dalej **bez** zastąpionych (`offerLiczySieDoStatystyk`):
+tam „ile wygrywam", tu „na czym się potykam".
+
+### D2 — nowa wersja przenosi warunki handlowe
+
+Wersja 2 gubiła `wazna_do`, `czas_realizacji_tygodnie`, `roi_godziny`
+i `roi_stawka`. Termin realizacji to **nie kosmetyka**: od kroku 3 wchodzi na
+UMOWĘ i na PROJEKT przy podpisie, więc zgubiony tutaj znikał z dokumentu.
+
+`wazna_do` wędruje **tylko wtedy, gdy jeszcze nie minęła**
+(`waznoscDlaNowejWersji()`): poprzedniczkę odrzuca się czasem po terminie,
+a odziedziczona wsteczna data urodziłaby szkic od razu przeterminowany. Testy
+na dosłownych datach wokół 25.10 — porównanie napisów `YYYY-MM-DD`, bez
+arytmetyki na `Date`.
+
+Druga połowa D2: `GET /api/offers/:id` oddaje teraz `poprzednia`, a edytor
+rysuje z tego kartę **„ODPOWIEDŹ NA WERSJĘ N"** z powodem odrzucenia i
+odsyłaczem. Dane były w bazie od początku (`parent_offer_id`) — nic ich nie
+czytało, więc ekran, na którym pisze się odpowiedź na odrzucenie, odrzucenia
+nie pokazywał.
+
+### D1 — wyróżniony jest NASTĘPNY KROK, nie zawsze akceptacja
+
+`OfferEditor.tsx` rozdzielał gałąź wyłącznie po `accepted`, więc `.btn-primary`
+mówił „Akceptuj ofertę" także na szkicu (klient jeszcze go nie widział) i na
+ofercie ODRZUCONEJ. Teraz decyduje `nastepnyKrok`:
+
+| stan oferty | główne CTA |
+|---|---|
+| `Szkic` | Wyślij mailem |
+| w grze (`ocenAkceptacje().mozna`) | Akceptuj ofertę |
+| zamknięta (odrzucona / wygasła / zastąpiona / po terminie) | Nowa wersja oferty |
+| `Zaakceptowana` | Wygeneruj umowę / Otwórz umowę (bez zmian) |
+
+To **przeniesienie wyróżnienia**, nie drugi przycisk — jedno CTA na widok
+(`CLAUDE.md`). Wszystkie trzy akcje są dostępne zawsze, łącznie z akceptacją
+oferty odrzuconej, która jest świadomą furtką właściciela (`allowZamknieta`,
+okno „Na pewno?"). Każda rysuje się dokładnie raz: albo na górze jako główna,
+albo niżej jako drugorzędna.
+
+Przy okazji karta „WAŻNOŚĆ" przestała odliczać na dokumencie, który już nie
+żyje — pyta o `ocenAkceptacje()`, tak jak od kroku 1 robi to strona klienta.
+
+### D5 — hamulec liczy pomyłki, a sukces go zeruje
+
+Porównanie sprzed zmiany:
+
+| | logowanie | dokumenty publiczne |
+|---|---|---|
+| co liczy | tylko **nieudane** próby | **każde** żądanie |
+| po sukcesie | `wyczyscPoUdanej()` zeruje | nic |
+
+Skutek: klient, który trzy razy pomylił się przy wpisywaniu nazwiska, miał dwie
+próby na podpisanie umowy — a komunikat („Zbyt wiele prób. Spróbuj ponownie za
+60 min.") nie mówił, co robić dalej.
+
+Decyzja właściciela: **liczyć pomyłki, zerować po sukcesie, próg 5/60 min bez
+zmian.** To nie jest rozluźnienie ochrony, tylko przestawienie jej na właściwy
+licznik. Wykonane jedną funkcją `strazDokumentuPublicznego()` w
+`lib/rateLimit.ts`, wołaną przez wszystkie **pięć** tras publicznych (akceptacja
+oferty, odrzucenie oferty, podpis umowy, formularz opinii, prośba o zmianę) —
+a nie trzema wywołaniami przepisanymi do każdej z osobna, bo wtedy jedna kiedyś
+tego nie dostanie i nikt nie zauważy (lekcja z kroku 4: „wołaj z tych samych
+miejsc" okazało się czterdziestoma miejscami).
+
+**Jeden wyjątek, z wypisanym powodem:** „poproszę o zmianę" ma
+`sukcesLiczySie: true`. Pozostałe trasy są jednorazowe (po sukcesie dokument
+zmienia stan i druga próba i tak odbija się od claimu), a tę wolno wywołać
+wiele razy z powodzeniem — i to właśnie powtarzany sukces jest tam nadużyciem,
+dla którego hamulec powstał.
+
+Nowy komunikat mówi, co zrobić: *„Za dużo prób z tego miejsca. Dostęp odblokuje
+się sam za 60 min. Jeśli to pilne — wystarczy odpowiedzieć na wiadomość,
+w której był ten link."* Osobne zdanie przy limicie ŁĄCZNYM: to nie jest blokada
+dostępu tego klienta.
+
+**Skutek uboczny, którego nikt nie planował:** przejście „na sucho" stało się
+powtarzalne. Do tej pory drugi bieg pod rząd tracił drogę klienta na godzinę,
+bo udane żądania też zjadały limit.
+
+### D6 — `aria-pressed` na chipach powodu odrzucenia
+
+`app/[lang]/admin/RejectDialog.tsx` — zaznaczenie niesione wyłącznie kolorem.
+Jeden plik obsługuje Oferty i Umowy naraz (`offers/RejectDialog.tsx` to
+re-eksport). Ta sama poprawka na stronie klienta.
+
+### Harness — droga porażki w `scripts/przejscie/przejscie.ts`
+
+`npm run przejscie` znał wyłącznie drogę, która się udaje. Dopisana druga:
+odrzucenie oferty przez klienta → nowa wersja → dwa aneksy → zerwany projekt →
+eskalacja windykacji, plus dwie sondy (etykieta kontra slug; hamulec).
+
+**101 sprawdzeń · 0 regresji · 0 pominiętych**, dwa biegi pod rząd.
+
+Dwie rzeczy warte zapamiętania przy dokładaniu następnych sprawdzeń:
+
+- **Sonda hamulca udaje ruch z innego miejsca** (`x-forwarded-for` ze
+  znacznikiem przebiegu). Pierwsza wersja zostawiała pięć pomyłek na wspólnym
+  odcisku, więc bieg pierwszy był zielony, a każdy kolejny miał sześć pominięć.
+  Mechanizm jest mierzony ten sam i w pełni; zmienia się wyłącznie odcisk.
+  **Limit ŁĄCZNY (60/60 min) zostaje nietknięty** i ogranicza przejście do ~5
+  przebiegów na godzinę — to poprawne zachowanie zabezpieczenia.
+- **Sprawdzenie krotności jest bezwartościowe, jeśli wołający klika dwa razy.**
+  „Odrzucenie stoi na osi klienta DOKŁADNIE raz" wypadało na czerwono, bo sama
+  sonda odrzucała ofertę dwukrotnie. Droga porażki odrzuca raz; pułapka
+  „etykieta kontra slug" ma własną sondę z własnym leadem.
+
+### Sprawdzenie
+
+`tsc` czysto, `npm test` **340/340**, `npm run przejscie`
+**101 działa · 0 regresji · 0 pominiętych** (dwa biegi pod rząd, ten sam wynik).
+
+Zmierzone w panelu i na stronie klienta (przez DOM — w tym podglądzie karta jest
+`hidden`, `rAF` daje zero klatek, a `read_page` zwraca pustą stronę):
+
+```
+strona klienta (de):  „Danke, wir verzichten" → chipy Zu teuer / Falscher
+                      Zeitpunkt / … , aria-pressed mierzalne
+po wysłaniu decyzji:  „Vielen Dank für Ihre Rückmeldung — wir haben Ihre
+                      Entscheidung vermerkt."  (znikają wszystkie trzy drogi)
+w bazie:              status Odrzucona · powód „Za drogo" (etykieta kanoniczna,
+                      choć klient widział „Zu teuer") · odrzucona_at
+dzwonek:              offer_rejected — „Kühlhaus Weichsel GmbH zrezygnował(a)
+                      — Za drogo."
+
+edytor, oferta odrzucona:  jedyny .btn-primary = „Nowa wersja oferty"
+                           WAŻNOŚĆ: „Data ważności nie ma już znaczenia."
+edytor, wersja 2 (szkic):  jedyny .btn-primary = „Wyślij mailem"
+                           karta „ODPOWIEDŹ NA WERSJĘ 1 — Za drogo — Zarząd
+                           uciął budżet, chcą sam PoC · Klient odmówił
+                           05.08.2026 · Otwórz wersję 1"
+                           odziedziczone: 6 tyg. realizacji, ROI 3600 zł/mies.
+```

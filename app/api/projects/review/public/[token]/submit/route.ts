@@ -3,7 +3,7 @@ import { celDokumentu, getSql, ensureHubSchema, ensureClientsSchema, logZdarzeni
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
-import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
+import { strazDokumentuPublicznego } from "@/lib/rateLimit";
 import type { DocLang } from "@/lib/documents";
 
 export const runtime = "nodejs";
@@ -52,29 +52,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // Komunikat jest po polsku, choć formularz opinii bywa en/de — języka
   // dowiedzielibyśmy się dopiero z bazy, a hamulec ma odciąć ruch PRZED
   // zapytaniem, inaczej nie chroni przed tym, przed czym ma chronić.
-  const odcisk = odciskZadania(req.headers);
-  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
-  if (!limit.dozwolone) {
-    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+  const straz = await strazDokumentuPublicznego(req.headers);
+  if (straz.blokada) {
     return NextResponse.json(
-      { error: `Zbyt wiele prób. Spróbuj ponownie za ${limit.zaMinut} min.` },
-      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+      { error: straz.blokada.error },
+      { status: 429, headers: { "Retry-After": String(straz.blokada.zaMinut * 60) } }
     );
   }
-  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  if (!body) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
 
   await ensureHubSchema();
   await ensureClientsSchema();
   const sql = getSql();
   const rows = await sql`SELECT * FROM projects WHERE review_token = ${token};`;
   const project = rows[0];
-  if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!project) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   // Moduł 40 — unieważnienie musi blokować także ZAPIS opinii, nie tylko
   // wczytanie formularza.
-  if (project.review_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  if (project.review_revoked_at) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  }
   const lang = ((project.jezyk as string) in ERRORS ? project.jezyk : "pl") as DocLang;
   const t = ERRORS[lang];
 
@@ -82,12 +88,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const terminowosc = rating(body.terminowosc);
   const komunikacja = rating(body.komunikacja);
   if (jakosc == null || terminowosc == null || komunikacja == null) {
+    await straz.odnotujNieudana();
     return NextResponse.json({ error: t.ratings }, { status: 400 });
   }
   const comment = typeof body.comment === "string" ? body.comment.trim().slice(0, 4000) : "";
   const consentCaseStudy = body.consentCaseStudy === true;
   const consentName = typeof body.consentName === "string" ? body.consentName.trim().slice(0, 200) : "";
   if (consentCaseStudy && !consentName) {
+    await straz.odnotujNieudana();
     return NextResponse.json({ error: t.consentName }, { status: 400 });
   }
 
@@ -110,7 +118,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     WHERE id = ${project.id} AND review_submitted_at IS NULL
     RETURNING id;
   `;
-  if (claimed.length === 0) return NextResponse.json({ error: t.alreadySubmitted }, { status: 409 });
+  if (claimed.length === 0) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: t.alreadySubmitted }, { status: 409 });
+  }
+  // Opinia zapisana — licznik pomyłek do zera (formularz wypełnia się raz,
+  // pilnuje tego claim wyżej).
+  await straz.odnotujUdana();
 
   const cel = celDokumentu(project);
   const avg = ((jakosc + terminowosc + komunikacja) / 3).toFixed(1);

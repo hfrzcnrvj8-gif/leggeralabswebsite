@@ -46,6 +46,11 @@ export function OknoOdrzucenia({
           <button
             key={r}
             onClick={() => setPowod(r)}
+            // Zaznaczenie niesione WYŁĄCZNIE kolorem jest niewidoczne dla
+            // czytnika ekranu i dla każdego, kto nie odróżnia tych dwóch teł
+            // (znalezisko D6). `aria-pressed` mówi to samo słowem — a przy
+            // okazji daje się zmierzyć w sondzie, w przeciwieństwie do klasy.
+            aria-pressed={powod === r}
             className={`flex w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-left text-[13px] ${
               powod === r
                 ? "border-brand-purple/60 bg-brand-purple/10 text-[var(--fg)]"

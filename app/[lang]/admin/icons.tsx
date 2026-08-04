@@ -259,6 +259,7 @@ const NOTIFICATION: Record<NotificationKind, TablerIcon> = {
   offer_accepted: IconHeartHandshake,
   offer_opened: IconEye,
   offer_change_requested: IconMessage,
+  offer_rejected: IconThumbDown,
   contract_signed: IconWriting,
   review_collected: IconStar,
   invite_response: IconCalendarCheck,

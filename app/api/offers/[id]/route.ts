@@ -57,7 +57,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const wystawca = (await sql`SELECT * FROM company_settings WHERE id = 'default';`)[0] ?? null;
   const bramka = sprawdzDokumentPrzedWysylka({ rodzaj: "oferta", dokument: offer, wystawca, pozycje: items, sekcje: sections });
 
-  return NextResponse.json({ offer, items: numItems(items), sections, contract: contracts[0] ?? null, bramka });
+  // Poprzednia WERSJA tej oferty (znalezisko D2, 2026-08-05). Dane były
+  // w bazie od dawna — `parent_offer_id` zapisuje trasa `/version` — ale nic
+  // ich nie czytało: ekran, na którym pisze się odpowiedź na odrzucenie, nie
+  // pokazywał odrzucenia. Powód widać było wyłącznie na starej ofercie.
+  // Dociągane TU, a nie osobnym żądaniem, z tego samego powodu co `contract`.
+  const poprzednia = offer.parent_offer_id
+    ? ((
+        await sql`
+          SELECT id, tytul, wersja, status, powod_odrzucenia, komentarz_odrzucenia, odrzucona_at
+          FROM offers WHERE id = ${offer.parent_offer_id};
+        `
+      )[0] ?? null)
+    : null;
+
+  return NextResponse.json({ offer, items: numItems(items), sections, contract: contracts[0] ?? null, bramka, poprzednia });
 }
 
 /** PATCH /api/offers/:id — aktualizacja pól nagłówka oferty. */

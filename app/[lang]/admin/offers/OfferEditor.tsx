@@ -16,6 +16,7 @@ import {
   WAZNOSC_SKROTY,
   DEFAULT_OFFER_CURRENCY,
   isOfferExpired,
+  ocenAkceptacje,
   rejectReasonLabel,
   offerTotal,
   offerOptionalRest,
@@ -53,6 +54,18 @@ import {
   naKolumnyDokumentu,
   zKlienta,
 } from "@/lib/przepisanie";
+
+/** Poprzednia WERSJA oferty — tyle, ile trzeba, żeby powiedzieć, po co ta
+ * powstała (D2). Oddaje ją `GET /api/offers/:id` jako `poprzednia`. */
+type PoprzedniaWersja = {
+  id: string;
+  tytul: string | null;
+  wersja: number;
+  status: string;
+  powod_odrzucenia: string | null;
+  komentarz_odrzucenia: string | null;
+  odrzucona_at: string | null;
+};
 
 export function OfferEditor({
   id,
@@ -93,6 +106,8 @@ export function OfferEditor({
    * z `GET /api/offers/:id`, żeby karta WIEDZIAŁA, że dokument już istnieje
    * (patrz komentarz przy tej trasie). */
   const [contract, setContract] = useState<{ id: string; status: string } | null>(null);
+  /** Poprzednia wersja tej oferty — po co ta w ogóle powstała (D2). */
+  const [poprzednia, setPoprzednia] = useState<PoprzedniaWersja | null>(null);
   /** Okno „dlaczego odrzucona" — status zmienia się dopiero po wyborze powodu. */
   const [rejectOpen, setRejectOpen] = useState(false);
   const [versioning, setVersioning] = useState(false);
@@ -121,12 +136,14 @@ export function OfferEditor({
       sections: OfferSection[];
       contract: { id: string; status: string } | null;
       bramka?: WynikBramki;
+      poprzednia?: PoprzedniaWersja | null;
     };
     setOffer(data.offer);
     setItems(data.items);
     setSections(data.sections ?? []);
     setContract(data.contract ?? null);
     setBramka(data.bramka ?? null);
+    setPoprzednia(data.poprzednia ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -704,6 +721,11 @@ export function OfferEditor({
   // samą datę na biało i świecił przyciskiem „Akceptuj ofertę" — dwa ekrany,
   // dwie różne odpowiedzi na pytanie „czy ta oferta jeszcze żyje".
   const expired = isOfferExpired(offer);
+  // Ta sama funkcja, którą pyta trasa akceptacji i strona klienta (krok 1).
+  // Edytor pytał do 2026-08-05 wyłącznie o `accepted`, więc odrzucona oferta
+  // dostawała główne CTA „Akceptuj ofertę" i odliczanie „Wygasa za 21 dni"
+  // (znalezisko D1). Funkcja była — nie była tu wołana.
+  const ocena = ocenAkceptacje(offer);
   const waluta = offer.waluta || DEFAULT_OFFER_CURRENCY;
   const powodOdrzucenia = rejectReasonLabel(offer.powod_odrzucenia ?? "", offer.komentarz_odrzucenia ?? "");
   // Treść wysłanej oferty jest zamknięta (decyzja właściciela 2026-07-27) —
@@ -728,6 +750,115 @@ export function OfferEditor({
       : linkStatus === "mismatch"
         ? clientMismatchHint(linkedClient?.nazwa ?? "")
         : null;
+
+  /**
+   * Który przycisk jest NASTĘPNYM KROKIEM w tym stanie (znalezisko D1).
+   *
+   * Do 2026-08-05 gałąź rozdzielała się wyłącznie po `accepted`, więc
+   * `.btn-primary` mówił „Akceptuj ofertę" także na szkicu (klient jej jeszcze
+   * nie widział) i na ofercie ODRZUCONEJ. Kolejność ekranu była odwrotna do
+   * kolejności życia: „Wyślij mailem" leżało niżej, wśród drugorzędnych.
+   *
+   * `CLAUDE.md` daje jedno główne CTA na widok, więc to nie jest „dodaj drugi
+   * przycisk", tylko przeniesienie wyróżnienia. Wszystkie trzy akcje są
+   * dostępne zawsze — łącznie z akceptacją oferty odrzuconej, która jest
+   * świadomą furtką właściciela (`allowZamknieta`, okno „Na pewno?").
+   */
+  const nastepnyKrok: "wyslij" | "akceptuj" | "nowa-wersja" =
+    offer.status === "Szkic" ? "wyslij" : ocena.mozna ? "akceptuj" : "nowa-wersja";
+
+  const KLASA_GLOWNA =
+    "btn-primary flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
+  const KLASA_DRUGORZEDNA =
+    "flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50";
+
+  const przyciskAkceptacji = (glowny: boolean) => (
+    <Popover
+      width={248}
+      trigger={(open) => (
+        <button
+          onClick={open}
+          disabled={accepting || items.length === 0}
+          title={ocena.mozna ? undefined : `${ocena.error} Akceptacja spyta o potwierdzenie.`}
+          className={glowny ? KLASA_GLOWNA : KLASA_DRUGORZEDNA}
+        >
+          {accepting ? (
+            <IconLoader2 size={glowny ? 15 : 13} className="animate-spin" />
+          ) : (
+            <IconCheck size={glowny ? 15 : 13} />
+          )}
+          Akceptuj ofertę
+          <IconChevronDown size={glowny ? 14 : 12} className="opacity-70" />
+        </button>
+      )}
+    >
+      {(close) => (
+        <div>
+          <MenuRow
+            label="Bez projektu — tylko faktura"
+            onClick={() => {
+              close();
+              accept();
+            }}
+          />
+          <MenuDivider />
+          <MenuLabel>Utwórz projekt z szablonu</MenuLabel>
+          {PROJECT_TEMPLATES.map((t) => (
+            <MenuRow
+              key={t.id}
+              icon={<span className="text-[13px] leading-none">{t.emoji}</span>}
+              label={t.name}
+              onClick={() => {
+                close();
+                accept(t.id);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </Popover>
+  );
+
+  /* Bramka wysyłki (Faza 2) — lista „co jest nie tak” stoi PRZY przycisku,
+     a nie w komunikacie błędu po kliknięciu, więc wędruje razem z nim.
+     Przycisk zostaje aktywny mimo blokad: odmawia trasa, a okno wymienia
+     wszystkie powody naraz. Wcześniej był tu `disabled` na samym braku
+     e-maila klienta — czyli szósta kopia jednej reguły, i to akurat ta,
+     która przepuszczała dokument bez wystawcy (A2). */
+  const przyciskWysylki = (glowny: boolean) => (
+    <>
+      <PasekBramki bramka={bramka} />
+      <button
+        onClick={sendOfferEmail}
+        disabled={sending}
+        title="Wyślij link do oferty na e-mail klienta"
+        className={glowny ? KLASA_GLOWNA : KLASA_DRUGORZEDNA}
+      >
+        {sending ? (
+          <IconLoader2 size={glowny ? 15 : 13} className="animate-spin" />
+        ) : (
+          <IconMail size={glowny ? 15 : 13} />
+        )}
+        Wyślij mailem
+      </button>
+    </>
+  );
+
+  const przyciskNowejWersji = (glowny: boolean) => (
+    <button
+      onClick={newVersion}
+      disabled={versioning}
+      title="Klient poprosił o zmianę — zrób wersję 2 zamiast drugiej, niepowiązanej oferty"
+      className={glowny ? KLASA_GLOWNA : KLASA_DRUGORZEDNA}
+    >
+      {versioning ? (
+        <IconLoader2 size={glowny ? 15 : 13} className="animate-spin" />
+      ) : (
+        <IconVersions size={glowny ? 15 : 13} />
+      )}
+      Nowa wersja oferty
+    </button>
+  );
 
   return (
     <div>
@@ -1254,7 +1385,10 @@ export function OfferEditor({
                 </button>
               )}
             </div>
-            {offer.wazna_do && !expired && (
+            {/* Odliczanie tylko wtedy, gdy jest jeszcze na co czekać. Na
+                ofercie odrzuconej albo zastąpionej „Wygasa za 21 dni" opisuje
+                termin, który nikogo już nie obowiązuje (D1). */}
+            {offer.wazna_do && !expired && ocena.mozna && (
               <p className="mt-1.5 text-[11px] text-muted">
                 {dniDoWaznosci === 0
                   ? "Wygasa dziś."
@@ -1262,6 +1396,9 @@ export function OfferEditor({
                     ? "Wygasa jutro."
                     : `Wygasa za ${dniDoWaznosci} dni.`}
               </p>
+            )}
+            {offer.wazna_do && !expired && !ocena.mozna && (
+              <p className="mt-1.5 text-[11px] text-muted">{ocena.error} Data ważności nie ma już znaczenia.</p>
             )}
             {expired && (
               <p className="mt-2 rounded-lg bg-brand-gold/10 px-2.5 py-1.5 text-[11px] text-brand-gold">
@@ -1391,6 +1528,41 @@ export function OfferEditor({
             </div>
           )}
 
+          {/* Po co ta wersja powstała (znalezisko D2). Ekran, na którym pisze
+              się ODPOWIEDŹ na odrzucenie, nie pokazywał odrzucenia — powód
+              („Za drogo — zarząd uciął budżet") widać było wyłącznie na starej
+              ofercie, do której nic stąd nie prowadziło poza pigułką „wersja 2"
+              w nagłówku. Dane były w bazie od początku: `parent_offer_id`
+              zapisuje trasa `/version`. */}
+          {poprzednia && (
+            <div className="card-paper rounded-xl border hairline p-4">
+              <h3 className="mb-1.5 text-[11px] uppercase tracking-wide text-muted">
+                Odpowiedź na wersję {Number(poprzednia.wersja) || 1}
+              </h3>
+              {poprzednia.status === "Odrzucona" ? (
+                <>
+                  <p className="text-[12.5px] text-[var(--fg)]">
+                    {rejectReasonLabel(poprzednia.powod_odrzucenia ?? "", poprzednia.komentarz_odrzucenia ?? "") ||
+                      "Odrzucona bez podanego powodu."}
+                  </p>
+                  {poprzednia.odrzucona_at && (
+                    <p className="mt-0.5 text-[11px] text-muted">
+                      Klient odmówił {formatPlDate(poprzednia.odrzucona_at)}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-[12.5px] text-muted">Poprzednia wersja nie została odrzucona — zastąpiłeś ją sam.</p>
+              )}
+              <a
+                href={`/${lang}/admin/offers/${poprzednia.id}`}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)]"
+              >
+                <IconVersions size={13} /> Otwórz wersję {Number(poprzednia.wersja) || 1}
+              </a>
+            </div>
+          )}
+
           {accepted ? (
             <div className="card-paper rounded-xl border hairline p-3 text-center text-[12px] text-muted">
               Zaakceptowana
@@ -1450,45 +1622,12 @@ export function OfferEditor({
               )}
             </div>
           ) : (
-            <Popover
-              width={248}
-              trigger={(open) => (
-                <button
-                  onClick={open}
-                  disabled={accepting || items.length === 0}
-                  className="btn-primary flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {accepting ? <IconLoader2 size={15} className="animate-spin" /> : <IconCheck size={15} />}
-                  Akceptuj ofertę
-                  <IconChevronDown size={14} className="opacity-70" />
-                </button>
-              )}
-            >
-              {(close) => (
-                <div>
-                  <MenuRow
-                    label="Bez projektu — tylko faktura"
-                    onClick={() => {
-                      close();
-                      accept();
-                    }}
-                  />
-                  <MenuDivider />
-                  <MenuLabel>Utwórz projekt z szablonu</MenuLabel>
-                  {PROJECT_TEMPLATES.map((t) => (
-                    <MenuRow
-                      key={t.id}
-                      icon={<span className="text-[13px] leading-none">{t.emoji}</span>}
-                      label={t.name}
-                      onClick={() => {
-                        close();
-                        accept(t.id);
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </Popover>
+            <>
+              {/* NASTĘPNY KROK na górze i wyróżniony — patrz `nastepnyKrok`. */}
+              {nastepnyKrok === "wyslij" && przyciskWysylki(true)}
+              {nastepnyKrok === "akceptuj" && przyciskAkceptacji(true)}
+              {nastepnyKrok === "nowa-wersja" && przyciskNowejWersji(true)}
+            </>
           )}
 
           <button
@@ -1501,23 +1640,10 @@ export function OfferEditor({
             Kopiuj link dla klienta
           </button>
 
-          {/* Bramka wysyłki (Faza 2) — lista „co jest nie tak” stoi PRZY
-              przycisku, a nie w komunikacie błędu po kliknięciu. Przycisk
-              zostaje aktywny mimo blokad: odmawia trasa, a okno wymienia
-              wszystkie powody naraz. Wcześniej był tu `disabled` na samym
-              braku e-maila klienta — czyli szósta kopia jednej reguły, i to
-              akurat ta, która przepuszczała dokument bez wystawcy (A2). */}
-          <PasekBramki bramka={bramka} />
-
-          <button
-            onClick={sendOfferEmail}
-            disabled={sending}
-            title="Wyślij link do oferty na e-mail klienta"
-            className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {sending ? <IconLoader2 size={13} className="animate-spin" /> : <IconMail size={13} />}
-            Wyślij mailem
-          </button>
+          {/* Reszta akcji — te same, tylko bez wyróżnienia. Każda rysuje się
+              dokładnie raz: albo wyżej jako główna, albo tutaj. */}
+          {!accepted && nastepnyKrok !== "wyslij" && przyciskWysylki(false)}
+          {!accepted && nastepnyKrok !== "akceptuj" && przyciskAkceptacji(false)}
 
           <ShareLinkControl
             kind="offer"
@@ -1528,9 +1654,6 @@ export function OfferEditor({
             onChanged={(revokedAt) => setOffer((p) => (p ? { ...p, share_revoked_at: revokedAt } : p))}
           />
 
-          {/* Wersja ≠ duplikat: wersja zastępuje, duplikat mnoży. Przy ofercie
-              zaakceptowanej wersja nie ma sensu (serwer ją odrzuci), więc jej
-              tu nie pokazujemy. */}
           <button
             onClick={saveAsTemplate}
             disabled={savingTemplate}
@@ -1541,17 +1664,10 @@ export function OfferEditor({
             Zapisz jako szablon
           </button>
 
-          {!accepted && (
-            <button
-              onClick={newVersion}
-              disabled={versioning}
-              title="Klient poprosił o zmianę — zrób wersję 2 zamiast drugiej, niepowiązanej oferty"
-              className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)] disabled:opacity-50"
-            >
-              {versioning ? <IconLoader2 size={13} className="animate-spin" /> : <IconVersions size={13} />}
-              Nowa wersja oferty
-            </button>
-          )}
+          {/* Wersja ≠ duplikat: wersja zastępuje, duplikat mnoży. Przy ofercie
+              zaakceptowanej wersja nie ma sensu (serwer ją odrzuci), więc jej
+              tu nie pokazujemy. */}
+          {!accepted && nastepnyKrok !== "nowa-wersja" && przyciskNowejWersji(false)}
 
           <button
             onClick={duplicateOffer}

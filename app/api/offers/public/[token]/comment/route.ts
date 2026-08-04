@@ -3,7 +3,7 @@ import { celDokumentu, getSql, ensureOffersSchema, logZdarzenieDokumentu } from 
 import { sendEmail } from "@/lib/email";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
-import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
+import { strazDokumentuPublicznego } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -25,28 +25,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // Hamulec (audyt Modułu 57). To jest trasa, na której nadużycie boli
   // najbardziej: każda prośba dzwoni powiadomieniem, dopisuje się na oś czasu
   // klienta i wysyła maila do właściciela. Bez limitu wystarczyło mieć link.
-  const odcisk = odciskZadania(req.headers);
-  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
-  if (!limit.dozwolone) {
-    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+  //
+  // JEDYNA trasa z `sukcesLiczySie` (D5, 2026-08-05): pozostałe są
+  // jednorazowe, a tę wolno wywołać wiele razy z powodzeniem — i właśnie
+  // powtarzany SUKCES jest tu nadużyciem. Gdyby zerowała licznik, hamulec
+  // przestałby chronić dokładnie to, dla czego go tu postawiono.
+  const straz = await strazDokumentuPublicznego(req.headers, { sukcesLiczySie: true });
+  if (straz.blokada) {
     return NextResponse.json(
-      { error: `Wysłano już kilka wiadomości. Spróbuj ponownie za ${limit.zaMinut} min.` },
-      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+      { error: straz.blokada.error },
+      { status: 429, headers: { "Retry-After": String(straz.blokada.zaMinut * 60) } }
     );
   }
-  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const tresc = typeof body?.tresc === "string" ? body.tresc.trim().slice(0, 4000) : "";
   const kto = typeof body?.name === "string" ? body.name.trim().slice(0, 200) : "";
-  if (!tresc) return NextResponse.json({ error: "Napisz, co chcesz zmienić." }, { status: 400 });
+  if (!tresc) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "Napisz, co chcesz zmienić." }, { status: 400 });
+  }
 
   await ensureOffersSchema();
   const sql = getSql();
   const rows = await sql`SELECT * FROM offers WHERE share_token = ${token} AND status != 'Szkic';`;
   const offer = rows[0];
-  if (!offer) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (offer.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  if (!offer) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  if (offer.share_revoked_at) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  }
+  // Prośba idzie dalej — a udana prośba liczy się do limitu (patrz wyżej).
+  await straz.odnotujUdana();
 
   const tytul = String(offer.tytul || "(bez tytułu)");
   const podpis = kto || String(offer.klient_nazwa || "klient");

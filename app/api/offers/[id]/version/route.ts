@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { celDokumentu, getSql, ensureOffersSchema, ensureClientsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { statusPoZastapieniu, waznoscDlaNowejWersji, type OfferStatus } from "@/lib/offers";
+import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -12,9 +14,16 @@ export const runtime = "nodejs";
  * sama rozmowa handlowa po poprawce zakresu. Poprzedniczka dostaje
  * `superseded_at` i wypada z liczników: nie jest ani wygrana, ani przegrana.
  *
- * Kopiujemy pozycje (z ich opcjonalnością) i bloki treści; NIE kopiujemy
- * statusu, ważności, tokenu ani śladu otwarcia — nowa wersja startuje jako
- * czysty szkic z własnym linkiem. */
+ * Kopiujemy pozycje (z ich opcjonalnością), bloki treści ORAZ warunki
+ * handlowe (termin realizacji, blok ROI, data ważności); NIE kopiujemy statusu,
+ * tokenu ani śladu otwarcia — nowa wersja startuje jako czysty szkic
+ * z własnym linkiem.
+ *
+ * Warunki handlowe doszły 2026-08-05 (znalezisko D2). Przedtem wersja 2 gubiła
+ * `wazna_do`, `czas_realizacji_tygodnie`, `roi_godziny` i `roi_stawka` — czyli
+ * cały argument o zwrocie z inwestycji plus TERMIN, który od kroku 3 (A6)
+ * wchodzi na umowę i na projekt przy podpisie. To nie była kosmetyka podglądu:
+ * zgubiony tutaj znikał z dokumentu. */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
@@ -37,17 +46,23 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const sections = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
     const wersja = Number(src.wersja ?? 1) + 1;
 
+    // Data ważności wędruje TYLKO wtedy, gdy jeszcze nie minęła — powód i próg
+    // stoją przy `waznoscDlaNowejWersji()`, razem z testami na dosłownych datach.
+    const waznaDo = waznoscDlaNowejWersji(src.wazna_do, todayLocalISO());
+
     const newId = randomUUID();
     await sql`
       INSERT INTO offers (
         id, tytul, lead_id, client_id, klient_nazwa, klient_nip, klient_adres,
         klient_ulica, klient_kod, klient_miasto, klient_kraj, klient_email, jezyk, waluta, uwagi,
-        parent_offer_id, wersja
+        parent_offer_id, wersja,
+        wazna_do, czas_realizacji_tygodnie, roi_godziny, roi_stawka
       )
       VALUES (
         ${newId}, ${src.tytul}, ${src.lead_id}, ${src.client_id}, ${src.klient_nazwa}, ${src.klient_nip}, ${src.klient_adres},
         ${src.klient_ulica}, ${src.klient_kod}, ${src.klient_miasto}, ${src.klient_kraj}, ${src.klient_email}, ${src.jezyk}, ${src.waluta}, ${src.uwagi},
-        ${id}, ${wersja}
+        ${id}, ${wersja},
+        ${waznaDo}, ${src.czas_realizacji_tygodnie ?? 0}, ${src.roi_godziny ?? 0}, ${src.roi_stawka ?? 0}
       );
     `;
 
@@ -72,8 +87,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // a status „Wygasła" mówi wprost, że nie czeka już na decyzję klienta.
     // Świadomie NIE „Odrzucona" — nikt jej nie odrzucił, została zastąpiona,
     // a wrzucenie tego do statystyki przegranych fałszowałoby powody porażek.
+    //
+    // Ale ten `UPDATE` był do 2026-08-05 (znalezisko A3) BEZWARUNKOWY, więc
+    // przykrywał też ofertę, którą klient NAPRAWDĘ odrzucił — patrz
+    // `statusPoZastapieniu()`, gdzie stoi cała decyzja i jej powód.
+    const nowyStatus = statusPoZastapieniu(src.status as OfferStatus);
     await sql`
-      UPDATE offers SET superseded_at = now(), status = 'Wygasła', updated_at = now()
+      UPDATE offers SET superseded_at = now(), status = ${nowyStatus}, updated_at = now()
       WHERE id = ${id};
     `;
 

@@ -38,6 +38,14 @@ export type NotificationKind =
   // do przeczytania później: to zdanie, na które trzeba odpowiedzieć, więc
   // zostaje w dzwonku dopóki go nie odhaczysz.
   | "offer_change_requested"
+  // 2026-08-05 (C1) — klient sam kliknął „dziękuję, rezygnujemy" na swojej
+  // stronie. KRONIKA, nie zadanie: decyzja zapadła i nie ma jej czym odhaczyć.
+  // Co ma być zrobione dalej, mówi osobno propozycja
+  // `odrzucona-oferta-domyka-leada` („zamknij lead" / „kontakt za 3 mies.") —
+  // dzwonek ma tu tylko donieść, że stało się to bez naszego udziału.
+  // Bliźniacze odrzucenie WPISANE przez właściciela w panelu nie dzwoni:
+  // wpisujący już wie.
+  | "offer_rejected"
   | "contract_signed"
   | "review_collected"
   // 2026-07-22 — klient odpowiedział na zaproszenie na spotkanie. Kronika,

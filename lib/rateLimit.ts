@@ -76,20 +76,26 @@ export const HAMULEC_FORMULARZ: Hamulec = {
   oknoMinut: 60,
 };
 
-/** Publiczne trasy DOKUMENTÓW, które coś zapisują: e-podpis oferty i umowy
- * oraz „proszę o zmianę" pod ofertą (audyt Modułu 57, 2026-07-27).
+/** Publiczne trasy DOKUMENTÓW, które coś zapisują: e-podpis oferty i umowy,
+ * odrzucenie oferty przez klienta, formularz opinii oraz „proszę o zmianę"
+ * pod ofertą (audyt Modułu 57, 2026-07-27).
  *
  * Te trasy świadomie nie mają `isAuthed()` — token w linku pełni rolę hasła.
  * Dopóki nie miały też hamulca, każdy, kto raz dostał link (albo komu klient
  * go przesłał dalej), mógł zalać skrzynkę właściciela prośbami o zmianę:
  * każda woła `notify()`, dopisuje się na oś czasu klienta i wysyła maila.
  *
- * **Liczymy KAŻDĄ próbę, nie tylko nieudaną** — inaczej hamulec nie dotknąłby
- * właśnie tego nadużycia, w którym wszystkie próby kończą się sukcesem. To
- * różnica wobec logowania, gdzie zliczamy pomyłki.
- *
  * Próg 5/60 min mieści prawdziwy ruch z zapasem: klient podpisuje raz,
- * a prośbę o zmianę pisze najwyżej dwa–trzy razy w jednym posiedzeniu. */
+ * a prośbę o zmianę pisze najwyżej dwa–trzy razy w jednym posiedzeniu.
+ *
+ * **Co się zmieniło 2026-08-05 (znalezisko D5, decyzja właściciela).** Do tego
+ * dnia liczyła się KAŻDA próba, także odbita walidacją, i nic nigdy nie zerowało
+ * licznika. Skutek zmierzony w drugim przejściu: klient, który trzy razy pomyli
+ * się przy wpisywaniu nazwiska, miał dwie próby na podpisanie umowy — po czym
+ * dostawał na godzinę komunikat, który nie mówił, co dalej. Teraz jest jak przy
+ * logowaniu: liczą się pomyłki, a udane wejście zeruje licznik
+ * (`strazDokumentuPublicznego`). Próg i okno bez zmian — to nie jest
+ * rozluźnienie ochrony, tylko przestawienie jej na właściwy licznik. */
 export const HAMULEC_DOKUMENT_PUBLICZNY: Hamulec = {
   akcja: "dokument-publiczny",
   prog: 5,
@@ -220,6 +226,72 @@ export async function wyczyscPoUdanej(hamulec: Hamulec, odcisk: string): Promise
   } catch (e) {
     console.error(`[rateLimit] nie udało się wyczyścić licznika (${hamulec.akcja})`, e);
   }
+}
+
+/**
+ * Straż jednej publicznej trasy dokumentowej — jeden kształt dla wszystkich
+ * pięciu (akceptacja oferty, odrzucenie oferty, podpis umowy, formularz opinii,
+ * prośba o zmianę).
+ *
+ * Powstała 2026-08-05 razem z poprawką D5. Powód, dla którego to funkcja, a nie
+ * trzy wywołania przepisane do każdej trasy z osobna: rozłożenie „licz pomyłki"
+ * na kilkanaście miejsc znaczyłoby, że jedno z nich kiedyś tego nie dostanie
+ * i nikt tego nie zauważy — dokładnie ta lekcja, co przy
+ * `logZdarzenieDokumentu` w kroku 4 („wołaj z tych samych miejsc" okazało się
+ * czterdziestoma miejscami). Przy okazji komunikat blokady stoi w JEDNYM
+ * miejscu, więc mówi to samo na każdym dokumencie.
+ */
+export type StrazDokumentu = {
+  /** `null` → wolno dalej. Inaczej: gotowa treść odpowiedzi 429. */
+  blokada: { error: string; zaMinut: number } | null;
+  /** Żądanie odbiło się od walidacji, tokenu albo stanu dokumentu. */
+  odnotujNieudana: () => Promise<void>;
+  /** Żądanie doszło do skutku. Domyślnie ZERUJE licznik. */
+  odnotujUdana: () => Promise<void>;
+};
+
+/**
+ * `sukcesLiczySie` — dla trasy, którą wolno wywołać wiele razy Z POWODZENIEM.
+ * Dziś jedna taka: „poproszę o zmianę" pod ofertą. Każda udana prośba dzwoni
+ * powiadomieniem i wysyła maila do właściciela, więc gdyby sukces zerował
+ * licznik, hamulec przestałby dotykać właśnie tego nadużycia, dla którego
+ * powstał (audyt Modułu 57). Pozostałe trasy są JEDNORAZOWE — po udanym
+ * podpisie czy odrzuceniu dokument zmienia stan i druga próba i tak odbija się
+ * jako nieudana, więc liczenie sukcesów szkodziło tam wyłącznie klientowi,
+ * który się pomylił.
+ */
+export async function strazDokumentuPublicznego(
+  naglowki: Headers,
+  opcje?: { sukcesLiczySie?: boolean }
+): Promise<StrazDokumentu> {
+  const odcisk = odciskZadania(naglowki);
+  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
+
+  if (!limit.dozwolone) {
+    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+    // Komunikat ma powiedzieć klientowi, CO ZROBIĆ — poprzedni („Zbyt wiele
+    // prób. Spróbuj ponownie za 60 min.") zostawiał go z niczym przed
+    // dokumentem, który miał podpisać. Droga wyjścia jest zawsze ta sama
+    // i zawsze dostępna: odpowiedzieć na wiadomość, w której przyszedł link.
+    const error = limit.globalny
+      ? `Chwilowo ograniczyliśmy ruch na dokumentach — to nie jest blokada Państwa dostępu. ` +
+        `Prosimy spróbować ponownie za ${limit.zaMinut} min albo odpowiedzieć na wiadomość, w której był ten link.`
+      : `Za dużo prób z tego miejsca. Dostęp odblokuje się sam za ${limit.zaMinut} min. ` +
+        `Jeśli to pilne — wystarczy odpowiedzieć na wiadomość, w której był ten link.`;
+    return {
+      blokada: { error, zaMinut: limit.zaMinut },
+      odnotujNieudana: async () => {},
+      odnotujUdana: async () => {},
+    };
+  }
+
+  return {
+    blokada: null,
+    odnotujNieudana: () => odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk),
+    odnotujUdana: opcje?.sukcesLiczySie
+      ? () => odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk)
+      : () => wyczyscPoUdanej(HAMULEC_DOKUMENT_PUBLICZNY, odcisk),
+  };
 }
 
 /**

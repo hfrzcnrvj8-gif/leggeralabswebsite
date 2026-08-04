@@ -3,7 +3,7 @@ import { celDokumentu, getSql, ensureContractsSchema, logZdarzenieDokumentu } fr
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
-import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
+import { strazDokumentuPublicznego } from "@/lib/rateLimit";
 import { projektPoPodpisieUmowy } from "@/lib/przepisanie";
 import { zdanieWyrownaniaTerminu } from "@/lib/warunkiObowiazujace";
 import { todayLocalISO } from "@/lib/dates";
@@ -20,21 +20,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const { token } = await params;
 
   // Hamulec (audyt Modułu 57) — ten sam co przy e-podpisie oferty. Tu stawka
-  // jest najwyższa z trzech: to jest złożenie podpisu pod umową.
-  const odcisk = odciskZadania(req.headers);
-  const limit = await sprawdzHamulec(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
-  if (!limit.dozwolone) {
-    await zglosPrzekroczenie(HAMULEC_DOKUMENT_PUBLICZNY, limit.globalny);
+  // jest najwyższa z trzech: to jest złożenie podpisu pod umową. I dlatego
+  // właśnie tutaj najbardziej bolało liczenie prób odbitych walidacją (D5):
+  // trzy literówki w nazwisku zostawiały klientowi dwie próby na podpis.
+  const straz = await strazDokumentuPublicznego(req.headers);
+  if (straz.blokada) {
     return NextResponse.json(
-      { error: `Zbyt wiele prób. Spróbuj ponownie za ${limit.zaMinut} min.` },
-      { status: 429, headers: { "Retry-After": String(limit.zaMinut * 60) } }
+      { error: straz.blokada.error },
+      { status: 429, headers: { "Retry-After": String(straz.blokada.zaMinut * 60) } }
     );
   }
-  await odnotujProbe(HAMULEC_DOKUMENT_PUBLICZNY, odcisk);
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 200) : "";
-  if (!name) return NextResponse.json({ error: "Podaj imię i nazwisko." }, { status: 400 });
+  if (!name) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "Podaj imię i nazwisko." }, { status: 400 });
+  }
   // Stanowisko/funkcja osoby podpisującej (2026-07-27). Samo imię nie mówiło,
   // czy podpisała osoba uprawniona do reprezentacji — a to pierwsze pytanie
   // przy sporze. Pole jest OPCJONALNE: wymuszanie go zatrzymałoby podpis
@@ -45,10 +47,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const sql = getSql();
   const rows = await sql`SELECT * FROM contracts WHERE share_token = ${token} AND status != 'Szkic';`;
   const contract = rows[0];
-  if (!contract) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!contract) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   // Moduł 40: to najważniejsze z sześciu miejsc. Bez tego warunku ktoś ze
   // starym linkiem mógłby PODPISAĆ umowę mimo unieważnienia.
-  if (contract.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  if (contract.share_revoked_at) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  }
   // Dokument ZAMKNIĘTY — druga połowa znaleziska A1 z drugiego przejścia,
   // znaleziona przy jego naprawianiu po stronie ofert. Trasa pilnowała tylko
   // stanu „Podpisana" (przez claim niżej), więc umowę ODRZUCONĄ dało się
@@ -56,6 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // `accepted_by_name`. Skutek cięższy niż przy ofercie — z martwego dokumentu
   // robi się dokument wiążący.
   if (contract.status === "Odrzucona") {
+    await straz.odnotujNieudana();
     return NextResponse.json(
       { error: "Ten dokument został zamknięty i nie da się go już podpisać.", powod: "odrzucona" },
       { status: 409 }
@@ -75,7 +84,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     WHERE id = ${contract.id} AND status = 'Wysłana'
     RETURNING id;
   `;
-  if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
+  if (claimed.length === 0) {
+    await straz.odnotujNieudana();
+    return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
+  }
+  // Podpis złożony — licznik pomyłek do zera (trasa jednorazowa: druga próba
+  // odbije się od claimu wyżej).
+  await straz.odnotujUdana();
 
   const cel = celDokumentu(contract);
   // Słownik typów — patrz komentarz w contracts/[id]/accept. Bez tego klient
