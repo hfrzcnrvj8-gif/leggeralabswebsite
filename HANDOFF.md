@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-02, po ZAMKNIĘCIU planu zaplecza
+# Handoff — stan na 2026-08-05, po ZAMKNIĘCIU planu z drugiego przejścia
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,114 +7,77 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- Panel: na wierzchu ten handoff, pod nim **`1eb9446`** „Faza 5: wygląd — sześć
-  usterek zmierzonych i zamkniętych, plan zaplecza domknięty", a pod nim
-  `18d693a`.
-- Repozytorium czyste i wypchnięte. `tsc` czysto, `npm test` **281/281**.
-- `npm run przejscie`: **68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
-  0 pominiętych** — przy serwerze świeżo po restarcie. Kilka przebiegów pod
-  rząd wyczerpuje hamulec publicznych linków (5/60 min) i wtedy obie publiczne
-  drogi (akceptacja oferty i opinia) idą przez panel. To zamierzone zachowanie
-  hamulca, nie regresja — po `npm run dev` od nowa wraca komplet.
+- Na wierzchu **`f2c48e8`** „Plan: krok 5 zamknięty, plan po drugim przejściu
+  domknięty", pod nim **`3a42f75`** „Krok 5: drobiazgi i harness na drogę
+  porażki (A3, C1, D1, D2, D5, D6)".
+- Repozytorium czyste i wypchnięte. `tsc` czysto, `npm test` **340/340**.
+- `npm run przejscie`: **101 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+  0 pominiętych**. Od kroku 5 wynik jest **powtarzalny** — dwa i trzy biegi pod
+  rząd dają to samo (wcześniej drugi bieg tracił drogę klienta na godzinę, bo
+  udane żądania też zjadały hamulec). Sufit: łączny limit hamulca (60/60 min)
+  ogranicza to do ~5 przebiegów na godzinę; po `npm run dev` od nowa wraca
+  komplet.
 
 Jeśli `git log` pokazuje co innego — ktoś pracował po drodze, sprawdź co
 (`git log` PRZED `git add`; równoległa sesja już raz wchłonęła cudze zmiany).
 
-**Lista znanych luk z pierwszego przejścia jest pusta.** Każde nowe
+**Obie listy znanych luk są puste** (pierwsze i drugie przejście). Każde nowe
 `⚠ ZNANA LUKA` w przejściu jest czymś, co dopiero co dołożyliśmy — a każda
 `✗ REGRESJA` psuje build.
 
-## Plan zaplecza jest ZAMKNIĘTY
+## Oba plany są ZAMKNIĘTE
 
-Powstał po ręcznym przejściu opisanym w `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md`.
-Trzydzieści kilka znalezisk okazało się **czterema brakującymi mechanizmami**
-plus jedną fazą wyglądu. Wszystko zbudowane.
+| plan | powstał po | fazy / kroki | stan |
+|---|---|---|---|
+| `docs/PLAN-ZAPLECZE.md` | pierwsze przejście „na sucho" (droga, która się UDAJE) | 0a–5 | ✅ 2026-08-02 |
+| `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md` | drugie przejście (droga, która się NIE udaje) | 1–5 | ✅ 2026-08-05 |
 
-| faza | co dowozi | stan |
+Każdy z nich ma na końcu pliku **podsumowanie całości** — lekcje, które przeżyją
+plan, i pełną listę tego, czego świadomie nie zrobił. Drugi plan ma tam też
+propozycję, czym powinno być **trzecie przejście**.
+
+W skrócie: 22 znaleziska drugiego przejścia to były **cztery brakujące
+mechanizmy** — publiczny dokument zna swój stan, szablon mówi tylko to, co
+potwierdzają dane, „warunki obowiązujące" jako jedno miejsce, porażka jest
+zdarzeniem jak każde inne. Plus sześć drobiazgów kroku 5, nowa powierzchnia dla
+klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
+
+## Co jest następnym krokiem
+
+**1. Apka iOS — jedna spójna paczka roboty.** To jest najbardziej gotowa rzecz
+do zrobienia i jedyna, która urosła przez cztery kroki z rzędu. **Trasy oddają
+komplet, brakuje wyłącznie ekranów w SwiftUI.** Zebrane:
+
+| skąd | czego brakuje w apce | co serwer już oddaje |
 |---|---|---|
-| 0a | całą drogę klienta przechodzi jedno polecenie (`npm run przejscie`) | ✅ |
-| 0b | kontrola spójności jako ekran *Zdrowie* | ✅ |
-| 1 | jedno przepisanie danych klienta (`lib/przepisanie.ts`) | ✅ |
-| 2 | jedna bramka „czy to wolno wysłać" (`lib/bramkaWysylki.ts`) | ✅ |
-| 3 | komplet skutków zdarzenia jako propozycje (`lib/propozycje.ts`) | ✅ |
-| 4 | lista działań nieodwracalnych (`lib/nieodwracalne.ts`) | ✅ |
-| 5 | wygląd — sześć zebranych usterek | ✅ |
+| Faza 3 zaplecza | ekran „Propozycje" | `/api/hub/propozycje` |
+| krok 2 | rozwijacz poziomu windykacji | `/api/invoices/:id/remind` przyjmuje `poziom` |
+| krok 3 | propozycja o rozjeździe z aneksem, rubryka „WYNIKA Z" z aneksem | `faktura-wg-obowiazujacych-warunkow` |
+| krok 4 | druga akcja propozycji, dwie sekcje Pulpitu | `akcjaAlt`, `decyzja: "zrob-alt"`, `projektyZagrozone`, `zapomnianeSzkiceUmow` |
+| krok 5 | odrzucenie oferty przez klienta, karta „Odpowiedź na wersję N" | `POST /api/offers/public/:token/reject`, `poprzednia` w `GET /api/offers/:id` |
 
-**Podsumowanie całości: `docs/PLAN-ZAPLECZE.md`, sekcja na końcu pliku.**
-Tam są cztery lekcje, które przeżyją ten plan, i pełna lista tego, czego
-świadomie nie zrobił.
+Brief na sam pierwszy wiersz jest gotowy od 2026-08-02
+(`docs/natywna-aplikacja/36-brief-propozycje.md`, do wklejenia:
+`PROMPT-APKA-PROPOZYCJE.md` w korzeniu — **sprawdź najpierw w repozytorium apki,
+czy nie został już zużyty**, plik nie został skasowany). Reszta tabeli briefu
+nie ma. **Rozsądny ruch: napisać JEDEN brief na całą paczkę**, zamiast pięciu
+osobnych czatów — to ten sam obszar kodu i te same wzorce.
 
-## Co zamknęła Faza 5 — żeby nie robić tego drugi raz
+Najważniejsze z gotowego briefu, żeby nie zginęło: `/api/hub/today` **już**
+zwraca pole `propozycje`, a apka je wyrzuca, bo `PulpitDzis` go nie dekoduje —
+dla Pulpitu nie trzeba ani jednego nowego żądania. `PulpitDzis` ma ręczny
+`init(from:)`, więc nowe pole = trzy miejsca (patrz pamięć: „Swift: opcjonalny
+var zawsze nil").
 
-Sześć usterek wyglądu, każda zamknięta POMIAREM (`getComputedStyle`,
-`getBoundingClientRect`), nie zrzutem ekranu. Szczegóły i liczby:
-`HUB_SETUP.md` → „Faza 5 zaplecza".
+**2. Trzecie przejście „na sucho"** — jeśli wolisz iść dalej sprawdzaniem niż
+budowaniem. Propozycja zakresu stoi na końcu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`:
+(a) oczami klienta w PRAWDZIWEJ przeglądarce, na telefonie i desktopie, po
+polsku i po niemiecku; (b) drugi rok obrotowy (numeracja, retencja, faktury
+cykliczne przez zmianę roku); (c) awarie i brzegi. **Czego robić NIE musi:
+przechodzić ręcznie tego, co robi `npm run przejscie`.**
 
-- **E1** — `.glass` nie rozmywał, bo pipeline CSS zostawia z grupy prefiksów
-  **ostatnią** deklarację, a nieprefiksowana stała pierwsza. **Dokładając regułę
-  z prefiksem: prefiks pierwszy, standard ostatni.** Odwrotna kolejność nie daje
-  żadnego objawu ani w kodzie, ani w `tsc`.
-- **E2** — cztery okna `useUI()` i toasty renderują się poza `.admin-linear`.
-  Potrzebne są **obie** klasy: `admin-linear` (zmienne) i `text-[var(--fg)]`
-  (kolor tekstu). Sama pierwsza dała ciemne tło z czarnym tekstem, kontrast
-  ~1:1 — gorzej niż przed poprawką.
-- **E3** — kolumna właściwości projektu 320 → 360 px, plus `flex-wrap`
-  w `WierszPola` jako siatka bezpieczeństwa na każde okno i każdy moduł.
-- **E4** — `<input>` tnie tekst `clip`-em; `truncate` daje wielokropek w polu
-  nieaktywnym.
-- **D2** — `app/[lang]/admin/nowyRekord.tsx`: po dodaniu lista przewija się do
-  nowego rekordu i podświetla go. **Sortowanie NIETKNIĘTE** — decyzja
-  właściciela, nowe rekordy nie wskakują na górę. Wpięte w Leady, Klientów,
-  Projekty, Faktury i Oferty. Dwie pułapki środowiska złapane po drodze:
-  `requestAnimationFrame` nie tyka w karcie w tle, a `scrollIntoView({behavior:
-  "smooth"})` nie rusza z miejsca — stąd `setTimeout` i `behavior: "auto"`.
-- **F** — próg dotykowy **24×24 px rozstrzygnięty raz na cały panel** i wpisany
-  do `CLAUDE.md` jako DOMYŚLNY, z jawną listą wyjątków. W Katalogu było 186
-  celów poniżej progu, jest 0.
-
-**Runda domykająca (ten sam dzień)** — dwie rzeczy złapane przy sprawdzaniu,
-czy coś zostało. Obie naprawione i zmierzone:
-
-- **Czerwone przyciski działań nieodwracalnych** miały 4,47:1 w spoczynku
-  i **3,76:1 na hover** — czyli stan aktywny był gorszy od spoczynku — przy
-  progu 4,5:1. `bg-red-600/90` + `hover:bg-red-600` daje 5,67:1 / 4,83:1.
-- **`bg-*` nie działa na `.card-paper` ani `.card-inset`.** `globals.css` ma
-  `.admin-linear .card-paper` — selektor POTOMKA, więc bije klasę-utility.
-  Trzy zastane miejsca żyły z martwą klasą (zaznaczenie karty leada, karty
-  klienta, alarmowy `SummaryCard`). **Dokładając tło do karty w panelu:
-  `!bg-…`.** Bez wykrzyknika klasa jest martwa i nic tego nie zgłasza.
-
-## Następny krok
-
-Potwierdzenia w apce są **zrobione** (2026-08-02) — to była ostatnia rzecz,
-która po planie zaplecza działała gorzej niż przed nim. `PROMPT-APKA-
-POTWIERDZENIA.md` skasowany, bo zużyty.
-
-**Wybrany następny moduł: „Propozycje" w apce iOS.** Brief gotowy —
-`docs/natywna-aplikacja/36-brief-propozycje.md`. Do wklejenia w nowym czacie:
-**`PROMPT-APKA-PROPOZYCJE.md`** w korzeniu repo (skasuj plik przy najbliższym
-commicie). Dotyczy repozytorium apki, nie tego.
-
-Najważniejsze z briefu, żeby nie zginęło: **`/api/hub/today` już zwraca pole
-`propozycje`, a apka je wyrzuca**, bo `PulpitDzis` go nie dekoduje — dla
-Pulpitu nie trzeba ani jednego nowego żądania. `PulpitDzis` ma ręczny
-`init(from:)`, więc nowe pole = trzy miejsca.
-
-**Sekcja F pierwszego przejścia jest zamknięta** (2026-08-04) — patrz niżej;
-zostały z niej trzy rzeczy do obejrzenia w prawdziwej przeglądarce.
-
-**Drugi wybrany krok: drugie przejście „na sucho" — ścieżką, na której
-wszystko idzie nie tak.** Plan: `docs/DRUGIE-PRZEJSCIE-PLAN.md`. Do wklejenia
-w nowym czacie: **`PROMPT-DRUGIE-PRZEJSCIE.md`** w korzeniu repo.
-
-Droga: lead → oferta → **odrzucenie** → nowa wersja → akceptacja → umowa →
-**aneks** → projekt **zagrożony/zerwany** → faktura → **brak zapłaty** →
-przypomnienie → **wezwanie**. Pierwsze przejście sprawdziło wyłącznie drogę,
-która się UDAJE, i tę pilnuje dziś `npm run przejscie`; powyższej nie przeszedł
-nikt ani razu. Kod ją ma.
-
-**Rejestracja firmy** — odłożona decyzją właściciela do odwołania. Do tego
-czasu robimy poprawki i dodatki do panelu oraz apki.
+**3. Rejestracja firmy** — odłożona decyzją właściciela do odwołania. To jest
+jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
 
@@ -124,57 +87,41 @@ czasu robimy poprawki i dodatki do panelu oraz apki.
 - `npx tsc --noEmit -p tsconfig.json` po każdej paczce zmian (pełny
   `next build` failuje w sandboxie z EPERM). **`tsc` nie wie nic o więzach
   bazy** ani o SQL-u w szablonach.
-- `npm test` — 281 testów nad czystymi funkcjami z `lib/`.
+- `npm test` — 340 testów nad czystymi funkcjami z `lib/`.
 - **Każda nowa trasa w `app/api` jest domyślnie OTWARTA** —
   `if (!(await isAuthed()))` sprawdzaj per uchwyt HTTP, nie per plik.
+- **Podgląd w środowisku Claude to karta ukryta 0×0**: `requestAnimationFrame`
+  daje zero klatek, `read_page` zwraca pustą stronę, menu i modale mają
+  `opacity: 0`, choć są otwarte i klikalne. Sprawdzaj przez `innerText` /
+  `aria-*` / `getComputedStyle`, nie przez zrzut ekranu.
 - Kończąc: `rm -f .git/index.lock && git add -A && git commit && git push`.
 
 ---
 
 ## Co jest otwarte (nie ruszać przy okazji)
 
-- **Rejestracja firmy** — `PO_REJESTRACJI.md`, osiemnaście punktów. **To jest
-  następny krok, który realnie zmienia stan projektu, i jest nietechniczny.**
-  Blokuje KSeF test → produkcja, prawdziwe dane w nocie prawnej, plan Vercel Pro
-  (Hobby zabrania użytku komercyjnego), przeprowadzkę na NAS. **To nie są braki
-  do naprawienia przed rejestracją.**
-- ~~**Potwierdzenia w apce iOS**~~ — **ZROBIONE 2026-08-02** (repo
-  `../leggera-hub-ios`). Apka uczy się bariery od serwera: 428 → arkusz →
-  powtórka z nagłówkami, w jednym miejscu (`APIClient.wyslijNaURL`). Zmierzone
-  parami na tym samym rekordzie, oba poziomy. **Zostaje do zrobienia przez
-  właściciela: jeden przebieg kontrolny na PRODUKCJI** (atrapa klienta →
-  usunięcie tą samą drogą) — nie dało się go wykonać stąd, bo apka w DEBUG
-  celuje w produkcję, a wejście wymaga hasła wpisanego na urządzeniu.
-  Szczegóły i pułapki: README apki → „Potwierdzanie działań nieodwracalnych".
-  Przy okazji wyszło, że brief mylił się w obie strony — patrz nagłówek
-  `docs/natywna-aplikacja/35-brief-potwierdzenia.md`.
-- **Czy porzucenie świeżo zeskanowanego paragonu ma pytać** — `koszt-usun` jest
-  na liście nieodwracalnych, więc „Anuluj" w skanerze paragonu prosi teraz
-  o potwierdzenie usunięcia szkicu. Trasa nie odróżnia szkicu sprzed minuty od
-  kosztu sprzed miesiąca. **Decyzja po stronie panelu**, nie apki; do
-  rozstrzygnięcia, nie usterka.
-- **Propozycje z Fazy 3 w apce iOS** — trasa `/api/hub/propozycje` gotowa,
-  brakuje wyłącznie ekranu w SwiftUI.
-- ~~**Drobiazgi z sekcji F pierwszego przejścia**~~ — **ZROBIONE 2026-08-04.**
-  Sześć naprawionych (odświeżanie kolumn, reset formularza wpisu, skok chipów
-  terminu, klikalne kroki mapy, dostępność wyzwalacza menu, Escape) plus
-  **nowe „Umów spotkanie"** w profilu leada i klienta — rozmowa z godziną
-  trafia wreszcie do Kalendarza, a nie do pola tekstowego. Tabela wyników:
-  `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F" → „Co z tego wyszło".
-  **Zostały trzy rzeczy do sprawdzenia w PRAWDZIWEJ przeglądarce**, bo podgląd
-  w środowisku Claude to karta ukryta 0×0 (renderuje wariant mobilny, a
-  `window.innerHeight` wynosi 0, więc pozycjonowanie menu liczy się źle):
-  (1) czy Escape przy otwartym kole daty faktycznie zostawia profil otwarty —
-  poprawka jest jednolinijkowa i kopiuje wzorzec z `PropertyMenu`, ale nie
-  została zmierzona; (2) czy menu „Wstaw z szablonu" naprawdę zostaje otwarte —
-  w kodzie woła `close()` przed wstawieniem, więc zgłoszenie się nie
-  reprodukuje; (3) czy lista kanałów zasłaniająca checkbox faktycznie
-  przeszkadza — to normalne zachowanie listy rozwijanej i nie chciałem tego
-  „naprawiać" na ślepo.
-- **A5** — „ZLECENIODAWCA / WYKONAWCA" w jednej rubryce na wydruku umowy.
-  Treść dokumentu prawnego, nie reguła wysyłki.
+- **Rejestracja firmy** — `PO_REJESTRACJI.md`, osiemnaście punktów. Blokuje KSeF
+  test → produkcja, prawdziwe dane w nocie prawnej, plan Vercel Pro (Hobby
+  zabrania użytku komercyjnego), przeprowadzkę na NAS. **To nie są braki do
+  naprawienia przed rejestracją.**
+- **Warstwa wizualna obu przejść** — żadne z nich jej nie sprawdzało, bo w tym
+  środowisku pomiary byłyby zgadywaniem. Wymaga prawdziwej przeglądarki.
+  Konkretnie zostały z tego trzy rzeczy z sekcji F pierwszego przejścia:
+  (1) czy Escape przy otwartym kole daty zostawia profil otwarty; (2) czy menu
+  „Wstaw z szablonu" naprawdę zostaje otwarte; (3) czy lista kanałów
+  zasłaniająca checkbox faktycznie przeszkadza.
+- **A5 z pierwszego przejścia** — „ZLECENIODAWCA / WYKONAWCA" w jednej rubryce
+  na wydruku umowy, a role są dwie. Treść dokumentu prawnego, nie reguła
+  wysyłki.
 - **Kafel „Przychód (ten miesiąc)"** pokazuje brutto. Decyzja produktowa do
   rozstrzygnięcia, nie usterka.
+- **Czy porzucenie świeżo zeskanowanego paragonu ma pytać** — `koszt-usun` jest
+  na liście nieodwracalnych, więc „Anuluj" w skanerze prosi o potwierdzenie
+  usunięcia szkicu. Trasa nie odróżnia szkicu sprzed minuty od kosztu sprzed
+  miesiąca. Decyzja po stronie panelu, do rozstrzygnięcia.
+- **Jeden przebieg kontrolny potwierdzeń na PRODUKCJI** (atrapa klienta →
+  usunięcie tą samą drogą) — nie da się go wykonać stąd, bo apka w DEBUG celuje
+  w produkcję, a wejście wymaga hasła wpisanego na urządzeniu. Ruch właściciela.
 - **Moduł 54, ostatni krok** (pliki klienta na NAS) — czeka na Moduł 55, ten na
   rejestrację.
 - **`CEIDG_TOKEN` w Vercelu** — bez niego Łowca leadów nie ma skąd brać
@@ -182,6 +129,9 @@ czasu robimy poprawki i dodatki do panelu oraz apki.
 - **Włączenie 2FA na produkcji** — silnik gotowy od Modułu 41. Drogi powrotu:
   papierowe kody zapasowe + ten sam sekret na drugim urządzeniu (NIE
   „wyłącznik w Vercelu").
+- **Osierocony katalog `.claude/worktrees/fervent-ishizaka-7aec37/`** po
+  porzuconej sesji — ma starą kopię `lib/offers.ts` i myli `grep`. Git go
+  ignoruje. Do skasowania przy okazji.
 
 ## Czego NIE zaczynać bez wyraźnej prośby
 
@@ -191,8 +141,13 @@ czasu robimy poprawki i dodatki do panelu oraz apki.
 - **Zamiana istniejących automatów na propozycje** — granica jest ustalona
   i zapisana w `CLAUDE.md`.
 - **Dokładanie potwierdzeń do działań odwracalnych** — reguła Fazy 4 działa
-  w obie strony i jest zapisana w `CLAUDE.md`. Drobiazgi są poza listą
-  świadomie.
+  w obie strony i jest zapisana w `CLAUDE.md`.
+- **Rozpychanie `OFFER_STATUSES`** (np. o „Zastąpiona") — rozstrzygnięte
+  2026-08-05 na „nie": fakt zastąpienia niesie `superseded_at`, a nowa wartość
+  dotknęłaby mapy koloru, filtra, wagi w pipelinie i bliźniaczej mapy w apce.
+- **Rozluźnianie hamulca publicznych dokumentów „bo przeszkadza w sondzie"** —
+  próg 5/60 min jest decyzją z Audytu 1. Krok 5 zmienił WYŁĄCZNIE to, co się
+  liczy (pomyłki zamiast wszystkiego) i że sukces zeruje licznik.
 - **Zmiana sortowania list, żeby nowe rekordy szły na górę** — rozstrzygnięte
   w Fazie 5 na „nie" (przewijamy i podświetlamy).
 - **Moduł 16 — wsparcie posprzedażowe.** Do pierwszego klienta.
@@ -201,9 +156,12 @@ czasu robimy poprawki i dodatki do panelu oraz apki.
 
 ## Uczciwa etykieta stanu
 
-**Kompletny funkcjonalnie, przeaudytowany, nieużywany produkcyjnie.** Dwa
-narzędzia, które sprawdzają DANE, a nie kod — przejście „na sucho" i kontrola
-spójności na ekranie *Zdrowie* — pokazują zero. Zaplecze domknięte, wygląd
-zrobiony. Czego dalej nie ma: ani jednego prawdziwego klienta, ani jednej
-faktury wystawionej naprawdę. Następny krok jest nietechniczny: rejestracja
+**Kompletny funkcjonalnie, przeaudytowany, nieużywany produkcyjnie.** Trzy
+narzędzia, które sprawdzają DANE, a nie kod — przejście „na sucho" (101 zdań,
+obie drogi), kontrola spójności na ekranie *Zdrowie* i `error_log` — pokazują
+zero. Zaplecze domknięte na obu drogach, wygląd zrobiony na desktopie.
+
+Czego dalej nie ma: ani jednego prawdziwego klienta, ani jednej faktury
+wystawionej naprawdę, ani jednego sprawdzenia wyglądu w prawdziwej przeglądarce.
+Następny krok, który zmienia stan projektu, jest nietechniczny: rejestracja
 działalności.
