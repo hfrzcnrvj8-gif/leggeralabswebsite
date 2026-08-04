@@ -12,7 +12,7 @@ zbudowany tak samo i celowo nie powtarza jego zasad.
 | 2 | szablon mówi tylko to, co potwierdzają dane | A4, A5, C2, C4, D3, D4 | ✅ `4eb8667` |
 | 3 | „warunki obowiązujące" jako jedno miejsce | A6, A7, A8 | ✅ `4ec5dbf` |
 | 4 | porażka jest zdarzeniem jak każde inne | B1, B2, B3, B4 | ✅ `41ae95c` |
-| 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ✅ `HASH` |
+| 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ✅ `3a42f75` |
 
 **Plan zamknięty 2026-08-05.** Podsumowanie całości — na końcu dokumentu.
 
