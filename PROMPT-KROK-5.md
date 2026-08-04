@@ -12,7 +12,7 @@ Poza tym:
 
 ## Punkt startu
 
-Ostatni commit: krok 4 (`KROK4`). Repo czyste i wypchnięte.
+Ostatni commit `41ae95c` „Krok 4: porażka jest zdarzeniem jak każde inne". Repo czyste i wypchnięte.
 `tsc` czysto, `npm test` **336/336**, `npm run przejscie`
 **68 działa · 0 regresji · 0 pominiętych**.
 
