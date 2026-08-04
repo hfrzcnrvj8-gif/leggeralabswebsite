@@ -4,7 +4,7 @@
 // (app/api/leads/notify/route.ts). Trzymana osobno, żeby route handler mógł
 // ją zaimportować bez ciągnięcia za sobą granicy klienckiej.
 
-import { todayLocalISO, daysBetweenISO } from "./dates";
+import { todayLocalISO, daysBetweenISO, formatPlDate } from "./dates";
 import { mapaStanow, mapaKropek, type Stan } from "./kolorStanu";
 
 export type Lead = {
@@ -370,7 +370,7 @@ export function overdueReason(lead: Lead): string {
   }
   if (lead.next_followup) {
     const action = lead.next_action?.trim();
-    return `ustawione przypomnienie na ${lead.next_followup}${action ? ` — ${action}` : ""}`;
+    return `ustawione przypomnienie na ${formatPlDate(lead.next_followup)}${action ? ` — ${action}` : ""}`;
   }
   if (lead.status === "Napisano - czeka na odpowiedź") {
     return `napisano ${daysSince(lead.ostatni_kontakt)} dni temu, brak odpowiedzi`;

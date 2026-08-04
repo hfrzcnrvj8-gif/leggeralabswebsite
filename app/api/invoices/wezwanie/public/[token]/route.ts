@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { pickFields, DUNNING_PUBLIC_FIELDS, COMPANY_SETTINGS_PUBLIC_FIELDS } from "@/lib/publicFields";
+import { wiadomosciPrzedWezwaniem } from "@/lib/invoices";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 
 export const runtime = "nodejs";
@@ -31,8 +32,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   // tak jak same tokeny są celowo osobne.
   if (invoice.wezwanie_share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
   const settings = await sql`SELECT * FROM company_settings WHERE id = 'default';`;
+  // Krok 2 (A4) — dokument twierdził „Pomimo wcześniejszych przypomnień…"
+  // niezależnie od tego, czy jakieś były. Liczbę dokłada TRASA, a nie wydruk:
+  // gdyby liczył ją komponent, potrzebowałby całej historii, a ta zawiera
+  // znaczniki i poziomy, których dłużnikowi nie wydajemy. Ta sama funkcja
+  // liczy to samo w panelu (`/api/invoices/[id]`), więc obie strony dostają
+  // tę samą liczbę — lekcja z kroku 1: wspólna logika to za mało, jeśli
+  // strony dostają inne DANE.
+  const reminders = await sql`SELECT sent_at FROM invoice_reminders WHERE invoice_id = ${invoice.id};`;
   return NextResponse.json({
-    invoice: pickFields(invoice, DUNNING_PUBLIC_FIELDS),
+    invoice: {
+      ...pickFields(invoice, DUNNING_PUBLIC_FIELDS),
+      poprzednie_wiadomosci: wiadomosciPrzedWezwaniem(reminders, invoice.wezwanie_wystawiono_at),
+    },
     settings: settings[0] ? pickFields(settings[0], COMPANY_SETTINGS_PUBLIC_FIELDS) : null,
   });
 }

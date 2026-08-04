@@ -11687,3 +11687,133 @@ tła różny od koloru karty.
 `npm run przejscie` — **68 działa · 0 znanych luk · 0 regresji · 0 obejść ·
 0 pominiętych** (bez zmian; to faza o wyglądzie, przejście sprawdza dane).
 `npx tsc --noEmit` czysto, `npm test` **281/281**.
+
+---
+
+## Krok 2 planu po drugim przejściu — szablon mówi tylko to, co potwierdzają dane (2026-08-04)
+
+Plan: `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`, krok 2. Zamyka znaleziska **A4, A5,
+C2, C4, D3, D4** z `docs/DRUGIE-PRZEJSCIE-NA-SUCHO.md`. Krok 1 (publiczny
+dokument zna swój stan) siedzi w commicie `5f4e81c`.
+
+Jedno zdanie: **maile i dokumenty przestały twierdzić rzeczy, których dane nie
+potwierdzają, i zaczęły używać danych, które panel od dawna ma.**
+
+### Treść windykacji wynika z historii, nie z dni zwłoki (A4)
+
+Pierwsza wiadomość o długu miała temat „Druga prośba o płatność" i zdanie „to
+już druga wiadomość w tej sprawie", a formalne wezwanie `WZ-…` — „Pomimo
+wcześniejszych przypomnień" — przy `reminder_level = 0` i panelu wyświetlającym
+obok „Jeszcze nic nie wysłano". Powód: poziom eskalacji liczy się z dni zwłoki,
+a przy 14 dniach panel wysyła od razu poziom 2, więc szablon poziomu 2 zakładał,
+że jest drugi w kolejności.
+
+- `reminderEmailText()` / `dunningEmailText()` (`lib/invoices.ts`) przyjmują
+  `wyslanoWczesniej` — liczbę wierszy `invoice_reminders` policzoną **przed**
+  wysyłką. Zdanie „to już N wiadomość" i temat „Druga/Trzecia prośba" pojawiają
+  się tylko wtedy, gdy N > 0.
+- Zdanie o wcześniejszej korespondencji na **dokumencie** wezwania daje
+  `frazaOWczesniejszychPismach()` — ta sama funkcja, co w mailu. Liczba
+  wiadomości sprzed wezwania to `wiadomosciPrzedWezwaniem()`, liczona osobno,
+  bo w chwili oglądania dokumentu `reminder_level` wynosi już 3. Odsiewamy wpis
+  samego wezwania po znaczniku czasu (trasa zapisuje `wezwanie_wystawiono_at`
+  przed wierszem historii, więc `sent_at` jest zawsze późniejszy).
+- **Liczbę dokłada TRASA, nie wydruk** — i to obie: `/api/invoices/[id]`
+  (panel) oraz `/api/invoices/wezwanie/public/[token]` (link klienta), tą samą
+  funkcją, jako pole `poprzednie_wiadomosci`. To wprost lekcja z kroku 1:
+  wspólna logika nie wystarcza, jeśli strony dostają inne DANE.
+
+### Poziom windykacji wybiera właściciel (C2, decyzja właściciela 2026-08-04)
+
+Do tej pory poziom był funkcją wyłącznie dni zwłoki: faktura 48 dni po terminie,
+do której nikt nigdy nie napisał, mogła dostać jako **pierwsze pismo** formalne
+wezwanie do zapłaty i nie było czego wybrać.
+
+- `poziomyWindykacji()` (`lib/invoices.ts`) zwraca `{ minimum, sugerowany,
+  dozwolone }`. Podpowiadany jest poziom z dni zwłoki; wolno wybrać **każdy
+  z trzech**, także wyższy — panel proponuje, właściciel decyduje. Jedyna
+  twarda granica to `minimum`: nie da się zejść poniżej poziomu, który już
+  wyszedł do klienta (eskalacja, która się cofa, jest gorsza niż jej brak).
+- Przycisk w `InvoiceEditor.tsx` jest rozwijaczem (`Popover` + `MenuRow`), ze
+  strzałką i z podpowiadanym poziomem widocznym NA przycisku. Gdy `minimum > 1`,
+  pod listą stoi zdanie „Łagodniejsze pisma już wyszły — eskalacja nie cofa się
+  w dół".
+- **Granicy pilnuje trasa**, nie przycisk: `POST /api/invoices/[id]/remind`
+  przyjmuje `poziom` w body i odrzuca 400 z wyjaśnieniem. Brak pola = wyślij
+  podpowiadany, więc apka iOS i starsze wersje panelu działają bez zmian.
+
+### Maile znają klienta i nas (D3) — `lib/kopertaMaila.ts`
+
+Wszystkie maile zaczynały się „Dzień dobry," i kończyły „Pozdrawiamy, Leggera
+Labs" — jednoosobowa firma pisała w liczbie mnogiej i bez nazwiska, także pod
+wezwaniem do zapłaty. To bezpośredni krewny **A1 z pierwszego przejścia**
+(`[Twoje imię]`), z tą różnicą, że tam brakowało danych, a tu dane były.
+
+- `powitanie()` + `stopkaMaila()` + `zlozMail()` — jedno miejsce, przez które
+  przechodzi każdy mail do klienta. Osobę i podpis podaje `kopertaDokumentu()`
+  (`lib/db.ts`): osoba z `clients.osoba_kontaktowa`, a gdy dokument wisi jeszcze
+  przy leadzie — z `leads.osoba_kontaktowa`; podpis z `company_settings`.
+- **Wołacz odmieniamy tylko dla imion na „-a"** (Karolina → Karolino, Anna →
+  Anno). Imiona zakończone spółgłoską są w polszczyźnie nieregularne
+  (Piotr → Piotrze, Marek → Marku) i zostają w mianowniku. Form „Pani/Panie"
+  **świadomie nie ma**: wymagałyby zgadywania płci z imienia.
+- Ton stopki zależy od pisma: „Pozdrawiam" pod zwykłymi, „Z poważaniem" pod
+  stanowczym przypomnieniem i wezwaniem.
+- Nazwa firmy JDG zawiera imię właściciela („Leggera Labs Patryk Piecyk"), więc
+  osobne wiersze dawały podpis jąkający się nazwiskiem — gdy nazwa firmy
+  zawiera imię z podpisu, wiersz z samym imieniem wypada.
+- Brak `osoba_podpisujaca` zostawia sam wiersz z firmą. Nigdy nawiasu, nigdy
+  zmyślonego imienia.
+
+### Daty w mailach przez `formatPlDate()` (A5)
+
+Mail windykacyjny wysyłał `2026-07-21`, podczas gdy dokument wezwania obok
+drukował `21.07.2026`. `formatPlDate()` **przeprowadziła się z `lib/projects.ts`
+do `lib/dates.ts`** (re-eksport w Projektach zostaje, więc kilkadziesiąt
+istniejących importów działa bez zmian) — mieszkanie w module Projektów było
+powodem, dla którego omijały ją moduły, które nie chciały ciągnąć Projektów.
+Przy okazji poprawione: dzienny raport (`termin ${p.termin}`) oraz zdania
+„ustawione przypomnienie na …" u leadów i klientów, widoczne też na Pulpicie.
+
+### Mail z ofertą (D4)
+
+- Nowa wersja mówi wprost, że zastępuje poprzednią („Ta wersja zastępuje
+  poprzednią propozycję — wcześniejsza przestaje obowiązywać"), ma własny temat
+  („Nowa wersja oferty — …") i numer wersji w treści. Stary link **zostaje
+  żywy do wglądu** (decyzja właściciela 1 z planu), więc to zdanie jest jedyną
+  rzeczą, która mówi klientowi, co obowiązuje.
+- Każdy mail z ofertą podaje datę ważności; mail z fakturą — termin płatności;
+  mail z umową — termin realizacji.
+
+### Wezwanie do zapłaty dostaje podpis i kontakt (C4)
+
+Dokument kończył się kwotą i numerem rachunku — dłużnik nie miał z niego do kogo
+napisać. Doszły: e-mail i telefon w bloku `WIERZYCIEL` (oba były już na białej
+liście `COMPANY_SETTINGS_PUBLIC_FIELDS`, więc widzi je też klient pod linkiem)
+oraz rubryka **„W IMIENIU WIERZYCIELA"** z `osoba_podpisujaca` i datą, w tym
+samym kształcie co rubryki w `ContractPrint.tsx` — kreska i podpis, **bez tła**,
+bo tła nie drukują się w ogóle (patrz `DocGradient.tsx`).
+
+### Sprawdzenie
+
+`npx tsc --noEmit` czysto, `npm test` **306/306** (nowy plik
+`test/windykacja.test.ts`, 18 sprawdzeń na dosłownych zdaniach z drugiego
+przejścia), `npm run przejscie` **68 działa · 0 regresji · 0 pominiętych**.
+
+Dowodem są treści, które wyszły — odtworzone lokalnie na drodze z drugiego
+przejścia i odczytane z logu serwera:
+
+```
+Temat: Przypomnienie o płatności — faktura FV 93/2026      (pierwsza wiadomość)
+Dzień dobry, Karolino,
+przypominam o płatności za fakturę nr FV 93/2026 na kwotę 13 530,00 zł,
+z terminem płatności 21.07.2026.
+…
+Pozdrawiam,
+Patryk Piecyk / Leggera Labs / kontakt@… · +48 …
+```
+
+Wezwanie jako **pierwsze** pismo: „Do dnia dzisiejszego nie odnotowaliśmy
+zapłaty…". Wezwanie po dwóch przypomnieniach: „Pomimo wcześniejszych
+przypomnień, do dnia dzisiejszego…". Ten sam dokument, ta sama treść pod
+publicznym linkiem klienta.

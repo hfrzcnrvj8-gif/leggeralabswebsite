@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { sendEmail } from "@/lib/email";
+import { zlozMail } from "@/lib/kopertaMaila";
 import { CLOSED_OFFER_STATUSES, type OfferStatus } from "@/lib/offers";
-import { formatPlDate } from "@/lib/projects";
+import { formatPlDate } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -55,9 +56,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await sendEmail({
       to: String(offer.klient_email),
       subject: `Przypomnienie: ${tytul}`,
-      text: [
-        `Dzień dobry,`,
-        ``,
+      // Powitanie i podpis z danych panelu (krok 2, znalezisko D3) — do tej
+      // pory mail kończył się „Pozdrawiam, Leggera Labs", czyli imieniem
+      // firmy zamiast imieniem człowieka, który go pisze.
+      text: zlozMail(await kopertaDokumentu(sql, offer), "zwykly", [
         `wracam do oferty „${tytul}", którą przesłałem wcześniej.`,
         ``,
         url,
@@ -67,10 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           : `Chętnie odpowiem na pytania albo dopasuję zakres.`,
         ``,
         `Jeśli temat jest nieaktualny — proszę o krótką informację, żebym nie wracał niepotrzebnie.`,
-        ``,
-        `Pozdrawiam,`,
-        `Leggera Labs`,
-      ].join("\n"),
+      ]),
     });
 
     await sql`UPDATE offers SET przypomniano_at = now(), updated_at = now() WHERE id = ${id};`;

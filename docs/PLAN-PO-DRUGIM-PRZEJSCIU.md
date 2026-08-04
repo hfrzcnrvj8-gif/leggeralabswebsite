@@ -9,7 +9,7 @@ zbudowany tak samo i celowo nie powtarza jego zasad.
 | krok | co dowozi | zamyka | stan |
 |---|---|---|---|
 | 1 | publiczny dokument zna swój stan | A1, A2 | ✅ `5f4e81c` |
-| 2 | szablon mówi tylko to, co potwierdzają dane | A4, A5, C2, C4, D3, D4 | ⬜ |
+| 2 | szablon mówi tylko to, co potwierdzają dane | A4, A5, C2, C4, D3, D4 | ✅ `TODO-COMMIT` |
 | 3 | „warunki obowiązujące" jako jedno miejsce | A6, A7, A8, (C3) | ⬜ |
 | 4 | porażka jest zdarzeniem jak każde inne | B1, B2, B3, B4 | ⬜ |
 | 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ⬜ |
@@ -176,6 +176,54 @@ Do zrobienia:
   formalne wezwanie kończy się kwotą i numerem konta — dłużnik nie ma z dokumentu
   do kogo napisać. Rubryka podpisu przez `PasekMarkiDokumentu`/`KwotaGradientem`
   z `DocGradient.tsx`, żeby nie zniknęła na wydruku.
+
+### Co się okazało przy robocie (2026-08-04)
+
+- **Hipoteza z briefu („zobaczysz listę dopisaną w połowie") się NIE
+  potwierdziła — problem był głębiej.** W kroku 1 wystarczyło domknąć listę
+  stanów, bo `CLOSED_OFFER_STATUSES` leżało obok gotowe. Tu nie było czego
+  domykać: `reminder_level` istnieje i jest poprawnie prowadzony, tylko szablon
+  **w ogóle o niego nie pytał** — „to już druga wiadomość" stało w kodzie na
+  sztywno, tak samo jak „pomimo wcześniejszych przypomnień" na dokumencie `WZ-…`.
+  Zdanie nie było źle policzone; nie było liczone wcale.
+- **`reminder_level` nie odpowiada na pytanie szablonu.** Poziom mówi „jak
+  wysoko", a szablon pyta „ile razy" — a te dwie liczby rozjeżdżają się przy
+  KAŻDYM pominiętym progu. Przy 14 dniach zwłoki panel wysyła od razu poziom 2,
+  więc pierwsza wiadomość ma `level = 2` i historię pustą. Trzeba było liczyć
+  wiersze `invoice_reminders`, nie czytać poziomu. Na dokumencie wezwania jest
+  jeszcze gorzej: w chwili oglądania `reminder_level` wynosi już 3 zawsze —
+  liczbę wcześniejszych pism trzeba odtworzyć ze znaczników czasu.
+- **Lekcja z kroku 1 sprawdziła się drugi raz, w tę samą stronę.** Ta sama
+  funkcja licząca po obu stronach to za mało — publiczny link filtruje pola
+  białą listą, więc gdyby wydruk liczył sam, u klienta pokazałby zero. Liczbę
+  dokłada TRASA, obie, tą samą funkcją, jako gotowe pole. Sprawdzone osobno pod
+  panelowym adresem i pod linkiem klienta: te same zdania.
+- **Szablonów mailowych jest dziewięć, nie cztery.** Drugie przejście widziało
+  cztery, bo tyle poszło tamtą drogą. Sweep objął też potwierdzenie akceptacji
+  oferty, przypomnienie o umowie, wysyłkę faktury i dzienny raport — i tam też
+  siedziały „Pozdrawiamy" oraz surowe daty.
+- **`formatPlDate()` mieszkała w `lib/projects.ts`** i to jest cała przyczyna
+  A5: moduły, które nie chciały ciągnąć całych Projektów, formatowały daty po
+  swojemu albo wcale. Przeniesiona do `lib/dates.ts`, do reszty rodziny;
+  w Projektach został re-eksport, więc żaden z kilkudziesięciu importów nie
+  wymagał ruszania. Przy okazji wyszło, że te same surowe daty widać na
+  **Pulpicie** („ustawione przypomnienie na 2026-07-21").
+- **Wołacz to granica tego, co da się zrobić uczciwie.** Odmieniamy imiona na
+  „-a" (Karolina → Karolino) i tylko je; imiona zakończone spółgłoską są
+  nieregularne, więc zostają w mianowniku. Formy „Pani/Panie" wymagałyby
+  zgadywania płci z imienia — świadomie ich nie ma. Decyzja właściciela.
+- **Podpis jąkał się nazwiskiem i wyszło to dopiero na żywo.** Nazwa firmy JDG
+  zawiera imię właściciela, więc stopka dawała „Patryk Piecyk / Leggera Labs
+  Patryk Piecyk". W testach jednostkowych nie było tego widać, bo fikstura
+  miała nazwę firmy bez nazwiska. Zmierzone na sondzie, poprawione, dopisany
+  test.
+- **Nie zrobione świadomie:** wybór poziomu został w panelu — apka iOS dalej
+  wysyła podpowiadany (trasa przyjmuje brak pola `poziom` i zachowuje się jak
+  wcześniej). Rozwijacz w apce to osobna robota po jej stronie.
+- **Rozwijacz sprawdzony przez DOM, nie przez zrzut.** W tym podglądzie
+  `requestAnimationFrame` daje 0 klatek (karta `hidden`), więc menu ma
+  `opacity: 0`, choć jest otwarte, kompletne i klikalne — zmierzone, znany
+  artefakt środowiska. Sprawdzenie szło przez `innerText` i `aria-checked`.
 
 ---
 

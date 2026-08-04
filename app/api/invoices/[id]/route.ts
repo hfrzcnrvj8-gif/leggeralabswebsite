@@ -13,6 +13,7 @@ import {
   INVOICE_TYPES,
   PAYMENT_METHODS,
   invoiceTotals,
+  wiadomosciPrzedWezwaniem,
   zeSlownika,
   type InvoiceItem,
 } from "@/lib/invoices";
@@ -83,7 +84,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   });
 
   return NextResponse.json({
-    invoice,
+    // `poprzednie_wiadomosci` — ile wiadomości o tej należności wyszło PRZED
+    // wezwaniem (krok 2, A4). Dokładane tu, a nie liczone w wydruku, żeby
+    // podgląd z panelu i publiczny link klienta czytały dokładnie to samo pole
+    // policzone tą samą funkcją (patrz api/invoices/wezwanie/public/[token]).
+    invoice: { ...invoice, poprzednie_wiadomosci: wiadomosciPrzedWezwaniem(reminders, invoice.wezwanie_wystawiono_at) },
     items: numItems(items),
     settings: settings[0] ?? null,
     bramka,

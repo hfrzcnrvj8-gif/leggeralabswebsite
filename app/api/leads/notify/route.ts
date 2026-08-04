@@ -12,6 +12,7 @@ import {
   ensureCostsSchema,
   ensureContractsSchema,
   logClientEvent,
+  kopertaDokumentu,
   getNudgeThreads,
   ensureBackupSchema,
   zPonowieniem,
@@ -63,7 +64,7 @@ import {
 } from "@/lib/leadHunterRun";
 import { ceidgSkonfigurowany } from "@/lib/ceidg";
 import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
-import { todayLocalISO, daysSinceISO } from "@/lib/dates";
+import { todayLocalISO, daysSinceISO, formatPlDate } from "@/lib/dates";
 import { notify, purgeOldNotifications } from "@/lib/notificationLog";
 import { odnotujPrzebieg, stanAutomatow, wczytajBledy, wyslijAlarmy, zapiszWyjatek } from "@/lib/errorLog";
 import { opisBledu, wymagaUwagi } from "@/lib/observability";
@@ -121,6 +122,14 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
       console.warn(`[notify] pomijam przypomnienie dla faktury ${inv.numer ?? inv.id} — link unieważniony`);
       continue;
     }
+    // Krok 2 (A4/D3) — ile wiadomości o tej należności naprawdę już wyszło
+    // i kto to pisze. Cron ma dokładnie ten sam problem co ręczne kliknięcie:
+    // przy 14 dniach zwłoki i pustej historii wysyła od razu poziom 2, więc
+    // szablon nie może zakładać, że ta wiadomość jest drugą.
+    const wyslanoWczesniej = Number(
+      (await sql`SELECT COUNT(*)::int AS ile FROM invoice_reminders WHERE invoice_id = ${inv.id};`)[0]?.ile ?? 0
+    );
+    const koperta = await kopertaDokumentu(sql, inv, settingsRows[0] ?? null);
     try {
       if (targetLevel === 3) {
         const token = await ensureInvoiceWezwanieShareToken(sql, inv.id, inv.wezwanie_share_token);
@@ -136,6 +145,8 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
           odsetki,
           url,
           reference,
+          wyslanoWczesniej,
+          koperta,
         });
         await sendEmail({ to: inv.klient_email, subject, text });
         await sql`UPDATE invoices SET wezwanie_wystawiono_at = now() WHERE id = ${inv.id};`;
@@ -160,6 +171,8 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
           waluta: inv.waluta,
           terminPlatnosci: inv.termin_platnosci,
           url,
+          wyslanoWczesniej,
+          koperta,
         });
         await sendEmail({ to: inv.klient_email, subject, text });
         await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności (poziom ${targetLevel}) — faktura ${inv.numer}`, null, inv.id);
@@ -580,11 +593,11 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     : "Brak zaplanowanych kontaktów nurture.";
 
   const projectLines = dueProjects.length
-    ? dueProjects.map((p) => `- ${p.tytul} — termin ${p.termin}`).join("\n")
+    ? dueProjects.map((p) => `- ${p.tytul} — termin ${formatPlDate(p.termin)}`).join("\n")
     : "Brak projektów z minionym terminem.";
 
   const milestoneLines = overdueMilestones.length
-    ? overdueMilestones.map((m) => `- ${m.nazwa} (${m.projekt}) — termin ${m.termin}`).join("\n")
+    ? overdueMilestones.map((m) => `- ${m.nazwa} (${m.projekt}) — termin ${formatPlDate(m.termin)}`).join("\n")
     : "Brak kamieni po terminie.";
 
   // Wzorce serii → konkretne dzisiejsze wystąpienia (patrz komentarz przy

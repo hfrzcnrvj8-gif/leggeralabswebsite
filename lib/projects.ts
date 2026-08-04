@@ -2,7 +2,7 @@
 // re-używana zarówno przez UI, jak i serwerowe route'y (agregacja
 // dashboardu, dzienny raport mailowy). Wzorowane 1:1 na lib/leads.ts.
 
-import { todayLocalISO } from "./dates";
+import { todayLocalISO, formatPlDate } from "./dates";
 import { type DocLang, type DanePodpisu, liniaKontaktu } from "./documents";
 import { mapaStanow, mapaKropek, mapaTekstow, mapaHexow, type Stan } from "./kolorStanu";
 
@@ -548,10 +548,12 @@ export function isPlausibleDateString(s: string): boolean {
 
 /** Formatuje datę ISO (YYYY-MM-DD, ew. z częścią czasową) na czytelną
  * postać pl-PL — używane wszędzie tam, gdzie wcześniej wyciekały surowe
- * stringi/timestampy prosto z bazy. */
-export function formatPlDate(s: string | null | undefined): string {
-  if (!s) return "";
-  const d = new Date(`${s.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
+ * stringi/timestampy prosto z bazy.
+ *
+ * Ciało funkcji przeniosło się do `lib/dates.ts` (krok 2 planu
+ * `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`), do reszty rodziny dat — mieszkanie
+ * w module Projektów sprawiało, że moduły, które nie chciały ciągnąć
+ * Projektów, formatowały daty po swojemu albo wcale. Re-eksport zostaje,
+ * żeby kilkadziesiąt `import { formatPlDate } from "@/lib/projects"`
+ * dalej działało. */
+export { formatPlDate };

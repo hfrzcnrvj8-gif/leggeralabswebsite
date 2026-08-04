@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent } from "@/lib/db";
+import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
+import { zlozMail } from "@/lib/kopertaMaila";
+import { formatPlDate } from "@/lib/dates";
 import {
   CONTRACT_MIGAWKA_POLA,
   CONTRACT_TYP_LABEL,
@@ -98,21 +100,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const label = label0;
     const nazwa = typeof contract.klient_nazwa === "string" && contract.klient_nazwa ? contract.klient_nazwa : "";
 
+    // Termin realizacji w mailu (krok 2, A5/D3) — przez `formatPlDate()`,
+    // nigdy surowym ISO z bazy.
+    const terminRealizacji = typeof contract.termin_realizacji === "string" ? contract.termin_realizacji : null;
     await sendEmail({
       to: String(contract.klient_email),
       subject: `${label}${nazwa ? ` — ${nazwa}` : ""}`,
-      text: [
-        `Dzień dobry,`,
-        ``,
+      text: zlozMail(await kopertaDokumentu(sql, contract, wystawca), "zwykly", [
         `w załączeniu link do dokumentu: ${label}.`,
         ``,
         url,
         ``,
+        ...(terminRealizacji ? [`Termin realizacji wg dokumentu: ${formatPlDate(terminRealizacji)}.`, ``] : []),
         `Dokument można podejrzeć i podpisać elektronicznie pod powyższym adresem.`,
-        ``,
-        `Pozdrawiamy,`,
-        `Leggera Labs`,
-      ].join("\n"),
+      ]),
     });
 
     // Migawka treści (audyt Modułu 11) — dokładnie w tym momencie druga strona

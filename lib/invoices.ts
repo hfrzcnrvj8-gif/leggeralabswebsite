@@ -3,7 +3,8 @@
 // i lib/projects.ts. Świadomie lekki moduł: bez KSeF, elastyczny VAT/bez-VAT.
 
 import { type DocLang, DOC_LANGS, DOC_LANG_LABEL, clientAddressLines as sharedClientAddressLines } from "./documents";
-import { todayLocalISO, daysBetweenISO } from "./dates";
+import { todayLocalISO, daysBetweenISO, formatPlDate, parsePgTimestamp, odmienPl } from "./dates";
+import { zlozMail, type KopertaMaila, PUSTA_KOPERTA } from "./kopertaMaila";
 import { mapaStanow, STAN_CLASS, type Stan } from "./kolorStanu";
 import { WALUTY, isWaluta, type Waluta } from "./waluty";
 // Type-only (erased przy kompilacji) — bez cyklu w runtime: wartości płyną
@@ -557,6 +558,81 @@ export function reminderLevelForDays(days: number | null): number {
   return level;
 }
 
+/**
+ * Poziomy windykacji, które wolno dziś wysłać dla tej faktury.
+ *
+ * Krok 2 planu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`, znalezisko **C2**: poziom
+ * był funkcją WYŁĄCZNIE dni zwłoki i nie dało się go wybrać. Faktura, o której
+ * zapomniało się na dwa miesiące, nie mogła już dostać łagodnego przypomnienia
+ * — pierwszym kontaktem w sprawie długu było formalne wezwanie do zapłaty.
+ *
+ * Reguła (decyzja właściciela 2026-08-04): **podpowiadamy** poziom z dni
+ * zwłoki, ale wolno wybrać każdy z trzech — także wyższy, jeśli właściciel tak
+ * zdecyduje. Panel proponuje, właściciel decyduje. Jedyna twarda granica to
+ * `minimum`: nie wolno zejść PONIŻEJ poziomu, który już do klienta wyszedł.
+ * Eskalacja, która się cofa, jest gorsza niż jej brak — klient dostałby po
+ * wezwaniu do zapłaty uprzejme „przypominam o płatności".
+ */
+export function poziomyWindykacji(inv: Pick<Invoice, "termin_platnosci" | "reminder_level">): {
+  minimum: 1 | 2 | 3;
+  sugerowany: 1 | 2 | 3;
+  dozwolone: (1 | 2 | 3)[];
+} {
+  const juzWyslany = Math.min(3, Math.max(0, Number(inv.reminder_level) || 0));
+  // Dolna granica 1, nie 0: ręczne kliknięcie zawsze wysyła PRZYNAJMNIEJ
+  // poziom 1, nawet gdy automatyczny próg (+3 dni) jeszcze nie minął — to
+  // jawna decyzja „wyślij teraz", nie automat czekający na próg.
+  const minimum = Math.max(1, juzWyslany) as 1 | 2 | 3;
+  const zDni = Math.max(1, reminderLevelForDays(daysOverdue(inv))) as 1 | 2 | 3;
+  const sugerowany = Math.max(minimum, zDni) as 1 | 2 | 3;
+  return { minimum, sugerowany, dozwolone: ([1, 2, 3] as const).filter((l) => l >= minimum) };
+}
+
+/**
+ * Ile wiadomości w sprawie tej należności wyszło PRZED wezwaniem.
+ *
+ * Znalezisko **A4**: dokument wezwania twierdził „Pomimo wcześniejszych
+ * przypomnień…" przy `reminder_level = 0` i pustej historii. Nie da się tego
+ * odczytać z samego `reminder_level`, bo w chwili oglądania dokumentu wynosi
+ * on już 3 — trzeba policzyć wiadomości wysłane WCZEŚNIEJ niż wezwanie.
+ *
+ * `<` (ostro mniejsze) odsiewa wpis samego wezwania: trasa zapisuje najpierw
+ * `wezwanie_wystawiono_at`, a dopiero potem wiersz w `invoice_reminders`, więc
+ * jego `sent_at` jest zawsze późniejszy.
+ */
+export function wiadomosciPrzedWezwaniem(
+  reminders: { sent_at?: unknown }[] | null | undefined,
+  wezwanieWystawionoAt: unknown
+): number {
+  const znacznik = (v: unknown) =>
+    parsePgTimestamp(typeof v === "string" ? v : v instanceof Date ? v.toISOString() : null);
+  const wezwanie = znacznik(wezwanieWystawionoAt);
+  if (!wezwanie || !reminders?.length) return 0;
+  return reminders.filter((r) => {
+    const t = znacznik(r.sent_at);
+    return t !== null && t.getTime() < wezwanie.getTime();
+  }).length;
+}
+
+/**
+ * Zdanie o wcześniejszej korespondencji — albo `null`, gdy jej nie było.
+ *
+ * Sedno znaleziska **A4**: treść ma wynikać z tego, co faktycznie wyszło, a nie
+ * z tego, ile dni minęło. Pierwsza wiadomość o długu nie może twierdzić, że
+ * jest druga; formalne wezwanie nie może powoływać się na przypomnienia,
+ * których nie było — a to samo zdanie trafiało na DOKUMENT `WZ-…`.
+ */
+export function frazaOWczesniejszychPismach(ile: number): string | null {
+  if (ile <= 0) return null;
+  return ile === 1 ? "Pomimo wcześniejszego przypomnienia" : "Pomimo wcześniejszych przypomnień";
+}
+
+/** Liczebnik porządkowy dla „to już ${…} wiadomość w tej sprawie". Powyżej
+ *  szóstej mówimy „kolejna" — dalsze liczenie na głos brzmi jak licytacja. */
+function ktoraWiadomosc(n: number): string {
+  return ["", "pierwsza", "druga", "trzecia", "czwarta", "piąta", "szósta"][n] ?? "kolejna";
+}
+
 /** Kwota odsetek ustawowych za opóźnienie — proste odsetki liczone od
  * kwoty, rocznej stawki (wpisywanej ręcznie, patrz
  * CompanySettings.stawka_odsetek_ustawowych) i liczby dni opóźnienia.
@@ -582,55 +658,84 @@ export function dunningReference(invoiceId: string, atIso: string): string {
 export const DUNNING_LEGAL_NOTE =
   "SZABLON — WYMAGA WERYFIKACJI PRAWNEJ przed użyciem z prawdziwym klientem. Treść poniżej to robocza wersja, nie sprawdzona jeszcze przez prawnika.";
 
-/** Treść e-maila dla poziomu 1 (uprzejme) / 2 (stanowcze) — scalone w jedną
+/**
+ * Treść e-maila dla poziomu 1 (uprzejme) / 2 (stanowcze) — scalone w jedną
  * funkcję, żeby cron (app/api/leads/notify) i ręczny trigger
  * (app/api/invoices/[id]/remind) nie trzymały dwóch kopii tego samego
- * szablonu (jak było przed Modułem 13). */
+ * szablonu (jak było przed Modułem 13).
+ *
+ * ── CO SIĘ ZMIENIŁO W KROKU 2 (znaleziska A4, A5, D3) ─────────────────────
+ * `wyslanoWczesniej` to liczba wiadomości, które w tej sprawie NAPRAWDĘ już
+ * wyszły — liczona przed wysyłką, z historii, a nie z dni zwłoki. Do 2026-08-04
+ * poziom 2 zawsze pisał „to już druga wiadomość w tej sprawie" i zawsze miał
+ * temat „Druga prośba o płatność", także wtedy, gdy był PIERWSZY — a przy
+ * 14 dniach zwłoki i pustej historii panel wysyłał właśnie poziom 2.
+ *
+ * Data idzie przez `formatPlDate()`: mail podawał `2026-07-21`, podczas gdy
+ * dokument wezwania obok drukował `21.07.2026` (A5).
+ *
+ * Powitanie i podpis daje `koperta` (patrz `lib/kopertaMaila.ts`) — stąd też
+ * liczba pojedyncza w treści: pisze jedna osoba i teraz się pod tym podpisuje.
+ */
 export function reminderEmailText(
   level: 1 | 2,
-  opts: { numer: string; brutto: number; waluta: string; terminPlatnosci: string | null; url: string }
+  opts: {
+    numer: string;
+    brutto: number;
+    waluta: string;
+    terminPlatnosci: string | null;
+    url: string;
+    /** Ile wiadomości o tej należności już wyszło (0 = ta jest pierwsza). */
+    wyslanoWczesniej?: number;
+    koperta?: KopertaMaila;
+  }
 ): { subject: string; text: string } {
   const kwota = formatMoney(opts.brutto, opts.waluta || "PLN");
-  const termin = opts.terminPlatnosci ? opts.terminPlatnosci.slice(0, 10) : "—";
+  const termin = opts.terminPlatnosci ? formatPlDate(opts.terminPlatnosci) : "—";
+  const wczesniej = Math.max(0, opts.wyslanoWczesniej ?? 0);
+  const koperta = opts.koperta ?? PUSTA_KOPERTA;
+  // „to już druga wiadomość" tylko wtedy, gdy naprawdę jest druga.
+  const ktora = wczesniej > 0 ? ` — to już ${ktoraWiadomosc(wczesniej + 1)} wiadomość w tej sprawie.` : ".";
+
   if (level === 1) {
     return {
-      subject: `Przypomnienie o płatności — faktura ${opts.numer}`,
-      text: [
-        `Dzień dobry,`,
-        ``,
-        `przypominamy o płatności za fakturę nr ${opts.numer} na kwotę ${kwota}, `,
-        `z terminem płatności ${termin}.`,
+      subject: wczesniej > 0
+        ? `Ponowne przypomnienie o płatności — faktura ${opts.numer}`
+        : `Przypomnienie o płatności — faktura ${opts.numer}`,
+      text: zlozMail(koperta, "zwykly", [
+        `${wczesniej > 0 ? "wracam do sprawy płatności za" : "przypominam o płatności za"} fakturę nr ${opts.numer} na kwotę ${kwota}, z terminem płatności ${termin}${ktora}`,
         ``,
         opts.url,
         ``,
-        `Jeśli płatność została już zrealizowana, prosimy zignorować tę wiadomość.`,
-        ``,
-        `Pozdrawiamy,`,
-        `Leggera Labs`,
-      ].join("\n"),
+        `Jeśli płatność została już zrealizowana — proszę zignorować tę wiadomość.`,
+      ]),
     };
   }
   return {
-    subject: `Druga prośba o płatność — faktura ${opts.numer} po terminie`,
-    text: [
-      `Dzień dobry,`,
+    subject: wczesniej > 0
+      ? `${ktoraWiadomosc(wczesniej + 1).replace(/^./, (c) => c.toUpperCase())} prośba o płatność — faktura ${opts.numer} po terminie`
+      : `Prośba o płatność — faktura ${opts.numer} po terminie`,
+    // Ton formalny: stanowcze przypomnienie jest już żądaniem, nie rozmową
+    // (decyzja właściciela 2026-08-04).
+    text: zlozMail(koperta, "formalny", [
+      `${wczesniej > 0 ? "nadal nie odnotowałem" : "nie odnotowałem"} płatności za fakturę nr ${opts.numer} na kwotę ${kwota}, z terminem płatności ${termin}${ktora}`,
       ``,
-      `nadal nie odnotowaliśmy płatności za fakturę nr ${opts.numer} na kwotę ${kwota}, `,
-      `z terminem płatności ${termin} — to już druga wiadomość w tej sprawie.`,
-      ``,
-      `Prosimy o pilne uregulowanie należności lub kontakt, jeśli coś stoi na przeszkodzie.`,
+      `Proszę o pilne uregulowanie należności lub kontakt, jeśli coś stoi na przeszkodzie.`,
       ``,
       opts.url,
-      ``,
-      `Pozdrawiamy,`,
-      `Leggera Labs`,
-    ].join("\n"),
+    ]),
   };
 }
 
-/** Treść e-maila dla poziomu 3 (formalne wezwanie do zapłaty) — osobna od
+/**
+ * Treść e-maila dla poziomu 3 (formalne wezwanie do zapłaty) — osobna od
  * `reminderEmailText`, bo to inny dokument (link do `/wezwanie/[token]`,
- * inny ton, opcjonalna kwota odsetek). */
+ * inny ton, opcjonalna kwota odsetek).
+ *
+ * Zdanie o wcześniejszej korespondencji pojawia się WYŁĄCZNIE wtedy, gdy ta
+ * korespondencja była (A4) — dokładnie ta sama reguła co na dokumencie `WZ-…`,
+ * przez tę samą funkcję `frazaOWczesniejszychPismach()`.
+ */
 export function dunningEmailText(opts: {
   numer: string;
   brutto: number;
@@ -640,26 +745,27 @@ export function dunningEmailText(opts: {
   odsetki: number;
   url: string;
   reference: string;
+  /** Ile wiadomości o tej należności wyszło PRZED tym wezwaniem. */
+  wyslanoWczesniej?: number;
+  koperta?: KopertaMaila;
 }): { subject: string; text: string } {
   const kwota = formatMoney(opts.brutto, opts.waluta || "PLN");
-  const termin = opts.terminPlatnosci ? opts.terminPlatnosci.slice(0, 10) : "—";
+  const termin = opts.terminPlatnosci ? formatPlDate(opts.terminPlatnosci) : "—";
   const odsetkiLine = opts.odsetki > 0 ? `Naliczone odsetki ustawowe za opóźnienie na dziś: ${formatMoney(opts.odsetki, opts.waluta || "PLN")}.\n\n` : "";
+  const fraza = frazaOWczesniejszychPismach(Math.max(0, opts.wyslanoWczesniej ?? 0));
+  const wstep = fraza
+    ? `${fraza.replace(/^./, (c) => c.toLowerCase())} nie odnotowałem płatności za`
+    : `nie odnotowałem płatności za`;
   return {
     subject: `Wezwanie do zapłaty — faktura ${opts.numer} (${opts.reference})`,
-    text: [
-      `Dzień dobry,`,
-      ``,
-      `pomimo wcześniejszych przypomnień nie odnotowaliśmy płatności za fakturę nr ${opts.numer} na kwotę ${kwota}, `,
-      `z terminem płatności ${termin} (${opts.dni} dni po terminie).`,
+    text: zlozMail(opts.koperta ?? PUSTA_KOPERTA, "formalny", [
+      `${wstep} fakturę nr ${opts.numer} na kwotę ${kwota}, z terminem płatności ${termin} (${opts.dni} ${odmienPl(opts.dni, "dzień", "dni", "dni")} po terminie).`,
       ``,
       `W załączeniu formalne wezwanie do zapłaty:`,
       opts.url,
       ``,
-      odsetkiLine + `Prosimy o niezwłoczne uregulowanie należności.`,
-      ``,
-      `Pozdrawiamy,`,
-      `Leggera Labs`,
-    ].join("\n"),
+      odsetkiLine + `Proszę o niezwłoczne uregulowanie należności.`,
+    ]),
   };
 }
 

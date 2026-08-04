@@ -128,9 +128,30 @@ export function parsePgTimestamp(wartosc: string | null | undefined): Date | nul
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Data + godzina po polsku ("16.07.2026, 18:00") — jak formatPlDate()
- * w lib/projects.ts, ale z godziną; do TIMESTAMPTZ-ów jak snooze_until,
- * gdzie sama data nie wystarcza. */
+/**
+ * Data po polsku ("21.07.2026") — jedyna droga, którą data z bazy ma prawo
+ * trafić przed oczy człowieka. `CLAUDE.md` mówi to wprost: nigdy surowego ISO.
+ *
+ * Mieszkała w `lib/projects.ts` (tam powstała, przy datach kamieni milowych)
+ * i dlatego omijały ją moduły, które nie chciały ciągnąć całych Projektów —
+ * m.in. szablony maili windykacyjnych, które wysyłały klientowi `2026-07-21`,
+ * podczas gdy dokument wezwania obok drukował `21.07.2026` (znalezisko A5
+ * z drugiego przejścia). `lib/projects.ts` re-eksportuje ją dalej, więc
+ * kilkadziesiąt istniejących importów zostaje bez zmian.
+ *
+ * Pusty wynik dla braku daty jest świadomy: wołający sam decyduje, czy
+ * w puste miejsce wstawić „—”, czy pominąć całe zdanie.
+ */
+export function formatPlDate(s: string | null | undefined): string {
+  if (!s) return "";
+  const d = new Date(`${s.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** Data + godzina po polsku ("16.07.2026, 18:00") — jak formatPlDate(),
+ * ale z godziną; do TIMESTAMPTZ-ów jak snooze_until, gdzie sama data
+ * nie wystarcza. */
 export function formatPlDateTime(iso: string | null | undefined): string {
   if (!iso) return "";
   // Przez `parsePgTimestamp`, nie przez samo `new Date()`: znacznik z Neona ma

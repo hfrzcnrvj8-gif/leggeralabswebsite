@@ -11,16 +11,20 @@ import {
   daysOverdue,
   lateInterestAmount,
   dunningReference,
+  frazaOWczesniejszychPismach,
   formatMoney,
   DUNNING_LEGAL_NOTE,
 } from "@/lib/invoices";
+import { odmienPl } from "@/lib/dates";
 import { docDate, DOC_GRADIENT } from "@/lib/documents";
 import { PasekMarkiDokumentu, KwotaGradientem } from "../../../../DocGradient";
 import { DocLogoMark } from "../../../../DocLogoMark";
 import { LinkRevokedNotice } from "../../../../LinkRevokedNotice";
 import { DokumentResponsywny } from "../../../../DocumentScale";
 
-type DunningInvoice = Invoice & { brutto: number };
+/** `poprzednie_wiadomosci` NIE jest kolumną — dokłada je trasa (obie: panelowa
+ *  i publiczna), licząc `wiadomosciPrzedWezwaniem()`. Patrz A4. */
+type DunningInvoice = Invoice & { brutto: number; poprzednie_wiadomosci?: number };
 
 /** Podgląd/wydruk formalnego wezwania do zapłaty (Moduł 13, poziom 3
  * eskalacji windykacji) — ten sam premium styl co ContractPrint.tsx, bez
@@ -81,6 +85,12 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
   const dni = daysOverdue(invoice) ?? 0;
   const odsetki = lateInterestAmount(invoice.brutto, settings?.stawka_odsetek_ustawowych ?? null, dni);
   const reference = dunningReference(invoice.id, invoice.created_at);
+  const wczesniejsze = frazaOWczesniejszychPismach(Number(invoice.poprzednie_wiadomosci ?? 0));
+  // Kontakt do wierzyciela (C4) — dłużnik, który chce się dogadać, musi mieć
+  // z DOKUMENTU do kogo napisać. Blok „Wierzyciel" miał dotąd nazwę, adres
+  // i NIP, i na tym koniec. Oba pola są już na białej liście publicznej
+  // (COMPANY_SETTINGS_PUBLIC_FIELDS), więc widzi je też klient pod linkiem.
+  const kontaktWierzyciela = [settings?.email, settings?.telefon].filter(Boolean) as string[];
 
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
@@ -151,6 +161,11 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
                 </div>
               ))}
               {settings?.nip && <div className="mt-0.5 text-neutral-500">NIP: {settings.nip}</div>}
+              {kontaktWierzyciela.map((k) => (
+                <div key={k} className="mt-0.5 text-neutral-500">
+                  {k}
+                </div>
+              ))}
             </div>
             <div>
               <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-400">Dłużnik</div>
@@ -164,12 +179,20 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
             </div>
           </div>
 
+          {/* ZNALEZISKO A4 — zdanie o wcześniejszych przypomnieniach stało tu
+              NA SZTYWNO. Formalny dokument `WZ-…` twierdził „Pomimo
+              wcześniejszych przypomnień…" także wtedy, gdy `reminder_level`
+              wynosił 0, a panel obok wyświetlał „Jeszcze nic nie wysłano".
+              Teraz zdanie pojawia się wyłącznie wtedy, gdy ta korespondencja
+              faktycznie była — liczba wiadomości przychodzi z trasy
+              (`poprzednie_wiadomosci`), z tej samej funkcji, którą liczy je
+              publiczny link klienta. */}
           <div className="mt-8 rounded-lg border border-red-100 bg-red-50/60 p-4">
             <p className="leading-relaxed text-neutral-700">
-              Pomimo wcześniejszych przypomnień, do dnia dzisiejszego nie odnotowaliśmy zapłaty za fakturę nr{" "}
+              {wczesniejsze ? `${wczesniejsze}, do` : "Do"} dnia dzisiejszego nie odnotowaliśmy zapłaty za fakturę nr{" "}
               <span className="font-semibold">{invoice.numer}</span> z terminem płatności{" "}
               <span className="font-semibold">{docDate(invoice.termin_platnosci, "pl")}</span> —{" "}
-              <span className="font-semibold text-red-600">{dni} {dni === 1 ? "dzień" : "dni"} po terminie</span>. Niniejszym wzywamy do
+              <span className="font-semibold text-red-600">{dni} {odmienPl(dni, "dzień", "dni", "dni")} po terminie</span>. Niniejszym wzywamy do
               zapłaty należności w terminie 7 dni od dnia otrzymania niniejszego wezwania.
             </p>
           </div>
@@ -204,6 +227,24 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
               {settings.bank_nazwa ? ` (${settings.bank_nazwa})` : ""}
             </div>
           )}
+
+          {/* RUBRYKA PODPISU (znalezisko C4) — dokument kończył się kwotą
+              i numerem rachunku, jak wyciąg, a nie jak pismo od człowieka.
+              Kształt 1:1 z rubryką w ContractPrint: sama kreska i podpis pod
+              nią, bez tła — wezwanie jest jednostronnym oświadczeniem, więc
+              rubryka jest jedna i nie ma pola na kontrasygnatę dłużnika.
+              Świadomie BEZ gradientu w tle (`background`): silniki wydruku
+              nie malują teł, więc taka ozdoba znikłaby na papierze bez śladu
+              — patrz `DocGradient.tsx` i sekcja o dokumentach w CLAUDE.md. */}
+          <div className="mt-10 flex justify-end">
+            <div className="w-[280px]">
+              <div className="text-[10px] uppercase tracking-[0.1em] text-neutral-400">W imieniu wierzyciela</div>
+              <div className="mt-6 border-t border-neutral-300 pt-1.5 text-[11px] text-neutral-600">
+                {settings?.osoba_podpisujaca || settings?.nazwa || ""}
+                {invoice.wezwanie_wystawiono_at ? `, ${docDate(invoice.wezwanie_wystawiono_at, "pl")}` : ""}
+              </div>
+            </div>
+          </div>
 
           <div className="mt-auto pt-10">
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[10.5px] leading-relaxed text-amber-700">

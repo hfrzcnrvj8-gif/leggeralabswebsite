@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent } from "@/lib/db";
+import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { sendEmail } from "@/lib/email";
+import { zlozMail } from "@/lib/kopertaMaila";
+import { odmienPl } from "@/lib/dates";
 import { CONTRACT_TYP_LABEL, contractSilenceDays, type ContractTyp } from "@/lib/contracts";
 
 export const runtime = "nodejs";
@@ -64,19 +66,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await sendEmail({
       to: String(contract.klient_email),
       subject: `Przypomnienie: ${label.toLowerCase()} do podpisu`,
-      text: [
-        `Dzień dobry,`,
-        ``,
-        `wracam do dokumentu, który przesłałem${dni && dni > 0 ? ` ${dni} dni temu` : " wcześniej"} do podpisu:`,
+      // Powitanie i podpis z danych panelu (krok 2, znalezisko D3).
+      text: zlozMail(await kopertaDokumentu(sql, contract), "zwykly", [
+        `wracam do dokumentu, który przesłałem${dni && dni > 0 ? ` ${dni} ${odmienPl(dni, "dzień", "dni", "dni")} temu` : " wcześniej"} do podpisu:`,
         ``,
         url,
         ``,
         `Dokument można podejrzeć i podpisać elektronicznie pod powyższym adresem.`,
         `Jeśli któryś z zapisów wymaga rozmowy albo zmiany — proszę o wiadomość, ustalimy to przed podpisem.`,
-        ``,
-        `Pozdrawiam,`,
-        `Leggera Labs`,
-      ].join("\n"),
+      ]),
     });
 
     await sql`UPDATE contracts SET przypomniano_at = now(), updated_at = now() WHERE id = ${id};`;

@@ -9,7 +9,7 @@
 // albo ręcznie (przycisk "Utwórz klienta" na leadzie, gdy rozmowa już trwa,
 // zanim jest oferta). Patrz lib/db.ts ensureClientsSchema.
 
-import { todayLocalISO, daysBetweenISO } from "./dates";
+import { todayLocalISO, daysBetweenISO, formatPlDate } from "./dates";
 import { type DocLang, type DanePodpisu } from "./documents";
 import { mapaStanow, mapaKropek, type Stan } from "./kolorStanu";
 
@@ -442,7 +442,7 @@ export function clientOverdueReason(
 ): string {
   if (client.next_followup && client.next_followup <= todayLocalISO()) {
     const action = client.next_action?.trim();
-    return `ustawione przypomnienie na ${client.next_followup}${action ? ` — ${action}` : ""}`;
+    return `ustawione przypomnienie na ${formatPlDate(client.next_followup)}${action ? ` — ${action}` : ""}`;
   }
   const cisza = clientSilenceDays(client);
   const rytm = CLIENT_RHYTHMS.find((r) => r.miesiace === client.rytm_kontaktu_mies)?.label.toLowerCase();

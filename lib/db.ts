@@ -5,6 +5,8 @@ import { czyNeon, getOwnSql, withOwnTransaction } from "./own-db";
 import { MAIL_NUDGE_DAYS, type NudgeThread } from "./mail";
 import { STARTER_CATALOG } from "./catalogStarter";
 import { wystawcaDoMigawki } from "./publicFields";
+import { danePodpisu } from "./documents";
+import { type KopertaMaila } from "./kopertaMaila";
 import {
   SZABLON_PIERWSZY_KONTAKT_ID,
   SZABLON_PIERWSZY_KONTAKT_NAZWA,
@@ -1931,6 +1933,62 @@ export async function logClientEvent(
     INSERT INTO client_events (id, client_id, kind, text, amount, related_id)
     VALUES (${randomUUID()}, ${clientId}, ${kind}, ${text}, ${amount ?? null}, ${relatedId ?? null});
   `;
+}
+
+/**
+ * Koperta maila dla dokumentu — kto go dostanie i kto go podpisuje.
+ *
+ * Krok 2 planu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md` (znalezisko D3). Osobę
+ * kontaktową bierzemy z `clients.osoba_kontaktowa` (migawka osoby GŁÓWNEJ,
+ * utrzymywana przez `api/clients/[id]/contacts` — patrz komentarz przy
+ * `client_contacts`), a gdy dokument wisi jeszcze przy leadzie, a nie przy
+ * kliencie — z `leads.osoba_kontaktowa`. Kolejność jest istotna: dokument
+ * bywa podpięty do obu naraz, a klient jest nowszą prawdą.
+ *
+ * `settings` przyjmujemy z zewnątrz, bo trasy wysyłkowe i tak już czytają
+ * `company_settings` na potrzeby bramki wysyłki — druga taka podróż to jedno
+ * dodatkowe żądanie HTTP na każdą wysyłkę (neon() = 1 request na zapytanie).
+ *
+ * Nigdy nie rzuca: mail ma wyjść nawet wtedy, gdy nie da się odczytać strony
+ * powitania. Bez osoby zostaje „Dzień dobry," — czyli dokładnie to, co było.
+ */
+export async function kopertaDokumentu(
+  sql: Sql,
+  dokument: { client_id?: unknown; lead_id?: unknown },
+  settings?: Record<string, unknown> | null
+): Promise<KopertaMaila> {
+  let ustawienia = settings;
+  if (ustawienia === undefined) {
+    try {
+      ustawienia = (await sql`SELECT nazwa, osoba_podpisujaca, email, telefon FROM company_settings WHERE id = 'default';`)[0] ?? null;
+    } catch {
+      ustawienia = null;
+    }
+  }
+
+  let osoba: string | null = null;
+  const clientId = typeof dokument.client_id === "string" ? dokument.client_id : null;
+  const leadId = typeof dokument.lead_id === "string" ? dokument.lead_id : null;
+  try {
+    if (clientId) {
+      await ensureClientsSchema();
+      const r = await sql`SELECT osoba_kontaktowa FROM clients WHERE id = ${clientId};`;
+      osoba = typeof r[0]?.osoba_kontaktowa === "string" ? r[0].osoba_kontaktowa : null;
+    }
+    if (!osoba?.trim() && leadId) {
+      await ensureLeadsSchema();
+      const r = await sql`SELECT osoba_kontaktowa FROM leads WHERE id = ${leadId};`;
+      osoba = typeof r[0]?.osoba_kontaktowa === "string" ? r[0].osoba_kontaktowa : null;
+    }
+  } catch (e) {
+    console.warn("[kopertaDokumentu] nie udało się odczytać osoby kontaktowej", e);
+  }
+
+  return {
+    osoba: osoba?.trim() ? osoba.trim() : null,
+    podpis: danePodpisu(ustawienia),
+    firma: typeof ustawienia?.nazwa === "string" ? ustawienia.nazwa.trim() : "",
+  };
 }
 
 /** Harmonogram automatycznego nurture (Moduł 2, luka ⑥) — gdy projekt

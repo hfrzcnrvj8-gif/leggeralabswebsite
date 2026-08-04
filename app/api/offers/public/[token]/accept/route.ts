@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, ensureClientsSchema } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureClientsSchema, kopertaDokumentu } from "@/lib/db";
+import { zlozMail } from "@/lib/kopertaMaila";
 import { acceptOffer } from "@/lib/offerAccept";
 import { notify } from "@/lib/notificationLog";
 import { sendEmail } from "@/lib/email";
@@ -113,21 +114,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       await sendEmail({
         to: String(offer.klient_email),
         subject: `Potwierdzenie akceptacji — ${offer.tytul || "oferta"}`,
-        text: [
-          `Dzień dobry,`,
-          ``,
-          `potwierdzamy akceptację oferty „${offer.tytul || "oferta"}" (nr ref. ${offerReference(offer)}).`,
+        // Powitanie i podpis z danych panelu (krok 2, znalezisko D3).
+        text: zlozMail(await kopertaDokumentu(sql, offer), "zwykly", [
+          `potwierdzam akceptację oferty „${offer.tytul || "oferta"}" (nr ref. ${offerReference(offer)}).`,
           ``,
           `Zaakceptowano: ${name}`,
           ``,
           `Dokument pozostaje dostępny pod tym adresem:`,
           url,
           ``,
-          `Kolejny krok po naszej stronie: przygotowanie umowy do podpisu. Odezwiemy się z nią wkrótce.`,
-          ``,
-          `Pozdrawiamy,`,
-          `Leggera Labs`,
-        ].join("\n"),
+          `Kolejny krok po mojej stronie: przygotowanie umowy do podpisu. Odezwę się z nią wkrótce.`,
+        ]),
       });
     } catch (err) {
       console.error("[POST /api/offers/public/:token/accept] potwierdzenie dla klienta nie poszło", err);

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
+import { zlozMail } from "@/lib/kopertaMaila";
+import { formatPlDate } from "@/lib/dates";
 import { INVOICE_TYPE_LABEL, type InvoiceDocType } from "@/lib/invoices";
 import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
@@ -47,21 +49,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const url = `${req.nextUrl.origin}/pl/faktura/${token}`;
     const typLabel = INVOICE_TYPE_LABEL[(inv.typ_dokumentu as InvoiceDocType) ?? "faktura"];
 
+    // Termin płatności w mailu (krok 2, znalezisko A5/D3) — dotąd klient
+    // musiał otworzyć link, żeby się dowiedzieć, do kiedy ma zapłacić.
+    // Zawsze przez `formatPlDate()`: to jest dokładnie to miejsce, w którym
+    // szablony wysyłały klientowi `2026-07-21` z bazy.
+    const termin = typeof inv.termin_platnosci === "string" ? inv.termin_platnosci : null;
     await sendEmail({
       to: String(inv.klient_email),
       subject: `${typLabel} ${inv.numer}`,
-      text: [
-        `Dzień dobry,`,
-        ``,
+      text: zlozMail(await kopertaDokumentu(sql, inv, wystawca), "zwykly", [
         `w załączeniu link do dokumentu: ${typLabel} nr ${inv.numer}.`,
         ``,
         url,
         ``,
+        ...(termin ? [`Termin płatności: ${formatPlDate(termin)}.`, ``] : []),
         `Dokument można podejrzeć i zapisać jako PDF pod powyższym adresem.`,
-        ``,
-        `Pozdrawiamy,`,
-        `Leggera Labs`,
-      ].join("\n"),
+      ]),
     });
 
     const clientId = typeof inv.client_id === "string" ? inv.client_id : null;

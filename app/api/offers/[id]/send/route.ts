@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
+import { zlozMail } from "@/lib/kopertaMaila";
+import { formatPlDate } from "@/lib/dates";
 import { sprawdzDokumentPrzedWysylka, odmowaBramki, mimoOstrzezen } from "@/lib/bramkaWysylki";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { wystawcaDoMigawki } from "@/lib/publicFields";
@@ -69,21 +71,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const url = `${req.nextUrl.origin}/pl/oferta/${token}`;
     const tytul = typeof offer.tytul === "string" && offer.tytul ? offer.tytul : "oferta";
 
+    // ── Krok 2 planu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md` ─────────────────────
+    //
+    // D4: mail o wersji 2 był co do formy IDENTYCZNY z mailem o wersji 1
+    // („w załączeniu link do oferty: …"). Że to poprawiona propozycja, wynikało
+    // wyłącznie z tematu wpisanego ręcznie przez właściciela — a stary link
+    // wciąż działa (decyzja właściciela 1: zostaje do wglądu). Klient miał więc
+    // dwie żywe oferty i żadnego zdania o tym, która obowiązuje.
+    //
+    // D3, druga część: żaden mail z ofertą nie podawał daty ważności, choć
+    // panel ją zna i po niej sam oznacza ofertę jako wygasłą.
+    const wersja = Number(offer.wersja) || 1;
+    const waznaDo = typeof offer.wazna_do === "string" ? offer.wazna_do : null;
+    const koperta = await kopertaDokumentu(sql, offer, wystawca);
+
     await sendEmail({
       to: String(offer.klient_email),
-      subject: `Oferta — ${tytul}`,
-      text: [
-        `Dzień dobry,`,
-        ``,
-        `w załączeniu link do oferty: ${tytul}.`,
+      subject: wersja > 1 ? `Nowa wersja oferty — ${tytul}` : `Oferta — ${tytul}`,
+      text: zlozMail(koperta, "zwykly", [
+        wersja > 1
+          ? `w załączeniu poprawiona oferta: ${tytul} (wersja ${wersja}).`
+          : `w załączeniu link do oferty: ${tytul}.`,
         ``,
         url,
         ``,
+        ...(wersja > 1
+          ? [`Ta wersja zastępuje poprzednią propozycję — wcześniejsza przestaje obowiązywać.`, ``]
+          : []),
+        ...(waznaDo ? [`Oferta jest ważna do ${formatPlDate(waznaDo)}.`, ``] : []),
         `Ofertę można podejrzeć i zapisać jako PDF pod powyższym adresem.`,
-        ``,
-        `Pozdrawiamy,`,
-        `Leggera Labs`,
-      ].join("\n"),
+      ]),
     });
 
     // Wysyłka to naturalny moment przejścia Szkic → Wysłana (real-world

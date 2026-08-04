@@ -12,6 +12,7 @@ import {
   IconGitBranch,
   IconMail,
   IconBellRinging,
+  IconChevronDown,
   IconArrowUpRight,
   IconLock,
   IconBuildingBank,
@@ -49,7 +50,7 @@ import {
   unitBrutto,
   nettoFromUnitBrutto,
   daysOverdue,
-  reminderLevelForDays,
+  poziomyWindykacji,
   REMINDER_LEVEL_LABEL,
 } from "@/lib/invoices";
 import { KSEF_STATUS_LABEL, KSEF_STATUS_CLASS, KSEF_TRYB_LABEL, KOREKTA_TYPY, KOREKTA_TYP_LABEL } from "@/lib/ksef";
@@ -61,7 +62,7 @@ import { useUI } from "../ui";
 import { PasekBramki, useWysylkaZBramka } from "../BramkaWysylki";
 import type { WynikBramki } from "@/lib/bramkaWysylki";
 import { DateField } from "../DatePicker";
-import { Popover, MenuRow, PropertyMenu } from "../Menu";
+import { Popover, MenuRow, MenuLabel, PropertyMenu } from "../Menu";
 import { ClientLinkChip, ClientLinkPicker, LinkHint } from "../components";
 import { invalidateLinkTargets } from "../LinkPicker";
 import { DocLinkPicker } from "../DocLinkPicker";
@@ -560,19 +561,26 @@ export function InvoiceEditor({
     onChange?.();
   }, [id, zadanie, invoice, toast, load, onChange]);
 
-  const sendReminder = useCallback(async () => {
-    setReminding(true);
-    const w = await zadanie(`/api/invoices/${id}/remind`, { method: "POST" });
-    setReminding(false);
-    if (w.anulowane) return;
-    if (w.ok) {
-      const level = w.dane.level as number | undefined;
-      toast(level === 3 ? "Wysłano formalne wezwanie do zapłaty." : `Wysłano przypomnienie (${REMINDER_LEVEL_LABEL[level ?? 1]?.toLowerCase() ?? "poziom " + level}).`);
-      await load();
-    } else {
-      toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
-    }
-  }, [id, load, toast, zadanie]);
+  /** Krok 2 (C2) — poziom wybiera właściciel. `poziom` idzie w body; trasa
+   *  przy jego braku wysyła podpowiadany i sama pilnuje, żeby nie zejść
+   *  poniżej już wysłanego (`poziomyWindykacji()`, ta sama funkcja co niżej
+   *  w rozwijaczu). */
+  const sendReminder = useCallback(
+    async (poziom: 1 | 2 | 3) => {
+      setReminding(true);
+      const w = await zadanie(`/api/invoices/${id}/remind`, { method: "POST", body: { poziom } });
+      setReminding(false);
+      if (w.anulowane) return;
+      if (w.ok) {
+        const level = w.dane.level as number | undefined;
+        toast(level === 3 ? "Wysłano formalne wezwanie do zapłaty." : `Wysłano przypomnienie (${REMINDER_LEVEL_LABEL[level ?? 1]?.toLowerCase() ?? "poziom " + level}).`);
+        await load();
+      } else {
+        toast(w.dane.error || "Nie udało się wysłać przypomnienia.", "error");
+      }
+    },
+    [id, load, toast, zadanie]
+  );
 
   const addPayment = useCallback(async () => {
     const kwota = Number(newPaymentKwota);
@@ -1560,21 +1568,60 @@ export function InvoiceEditor({
                 etykieta="tej faktury"
                 onChanged={(revokedAt) => setInvoice((p) => (p ? { ...p, share_revoked_at: revokedAt } : p))}
               />
-              {overdue && (
-                <button
-                  onClick={sendReminder}
-                  disabled={reminding || !invoice.klient_email}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-orange-400 hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {reminding ? <IconLoader2 size={13} className="animate-spin" /> : <IconBellRinging size={13} />}
-                  {(() => {
-                    const nextLevel = Math.max(1, reminderLevelForDays(daysOverdue(invoice))) as 1 | 2 | 3;
-                    if (invoice.reminder_level >= 3) return "Wyślij wezwanie ponownie";
-                    if (nextLevel === 3) return "Wyślij wezwanie do zapłaty";
-                    return `Wyślij przypomnienie (${REMINDER_LEVEL_LABEL[nextLevel]?.toLowerCase()})`;
-                  })()}
-                </button>
-              )}
+              {/* WINDYKACJA — rozwijacz, nie pojedynczy przycisk (krok 2,
+                  znalezisko C2). Do 2026-08-04 poziom był funkcją wyłącznie dni
+                  zwłoki: faktura, o której zapomniało się na dwa miesiące, mogła
+                  dostać jako PIERWSZE pismo formalne wezwanie do zapłaty i nie
+                  było czego wybrać. Podpowiadany poziom zostaje widoczny NA
+                  przycisku — to działało (drugie przejście: „widać poziom przed
+                  kliknięciem") — a strzałka mówi, że da się go zmienić.
+                  Listę dozwolonych liczy `poziomyWindykacji()`, ta sama funkcja,
+                  którą trasa sprawdza przysłany wybór. */}
+              {overdue && (() => {
+                const poziomy = poziomyWindykacji(invoice);
+                const etykieta = (l: 1 | 2 | 3) => REMINDER_LEVEL_LABEL[l]?.toLowerCase() ?? `poziom ${l}`;
+                return (
+                  <Popover
+                    align="right"
+                    width={250}
+                    triggerClassName="flex w-full"
+                    trigger={(open) => (
+                      <button
+                        onClick={open}
+                        disabled={reminding || !invoice.klient_email}
+                        title={!invoice.klient_email ? "Brak adresu e-mail nabywcy" : "Wybierz poziom pisma"}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-orange-400 hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {reminding ? <IconLoader2 size={13} className="animate-spin" /> : <IconBellRinging size={13} />}
+                        {invoice.reminder_level >= 3 ? "Wyślij wezwanie ponownie" : `Wyślij: ${etykieta(poziomy.sugerowany)}`}
+                        <IconChevronDown size={13} className="shrink-0 opacity-70" />
+                      </button>
+                    )}
+                  >
+                    {(close) => (
+                      <>
+                        <MenuLabel>Poziom pisma</MenuLabel>
+                        {poziomy.dozwolone.map((l) => (
+                          <MenuRow
+                            key={l}
+                            label={l === poziomy.sugerowany ? `${REMINDER_LEVEL_LABEL[l]} · podpowiadane` : REMINDER_LEVEL_LABEL[l]}
+                            selected={l === poziomy.sugerowany}
+                            onClick={() => {
+                              close();
+                              void sendReminder(l);
+                            }}
+                          />
+                        ))}
+                        {poziomy.minimum > 1 && (
+                          <p className="px-2.5 pb-1.5 pt-1 text-[11px] leading-relaxed text-[#62666d]">
+                            Łagodniejsze pisma już wyszły — eskalacja nie cofa się w dół.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </Popover>
+                );
+              })()}
               {!koryguje && (
                 <button
                   onClick={createCorrection}
