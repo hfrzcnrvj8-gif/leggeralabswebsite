@@ -103,15 +103,18 @@ Pulpitu nie trzeba ani jednego nowego żądania. `PulpitDzis` ma ręczny
 **Sekcja F pierwszego przejścia jest zamknięta** (2026-08-04) — patrz niżej;
 zostały z niej trzy rzeczy do obejrzenia w prawdziwej przeglądarce.
 
-Dalsi kandydaci:
+**Drugi wybrany krok: drugie przejście „na sucho" — ścieżką, na której
+wszystko idzie nie tak.** Plan: `docs/DRUGIE-PRZEJSCIE-PLAN.md`. Do wklejenia
+w nowym czacie: **`PROMPT-DRUGIE-PRZEJSCIE.md`** w korzeniu repo.
 
-1. **Drugie przejście na sucho — INNĄ ścieżką.** Pierwsze sprawdziło wyłącznie
-   drogę, która się udaje. Nikt nigdy nie przeszedł palcem ścieżki, w której
-   klient odrzuca ofertę, projekt się sypie, faktura nie zostaje zapłacona
-   (wezwanie) albo umowa idzie na aneks. Kod to ma; nikt tego nie przeszedł.
-   Pierwsze przejście dało trzydzieści kilka znalezisk i cały plan zaplecza.
-2. **Rejestracja firmy** — nietechniczne, ale jako jedyne realnie zmienia stan
-   projektu (`PO_REJESTRACJI.md`). Odłożone decyzją właściciela do odwołania.
+Droga: lead → oferta → **odrzucenie** → nowa wersja → akceptacja → umowa →
+**aneks** → projekt **zagrożony/zerwany** → faktura → **brak zapłaty** →
+przypomnienie → **wezwanie**. Pierwsze przejście sprawdziło wyłącznie drogę,
+która się UDAJE, i tę pilnuje dziś `npm run przejscie`; powyższej nie przeszedł
+nikt ani razu. Kod ją ma.
+
+**Rejestracja firmy** — odłożona decyzją właściciela do odwołania. Do tego
+czasu robimy poprawki i dodatki do panelu oraz apki.
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
 
