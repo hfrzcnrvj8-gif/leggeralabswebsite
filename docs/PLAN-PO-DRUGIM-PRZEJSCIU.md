@@ -8,11 +8,11 @@ zbudowany tak samo i celowo nie powtarza jego zasad.
 
 | krok | co dowozi | zamyka | stan |
 |---|---|---|---|
-| 1 | publiczny dokument zna swój stan | A1, A2, C1, część D1 | ⬜ |
+| 1 | publiczny dokument zna swój stan | A1, A2 | ✅ `5f4e81c` |
 | 2 | szablon mówi tylko to, co potwierdzają dane | A4, A5, C2, C4, D3, D4 | ⬜ |
 | 3 | „warunki obowiązujące" jako jedno miejsce | A6, A7, A8, (C3) | ⬜ |
 | 4 | porażka jest zdarzeniem jak każde inne | B1, B2, B3, B4 | ⬜ |
-| 5 | drobiazgi + harness na drogę porażki | A3, D2, D5, D6 | ⬜ |
+| 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ⬜ |
 
 ---
 
@@ -116,6 +116,31 @@ Do zrobienia:
 
 **Sprawdzenie:** dowodem nie jest wygląd strony, tylko odpowiedź trasy. Dla
 każdego z czterech stanów — kod HTTP i brak `project_id`/`invoice_id` po próbie.
+
+### Co się okazało przy robocie (2026-08-04, `5f4e81c`)
+
+- **Umowa miała tę samą dziurę i cięższy skutek.** Sprawdzenie „przyłóż tę samą
+  listę do umowy" nie było ostrożnością — trasa podpisu przez link pilnowała
+  wyłącznie stanu `Podpisana`, więc umowę **odrzuconą** dało się podpisać:
+  zmierzone `Odrzucona → Podpisana`, 200, z zapisanym `accepted_by_name`.
+  Z martwego dokumentu robił się wiążący. Przyczyna do zapamiętania: claim był
+  napisany przez **wykluczanie** zakazanych stanów (`status != 'Podpisana'`)
+  zamiast **wyliczenie** jedynego dozwolonego (`status = 'Wysłana'`). Pierwsza
+  forma przepuszcza każdy stan, który ktoś doda później.
+- **Wspólna funkcja to za mało, gdy strony dostają inne dane.** Po wpięciu
+  `ocenAkceptacje()` w oba miejsca serwer blokował poprawnie, a strona klienta
+  dalej pisała „ta oferta wygasła" zamiast „została zastąpiona nowszą wersją" —
+  bo publiczny GET filtruje pola białą listą i `superseded_at` na niej nie było.
+  Rozjazd siedział w DANYCH, nie w logice. Dokładając cokolwiek do
+  `ocenAkceptacje()`, sprawdź `OFFER_PUBLIC_FIELDS` **i** `ZAWSZE_ZYWE`.
+- **Nie zrobione świadomie:** pasek na zastąpionej ofercie **nie linkuje** do
+  nowej wersji. Wymagałoby to wystawienia tokenu następnej oferty każdemu, kto
+  ma stary link — a stary link bywa przekazany dalej. Zamiast tego pasek mówi
+  „aktualne warunki znajdziesz w nowszej wiadomości od nas". Do rozstrzygnięcia,
+  jeśli właściciel uzna to za zbyt zachowawcze.
+- **C1 (klient odrzuca ofertę sam) przeniesione do osobnego kroku.** To nie jest
+  domknięcie listy stanów, tylko nowa powierzchnia dla klienta — inny rodzaj
+  roboty i inne ryzyko. Zostaje w planie jako otwarte.
 
 ---
 
