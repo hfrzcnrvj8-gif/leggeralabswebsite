@@ -518,7 +518,17 @@ export function DateField({
       trigger={(open, isOpen) => (
         <button
           onClick={open}
-          className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] ${
+          // `min-w-[84px]` REZERWUJE miejsce na pełną datę, także gdy pole jest
+          // puste. Zmierzone: pusty trigger („—") ma 25 px, wypełniony
+          // („05.08.2026") 83 px — wpisanie daty rozpychało wiersz o 58 px
+          // i przesuwało sąsiednie kontrolki pod kursorem. Objaw zgłoszony na
+          // chipach „Jutro / Za 3 dni / Za tydzień" w formularzu wpisu: po
+          // kliknięciu chipa następne kliknięcie trafiało w sąsiedni chip
+          // (znalezisko F z pierwszego przejścia).
+          //
+          // Rezerwacja jest tu, a nie w wołającym, bo wołających jest
+          // kilkunastu, a szerokość daty jest zawsze taka sama.
+          className={`flex min-w-[84px] items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] ${
             value ? "text-[var(--fg)]" : "text-muted"
           } ${isOpen ? "bg-[var(--hairline)]" : "hover:bg-[var(--hairline)]"}`}
         >

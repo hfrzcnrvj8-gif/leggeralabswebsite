@@ -100,13 +100,18 @@ Najważniejsze z briefu, żeby nie zginęło: **`/api/hub/today` już zwraca pol
 Pulpitu nie trzeba ani jednego nowego żądania. `PulpitDzis` ma ręczny
 `init(from:)`, więc nowe pole = trzy miejsca.
 
+**Sekcja F pierwszego przejścia jest zamknięta** (2026-08-04) — patrz niżej;
+zostały z niej trzy rzeczy do obejrzenia w prawdziwej przeglądarce.
+
 Dalsi kandydaci:
 
-1. **Osiem drobiazgów z sekcji F pierwszego przejścia** (lista niżej) — jeden
-   wieczór, bez briefu, wystarczy wskazać
-   `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
+1. **Drugie przejście na sucho — INNĄ ścieżką.** Pierwsze sprawdziło wyłącznie
+   drogę, która się udaje. Nikt nigdy nie przeszedł palcem ścieżki, w której
+   klient odrzuca ofertę, projekt się sypie, faktura nie zostaje zapłacona
+   (wezwanie) albo umowa idzie na aneks. Kod to ma; nikt tego nie przeszedł.
+   Pierwsze przejście dało trzydzieści kilka znalezisk i cały plan zaplecza.
 2. **Rejestracja firmy** — nietechniczne, ale jako jedyne realnie zmienia stan
-   projektu (`PO_REJESTRACJI.md`).
+   projektu (`PO_REJESTRACJI.md`). Odłożone decyzją właściciela do odwołania.
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
 
@@ -147,13 +152,22 @@ Dalsi kandydaci:
   rozstrzygnięcia, nie usterka.
 - **Propozycje z Fazy 3 w apce iOS** — trasa `/api/hub/propozycje` gotowa,
   brakuje wyłącznie ekranu w SwiftUI.
-- **Osiem drobiazgów z sekcji F pierwszego przejścia** — kolumny „Ostatni
-  kontakt"/„Dni" nie odświeżają się po wpisie, formularz „Nowy wpis" czyści
-  tylko treść, menu „Wstaw z szablonu" nie zamyka się po wstawieniu, Escape
-  zamyka cały modal profilu, chipy terminu przesuwają się pod kursorem, kroki
-  mapy nieklikalne, lista kanałów otwiera się na checkboxie, pozycje „Skąd
-  przyszedł" bez nazw dostępnościowych. Świadomie poza Fazą 5 (zakres to było
-  dokładnie sześć pozycji). Opis: `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F".
+- ~~**Drobiazgi z sekcji F pierwszego przejścia**~~ — **ZROBIONE 2026-08-04.**
+  Sześć naprawionych (odświeżanie kolumn, reset formularza wpisu, skok chipów
+  terminu, klikalne kroki mapy, dostępność wyzwalacza menu, Escape) plus
+  **nowe „Umów spotkanie"** w profilu leada i klienta — rozmowa z godziną
+  trafia wreszcie do Kalendarza, a nie do pola tekstowego. Tabela wyników:
+  `docs/PIERWSZE-PRZEJSCIE-NA-SUCHO.md` → „F" → „Co z tego wyszło".
+  **Zostały trzy rzeczy do sprawdzenia w PRAWDZIWEJ przeglądarce**, bo podgląd
+  w środowisku Claude to karta ukryta 0×0 (renderuje wariant mobilny, a
+  `window.innerHeight` wynosi 0, więc pozycjonowanie menu liczy się źle):
+  (1) czy Escape przy otwartym kole daty faktycznie zostawia profil otwarty —
+  poprawka jest jednolinijkowa i kopiuje wzorzec z `PropertyMenu`, ale nie
+  została zmierzona; (2) czy menu „Wstaw z szablonu" naprawdę zostaje otwarte —
+  w kodzie woła `close()` przed wstawieniem, więc zgłoszenie się nie
+  reprodukuje; (3) czy lista kanałów zasłaniająca checkbox faktycznie
+  przeszkadza — to normalne zachowanie listy rozwijanej i nie chciałem tego
+  „naprawiać" na ślepo.
 - **A5** — „ZLECENIODAWCA / WYKONAWCA" w jednej rubryce na wydruku umowy.
   Treść dokumentu prawnego, nie reguła wysyłki.
 - **Kafel „Przychód (ten miesiąc)"** pokazuje brutto. Decyzja produktowa do

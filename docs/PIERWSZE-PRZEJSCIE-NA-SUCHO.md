@@ -252,6 +252,10 @@ na ekranie widać `28.08.202`.
 
 ## F. Drobiazgi, które i tak uwierały
 
+> **✅ ZAMKNIĘTE 2026-08-04.** Sześć pozycji naprawionych, jedna nie
+> reprodukuje się w kodzie, dwie zostają otwarte z podanym powodem — tabela
+> pod listą. Lista poniżej zostaje w brzmieniu z przejścia.
+
 - **Kolumny „Ostatni kontakt" i „Dni" nie odświeżają się** po dodaniu wpisu
   z zaznaczonym „Oznacz jako dzisiejszy kontakt". Baza ma
   `ostatni_kontakt = 2026-08-02`, wiersz pokazuje `—` aż do przeładowania.
@@ -275,6 +279,23 @@ na ekranie widać `28.08.202`.
 - **Escape zamyka cały modal profilu**, nie tylko otwarte menu.
 - **Pozycje listy „Skąd przyszedł" nie mają nazw dostępnościowych**
   (`menuitemradio` bez etykiety).
+
+### Co z tego wyszło (2026-08-04)
+
+| pozycja | stan | co się okazało |
+|---|---|---|
+| Kolumny „Ostatni kontakt" / „Dni" nie odświeżają się | ✅ | `load()` odświeżał tylko PROFIL; wiersz listy trzyma własną kopię. Po zapisie leci `onFieldChange(id, "ostatni_kontakt", …)` — w obu profilach |
+| Rozmowa wideo nie trafia do Kalendarza | ✅ | Nowy `UmowSpotkanie` (`components.tsx`) w profilu leada i klienta: tytuł, data, **godzina**, czas trwania, `lead_id`/`client_id`. Sprawdzone przeciw trasie: wydarzenie wraca z listy z `godzina: "10:00"` i powiązaniem |
+| Formularz „Nowy wpis" czyści tylko treść | ✅ | Wraca do stanu WYJŚCIOWEGO (kierunek „wychodzący", „oznacz kontakt" zaznaczone). Pól „Przypomnij mi" i „Następny krok" świadomie nie ruszamy — pokazują stan rekordu, nie treść wpisu |
+| Chipy terminu przesuwają się pod kursorem | ✅ | Zmierzone: pole daty 25 px puste → 83 px z datą (skok 58 px). `DateField` rezerwuje `min-w-[84px]`; po poprawce **84 px w obu stanach, przesunięcie chipów 0 px** |
+| Kroki mapy „15 kroków" nieklikalne | ✅ | `PROCESS_STEP_MODULE` w `lib/process.ts`. Zmierzone: 15 linków — `leads,leads,leads,offers,offers,offers,contracts,projects,projects,projects,invoices,invoices,projects,clients,clients`. Napis „wszystkie kroki" dostał strzałkę, bo udawał link, a klikalny jest cały wiersz |
+| „Skąd przyszedł" bez nazw dostępnościowych | ✅ z poprawką opisu | **Pozycje menu MAJĄ nazwy** — biorą je z treści; zgłoszenie myliło się co do miejsca. Brakowało ich na WYZWALACZU (`aria-haspopup`, `aria-expanded`, `aria-label`) i na samym menu. Dodane w `PropertyMenu` |
+| Escape zamyka cały modal profilu | ✅ *(bez pomiaru)* | `Popover` nie wołał `stopPropagation` przy Escape, a `PropertyMenu` wołał — stąd objaw wyglądał na losowy. Jedna linia w `Menu.tsx`, obejmuje **25 konsumentów**. **Niezmierzone**: podgląd w tym środowisku to karta ukryta 0×0, renderuje wariant mobilny (arkusz zamiast listy) i zostawia osierocone węzły. Do potwierdzenia w prawdziwej przeglądarce |
+| Menu „Wstaw z szablonu" nie zamyka się | ⚠️ nie reprodukuje | `OfferEditor.tsx` woła `close()` PRZED `applyTemplate` — tak samo „Z katalogu". Albo naprawione po drodze, albo zgłoszenie dotyczyło innej kontrolki. Zostawione bez zmian |
+| Lista kanałów otwiera się na checkboksie | ⚠️ otwarte | Nie do oceny tutaj: `place()` liczy pozycję z `window.innerHeight`, a ten wynosi **0**, więc menu zawsze odskakuje w górę. W kodzie `PropertyMenu` już odwraca się przy braku miejsca, a menu zasłaniające treść pod spodem to normalne zachowanie listy rozwijanej. Do rozstrzygnięcia z ręką na prawdziwym oknie |
+
+Po zmianach: `tsc` czysto, `npm test` **281/281**, `npm run przejscie`
+**68 działa · 0 regresji**.
 
 ---
 

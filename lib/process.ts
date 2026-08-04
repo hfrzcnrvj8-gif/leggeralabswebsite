@@ -28,3 +28,34 @@ export const PROCESS_STEPS = [
   { step: 14, label: "Wsparcie" },
   { step: 15, label: "Nurture" },
 ] as const;
+
+/**
+ * Moduł panelu, w którym dany krok się faktycznie ODBYWA — po to, żeby mapa
+ * procesu prowadziła gdziekolwiek.
+ *
+ * Do 2026-08-04 piętnaście kroków było wyłącznie napisami: mapa mówiła
+ * „Oferta (PoC-first)" i nie dawało się z niej przejść do Ofert (znalezisko F
+ * z pierwszego przejścia). Ściągawka, z której nie da się ruszyć dalej, każe
+ * szukać modułu ręcznie w menu — czyli robi dokładnie odwrotnie, niż obiecuje.
+ *
+ * To jest MAPOWANIE NA MODUŁ, nie na rekord. Krok „Umowa" prowadzi do listy
+ * umów, a nie do umowy tego konkretnego leada — bo na etapie, na którym mapa
+ * jest pomocna, ta umowa zwykle jeszcze nie istnieje.
+ */
+export const PROCESS_STEP_MODULE: Record<number, string> = {
+  1: "leads",
+  2: "leads",
+  3: "leads",
+  4: "offers",
+  5: "offers",
+  6: "offers",
+  7: "contracts",
+  8: "projects",
+  9: "projects",
+  10: "projects",
+  11: "invoices",
+  12: "invoices",
+  13: "projects",
+  14: "clients",
+  15: "clients",
+};

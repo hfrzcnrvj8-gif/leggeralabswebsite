@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { SPRING, SPRING_SOFT } from "@/lib/motion";
-import { IconUsers, IconDownload, IconInfoCircle } from "@tabler/icons-react";
+import { IconUsers, IconDownload, IconInfoCircle, IconCalendarPlus, IconChevronDown } from "@tabler/icons-react";
 import { ContactChannelIcon } from "./icons";
 import type { Locale } from "@/i18n/config";
 import type { Client } from "@/lib/clients";
-import { PROCESS_STEPS } from "@/lib/process";
+import { PROCESS_STEPS, PROCESS_STEP_MODULE } from "@/lib/process";
 import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
 import { currentMonthRange } from "@/lib/export";
 import { useUI } from "./ui";
@@ -304,6 +304,160 @@ export function QuickDateChips({ onPick }: { onPick: (iso: string) => void }) {
   );
 }
 
+/**
+ * „Umów spotkanie" — wydarzenie w Kalendarzu wprost z profilu leada/klienta.
+ *
+ * ── Po co ─────────────────────────────────────────────────────────────────
+ * Do 2026-08-04 profil nie miał ŻADNEJ drogi do kalendarza. Było tylko
+ * „Przypomnij mi", czyli data BEZ GODZINY — a umawia się rozmowę na 10:00,
+ * nie „na wtorek". Podczas przejścia na sucho godzina wylądowała jako tekst
+ * w polu „Następny krok", gdzie nie widzi jej ani Kalendarz, ani Pulpit, ani
+ * eksport `.ics` (znalezisko F).
+ *
+ * To NIE zastępuje przypomnienia i nie jest jego wariantem: przypomnienie
+ * pilnuje, żeby o kimś nie zapomnieć, a wydarzenie zajmuje konkretny czas
+ * w kalendarzu. Dlatego osobny przycisk, a nie godzina doklejona do daty
+ * przypomnienia.
+ *
+ * Wydarzenie jedzie z `lead_id`/`client_id`, więc widać je potem na osi
+ * rekordu, a nie tylko w siatce miesiąca.
+ */
+export function UmowSpotkanie({
+  rodzaj,
+  rekordId,
+  nazwa,
+  onUtworzone,
+}: {
+  rodzaj: "lead" | "klient";
+  rekordId: string;
+  /** Nazwa firmy — wchodzi do tytułu wydarzenia jako punkt startowy. */
+  nazwa: string;
+  onUtworzone?: () => void;
+}) {
+  const { toast } = useUI();
+  const [zapisuje, setZapisuje] = useState(false);
+
+  return (
+    <Popover
+      align="right"
+      width={280}
+      trigger={(open) => (
+        <button
+          type="button"
+          onClick={open}
+          className="flex items-center gap-1.5 rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]"
+        >
+          <IconCalendarPlus size={13} />
+          Umów spotkanie
+        </button>
+      )}
+    >
+      {(close) => (
+        <FormularzSpotkania
+          nazwa={nazwa}
+          zapisuje={zapisuje}
+          onZapisz={async (dane) => {
+            setZapisuje(true);
+            const res = await fetch("/api/events", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                tytul: dane.tytul,
+                data: dane.data,
+                godzina: dane.godzina,
+                czas_trwania_min: dane.czasMin,
+                [rodzaj === "lead" ? "lead_id" : "client_id"]: rekordId,
+              }),
+            });
+            setZapisuje(false);
+            if (!res.ok) {
+              const d = (await res.json().catch(() => ({}))) as { error?: string };
+              toast(d.error ?? "Nie udało się dodać wydarzenia.", "error");
+              return;
+            }
+            close();
+            toast("Spotkanie w kalendarzu.");
+            onUtworzone?.();
+          }}
+        />
+      )}
+    </Popover>
+  );
+}
+
+function FormularzSpotkania({
+  nazwa,
+  zapisuje,
+  onZapisz,
+}: {
+  nazwa: string;
+  zapisuje: boolean;
+  onZapisz: (d: { tytul: string; data: string; godzina: string; czasMin: number }) => void;
+}) {
+  const [tytul, setTytul] = useState(`Rozmowa: ${nazwa || "spotkanie"}`);
+  const [data, setData] = useState(addDaysLocalISO(1));
+  const [godzina, setGodzina] = useState("10:00");
+  const [czas, setCzas] = useState("30");
+
+  // Godzina jest OBOWIĄZKOWA — bez niej powstałoby wydarzenie całodniowe,
+  // czyli dokładnie to, czego brak był przyczyną tej poprawki.
+  const gotowe = !!tytul.trim() && !!data && /^\d{2}:\d{2}$/.test(godzina) && !zapisuje;
+
+  return (
+    <div className="space-y-2 p-2.5">
+      <input
+        value={tytul}
+        onChange={(e) => setTytul(e.target.value)}
+        placeholder="Tytuł spotkania"
+        className="w-full rounded-lg border hairline bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--fg)] placeholder:text-muted"
+      />
+      <div className="flex items-center justify-between gap-2 text-[12px] text-muted">
+        <span>Kiedy</span>
+        <DateField value={data} onChange={setData} />
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[12px] text-muted">
+        <span>Godzina</span>
+        <input
+          type="time"
+          value={godzina}
+          onChange={(e) => setGodzina(e.target.value)}
+          className="rounded-md border hairline bg-transparent px-2 py-1 text-[13px] text-[var(--fg)]"
+        />
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[12px] text-muted">
+        <span>Ile trwa</span>
+        <span className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={5}
+            max={1440}
+            value={czas}
+            onChange={(e) => setCzas(e.target.value)}
+            className="w-16 rounded-md border hairline bg-transparent px-2 py-1 text-right text-[13px] text-[var(--fg)]"
+          />
+          min
+        </span>
+      </div>
+      <button
+        type="button"
+        disabled={!gotowe}
+        onClick={() =>
+          onZapisz({
+            tytul: tytul.trim(),
+            data,
+            godzina,
+            // Poza zakresem trasy (1–1440) zamiast 400 — cichy sensowny domyślny.
+            czasMin: Math.min(1440, Math.max(5, Number(czas) || 30)),
+          })
+        }
+        className="w-full rounded-full bg-[var(--fg)] px-3 py-1.5 text-xs font-semibold text-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {zapisuje ? "Dodaję…" : "Dodaj do kalendarza"}
+      </button>
+    </div>
+  );
+}
+
 /** Miękka ściągawka 15-krokowego procesu (lib/process.ts) — wyłącznie
  * informacyjna, nigdy nie blokuje przejścia dalej. Stoi nad zakładkami profilu
  * leada/klienta, podświetla krok wg statusu (LEAD_STATUS_STEP /
@@ -316,7 +470,7 @@ export function QuickDateChips({ onPick }: { onPick: (iso: string) => void }) {
  * „na którym jestem", a nie „jak brzmi cała lista"; pełna mapa jest o jedno
  * kliknięcie dalej i wtedy ZAWIJA się do kilku linii, zamiast chować kroki
  * za krawędzią (krok, o którego istnieniu nie wiesz, to krok pominięty). */
-export function ProcessMap({ currentStep }: { currentStep: number }) {
+export function ProcessMap({ currentStep, lang }: { currentStep: number; lang: Locale }) {
   const [rozwinieta, setRozwinieta] = useState(false);
   const biezacy = PROCESS_STEPS.find((s) => s.step === currentStep);
   const postep = Math.round((currentStep / PROCESS_STEPS.length) * 100);
@@ -342,7 +496,13 @@ export function ProcessMap({ currentStep }: { currentStep: number }) {
             style={{ width: `${postep}%` }}
           />
         </span>
-        <span className="shrink-0 text-[11px] text-muted opacity-70">{rozwinieta ? "zwiń" : "wszystkie kroki"}</span>
+        {/* Strzałka, nie sam napis. „wszystkie kroki" wyglądało na link, a
+            klikalny jest CAŁY wiersz — więc afordancja wskazywała na trzy
+            słowa zamiast na przycisk, którym jest (znalezisko F). */}
+        <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted opacity-70">
+          {rozwinieta ? "zwiń" : "wszystkie kroki"}
+          <IconChevronDown size={12} className={rozwinieta ? "rotate-180 transition-transform" : "transition-transform"} />
+        </span>
       </button>
 
       {rozwinieta && (
@@ -352,9 +512,14 @@ export function ProcessMap({ currentStep }: { currentStep: number }) {
             const isDone = step < currentStep;
             return (
               <li key={step} className="flex items-center gap-1.5">
-                <span
-                  title={label}
-                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] ${
+                {/* Krok PROWADZI do modułu, w którym się odbywa (Moduł 59,
+                    znalezisko F). Do modułu, nie do rekordu — na etapie, na
+                    którym ta ściągawka jest pomocna, dokumentu zwykle jeszcze
+                    nie ma. Mapowanie: `PROCESS_STEP_MODULE`. */}
+                <Link
+                  href={`/${lang}/admin/${PROCESS_STEP_MODULE[step] ?? "leads"}`}
+                  title={`${label} — otwórz moduł`}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] hover:bg-[var(--hairline)] hover:opacity-100 ${
                     isCurrent
                       // Neutralna płyta, nie gradient (Moduł 59) — to samo, co
                       // `.pill-active`. „Ten krok jest bieżący" to znaczenie,
@@ -367,7 +532,7 @@ export function ProcessMap({ currentStep }: { currentStep: number }) {
                 >
                   <span aria-hidden>{isCurrent ? "●" : isDone ? "✓" : "○"}</span>
                   {label}
-                </span>
+                </Link>
                 {i < PROCESS_STEPS.length - 1 && <span className="text-muted opacity-30">→</span>}
               </li>
             );

@@ -41,7 +41,7 @@ import {
   EditableTextarea,
   StatusTag,
 } from "./shared";
-import { ProcessMap, PillPicker } from "../components";
+import { ProcessMap, PillPicker, UmowSpotkanie } from "../components";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { SOURCE_CATEGORIES } from "@/lib/leads";
 import { formatPlDate } from "@/lib/projects";
@@ -347,10 +347,21 @@ export function ClientDetailPanel({
     });
     setSaving(false);
     if (res.ok) {
+      // Bliźniak `LeadDetailPanel.submitNote` — powody i pomiary tam.
+      // Formularz wraca do stanu WYJŚCIOWEGO (kierunek „wychodzący",
+      // „oznacz kontakt" zaznaczone), a nie do pustego; pól „Przypomnij mi"
+      // i „Następny krok" nie ruszamy, bo pokazują stan klienta i odświeży
+      // je `load()`.
       setNoteText("");
+      setNoteChannel("");
+      setNoteDirection("wychodzacy");
       setNoteOutcome("");
       setNoteDurationMin("");
       setNoteDurationSec("");
+      setMarkContacted(true);
+      // Bez tego kolumny „Ostatni kontakt" i „Dni" na liście klientów
+      // pokazywały „—" aż do przeładowania strony.
+      if (markContacted) onFieldChange?.(id, "ostatni_kontakt", todayLocalISO());
       toast("Zapisano wpis.");
       load();
     } else {
@@ -711,7 +722,7 @@ export function ClientDetailPanel({
             <label className="mb-1.5 block px-1 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
               Proces sprzedaży
             </label>
-            <ProcessMap currentStep={CLIENT_STATUS_STEP[client.status] ?? 3} />
+            <ProcessMap currentStep={CLIENT_STATUS_STEP[client.status] ?? 3} lang={lang} />
           </div>
 
           <div className="flex h-9 items-center gap-4 border-b hairline">
@@ -1123,6 +1134,10 @@ export function ClientDetailPanel({
                         <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
                       </label>
                       <QuickDateChips onPick={setNoteFollowup} />
+                      {/* Bliźniak profilu leada — powody w `UmowSpotkanie`. */}
+                      {client && (
+                        <UmowSpotkanie rodzaj="klient" rekordId={id} nazwa={client.nazwa} />
+                      )}
                     </div>
                     {noteFollowup && (
                       <input

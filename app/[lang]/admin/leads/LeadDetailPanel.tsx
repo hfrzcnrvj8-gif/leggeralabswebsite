@@ -27,7 +27,7 @@ import {
   EditableTextarea,
   StatusTag,
 } from "./shared";
-import { ProcessMap, PillPicker } from "../components";
+import { ProcessMap, PillPicker, UmowSpotkanie } from "../components";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { CONTRACT_STATUS_CLASS } from "@/lib/contracts";
 import { LinkPicker } from "../LinkPicker";
@@ -205,10 +205,31 @@ export function LeadDetailPanel({
     if (res.ok) {
       const data = (await res.json()) as { activity: Activity[] };
       setActivity(data.activity);
+      // Formularz wraca do stanu WYJŚCIOWEGO, nie tylko czyści treść.
+      //
+      // Do 2026-08-04 zostawał zaznaczony kanał, kierunek, przypomnienie
+      // i „oznacz jako dzisiejszy kontakt" — więc drugi wpis z rozpędu szedł
+      // z kanałem poprzedniego i po cichu przestawiał datę przypomnienia
+      // jeszcze raz. Pole, które zostaje zaznaczone po zapisie, jest gorsze
+      // niż puste: wygląda jak wybór, a jest resztką (znalezisko F).
+      //
+      // Do stanu WYJŚCIOWEGO, nie do pustego: kierunek wraca na „wychodzący",
+      // a „oznacz kontakt" na zaznaczone — to są DOMYŚLNE wartości tego
+      // formularza, nie resztki. Pól „Przypomnij mi" i „Następny krok"
+      // świadomie NIE ruszamy: one nie należą do wpisu, tylko pokazują stan
+      // leada, i zaraz odświeży je `load()`.
       setNoteText("");
+      setNoteChannel("");
+      setNoteDirection("wychodzacy");
       setNoteOutcome("");
       setNoteDurationMin("");
       setNoteDurationSec("");
+      setMarkContacted(true);
+      // Lista pod spodem trzyma własną kopię rekordu — bez tego kolumny
+      // „Ostatni kontakt" i „Dni" pokazywały „—" aż do przeładowania strony,
+      // choć w bazie data już była (znalezisko F). `load()` odświeża sam
+      // profil, wiersza listy nie dotyka.
+      if (markContacted) onFieldChange?.(id, "ostatni_kontakt", todayLocalISO());
       toast("Zapisano wpis.");
       load();
     } else {
@@ -491,7 +512,7 @@ export function LeadDetailPanel({
             <label className="mb-1.5 block px-1 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
               Proces sprzedaży
             </label>
-            <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} />
+            <ProcessMap currentStep={LEAD_STATUS_STEP[lead.status] ?? 1} lang={lang} />
           </div>
 
           <div className="flex h-9 items-center gap-4 border-b hairline">
@@ -640,6 +661,15 @@ export function LeadDetailPanel({
                       <DateField value={noteFollowup} onChange={setNoteFollowup} placeholder="—" />
                     </label>
                     <QuickDateChips onPick={setNoteFollowup} />
+                    {/* Umówiona rozmowa ma GODZINĘ, a „Przypomnij mi" jej nie
+                        przyjmuje — do 2026-08-04 godzina lądowała jako tekst
+                        w „Następnym kroku", niewidoczna dla Kalendarza,
+                        Pulpitu i eksportu `.ics` (znalezisko F). Stoi tutaj,
+                        bo tu właśnie się ją ustala: przy logowaniu rozmowy,
+                        w której padło „to co, we wtorek o 10?". */}
+                    {lead && (
+                      <UmowSpotkanie rodzaj="lead" rekordId={id} nazwa={lead.firma} />
+                    )}
                   </div>
                   {noteFollowup && (
                     <input

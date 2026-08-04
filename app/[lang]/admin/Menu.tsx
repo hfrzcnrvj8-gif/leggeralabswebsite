@@ -152,7 +152,23 @@ export function Popover({
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key !== "Escape") return;
+      // `stopPropagation` jest tu OBOWIĄZKOWE, nie kosmetyczne.
+      //
+      // Widoki list nasłuchują Escape na `window` (`LeadsDashboard`,
+      // `ClientsDashboard`, `ProjectsDashboard`) i zamykają nim CAŁY profil.
+      // Bez tej linii Escape przy otwartym popoverze robił dwie rzeczy naraz:
+      // zamykał koło wyboru daty i wyrzucał z profilu, nad którym się właśnie
+      // pracowało (znalezisko F z pierwszego przejścia). `PropertyMenu` niżej
+      // miał to od początku — różniły się dwa komponenty, nie zachowanie
+      // jednego z nich, więc objaw wyglądał na losowy.
+      //
+      // Listener jest na `document` w fazie PRZECHWYTYWANIA (`true` przy
+      // `addEventListener`), czyli biegnie przed listenerem widoku na `window`
+      // w fazie bąbelkowania — dlatego samo `stopPropagation` wystarcza
+      // i nie trzeba `stopImmediatePropagation`.
+      e.stopPropagation();
+      setOpen(false);
     };
     const onScroll = () => {
       if (anchor) setOpen(false);
@@ -526,6 +542,14 @@ export function PropertyMenu<T extends string>({
       ref={triggerRef}
       type="button"
       onClick={openMenu}
+      // Bez tych trzech atrybutów czytnik ekranu ogłasza samą WARTOŚĆ („Inne,
+      // przycisk") — nie wiadomo, że to lista wyboru ani czy jest otwarta.
+      // Zmierzone na „Skąd przyszedł": pozycje menu mają nazwy (biorą je
+      // z treści), ale wyzwalacz nie mówił o sobie nic (znalezisko F
+      // z pierwszego przejścia; sam opis mylił się co do miejsca).
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-label={title}
       className={full ? "flex w-full items-center" : "inline-flex items-center"}
     >
       {children}
@@ -550,6 +574,9 @@ export function PropertyMenu<T extends string>({
                 transition={{ duration: 0.16, ease: EASE_LIQUID }}
                 onClick={(e) => e.stopPropagation()}
                 role="menu"
+                // Nazwa listy, nie tylko jej pozycji — inaczej czytnik ogłasza
+                // „menu" bez powiedzenia, czego dotyczy.
+                aria-label={title}
                 className="admin-linear glass fixed z-[200] w-max min-w-[190px] max-w-[340px] overflow-hidden rounded-lg py-1 text-[var(--fg)]"
                 style={{ top: pos.top, left: pos.left }}
               >
