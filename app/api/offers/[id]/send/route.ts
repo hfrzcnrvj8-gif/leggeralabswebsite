@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, ensureOfferShareToken, logZdarzenieDokumentu, odnotujWyslanaWiadomosc, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { zlozMail } from "@/lib/kopertaMaila";
@@ -115,8 +115,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // liczy się cisza po stronie klienta — a przypominacz pyta właśnie
     // „ile dni bez decyzji". Ponowna wysyłka zeruje też ślad przypomnienia.
     await sql`UPDATE offers SET wyslana_at = now(), przypomniano_at = NULL WHERE id = ${id};`;
-    const clientId = typeof offer.client_id === "string" ? offer.client_id : null;
-    await logClientEvent(sql, clientId, "offer_sent", `Wysłano ofertę „${tytul}” mailem`, null, id);
+    const cel = celDokumentu(offer);
+    await logZdarzenieDokumentu(sql, cel, "offer_sent", `Wysłano ofertę „${tytul}” mailem`, null, id);
+    // B3 — wiadomość poszła do klienta, więc „Ostatni kontakt" idzie za nią.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     // shareToken wraca do panelu, żeby przycisk „Unieważnij link" (Moduł 40)
     // pojawił się od razu po wysyłce, bez przeładowania edytora.

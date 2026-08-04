@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
+import { celDokumentu, getSql, ensureInvoicesSchema, ensureInvoiceShareToken, logZdarzenieDokumentu, odnotujWyslanaWiadomosc, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { zlozMail } from "@/lib/kopertaMaila";
@@ -67,8 +67,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ]),
     });
 
-    const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
-    await logClientEvent(sql, clientId, "invoice_sent", `Wysłano mailem: ${typLabel} nr ${inv.numer}`, null, id);
+    const cel = celDokumentu(inv);
+    await logZdarzenieDokumentu(sql, cel, "invoice_sent", `Wysłano mailem: ${typLabel} nr ${inv.numer}`, null, id);
+    // B3 — dokument poszedł mailem do klienta, więc to kontakt.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     // Patrz analogiczna adnotacja w app/api/offers/[id]/send.
     return NextResponse.json({ ok: true, shareToken: token });

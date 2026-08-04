@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notify } from "@/lib/notificationLog";
 import { czyLiczycJakoOtwarcie } from "@/lib/publicVisit";
-import { logClientEvent } from "@/lib/db";
+import { celDokumentu, logZdarzenieDokumentu } from "@/lib/db";
 import { getSql, ensureContractsSchema } from "@/lib/db";
 import { pickFields, CONTRACT_PUBLIC_FIELDS, COMPANY_SETTINGS_PUBLIC_FIELDS } from "@/lib/publicFields";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
@@ -48,9 +48,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
           entityId: String(contract.id),
           dedupeKey: `contract_opened:${contract.id}`,
         });
-        await logClientEvent(
+        await logZdarzenieDokumentu(
           sql,
-          typeof contract.client_id === "string" ? contract.client_id : null,
+          celDokumentu(contract),
           "contract_sent",
           `Druga strona otworzyła dokument do podpisu`,
           null,

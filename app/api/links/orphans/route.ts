@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureHubSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureHubSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { matchClientForOrphan, type MatchCandidate } from "@/lib/links";
 
@@ -101,8 +101,8 @@ export async function POST(req: NextRequest) {
 
   if (rodzaj === "offer") {
     await sql`UPDATE offers SET client_id = ${clientId}, updated_at = now() WHERE id = ${id} AND client_id IS NULL;`;
-    const offer = (await sql`SELECT tytul, project_id, invoice_id FROM offers WHERE id = ${id};`)[0];
-    await logClientEvent(sql, clientId, "offer_created", `Powiązano wstecz ofertę „${offer?.tytul || "(bez tytułu)"}”`, null, id);
+    const offer = (await sql`SELECT tytul, lead_id, project_id, invoice_id FROM offers WHERE id = ${id};`)[0];
+    await logZdarzenieDokumentu(sql, { clientId, leadId: typeof offer?.lead_id === "string" ? offer.lead_id : null }, "offer_created", `Powiązano wstecz ofertę „${offer?.tytul || "(bez tytułu)"}”`, null, id);
 
     // Projekt i faktura z tej oferty odziedziczyły jej brak klienta
     // (lib/offerAccept.ts przepisuje client_id Z OFERTY) — więc naprawa samej
@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
     }
   } else {
     await sql`UPDATE invoices SET client_id = ${clientId}, updated_at = now() WHERE id = ${id} AND client_id IS NULL;`;
-    const inv = (await sql`SELECT numer FROM invoices WHERE id = ${id};`)[0];
-    await logClientEvent(sql, clientId, "invoice_issued", `Powiązano wstecz fakturę ${inv?.numer || "(szkic)"}`, null, id);
+    const inv = (await sql`SELECT numer, lead_id FROM invoices WHERE id = ${id};`)[0];
+    await logZdarzenieDokumentu(sql, { clientId, leadId: typeof inv?.lead_id === "string" ? inv.lead_id : null }, "invoice_issued", `Powiązano wstecz fakturę ${inv?.numer || "(szkic)"}`, null, id);
   }
 
   return NextResponse.json({ ok: true });

@@ -5,7 +5,7 @@
 // podwójną akceptacją przy wyścigu), więc żyje w jednym miejscu.
 
 import { randomUUID } from "node:crypto";
-import { withTransaction, logClientEvent } from "./db";
+import { withTransaction, logZdarzenieDokumentu } from "./db";
 import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "./projects";
 import { ocenAkceptacje, itemLiczySie, DEFAULT_OFFER_CURRENCY, type Offer, type PowodOdmowyAkceptacji } from "./offers";
 import { tytulProjektuZOferty, zDokumentu, zapiszDaneKlienta } from "./przepisanie";
@@ -213,7 +213,7 @@ export async function acceptOffer(
         `;
       }
 
-      await logClientEvent(sql, clientId, "offer_accepted", `Zaakceptowano ofertę „${tytulProjektu}” — utworzono projekt i fakturę`, null, offer.id);
+      await logZdarzenieDokumentu(sql, { clientId, leadId }, "offer_accepted", `Zaakceptowano ofertę „${tytulProjektu}” — utworzono projekt i fakturę`, null, offer.id);
 
       return { ok: true, projectId, invoiceId };
     });

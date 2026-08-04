@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureHubSchema, ensureClientsSchema, logZdarzenieDokumentu, odnotujWyslanaWiadomosc } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import type { DocLang } from "@/lib/documents";
@@ -79,7 +79,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     await sql`UPDATE projects SET review_requested_at = now(), updated_at = now() WHERE id = ${id};`;
-    await logClientEvent(sql, clientId, "review_requested", `Wysłano podsumowanie i prośbę o opinię — „${tytul}”`, null, id);
+    const cel = celDokumentu(project);
+    await logZdarzenieDokumentu(sql, cel, "review_requested", `Wysłano podsumowanie i prośbę o opinię — „${tytul}”`, null, id);
+    // B3 — prośba o opinię poszła mailem do klienta.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

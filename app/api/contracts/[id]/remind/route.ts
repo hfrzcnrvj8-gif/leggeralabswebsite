@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
+import { celDokumentu, getSql, ensureContractsSchema, ensureContractShareToken, logZdarzenieDokumentu, odnotujWyslanaWiadomosc, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { sendEmail } from "@/lib/email";
@@ -78,14 +78,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     await sql`UPDATE contracts SET przypomniano_at = now(), updated_at = now() WHERE id = ${id};`;
-    await logClientEvent(
-      sql,
-      typeof contract.client_id === "string" ? contract.client_id : null,
-      "contract_sent",
-      `Przypomniano o podpisie — ${label.toLowerCase()}`,
-      null,
-      id
-    );
+    const cel = celDokumentu(contract);
+    await logZdarzenieDokumentu(sql, cel, "contract_sent", `Przypomniano o podpisie — ${label.toLowerCase()}`, null, id);
+    // B3 — przypomnienie o podpisie poszło do drugiej strony.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

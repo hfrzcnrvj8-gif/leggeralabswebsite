@@ -5,6 +5,8 @@
 // obu modułach osobno. Reszta (statusy, sumy, specyficzne pola) zostaje w
 // lib/invoices.ts / lib/offers.ts, bo tam się różnią.
 
+import { addDaysToISO, todayLocalISO } from "./dates";
+
 export type DocLang = "pl" | "en" | "de";
 export const DOC_LANGS: DocLang[] = ["pl", "en", "de"];
 export const DOC_LANG_LABEL: Record<DocLang, string> = { pl: "Polski", en: "English", de: "Deutsch" };
@@ -68,14 +70,17 @@ export function clientAddressLines(c: ClientAddressLike): string[] {
 }
 
 /** Dodaje N dni do daty ISO (lub do dziś, gdy brak bazowej daty) — do
- * szybkiego ustawiania terminu/ważności bez ręcznego wyboru z koła dat. */
+ * szybkiego ustawiania terminu/ważności bez ręcznego wyboru z koła dat.
+ *
+ * Liczone przez `addDaysToISO` (arytmetyka w UTC), a NIE przez dodawanie
+ * milisekund do lokalnej daty. Poprzednia wersja gubiła dzień przy każdym
+ * przedziale przechodzącym przez zmianę czasu: 90 dni od 05.08.2026 dawało
+ * 02.11 zamiast 03.11, bo w nocy 25.10 doba ma 25 godzin. Objaw był cichy
+ * i sezonowy — dotyczył terminu płatności na fakturze cyklicznej, kontaktu
+ * kontrolnego po projekcie i (od kroku 4) powrotu do leada po odmowie.
+ * Złapane sondą kroku 4, 2026-08-05. */
 export function addDaysISO(baseIso: string | null, days: number): string {
-  const base = baseIso ? new Date(`${baseIso.slice(0, 10)}T00:00:00`) : new Date();
-  const d = new Date(base.getTime() + days * 86400000);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return addDaysToISO((baseIso ? baseIso.slice(0, 10) : null) || todayLocalISO(), days);
 }
 
 /** Rok ze znacznika czasu z bazy — do referencji dokumentu („OF-2026-…",

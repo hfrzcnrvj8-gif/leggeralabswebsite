@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureContractsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { projektPoPodpisieUmowy } from "@/lib/przepisanie";
@@ -29,11 +29,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   `;
   if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
 
-  const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
+  const cel = celDokumentu(contract);
   // Słownik typów, nie ternary — ta gałąź podpisywała aneks jako „Umowa"
   // (audyt Modułu 11; ten sam błąd Moduł 58 naprawił po stronie apki).
   const label = CONTRACT_TYP_LABEL[contract.typ as ContractTyp] ?? "Umowa";
-  await logClientEvent(sql, clientId, "contract_signed", `Podpis odnotowany ręcznie — ${label.toLowerCase()}`, null, id);
+  await logZdarzenieDokumentu(sql, cel, "contract_signed", `Podpis odnotowany ręcznie — ${label.toLowerCase()}`, null, id);
 
   // Podpisana umowa = formalny start pracy (luka B6). Projekt dostaje daty
   // z umowy i wychodzi z „Planowania". Wspólne z publiczną drogą podpisu —
@@ -41,9 +41,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const skutek = await projektPoPodpisieUmowy(sql, contract, todayLocalISO());
   // Ślad wyrównania terminu (A6) — patrz bliźniacza trasa publiczna.
   if (skutek.wyrownanieTerminu) {
-    await logClientEvent(
+    await logZdarzenieDokumentu(
       sql,
-      clientId,
+      cel,
       "project_deadline_aligned",
       zdanieWyrownaniaTerminu(skutek.wyrownanieTerminu),
       null,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureContractsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { blokadaStatusuUmowy, blokadaUmowy, POLA_MIMO_BLOKADY_UMOWY, ruszaTresc } from "@/lib/blokadaDokumentu";
@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Podpisanej umowy nie edytujemy — obie strony mają kopię (decyzja
   // właściciela 2026-07-27, patrz lib/blokadaDokumentu.ts). Zmiana wymaga
   // aneksu, czyli nowego dokumentu.
-  const stanUmowy = (await sql`SELECT status, typ, accepted_at, client_id FROM contracts WHERE id = ${id};`)[0];
+  const stanUmowy = (await sql`SELECT status, typ, accepted_at, client_id, lead_id FROM contracts WHERE id = ${id};`)[0];
   if (!stanUmowy) return NextResponse.json({ error: "not found" }, { status: 404 });
   const podpisany = String(stanUmowy.status ?? "") === "Podpisana" || !!stanUmowy.accepted_at;
   const blokada = blokadaUmowy(
@@ -186,10 +186,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         `;
         if (poprzedni !== nowy) {
           const dlaczego = rejectReasonLabel(powod, komentarz);
-          const clientId = typeof stanUmowy.client_id === "string" ? stanUmowy.client_id : null;
-          await logClientEvent(
+          await logZdarzenieDokumentu(
             sql,
-            clientId,
+            celDokumentu(stanUmowy),
             "contract_rejected",
             `Druga strona nie podpisała — ${label.toLowerCase()}${dlaczego ? ` (${dlaczego})` : ""}`,
             null,

@@ -11,7 +11,7 @@ zbudowany tak samo i celowo nie powtarza jego zasad.
 | 1 | publiczny dokument zna swój stan | A1, A2 | ✅ `5f4e81c` |
 | 2 | szablon mówi tylko to, co potwierdzają dane | A4, A5, C2, C4, D3, D4 | ✅ `4eb8667` |
 | 3 | „warunki obowiązujące" jako jedno miejsce | A6, A7, A8 | ✅ `4ec5dbf` |
-| 4 | porażka jest zdarzeniem jak każde inne | B1, B2, B3, B4 | ⬜ |
+| 4 | porażka jest zdarzeniem jak każde inne | B1, B2, B3, B4 | ✅ `KROK4` |
 | 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ⬜ |
 
 ---
@@ -357,6 +357,82 @@ Do zrobienia — nowe reguły w `lib/propozycje.ts`, w tym samym kształcie
 - **projekt zagrożony/zerwany na Pulpicie** (B2) → dziś nie ma żadnej sekcji,
   która by go pokazała; „Projekty z minionym terminem" go nie łapie, bo termin
   jest w przyszłości.
+
+### Decyzje właściciela (zapadły 2026-08-05, na starcie kroku)
+
+1. **Kontaktem jest WYSŁANA WIADOMOŚĆ, nie czynność własna.** `ostatni_kontakt`
+   przestawia się automatycznie przy każdej wysyłce maila do klienta (oferta,
+   przypomnienie o ofercie, umowa/aneks, przypomnienie o podpisie, faktura,
+   przypomnienie i wezwanie do zapłaty, prośba o opinię, kontakt kontrolny) —
+   także wtedy, gdy wysłał ją cron windykacyjny. Wystawienie faktury,
+   odnotowanie podpisu i utworzenie dokumentu daty NIE ruszają: to czynność
+   właściciela w panelu, a nie rozmowa z klientem.
+2. **Odrzucona oferta daje propozycję z DWIEMA drogami wyjścia** („Zamknij
+   lead" / „Kontakt za 3 mies."), bo powód odmowy sam podpowiada właściwą —
+   „za drogo" bywa warte powrotu za kwartał, „wybrali kogoś innego" nie.
+   To jedyna taka reguła; przy trzech przyciskach pytanie przestałoby być
+   pytaniem, a stałoby się formularzem.
+3. **Zerwany projekt domyka się PROPOZYCJĄ, nie automatem** — to jedyny skutek
+   tego kroku, który zamyka rekord.
+
+### Co się okazało przy robocie (2026-08-05)
+
+- **Brief miał rację co do B1 i B4, a dwie inne rzeczy okazały się większe, niż
+  wyglądały.** Zgodnie z zapowiedzią: trasa odrzucenia **wołała**
+  `logClientEvent` — brakowało ADRESATA, nie wywołania; a „niepodpisany aneks"
+  z B4 już dziś się pokazuje (`staleContracts` nie filtruje po `typ`), więc
+  prawdziwą luką jest **szkic**, nie wysyłka.
+- **Log leada musiał dostać rozróżnienie, którego brief nie przewidywał.**
+  `GET /api/clients/:id` dociąga `lead_activity` leada, z którego powstał
+  klient — więc samo dopisanie zdarzeń dokumentowych do tej tabeli pokazywałoby
+  KAŻDE z nich na osi klienta **dwa razy**. Stąd kolumna `kind` (te same klucze
+  co `client_events.kind`, więc ta sama mapa ikon) i warunek `kind IS NULL`
+  w scalaniu osi klienta. Przy okazji `kind` odpowiada na dwa inne pytania:
+  którą ikonę narysować i czy wolno wpis skasować (nie wolno — pilnuje tego
+  TRASA, 409, nie brak kosza w interfejsie).
+- **„Wołaj z tych samych miejsc" to było 40 miejsc, nie cztery.** Zrobiony
+  pełny sweep tras dokumentowych (oferty, umowy, faktury, projekty, powiązania
+  wsteczne, cron windykacyjny) przez jeden pomocnik `logZdarzenieDokumentu`
+  z celem `{clientId, leadId}`. To ta sama lekcja co z Fazy 2 („wysyłek okazało
+  się siedem"): gdyby każde miejsce dopisywało drugą linijkę osobno, część by
+  jej nie dostała i nikt by tego nie zauważył.
+- **„Zerwany projekt zamknąć" nie miało dokąd zamknąć.** `PROJECT_STATUSES` nie
+  ma statusu „przerwane", a „Wdrożone" znaczy ODEBRANE — zerwanego projektu tak
+  oznaczyć nie wolno. Odpowiedź leżała w instrukcji panelu, którą kod ignorował:
+  `lib/instrukcje.ts` od dawna mówi „projekt, którego nie chcesz widzieć, lepiej
+  oznaczyć »Wstrzymane«". Dlatego propozycja ustawia „Wstrzymane", a nie nowy
+  status — i dlatego doszło `NIEPRACUJACE_PROJECT_STATUSES` (szersze niż
+  `CLOSED_PROJECT_STATUSES`): wstrzymany projekt przestaje nagabywać o termin,
+  ale NIE planuje kontaktów kontrolnych. Rozbicie tych dwóch znaczeń było
+  konieczne — gdyby „Wstrzymane" wpadło do `CLOSED_PROJECT_STATUSES`, panel
+  zaplanowałby klientowi „jak leci?" po zerwanym projekcie.
+- **Sonda znalazła DWA błędy dat, oba spoza tego kroku i oba niewidoczne przez
+  większość doby.** Pierwszy: termin realizacji na UMOWIE liczony z
+  `accepted_at.slice(0, 10)`, czyli z dnia **UTC**, podczas gdy cały panel
+  liczy dni kalendarzowo wg strefy warszawskiej — oferta przyjęta między
+  północą a drugą w nocy dawała termin o dzień za wczesny (stąd `dzienZnacznika`
+  w `lib/dates.ts`). Drugi: `addDaysISO` dodawał milisekundy do lokalnej daty,
+  więc **gubił dzień na każdym przedziale przechodzącym przez zmianę czasu** —
+  90 dni od 05.08 dawało 02.11 zamiast 03.11. Ten drugi dotykał też terminu
+  płatności faktury cyklicznej i kontaktu kontrolnego po projekcie; siedział
+  tam od dawna. Oba złapane o 00:40 — gdyby sonda poszła o dziesiątej rano,
+  przeszłaby na zielono.
+- **Sonda skłamała dwa razy, znowu.** Raz wysyłając `powod_odrzucenia:
+  "za-drogo"` — `OFFER_REJECT_REASONS` to ETYKIETY („Za drogo"), nie slugi,
+  więc panel **słusznie** odrzucił wartość i zapisał sam komentarz. Drugi raz
+  żądając `related_id` od wpisu `client_created`, który żadnego dokumentu nie
+  dotyczy. Trzeci raz z rzędu połowa czerwieni w sondzie to nie usterka panelu.
+- **Mapa procesu naprawiła się sama, dokładnie jak zapowiadał brief.**
+  Po zatwierdzeniu propozycji „2/15 Pierwszy kontakt" zmieniło się w „15/15
+  Nurture" — bez dotykania `lib/process.ts` ani map `*_STATUS_STEP`. Zmierzone
+  w panelu, nie wywnioskowane z kodu.
+- **Nie zrobione świadomie:** apka iOS nie pokazuje drugiej akcji propozycji
+  ani dwóch nowych sekcji Pulpitu — to osobna robota po jej stronie, tak samo
+  jak rozwijacz windykacji z kroku 2 i propozycja z kroku 3. Trasy oddają
+  komplet (`akcjaAlt`, `decyzja: "zrob-alt"`, `projektyZagrozone`,
+  `zapomnianeSzkiceUmow`), więc na serwerze nie ma czego zmieniać. Drogi
+  porażki NIE ma w `scripts/przejscie/przejscie.ts` — to jawnie krok 5;
+  sprawdzona osobną sondą, która nie została w repo.
 
 ---
 

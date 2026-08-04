@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureHubSchema, ensureClientsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
@@ -112,12 +112,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   `;
   if (claimed.length === 0) return NextResponse.json({ error: t.alreadySubmitted }, { status: 409 });
 
-  const clientId = typeof project.client_id === "string" ? project.client_id : null;
+  const cel = celDokumentu(project);
   const avg = ((jakosc + terminowosc + komunikacja) / 3).toFixed(1);
   const tytul = typeof project.tytul === "string" && project.tytul ? project.tytul : "projekt";
-  await logClientEvent(
+  await logZdarzenieDokumentu(
     sql,
-    clientId,
+    cel,
     "review_collected",
     `Zebrano opinię o „${tytul}” — średnia ocena ${avg}/5${consentCaseStudy ? ", zgoda na referencję" : ""}`,
     null,

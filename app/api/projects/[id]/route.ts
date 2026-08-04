@@ -336,6 +336,7 @@ export async function PATCH(
         id,
         tytul: typeof current.tytul === "string" ? current.tytul : "Projekt",
         clientId: typeof current.client_id === "string" ? current.client_id : null,
+        leadId: typeof current.lead_id === "string" ? current.lead_id : null,
       },
       statusChangedTo
     );

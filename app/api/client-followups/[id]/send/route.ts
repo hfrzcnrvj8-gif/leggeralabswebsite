@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureFollowupsSchema, ensureHubSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureFollowupsSchema, ensureHubSchema, ensureClientsSchema, logZdarzenieDokumentu, odnotujWyslanaWiadomosc } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { NURTURE_OFFSETS } from "@/lib/clients";
@@ -75,14 +75,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await sendEmail({ to: String(client.email), subject: SUBJECT[lang](days, tytul), text });
 
     await sql`UPDATE client_followups SET done_at = now() WHERE id = ${id};`;
-    await logClientEvent(
+    // `client_followups` nie ma `lead_id` — kontakt kontrolny z definicji
+    // dotyczy KLIENTA po zamkniętym projekcie, więc cel ma tylko jedną stronę.
+    const cel = { clientId: typeof followup.client_id === "string" ? followup.client_id : null, leadId: null };
+    await logZdarzenieDokumentu(
       sql,
-      followup.client_id,
+      cel,
       "nurture_contact_sent",
       `Wysłano kontakt kontrolny (${days} dni) — „${tytul}”`,
       null,
       projectId
     );
+    // B3 — kontakt kontrolny to wiadomość, która poszła do klienta.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

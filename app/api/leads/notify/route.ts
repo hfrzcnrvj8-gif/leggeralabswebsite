@@ -11,7 +11,9 @@ import {
   ensureFollowupsSchema,
   ensureCostsSchema,
   ensureContractsSchema,
-  logClientEvent,
+  celDokumentu,
+  logZdarzenieDokumentu,
+  odnotujWyslanaWiadomosc,
   kopertaDokumentu,
   getNudgeThreads,
   ensureBackupSchema,
@@ -19,7 +21,7 @@ import {
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, overdueReason, STATUSES, LEADS_RETENTION_MONTHS, type Lead } from "@/lib/leads";
-import { isProjectOverdue, type Project } from "@/lib/projects";
+import { isProjectAtRisk, isProjectOverdue, type Project } from "@/lib/projects";
 import { isClientOverdue, clientOverdueReason, type Client } from "@/lib/clients";
 import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import {
@@ -37,6 +39,8 @@ import {
 import { costBrutto, type RecurringCost } from "@/lib/costs";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
 import {
+  contractDraftAgeDays,
+  isContractForgottenDraft,
   isContractStale,
   contractSilenceDays,
   powodOdnowienia,
@@ -150,7 +154,9 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
         });
         await sendEmail({ to: inv.klient_email, subject, text });
         await sql`UPDATE invoices SET wezwanie_wystawiono_at = now() WHERE id = ${inv.id};`;
-        await logClientEvent(sql, inv.client_id, "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${inv.numer} (${reference})`, null, inv.id);
+        await logZdarzenieDokumentu(sql, celDokumentu(inv), "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${inv.numer} (${reference})`, null, inv.id);
+        // B3 — wezwanie poszło do klienta, choć wysłał je cron, a nie kliknięcie.
+        await odnotujWyslanaWiadomosc(sql, celDokumentu(inv));
         // Formalne wezwanie to najpoważniejszy krok, jaki panel wykonuje bez
         // pytania — musi zostawić ślad tam, gdzie właściciel patrzy, nie tylko
         // w mailu o 6:00.
@@ -175,7 +181,8 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
           koperta,
         });
         await sendEmail({ to: inv.klient_email, subject, text });
-        await logClientEvent(sql, inv.client_id, "invoice_reminder", `Automatyczne przypomnienie o płatności (poziom ${targetLevel}) — faktura ${inv.numer}`, null, inv.id);
+        await logZdarzenieDokumentu(sql, celDokumentu(inv), "invoice_reminder", `Automatyczne przypomnienie o płatności (poziom ${targetLevel}) — faktura ${inv.numer}`, null, inv.id);
+        await odnotujWyslanaWiadomosc(sql, celDokumentu(inv));
         // Poziom w kluczu, nie sam id faktury: +3 dni i +10 dni to DWA różne
         // zdarzenia w życiu tej samej faktury i oba mają być widoczne. Sama
         // eskalacja i tak nie powtórzy się per poziom (`reminder_level` wyżej),
@@ -384,14 +391,14 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     // na Pulpicie (isContractStale), żeby mail i panel nie mówiły dwóch
     // różnych rzeczy.
     sql`
-      SELECT c.id, c.typ, c.status, c.sent_at, c.klient_nazwa,
+      SELECT c.id, c.typ, c.status, c.sent_at, c.klient_nazwa, c.aneks_nr, c.created_at,
              c.obowiazuje_do, c.wypowiedzenie_dni, c.odnawialna, cl.nazwa AS client_nazwa
       FROM contracts c
       LEFT JOIN clients cl ON cl.id = c.client_id;
     ` as unknown as Promise<
       (Pick<
         Contract,
-        "id" | "typ" | "status" | "sent_at" | "klient_nazwa" | "obowiazuje_do" | "wypowiedzenie_dni" | "odnawialna"
+        "id" | "typ" | "status" | "sent_at" | "klient_nazwa" | "aneks_nr" | "created_at" | "obowiazuje_do" | "wypowiedzenie_dni" | "odnawialna"
       > & { client_nazwa: string | null })[]
     >,
     // Zaplanowane kontakty nurture (Moduł 2) wymagalne dziś lub wcześniej —
@@ -622,6 +629,27 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
         .join("\n")
     : "  (nic — nic nie wisi bez podpisu)";
 
+  // Krok 4, B4 — dokument zaczęty i porzucony. Ta sama reguła co na Pulpicie
+  // (`isContractForgottenDraft`), inne pytanie niż „czekające na podpis" wyżej.
+  const zapomnianeSzkiceUmow = contracts.filter((c) => isContractForgottenDraft(c, today));
+  const zapomnianeLinie = zapomnianeSzkiceUmow.length
+    ? zapomnianeSzkiceUmow
+        .map(
+          (c) =>
+            `  • ${c.client_nazwa || c.klient_nazwa || "(bez nazwy)"} — ${CONTRACT_TYP_LABEL[c.typ]}${
+              c.typ === "aneks" && c.aneks_nr ? ` nr ${c.aneks_nr}` : ""
+            }, szkic od ${contractDraftAgeDays(c, today)} dni`
+        )
+        .join("\n")
+    : "  (nic — żaden szkic nie leży odłogiem)";
+
+  // Krok 4, B2 — projekt oznaczony ręcznie jako zagrożony/zerwany. Ta sama
+  // reguła co na Pulpicie (`isProjectAtRisk`).
+  const projektyZagrozone = projects.filter(isProjectAtRisk);
+  const zagrozoneLinie = projektyZagrozone.length
+    ? projektyZagrozone.map((p) => `  • ${p.tytul} — ${p.zdrowie}, status ${p.status}`).join("\n")
+    : "  (nic — żaden projekt nie jest oznaczony jako zagrożony)";
+
   // Umowy dobiegające końca (2026-07-27) — ta sama reguła co na Pulpicie
   // (umowaDoOdnowienia), żeby mail i panel nie mówiły dwóch różnych rzeczy.
   // Powód zdaniem z lib, nie sklejany tutaj drugi raz.
@@ -642,7 +670,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     dueProjects.length +
     overdueMilestones.length +
     draftInvoices.length +
-    staleContracts.length;
+    staleContracts.length +
+    zapomnianeSzkiceUmow.length +
+    projektyZagrozone.length;
 
   // Stan kopii zapasowych bazy (2026-07-20). Osobne, tanie zapytanie —
   // ŚWIADOMIE poza głównym Promise.all i w try/catch: awaria tego odczytu nie
@@ -795,8 +825,14 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     `Kamienie milowe po terminie (${overdueMilestones.length}):`,
     milestoneLines,
     "",
+    `Projekty, które idą źle (${projektyZagrozone.length}):`,
+    zagrozoneLinie,
+    "",
     `Umowy czekające na podpis (${staleContracts.length}):`,
     contractLines,
+    "",
+    `Zaczęte i porzucone dokumenty (${zapomnianeSzkiceUmow.length}):`,
+    zapomnianeLinie,
     ...(wygasajaceUmowy.length
       ? ["", `Umowy dobiegające końca (${wygasajaceUmowy.length}):`, renewalLines]
       : []),

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureInvoicesSchema, logClientEvent, type Sql } from "@/lib/db";
+import { celDokumentu, getSql, ensureInvoicesSchema, logZdarzenieDokumentu, type Sql } from "@/lib/db";
 import { INVOICE_TYPE_LABEL, type InvoiceDocType } from "@/lib/invoices";
 import { isAuthed } from "@/lib/auth";
 import { formatInvoiceNumber } from "@/lib/invoices";
@@ -191,9 +191,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       `;
     }
 
-    const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
+    const cel = celDokumentu(inv);
     const typLabel = INVOICE_TYPE_LABEL[(inv.typ_dokumentu as InvoiceDocType) ?? "faktura"];
-    await logClientEvent(sql, clientId, "invoice_issued", `Wystawiono: ${typLabel} nr ${numer}`, null, id);
+    await logZdarzenieDokumentu(sql, cel, "invoice_issued", `Wystawiono: ${typLabel} nr ${numer}`, null, id);
 
     return NextResponse.json({ ok: true, numer });
   } catch (err) {

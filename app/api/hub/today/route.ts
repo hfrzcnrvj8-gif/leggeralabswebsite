@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema, ensureBackupSchema, zPonowieniem } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
-import { isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
+import { isProjectAtRisk, isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
 import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
 import { isOfferExpired, isOfferStale, offerSilenceDays, weightedOfferValue, offerLiczySieDoStatystyk, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
 import {
+  contractDraftAgeDays,
+  isContractForgottenDraft,
   isContractStale,
   contractSilenceDays,
   dniDoDzialaniaUmowy,
@@ -42,6 +44,10 @@ type ContractRow = Pick<
   | "obowiazuje_do"
   | "wypowiedzenie_dni"
   | "odnawialna"
+  // Krok 4 (B4) — do „zapomnianych szkiców": numer aneksu do etykiety
+  // i data powstania do wieku szkicu.
+  | "aneks_nr"
+  | "created_at"
 > & {
   client_nazwa: string | null;
 };
@@ -138,7 +144,8 @@ export async function GET() {
     // projektu (bramka w api/projects/[id]).
     sql`
       SELECT c.id, c.typ, c.status, c.project_id, c.client_id, c.sent_at, c.klient_nazwa,
-             c.obowiazuje_do, c.wypowiedzenie_dni, c.odnawialna, cl.nazwa AS client_nazwa
+             c.obowiazuje_do, c.wypowiedzenie_dni, c.odnawialna, c.aneks_nr, c.created_at,
+             cl.nazwa AS client_nazwa
       FROM contracts c
       LEFT JOIN clients cl ON cl.id = c.client_id;
     ` as unknown as Promise<ContractRow[]>,
@@ -202,6 +209,22 @@ export async function GET() {
     .filter((c) => isContractStale(c))
     .map((c) => ({ ...c, silenceDays: contractSilenceDays(c) ?? 0 }))
     .sort((a, b) => b.silenceDays - a.silenceDays);
+
+  // Krok 4, znalezisko B4 — dokument ZACZĘTY i zapomniany, w odróżnieniu od
+  // wysłanego i niepodpisanego (tym zajmuje się `staleContracts` wyżej — i JUŻ
+  // dziś łapie aneksy, bo nie filtruje po `typ`). Bliźniak `draftInvoices`
+  // niżej; wiek liczony raz tutaj, żeby Pulpit, apka i dzienny mail mówiły tę
+  // samą liczbę.
+  const zapomnianeSzkiceUmow = contracts
+    .filter((c) => isContractForgottenDraft(c, today))
+    .map((c) => ({ ...c, draftAgeDays: contractDraftAgeDays(c, today) }))
+    .sort((a, b) => b.draftAgeDays - a.draftAgeDays);
+
+  // Krok 4, znalezisko B2 — projekt oznaczony ręcznie jako zagrożony/zerwany.
+  // Osobno od `dueProjects`: zerwać projekt można na długo PRZED terminem
+  // (w drugim przejściu termin był 49 dni w przyszłości), więc lista „po
+  // terminie" nie łapie go z definicji.
+  const projektyZagrozone = projects.filter(isProjectAtRisk);
 
   // Umowy dobiegające końca (2026-07-27) — rdzeń CLM, którego panel nie miał:
   // dokument znał termin REALIZACJI (kiedy kończy się praca), a nie koniec
@@ -348,8 +371,10 @@ export async function GET() {
     overdueLeads,
     overdueClients,
     dueProjects,
+    projektyZagrozone,
     overdueInvoices,
     draftInvoices,
+    zapomnianeSzkiceUmow,
     overdueMilestones,
     expiredOffers,
     staleOffers,

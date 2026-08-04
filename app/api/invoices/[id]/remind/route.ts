@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureInvoicesSchema, ensureInvoiceShareToken, ensureInvoiceWezwanieShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
+import { celDokumentu, getSql, ensureInvoicesSchema, ensureInvoiceShareToken, ensureInvoiceWezwanieShareToken, logZdarzenieDokumentu, odnotujWyslanaWiadomosc, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import {
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const waluta = String(inv.waluta || "PLN");
     const terminPlatnosci = inv.termin_platnosci ? String(inv.termin_platnosci) : null;
     const numer = String(inv.numer);
-    const clientId = typeof inv.client_id === "string" ? inv.client_id : null;
+    const cel = celDokumentu(inv);
 
     // Znalezisko A4 — ile wiadomości w tej sprawie NAPRAWDĘ już wyszło.
     // Liczymy wiersze historii, nie `reminder_level`: poziom mówi „jak
@@ -128,14 +128,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const { subject, text } = dunningEmailText({ numer, brutto, waluta, terminPlatnosci, dni: dni ?? 0, odsetki, url, reference, wyslanoWczesniej, koperta });
       await sendEmail({ to: String(inv.klient_email), subject, text });
       await sql`UPDATE invoices SET wezwanie_wystawiono_at = now() WHERE id = ${id};`;
-      await logClientEvent(sql, clientId, "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${numer} (${reference})`, null, id);
+      await logZdarzenieDokumentu(sql, cel, "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${numer} (${reference})`, null, id);
     } else {
       const token = await ensureInvoiceShareToken(sql, id, typeof inv.share_token === "string" ? inv.share_token : null);
       const url = `${req.nextUrl.origin}/pl/faktura/${token}`;
       const { subject, text } = reminderEmailText(level, { numer, brutto, waluta, terminPlatnosci, url, wyslanoWczesniej, koperta });
       await sendEmail({ to: String(inv.klient_email), subject, text });
-      await logClientEvent(sql, clientId, "invoice_reminder", `Wysłano przypomnienie o płatności (poziom ${level}) — faktura ${numer}`, null, id);
+      await logZdarzenieDokumentu(sql, cel, "invoice_reminder", `Wysłano przypomnienie o płatności (poziom ${level}) — faktura ${numer}`, null, id);
     }
+
+    // B3 — wezwanie i przypomnienie to wiadomości, które poszły do klienta.
+    // Jedno miejsce dla obu gałęzi, żeby żadna nie wypadła po cichu.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     // reminder_level nigdy nie cofa się w dół (ręczne wysłanie niższego
     // poziomu niż już osiągnięty nie powinno "zapomnieć" wcześniejszej eskalacji).

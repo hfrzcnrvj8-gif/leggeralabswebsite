@@ -13,6 +13,8 @@ import {
   CONTACT_CHANNELS,
   CONTACT_CHANNEL_LABEL,
   ContactChannelIcon,
+  ClientEventIcon,
+  isSystemowyWpis,
   CONTACT_CHANNEL_CLASS,
   CONTACT_DIRECTIONS,
   CONTACT_DIRECTION_LABEL,
@@ -30,6 +32,7 @@ import {
 import { ProcessMap, PillPicker, UmowSpotkanie } from "../components";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { CONTRACT_STATUS_CLASS } from "@/lib/contracts";
+import { CLIENT_EVENT_TARGET } from "@/lib/clients";
 import { LinkPicker } from "../LinkPicker";
 import { useUI } from "../ui";
 import { DateField } from "../DatePicker";
@@ -709,6 +712,11 @@ export function LeadDetailPanel({
                       <ul className="relative space-y-0.5 before:absolute before:bottom-3 before:left-[14px] before:top-3 before:w-px before:bg-[var(--hairline)] before:content-['']">
                         {group.items.map((a) => {
                           const badge = activityBadge(a);
+                          // Wpis systemowy (krok 4, B1) — zapis tego, co się
+                          // stało, nie notatka. Bez kosza, za to z odnośnikiem
+                          // do dokumentu, którego dotyczy.
+                          const systemowy = isSystemowyWpis(a);
+                          const cel = systemowy && a.kind ? CLIENT_EVENT_TARGET[a.kind] : null;
                           return (
                             <li
                               key={a.id}
@@ -731,16 +739,27 @@ export function LeadDetailPanel({
                                       </span>
                                     )}
                                   </span>
-                                  <button
-                                    onClick={() => deleteNote(a.id)}
-                                    className="shrink-0 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
-                                    aria-label="Usuń wpis"
-                                    title="Usuń wpis"
-                                  >
-                                    <IconTrash size={13} />
-                                  </button>
+                                  {!systemowy && (
+                                    <button
+                                      onClick={() => deleteNote(a.id)}
+                                      className="-m-1 flex h-6 w-6 shrink-0 items-center justify-center p-1 text-muted opacity-0 transition-opacity hover:text-red-400 focus:opacity-100 group-hover:opacity-100"
+                                      aria-label="Usuń wpis"
+                                      title="Usuń wpis"
+                                    >
+                                      <IconTrash size={13} />
+                                    </button>
+                                  )}
                                 </div>
-                                <p className="whitespace-pre-wrap">{a.text}</p>
+                                {cel && a.related_id ? (
+                                  <Link
+                                    href={`/${lang}/admin/${cel}/${a.related_id}`}
+                                    className="whitespace-pre-wrap hover:underline"
+                                  >
+                                    {a.text}
+                                  </Link>
+                                ) : (
+                                  <p className="whitespace-pre-wrap">{a.text}</p>
+                                )}
                               </div>
                             </li>
                           );
@@ -781,9 +800,19 @@ function PanelHeader({ onClose }: { onClose?: () => void }) {
 /** Kolorowa odznaka wpisu na osi — wzorem iOS: nieodebrane połączenie ma
  * pierwszeństwo (czerwone) przed zwykłym kolorem kanału, inne kanały mają
  * swój stały kolor (CONTACT_CHANNEL_CLASS), brak kanału = neutralny dymek. */
-function activityBadge(a: { kanal: string | null; wynik: string | null }): { icon: ReactNode; cls: string } {
+function activityBadge(a: { kanal: string | null; wynik: string | null; kind?: string | null }): {
+  icon: ReactNode;
+  cls: string;
+} {
   if (a.kanal === "telefon" && a.wynik === "nieodebrane") {
     return { icon: <CallOutcomeIcon kind="nieodebrane" size={14} />, cls: CALL_OUTCOME_CLASS.nieodebrane };
+  }
+  // Zdarzenie dokumentowe (krok 4, B1) — ta sama mapa ikon co oś klienta,
+  // bo `kind` to te same klucze. Kolor neutralny: te wpisy mają mówić „to się
+  // stało", a nie wołać kątem oka — kolor niesie stan i pilność (`lib/kolorStanu.ts`),
+  // a tu nie ma ani jednego, ani drugiego.
+  if (isSystemowyWpis(a) && a.kind) {
+    return { icon: <ClientEventIcon kind={a.kind} size={14} />, cls: "bg-[var(--hairline)] text-muted" };
   }
   if (a.kanal) {
     return {

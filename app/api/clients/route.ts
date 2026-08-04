@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureClientsSchema, ensureHubSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureClientsSchema, ensureHubSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
@@ -137,9 +137,9 @@ export async function POST(req: NextRequest) {
   // `leads/[id]/promote`, `api/offers` i „zrób klienta z maila". Ta jedna
   // trasa tego nie robiła, więc klient dodany ręcznie miał pustą historię
   // i nie dało się z niej odczytać nawet tego, KIEDY się pojawił.
-  await logClientEvent(
+  await logZdarzenieDokumentu(
     sql,
-    id,
+    { clientId: id, leadId },
     "client_created",
     leadId ? "Utworzony z leada" : "Dodany ręcznie do rejestru klientów"
   );

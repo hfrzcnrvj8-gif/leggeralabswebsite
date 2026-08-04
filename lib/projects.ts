@@ -443,12 +443,45 @@ export const PROJECT_STATUS_HEX: Record<string, string> = mapaHexow(PROJECT_STAN
 
 export const CLOSED_PROJECT_STATUSES = new Set(["Wdrożone"]);
 
+/** Statusy, przy których praca NIE trwa — czyli nie ma o czym przypominać.
+ *
+ * Świadomie SZERSZY zbiór niż `CLOSED_PROJECT_STATUSES` i to nie jest
+ * dublowanie: tamten odpowiada na pytanie „czy zamknęliśmy zlecenie" i po nim
+ * planuje się kontakty kontrolne (`lib/skutkiProjektu.ts`). Projekt
+ * „Wstrzymane" nie jest zamknięty — nikt go nie odebrał, nurture byłby
+ * niestosowny — ale też nikt nad nim nie pracuje, więc nagabywanie o jego
+ * termin jest szumem. To ta sama odpowiedź, którą daje instrukcja w panelu
+ * („projekt, którego nie chcesz widzieć, lepiej oznaczyć »Wstrzymane«",
+ * `lib/instrukcje.ts`) — do kroku 4 kod tej obietnicy nie dotrzymywał.
+ *
+ * Krok 4, znalezisko B2: to zbiór, do którego trafia projekt po zatwierdzeniu
+ * propozycji „projekt zerwany, a status mówi »W trakcie«". */
+export const NIEPRACUJACE_PROJECT_STATUSES = new Set(["Wdrożone", "Wstrzymane"]);
+
 /** Projekt "wymaga działania" jeśli ma minięty/dzisiejszy termin i nie jest
  * zamknięty — ten sam duch co isOverdue() dla leadów. */
 export function isProjectOverdue(p: Project): boolean {
-  if (CLOSED_PROJECT_STATUSES.has(p.status)) return false;
+  if (NIEPRACUJACE_PROJECT_STATUSES.has(p.status)) return false;
   if (!p.termin) return false;
   return p.termin <= todayLocalISO();
+}
+
+/**
+ * Projekt, który sam się zgłasza jako idący źle — krok 4, znalezisko B2.
+ *
+ * Do 2026-08-05 oś „zdrowia" istniała WYŁĄCZNIE po to, żeby powiedzieć „to
+ * idzie źle", i nie była widoczna w żadnym miejscu, do którego zagląda się
+ * codziennie. „Projekty z minionym terminem" jej nie łapią, bo zerwać projekt
+ * można na długo przed terminem — w drugim przejściu termin był 49 dni
+ * w przyszłości.
+ *
+ * Warunek statusu odsiewa normalną pracę: projekt oznaczony jako zagrożony,
+ * a potem odebrany albo świadomie wstrzymany, nie ma po co świecić dalej.
+ * Ekran, który świeci zawsze, uczy tylko go ignorować.
+ */
+export function isProjectAtRisk(p: Pick<Project, "status" | "zdrowie">): boolean {
+  if (NIEPRACUJACE_PROJECT_STATUSES.has(p.status)) return false;
+  return isProjectHealthAlarming(p.zdrowie);
 }
 
 /** Liczba dni od dziś do daty (dodatnia = przyszłość, 0 = dziś, ujemna =

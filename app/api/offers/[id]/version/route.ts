@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, ensureClientsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -77,9 +77,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       WHERE id = ${id};
     `;
 
-    await logClientEvent(
+    await logZdarzenieDokumentu(
       sql,
-      typeof src.client_id === "string" ? src.client_id : null,
+      celDokumentu(src),
       "offer_created",
       `Nowa wersja oferty „${src.tytul || "(bez tytułu)"}” (wersja ${wersja})`,
       null,

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { IconRepeat, IconDatabaseExclamation, IconAlertTriangle } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import type { Lead } from "@/lib/leads";
-import { type Project, formatPlDate } from "@/lib/projects";
+import { type Project, formatPlDate, PROJECT_HEALTH_TEXT } from "@/lib/projects";
 import type { HubEvent } from "@/lib/events";
 import type { Note } from "@/lib/notes";
 import { kopieWymagajaUwagi, type BackupStan } from "@/lib/backup";
@@ -87,13 +87,27 @@ type Kpi = {
   referralSharePct: number | null;
 };
 
+/** Szkic umowy/aneksu, o którym właściciel zapomniał (krok 4, B4). */
+type ZapomnianySzkicUmowy = {
+  id: string;
+  typ: ContractTyp;
+  aneks_nr: number | null;
+  klient_nazwa: string;
+  client_nazwa: string | null;
+  draftAgeDays: number;
+};
+
 type TodayData = {
   overdueLeads: Lead[];
   overdueClients: Client[];
   dueProjects: Project[];
+  /** Zdrowie ustawione ręcznie na „Zagrożony"/„Zerwany" (krok 4, B2) —
+   *  osobno od `dueProjects`, bo termin bywa daleko w przyszłości. */
+  projektyZagrozone: Project[];
   overdueMilestones: OverdueMilestone[];
   overdueInvoices: InvoiceRow[];
   draftInvoices: InvoiceRow[];
+  zapomnianeSzkiceUmow: ZapomnianySzkicUmowy[];
   expiredOffers: OfferRow[];
   /** Runda 2 Modułu 57 — wysłane, brak decyzji, cisza ≥ 5 dni. */
   staleOffers: (OfferRow & { silenceDays: number })[];
@@ -387,9 +401,11 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.dueFollowups.length +
     data.pendingMails.length +
     data.dueProjects.length +
+    (data.projektyZagrozone?.length ?? 0) +
     data.overdueMilestones.length +
     data.overdueInvoices.length +
     data.draftInvoices.length +
+    (data.zapomnianeSzkiceUmow?.length ?? 0) +
     data.expiredOffers.length +
     data.staleOffers.length +
     data.staleContracts.length +
@@ -805,6 +821,46 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           )}
         </section>
 
+        {/* Krok 4, znalezisko B2. Oś „zdrowia" istniała wyłącznie po to, żeby
+            powiedzieć „to idzie źle" — i nie było jej w ŻADNYM miejscu, do
+            którego zagląda się codziennie. Sekcji nie da się skleić z
+            „Projektami z minionym terminem": zerwać projekt można na długo
+            przed terminem, więc tamten filtr go nie łapie z definicji. */}
+        <section className="plyta-sekcji rounded-xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Projekty, które idą źle</h2>
+            <Link href={`/${lang}/admin/projects`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {(data.projektyZagrozone?.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — żaden projekt nie jest oznaczony jako zagrożony.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.projektyZagrozone.slice(0, 6).map((p) => (
+                <li key={p.id} data-rekord={p.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/projects/${p.id}`} className="font-medium hover:underline">
+                      {p.tytul}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — <span className={PROJECT_HEALTH_TEXT[p.zdrowie] ?? ""}>{p.zdrowie}</span>, status {p.status}
+                      {p.termin ? `, termin ${formatPlDate(p.termin)}` : ""}
+                    </span>
+                  </span>
+                  <Link
+                    href={`/${lang}/admin/projects/${p.id}`}
+                    className="shrink-0 rounded-full border border-brand-orange/40 px-2 py-0.5 text-[11px] text-brand-orange"
+                  >
+                    Otwórz
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <section className="plyta-sekcji rounded-xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[13px] font-medium">Kamienie po terminie</h2>
@@ -1017,6 +1073,48 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   >
                     {przypominam === c.id ? "Wysyłam…" : "Przypomnij"}
                   </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Krok 4, znalezisko B4. Sekcja WYŻEJ („Umowy czekające na podpis")
+            już dziś łapie wysłany aneks — nie filtruje po `typ`, więc plan
+            mylnie opisywał tę lukę jako „nic nie przypomina o niepodpisanym
+            aneksie". Aneks z drugiego przejścia był SZKICEM: nigdy nie wyszedł.
+            To inne pytanie i dlatego osobna sekcja — „zacząłem i zapomniałem",
+            nie „wysłałem i czekam". Bliźniak: „Faktury do wystawienia". */}
+        <section className="plyta-sekcji rounded-xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Zaczęte i porzucone dokumenty</h2>
+            <Link href={`/${lang}/admin/contracts`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {(data.zapomnianeSzkiceUmow?.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — żaden szkic nie leży odłogiem.</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.zapomnianeSzkiceUmow.slice(0, 6).map((c) => (
+                <li key={c.id} data-rekord={c.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/contracts/${c.id}`} className="font-medium hover:underline">
+                      {c.client_nazwa || c.klient_nazwa || "(bez nazwy)"}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — {CONTRACT_TYP_LABEL[c.typ] ?? "Umowa"}
+                      {c.typ === "aneks" && c.aneks_nr ? ` nr ${c.aneks_nr}` : ""}, szkic od {c.draftAgeDays}{" "}
+                      {c.draftAgeDays === 1 ? "dnia" : "dni"}
+                    </span>
+                  </span>
+                  <Link
+                    href={`/${lang}/admin/contracts/${c.id}`}
+                    className="shrink-0 rounded-full border border-amber-500/40 px-2 py-0.5 text-[11px] text-amber-500"
+                  >
+                    Dokończ
+                  </Link>
                 </li>
               ))}
             </ul>

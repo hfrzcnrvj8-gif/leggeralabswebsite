@@ -63,8 +63,25 @@ export type Activity = {
   wynik: string | null;
   /** Czas trwania połączenia w sekundach — tylko gdy wynik="odebrane". */
   czas_trwania_sek: number | null;
+  /** Rodzaj zdarzenia SYSTEMOWEGO (te same klucze co `client_events.kind`,
+   * więc ta sama mapa ikon) — krok 4 planu, znalezisko B1. `null` = wpis
+   * o prawdziwym kontakcie: ręczna notatka, telefon, mail. Rozróżnienie robi
+   * trzy rzeczy: dobiera ikonę, chroni wpis systemowy przed skasowaniem
+   * i trzyma go z dala od osi klienta (tam zdarzenia dokumentowe przychodzą
+   * z `client_events` — bez tego byłyby dwa razy). */
+  kind: string | null;
+  /** Id dokumentu, którego zdarzenie dotyczy — jak `client_events.related_id`. */
+  related_id: string | null;
   created_at: string;
 };
+
+/** Czy to wpis systemowy (zapisany przez trasę), a nie ślad kontaktu wpisany
+ *  przez właściciela. Jedno miejsce, bo odpowiedź jest potrzebna i w panelu
+ *  (ikona, brak kosza), i w trasie kasowania — a `kind !== null` rozjechałoby
+ *  się przy pierwszym pustym stringu z bazy. */
+export function isSystemowyWpis(a: { kind?: string | null }): boolean {
+  return typeof a.kind === "string" && a.kind.trim() !== "";
+}
 
 export type SeedLead = Pick<
   Lead,

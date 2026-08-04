@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, ensureContractsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, ensureContractsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { isPlausibleDateString } from "@/lib/projects";
@@ -125,10 +125,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // pipeline'u (fallback wagi = 1 zawyżałby prognozę).
       if (!isOfferStatus(body.status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
       const nowy = body.status;
-      const przed = (await sql`SELECT status, tytul, client_id FROM offers WHERE id = ${id};`)[0];
+      // `lead_id` w SELECT-cie od kroku 4 (znalezisko B1): bez niego odrzucenie
+      // oferty nie miało jak trafić na oś LEADA — a to jedyna karta, jaką ma
+      // dokument wiszący przy leadzie, z którego nie zrobiono jeszcze klienta.
+      const przed = (await sql`SELECT status, tytul, client_id, lead_id FROM offers WHERE id = ${id};`)[0];
       if (!przed) return NextResponse.json({ error: "not found" }, { status: 404 });
       const poprzedni = String(przed.status ?? "");
-      const clientId = typeof przed.client_id === "string" ? przed.client_id : null;
+      const cel = celDokumentu(przed);
       const tytul = String(przed.tytul || "(bez tytułu)");
 
       if (nowy === "Odrzucona") {
@@ -141,9 +144,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         `;
         if (poprzedni !== nowy) {
           const dlaczego = rejectReasonLabel(powod, komentarz);
-          await logClientEvent(
+          await logZdarzenieDokumentu(
             sql,
-            clientId,
+            cel,
             "offer_rejected",
             `Odrzucono ofertę „${tytul}”${dlaczego ? ` — ${dlaczego}` : ""}`,
             null,
@@ -159,7 +162,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           WHERE id = ${id};
         `;
         if (nowy === "Wygasła" && poprzedni !== nowy) {
-          await logClientEvent(sql, clientId, "offer_expired", `Oferta „${tytul}” wygasła bez decyzji`, null, id);
+          await logZdarzenieDokumentu(sql, cel, "offer_expired", `Oferta „${tytul}” wygasła bez decyzji`, null, id);
         }
       }
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { notify } from "@/lib/notificationLog";
 import { CLOSED_OFFER_STATUSES, type OfferStatus } from "@/lib/offers";
 import { pickFields, OFFER_PUBLIC_FIELDS, COMPANY_SETTINGS_PUBLIC_FIELDS } from "@/lib/publicFields";
@@ -135,9 +135,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
           entityId: String(offer.id),
           dedupeKey: `offer_opened:${offer.id}`,
         });
-        await logClientEvent(
+        await logZdarzenieDokumentu(
           sql,
-          typeof offer.client_id === "string" ? offer.client_id : null,
+          celDokumentu(offer),
           "offer_opened",
           `Klient otworzył ofertę „${tytul}”`,
           null,

@@ -54,8 +54,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   await ensureFollowupsSchema();
   const [clientActivity, leadActivity, events, offers, invoices, projects, contracts, mail, followups, contacts] = await Promise.all([
     sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM client_activity WHERE client_id = ${id};` as unknown as Promise<RawActivity[]>,
+    // `kind IS NULL` = wpisy o PRAWDZIWYM kontakcie (ręczna notatka, telefon,
+    // mail) — tylko one dociągają się z leada. Zdarzenia dokumentowe (krok 4,
+    // B1) mają `kind` niepuste i klient dostaje je własną drogą, z
+    // `client_events`; bez tego warunku każda wysłana oferta pokazałaby się na
+    // osi klienta DWA razy, bo od kroku 4 zapisuje się w obu tabelach naraz.
     leadId
-      ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId};` as unknown as Promise<RawActivity[]>)
+      ? (sql`SELECT id, text, kanal, kierunek, wynik, czas_trwania_sek, mail_message_id, created_at FROM lead_activity WHERE lead_id = ${leadId} AND kind IS NULL;` as unknown as Promise<RawActivity[]>)
       : Promise.resolve([] as RawActivity[]),
     sql`SELECT id, kind, text, amount, related_id, created_at FROM client_events WHERE client_id = ${id};`,
     // Kwota oferty liczona w bazie (suma pozycji bez odrzuconych opcji) —

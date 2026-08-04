@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { isOfferStatus } from "@/lib/offers";
@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest) {
   // tylko dla ofert, które NAPRAWDĘ zmieniły status (drugie kliknięcie tego
   // samego przycisku nie może dopisać drugiego „odrzucono").
   const przed = (await sql`
-    SELECT id, status, tytul, client_id FROM offers WHERE id = ANY(${ids}::text[]);
+    SELECT id, status, tytul, client_id, lead_id FROM offers WHERE id = ANY(${ids}::text[]);
   `) as unknown as Record<string, unknown>[];
   if (przed.length === 0) return NextResponse.json({ ok: true, updated: 0 });
 
@@ -73,12 +73,12 @@ export async function PATCH(req: NextRequest) {
   if (kind) {
     for (const o of przed) {
       if (String(o.status ?? "") === status) continue;
-      const clientId = typeof o.client_id === "string" ? o.client_id : null;
-      if (!clientId) continue;
+      const cel = celDokumentu(o);
+      if (!cel.clientId && !cel.leadId) continue;
       const tytul = String(o.tytul || "(bez tytułu)");
-      await logClientEvent(
+      await logZdarzenieDokumentu(
         sql,
-        clientId,
+        cel,
         kind,
         kind === "offer_rejected" ? `Odrzucono ofertę „${tytul}”` : `Oferta „${tytul}” wygasła bez decyzji`,
         null,

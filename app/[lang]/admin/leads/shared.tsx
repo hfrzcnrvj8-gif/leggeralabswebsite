@@ -22,6 +22,7 @@ export {
   leadSourceLabel,
   guessSourceCategory,
   findSimilarLead,
+  isSystemowyWpis,
 } from "@/lib/leads";
 
 export {
@@ -42,7 +43,7 @@ export {
 } from "@/lib/contact";
 
 /* Ikony (Moduł 33) — patrz `admin/icons.tsx`. */
-export { ContactChannelIcon, CallOutcomeIcon } from "../icons";
+export { ContactChannelIcon, CallOutcomeIcon, ClientEventIcon } from "../icons";
 
 export { SummaryCard, EditableText, EditableTextarea, ContactQuickActions, QuickDateChips } from "../components";
 

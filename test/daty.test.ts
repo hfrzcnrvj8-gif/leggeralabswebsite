@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysBetweenISO, warsawNowMinutes, warsawWallTimeToUtcISO, daysSinceISO , odmienPl } from "../lib/dates.ts";
+import { daysBetweenISO, dzienZnacznika, warsawNowMinutes, warsawWallTimeToUtcISO, daysSinceISO , odmienPl } from "../lib/dates.ts";
 
 // daysBetweenISO to arytmetyka, na której od Audytu 6 stoi reguła „wymaga
 // działania dziś" (isOverdue → daysSince → daysBetweenISO). Bliźniak w apce:
@@ -54,4 +54,26 @@ test("odmienPl: polska liczba mnoga ma TRZY formy", () => {
   assert.equal(odmienPl(13, "faktura", "faktury", "faktur"), "faktur");
   assert.equal(odmienPl(22, "faktura", "faktury", "faktur"), "faktury");
   assert.equal(odmienPl(0, "faktura", "faktury", "faktur"), "faktur");
+});
+
+/* ── Dzień kalendarzowy ze znacznika bazy (2026-08-05) ─────────────────────
+ * Znalezione przy kroku 4, poza jego zakresem. Objaw: termin realizacji na
+ * UMOWIE o dzień za wczesny, ale tylko dla ofert przyjętych między północą
+ * a drugą w nocy — czyli 22 godziny na dobę wszystko wyglądało dobrze. */
+
+test("dzień znacznika liczy się wg strefy warszawskiej, nie UTC", () => {
+  // 22:40 UTC = 00:40 następnego dnia w Warszawie (czas letni).
+  assert.equal(dzienZnacznika("2026-08-04 22:40:00+00"), "2026-08-05");
+  // …a samo `slice(0, 10)` dałoby tu 2026-08-04. To jest cały błąd.
+  assert.notEqual(dzienZnacznika("2026-08-04 22:40:00+00"), "2026-08-04 22:40:00+00".slice(0, 10));
+});
+
+test("dzień znacznika radzi sobie z formatem Postgresa (spacja, strefa bez dwukropka)", () => {
+  assert.equal(dzienZnacznika("2026-07-20 08:55:44.709+01"), "2026-07-20");
+});
+
+test("dzień znacznika oddaje null zamiast zgadywanej daty", () => {
+  assert.equal(dzienZnacznika(null), null);
+  assert.equal(dzienZnacznika(""), null);
+  assert.equal(dzienZnacznika("zupełnie nie data"), null);
 });

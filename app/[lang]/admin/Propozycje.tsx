@@ -82,7 +82,7 @@ export function Propozycje({ lang, modul, rekordId, onZmiana, bezPlyty, wstepne 
     void wczytaj();
   }, [wczytaj, maWstepne]);
 
-  const decyduj = async (p: Propozycja, decyzja: "zrob" | "odrzuc") => {
+  const decyduj = async (p: Propozycja, decyzja: "zrob" | "zrob-alt" | "odrzuc") => {
     const klucz = `${p.regula}:${p.rekordId}`;
     setPracuje(klucz);
     const res = await fetch("/api/hub/propozycje", {
@@ -173,6 +173,19 @@ export function Propozycje({ lang, modul, rekordId, onZmiana, bezPlyty, wstepne 
                     >
                       {p.akcja}
                     </button>
+                    {/* Druga droga wyjścia (krok 4, B1). Ta sama waga co
+                        pierwsza — obwódka `hairline` zamiast cyjanu, bo panel
+                        nie ma podstaw wskazywać, która jest właściwa; to
+                        właśnie dlatego pytanie ma dwa przyciski, a nie jeden. */}
+                    {p.akcjaAlt && (
+                      <button
+                        onClick={() => decyduj(p, "zrob-alt")}
+                        disabled={zajete}
+                        className="rounded-full border hairline px-2 py-0.5 text-[11px] text-[var(--fg)] disabled:opacity-50"
+                      >
+                        {p.akcjaAlt}
+                      </button>
+                    )}
                     <button
                       onClick={() => decyduj(p, "odrzuc")}
                       disabled={zajete}

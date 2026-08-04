@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureHubSchema, ensureLeadsSchema, ensureClientsSchema, ensureInvoicesSchema, ensureContractsSchema } from "@/lib/db";
+import { ensureHubSchema, ensureLeadsSchema, ensureClientsSchema, ensureInvoicesSchema, ensureContractsSchema, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import {
   isRegulaPropozycji,
@@ -25,6 +25,8 @@ async function schematy(): Promise<void> {
   // Umowy doszły z regułą A8 („szkic faktury a podpisany aneks") — pyta
   // o `contracts` i `invoice_items` w jednym zapytaniu.
   await ensureContractsSchema();
+  // Oferty doszły z regułą B1 („odrzucona oferta domyka leada", krok 4).
+  await ensureOffersSchema();
 }
 
 /** GET /api/hub/propozycje?modul=projects — komplet skutków zdarzenia, które
@@ -61,7 +63,11 @@ export async function POST(req: NextRequest) {
   const decyzja = body.decyzja;
   if (!isRegulaPropozycji(regula)) return NextResponse.json({ error: "Nieznana propozycja." }, { status: 400 });
   if (!rekordId) return NextResponse.json({ error: "Brak rekordu, którego dotyczy propozycja." }, { status: 400 });
-  if (decyzja !== "zrob" && decyzja !== "odrzuc" && decyzja !== "przywroc") {
+  // „zrob-alt" — druga droga wyjścia (krok 4, B1: „wróć za 3 miesiące" zamiast
+  // „zamknij lead"). Osobna decyzja, a nie pole obok „zrob", żeby lista
+  // dopuszczalnych wartości dalej była JEDNYM wyliczeniem — warunek pisany
+  // przez wyliczenie dozwolonego, nie wykluczanie zakazanego.
+  if (decyzja !== "zrob" && decyzja !== "zrob-alt" && decyzja !== "odrzuc" && decyzja !== "przywroc") {
     return NextResponse.json({ error: "Nieznana decyzja." }, { status: 400 });
   }
 
@@ -76,7 +82,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, komunikat: "Propozycja przywrócona." });
   }
 
-  const wynik = await wykonajPropozycje(regula, rekordId);
+  const wynik = await wykonajPropozycje(regula, rekordId, decyzja === "zrob-alt" ? "alt" : "glowny");
   // 409, nie 400: żądanie było poprawne, tylko stan zdążył się zmienić —
   // panel ma na to odpowiedzieć odświeżeniem listy, a nie komunikatem o błędzie.
   if (!wynik.ok) return NextResponse.json({ error: wynik.komunikat }, { status: 409 });

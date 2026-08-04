@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
@@ -62,9 +62,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     dedupeKey: `offer_change_requested:${offer.id}:${tresc.slice(0, 40)}`,
   });
 
-  await logClientEvent(
+  await logZdarzenieDokumentu(
     sql,
-    typeof offer.client_id === "string" ? offer.client_id : null,
+    celDokumentu(offer),
     "offer_change_requested",
     `Klient prosi o zmianę w ofercie „${tytul}” — ${tresc.slice(0, 500)}`,
     null,

@@ -6,8 +6,10 @@ import {
   kluczPropozycji,
   odfiltrujOdrzucone,
   zdanieKlientAktywny,
+  zdanieOdrzuconaOferta,
   zdanieOpiniaZamykaProjekt,
   zdanieWygranyLead,
+  zdanieZerwanyProjekt,
   type Propozycja,
 } from "../lib/propozycje";
 
@@ -121,4 +123,47 @@ test("strażnik przepuszcza dokładnie znane reguły", () => {
   // Spacja na końcu — dokładnie ta pułapka, którą przy Projektach omijała
   // bramka umowy („W trakcie " przechodziło jako inny status).
   assert.equal(isRegulaPropozycji("opinia-zamyka-projekt "), false);
+});
+
+/* ── Krok 4 planu po drugim przejściu (B1, B2) ─────────────────────────────
+ * Dwie nowe reguły są jedynymi skutkami drogi, która się NIE UDAJE. Zdanie
+ * musi cytować POWÓD odmowy (bo to on rozstrzyga, którą z dwóch dróg wybrać)
+ * i wymieniać, co przy zerwanym projekcie wisi — bo od tego zależy, czy
+ * zamknięcie jest formalnością, czy zostawia otwartą sprawę pieniędzy. */
+
+test("zdanie o odrzuconej ofercie cytuje powód odmowy", () => {
+  assert.equal(
+    zdanieOdrzuconaOferta("Chłodnie Wisła", "Za drogo"),
+    "Chłodnie Wisła odrzuciła ofertę (Za drogo), a lead dalej jest otwarty — zamknąć go czy wrócić za 3 miesiące?"
+  );
+});
+
+test("zdanie o odrzuconej ofercie bez powodu nie zostawia pustego nawiasu", () => {
+  const z = zdanieOdrzuconaOferta("Chłodnie Wisła", "");
+  assert.ok(!z.includes("()"), z);
+  assert.ok(z.startsWith("Chłodnie Wisła odrzuciła ofertę, a lead"), z);
+});
+
+test("zdanie o odrzuconej ofercie bez nazwy firmy nie mówi „undefined”", () => {
+  const z = zdanieOdrzuconaOferta("", "Za drogo");
+  assert.ok(z.startsWith("Lead odrzuciła ofertę"), z);
+});
+
+test("zdanie o zerwanym projekcie wymienia to, co wisi", () => {
+  assert.equal(
+    zdanieZerwanyProjekt("Automatyzacja ofertowania", [
+      "faktura FV 93/2026 czeka nieopłacona",
+      "jeden dokument wisi bez podpisu",
+    ]),
+    "Projekt „Automatyzacja ofertowania” jest oznaczony jako zerwany, ale status wciąż mówi „W trakcie”, " +
+      "a faktura FV 93/2026 czeka nieopłacona i jeden dokument wisi bez podpisu — wstrzymać projekt?"
+  );
+});
+
+test("zdanie o zerwanym projekcie bez zaległości nie zostawia wiszącego „a”", () => {
+  const z = zdanieZerwanyProjekt("Automatyzacja ofertowania", []);
+  assert.equal(
+    z,
+    "Projekt „Automatyzacja ofertowania” jest oznaczony jako zerwany, ale status wciąż mówi „W trakcie” — wstrzymać projekt?"
+  );
 });

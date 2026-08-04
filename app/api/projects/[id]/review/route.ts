@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureHubSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureHubSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { PROJECT_REVIEW_CONSENT_TEXT } from "@/lib/projects";
 import type { DocLang } from "@/lib/documents";
@@ -64,12 +64,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   `;
 
   if (!wasSubmitted) {
-    const clientId = typeof project.client_id === "string" ? project.client_id : null;
+    const cel = celDokumentu(project);
     const avg = ((jakosc + terminowosc + komunikacja) / 3).toFixed(1);
     const tytul = typeof project.tytul === "string" && project.tytul ? project.tytul : "projekt";
-    await logClientEvent(
+    await logZdarzenieDokumentu(
       sql,
-      clientId,
+      cel,
       "review_collected",
       `Zebrano opinię o „${tytul}” (wpisana ręcznie) — średnia ocena ${avg}/5${consentCaseStudy ? ", zgoda na referencję" : ""}`,
       null,

@@ -129,6 +129,32 @@ export function parsePgTimestamp(wartosc: string | null | undefined): Date | nul
 }
 
 /**
+ * Dzień KALENDARZOWY (Europa/Warszawa) ze znacznika czasu z bazy.
+ *
+ * Znaleziona przy okazji kroku 4 (2026-08-05) — nie jest to żadne z B1–B4.
+ * Baza oddaje `accepted_at` w UTC, a cały panel liczy dni kalendarzowe wg
+ * `todayLocalISO()`, czyli wg strefy warszawskiej. Samo `slice(0, 10)` na
+ * znaczniku bierze więc dzień UTC i te dwie odpowiedzi rozjeżdżają się między
+ * północą a drugą w nocy — a wyszła z tego DATA NA UMOWIE: oferta przyjęta
+ * o 00:30 dawała termin realizacji o dzień za wczesny. Objaw był niewidoczny
+ * przez 22 godziny na dobę, więc trudno go było spotkać inaczej niż
+ * przypadkiem (sonda przejścia złapała go o 00:40).
+ *
+ * `null`, gdy znacznika nie da się odczytać — wołający ma to obsłużyć, a nie
+ * dostać zgadywaną datę.
+ */
+export function dzienZnacznika(wartosc: string | null | undefined): string | null {
+  const d = parsePgTimestamp(wartosc);
+  if (!d) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Warsaw",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/**
  * Data po polsku ("21.07.2026") — jedyna droga, którą data z bazy ma prawo
  * trafić przed oczy człowieka. `CLAUDE.md` mówi to wprost: nigdy surowego ISO.
  *

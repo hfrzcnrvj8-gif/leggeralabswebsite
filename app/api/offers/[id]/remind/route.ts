@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureOffersSchema, ensureOfferShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, ensureOfferShareToken, logZdarzenieDokumentu, odnotujWyslanaWiadomosc, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { sendEmail } from "@/lib/email";
@@ -73,14 +73,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     await sql`UPDATE offers SET przypomniano_at = now(), updated_at = now() WHERE id = ${id};`;
-    await logClientEvent(
-      sql,
-      typeof offer.client_id === "string" ? offer.client_id : null,
-      "offer_sent",
-      `Przypomniano o ofercie „${tytul}”`,
-      null,
-      id
-    );
+    const cel = celDokumentu(offer);
+    await logZdarzenieDokumentu(sql, cel, "offer_sent", `Przypomniano o ofercie „${tytul}”`, null, id);
+    // B3 — przypomnienie to też wiadomość, która poszła do klienta.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

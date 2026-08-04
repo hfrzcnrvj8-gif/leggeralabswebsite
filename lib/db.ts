@@ -13,6 +13,7 @@ import {
   SZABLON_PIERWSZY_KONTAKT_TEMAT,
   SZABLON_PIERWSZY_KONTAKT_TRESC,
 } from "./hunterOutreach";
+import { todayLocalISO } from "./dates";
 
 export type Sql = NeonQueryFunction<false, false>;
 
@@ -383,6 +384,21 @@ async function createSchema(): Promise<void> {
   // kanał niż telefon).
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS wynik TEXT;`;
   await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS czas_trwania_sek INTEGER;`;
+  // Krok 4 planu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md` (znalezisko B1). Do
+  // 2026-08-05 do tej tabeli pisali WYŁĄCZNIE „prawdziwi ludzie": ręczny wpis,
+  // webhook telefonii, synchronizacja poczty i przejęcie kandydata z Łowcy.
+  // Żadna trasa dokumentowa — więc lead, do którego wyszła oferta, został
+  // otwarty przez klienta i wrócił z odmową, miał log PUSTY.
+  //
+  // `kind` odróżnia wpis SYSTEMOWY (te same klucze co `client_events.kind`,
+  // więc ta sama mapa ikon) od kontaktu wpisanego ręcznie — NULL. Po tym
+  // rozróżnieniu idą trzy rzeczy: ikona na osi leada, zakaz kasowania wpisu
+  // systemowego i — najważniejsze — brak DUBLI na osi klienta, która dociąga
+  // `lead_activity` leada, z którego klient powstał (patrz GET
+  // /api/clients/:id). Zdarzenie dokumentowe klienta mieszka w `client_events`;
+  // tu jest jego bliźniak dla karty leada.
+  await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS kind TEXT;`;
+  await sql`ALTER TABLE lead_activity ADD COLUMN IF NOT EXISTS related_id TEXT;`;
 
   await markSchemaApplied("leads");
 }
@@ -1933,6 +1949,102 @@ export async function logClientEvent(
     INSERT INTO client_events (id, client_id, kind, text, amount, related_id)
     VALUES (${randomUUID()}, ${clientId}, ${kind}, ${text}, ${amount ?? null}, ${relatedId ?? null});
   `;
+}
+
+/** Zapisz zdarzenie systemowe na osi LEADA — bliźniak `logClientEvent`, tak
+ * samo cichy no-op, gdy `leadId` jest null.
+ *
+ * Krok 4 planu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md` (znalezisko B1). Osobna
+ * tabela, a nie kolumna w `client_events`, bo lead ma własną kartę i własny
+ * log, do którego się zagląda — i dlatego, że dokument potrafi wisieć przy
+ * leadzie, z którego karty klienta jeszcze NIE zrobiono (`client_id` puste →
+ * `logClientEvent` nie zapisuje wtedy NIGDZIE).
+ *
+ * `kind` niepuste = wpis systemowy; patrz komentarz przy migracji kolumny. */
+export async function logLeadActivity(
+  sql: Sql,
+  leadId: string | null,
+  kind: string,
+  text: string,
+  relatedId?: string | null
+): Promise<void> {
+  if (!leadId) return;
+  await sql`
+    INSERT INTO lead_activity (id, lead_id, kind, text, related_id)
+    VALUES (${randomUUID()}, ${leadId}, ${kind}, ${text}, ${relatedId ?? null});
+  `;
+}
+
+/** Do kogo należy zdarzenie dokumentowe: karta klienta, karta leada albo obie.
+ *  Dokumenty (oferty, umowy, faktury, projekty) mają OBIE kolumny i zwykle
+ *  wypełnione obie — dokument bywa podpięty do leada i do klienta naraz. */
+export type CelZdarzenia = { clientId: string | null; leadId: string | null };
+
+/** Cel wprost z wiersza dokumentu. Osobna funkcja, żeby czterdzieści miejsc
+ *  nie powtarzało tego samego `typeof … === "string" ? … : null`. */
+export function celDokumentu(row: { client_id?: unknown; lead_id?: unknown } | null | undefined): CelZdarzenia {
+  return {
+    clientId: typeof row?.client_id === "string" && row.client_id ? row.client_id : null,
+    leadId: typeof row?.lead_id === "string" && row.lead_id ? row.lead_id : null,
+  };
+}
+
+/**
+ * Zdarzenie dokumentowe na WSZYSTKICH osiach, których dotyczy.
+ *
+ * Jedno wywołanie zamiast dwóch, bo znalezisko B1 wzięło się dokładnie stąd,
+ * że trasa odrzucenia oferty **wołała** `logClientEvent` — tyle że po drugiej
+ * stronie nie było adresata. Wołający ma podać cel raz (`celDokumentu(wiersz)`)
+ * i nie zastanawiać się, która karta akurat istnieje.
+ *
+ * Świadomie NIE jest to reguła liczona z danych (jak `lib/propozycje.ts`):
+ * „klient otworzył ofertę" nie da się odtworzyć po fakcie ze stanu bazy, więc
+ * log musi powstać w chwili zdarzenia. Za to WOŁANIE go ze wszystkich dróg
+ * pilnuje ten wspólny pomocnik — inaczej obowiązywałby tam, gdzie ktoś pamiętał
+ * dopisać linijkę (lekcja Fazy 2: wysyłek okazało się siedem, nie cztery).
+ */
+export async function logZdarzenieDokumentu(
+  sql: Sql,
+  cel: CelZdarzenia,
+  kind: string,
+  text: string,
+  amount?: number | null,
+  relatedId?: string | null
+): Promise<void> {
+  await logClientEvent(sql, cel.clientId, kind, text, amount, relatedId);
+  await logLeadActivity(sql, cel.leadId, kind, text, relatedId);
+}
+
+/**
+ * Wyszła wiadomość do klienta → „Ostatni kontakt" idzie za nią.
+ *
+ * Krok 4, znalezisko B3. Decyzja właściciela z 2026-08-05: **kontaktem jest
+ * wysłana wiadomość**, a nie czynność własna w panelu. Wystawienie faktury czy
+ * odnotowanie podpisu to nie jest rozmowa z klientem, więc daty nie ruszają;
+ * wysłana oferta, przypomnienie, faktura, wezwanie, prośba o opinię i kontakt
+ * kontrolny — ruszają.
+ *
+ * To AUTOMAT, nie propozycja (granica z `CLAUDE.md`): skutek jest wywołany
+ * świadomym kliknięciem właściciela i jest oczywisty. Pytanie, na które
+ * odpowiedź brzmi „tak" za każdym razem, uczy klikać bez czytania.
+ *
+ * Bliźniak dla poczty zwykłej mieszka w `lib/mailSync.ts` (`logMailOnTimeline`)
+ * i robi dokładnie to samo — tamten dla maili z wątku, ten dla dokumentów.
+ * Data KALENDARZOWA, bo `ostatni_kontakt` to kolumna DATE (patrz `lib/leads.ts`
+ * → `daysSince`).
+ */
+export async function odnotujWyslanaWiadomosc(
+  sql: Sql,
+  cel: CelZdarzenia,
+  kanal: string = "email"
+): Promise<void> {
+  const dzis = todayLocalISO();
+  if (cel.clientId) {
+    await sql`UPDATE clients SET ostatni_kontakt = ${dzis}, ostatni_kanal = ${kanal}, updated_at = now() WHERE id = ${cel.clientId};`;
+  }
+  if (cel.leadId) {
+    await sql`UPDATE leads SET ostatni_kontakt = ${dzis}, ostatni_kanal = ${kanal}, updated_at = now() WHERE id = ${cel.leadId};`;
+  }
 }
 
 /**

@@ -24,7 +24,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { ensureFollowupsSchema, logClientEvent, type Sql } from "./db";
+import { ensureFollowupsSchema, logClientEvent, logZdarzenieDokumentu, type Sql } from "./db";
 import { CLOSED_PROJECT_STATUSES } from "./projects";
 import { NURTURE_OFFSETS } from "./clients";
 import { todayLocalISO } from "./dates";
@@ -39,12 +39,12 @@ import { addDaysISO } from "./documents";
  */
 export async function skutkiZmianyStatusuProjektu(
   sql: Sql,
-  projekt: { id: string; tytul: string; clientId: string | null },
+  projekt: { id: string; tytul: string; clientId: string | null; leadId?: string | null },
   nowyStatus: string
 ): Promise<void> {
-  await logClientEvent(
+  await logZdarzenieDokumentu(
     sql,
-    projekt.clientId,
+    { clientId: projekt.clientId, leadId: projekt.leadId ?? null },
     "project_status_changed",
     `Projekt „${projekt.tytul}” → ${nowyStatus}`,
     null,

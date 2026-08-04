@@ -11967,3 +11967,178 @@ wydruk aneksu nr 2:
 faktura, rubryka „Wynika z":
   oferty — brak — · umowy UM-2026-… · aneksu nr 1 — obowiązuje 15 000,00 zł
 ```
+
+---
+
+## Krok 4 planu po drugim przejściu — porażka jest zdarzeniem jak każde inne (2026-08-05)
+
+Plan: `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`, znaleziska **B1–B4**.
+
+### Problem
+
+Panel znał komplet skutków drogi, która się **udaje**, i ani jednego skutku
+drogi, która się **nie udaje**. Akceptacja oferty sama przestawiała lead na
+„Zamknięte - sukces" (`lib/offerAccept.ts`). Odrzucenie nie robiło **nic** —
+lead zostawał w „Do kontaktu" z podpowiedzią „Zrób pierwszy ruch", po tym jak
+oferta wyszła, została otwarta i wróciła z odmową.
+
+### B1 — log leada widzi cykl życia dokumentu
+
+Trasa odrzucenia **wołała** `logClientEvent`. Brakowało ADRESATA: funkcja jest
+cichym no-opem przy pustym `client_id`, a nawet z klientem pisze wyłącznie na oś
+**klienta**. Lead ma własną kartę i własny log (`lead_activity`), do którego nie
+pisała ani jedna trasa dokumentowa — pisarzy było czterech i wszyscy to
+„prawdziwy kontakt" (ręczny wpis, webhook telefonii, `lib/mailSync.ts`, przejęcie
+kandydata z Łowcy).
+
+Doszły trzy rzeczy w `lib/db.ts`, obok `logClientEvent`:
+
+| funkcja | co robi |
+|---|---|
+| `logLeadActivity` | bliźniak `logClientEvent` dla osi leada |
+| `celDokumentu(wiersz)` | `{clientId, leadId}` wprost z wiersza dokumentu |
+| `logZdarzenieDokumentu` | jedno wywołanie na obie osie naraz |
+
+`lead_activity` dostała kolumny **`kind`** (te same klucze co
+`client_events.kind`, więc ta sama mapa ikon z `admin/icons.tsx`) i
+`related_id`. `kind` niepuste = wpis SYSTEMOWY i odpowiada na trzy pytania:
+
+1. **którą ikonę narysować** na osi leada (`ClientEventIcon`),
+2. **czy wolno wpis skasować** — nie wolno, i pilnuje tego TRASA
+   (`DELETE /api/leads/:id/activity/:activityId` → **409**), nie brak kosza
+   w interfejsie,
+3. **czy pokazać go na osi klienta** — NIE. `GET /api/clients/:id` dociąga
+   `lead_activity` leada, z którego powstał klient, więc bez warunku
+   `kind IS NULL` każde zdarzenie widniałoby tam **dwa razy**. Zdarzenia
+   dokumentowe klient dostaje z `client_events`; `lead_activity` dokłada mu
+   wyłącznie prawdziwe kontakty sprzed awansu, dokładnie jak dotąd.
+
+**Wołane ze WSZYSTKICH tras dokumentowych** (oferty, umowy i aneksy, faktury,
+projekty, powiązania wsteczne, cron windykacyjny) — nie z czterech, które akurat
+było widać. Ta sama lekcja co z Fazy 2 („bramka miała obowiązywać w czterech
+miejscach, a wysyłek okazało się siedem").
+
+**Mapa procesu „2/15" nie była osobną usterką** — `LEAD_STATUS_STEP` to czysta
+funkcja statusu. Po zatwierdzeniu propozycji zmieniła się sama na „15/15
+Nurture". `lib/process.ts` nietknięte.
+
+### B1 — propozycja z DWIEMA drogami wyjścia
+
+Nowa reguła `odrzucona-oferta-domyka-leada` w `lib/propozycje.ts`. Pierwsza
+i jedyna z polem **`akcjaAlt`**:
+
+```
+Chłodnie Wisła odrzuciła ofertę (Za drogo — chcą sam PoC na dwóch trasach),
+a lead dalej jest otwarty — zamknąć go czy wrócić za 3 miesiące?
+   [Zamknij lead]   [Kontakt za 3 mies.]   [Nie teraz]
+```
+
+Zdanie **cytuje powód odmowy**, bo to on rozstrzyga, którą drogę wybrać.
+Trasa przyjmuje `decyzja: "zrob-alt"` obok „zrob"/„odrzuc"/„przywroc" — osobna
+wartość w tym samym wyliczeniu, a nie flaga obok „zrob".
+
+Reguła **milczy** w trzech sytuacjach i każda z nich to normalna praca:
+lead ma inną żywą ofertę (po odrzuceniu wersji 1 wysyła się wersję 2), lead ma
+już umówione przypomnienie (decyzja zapadła), lead jest już zamknięty.
+
+### B2 — projekt, który idzie źle
+
+Sekcja **„Projekty, które idą źle"** na Pulpicie i w dziennym mailu
+(`isProjectAtRisk`, `lib/projects.ts`). Osobna od „Projektów z minionym
+terminem", bo zerwać projekt można na długo PRZED terminem — w drugim przejściu
+termin był 49 dni w przyszłości.
+
+Do tego propozycja `zerwany-projekt-domkniecie`, która ustawia status
+**„Wstrzymane"** — nie „Wdrożone", bo to znaczy ODEBRANE. Odpowiedź leżała
+w instrukcji panelu, którą kod ignorował (`lib/instrukcje.ts`: „projekt, którego
+nie chcesz widzieć, lepiej oznaczyć »Wstrzymane«"). Zdanie propozycji wymienia,
+co przy projekcie wisi: „…a faktura FV 93/2026 czeka nieopłacona".
+
+**Doszedł `NIEPRACUJACE_PROJECT_STATUSES`** (`Wdrożone` + `Wstrzymane`), szerszy
+niż `CLOSED_PROJECT_STATUSES` (`Wdrożone`). To NIE jest dublowanie — te dwa
+zbiory odpowiadają na różne pytania:
+
+| zbiór | pytanie | skutek |
+|---|---|---|
+| `CLOSED_PROJECT_STATUSES` | czy zlecenie ZAMKNIĘTE? | planuje kontakty kontrolne |
+| `NIEPRACUJACE_PROJECT_STATUSES` | czy ktoś nad tym PRACUJE? | `isProjectOverdue` milczy |
+
+Gdyby „Wstrzymane" wpadło do pierwszego, panel wysłałby klientowi „jak leci?"
+po **zerwanym** projekcie.
+
+### B3 — kontaktem jest wysłana wiadomość
+
+Decyzja właściciela z 2026-08-05. `odnotujWyslanaWiadomosc` (`lib/db.ts`) ustawia
+`ostatni_kontakt` i `ostatni_kanal = 'email'` **leadowi i klientowi naraz**,
+wołane z ośmiu dróg wysyłki: oferta, przypomnienie o ofercie, umowa/aneks,
+przypomnienie o podpisie, faktura, przypomnienie i wezwanie do zapłaty
+(także z crona), prośba o opinię, kontakt kontrolny.
+
+To **AUTOMAT**, nie propozycja — skutek wywołany świadomym kliknięciem i
+oczywisty (granica z `CLAUDE.md`). Wystawienie faktury, odnotowanie podpisu
+i utworzenie dokumentu daty **nie ruszają**: to czynność własna, nie rozmowa
+z klientem. Bliźniak dla zwykłej poczty siedzi od dawna w `lib/mailSync.ts`
+(`logMailOnTimeline`) i robi dokładnie to samo.
+
+### B4 — dokument zaczęty i porzucony
+
+Plan formułował to jako „nic nie przypomina o niepodpisanym aneksie" i to jest
+mylne: `staleContracts` (Moduł 31) **nie filtruje po `typ`**, więc wysłany aneks
+pokazuje się na Pulpicie od dawna. Aneks z drugiego przejścia był `Szkic` —
+nigdy nie wyszedł.
+
+Sekcja **„Zaczęte i porzucone dokumenty"** (`isContractForgottenDraft`,
+`lib/contracts.ts`) — bliźniak `draftInvoices`: szkic z kontrahentem, starszy
+niż dzisiejszy dzień. Dokument, nad którym właśnie pracujesz, nie ma prawa
+wyskakiwać jako zaległość.
+
+| sekcja | pytanie |
+|---|---|
+| Umowy czekające na podpis | wysłałem i czekam |
+| Zaczęte i porzucone dokumenty | zacząłem i zapomniałem |
+
+### Dwa błędy dat złapane po drodze (spoza tego kroku)
+
+Oba niewidoczne przez większość doby, oba znalezione o 00:40 przez sondę.
+
+1. **`dzienZnacznika` (`lib/dates.ts`)** — termin realizacji na UMOWIE liczył się
+   z `accepted_at.slice(0, 10)`, czyli z dnia **UTC**, a cały panel liczy dni
+   kalendarzowo wg strefy warszawskiej (`todayLocalISO`). Oferta przyjęta między
+   północą a drugą w nocy dawała termin o dzień za wczesny.
+2. **`addDaysISO` (`lib/documents.ts`)** dodawał milisekundy do lokalnej daty,
+   więc **gubił dzień na przedziale przechodzącym przez zmianę czasu**: 90 dni
+   od 05.08.2026 dawało 02.11 zamiast 03.11 (noc 25.10 ma 25 godzin). Dotykało
+   terminu płatności faktury cyklicznej, kontaktu kontrolnego po projekcie
+   i powrotu do leada po odmowie. Liczy teraz przez `addDaysToISO` (arytmetyka
+   w UTC), które od początku było na to odporne.
+
+### Czego nie zrobiono
+
+- **Apka iOS** nie pokazuje drugiej akcji propozycji ani dwóch nowych sekcji
+  Pulpitu. Trasy oddają komplet (`akcjaAlt`, `decyzja: "zrob-alt"`,
+  `projektyZagrozone`, `zapomnianeSzkiceUmow`) — to robota po stronie apki, jak
+  rozwijacz windykacji z kroku 2 i propozycja z kroku 3.
+- **Drogi porażki nie ma w `scripts/przejscie/przejscie.ts`** — to jawnie krok 5.
+
+### Sprawdzenie
+
+`tsc` czysto, `npm test` **336/336** (`test/porazka.test.ts` — 10 sprawdzeń
+pilnujących, że nowe reguły MILCZĄ na normalnej pracy), `npm run przejscie`
+**68 działa · 0 regresji · 0 pominiętych**.
+
+Osobna sonda drogi porażki na dev-bazie — 27 sprawdzeń, wszystkie zielone.
+Zmierzone w panelu:
+
+```
+log leada (przed krokiem 4 — pusty):
+  · Odrzucono ofertę „Oferta — Chłodnie Wisła" — Za drogo — chcą sam PoC…
+  · Klient otworzył ofertę „Oferta — Chłodnie Wisła"
+  · Wysłano ofertę „Oferta — Chłodnie Wisła" mailem
+  · Utworzono ofertę „Oferta — Chłodnie Wisła"
+  · Awansował z leada przy tworzeniu pierwszej oferty
+  (kosz: 0 z 5 — wpisy systemowe; ręczna notatka kosz MA, 24×24 px)
+
+oś klienta:  odrzucenie widnieje DOKŁADNIE raz, jako [system]
+ostatni kontakt:  05.08.2026 · email   (przed krokiem 4: —)
+mapa procesu:  2/15 „Pierwszy kontakt"  →  15/15 „Nurture"
+```

@@ -51,8 +51,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { getSql, logClientEvent, type Sql } from "./db";
+import { getSql, logClientEvent, logLeadActivity, type Sql } from "./db";
 import { formatPlDate } from "./projects";
+import { addDaysISO } from "./documents";
+import { todayLocalISO } from "./dates";
+import { rejectReasonLabel } from "./offers";
 import { formatMoney } from "./invoices";
 import { domyslnaStawkaVat } from "./offerAccept";
 import { skutkiZmianyStatusuProjektu } from "./skutkiProjektu";
@@ -72,9 +75,28 @@ export const REGULY_PROPOZYCJI = [
    *  z 2026-08-04: PROPOZYCJA, nie automat — kwoty na dokumencie księgowym nie
    *  zmieniają się bez jego kliknięcia. */
   "faktura-wg-obowiazujacych-warunkow",
+  /** B1 (drugie przejście) — oferta wróciła z odmową, a lead stoi tam, gdzie
+   *  stał. Do kroku 4 panel znał komplet skutków drogi, która się UDAJE
+   *  (akceptacja przestawia lead sama, `lib/offerAccept.ts`) i ani jednego
+   *  skutku drogi, która się nie udaje. Jedyna reguła z DWIEMA drogami
+   *  wyjścia — decyzja właściciela z 2026-08-05, bo powód odmowy sam
+   *  podpowiada, którą wybrać („za drogo" wraca za kwartał, „wybrali
+   *  konkurencję" nie). */
+  "odrzucona-oferta-domyka-leada",
+  /** B2 (drugie przejście) — zdrowie „Zerwany", a status dalej „W trakcie",
+   *  więc projekt wszędzie liczy się jako praca w toku. Propozycja, nie
+   *  automat: to jedyny skutek tego kroku, który ZAMYKA rekord (decyzja
+   *  właściciela 2026-08-05). */
+  "zerwany-projekt-domkniecie",
 ] as const;
 
 export type RegulaPropozycji = (typeof REGULY_PROPOZYCJI)[number];
+
+/** Za ile wracamy do leada, który odrzucił ofertę (druga droga wyjścia z B1).
+ *  Kwartał — ta sama miara co dłuższy kontakt kontrolny po projekcie
+ *  (`NURTURE_OFFSETS` w lib/clients.ts), żeby panel nie miał dwóch różnych
+ *  odpowiedzi na to samo pytanie „kiedy to już nie jest nagabywanie". */
+export const DNI_DO_POWROTU_PO_ODMOWIE = 90;
 
 export function isRegulaPropozycji(v: unknown): v is RegulaPropozycji {
   return typeof v === "string" && (REGULY_PROPOZYCJI as readonly string[]).includes(v);
@@ -92,8 +114,22 @@ export type Propozycja = {
   zdanie: string;
   /** Napis na przycisku „zrób to" — czasownik, nie „OK". */
   akcja: string;
+  /**
+   * DRUGA droga wyjścia, gdy zdarzenie ma dwa sensowne skutki i panel nie ma
+   * podstaw wybrać za właściciela (krok 4, znalezisko B1: odrzucona oferta —
+   * zamknąć lead czy wrócić za kwartał). Brak = jedna akcja, jak dotąd.
+   *
+   * Świadomie NIE lista akcji: dwie to maksimum, przy trzech pytanie przestaje
+   * być pytaniem, a staje się formularzem — a wtedy lepsze jest otwarcie
+   * rekordu i decyzja na miejscu.
+   */
+  akcjaAlt?: string;
   link: string;
 };
+
+/** Którą drogą wyjścia poszedł właściciel. `alt` istnieje tylko dla reguł,
+ *  które podały `akcjaAlt`. */
+export type WariantPropozycji = "glowny" | "alt";
 
 /** Klucz pary (reguła, rekord) — po nim zapisuje się „nie teraz" i po nim
  *  odróżnia się propozycje w interfejsie. */
@@ -142,6 +178,33 @@ export function zdanieRozjazdFaktury(
   );
 }
 
+/**
+ * B1 — oferta wróciła z odmową, a lead stoi tam, gdzie stał.
+ *
+ * Zdanie CYTUJE powód odrzucenia, bo to on rozstrzyga, którą z dwóch dróg
+ * wybrać: „za drogo" bywa warte powrotu za kwartał, „wybrali konkurencję"
+ * raczej nie. Bez powodu pytanie brzmiałoby jak rzut monetą.
+ */
+export function zdanieOdrzuconaOferta(firma: string, powodOpis: string): string {
+  const kto = nazwaLub(firma, "Lead");
+  const powod = nazwaLub(powodOpis, "");
+  return `${kto} odrzuciła ofertę${powod ? ` (${powod})` : ""}, a lead dalej jest otwarty — zamknąć go czy wrócić za 3 miesiące?`;
+}
+
+/**
+ * B2 — projekt zerwany, a status mówi „W trakcie".
+ *
+ * Zdanie wymienia to, co przy tym projekcie WISI (nieopłacona faktura,
+ * niepodpisany dokument), bo od tego zależy, czy zamknięcie jest samą
+ * formalnością, czy zostawia sprawę pieniędzy otwartą. Plan wprost tego
+ * wymaga („…a faktura FV 93/2026 czeka nieopłacona — co z nią?").
+ */
+export function zdanieZerwanyProjekt(tytul: string, wiszace: string[]): string {
+  const co = nazwaLub(tytul, "Projekt");
+  const ogon = wiszace.length ? `, a ${wiszace.join(" i ")}` : "";
+  return `Projekt „${co}” jest oznaczony jako zerwany, ale status wciąż mówi „W trakcie”${ogon} — wstrzymać projekt?`;
+}
+
 export function zdanieKlientAktywny(nazwa: string, numerFaktury: string): string {
   // „zapłacił(a)" — ta sama forma co w regułach spójności. Nazwa firmy bywa
   // dowolnego rodzaju, a zgadywanie go z końcówki jest gorsze niż nawias.
@@ -169,7 +232,11 @@ type Regula = {
    * (ktoś zamknął projekt ręcznie, ktoś przestawił klienta), zwraca
    * `nieaktualne` zamiast udawać, że coś zrobił.
    */
-  wykonaj: (sql: Sql, rekordId: string) => Promise<{ ok: boolean; komunikat: string }>;
+  wykonaj: (
+    sql: Sql,
+    rekordId: string,
+    wariant: WariantPropozycji
+  ) => Promise<{ ok: boolean; komunikat: string }>;
 };
 
 const NIEAKTUALNE = { ok: false, komunikat: "Ta propozycja jest już nieaktualna — stan zmienił się w międzyczasie." };
@@ -200,7 +267,7 @@ const REGULY: Regula[] = [
       const zmienione = await sql`
         UPDATE projects SET status = 'Wdrożone', updated_at = now()
         WHERE id = ${rekordId} AND review_submitted_at IS NOT NULL AND status <> 'Wdrożone'
-        RETURNING id, tytul, client_id;
+        RETURNING id, tytul, client_id, lead_id;
       `;
       if (zmienione.length === 0) return NIEAKTUALNE;
       const p = zmienione[0];
@@ -212,6 +279,7 @@ const REGULY: Regula[] = [
           id: rekordId,
           tytul: typeof p.tytul === "string" ? p.tytul : "Projekt",
           clientId: typeof p.client_id === "string" ? p.client_id : null,
+          leadId: typeof p.lead_id === "string" ? p.lead_id : null,
         },
         "Wdrożone"
       );
@@ -348,6 +416,149 @@ const REGULY: Regula[] = [
       };
     },
   },
+  {
+    regula: "odrzucona-oferta-domyka-leada",
+    modul: "leads",
+    zbierz: async (sql) => {
+      // Trzy zawężenia i każde odsiewa NORMALNĄ pracę, nie usterkę:
+      //
+      // 1. `NOT EXISTS (żywa oferta)` — po odrzuceniu wersji 1 wysyła się
+      //    wersję 2. Dopóki cokolwiek jest w grze, gra trwa i pytanie
+      //    o zamknięcie leada byłoby szumem.
+      // 2. `next_followup IS NULL` — jeśli właściciel już umówił sobie powrót,
+      //    to podjął decyzję. Reguła nie ma prawa pytać drugi raz.
+      // 3. status leada poza zamkniętymi — bo wtedy nie ma czego domykać.
+      //
+      // DISTINCT ON po leadzie: trzy odrzucone oferty tego samego leada to
+      // jedno pytanie, nie trzy („jedna na rekord" — decyzja właściciela).
+      const r = await sql`
+        SELECT DISTINCT ON (l.id) l.id, l.firma, o.powod_odrzucenia, o.komentarz_odrzucenia
+        FROM leads l JOIN offers o ON o.lead_id = l.id
+        WHERE o.status = 'Odrzucona'
+          AND l.status NOT IN ('Zamknięte - sukces', 'Odrzucone / brak zainteresowania')
+          AND l.next_followup IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM offers z
+            WHERE z.lead_id = l.id AND z.status IN ('Szkic', 'Wysłana', 'Zaakceptowana')
+          )
+        ORDER BY l.id, o.odrzucona_at DESC NULLS LAST
+        LIMIT 50;
+      `;
+      return r.map((w) => ({
+        regula: "odrzucona-oferta-domyka-leada" as const,
+        rekordId: String(w.id),
+        modul: "leads" as const,
+        zdanie: zdanieOdrzuconaOferta(
+          String(w.firma ?? ""),
+          rejectReasonLabel(String(w.powod_odrzucenia ?? ""), String(w.komentarz_odrzucenia ?? ""))
+        ),
+        akcja: "Zamknij lead",
+        akcjaAlt: "Kontakt za 3 mies.",
+        link: `/pl/admin/leads/${w.id}`,
+      }));
+    },
+    wykonaj: async (sql, rekordId, wariant) => {
+      // Warunek wejścia w UPDATE-cie („claim"), nie osobnym SELECT-em — ta sama
+      // zasada co przy pozostałych regułach.
+      if (wariant === "alt") {
+        const dzis = todayLocalISO();
+        const zmienione = await sql`
+          UPDATE leads
+          SET next_followup = ${addDaysISO(dzis, DNI_DO_POWROTU_PO_ODMOWIE)},
+              next_action = ${"Wrócić do tematu — poprzednia oferta odrzucona"},
+              updated_at = now()
+          WHERE id = ${rekordId} AND next_followup IS NULL
+            AND status NOT IN ('Zamknięte - sukces', 'Odrzucone / brak zainteresowania')
+          RETURNING id, next_followup;
+        `;
+        if (zmienione.length === 0) return NIEAKTUALNE;
+        return {
+          ok: true,
+          komunikat: `Kontakt umówiony na ${formatPlDate(String(zmienione[0].next_followup ?? "").slice(0, 10))}.`,
+        };
+      }
+      const zmienione = await sql`
+        UPDATE leads SET status = 'Odrzucone / brak zainteresowania', updated_at = now()
+        WHERE id = ${rekordId} AND status NOT IN ('Zamknięte - sukces', 'Odrzucone / brak zainteresowania')
+        RETURNING id, firma;
+      `;
+      if (zmienione.length === 0) return NIEAKTUALNE;
+      // Log przy ZDARZENIU (a nie reguła z danych): „lead zamknięty, bo oferta
+      // wróciła z odmową" nie da się odtworzyć później ze stanu bazy.
+      await logLeadActivity(
+        sql,
+        rekordId,
+        "lead_closed",
+        "Lead zamknięty jako „Odrzucone / brak zainteresowania” — po odrzuconej ofercie"
+      );
+      return { ok: true, komunikat: "Lead zamknięty." };
+    },
+  },
+  {
+    regula: "zerwany-projekt-domkniecie",
+    modul: "projects",
+    zbierz: async (sql) => {
+      // Co przy tym projekcie WISI — nieopłacona wystawiona faktura i dokument
+      // bez podpisu. Dwa podzapytania w jednym przebiegu, żeby zdanie mówiło
+      // konkret („a faktura FV 93/2026 czeka nieopłacona"), a nie ogólnik.
+      const r = await sql`
+        SELECT p.id, p.tytul,
+          (SELECT string_agg(i.numer, ', ' ORDER BY i.numer)
+             FROM invoices i
+            WHERE i.project_id = p.id AND i.status = 'Wystawiona'
+              AND i.typ_dokumentu <> 'proforma') AS nieoplacone,
+          (SELECT COUNT(*)::int FROM contracts c
+            WHERE c.project_id = p.id AND c.status IN ('Szkic', 'Wysłana')) AS bez_podpisu
+        FROM projects p
+        WHERE p.zdrowie = 'Zerwany' AND p.status NOT IN ('Wdrożone', 'Wstrzymane')
+        ORDER BY p.updated_at DESC LIMIT 50;
+      `;
+      return r.map((w) => {
+        const wiszace: string[] = [];
+        const numery = typeof w.nieoplacone === "string" ? w.nieoplacone : "";
+        if (numery) wiszace.push(`faktura ${numery} czeka nieopłacona`);
+        const bezPodpisu = Number(w.bez_podpisu ?? 0);
+        if (bezPodpisu > 0) {
+          wiszace.push(bezPodpisu === 1 ? "jeden dokument wisi bez podpisu" : `${bezPodpisu} dokumenty wiszą bez podpisu`);
+        }
+        return {
+          regula: "zerwany-projekt-domkniecie" as const,
+          rekordId: String(w.id),
+          modul: "projects" as const,
+          zdanie: zdanieZerwanyProjekt(String(w.tytul ?? ""), wiszace),
+          akcja: "Wstrzymaj projekt",
+          link: `/pl/admin/projects/${w.id}`,
+        };
+      });
+    },
+    wykonaj: async (sql, rekordId) => {
+      // „Wstrzymane", nie „Wdrożone": zerwany projekt nie został ODEBRANY.
+      // Instrukcja w panelu (`lib/instrukcje.ts`) od dawna wskazuje ten status
+      // jako miejsce dla projektu, którego się nie prowadzi — dopiero tu kod
+      // zaczyna tej obietnicy dotrzymywać (patrz NIEPRACUJACE_PROJECT_STATUSES).
+      const zmienione = await sql`
+        UPDATE projects SET status = 'Wstrzymane', updated_at = now()
+        WHERE id = ${rekordId} AND zdrowie = 'Zerwany' AND status NOT IN ('Wdrożone', 'Wstrzymane')
+        RETURNING id, tytul, client_id, lead_id;
+      `;
+      if (zmienione.length === 0) return NIEAKTUALNE;
+      const p = zmienione[0];
+      // Ten sam komplet skutków, co ręczna zmiana statusu w panelu. Nurture
+      // się NIE zaplanuje — „Wstrzymane" nie jest w CLOSED_PROJECT_STATUSES,
+      // i o to chodzi: do zerwanego projektu nie wraca się z „jak leci?".
+      await skutkiZmianyStatusuProjektu(
+        sql,
+        {
+          id: rekordId,
+          tytul: typeof p.tytul === "string" ? p.tytul : "Projekt",
+          clientId: typeof p.client_id === "string" ? p.client_id : null,
+          leadId: typeof p.lead_id === "string" ? p.lead_id : null,
+        },
+        "Wstrzymane"
+      );
+      return { ok: true, komunikat: "Projekt wstrzymany. Faktury i umowy zostają — trzeba je domknąć osobno." };
+    },
+  },
 ];
 
 // ── Odczyt i decyzje ───────────────────────────────────────────────────────
@@ -412,11 +623,12 @@ export async function odrzuconePropozycje(): Promise<{ regula: string; rekordId:
 
 export async function wykonajPropozycje(
   regula: RegulaPropozycji,
-  rekordId: string
+  rekordId: string,
+  wariant: WariantPropozycji = "glowny"
 ): Promise<{ ok: boolean; komunikat: string }> {
   const r = REGULY.find((x) => x.regula === regula);
   if (!r) return { ok: false, komunikat: "Nieznana propozycja." };
-  return await r.wykonaj(getSql(), rekordId);
+  return await r.wykonaj(getSql(), rekordId, wariant);
 }
 
 /** „Nie teraz" — trwale, na zawsze dla tej pary. */

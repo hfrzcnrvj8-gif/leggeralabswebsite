@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureOffersSchema, ensureClientsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -44,9 +44,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     // Oś czasu klienta dostaje duplikat tak samo jak ofertę z POST /api/offers
     // — to też jest nowa oferta, tylko o krótszej drodze powstania.
-    await logClientEvent(
+    await logZdarzenieDokumentu(
       sql,
-      typeof src.client_id === "string" ? src.client_id : null,
+      celDokumentu(src),
       "offer_created",
       `Utworzono ofertę „${src.tytul || "(bez tytułu)"}” (duplikat)`,
       null,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureContractsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { type Contract, type PoprzednieWarunki } from "@/lib/contracts";
 import { warunkiZlecenia } from "@/lib/warunkiObowiazujace";
@@ -138,9 +138,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       );
     `;
 
-    await logClientEvent(
+    await logZdarzenieDokumentu(
       sql,
-      typeof src.client_id === "string" ? src.client_id : null,
+      celDokumentu(src),
       "contract_created",
       `Sporządzono aneks nr ${nr} do umowy ${poprzednie.reference}`,
       null,

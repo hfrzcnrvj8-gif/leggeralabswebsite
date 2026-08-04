@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureOffersSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { getSql, ensureOffersSchema, ensureClientsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { zasiejOsobeZMigawki } from "@/lib/clientContacts";
 import { zKlienta, zLeada, scalDaneKlienta, zapiszDaneKlienta, PUSTE_DANE_KLIENTA } from "@/lib/przepisanie";
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
         );
       `;
       await sql`UPDATE leads SET client_id = ${clientId}, updated_at = now() WHERE id = ${leadId};`;
-      await logClientEvent(sql, clientId, "client_created", "Awansował z leada przy tworzeniu pierwszej oferty");
+      await logZdarzenieDokumentu(sql, { clientId, leadId }, "client_created", "Awansował z leada przy tworzeniu pierwszej oferty");
       // Patrz `zasiejOsobeZMigawki` (Moduł 54, krok 4).
       await zasiejOsobeZMigawki(sql, clientId, String(lead.osoba_kontaktowa ?? ""));
     }
@@ -147,6 +147,6 @@ export async function POST(req: NextRequest) {
   const dane = scalDaneKlienta(zrodlo, { ...PUSTE_DANE_KLIENTA, nazwa: klientNazwa });
   await zapiszDaneKlienta(sql, "oferta", id, dane);
 
-  await logClientEvent(sql, clientId, "offer_created", `Utworzono ofertę „${tytul || "(bez tytułu)"}”`, null, id);
+  await logZdarzenieDokumentu(sql, { clientId, leadId }, "offer_created", `Utworzono ofertę „${tytul || "(bez tytułu)"}”`, null, id);
   return NextResponse.json({ ok: true, id });
 }

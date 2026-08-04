@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema, ensureContractShareToken, logClientEvent, kopertaDokumentu } from "@/lib/db";
+import { celDokumentu, getSql, ensureContractsSchema, ensureContractShareToken, logZdarzenieDokumentu, odnotujWyslanaWiadomosc, kopertaDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { zlozMail } from "@/lib/kopertaMaila";
@@ -142,8 +142,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // rusza od nowa (inaczej umowa wysłana drugi raz krzyczałaby dalej "cisza
     // od 20 dni", mimo że przypomniałeś wczoraj).
     await sql`UPDATE contracts SET sent_at = now() WHERE id = ${id};`;
-    const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
-    await logClientEvent(sql, clientId, "contract_sent", `Wysłano ${label.toLowerCase()} mailem`, null, id);
+    const cel = celDokumentu(contract);
+    await logZdarzenieDokumentu(sql, cel, "contract_sent", `Wysłano ${label.toLowerCase()} mailem`, null, id);
+    // B3 — dokument do podpisu poszedł mailem, więc to kontakt.
+    await odnotujWyslanaWiadomosc(sql, cel);
 
     // Patrz analogiczna adnotacja w app/api/offers/[id]/send.
     return NextResponse.json({ ok: true, status, shareToken: token });

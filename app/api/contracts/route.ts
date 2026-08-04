@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getSql, ensureContractsSchema, ensureOffersSchema, ensureLeadsSchema, ensureClientsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureContractsSchema, ensureOffersSchema, ensureLeadsSchema, ensureClientsSchema, logClientEvent, logZdarzenieDokumentu } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import type { Offer, OfferItem } from "@/lib/offers";
 import type { Lead } from "@/lib/leads";
 import { terminZCzasuRealizacji, zDokumentu, zKlienta, zLeada, zapiszDaneKlienta } from "@/lib/przepisanie";
+import { dzienZnacznika } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -75,8 +76,12 @@ export async function POST(req: NextRequest) {
     // akceptacji, umowa — konkretną datę. Liczymy ją dopiero tutaj, bo dopiero
     // teraz znamy dzień akceptacji. Bez tego termin wpisywało się drugi raz,
     // z pamięci. `null`, gdy oferta nie podała czasu — wtedy jak dotąd.
+    // Przez `dzienZnacznika`, nie `slice(0, 10)`: baza oddaje `accepted_at`
+    // w UTC, a panel liczy dni kalendarzowe wg strefy warszawskiej. Oferta
+    // przyjęta między północą a drugą w nocy dawała termin o dzień za wczesny
+    // — na UMOWIE. Złapane sondą przejścia 2026-08-05 o 00:40.
     const terminRealizacji = terminZCzasuRealizacji(
-      typeof offer.accepted_at === "string" ? offer.accepted_at : null,
+      dzienZnacznika(typeof offer.accepted_at === "string" ? offer.accepted_at : null),
       (offer as unknown as Record<string, unknown>).czas_realizacji_tygodnie
     );
 
@@ -105,7 +110,7 @@ export async function POST(req: NextRequest) {
       WHERE offer_id = ${offerId} AND contract_id IS NULL;
     `;
 
-    await logClientEvent(sql, offer.client_id, "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`, null, id);
+    await logZdarzenieDokumentu(sql, celDokumentu(offer), "contract_created", `Wygenerowano umowę z oferty „${offer.tytul || "(bez tytułu)"}”`, null, id);
     return NextResponse.json({ ok: true, id });
   }
 
@@ -162,7 +167,7 @@ export async function POST(req: NextRequest) {
       ? (await sql`SELECT nazwa, nip, ulica, kod, miasto, kraj, email FROM clients WHERE id = ${lead.client_id};`)[0]
       : undefined;
     await zapiszDaneKlienta(sql, "umowa", id, klientNdaRow ? zKlienta(klientNdaRow) : zLeada(lead as unknown as Record<string, unknown>));
-    if (lead.client_id) await logClientEvent(sql, lead.client_id, "nda_created", "Utworzono NDA", null, id);
+    await logZdarzenieDokumentu(sql, { clientId: typeof lead.client_id === "string" ? lead.client_id : null, leadId }, "nda_created", "Utworzono NDA", null, id);
     return NextResponse.json({ ok: true, id });
   }
 

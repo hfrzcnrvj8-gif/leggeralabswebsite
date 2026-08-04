@@ -491,6 +491,46 @@ export function isContractStale(c: Pick<Contract, "status" | "sent_at">, now: nu
   return days != null && days >= CONTRACT_STALE_DAYS;
 }
 
+/**
+ * Dokument, który ktoś zaczął i o którym zapomniał — krok 4, znalezisko B4.
+ *
+ * **To NIE jest to samo co `isContractStale`** i na tym polega cała pułapka
+ * tego znaleziska. Plan mówił „nic nie przypomina o niepodpisanym aneksie",
+ * ale `staleContracts` nie filtruje po `typ`, więc WYSŁANY aneks pokazuje się
+ * na Pulpicie od Modułu 31. Aneks z drugiego przejścia był `Szkic` — nigdy
+ * nie wyszedł. Luka brzmi więc „zacząłem i zapomniałem", nie „wysłałem
+ * i czekam".
+ *
+ * Bliźniak: `draftInvoices` w `app/api/hub/today` — ten sam kształt (szkic
+ * z treścią, starszy niż dzisiejszy dzień) i ten sam powód: dokument, nad
+ * którym właśnie pracujesz, nie ma prawa wyskakiwać jako zaległość.
+ *
+ * „Z treścią" = ma do kogo być adresowany. Umowa bez nazwy kontrahenta to
+ * pusty formularz, a nie zapomniana robota.
+ */
+export function isContractForgottenDraft(
+  c: Pick<Contract, "status" | "klient_nazwa" | "created_at">,
+  today: string
+): boolean {
+  if (c.status !== "Szkic") return false;
+  if (!c.klient_nazwa || !c.klient_nazwa.trim()) return false;
+  return String(c.created_at ?? "").slice(0, 10) < today;
+}
+
+/** Ile dni szkic leży nietknięty — do zdania „…od 5 dni" na Pulpicie.
+ *  Dni KALENDARZOWE liczone z `created_at`, tak samo jak wiek szkicu faktury. */
+export function contractDraftAgeDays(
+  c: Pick<Contract, "created_at">,
+  today: string
+): number {
+  const powstal = String(c.created_at ?? "").slice(0, 10);
+  if (!powstal) return 0;
+  const a = new Date(`${powstal}T00:00:00`).getTime();
+  const b = new Date(`${today}T00:00:00`).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
 /** Czy projekt wystartował formalnie zgodnie z zasadą "papier przed pracą".
  *
  * Miara Etapu 3 z mapy drogi klienta (cel: 100%). Liczona TYLKO po projektach

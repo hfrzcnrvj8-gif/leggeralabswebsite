@@ -222,6 +222,10 @@ const CLIENT_EVENT: Record<string, TablerIcon> = {
   review_collected: IconStar,
   nurture_contact_sent: IconRepeat,
   client_status_changed: IconHeartHandshake,
+  // Krok 4 (B1) — jedyny rodzaj, który powstaje WYŁĄCZNIE na osi leada
+  // (`logLeadActivity`, lib/db.ts). Mapa jest wspólna dla obu osi, więc
+  // mieszka tutaj razem z resztą, a nie w osobnym słowniku leadów.
+  lead_closed: IconArchive,
 };
 
 /** `null` dla nieznanego rodzaju — wołający renderuje wtedy kropkę, jak

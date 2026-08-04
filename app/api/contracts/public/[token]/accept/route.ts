@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
+import { celDokumentu, getSql, ensureContractsSchema, logZdarzenieDokumentu } from "@/lib/db";
 import { notify } from "@/lib/notificationLog";
 import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
@@ -77,12 +77,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   `;
   if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });
 
-  const clientId = typeof contract.client_id === "string" ? contract.client_id : null;
+  const cel = celDokumentu(contract);
   // Słownik typów — patrz komentarz w contracts/[id]/accept. Bez tego klient
   // podpisujący ANEKS dzwonił powiadomieniem „Umowa podpisana" i taki sam wpis
   // szedł na oś czasu, obok wciąż obowiązującej umowy o tej samej nazwie.
   const label = CONTRACT_TYP_LABEL[contract.typ as ContractTyp] ?? "Umowa";
-  await logClientEvent(sql, clientId, "contract_signed", `${label}: podpis złożył(a) ${name}${role ? ` (${role})` : ""}`, null, contract.id);
+  await logZdarzenieDokumentu(sql, cel, "contract_signed", `${label}: podpis złożył(a) ${name}${role ? ` (${role})` : ""}`, null, contract.id);
 
   // Centrum powiadomień (Moduł 24 + 31) — TYLKO tutaj, na publicznej trasie.
   // Bliźniaczy `contracts/[id]/accept` to ręczne "Oznacz jako podpisaną",
@@ -96,9 +96,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // Ślad wyrównania terminu (A6). Wyrównanie jest automatem — decyzja
   // właściciela — więc jedyne, co odróżnia je od cichej podmiany, to ten wpis.
   if (skutek.wyrownanieTerminu) {
-    await logClientEvent(
+    await logZdarzenieDokumentu(
       sql,
-      clientId,
+      cel,
       "project_deadline_aligned",
       zdanieWyrownaniaTerminu(skutek.wyrownanieTerminu),
       null,

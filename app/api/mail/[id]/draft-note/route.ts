@@ -43,7 +43,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       ostatniaNotatka: noteRows[0]?.text ? String(noteRows[0].text) : null,
     };
   } else if (row.lead_id) {
-    const noteRows = await sql`SELECT text FROM lead_activity WHERE lead_id = ${row.lead_id} ORDER BY created_at DESC LIMIT 1;`;
+    // `kind IS NULL` — model ma dostać ostatnią NOTATKĘ, nie ostatni ślad
+    // systemowy („Wysłano ofertę … mailem"). Od kroku 4 w tej tabeli leżą oba
+    // rodzaje wpisów (patrz `logLeadActivity` w lib/db.ts).
+    const noteRows = await sql`SELECT text FROM lead_activity WHERE lead_id = ${row.lead_id} AND kind IS NULL ORDER BY created_at DESC LIMIT 1;`;
     client = {
       nazwa: String(row.lead_nazwa || ""),
       branza: String(row.lead_branza || ""),
