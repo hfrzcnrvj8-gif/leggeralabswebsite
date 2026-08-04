@@ -13,6 +13,7 @@ import {
   offerSilenceDays,
   isOfferStale,
   offerLiczySieDoStatystyk,
+  ocenAkceptacje,
   obliczZwrot,
 } from "../lib/offers.ts";
 import { podstawPola } from "../lib/offerTemplates.ts";
@@ -189,4 +190,78 @@ test("blokada nie zamyka pól, które nie są treścią dokumentu", () => {
   assert.equal(ruszaTresc({ wazna_do: "2026-09-01" }, POLA_MIMO_BLOKADY_OFERTY), false);
   assert.equal(ruszaTresc({ tytul: "Nowy" }, POLA_MIMO_BLOKADY_OFERTY), true);
   assert.equal(ruszaTresc({ status: "Wysłana", tytul: "Nowy" }, POLA_MIMO_BLOKADY_OFERTY), true);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Drugie przejście „na sucho" (2026-08-04), znaleziska A1 i A2. Bramka
+// akceptacji istniała, ale znała tylko dwa stany z pięciu: przepuszczała ofertę
+// ODRZUCONĄ i ZASTĄPIONĄ nową wersją, bo `isOfferExpired()` zwraca dla nich
+// `false` (zwiera na CLOSED_OFFER_STATUSES). Skutek zmierzony na dev-bazie:
+// klient ze starym linkiem dostawał 200, a panel zakładał projekt i szkic
+// faktury po nieaktualnej cenie.
+//
+// Ten test pilnuje KOMPLETU listy — po jednym przypadku na stan — bo dokładnie
+// jej niekompletność była błędem, a nie brak samej bramki.
+
+const oferta = (o: Partial<Parameters<typeof ocenAkceptacje>[0]>) => ({
+  status: "Wysłana" as const,
+  wazna_do: "2099-01-01",
+  superseded_at: null,
+  ...o,
+});
+
+test("ocenAkceptacje: oferta w grze przechodzi", () => {
+  assert.equal(ocenAkceptacje(oferta({})).mozna, true);
+  // Bez daty ważności też — „bez terminu" nie znaczy „przeterminowana".
+  assert.equal(ocenAkceptacje(oferta({ wazna_do: null })).mozna, true);
+  assert.equal(ocenAkceptacje(oferta({ status: "Szkic" })).mozna, true);
+});
+
+test("ocenAkceptacje: oferta odrzucona nie da się zaakceptować", () => {
+  const w = ocenAkceptacje(oferta({ status: "Odrzucona" }));
+  assert.equal(w.mozna, false);
+  assert.equal(w.mozna === false && w.powod, "odrzucona");
+  assert.equal(w.mozna === false && w.status, 409);
+});
+
+test("ocenAkceptacje: oferta zastąpiona nową wersją nie da się zaakceptować", () => {
+  // Nowa wersja zostawia poprzedniej status „Wygasła" PLUS superseded_at.
+  // Powód ma być „zastapiona", nie „wygasla" — dla klienta ze starym linkiem
+  // to jedyna informacja, która mówi mu, co zrobić dalej.
+  const w = ocenAkceptacje(oferta({ status: "Wygasła", superseded_at: "2026-08-04 13:59:26+01" }));
+  assert.equal(w.mozna, false);
+  assert.equal(w.mozna === false && w.powod, "zastapiona");
+});
+
+test("ocenAkceptacje: zamknięta ręcznie jako wygasła też nie przechodzi", () => {
+  const w = ocenAkceptacje(oferta({ status: "Wygasła" }));
+  assert.equal(w.mozna, false);
+  assert.equal(w.mozna === false && w.powod, "wygasla");
+});
+
+test("ocenAkceptacje: po dacie ważności — stan sprzed poprawki, ma zostać", () => {
+  const w = ocenAkceptacje(oferta({ wazna_do: "2000-01-01" }));
+  assert.equal(w.mozna, false);
+  assert.equal(w.mozna === false && w.powod, "przeterminowana");
+});
+
+test("ocenAkceptacje: podwójna akceptacja dalej daje 400, nie 409", () => {
+  // Panel rozpoznaje po tym kodzie wyścig dwóch kart — nie wolno go zmienić
+  // przy okazji dokładania stanów zamkniętych.
+  const w = ocenAkceptacje(oferta({ status: "Zaakceptowana" }));
+  assert.equal(w.mozna === false && w.powod, "zaakceptowana");
+  assert.equal(w.mozna === false && w.status, 400);
+});
+
+test("ocenAkceptacje: furtki właściciela otwierają tylko to, co mają otwierać", () => {
+  // allowZamknieta przepuszcza odrzuconą i zastąpioną…
+  assert.equal(ocenAkceptacje(oferta({ status: "Odrzucona" }), { allowZamknieta: true }).mozna, true);
+  assert.equal(
+    ocenAkceptacje(oferta({ status: "Wygasła", superseded_at: "2026-08-04" }), { allowZamknieta: true }).mozna,
+    true
+  );
+  // …ale NIE przeterminowanie (to osobna furtka, confirmExpired)…
+  assert.equal(ocenAkceptacje(oferta({ wazna_do: "2000-01-01" }), { allowZamknieta: true }).mozna, false);
+  // …ani podwójnej akceptacji, której nie wolno ominąć niczym.
+  assert.equal(ocenAkceptacje(oferta({ status: "Zaakceptowana" }), { allowZamknieta: true, allowExpired: true }).mozna, false);
 });

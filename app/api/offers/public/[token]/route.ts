@@ -80,7 +80,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   // 200, w bazie było 2026-12-31, a na stronie klienta dalej 2026-08-01.
   // Odwrotny kierunek był gorszy: klient widział ofertę jako ważną i dostawał
   // odmowę przy akceptacji, bo `isOfferExpired` liczy się z danych ŻYWYCH.
-  const ZAWSZE_ZYWE = ["status", "accepted_at", "accepted_by_name", "share_revoked_at", "id", "created_at", "wazna_do"] as const;
+  //
+  // `superseded_at` dołączyło w drugim przejściu (A2): oferta jest zastępowana
+  // PO wysyłce, więc w migawce jest zawsze `null`. Z migawki klient dostawałby
+  // komunikat „ta oferta wygasła" zamiast „została zastąpiona nowszą wersją" —
+  // czyli dokładnie tę informację, która mówi mu, gdzie szukać aktualnej.
+  const ZAWSZE_ZYWE = ["status", "accepted_at", "accepted_by_name", "share_revoked_at", "id", "created_at", "wazna_do", "superseded_at"] as const;
   const naglowek = zMigawki && migawka?.offer
     ? { ...migawka.offer, ...Object.fromEntries(ZAWSZE_ZYWE.map((k) => [k, (offer as Record<string, unknown>)[k]])) }
     : offer;

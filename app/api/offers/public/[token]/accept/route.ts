@@ -13,8 +13,14 @@ export const runtime = "nodejs";
 /** POST /api/offers/public/:token/accept — e-podpis klienta (Faza I).
  * Świadomie brak isAuthed() — token pełni rolę hasła-w-linku, wzorem
  * publicznego GET obok. W przeciwieństwie do adminowej ścieżki NIGDY nie
- * omija wygaśnięcia oferty (brak odpowiednika confirmExpired) — klient nie
- * może samodzielnie "ożywić" starej oferty jednym kliknięciem. */
+ * ustawia furtek `allowExpired` / `allowZamknieta` — klient nie może
+ * samodzielnie "ożywić" starej oferty jednym kliknięciem.
+ *
+ * Do 2026-08-04 „stara oferta" znaczyła tu wyłącznie „po dacie ważności".
+ * Oferta ODRZUCONA i oferta ZASTĄPIONA nową wersją przechodziły (200) —
+ * powstawał z nich projekt i szkic faktury po nieaktualnej cenie. Komplet
+ * stanów trzyma teraz `ocenAkceptacje()` w lib/offers.ts, wołane przez
+ * acceptOffer() poniżej. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
@@ -78,7 +84,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   });
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error, expired: result.expired }, { status: result.status });
+    return NextResponse.json({ error: result.error, expired: result.expired, powod: result.powod }, { status: result.status });
   }
 
   // Centrum powiadomień (Moduł 24 + 31) — TYLKO na publicznej trasie, nie w

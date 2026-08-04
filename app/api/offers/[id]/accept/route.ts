@@ -27,11 +27,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const result = await acceptOffer(offer, items as { nazwa: string; ilosc: number; jednostka: string; cena: number; opcjonalna?: boolean; wybrana?: boolean }[], {
     template: typeof body.template === "string" ? body.template : undefined,
     allowExpired: body.confirmExpired === true,
+    // Właściciel może ożywić ofertę odrzuconą albo zastąpioną — ale dopiero po
+    // potwierdzeniu w panelu, tym samym wzorcem co confirmExpired.
+    allowZamknieta: body.confirmZamknieta === true,
     acceptedByName: null,
   });
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error, expired: result.expired }, { status: result.status });
+    return NextResponse.json({ error: result.error, expired: result.expired, powod: result.powod }, { status: result.status });
   }
   return NextResponse.json({ ok: true, projectId: result.projectId, invoiceId: result.invoiceId });
 }

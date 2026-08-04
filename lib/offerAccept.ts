@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { withTransaction, logClientEvent } from "./db";
 import { getProjectTemplate, expandProjectTemplate, DEFAULT_ONBOARDING_ITEMS } from "./projects";
-import { isOfferExpired, itemLiczySie, DEFAULT_OFFER_CURRENCY, type Offer } from "./offers";
+import { ocenAkceptacje, itemLiczySie, DEFAULT_OFFER_CURRENCY, type Offer, type PowodOdmowyAkceptacji } from "./offers";
 import { tytulProjektuZOferty, zDokumentu, zapiszDaneKlienta } from "./przepisanie";
 
 /** Stawka VAT dla pozycji SZKICU faktury zakładanego przy akceptacji oferty.
@@ -32,7 +32,7 @@ export function domyslnaStawkaVat(kraj: string | null | undefined): string {
 
 export type AcceptOfferResult =
   | { ok: true; projectId: string; invoiceId: string }
-  | { ok: false; status: number; error: string; expired?: boolean };
+  | { ok: false; status: number; error: string; expired?: boolean; powod?: PowodOdmowyAkceptacji };
 
 /** Sentinel do wymuszenia ROLLBACK-u z wewnątrz `withTransaction`, gdy
  * przegraliśmy wyścig o "claim" oferty — łapane niżej i zamieniane na zwykły
@@ -59,6 +59,11 @@ export async function acceptOffer(
      * potwierdzeniu (body.confirmExpired) — publiczna ścieżka klienta nigdy
      * tego nie ustawia, żeby nie dało się "ożywić" starej oferty linkiem. */
     allowExpired?: boolean;
+    /** To samo dla oferty ZAMKNIĘTEJ: odrzuconej albo zastąpionej nową wersją
+     * (body.confirmZamknieta). Właściciel ma prawo ożywić ofertę, gdy klient
+     * się rozmyślił — bez tej furtki przycisk „Akceptuj" na odrzuconej
+     * ofercie byłby ślepym zaułkiem. Klient przez link — nigdy. */
+    allowZamknieta?: boolean;
     /** Ustawione = klient podpisał się sam przez /oferta/[token]. Puste =
      * zaakceptowano ręcznie w panelu. */
     acceptedByName?: string | null;
@@ -66,11 +71,19 @@ export async function acceptOffer(
     acceptedUserAgent?: string | null;
   }
 ): Promise<AcceptOfferResult> {
-  if (offer.status === "Zaakceptowana") {
-    return { ok: false, status: 400, error: "Oferta jest już zaakceptowana." };
-  }
-  if (isOfferExpired(offer) && !opts.allowExpired) {
-    return { ok: false, status: 409, error: "Oferta jest przeterminowana (minęła data ważności).", expired: true };
+  // Jedna lista stanów, wspólna ze stroną klienta — patrz ocenAkceptacje().
+  // NIE dopisuj tu warunków w miejscu: strona i serwer rozjadą się w tydzień.
+  const ocena = ocenAkceptacje(offer, { allowExpired: opts.allowExpired, allowZamknieta: opts.allowZamknieta });
+  if (!ocena.mozna) {
+    return {
+      ok: false,
+      status: ocena.status,
+      error: ocena.error,
+      powod: ocena.powod,
+      // `expired` zostaje dla zgodności — OfferEditor rozpoznaje po nim
+      // przeterminowanie i proponuje akceptację mimo to.
+      expired: ocena.powod === "przeterminowana" ? true : undefined,
+    };
   }
   // Na fakturę i do zakresu projektu idą tylko pozycje, które KLIENT
   // faktycznie kupuje: obowiązkowe zawsze, opcjonalne wyłącznie zaznaczone

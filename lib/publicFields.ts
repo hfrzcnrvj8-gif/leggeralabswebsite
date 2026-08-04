@@ -146,6 +146,13 @@ export const OFFER_PUBLIC_FIELDS = [
   "roi_godziny",
   "roi_stawka",
   "status",
+  // Drugie przejście (A2): bez tego pola strona klienta nie odróżnia oferty
+  // ZASTĄPIONEJ nową wersją od zwykłej wygasłej — `ocenAkceptacje()` widziała
+  // `undefined` i pokazywała „Ta oferta wygasła" zamiast „została zastąpiona
+  // nowszą wersją". Serwer blokował poprawnie, bo czyta pełny wiersz; rozjazd
+  // był w DANYCH, nie w logice. Nie niesie niczego o kliencie — to znacznik
+  // naszego dokumentu.
+  "superseded_at",
   "tytul",
   "uwagi",
   "wazna_do",

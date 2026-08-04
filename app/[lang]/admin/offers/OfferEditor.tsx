@@ -435,12 +435,16 @@ export function OfferEditor({
   );
 
   const accept = useCallback(
-    async (template?: string, confirmExpired?: boolean) => {
+    async (template?: string, confirmExpired?: boolean, confirmZamknieta?: boolean) => {
       setAccepting(true);
       const res = await fetch(`/api/offers/${id}/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...(template ? { template } : {}), ...(confirmExpired ? { confirmExpired: true } : {}) }),
+        body: JSON.stringify({
+          ...(template ? { template } : {}),
+          ...(confirmExpired ? { confirmExpired: true } : {}),
+          ...(confirmZamknieta ? { confirmZamknieta: true } : {}),
+        }),
       });
       setAccepting(false);
       if (res.ok) {
@@ -449,10 +453,25 @@ export function OfferEditor({
         onChange?.();
         return;
       }
-      const data = (await res.json().catch(() => ({}))) as { error?: string; expired?: boolean };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; expired?: boolean; powod?: string };
       if (res.status === 409 && data.expired) {
         const ok = await confirm("Ta oferta jest przeterminowana (minęła data ważności). Zaakceptować mimo to?", { danger: true });
         if (ok) await accept(template, true);
+        return;
+      }
+      // Oferta zamknięta (odrzucona albo zastąpiona nową wersją). Serwer
+      // odmawia domyślnie — także właścicielowi — bo z takiej oferty powstaje
+      // projekt i faktura po nieaktualnych warunkach. Ale klient bywa, że się
+      // rozmyśli, więc zamiast martwego przycisku dajemy drogę wyjścia
+      // z jawnym ostrzeżeniem, czym to grozi.
+      if (res.status === 409 && (data.powod === "odrzucona" || data.powod === "zastapiona")) {
+        const ok = await confirm(
+          data.powod === "zastapiona"
+            ? "Ta oferta została zastąpiona nowszą wersją. Akceptując JĄ, założysz projekt i fakturę na nieaktualnych warunkach — nowsza wersja zostanie bez decyzji. Na pewno?"
+            : "Ta oferta została odrzucona. Zaakceptować mimo to (klient się rozmyślił)?",
+          { danger: true }
+        );
+        if (ok) await accept(template, confirmExpired, true);
         return;
       }
       toast(data.error ?? "Nie udało się zaakceptować oferty.", "error");

@@ -48,15 +48,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // Moduł 40: to najważniejsze z sześciu miejsc. Bez tego warunku ktoś ze
   // starym linkiem mógłby PODPISAĆ umowę mimo unieważnienia.
   if (contract.share_revoked_at) return NextResponse.json({ error: SHARE_LINK_REVOKED_MESSAGE }, { status: 410 });
+  // Dokument ZAMKNIĘTY — druga połowa znaleziska A1 z drugiego przejścia,
+  // znaleziona przy jego naprawianiu po stronie ofert. Trasa pilnowała tylko
+  // stanu „Podpisana" (przez claim niżej), więc umowę ODRZUCONĄ dało się
+  // starym linkiem podpisać: zmierzone `Odrzucona → Podpisana`, 200, z zapisem
+  // `accepted_by_name`. Skutek cięższy niż przy ofercie — z martwego dokumentu
+  // robi się dokument wiążący.
+  if (contract.status === "Odrzucona") {
+    return NextResponse.json(
+      { error: "Ten dokument został zamknięty i nie da się go już podpisać.", powod: "odrzucona" },
+      { status: 409 }
+    );
+  }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = req.headers.get("user-agent") ?? null;
 
+  // Jedyny stan, z którego wolno przejść w „Podpisana". Sformułowanie przez
+  // wyliczenie dozwolonego, nie przez wykluczanie kolejnych zakazanych —
+  // wykluczanie było właśnie tym, co przepuściło „Odrzuconą".
   const claimed = await sql`
     UPDATE contracts SET status = 'Podpisana', accepted_at = now(),
       accepted_by_name = ${name}, accepted_by_role = ${role || null},
       accepted_ip = ${ip}, accepted_user_agent = ${userAgent}, updated_at = now()
-    WHERE id = ${contract.id} AND status != 'Podpisana'
+    WHERE id = ${contract.id} AND status = 'Wysłana'
     RETURNING id;
   `;
   if (claimed.length === 0) return NextResponse.json({ error: "Dokument już podpisany." }, { status: 409 });

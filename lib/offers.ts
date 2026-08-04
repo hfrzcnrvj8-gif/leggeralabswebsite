@@ -310,6 +310,81 @@ export function offerLiczySieDoStatystyk(o: Pick<Offer, "superseded_at">): boole
   return !o.superseded_at;
 }
 
+/** Dlaczego oferty nie da się (już) zaakceptować. Nazwy są stabilne — wracają
+ * w JSON-ie tras, a panel i strona klienta dobierają po nich komunikat. */
+export type PowodOdmowyAkceptacji =
+  | "zaakceptowana"
+  | "zastapiona"
+  | "odrzucona"
+  | "wygasla"
+  | "przeterminowana";
+
+export type OcenaAkceptacji =
+  | { mozna: true }
+  | { mozna: false; powod: PowodOdmowyAkceptacji; status: number; error: string };
+
+/** JEDNO miejsce, które odpowiada na pytanie „czy tę ofertę wolno jeszcze
+ * zaakceptować".
+ *
+ * Powstało 2026-08-04 po drugim przejściu „na sucho" (znaleziska A1 i A2).
+ * Przedtem tę decyzję podejmowały DWA miejsca, każde po swojemu i każde
+ * z niedokończoną listą:
+ *   - `acceptOffer()` sprawdzała `status === "Zaakceptowana"` i `isOfferExpired`,
+ *   - `OfferPrint` (strona klienta) sprawdzała dokładnie to samo, żeby
+ *     zdecydować, czy pokazać formularz e-podpisu.
+ * Obie przepuszczały ofertę `Odrzucona` i ofertę zastąpioną nową wersją —
+ * bo `isOfferExpired()` zwraca dla nich `false` (zwiera na
+ * CLOSED_OFFER_STATUSES). Skutek zmierzony na dev-bazie: klient ze starym
+ * linkiem dostawał `200`, a panel zakładał projekt i szkic faktury po
+ * nieaktualnej cenie.
+ *
+ * Dlatego funkcja jest tutaj, w `lib/`, a nie w którejś z tych dwóch stron:
+ * strona i serwer MUSZĄ odpowiadać tak samo, inaczej wraca dokładnie ten sam
+ * rozjazd. Wołają ją `lib/offerAccept.ts` i `OfferPrint.tsx`.
+ *
+ * `allowExpired` i `allowZamknieta` to świadome furtki dla WŁAŚCICIELA
+ * (panel, po potwierdzeniu — klient rozmyślił się po odrzuceniu i chce jednak
+ * kupić). Publiczna trasa e-podpisu nie ustawia żadnej z nich, więc nikt
+ * z linkiem nie ożywi zamkniętej oferty sam. */
+export function ocenAkceptacje(
+  offer: Pick<Offer, "status" | "wazna_do" | "superseded_at">,
+  opts?: { allowExpired?: boolean; allowZamknieta?: boolean }
+): OcenaAkceptacji {
+  if (offer.status === "Zaakceptowana") {
+    // Komunikat i kod 400 celowo bez zmian — panel rozpoznaje po nim wyścig
+    // dwóch kart, a nie stan zamknięty.
+    return { mozna: false, powod: "zaakceptowana", status: 400, error: "Oferta jest już zaakceptowana." };
+  }
+  if (!opts?.allowZamknieta) {
+    // Zastąpienie sprawdzamy PRZED statusem: nowa wersja zostawia poprzedniej
+    // status „Wygasła", a dla klienta ze starym linkiem informacja „jest
+    // nowsza wersja" jest użyteczniejsza niż „wygasła".
+    if (offer.superseded_at) {
+      return {
+        mozna: false,
+        powod: "zastapiona",
+        status: 409,
+        error: "Ta oferta została zastąpiona nowszą wersją.",
+      };
+    }
+    if (offer.status === "Odrzucona") {
+      return { mozna: false, powod: "odrzucona", status: 409, error: "Ta oferta została odrzucona." };
+    }
+    if (offer.status === "Wygasła") {
+      return { mozna: false, powod: "wygasla", status: 409, error: "Ta oferta została zamknięta." };
+    }
+  }
+  if (isOfferExpired(offer) && !opts?.allowExpired) {
+    return {
+      mozna: false,
+      powod: "przeterminowana",
+      status: 409,
+      error: "Oferta jest przeterminowana (minęła data ważności).",
+    };
+  }
+  return { mozna: true };
+}
+
 /** Gotowe okresy ważności oferty (dni od dziś) — 7 dni to „decyzja w tym
  * tygodniu", 14 to standard przy większym wdrożeniu, 30 przy budżecie, który
  * musi przejść przez czyjeś biurko. */

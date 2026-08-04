@@ -10,7 +10,7 @@ import {
   itemKwota,
   clientAddressLines,
   offerReference,
-  isOfferExpired,
+  ocenAkceptacje,
   obliczZwrot,
 } from "@/lib/offers";
 import { formatPlDateTime } from "@/lib/dates";
@@ -64,6 +64,12 @@ type Dict = {
   acceptedByLabel: string;
   acceptedNoNameLabel: string;
   expiredLabel: string;
+  /** Oferta zamknięta inaczej niż upływem terminu (drugie przejście, A1/A2).
+   * Do 2026-08-04 klient ze starym linkiem widział na odrzuconej i zastąpionej
+   * ofercie normalny formularz e-podpisu — bo widok pytał wyłącznie
+   * o `isOfferExpired()`, a ta dla statusów zamkniętych zwraca `false`. */
+  supersededLabel: string;
+  rejectedLabel: string;
   privacyNote: string;
   privacyLink: string;
   /** Pozycje opcjonalne (runda 2 Modułu 57) — klient sam decyduje, czy je
@@ -137,6 +143,8 @@ const DICT: Record<OfferLang, Dict> = {
     acceptedByLabel: "Zaakceptowano przez",
     acceptedNoNameLabel: "Oferta zaakceptowana.",
     expiredLabel: "Ta oferta wygasła. Skontaktuj się z nadawcą, aby ustalić dalsze kroki.",
+    supersededLabel: "Ta oferta została zastąpiona nowszą wersją — aktualne warunki znajdziesz w nowszej wiadomości od nas. Ten dokument zostawiamy dla porządku.",
+    rejectedLabel: "Ta oferta została zamknięta. Jeśli chcesz do niej wrócić, po prostu się odezwij — przygotujemy aktualną wersję.",
     privacyNote: "Akceptując, zapisujemy Twoje imię i nazwisko, adres IP oraz datę i godzinę — jako dowód złożenia oświadczenia woli. Szczegóły przetwarzania danych: ",
     privacyLink: "Polityka Prywatności",
     optionalTag: "do wyboru",
@@ -192,6 +200,8 @@ const DICT: Record<OfferLang, Dict> = {
     acceptedByLabel: "Accepted by",
     acceptedNoNameLabel: "Quote accepted.",
     expiredLabel: "This quote has expired. Please contact the sender to discuss next steps.",
+    supersededLabel: "This quote has been replaced by a newer version — you will find the current terms in our more recent message. We are keeping this document for reference.",
+    rejectedLabel: "This quote has been closed. If you would like to revisit it, just get in touch and we will prepare an up-to-date version.",
     privacyNote: "When you accept, we record your name, IP address and the date and time as proof of your declaration. Details on data processing: ",
     privacyLink: "Privacy Policy",
     optionalTag: "optional",
@@ -247,6 +257,8 @@ const DICT: Record<OfferLang, Dict> = {
     acceptedByLabel: "Angenommen von",
     acceptedNoNameLabel: "Angebot angenommen.",
     expiredLabel: "Dieses Angebot ist abgelaufen. Bitte kontaktieren Sie den Absender für die nächsten Schritte.",
+    supersededLabel: "Dieses Angebot wurde durch eine neuere Fassung ersetzt — die aktuellen Konditionen finden Sie in unserer jüngeren Nachricht. Dieses Dokument bleibt zur Referenz bestehen.",
+    rejectedLabel: "Dieses Angebot wurde geschlossen. Wenn Sie darauf zurückkommen möchten, melden Sie sich einfach — wir erstellen eine aktuelle Fassung.",
     privacyNote: "Bei der Annahme speichern wir Ihren Namen, Ihre IP-Adresse sowie Datum und Uhrzeit als Nachweis Ihrer Willenserklärung. Einzelheiten zur Datenverarbeitung: ",
     privacyLink: "Datenschutzerklärung",
     optionalTag: "optional",
@@ -358,6 +370,19 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
   const maOpcjonalne = items.some((it) => it.opcjonalna);
   const zwrot = obliczZwrot(offer, total);
   const zaakceptowana = offer.status === "Zaakceptowana";
+  // TA SAMA funkcja, którą wywołuje serwer w acceptOffer(). Widok nie ma prawa
+  // pokazywać formularza e-podpisu, gdy trasa i tak odmówi — wcześniej pytał
+  // wyłącznie o `isOfferExpired()` i dlatego na ofercie odrzuconej oraz
+  // zastąpionej wyświetlał normalny przycisk „Akceptuję ofertę".
+  const ocena = ocenAkceptacje(offer);
+  const komunikatStanu =
+    ocena.mozna || ocena.powod === "zaakceptowana"
+      ? null
+      : ocena.powod === "zastapiona"
+        ? t.supersededLabel
+        : ocena.powod === "odrzucona"
+          ? t.rejectedLabel
+          : t.expiredLabel;
 
   const przelacz = (id: string) => {
     setWybrane((prev) => {
@@ -723,8 +748,8 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
               ✓ {offer.accepted_by_name ? `${t.acceptedByLabel} ${offer.accepted_by_name}, ${docDate(offer.accepted_at, lang)}` : t.acceptedNoNameLabel}
             </div>
-          ) : isOfferExpired(offer) ? (
-            <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600">{t.expiredLabel}</div>
+          ) : komunikatStanu ? (
+            <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600">{komunikatStanu}</div>
           ) : (
             <div className="rounded-xl border border-neutral-200 bg-white p-4">
               <h2 className="mb-3 text-sm font-semibold text-neutral-900">{t.acceptTitle}</h2>
@@ -768,8 +793,10 @@ export function OfferPrint({ id, token }: { id?: string; token?: string }) {
               Do tej pory klient, który chciał czegoś inaczej, musiał wyjść
               z dokumentu i napisać maila; teraz odpisuje stąd, a prośba trafia
               na oś czasu klienta i do dzwonka. Nie pokazujemy jej przy ofercie
-              zaakceptowanej ani przeterminowanej — tam nie ma czego zmieniać. */}
-          {!zaakceptowana && !isOfferExpired(offer) && (
+              zamkniętej — zaakceptowanej, odrzuconej, zastąpionej ani
+              przeterminowanej. Tam nie ma czego zmieniać, a pole „napisz, co
+              poprawić" pod zastąpioną ofertą sugerowałoby, że wciąż jest w grze. */}
+          {ocena.mozna && (
             <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-4">
               {zmianaWyslana ? (
                 <p className="text-[13px] text-neutral-700">{t.changeSent}</p>
