@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
-import { contractReference, type Contract, type PoprzednieWarunki } from "@/lib/contracts";
+import { type Contract, type PoprzednieWarunki } from "@/lib/contracts";
+import { warunkiZlecenia } from "@/lib/warunkiObowiazujace";
 
 export const runtime = "nodejs";
 
@@ -62,16 +63,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // Warunki OBOWIĄZUJĄCE, nie pierwotne. Przy drugim aneksie „było" musi
     // pokazywać to, co zostało ustalone pierwszym — inaczej dokument twierdzi,
     // że zmienia cenę z pierwotnej, choć strony dawno umówiły się na inną.
-    // Liczy się ostatni PODPISANY aneks; szkice i wysłane bez podpisu jeszcze
-    // niczego nie zmieniły.
-    const ostatniPodpisany = (
-      await sql`
-        SELECT * FROM contracts
-        WHERE parent_contract_id = ${id} AND typ = 'aneks' AND status = 'Podpisana'
-        ORDER BY aneks_nr DESC LIMIT 1;
-      `
-    )[0] as Contract | undefined;
-    const obowiazujace = ostatniPodpisany ?? src;
+    //
+    // Ta reguła mieszkała TUTAJ, zaszyta w trasie. Od kroku 3 planu po drugim
+    // przejściu żyje w `lib/warunkiObowiazujace.ts` i odpowiada też Zdrowiu,
+    // propozycjom faktury i terminowi projektu — bo to jedno pytanie, nie cztery.
+    const warunki = await warunkiZlecenia(sql, id);
+    if (!warunki) return NextResponse.json({ error: "not found" }, { status: 404 });
 
     // Dedupe szkicu (audyt Modułu 11) — ta sama lekcja co przy NDA na leadzie
     // (Moduł 51): przycisk bez śladu po pierwszym kliknięciu mnoży dokumenty.
@@ -102,13 +99,27 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     `)[0];
     const nr = Number(maxNr?.nr ?? 0) + 1;
 
+    // `reference`/`zawarta` to UMOWA-MATKA — tego dotyczy aneks i tak brzmi
+    // jego nagłówek. `zrodlo` to dokument, z którego wzięto CZTERY wartości
+    // niżej. Do 2026-08-04 była tu tylko pierwsza para, więc aneks nr 2
+    // cytował kwotę z aneksu nr 1, powołując się na umowę, w której jej nie
+    // ma (A7). Dwa różne pytania, dwie różne odpowiedzi.
     const poprzednie: PoprzednieWarunki = {
-      reference: contractReference(src),
+      reference: warunki.umowa.reference,
       zawarta: String(src.created_at),
-      zakres_prac: String(obowiazujace.zakres_prac ?? ""),
-      cena: Number(obowiazujace.cena) || 0,
-      waluta: String(obowiazujace.waluta || "PLN"),
-      termin_realizacji: obowiazujace.termin_realizacji ? String(obowiazujace.termin_realizacji).slice(0, 10) : null,
+      zakres_prac: warunki.zakres_prac,
+      cena: warunki.cena,
+      waluta: warunki.waluta,
+      termin_realizacji: warunki.termin_realizacji,
+      zrodlo:
+        warunki.zrodlo.typ === "aneks"
+          ? {
+              reference: warunki.zrodlo.reference,
+              zawarta: warunki.zrodlo.zawarta,
+              aneks_nr: warunki.zrodlo.aneksNr ?? 0,
+              opis: warunki.zrodlo.opis,
+            }
+          : null,
     };
 
     const newId = randomUUID();

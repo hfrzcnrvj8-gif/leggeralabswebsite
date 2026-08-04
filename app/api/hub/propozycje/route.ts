@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureHubSchema, ensureLeadsSchema, ensureClientsSchema, ensureInvoicesSchema } from "@/lib/db";
+import { ensureHubSchema, ensureLeadsSchema, ensureClientsSchema, ensureInvoicesSchema, ensureContractsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import {
   isRegulaPropozycji,
@@ -13,7 +13,7 @@ import {
 
 export const runtime = "nodejs";
 
-const MODULY: ModulPropozycji[] = ["projects", "leads", "clients"];
+const MODULY: ModulPropozycji[] = ["projects", "leads", "clients", "invoices"];
 
 /** Wszystkie schematy, których dotykają reguły — propozycja o kliencie po
  *  opłaconej fakturze pyta o dwie tabele naraz. */
@@ -22,6 +22,9 @@ async function schematy(): Promise<void> {
   await ensureLeadsSchema();
   await ensureClientsSchema();
   await ensureInvoicesSchema();
+  // Umowy doszły z regułą A8 („szkic faktury a podpisany aneks") — pyta
+  // o `contracts` i `invoice_items` w jednym zapytaniu.
+  await ensureContractsSchema();
 }
 
 /** GET /api/hub/propozycje?modul=projects — komplet skutków zdarzenia, które

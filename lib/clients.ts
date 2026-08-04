@@ -135,6 +135,10 @@ export const CLIENT_EVENT_KINDS = [
   "invoice_paid",
   "invoice_dunning_sent",
   "project_status_changed",
+  // Krok 3 planu po drugim przejściu (A6) — podpis umowy/aneksu wyrównał termin
+  // projektu do warunków obowiązujących. To AUTOMAT (decyzja właściciela), więc
+  // ten wpis jest jedynym, co odróżnia go od cichej podmiany daty.
+  "project_deadline_aligned",
   "nurture_scheduled",
   "contract_created",
   "contract_sent",
@@ -188,6 +192,7 @@ export const CLIENT_EVENT_TARGET: Record<string, "offers" | "invoices" | "projec
   invoice_paid: "invoices",
   invoice_dunning_sent: "invoices",
   project_status_changed: "projects",
+  project_deadline_aligned: "projects",
   nurture_scheduled: null,
   contract_created: "contracts",
   contract_sent: "contracts",

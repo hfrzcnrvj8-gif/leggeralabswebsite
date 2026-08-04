@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Locale } from "@/i18n/config";
-import { IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical, IconPlayerPlay, IconPlayerStop, IconClock, IconTrash, IconPencil } from "@tabler/icons-react";
+import { IconTargetArrow, IconPointFilled, IconChevronDown, IconCheck, IconLoader2, IconArrowRight, IconLink, IconX, IconInbox, IconClipboardList, IconGripVertical, IconPlayerPlay, IconPlayerStop, IconClock, IconTrash, IconPencil, IconAlertTriangle } from "@tabler/icons-react";
 import {
   type Project,
   type ProjectTask,
@@ -39,7 +39,7 @@ import type { Lead } from "@/lib/leads";
 import { formatMoney, INVOICE_STATUS_CLASS } from "@/lib/invoices";
 import { contractReference, CONTRACT_STATUS_CLASS, type ContractTyp } from "@/lib/contracts";
 import { type TimeEntry, formatDuration, sumMinutes, effectiveHourlyRate } from "@/lib/time-tracking";
-import { todayLocalISO, parsePgTimestamp } from "@/lib/dates";
+import { todayLocalISO, parsePgTimestamp, odmienPl } from "@/lib/dates";
 import { TIMER_CHANGED_EVENT } from "../AppShell";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { MiniSciezka } from "../MiniSciezka";
@@ -848,6 +848,16 @@ export function ProjectDetailPanel({
 
   const unmilestoned = tasks.filter((t) => !t.milestone_id);
   const overall = progressOf(tasks);
+  // Porównanie na gołych `RRRR-MM-DD` — leksykograficznie to to samo co
+  // chronologicznie, więc bez `new Date()` (znacznik z Postgresa bywa dla niego
+  // `Invalid Date` — lekcja `znacznik-czasu-postgresa`).
+  const terminProjektu = String(project.termin ?? "").slice(0, 10);
+  const kamieniePoTerminie = terminProjektu
+    ? milestones.filter((m) => {
+        const t = String(m.termin ?? "").slice(0, 10);
+        return t !== "" && t > terminProjektu;
+      })
+    : [];
 
   return (
     <div>
@@ -1425,6 +1435,29 @@ export function ProjectDetailPanel({
                 + Nowy kamień milowy
               </button>
             </div>
+
+            {/* Kamienie po terminie projektu (krok 3, decyzja właściciela
+                2026-08-04). Termin z umowy wygrywa z terminem z szablonu, ale
+                kamieni NIE przesuwamy po cichu — mogły być uzgodnione z klientem.
+                Zamiast tego mówimy wprost, że się nie mieszczą. Ostrzeżenie,
+                nie blokada: to jest informacja, a nie błąd do naprawienia teraz. */}
+            {kamieniePoTerminie.length > 0 && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-500/30 !bg-amber-500/10 p-2.5 text-[12.5px] text-amber-200">
+                <IconAlertTriangle size={15} className="mt-0.5 shrink-0" />
+                <span>
+                  {kamieniePoTerminie.length}{" "}
+                  {odmienPl(
+                    kamieniePoTerminie.length,
+                    "kamień milowy wypada",
+                    "kamienie milowe wypadają",
+                    "kamieni milowych wypada"
+                  )}{" "}
+                  po terminie projektu ({formatPlDate(project.termin)}):{" "}
+                  {kamieniePoTerminie.map((m) => m.nazwa).join(", ")}. Przesuń je albo termin — panel nie zrobi
+                  tego za Ciebie.
+                </span>
+              </div>
+            )}
 
             {milestones.length === 0 && unmilestoned.length === 0 ? (
               <div className="flex items-start gap-2 text-sm text-muted opacity-60">

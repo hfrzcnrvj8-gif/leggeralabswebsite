@@ -33,6 +33,13 @@ type Props = {
   lang: Locale;
   /** Pusty = wszystkie (Pulpit). Ustawiony = tylko ten moduł. */
   modul?: ModulPropozycji;
+  /**
+   * Zawężenie do JEDNEGO rekordu — dla profilu/edytora, gdzie propozycja
+   * o sąsiednim dokumencie byłaby szumem („szkic faktury nie zgadza się
+   * z aneksem" przy fakturze, której to nie dotyczy). Lista modułu zostaje
+   * bez tego pola i pokazuje komplet, jak dotąd.
+   */
+  rekordId?: string;
   /** Pulpit przelicza po decyzji swój licznik „wymaga działania dziś". */
   onZmiana?: () => void;
   /** Na Pulpicie sekcja ma własną płytę; w module bywa wstawiona w cudzą. */
@@ -46,10 +53,13 @@ type Props = {
   wstepne?: StanPropozycji;
 };
 
-export function Propozycje({ lang, modul, onZmiana, bezPlyty, wstepne }: Props) {
+export function Propozycje({ lang, modul, rekordId, onZmiana, bezPlyty, wstepne }: Props) {
   const { toast } = useUI();
-  const [propozycje, setPropozycje] = useState<Propozycja[] | null>(wstepne?.propozycje ?? null);
-  const [odrzuconych, setOdrzuconych] = useState(wstepne?.odrzuconych ?? 0);
+  const [propozycje, setPropozycje] = useState<Propozycja[] | null>(() => {
+    if (!wstepne) return null;
+    return rekordId ? wstepne.propozycje.filter((p) => p.rekordId === rekordId) : wstepne.propozycje;
+  });
+  const [odrzuconych, setOdrzuconych] = useState(rekordId ? 0 : (wstepne?.odrzuconych ?? 0));
   const [pracuje, setPracuje] = useState<string | null>(null);
   const maWstepne = wstepne != null;
 
@@ -60,9 +70,12 @@ export function Propozycje({ lang, modul, onZmiana, bezPlyty, wstepne }: Props) 
       return;
     }
     const d = (await res.json()) as StanPropozycji;
-    setPropozycje(d.propozycje);
-    setOdrzuconych(d.odrzuconych);
-  }, [modul]);
+    setPropozycje(rekordId ? d.propozycje.filter((p) => p.rekordId === rekordId) : d.propozycje);
+    // Licznik odłożonych zostaje globalny tylko wtedy, gdy patrzymy na komplet.
+    // Przy jednym rekordzie „Odłożone (3) — przywróć" mówiłoby o cudzych
+    // decyzjach i przywracałoby je wszystkie jednym kliknięciem.
+    setOdrzuconych(rekordId ? 0 : d.odrzuconych);
+  }, [modul, rekordId]);
 
   useEffect(() => {
     if (maWstepne) return;

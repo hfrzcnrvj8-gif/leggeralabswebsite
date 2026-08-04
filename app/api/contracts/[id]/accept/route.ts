@@ -3,6 +3,7 @@ import { getSql, ensureContractsSchema, logClientEvent } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { projektPoPodpisieUmowy } from "@/lib/przepisanie";
+import { zdanieWyrownaniaTerminu } from "@/lib/warunkiObowiazujace";
 import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
@@ -37,7 +38,18 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // Podpisana umowa = formalny start pracy (luka B6). Projekt dostaje daty
   // z umowy i wychodzi z „Planowania". Wspólne z publiczną drogą podpisu —
   // patrz lib/przepisanie.ts.
-  await projektPoPodpisieUmowy(sql, contract, todayLocalISO());
+  const skutek = await projektPoPodpisieUmowy(sql, contract, todayLocalISO());
+  // Ślad wyrównania terminu (A6) — patrz bliźniacza trasa publiczna.
+  if (skutek.wyrownanieTerminu) {
+    await logClientEvent(
+      sql,
+      clientId,
+      "project_deadline_aligned",
+      zdanieWyrownaniaTerminu(skutek.wyrownanieTerminu),
+      null,
+      typeof contract.project_id === "string" ? contract.project_id : null
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

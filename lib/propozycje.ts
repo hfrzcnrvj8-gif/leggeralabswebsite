@@ -50,9 +50,13 @@
  * milczy na tym, co właściciel świadomie odrzucił — patrz `lib/spojnosc.ts`.
  */
 
+import { randomUUID } from "node:crypto";
 import { getSql, logClientEvent, type Sql } from "./db";
 import { formatPlDate } from "./projects";
+import { formatMoney } from "./invoices";
+import { domyslnaStawkaVat } from "./offerAccept";
 import { skutkiZmianyStatusuProjektu } from "./skutkiProjektu";
+import { rozjazdySzkicowFaktur } from "./warunkiObowiazujace";
 
 // ── Słownik reguł ──────────────────────────────────────────────────────────
 
@@ -63,6 +67,11 @@ export const REGULY_PROPOZYCJI = [
   "wygrany-lead-bez-przypomnienia",
   /** C4 — faktura opłacona, klient dalej jest „Prospektem". */
   "oplacony-klient-aktywny",
+  /** A8 (drugie przejście) — podpisany aneks zmienił wynagrodzenie, a szkic
+   *  faktury dalej opiewa na kwotę sprzed aneksu. Decyzja właściciela
+   *  z 2026-08-04: PROPOZYCJA, nie automat — kwoty na dokumencie księgowym nie
+   *  zmieniają się bez jego kliknięcia. */
+  "faktura-wg-obowiazujacych-warunkow",
 ] as const;
 
 export type RegulaPropozycji = (typeof REGULY_PROPOZYCJI)[number];
@@ -72,7 +81,7 @@ export function isRegulaPropozycji(v: unknown): v is RegulaPropozycji {
 }
 
 /** Moduł, w którego widoku propozycja pokazuje się poza Pulpitem. */
-export type ModulPropozycji = "projects" | "leads" | "clients";
+export type ModulPropozycji = "projects" | "leads" | "clients" | "invoices";
 
 export type Propozycja = {
   regula: RegulaPropozycji;
@@ -106,6 +115,31 @@ export function zdanieWygranyLead(firma: string, termin: string, dzialanie: stri
   const co = nazwaLub(dzialanie, "");
   const ogon = co ? `zaplanowane „${co}”${kiedy ? ` na ${kiedy}` : ""}` : `przypomnienie${kiedy ? ` na ${kiedy}` : ""}`;
   return `${nazwaLub(firma, "Lead")} jest wygrany, a ma ${ogon} — zdjąć przypomnienie?`;
+}
+
+/**
+ * A8 — szkic faktury nie idzie za podpisanym aneksem.
+ *
+ * Zdanie mówi DOKŁADNIE, co się stanie po kliknięciu („dopisać pozycję
+ * wyrównującą"), a nie ogólnie „poprawić". Propozycja, po której właściciel
+ * musi sprawdzić, co się właściwie zmieniło, nie jest lepsza od cichej
+ * podmiany — jest gorsza, bo jeszcze kosztuje kliknięcie.
+ */
+export function zdanieRozjazdFaktury(
+  zrodloOpis: string,
+  cena: number,
+  numerFaktury: string,
+  netto: number,
+  roznica: number,
+  waluta: string
+): string {
+  const numer = nazwaLub(numerFaktury, "szkic faktury");
+  const znak = roznica > 0 ? "+" : "−";
+  return (
+    `${zrodloOpis} ustala wynagrodzenie na ${formatMoney(cena, waluta)}, ` +
+    `a ${numer} opiewa na ${formatMoney(netto, waluta)} — ` +
+    `dopisać pozycję wyrównującą (${znak}${formatMoney(Math.abs(roznica), waluta)})?`
+  );
 }
 
 export function zdanieKlientAktywny(nazwa: string, numerFaktury: string): string {
@@ -257,6 +291,61 @@ const REGULY: Regula[] = [
         "Status klienta: Prospekt → Aktywny (po opłaconej fakturze)"
       );
       return { ok: true, komunikat: "Klient przestawiony na „Aktywny”." };
+    },
+  },
+  {
+    regula: "faktura-wg-obowiazujacych-warunkow",
+    modul: "invoices",
+    zbierz: async (sql) => {
+      const rozjazdy = await rozjazdySzkicowFaktur(sql);
+      return rozjazdy.map((r) => ({
+        regula: "faktura-wg-obowiazujacych-warunkow" as const,
+        rekordId: r.invoiceId,
+        modul: "invoices" as const,
+        zdanie: zdanieRozjazdFaktury(r.warunki.zrodlo.opis, r.warunki.cena, r.numer, r.netto, r.roznica, r.waluta),
+        akcja: "Dopisz pozycję",
+        link: `/pl/admin/invoices/${r.invoiceId}`,
+      }));
+    },
+    wykonaj: async (sql, rekordId) => {
+      // Warunek liczymy PONOWNIE, tą samą funkcją co przy zbieraniu — a nie
+      // ufamy temu, co propozycja mówiła w chwili wyrenderowania. Między
+      // pokazaniem a kliknięciem właściciel mógł poprawić szkic ręcznie albo
+      // wystawić fakturę; wtedy dopisanie pozycji byłoby cichym psuciem
+      // dokumentu, a nie pomocą.
+      const rozjazd = (await rozjazdySzkicowFaktur(sql)).find((r) => r.invoiceId === rekordId);
+      if (!rozjazd) return NIEAKTUALNE;
+
+      // Dopisujemy POZYCJĘ, nie przepisujemy istniejących. Aneks podnosi
+      // wynagrodzenie, bo urósł zakres — więc na fakturze ma być widać, za co.
+      // Przepisanie kwot w miejscu skasowałoby rozbicie, które właściciel
+      // ustawił, i zostawiłoby dokument, z którego nie wynika, skąd różnica.
+      const stawka = (
+        await sql`
+          SELECT vat_stawka FROM invoice_items WHERE invoice_id = ${rekordId}
+          ORDER BY (ilosc * cena_netto) DESC LIMIT 1;
+        `
+      )[0];
+      const kraj = (await sql`SELECT klient_kraj FROM invoices WHERE id = ${rekordId};`)[0];
+      const vat =
+        typeof stawka?.vat_stawka === "string" && stawka.vat_stawka
+          ? stawka.vat_stawka
+          : domyslnaStawkaVat(typeof kraj?.klient_kraj === "string" ? kraj.klient_kraj : "");
+
+      const maxPos = (await sql`SELECT COALESCE(MAX(position), -1) AS p FROM invoice_items WHERE invoice_id = ${rekordId};`)[0];
+      const position = Number(maxPos?.p ?? -1) + 1;
+
+      await sql`
+        INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, position)
+        VALUES (${randomUUID()}, ${rekordId}, ${`Zmiana wynagrodzenia — ${rozjazd.warunki.zrodlo.opis}`},
+                1, 'usł.', ${rozjazd.roznica}, ${vat}, ${position});
+      `;
+      await sql`UPDATE invoices SET updated_at = now() WHERE id = ${rekordId};`;
+
+      return {
+        ok: true,
+        komunikat: `Dopisano pozycję na ${formatMoney(rozjazd.roznica, rozjazd.waluta)}. Sprawdź nazwę i stawkę VAT przed wystawieniem.`,
+      };
     },
   },
 ];

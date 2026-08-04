@@ -10,7 +10,7 @@ zbudowany tak samo i celowo nie powtarza jego zasad.
 |---|---|---|---|
 | 1 | publiczny dokument zna swój stan | A1, A2 | ✅ `5f4e81c` |
 | 2 | szablon mówi tylko to, co potwierdzają dane | A4, A5, C2, C4, D3, D4 | ✅ `4eb8667` |
-| 3 | „warunki obowiązujące" jako jedno miejsce | A6, A7, A8, (C3) | ⬜ |
+| 3 | „warunki obowiązujące" jako jedno miejsce | A6, A7, A8 | ✅ `KROK3` |
 | 4 | porażka jest zdarzeniem jak każde inne | B1, B2, B3, B4 | ⬜ |
 | 5 | drobiazgi + harness na drogę porażki | A3, C1, D1, D2, D5, D6 | ⬜ |
 
@@ -258,6 +258,75 @@ Do zrobienia:
   sprawdza obecność, nie zgodność.
 - **(Opcjonalnie) C3** — „Sporządź aneks" także na podpisanym aneksie. Po
   poprawieniu referencji nie jest to już konieczne; do rozstrzygnięcia, czy warto.
+
+### Decyzje właściciela (zapadły 2026-08-04, na starcie kroku)
+
+1. **Termin z umowy wygrywa z terminem z szablonu projektu**, a kamienie milowe
+   **zostają nietknięte**. Te, które wypadają po terminie, dostają widoczne
+   ostrzeżenie na projekcie i regułę w *Zdrowiu*. Odrzucona została propozycja
+   z planu (skalowanie kamieni proporcjonalnie): przepisywałaby także daty
+   uzgodnione z klientem, i to bez pytania.
+2. **Wyrównanie terminu to AUTOMAT, nie propozycja** — ale zostawia wpis w logu
+   („Termin projektu wyrównany do obowiązujących warunków (Aneks nr 1
+   z 04.08.2026): 22.09.2026 → 25.08.2026"). Powód: edytor oferty już dziś to
+   obiecuje, a pytanie, na które odpowiedź brzmi „tak" za każdym razem, uczy
+   klikać bez czytania.
+3. **C3 — nie robimy.** Po poprawce referencji (A7) obecna droga jest poprawna,
+   a trasa jasno odsyła komunikatem „Kolejny aneks sporządza się do samej
+   umowy". Drugi przycisk to druga ścieżka do tego samego wyniku.
+
+### Co się okazało przy robocie (2026-08-04)
+
+- **Hipoteza z briefu potwierdziła się w połowie — i to gorszej.** A7 był
+  faktycznie jedną linijką (`reference: contractReference(src)`), ale nie dało
+  się jej po prostu przestawić: nagłówek aneksu **słusznie** wskazuje
+  umowę-matkę, bo to jej dotyczy dokument. Pomylone były nie wartości, tylko
+  **dwa różne pytania w jednym polu**: „czego dokument dotyczy" i „skąd
+  pochodzą wartości »było«". Rozwiązaniem jest osobne pole `zrodlo`, nie
+  podmiana istniejącego. Na wydruku aneksu nr 2 stoi dziś zdanie
+  „Dotychczasowe brzmienie — wg aneksu nr 1 z dnia 04.08.2026".
+- **A6 był mechanizmem, który nigdy nie zadziałał — ani razu.** `const termin =
+  tekst(p.termin) ? null : …` czekał na projekt bez terminu, a szablon wstawiał
+  termin sekundy wcześniej, przy zakładaniu projektu. Funkcja była wołana z obu
+  tras podpisu, zwracała `{zmienioneDaty: false}` i nikt nigdy tego nie zauważył,
+  bo status projektu **zmieniał się** obok (Planowanie → W trakcie). Podpis
+  „dotykał" projektu, więc wyglądał na działający.
+- **Podpisanie ANEKSU nie dotykało projektu w ogóle.** `projektPoPodpisieUmowy`
+  wychodziło na `typ !== "umowa"` w pierwszej linijce. To druga połowa A6 i było
+  wprost w znalezisku („Podpisanie aneksu (15.09) też nic nie zmieniło") —
+  łatwa do przeoczenia, bo brief mówił o „terminie przy podpisie", a podpis
+  kojarzy się z umową.
+- **Sonda dwa razy pokazała czerwień, która nie była usterką panelu.** Raz, bo
+  `POST /api/contracts` nie zapisuje `project_id` z body (pułapka wypisana
+  w briefie — i tak się na nią nabrałem, bo szedłem skrótem zamiast przez
+  akceptację oferty). Drugi raz, bo `GET /api/clients/:id` oddaje oś czasu pod
+  kluczem `feed`, nie `events`. Oba razy kod był dobry, a **sonda kłamała** —
+  i oba razy zajęło to tyle samo czasu, co prawdziwy błąd. Sonda też jest kodem,
+  który trzeba sprawdzić.
+- **Reguła „milczy" nie znaczy „milczy o tym, co sprawdzam".** Dev-baza żyje
+  między przebiegami sondy, więc zaległości z poprzedniego biegu zapalały regułę
+  i sprawdzenie „Zdrowie umilkło" wypadało na czerwono. Sprawdzenia globalnej
+  ciszy trzeba było zawęzić do rekordów bieżącego przebiegu — inaczej pierwszy
+  przebieg jest zielony, a każdy następny czerwony bez powodu.
+- **Rozjazd faktury naprawiamy DOPISANIEM pozycji, nie przepisaniem kwot.**
+  Aneks podnosi wynagrodzenie, bo urósł zakres — więc na fakturze ma być widać,
+  za co. Przepisanie kwot w miejscu skasowałoby rozbicie i zostawiło dokument,
+  z którego nie wynika, skąd różnica. Zdanie propozycji mówi to wprost
+  („dopisać pozycję wyrównującą (+4 000,00 zł)?"), bo propozycja, po której
+  trzeba sprawdzać, co się właściwie stało, jest gorsza od cichej podmiany.
+- **Reguła spójności musiała dostać warunek, którego brief nie przewidywał.**
+  „Kwota szkicu faktury zgadza się z obowiązującymi warunkami" bez zawężenia do
+  zleceń z **podpisanym aneksem** świeciłaby przy normalnej pracy: faktura na
+  inną kwotę niż umowa to zaliczka, płatność etapami albo faktura za część
+  zakresu. Ekran, który świeci zawsze, uczy tylko go ignorować.
+- **Propozycje dostały zawężenie do jednego rekordu.** Przy fakturze pytanie
+  o sąsiedni dokument to szum, więc `<Propozycje>` przyjmuje teraz `rekordId`.
+  Przy okazji trzeba było zdjąć licznik „Odłożone (3) — przywróć": mówiłby
+  o cudzych decyzjach i przywracał je wszystkie jednym kliknięciem.
+- **Nie zrobione świadomie:** apka iOS nie pokazuje nowej propozycji ani
+  rubryki z aneksem — to osobna robota po jej stronie, tak samo jak rozwijacz
+  windykacji z kroku 2. Trasy oddają komplet, więc nie ma czego zmieniać
+  na serwerze.
 
 ---
 

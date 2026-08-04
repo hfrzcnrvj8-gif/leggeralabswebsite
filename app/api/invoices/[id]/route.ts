@@ -5,6 +5,7 @@ import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne"
 import { blokadaFaktury, POLA_MIMO_BLOKADY_FAKTURY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
 import { sprawdzDokumentPrzedWysylka } from "@/lib/bramkaWysylki";
+import { warunkiZlecenia } from "@/lib/warunkiObowiazujace";
 import { isPlausibleDateString } from "@/lib/projects";
 import {
   INVOICE_LANGS,
@@ -73,6 +74,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       zaliczka = { ...zr, brutto: invoiceTotals(zItems as unknown as InvoiceItem[]).brutto };
     }
   }
+  // ANEKSY do umowy, z której wynika ta faktura (A8, krok 3). Rubryka
+  // „Wynika z" wymieniała ofertę i umowę, a milczała o aneksie — czyli
+  // akurat o dokumencie, który ZMIENIŁ kwotę. Liczone TUTAJ, a nie
+  // w komponencie: `warunkiZlecenia` czyta bazę, a edytor ma dostać gotowe
+  // pole (ta sama zasada co `poprzednie_wiadomosci` niżej).
+  let warunki = null;
+  if (typeof invoice.contract_id === "string" && invoice.contract_id) {
+    warunki = await warunkiZlecenia(sql, invoice.contract_id);
+  }
+
   // BRAMKA WYSYŁKI (Faza 2) — patrz bliźniacza adnotacja w GET /api/offers/:id.
   // Wystawca z migawki (zamrożonej przy wystawieniu), bo klient widzi migawkę;
   // dla szkicu migawki jeszcze nie ma, więc liczymy z żywych ustawień.
@@ -97,6 +108,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     korekty,
     koryguje,
     zaliczka,
+    warunki,
   });
 }
 

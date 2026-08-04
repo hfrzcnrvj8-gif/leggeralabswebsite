@@ -58,6 +58,7 @@ type Dict = {
   amendmentConcluded: string;
   amendmentIntro: string;
   amendmentWas: string;
+  amendmentBasis: string;
   amendmentIs: string;
   amendmentRest: string;
   amendmentEmpty: string;
@@ -114,6 +115,7 @@ const DICT: Record<DocLang, Dict> = {
     amendmentIntro: "Strony zgodnie postanawiają, że umowa wskazana powyżej ulega zmianie w następującym zakresie:",
     amendmentRest: "Pozostałe postanowienia umowy pozostają bez zmian.",
     amendmentWas: "Dotychczasowe brzmienie",
+    amendmentBasis: "wg aneksu nr {nr} z dnia {data}",
     amendmentIs: "Nowe brzmienie",
     amendmentEmpty: "(brak)",
     amendmentNone: "W tym aneksie nie zmieniono jeszcze żadnego z warunków umowy. Zmień zakres, wynagrodzenie, walutę albo termin — dopiero wtedy aneks będzie miał treść.",
@@ -165,6 +167,7 @@ const DICT: Record<DocLang, Dict> = {
     amendmentIntro: "The parties agree that the agreement referred to above is amended as follows:",
     amendmentRest: "All remaining provisions of the agreement remain unchanged.",
     amendmentWas: "Previous wording",
+    amendmentBasis: "per amendment no. {nr} of {data}",
     amendmentIs: "New wording",
     amendmentEmpty: "(none)",
     validity: "Term",
@@ -216,6 +219,7 @@ const DICT: Record<DocLang, Dict> = {
     amendmentIntro: "Die Parteien vereinbaren, dass der oben genannte Vertrag wie folgt geändert wird:",
     amendmentRest: "Die übrigen Bestimmungen des Vertrages bleiben unverändert.",
     amendmentWas: "Bisherige Fassung",
+    amendmentBasis: "gemäß Nachtrag Nr. {nr} vom {data}",
     amendmentIs: "Neue Fassung",
     amendmentEmpty: "(keine)",
     validity: "Laufzeit",
@@ -466,6 +470,23 @@ export function ContractPrint({ id, token }: { id?: string; token?: string }) {
               ) : (
                 <>
                   <p className="leading-relaxed text-neutral-700">{t.amendmentIntro}</p>
+                  {/* Skąd pochodzi kolumna „dotychczasowe brzmienie" — znalezisko
+                      A7 z drugiego przejścia. Aneks nr 2 cytuje warunki ustalone
+                      aneksem nr 1, a nagłówek wskazuje (słusznie) umowę-matkę:
+                      to dwie różne odpowiedzi na dwa różne pytania. Bez tego
+                      zdania dokument cytował kwotę, której w umowie przez niego
+                      wskazanej nie ma — i każdy, kto by go zweryfikował, znalazłby
+                      rozbieżność. Brak `zrodlo` = wartości są wprost z umowy
+                      (pierwszy aneks i wszystkie wiersze sprzed 2026-08-04). */}
+                  {poprzednie?.zrodlo && (
+                    <p className="mt-1 text-[11px] text-neutral-500">
+                      {t.amendmentWas} —{" "}
+                      {t.amendmentBasis
+                        .replace("{nr}", String(poprzednie!.zrodlo!.aneks_nr))
+                        .replace("{data}", docDate(poprzednie!.zrodlo!.zawarta, lang))}
+                      .
+                    </p>
+                  )}
                   <div className="mt-5 space-y-5">
                     {zmiany.map((z, i) => (
                       <div key={z.pole}>

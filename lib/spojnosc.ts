@@ -1,5 +1,8 @@
 import { getSql } from "./db";
+import { formatPlDate, odmienPl } from "./dates";
+import { formatMoney } from "./invoices";
 import { kluczPropozycji, kluczeOdrzucone, type RegulaPropozycji } from "./propozycje";
+import { rozjazdySzkicowFaktur, warunkiProjektu } from "./warunkiObowiazujace";
 
 /**
  * Kontrola spójności zaplecza — czy panel mówi prawdę o samym sobie.
@@ -295,6 +298,104 @@ function reguly(): Regula[] {
         return r.map((w) => ({
           opis: `„${tekst(w.tytul)}” ma podpisaną umowę i nie ma terminu`,
           link: `/pl/admin/projects/${w.id}`,
+        }));
+      },
+    },
+    {
+      id: "termin-projektu-wg-obowiazujacej-umowy",
+      zdanie: "Termin projektu zgadza się z obowiązującą umową",
+      dlaczego:
+        "Reguła obok („Projekt z podpisaną umową ma termin”) pyta o OBECNOŚĆ " +
+        "daty, nie o jej zgodność — i dlatego przeszła przy trzech dokumentach " +
+        "z trzema różnymi terminami (25.08 / 15.09 / 22.09). Od podpisu projekt " +
+        "bierze termin z warunków obowiązujących; gdy się rozjeżdża, ktoś zmienił " +
+        "go ręcznie albo aneks nie doszedł do projektu.",
+      powaga: "wysoka",
+      zbierz: async () => {
+        // Zawężenie kandydatów w SQL — WARUNEK KONIECZNY, nie cała reguła.
+        // Rozstrzyga dopiero `warunkiProjektu` (jedno źródło), ale pytanie
+        // o nie kosztuje dwa zapytania na projekt, a `neon()` to jedno żądanie
+        // HTTP na zapytanie (lekcja `bramka-migracji`). Bez aneksów obowiązuje
+        // sama umowa, więc rozjazd wymaga wtedy różnicy dat — a gdy aneks
+        // istnieje, pytamy zawsze, bo mógł przesunąć termin na ten z projektu.
+        const projekty = await sql`
+          SELECT DISTINCT p.id, p.tytul, p.termin
+          FROM projects p
+          JOIN contracts ct ON ct.project_id = p.id AND ct.typ = 'umowa' AND ct.status = 'Podpisana'
+          WHERE p.termin IS NOT NULL
+            AND (
+              ct.termin_realizacji IS DISTINCT FROM p.termin
+              OR EXISTS (
+                SELECT 1 FROM contracts a
+                WHERE a.parent_contract_id = ct.id AND a.typ = 'aneks' AND a.status = 'Podpisana'
+              )
+            )
+          ORDER BY p.id LIMIT 20;
+        `;
+        const out: Naruszenie[] = [];
+        for (const w of projekty) {
+          const warunki = await warunkiProjektu(sql, String(w.id));
+          const wgUmowy = warunki?.termin_realizacji ?? null;
+          const wProjekcie = String(w.termin ?? "").slice(0, 10) || null;
+          if (!wgUmowy || wgUmowy === wProjekcie) continue;
+          out.push({
+            opis:
+              `„${tekst(w.tytul)}” ma termin ${formatPlDate(wProjekcie)}, ` +
+              `a ${warunki!.zrodlo.opis} mówi ${formatPlDate(wgUmowy)}`,
+            link: `/pl/admin/projects/${w.id}`,
+          });
+          if (out.length >= 20) break;
+        }
+        return out;
+      },
+    },
+    {
+      id: "kamienie-po-terminie-projektu",
+      zdanie: "Kamienie milowe mieszczą się w terminie projektu",
+      dlaczego:
+        "Termin z umowy wygrywa z terminem z szablonu (decyzja właściciela, " +
+        "2026-08-04), ale kamieni milowych nie przesuwamy po cichu — mogły być " +
+        "uzgodnione z klientem. Zamiast tego mówimy wprost, że się nie mieszczą.",
+      powaga: "srednia",
+      zbierz: async () => {
+        const r = await sql`
+          SELECT p.id, p.tytul, p.termin, COUNT(m.id) AS ile, MAX(m.termin) AS ostatni
+          FROM projects p
+          JOIN project_milestones m ON m.project_id = p.id
+          WHERE p.termin IS NOT NULL AND m.termin IS NOT NULL AND m.termin > p.termin
+          GROUP BY p.id, p.tytul, p.termin
+          ORDER BY p.updated_at DESC LIMIT 20;
+        `;
+        return r.map((w) => ({
+          opis:
+            `„${tekst(w.tytul)}” kończy się ${formatPlDate(String(w.termin).slice(0, 10))}, ` +
+            `a ${Number(w.ile)} ` +
+            odmienPl(Number(w.ile), "kamień milowy wypada", "kamienie milowe wypadają", "kamieni milowych wypada") +
+            ` po tej dacie (ostatni ${formatPlDate(String(w.ostatni).slice(0, 10))})`,
+          link: `/pl/admin/projects/${w.id}`,
+        }));
+      },
+    },
+    {
+      id: "szkic-faktury-wg-obowiazujacych-warunkow",
+      zdanie: "Kwota szkicu faktury zgadza się z obowiązującymi warunkami",
+      dlaczego:
+        "Podpisany aneks podniósł wynagrodzenie z 11 000 na 15 000 zł, a szkic " +
+        "faktury dalej opiewał na 11 000 — i graf „SKĄD I DOKĄD” pokazywał obie " +
+        "kwoty obok siebie, nie oznaczając tego jako problemu. Ta sama funkcja " +
+        "co propozycja obok (lib/warunkiObowiazujace.ts), żeby ekran i podpowiedź " +
+        "nie mogły się rozjechać.",
+      powaga: "wysoka",
+      propozycja: "faktura-wg-obowiazujacych-warunkow",
+      zbierz: async () => {
+        const rozjazdy = await rozjazdySzkicowFaktur(sql);
+        return rozjazdy.map((r) => ({
+          opis:
+            `${tekst(r.numer, "szkic faktury")} dla ${tekst(r.klientNazwa)} opiewa na ` +
+            `${formatMoney(r.netto, r.waluta)} netto, a ${r.warunki.zrodlo.opis} ustala ` +
+            `${formatMoney(r.warunki.cena, r.waluta)}`,
+          link: `/pl/admin/invoices/${r.invoiceId}`,
+          rekordId: r.invoiceId,
         }));
       },
     },

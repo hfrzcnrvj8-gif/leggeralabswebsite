@@ -71,6 +71,8 @@ import { SekcjaProfilu, WierszPola } from "../ProfileSection";
 import { MiniSciezka } from "../MiniSciezka";
 import { UNLINKED_CLIENT_HINT, clientLinkStatus, clientMismatchHint } from "@/lib/links";
 import { naKolumnyDokumentu, zKlienta } from "@/lib/przepisanie";
+import type { WarunkiObowiazujace } from "@/lib/warunkiObowiazujace";
+import { Propozycje } from "../Propozycje";
 
 export function InvoiceEditor({
   id,
@@ -121,6 +123,9 @@ export function InvoiceEditor({
     ksef_numer?: string | null;
     brutto: number;
   } | null>(null);
+  // Warunki OBOWIĄZUJĄCE dla zlecenia, z którego wynika ta faktura (A8) —
+  // czyli ostatni podpisany aneks albo sama umowa. Przychodzą gotowe z trasy.
+  const [warunki, setWarunki] = useState<WarunkiObowiazujace | null>(null);
   const [nipLoading, setNipLoading] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [correcting, setCorrecting] = useState(false);
@@ -153,6 +158,7 @@ export function InvoiceEditor({
       koryguje: { id: string; numer: string | null; data_wystawienia: string | null; brutto?: number; status?: string } | null;
       zaliczka: { id: string; numer: string | null; status?: string; ksef_status?: string; ksef_numer?: string | null; brutto: number } | null;
       bramka?: WynikBramki;
+      warunki: WarunkiObowiazujace | null;
     };
     setBramka(data.bramka ?? null);
     setInvoice(data.invoice);
@@ -164,6 +170,7 @@ export function InvoiceEditor({
     setKorekty(data.korekty ?? []);
     setKoryguje(data.koryguje ?? null);
     setZaliczka(data.zaliczka ?? null);
+    setWarunki(data.warunki ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -765,6 +772,30 @@ export function InvoiceEditor({
                   onPick={(v) => patchInvoice({ contract_id: v })}
                 />
               </span>
+              {/* ANEKS (A8, krok 3). Rubryka wymieniała ofertę i umowę, a milczała
+                  o dokumencie, który ZMIENIŁ kwotę: przy podpisanym aneksie na
+                  15 000 zł faktura na 11 000 zł powoływała się na umowę i wyglądała
+                  spójnie. Nie ma tu pickera — aneks nie jest osobnym powiązaniem
+                  do wyboru, tylko wynika z umowy wskazanej obok. */}
+              {warunki && warunki.zrodlo.typ === "aneks" && (
+                <span className="flex items-center gap-1">
+                  <span className="opacity-70">aneksu</span>
+                  <a
+                    href={`/${lang}/admin/contracts/${warunki.zrodlo.id}`}
+                    className="rounded border hairline px-1.5 py-0.5 text-[12px] text-[var(--fg)] hover:bg-white/5"
+                  >
+                    nr {warunki.zrodlo.aneksNr}
+                  </a>
+                  <span className="opacity-70">— obowiązuje {formatMoney(warunki.cena, warunki.waluta)}</span>
+                </span>
+              )}
+            </div>
+
+            {/* Propozycja „szkic nie zgadza się z aneksem" (A8) — zawężona do TEJ
+                faktury, żeby nie pytać tu o cudze dokumenty. Kwoty nie zmieniają
+                się bez kliknięcia właściciela (decyzja 2 z planu). */}
+            <div className="mb-2 empty:hidden">
+              <Propozycje lang={lang} modul="invoices" rekordId={id} bezPlyty onZmiana={load} />
             </div>
             <div className={lockCls}>
             <input

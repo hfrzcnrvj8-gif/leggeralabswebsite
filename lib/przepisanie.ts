@@ -43,6 +43,7 @@
  */
 
 import { isPlausibleDateString } from "./projects";
+import { warunkiZleceniaZDokumentu, wyrownajTerminProjektu } from "./warunkiObowiazujace";
 
 /** Minimalny kształt taga `sql` — patrz „CZEMU TEN PLIK NIE IMPORTUJE db.ts".
  *  Pasuje i do `neon()`, i do PGlite z `lib/dev-db.ts`, i do transakcji. */
@@ -320,21 +321,39 @@ export function terminZCzasuRealizacji(odDnia: string | null | undefined, tygodn
 // ── Podpis umowy → projekt (B6) ───────────────────────────────────────────
 
 /**
- * Przepisuje na projekt to, co niesie PODPISANA umowa: daty i formalny start.
+ * Przepisuje na projekt to, co niesie PODPISANY dokument: termin, start
+ * i formalne wejście w realizację.
  *
  * Wołane z OBU dróg podpisu — „Oznacz jako podpisaną" w panelu i e-podpis
  * drugiej strony przez publiczny link. Jedna funkcja, bo skutek podpisu nie
  * może zależeć od tego, kto kliknął (dokładnie ten sam powód, dla którego
  * `lib/offerAccept.ts` jest wspólny dla dwóch tras akceptacji oferty).
  *
- * Trzy świadome ograniczenia:
- * - **Tylko `typ = 'umowa'`.** NDA i DPA nie zaczynają pracy, a aneks zmienia
- *   warunki umowy, która już wystartowała.
- * - **Nie nadpisuje dat, które właściciel wpisał sam.** Umowa uzupełnia
- *   puste pola, nie poprawia cudzej roboty.
- * - **Status podnosi tylko z „Pomysł"/„Planowanie".** Projekt zamknięty,
- *   wstrzymany albo w testach nie ma wracać do „W trakcie" dlatego, że
- *   ktoś dopiął zaległy podpis.
+ * ── CO SIĘ ZMIENIŁO 2026-08-04 (krok 3, znalezisko A6) ────────────────────
+ * Do tej daty funkcja ustawiała termin **tylko gdy projekt go nie miał**
+ * (`tekst(p.termin) ? null : …`) — a szablon projektu wstawiał własny termin
+ * przy zakładaniu, więc warunek nie był spełniony **nigdy**. Mechanizm
+ * istniał, był wołany z obu tras i nie zadziałał ani razu: umowa mówiła
+ * 25.08, projekt pokazywał 22.09 z szablonu i nic tego nie zgłaszało.
+ *
+ * Dziś **termin z obowiązujących warunków wygrywa** (decyzja właściciela).
+ * Trzy rzeczy z tego wynikają:
+ * - Liczy się nie ten dokument, tylko **warunki obowiązujące** — czyli ostatni
+ *   podpisany aneks, jeśli jakiś jest (`lib/warunkiObowiazujace.ts`).
+ * - **Podpis aneksu też tu wchodzi.** Wcześniej funkcja wychodziła od razu na
+ *   `typ !== "umowa"`, więc podpisanie aneksu przesuwającego termin nie ruszało
+ *   projektu. Aneks nie zaczyna pracy — ale zmienia jej termin.
+ * - **Kamienie milowe zostają nietknięte.** Skalowanie ich przepisywałoby daty
+ *   uzgodnione z klientem bez pytania; te, które wypadają po terminie, świecą
+ *   ostrzeżeniem na projekcie i regułą w *Zdrowiu*.
+ *
+ * Co się NIE zmieniło:
+ * - **`start` uzupełnia się tylko, gdy jest pusty.** Umowa nie niesie daty
+ *   startu, więc wpisalibyśmy dzień podpisu na miejsce daty, którą właściciel
+ *   zna lepiej.
+ * - **Status podnosi tylko z „Pomysł"/„Planowanie"** i tylko przy `typ =
+ *   'umowa'`. Projekt zamknięty, wstrzymany albo w testach nie ma wracać do
+ *   „W trakcie" dlatego, że ktoś dopiął zaległy podpis.
  *
  * Zwraca, co faktycznie zmieniła — do wpisu na osi klienta i do testów.
  */
@@ -342,24 +361,37 @@ export async function projektPoPodpisieUmowy(
   sql: SqlTag,
   umowa: Record<string, unknown>,
   dzisiaj: string
-): Promise<{ zmienioneDaty: boolean; zmienionyStatus: boolean }> {
-  const brak = { zmienioneDaty: false, zmienionyStatus: false };
-  if (tekst(umowa.typ) !== "umowa") return brak;
+): Promise<{
+  zmienioneDaty: boolean;
+  zmienionyStatus: boolean;
+  wyrownanieTerminu: { przed: string | null; po: string; zrodloOpis: string } | null;
+}> {
+  const brak = { zmienioneDaty: false, zmienionyStatus: false, wyrownanieTerminu: null };
+  const typ = tekst(umowa.typ);
+  if (typ !== "umowa" && typ !== "aneks") return brak;
+
   const projektId = tekst(umowa.project_id);
   if (!projektId) return brak;
 
-  const p = (await sql`SELECT id, status, start, termin FROM projects WHERE id = ${projektId};`)[0];
+  const p = (await sql`SELECT id, status, start FROM projects WHERE id = ${projektId};`)[0];
   if (!p) return brak;
 
-  const start = tekst(p.start) ? null : dzisiaj;
-  const termin = tekst(p.termin) ? null : tekst(umowa.termin_realizacji).slice(0, 10) || null;
-  const podnosStatus = tekst(p.status) === "Pomysł" || tekst(p.status) === "Planowanie";
+  // Termin bierzemy z WARUNKÓW, nie z podpisywanego wiersza: podpisanie umowy,
+  // pod którą leży już podpisany aneks, nie może cofnąć terminu do pierwotnego.
+  const warunki = await warunkiZleceniaZDokumentu(sql, umowa);
+  const wyrownanie = warunki ? await wyrownajTerminProjektu(sql, projektId, warunki) : null;
+
+  const start = typ === "umowa" && !tekst(p.start) ? dzisiaj : null;
+  const podnosStatus = typ === "umowa" && (tekst(p.status) === "Pomysł" || tekst(p.status) === "Planowanie");
 
   if (start) await sql`UPDATE projects SET start = ${start}, updated_at = now() WHERE id = ${projektId};`;
-  if (termin) await sql`UPDATE projects SET termin = ${termin}, updated_at = now() WHERE id = ${projektId};`;
   if (podnosStatus) await sql`UPDATE projects SET status = 'W trakcie', updated_at = now() WHERE id = ${projektId};`;
 
-  return { zmienioneDaty: !!(start || termin), zmienionyStatus: podnosStatus };
+  return {
+    zmienioneDaty: !!(start || wyrownanie),
+    zmienionyStatus: podnosStatus,
+    wyrownanieTerminu: wyrownanie,
+  };
 }
 
 // ── Nazwa projektu (B6) ───────────────────────────────────────────────────

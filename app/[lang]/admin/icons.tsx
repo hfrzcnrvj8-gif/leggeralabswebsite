@@ -211,6 +211,7 @@ const CLIENT_EVENT: Record<string, TablerIcon> = {
   invoice_paid: IconCheck,
   invoice_dunning_sent: IconAlertTriangle,
   project_status_changed: IconFolder,
+  project_deadline_aligned: IconCalendarCheck,
   nurture_scheduled: IconCalendar,
   contract_created: IconFileText,
   contract_sent: IconSend,

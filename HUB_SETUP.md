@@ -11817,3 +11817,153 @@ Wezwanie jako **pierwsze** pismo: „Do dnia dzisiejszego nie odnotowaliśmy
 zapłaty…". Wezwanie po dwóch przypomnieniach: „Pomimo wcześniejszych
 przypomnień, do dnia dzisiejszego…". Ten sam dokument, ta sama treść pod
 publicznym linkiem klienta.
+
+---
+
+## Krok 3 planu po drugim przejściu — „warunki obowiązujące" jako jedno miejsce (2026-08-04)
+
+Trzeci krok `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`. Zamyka **A6, A7, A8**
+z `docs/DRUGIE-PRZEJSCIE-NA-SUCHO.md`. C3 rozstrzygnięte jako „nie robimy".
+
+### Problem
+
+Nic w panelu nie odpowiadało na pytanie **„co dla tego zlecenia obowiązuje
+DZISIAJ"**. Umowa znała swoje warunki, aneks swoje, projekt miał termin
+z szablonu, faktura kwotę z oferty. Jedno zlecenie z drugiego przejścia dało
+**trzy różne terminy** (25.08 / 15.09 / 22.09) i fakturę na 11 000 zł przy
+podpisanym aneksie na 15 000 zł — i **nic tego nie oznaczyło jako problemu**.
+
+### `lib/warunkiObowiazujace.ts` — jedno miejsce
+
+Obowiązuje **ostatni PODPISANY aneks**, a gdy takiego nie ma — sama umowa.
+Reguła istniała wcześniej, zaszyta w `POST /api/contracts/:id/aneks` jako
+zmienna `obowiazujace`; została stamtąd **wyjęta**, nie skopiowana. Dziś
+odpowiada czterem konsumentom naraz: trasie aneksu, terminowi projektu,
+propozycji przy fakturze i dwóm regułom *Zdrowia*.
+
+Funkcje: `warunkiZWierszy` (czysta, testowalna bez bazy),
+`warunkiZlecenia(sql, umowaId)`, `warunkiZleceniaZDokumentu` (sprowadza aneks
+do jego umowy-matki), `warunkiProjektu`, `wyrownajTerminProjektu`,
+`rozjazdySzkicowFaktur`.
+
+**`zrodlo` i `umowa` to dwa OSOBNE pola** i to jest sedno A7:
+
+| pole | odpowiada na pytanie |
+|---|---|
+| `umowa` | **czego** dokument dotyczy — aneks nr 2 jest aneksem do UMOWY |
+| `zrodlo` | **skąd pochodzą wartości** „było" — przy aneksie nr 2 to aneks nr 1 |
+
+### A7 — aneks powoływał się na dokument, w którym tej treści nie ma
+
+`poprzednie.reference` wskazywał zawsze umowę-matkę, a wartości brał
+z ostatniego podpisanego aneksu. Aneks nr 2 cytował więc kwotę z aneksu nr 1,
+powołując się na umowę, w której jej nie ma.
+
+`PoprzednieWarunki` dostało pole `zrodlo` (`{reference, zawarta, aneks_nr,
+opis}`), `null` dla pierwszego aneksu i dla wierszy sprzed tej daty. Na wydruku
+(`ContractPrint.tsx`, klucz `amendmentBasis`, wszystkie trzy języki) stoi
+zdanie: *„Dotychczasowe brzmienie — wg aneksu nr 1 z dnia 04.08.2026."*
+`zrodlo` jedzie w `poprzednie`, które już było w `CONTRACT_MIGAWKA_POLA`
+i w białej liście publicznej — klient widzi to samo co panel.
+
+### A6 — projekt bierze termin z obowiązujących warunków
+
+**Decyzja właściciela: termin z umowy WYGRYWA z terminem z szablonu; kamienie
+milowe zostają nietknięte; wyrównanie jest AUTOMATEM ze śladem w logu.**
+
+`projektPoPodpisieUmowy` (`lib/przepisanie.ts`) ustawiał termin **tylko gdy
+projekt go nie miał** — a szablon projektu wstawiał własny przy zakładaniu, więc
+warunek nie był spełniony **nigdy**. Mechanizm istniał, był wołany z obu tras
+podpisu i nie zadziałał ani razu.
+
+Zmienione:
+
+- termin bierze się z `warunkiZleceniaZDokumentu`, nie z podpisywanego wiersza —
+  podpisanie umowy, pod którą leży podpisany aneks, nie cofa terminu;
+- funkcja obejmuje też **`typ = 'aneks'`** (wcześniej wychodziła w pierwszej
+  linijce) — podpis aneksu przesuwa termin projektu, nie rusza startu ani statusu;
+- `start` dalej uzupełnia się tylko, gdy jest pusty; status dalej podnosi się
+  wyłącznie z „Pomysł"/„Planowanie" i wyłącznie dla umowy.
+
+Ślad: nowy rodzaj zdarzenia na osi klienta **`project_deadline_aligned`**
+(`lib/clients.ts`, ikona `IconCalendarCheck` w `admin/icons.tsx`), zapisywany
+z obu tras podpisu przez `zdanieWyrownaniaTerminu()`.
+
+Kamienie milowe po terminie: **ostrzeżenie na projekcie** (ProjectDetailPanel,
+nad listą kamieni) plus reguła w *Zdrowiu*. Panel ich **nie przesuwa** — mogły
+być uzgodnione z klientem.
+
+### A8 — szkic faktury a podpisany aneks
+
+**Decyzja 2 z planu: PROPOZYCJA, nie automat.** Nowa reguła
+`faktura-wg-obowiazujacych-warunkow` w `lib/propozycje.ts` (nowy moduł
+propozycji `invoices`):
+
+> Aneks nr 1 z 04.08.2026 ustala wynagrodzenie na 15 000,00 zł, a szkic faktury
+> opiewa na 11 000,00 zł — dopisać pozycję wyrównującą (+4 000,00 zł)?
+
+„Zrób to" **dopisuje pozycję**, nie przepisuje kwot: aneks podnosi
+wynagrodzenie, bo urósł zakres, więc na fakturze ma być widać, za co. Stawka VAT
+z pozycji o największej wartości, w ostateczności `domyslnaStawkaVat(kraj)`.
+Warunek liczony ponownie w chwili kliknięcia (`claim`), więc szkic poprawiony
+ręcznie w międzyczasie dostaje „nieaktualne", a nie cichą dopłatę.
+
+Rubryka **„Wynika z"** w `InvoiceEditor.tsx` wymienia dziś ofertę, umowę **i
+aneks** z obowiązującą kwotą. Pole `warunki` dokłada **trasa** `GET
+/api/invoices/:id`, nie komponent — ta sama zasada co `poprzednie_wiadomosci`
+w kroku 2.
+
+`<Propozycje>` przyjmuje teraz `rekordId` i zawęża listę do jednego rekordu
+(licznik „Odłożone — przywróć" wtedy znika: mówiłby o cudzych decyzjach).
+
+### Trzy nowe reguły w *Zdrowiu* (`lib/spojnosc.ts`)
+
+| reguła | co mówi |
+|---|---|
+| `termin-projektu-wg-obowiazujacej-umowy` | Termin projektu zgadza się z obowiązującą umową |
+| `kamienie-po-terminie-projektu` | Kamienie milowe mieszczą się w terminie projektu |
+| `szkic-faktury-wg-obowiazujacych-warunkow` | Kwota szkicu faktury zgadza się z obowiązującymi warunkami |
+
+Istniejące zdanie „Projekt z podpisaną umową ma termin" **zostaje** — sprawdza
+OBECNOŚĆ daty i dlatego przechodziło mimo rozjazdu. Nowa reguła sprawdza
+ZGODNOŚĆ.
+
+Reguła faktury jest **świadomie zawężona do zleceń z podpisanym aneksem**: bez
+aneksu faktura na inną kwotę niż umowa bywa najzupełniej poprawna (zaliczka,
+płatność etapami, część zakresu), a ekran, który świeci zawsze, uczy tylko go
+ignorować. Reguła terminu zawęża kandydatów w SQL warunkiem KONIECZNYM
+(`termin ≠ termin umowy` LUB `istnieje podpisany aneks`) — rozstrzyga dopiero
+`warunkiProjektu`, ale bez tego byłyby dwa zapytania na każdy projekt.
+
+`GET /api/observability` woła teraz `ensure*Schema()` przed regułami: „reguła
+się wywróciła" wygląda na ekranie prawie jak „reguła przeszła".
+
+### Czego nie zrobiono
+
+- **C3** („Sporządź aneks" także na aneksie) — decyzja właściciela: nie.
+- **Apka iOS** nie pokazuje nowej propozycji ani rubryki z aneksem. Trasy
+  oddają komplet; to robota po stronie apki, jak rozwijacz windykacji z kroku 2.
+
+### Sprawdzenie
+
+`tsc` czysto, `npm test` **318/318** (`test/warunkiObowiazujace.test.ts`,
+12 sprawdzeń na dosłownych datach i kwotach z drugiego przejścia),
+`npm run przejscie` **68 działa · 0 regresji · 0 pominiętych**.
+
+Sonda na dev-bazie odtworzyła scenariusz z drugiego przejścia — 24 sprawdzenia,
+wszystkie zielone. Wynik na dokumentach:
+
+```
+projekt z szablonu:        22.09.2026
+umowa:                     25.08.2026
+po podpisie umowy:         25.08.2026   (log: „22.09.2026 → 25.08.2026")
+po podpisie aneksu nr 1:   15.09.2026   (log: „25.08.2026 → 15.09.2026")
+
+wydruk aneksu nr 2:
+  ANEKS NR 2 · do umowy UM-2026-… · zawartej dnia 04.08.2026
+  Dotychczasowe brzmienie — wg aneksu nr 1 z dnia 04.08.2026.
+  § 1 TERMIN REALIZACJI   15.09.2026 → 15.10.2026
+
+faktura, rubryka „Wynika z":
+  oferty — brak — · umowy UM-2026-… · aneksu nr 1 — obowiązuje 15 000,00 zł
+```

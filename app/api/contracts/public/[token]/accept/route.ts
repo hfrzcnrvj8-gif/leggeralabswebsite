@@ -5,6 +5,7 @@ import { SHARE_LINK_REVOKED_MESSAGE } from "@/lib/shareLinks";
 import { CONTRACT_TYP_LABEL, type ContractTyp } from "@/lib/contracts";
 import { HAMULEC_DOKUMENT_PUBLICZNY, odciskZadania, odnotujProbe, sprawdzHamulec, zglosPrzekroczenie } from "@/lib/rateLimit";
 import { projektPoPodpisieUmowy } from "@/lib/przepisanie";
+import { zdanieWyrownaniaTerminu } from "@/lib/warunkiObowiazujace";
 import { todayLocalISO } from "@/lib/dates";
 
 export const runtime = "nodejs";
@@ -92,6 +93,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // Ten sam skutek co przy podpisie odnotowanym w panelu (luka B6) — projekt
   // dostaje daty z umowy i wychodzi z „Planowania". Patrz lib/przepisanie.ts.
   const skutek = await projektPoPodpisieUmowy(sql, contract, todayLocalISO());
+  // Ślad wyrównania terminu (A6). Wyrównanie jest automatem — decyzja
+  // właściciela — więc jedyne, co odróżnia je od cichej podmiany, to ten wpis.
+  if (skutek.wyrownanieTerminu) {
+    await logClientEvent(
+      sql,
+      clientId,
+      "project_deadline_aligned",
+      zdanieWyrownaniaTerminu(skutek.wyrownanieTerminu),
+      null,
+      typeof contract.project_id === "string" ? contract.project_id : null
+    );
+  }
 
   const contractId = String(contract.id);
   await notify({

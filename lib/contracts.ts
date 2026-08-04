@@ -588,6 +588,21 @@ export type PoprzednieWarunki = {
   cena: number;
   waluta: string;
   termin_realizacji: string | null;
+  /**
+   * Dokument, z którego pochodzą CZTERY wartości powyżej — gdy to nie jest sama
+   * umowa-matka (znalezisko A7 z drugiego przejścia, 2026-08-04).
+   *
+   * Przy drugim aneksie „dotychczasowe brzmienie" to warunki ustalone aneksem
+   * nr 1, a nie pierwotną umową. `reference` wyżej wskazywał jednak zawsze
+   * umowę-matkę — bo tego dotyczy aneks — więc dokument cytował kwotę
+   * z aneksu nr 1 i w nagłówku powoływał się na umowę, w której tej kwoty nie
+   * ma. Ktokolwiek zweryfikowałby aneks przeciwko dokumentowi, który on sam
+   * wskazuje, znalazłby rozbieżność.
+   *
+   * `null`/brak (starsze wiersze i każdy pierwszy aneks) = wartości pochodzą
+   * z umowy-matki, czyli z `reference`. Wydruk milczy wtedy tak jak dotąd.
+   */
+  zrodlo?: { reference: string; zawarta: string; aneks_nr: number; opis: string } | null;
 };
 
 /** Jedna pozycja tabeli „było → jest". */

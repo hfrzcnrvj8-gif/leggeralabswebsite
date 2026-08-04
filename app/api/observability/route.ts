@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/auth";
-import { getSql, ensureBackupSchema, zPonowieniem } from "@/lib/db";
+import {
+  getSql,
+  ensureBackupSchema,
+  ensureHubSchema,
+  ensureInvoicesSchema,
+  ensureOffersSchema,
+  ensureClientsSchema,
+  ensureContractsSchema,
+  ensureLeadsSchema,
+  zPonowieniem,
+} from "@/lib/db";
 import { ocenKopie, type BackupRun } from "@/lib/backup";
 import { stanAutomatow, wczytajBledy, wczytajPrzebiegi } from "@/lib/errorLog";
 import { sprawdzSpojnosc } from "@/lib/spojnosc";
@@ -77,6 +87,11 @@ export async function GET() {
   let spojnosc = null;
   let bladSpojnosci: string | null = null;
   try {
+    // Schematy PRZED regułami (krok 3). Reguły pytają o pięć tabel naraz
+    // i przy zimnym starcie któraś potrafiła wywrócić się na nieistniejącej —
+    // a „reguła się wywróciła" wygląda na ekranie prawie jak „reguła przeszła".
+    // `ensure*` są cache'owane, więc to jest darmowe przy każdym kolejnym wejściu.
+    await Promise.all([ensureHubSchema(), ensureInvoicesSchema(), ensureOffersSchema(), ensureClientsSchema(), ensureContractsSchema(), ensureLeadsSchema()]);
     spojnosc = await sprawdzSpojnosc();
   } catch (e) {
     console.error("[GET /api/observability] spójność", e);
