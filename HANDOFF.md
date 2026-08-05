@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-05, po ZAMKNIĘCIU planu z drugiego przejścia
+# Handoff — stan na 2026-08-05, po audycie „co apka wyrzuca do kosza"
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,10 +7,13 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- Na wierzchu **`f2c48e8`** „Plan: krok 5 zamknięty, plan po drugim przejściu
-  domknięty", pod nim **`3a42f75`** „Krok 5: drobiazgi i harness na drogę
-  porażki (A3, C1, D1, D2, D5, D6)".
-- Repozytorium czyste i wypchnięte. `tsc` czysto, `npm test` **340/340**.
+- **Panel:** na wierzchu **`d2655b0`** „Wynik audytu: sześć pól, które apka
+  wyrzucała do kosza". Repozytorium czyste i wypchnięte, `tsc` czysto,
+  `npm test` **340/340**.
+- **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
+  **`d5c40c6`** „Apka czyta to, co serwer oddaje: bramka wysyłki, wygasłe
+  oferty, rodzina umowy, szukanie po treści". Buduje się, `swift test`
+  w `LeggeraHubCore` daje **9/9**.
 - `npm run przejscie`: **101 działa · 0 znanych luk · 0 regresji · 0 obejść ·
   0 pominiętych**. Od kroku 5 wynik jest **powtarzalny** — dwa i trzy biegi pod
   rząd dają to samo (wcześniej drugi bieg tracił drogę klienta na godzinę, bo
@@ -44,7 +47,27 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. Audyt „serwer oddaje, apka wyrzuca do kosza" — ZROBIONY 2026-08-05.**
+**1. Audyt „apka wysyła, trasa nie czyta". BRIEF GOTOWY.**
+
+- Brief: `docs/natywna-aplikacja/41-brief-audyt-co-apka-wysyla.md`
+- Do wklejenia w nowym czacie: **`PROMPT-NOWY-CZAT.md`** w korzeniu
+
+Druga strona monety audytu z punktu 2 niżej. Apka wysyła w `POST`/`PATCH` pole,
+którego trasa nie czyta: właściciel dostaje `{"ok":true}`, widzi swoją zmianę na
+ekranie (bo apka zaktualizowała stan lokalnie), a w bazie nie zmieniło się nic.
+Przy odczycie znika informacja — tutaj znika **zapis**.
+
+**Uczciwie: to może wyjść krótkie.** Przy pisaniu briefu sprawdziłem cztery
+najbardziej ryzykowne miejsca (te, w których klucze idą słownikiem, więc nie
+pilnuje ich kompilator) — `clients/:id`, `costs/:id`, `projects/:id`,
+`events/:id`. **Wszystkie cztery czyste.** Brief mówi wprost, żeby zacząć od
+niesprawdzonych, a po dwóch–trzech pustych rundach przestać i napisać wynik.
+Zakres: 54 `POST`, 21 `PATCH`, 43 `struct Body`, 16 ładunków słownikowych.
+
+Jeśli wyjdzie pusto, brief proponuje **drugi rok obrotowy** (punkt (b) trzeciego
+przejścia) — ale to robota po stronie panelu, więc wymaga Twojej zgody.
+
+**2. Audyt „serwer oddaje, apka wyrzuca do kosza" — ZROBIONY 2026-08-05.**
 Wynik i dowody: **`docs/natywna-aplikacja/40-wynik-audyt-co-apka-wyrzuca.md`**.
 Brief, wg którego szedł: `39-brief-audyt-co-apka-wyrzuca.md`.
 
@@ -80,7 +103,7 @@ skutek gorszy: zapis, który wygląda na udany i nic nie zmienia. Ten audyt tego
 nie objął — czas poszedł na bramkę wysyłki, która okazała się większa, niż
 brief zakładał.
 
-**2. Apka — paczka ZROBIONA 2026-08-05** (kontekst, nie robota).
+**3. Apka — paczka ZROBIONA 2026-08-05** (kontekst, nie robota).
 Wszystkie pięć pozycji z briefu
 `37-brief-dogonic-panel.md` jest w apce i sprawdzone na symulatorze przeciwko
 `npm run dev` + `npm run przejscie`. Wynik i dowody:
@@ -110,14 +133,14 @@ przyjdzie z produkcji.
 `SekcjaPropozycji` przyjmuje stan z zewnątrz, więc to dołożenie żądania
 `?modul=`, a nie przebudowa.
 
-**3. Trzecie przejście „na sucho"** — jeśli wolisz iść dalej sprawdzaniem niż
+**4. Trzecie przejście „na sucho"** — jeśli wolisz iść dalej sprawdzaniem niż
 budowaniem. Propozycja zakresu stoi na końcu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`:
 (a) oczami klienta w PRAWDZIWEJ przeglądarce, na telefonie i desktopie, po
 polsku i po niemiecku; (b) drugi rok obrotowy (numeracja, retencja, faktury
 cykliczne przez zmianę roku); (c) awarie i brzegi. **Czego robić NIE musi:
 przechodzić ręcznie tego, co robi `npm run przejscie`.**
 
-**4. Rejestracja firmy** — odłożona decyzją właściciela do odwołania. To jest
+**5. Rejestracja firmy** — odłożona decyzją właściciela do odwołania. To jest
 jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
