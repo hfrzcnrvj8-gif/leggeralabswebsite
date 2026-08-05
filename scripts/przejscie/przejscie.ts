@@ -1002,6 +1002,95 @@ async function przejscie(): Promise<void> {
   // PO hamulcu, bo nie dotyka publicznych dokumentów, a hamulec zatruwa
   // odcisk na godzinę (patrz komentarz wyżej).
   await drugiRokObrotowy();
+
+  // ── 17. Awarie i brzegi ────────────────────────────────────────────────
+  await awarieIBrzegi();
+}
+
+// ── Awarie i brzegi ────────────────────────────────────────────────────────
+
+/**
+ * Co się dzieje, gdy KLIKNIE SIĘ DWA RAZY — albo gdy klika dwoje ludzi naraz.
+ *
+ * Punkt (c) trzeciego przejścia. Oba wcześniejsze przejścia szły ścieżką
+ * grzeczną: jedno kliknięcie, jedna karta, wszystko po kolei. Prawdziwe
+ * podwójne kliknięcie bierze się nie z niecierpliwości, tylko z **zerwanego
+ * żądania**: telefon ma krótszy limit czasu niż trasa, więc pokazuje błąd tam,
+ * gdzie serwer widzi sukces — i właściciel klika drugi raz.
+ *
+ * Trzy pierwsze zdania to CZUJKI na ochrony, które już istnieją (warunkowy
+ * `UPDATE` + sprawdzenie liczby wierszy). Nie pilnują znanej luki — mają się
+ * odezwać, gdyby ktoś kiedyś zamienił je na zwykły zapis.
+ */
+async function awarieIBrzegi(): Promise<void> {
+  krok("Brzegi: dwa kliknięcia naraz");
+
+  const oferta = await ofertaDoOdrzucenia(`[przejście ${ZNACZNIK}] Wyścig akceptacji`);
+  if (oferta) {
+    // Dwa równoległe „Akceptuj” na tej samej ofercie. Bez warunkowego claimu
+    // powstałyby DWA projekty i DWIE faktury z jednej sprzedaży.
+    const [a, b] = await Promise.all([
+      api("POST", `/api/offers/${oferta.ofertaId}/accept`, {}),
+      api("POST", `/api/offers/${oferta.ofertaId}/accept`, {}),
+    ]);
+    // Ochrona ma DWIE drogi i obie są poprawne — pierwsza wersja tego zdania
+    // wymagała 409 i migotała, bo dostawała raz 409, raz 400:
+    //  · drugie żądanie czyta ofertę PO zapisie pierwszego → bramka stanu
+    //    (`ocenAkceptacje`) odmawia 400 „Oferta jest już zaakceptowana";
+    //  · czyta PRZED → dochodzi do warunkowego claimu w transakcji, ten
+    //    zwraca zero wierszy i całość wraca 409 z ROLLBACK-iem.
+    // Znaczenie ma to, ile razy się UDAŁO, nie którą drogą odbiło to drugie.
+    const udane = [a, b].filter((r) => r.status === 200);
+    const odrzucone = [a, b].filter((r) => r.status === 400 || r.status === 409);
+    sprawdz(
+      "dwa równoległe „Akceptuj ofertę” kończą się JEDNĄ akceptacją — drugie odbija się bez skutku",
+      udane.length === 1 && odrzucone.length === 1,
+      undefined,
+      `kody: ${a.status}, ${b.status}`
+    );
+  } else {
+    pominiete.push("wyścig akceptacji oferty — nie udało się przygotować oferty");
+  }
+
+  // Wpłata: TU ochrony nie ma i to jest świadome — wpłatę da się usunąć,
+  // a reguła Fazy 4 mówi „co odwracalne, nie pyta”. Ale skutek nie może być
+  // niewidoczny: faktura pokazuje „Opłacona” (zgodnie z prawdą), więc nikt do
+  // niej nie wraca, a zdublowana kwota zawyża przychód w Statystykach.
+  const fvId = await fakturaZPozycja(`[przejście ${ZNACZNIK}] Wyścig wpłaty`, 1000);
+  if (fvId) {
+    await Promise.all([
+      api("POST", `/api/invoices/${fvId}/payments`, { kwota: 1230 }),
+      api("POST", `/api/invoices/${fvId}/payments`, { kwota: 1230 }),
+    ]);
+    const naruszenia = await naruszeniaReguly("wplaty-przekraczaja-naleznosc");
+    sprawdz(
+      "zdublowana wpłata nie znika po cichu — kontrola spójności ją pokazuje",
+      naruszenia.some((n) => n.includes("2460")),
+      undefined,
+      naruszenia[0] ?? "kontrola spójności nie zgłosiła nadpłaty"
+    );
+  } else {
+    pominiete.push("zdublowana wpłata — nie udało się przygotować faktury");
+  }
+}
+
+/** Faktura ze szkicu, z jedną pozycją — punkt wyjścia dla sond o pieniądzach. */
+async function fakturaZPozycja(nazwaKlienta: string, cenaNetto: number): Promise<string | null> {
+  const fv = await api("POST", "/api/invoices", { klient_nazwa: nazwaKlienta });
+  const fvId = id(fv.dane);
+  if (!fvId) return null;
+  await api("POST", `/api/invoices/${fvId}/items`, {
+    nazwa: "Usługa", ilosc: 1, jednostka: "szt.", cena_netto: cenaNetto, vat_stawka: "23",
+  });
+  return fvId;
+}
+
+/** Opisy naruszeń JEDNEJ reguły kontroli spójności (`/api/observability`). */
+async function naruszeniaReguly(regulaId: string): Promise<string[]> {
+  const odp = await api("GET", "/api/observability");
+  const reguly = odp.dane?.spojnosc?.reguly ?? [];
+  const r = reguly.find((x: any) => x.id === regulaId);
+  return (r?.naruszenia ?? []).map((n: any) => String(n.opis ?? ""));
 }
 
 // ── Drugi rok obrotowy ─────────────────────────────────────────────────────

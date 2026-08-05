@@ -66,10 +66,30 @@ się z zegara serwera, nie z `data_wystawienia`, więc szkic z datą 31.12
 wystawiony 2 stycznia dostaje numer z nowego roku. Świadomie nietknięte
 (sprawy księgowe idą na sam koniec, po rejestracji).
 
-**Pułapka środowiska złapana przy okazji:** wszystkie `/api/*` potrafią zacząć
-oddawać **404** po restarcie `next dev` — także trasy nietykane, przy czystym
-`tsc` i działającej stronie głównej. To uszkodzony cache Turbopacka;
-`rm -rf .next` i start od nowa. Nie szukaj wtedy usterki w swoim kodzie.
+**Pułapka środowiska złapana przy okazji:** trasy `/api/*` potrafią zacząć
+oddawać **404** po restarcie `next dev` — także nietykane, przy czystym `tsc`,
+działającej stronie głównej i pliku obecnym w gicie (raz wszystkie naraz, raz
+pojedyncza trasa `…/issue` przy działającym rodzeństwie). To uszkodzony cache
+Turbopacka; `rm -rf .next` i start od nowa. **Zdarzyło się dwa razy jednego
+dnia** — nie szukaj wtedy usterki w swoim kodzie.
+
+**1b. Trzecie przejście: AWARIE I BRZEGI — ZROBIONE 2026-08-05.**
+Wynik: **`docs/TRZECIE-PRZEJSCIE-AWARIE-I-BRZEGI.md`**.
+
+Jedno znalezisko: **dwa kliknięcia „Zarejestruj wpłatę" dawały dwie wpłaty**
+(zmierzone: 2460 zł na fakturze wartej 1230 zł) i **nic tego nie zgłaszało** —
+faktura pokazuje „Opłacona", co jest prawdą, więc nikt do niej nie wraca,
+a nadpłata zawyża przychód w Statystykach. Naprawa **nie jest barierą przy
+zapisie** (wpłata jest odwracalna, a reguła Fazy 4 mówi „co odwracalne, nie
+pyta"), tylko **czternastą regułą kontroli spójności** — zapis zostaje wolny,
+skutek przestaje być niewidoczny.
+
+Czyste: akceptacja oferty, oba podpisy umowy, wystawienie faktury (wyścig nie
+dał dziury w numeracji), brak `RESEND_API_KEY` (rzuca, nie udaje sukcesu).
+**Niesprawdzone:** zerwane żądanie w połowie wysyłki maila — dev nie ma
+skrzynki, więc bezpiecznik odcisku jest przeczytany, ale nie przebiegnięty.
+
+`npm run przejscie` **111 działa · 0 regresji**, trzy przebiegi pod rząd.
 
 Panel powstał w lipcu 2026 i **nigdy nie przeżył 31 grudnia**. Przez tę datę
 przechodzą: numeracja faktur (reset z rokiem), retencja (24 mies. / 6 lat),

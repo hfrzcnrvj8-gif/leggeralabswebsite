@@ -420,6 +420,56 @@ function reguly(): Regula[] {
         }));
       },
     },
+    {
+      id: "wplaty-przekraczaja-naleznosc",
+      zdanie: "Suma zarejestrowanych wpłat nie przekracza kwoty faktury",
+      dlaczego:
+        "Podwójne kliknięcie „Zarejestruj wpłatę” (albo ponowienie po zerwanym " +
+        "żądaniu) zapisuje DRUGI wiersz na tę samą kwotę — i nic tego nie " +
+        "zgłasza. Faktura pokazuje wtedy „Opłacona”, co jest prawdą, więc nie " +
+        "ma powodu do niej wracać; nadpłata żyje dalej wyłącznie w statystykach " +
+        "przychodu, zawyżając je o kwotę, której klient nigdy nie zapłacił. " +
+        "Zmierzone 2026-08-05: dwa równoległe kliknięcia dały 2460 zł wpłat na " +
+        "fakturze wartej 1230 zł. Sam zapis zostaje BEZ bariery — wpłatę da się " +
+        "usunąć, a reguła Fazy 4 mówi wprost: co odwracalne, nie pyta. Nie " +
+        "znaczy to jednak, że ma milczeć.",
+      powaga: "wysoka",
+      zbierz: async () => {
+        // Próg tolerancji 1 grosz: brutto liczy się w NUMERIC z zaokrągleniem
+        // per pozycja, więc pełna zapłata potrafi wyjść o setne części grosza
+        // wyżej i bez tego reguła krzyczałaby na poprawnie opłacone faktury.
+        const r = await sql`
+          SELECT i.id, i.numer, i.waluta,
+                 SUM(p.kwota)::float8 AS wplacono,
+                 COALESCE((
+                   SELECT SUM(it.ilosc * it.cena_netto * (1 - it.rabat_procent / 100)
+                              * (1 + CASE WHEN it.vat_stawka ~ '^[0-9]+$' THEN it.vat_stawka::numeric / 100 ELSE 0 END))
+                   FROM invoice_items it WHERE it.invoice_id = i.id
+                 ), 0)::float8 AS brutto
+          FROM invoices i
+          JOIN invoice_payments p ON p.invoice_id = i.id
+          WHERE i.status <> 'Anulowana' AND i.rozlicza_zaliczke_id IS NULL
+          GROUP BY i.id, i.numer, i.waluta
+          HAVING SUM(p.kwota) > COALESCE((
+                   SELECT SUM(it.ilosc * it.cena_netto * (1 - it.rabat_procent / 100)
+                              * (1 + CASE WHEN it.vat_stawka ~ '^[0-9]+$' THEN it.vat_stawka::numeric / 100 ELSE 0 END))
+                   FROM invoice_items it WHERE it.invoice_id = i.id
+                 ), 0) + 0.01
+          ORDER BY SUM(p.kwota) DESC LIMIT 20;
+        `;
+        return r.map((w) => {
+          const waluta = tekst(w.waluta, "PLN");
+          return {
+            opis:
+              `faktura ${tekst(w.numer, "(szkic)")} — wpłacono ` +
+              `${formatMoney(Number(w.wplacono), waluta)} przy należności ` +
+              `${formatMoney(Number(w.brutto), waluta)}`,
+            link: `/pl/admin/invoices/${w.id}`,
+            rekordId: String(w.id),
+          };
+        });
+      },
+    },
   ];
 }
 
