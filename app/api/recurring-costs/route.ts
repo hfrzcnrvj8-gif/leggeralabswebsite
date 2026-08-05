@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
     const id = randomUUID();
     await sql`
       INSERT INTO recurring_costs (id, nazwa, dostawca_nazwa, dostawca_nip, dostawca_konto,
-        kategoria, opis, kwota_netto, vat_stawka, waluta, metoda_platnosci, cykl, next_run, active)
+        kategoria, opis, kwota_netto, vat_stawka, waluta, metoda_platnosci, cykl, next_run, kotwica, active)
       VALUES (${id}, ${f.nazwa}, ${f.dostawca_nazwa}, ${f.dostawca_nip}, ${f.dostawca_konto},
         ${f.kategoria}, ${f.opis}, ${f.kwota_netto}, ${f.vat_stawka}, ${f.waluta},
-        ${f.metoda_platnosci}, ${f.cykl}, ${f.next_run}, ${f.active});
+        ${f.metoda_platnosci}, ${f.cykl}, ${f.next_run}, ${f.next_run}, ${f.active});
     `;
     return NextResponse.json({ ok: true, id });
   } catch (err) {

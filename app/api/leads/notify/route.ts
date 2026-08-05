@@ -67,7 +67,7 @@ import {
   BUDZET_TELEFON_MS,
 } from "@/lib/leadHunterRun";
 import { ceidgSkonfigurowany } from "@/lib/ceidg";
-import { nextRunAfter, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
+import { nextRunFromAnchor, kotwicaSerii, todayISO, type RecurringInvoice, type RecurringItem } from "@/lib/recurring";
 import { todayLocalISO, daysSinceISO, formatPlDate } from "@/lib/dates";
 import { notify, purgeOldNotifications } from "@/lib/notificationLog";
 import { odnotujPrzebieg, stanAutomatow, wczytajBledy, wyslijAlarmy, zapiszWyjatek } from "@/lib/errorLog";
@@ -251,8 +251,14 @@ async function generateDueRecurringInvoices(): Promise<{ generated: number; fail
         `;
         pos += 1;
       }
-      const next = nextRunAfter(r.next_run <= today ? today : r.next_run, r.cykl);
-      await sql`UPDATE recurring_invoices SET next_run = ${next}, updated_at = now() WHERE id = ${r.id};`;
+      // Następny termin liczony OD KOTWICY, nie od dnia nadrobienia — inaczej
+      // każde spóźnienie crona przesuwałoby serię na stałe (patrz komentarz
+      // przy `nextRunFromAnchor`). Szablony sprzed migracji kotwicy mają ją
+      // uzupełnioną z `next_run`, ale `?? r.next_run` zostaje jako pas
+      // bezpieczeństwa: bez niego pusta kotwica dałaby datę „NaN".
+      const kotwica = kotwicaSerii(r.kotwica, r.next_run);
+      const next = nextRunFromAnchor(kotwica, r.cykl, today);
+      await sql`UPDATE recurring_invoices SET next_run = ${next}, kotwica = ${kotwica}, updated_at = now() WHERE id = ${r.id};`;
       // Klucz per WYGENEROWANY szkic, nie per szablon — ten sam szablon
       // wygeneruje kolejny szkic za miesiąc i to będzie osobne zdarzenie.
       await notify({
@@ -302,8 +308,10 @@ async function generateDueRecurringCosts(): Promise<{ generated: number; failed:
           ${kwotaNetto}, ${r.vat_stawka}, ${kwotaBrutto}, 'Nieopłacony', ${r.metoda_platnosci}, ${r.project_id}
         );
       `;
-      const next = nextRunAfter(r.next_run <= today ? today : r.next_run, r.cykl);
-      await sql`UPDATE recurring_costs SET next_run = ${next}, updated_at = now() WHERE id = ${r.id};`;
+      // Od kotwicy, nie od dnia nadrobienia — jak przy fakturach wyżej.
+      const kotwica = kotwicaSerii(r.kotwica, r.next_run);
+      const next = nextRunFromAnchor(kotwica, r.cykl, today);
+      await sql`UPDATE recurring_costs SET next_run = ${next}, kotwica = ${kotwica}, updated_at = now() WHERE id = ${r.id};`;
       // Koszt nie ma podstrony rekordu (`/admin/costs` bez `[id]`), więc
       // kliknięcie prowadzi do listy — patrz `notificationHref()`.
       await notify({

@@ -45,7 +45,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE recurring_invoices SET cykl = ${v}, updated_at = now() WHERE id = ${id};`;
     }
     if ("next_run" in body && typeof body.next_run === "string" && body.next_run.trim()) {
-      await sql`UPDATE recurring_invoices SET next_run = ${body.next_run.slice(0, 10)}, updated_at = now() WHERE id = ${id};`;
+      // Ręczna zmiana terminu PRZESTAWIA KOTWICĘ serii — właściciel przesuwa
+      // rytm („od teraz 10. dnia"), a nie jedno wystąpienie. Dokładnie ta sama
+      // reguła i to samo uzasadnienie, co przy terminie przypomnienia
+      // (`PATCH /api/reminders/:id` → `powtarzanie_od`). Bez tego następny
+      // termin wróciłby na stary dzień i wyglądałoby to jak cofnięcie zapisu.
+      const nowy = body.next_run.slice(0, 10);
+      await sql`UPDATE recurring_invoices SET next_run = ${nowy}, kotwica = ${nowy}, updated_at = now() WHERE id = ${id};`;
     }
     if ("active" in body) await sql`UPDATE recurring_invoices SET active = ${Boolean(body.active)}, updated_at = now() WHERE id = ${id};`;
     if ("pozycje" in body && Array.isArray(body.pozycje)) {

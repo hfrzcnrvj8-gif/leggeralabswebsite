@@ -246,6 +246,9 @@ export type RecurringCost = {
   project_id: string | null;
   cykl: RecurringCycle;
   next_run: string;
+  /** Kotwica rytmu serii — bliźniak pola w `RecurringInvoice`, patrz
+   * `kotwicaSerii()` w lib/recurring.ts. */
+  kotwica: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;

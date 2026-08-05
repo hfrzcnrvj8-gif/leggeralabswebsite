@@ -53,12 +53,12 @@ export async function POST(req: NextRequest) {
     await sql`
       INSERT INTO recurring_invoices (
         id, nazwa, klient_nazwa, klient_nip, klient_ulica, klient_kod, klient_miasto, klient_kraj,
-        klient_email, waluta, jezyk, termin_dni, pozycje, cykl, next_run, active
+        klient_email, waluta, jezyk, termin_dni, pozycje, cykl, next_run, kotwica, active
       ) VALUES (
         ${id}, ${str(body.nazwa, 200)}, ${str(body.klient_nazwa, 300)}, ${str(body.klient_nip, 30)},
         ${str(body.klient_ulica, 300)}, ${str(body.klient_kod, 20)}, ${str(body.klient_miasto, 200)}, ${str(body.klient_kraj, 100)},
         ${str(body.klient_email, 200)}, ${waluta}, ${jezyk}, ${terminDni},
-        ${JSON.stringify(pozycje)}, ${cykl}, ${nextRun}, true
+        ${JSON.stringify(pozycje)}, ${cykl}, ${nextRun}, ${nextRun}, true
       );
     `;
     return NextResponse.json({ ok: true, id });

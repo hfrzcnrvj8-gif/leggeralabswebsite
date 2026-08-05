@@ -52,6 +52,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         updated_at = now()
       WHERE id = ${id};
     `;
+    // Kotwica rytmu przestawia się TYLKO wtedy, gdy właściciel naprawdę
+    // przesunął termin — ręczna zmiana daty znaczy „od teraz tego dnia", tak
+    // samo jak przy przypomnieniach. Bezwarunkowe `kotwica = f.next_run`
+    // byłoby usterką: ta trasa przepuszcza KOMPLET pól (`czytajPolaCyklu`
+    // z wartościami istniejącymi jako domyślne), więc zwykła zmiana kwoty
+    // przy serii „od 31." zapisałaby jako kotwicę bieżący, przycięty termin
+    // (28 lutego) i seria zostałaby na 28. do końca życia.
+    if ("next_run" in body && dataISO(istniejacy.next_run) !== f.next_run) {
+      await sql`UPDATE recurring_costs SET kotwica = ${f.next_run}, updated_at = now() WHERE id = ${id};`;
+    }
     if ("project_id" in body) {
       const v = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id : null;
       await sql`UPDATE recurring_costs SET project_id = ${v}, updated_at = now() WHERE id = ${id};`;

@@ -997,6 +997,146 @@ async function przejscie(): Promise<void> {
   // regresję. To jest ta sama pułapka co „dev-baza żyje między przebiegami”,
   // tylko wewnątrz jednego przebiegu.
   await sondaHamulca();
+
+  // ── 16. Drugi rok obrotowy ─────────────────────────────────────────────
+  // PO hamulcu, bo nie dotyka publicznych dokumentów, a hamulec zatruwa
+  // odcisk na godzinę (patrz komentarz wyżej).
+  await drugiRokObrotowy();
+}
+
+// ── Drugi rok obrotowy ─────────────────────────────────────────────────────
+
+/**
+ * Czego dwa pierwsze przejścia nie mogły zobaczyć: UPŁYWU CZASU.
+ *
+ * Oba trwały dziesięć minut zegarowych, a panel powstał w lipcu 2026 i nigdy
+ * nie przeżył 31 grudnia. Przez tę datę przechodzą numeracja faktur, retencja
+ * i dokumenty cykliczne.
+ *
+ * **Metoda: postarzamy DANE, nie zegar.** W kodzie nie ma wstrzykiwania daty
+ * (sprawdzone 2026-08-05) i nie ma go dokładać tylko po to, żeby dało się
+ * testować. Ale retencja liczy się SQL-em (`now() - interval`), a cykliczne
+ * wyzwala `next_run <= today`, więc rekord z datą w przeszłości zachowuje się
+ * dokładnie tak, jakby czas minął.
+ */
+async function drugiRokObrotowy(): Promise<void> {
+  krok("Drugi rok: rytm serii cyklicznych");
+
+  // Szablon „co miesiąc 31." z terminem zaległym o pół roku — tak wygląda
+  // seria, której cron nie nadrobił (awaria, brak CRON_SECRET, limity Vercela).
+  const szablon = await api("POST", "/api/recurring", {
+    nazwa: `[przejście ${ZNACZNIK}] Abonament 31.`,
+    klient_nazwa: `[przejście ${ZNACZNIK}] Klient abonamentowy`,
+    klient_email: `abonament.${ZNACZNIK}@przyklad.pl`,
+    cykl: "miesiecznie",
+    next_run: "2026-01-31",
+    pozycje: [{ nazwa: "Abonament", ilosc: 1, jednostka: "szt.", cena_netto: 1000, vat_stawka: "23" }],
+  });
+  const szablonId = id(szablon.dane);
+  wymagaj(!!szablonId, "nie udało się założyć szablonu cyklicznego");
+
+  const poZalozeniu = await stanSzablonu(szablonId!);
+  sprawdz(
+    "założony szablon zapamiętuje KOTWICĘ rytmu, nie tylko najbliższy termin",
+    poZalozeniu?.kotwica === "2026-01-31",
+    undefined,
+    `kotwica = ${poZalozeniu?.kotwica}`
+  );
+
+  await api("POST", "/api/leads/notify", {});
+  const poNadrobieniu = await stanSzablonu(szablonId!);
+
+  // SEDNO. Kotwica to 31., cron nadrabia pół roku spóźnienia — następny termin
+  // ma wypaść 31. dnia miesiąca, nie w dniu nadrobienia. Do 2026-08-05 liczyło
+  // się to od `today`, więc jedno spóźnienie przesuwało serię NA STAŁE:
+  // faktura „co miesiąc 31." nadrobiona 5. wystawiała się już zawsze 5.
+  sprawdz(
+    "cron nadrabiający zaległą serię NIE przesuwa jej na dzień nadrobienia",
+    typeof poNadrobieniu?.next_run === "string" && poNadrobieniu.next_run.endsWith("-31"),
+    undefined,
+    `next_run = ${poNadrobieniu?.next_run} (kotwica ${poNadrobieniu?.kotwica})`
+  );
+  sprawdz(
+    "kotwica przeżywa przebieg crona — rytm należy do szablonu, nie do ostatniego uruchomienia",
+    poNadrobieniu?.kotwica === "2026-01-31",
+    undefined,
+    `kotwica = ${poNadrobieniu?.kotwica}`
+  );
+
+  const poDrugim = await (async () => {
+    await api("POST", "/api/leads/notify", {});
+    return stanSzablonu(szablonId!);
+  })();
+  sprawdz(
+    "drugi przebieg tego samego dnia nie generuje dokumentu po raz drugi",
+    poDrugim?.next_run === poNadrobieniu?.next_run,
+    undefined,
+    `${poNadrobieniu?.next_run} → ${poDrugim?.next_run}`
+  );
+
+  // Ręczna zmiana terminu = przesunięcie RYTMU, nie jednego wystąpienia
+  // (ta sama reguła, co przy terminie przypomnienia).
+  await api("PATCH", `/api/recurring/${szablonId}`, { next_run: "2027-03-10" });
+  const poRecznej = await stanSzablonu(szablonId!);
+  sprawdz(
+    "ręczna zmiana terminu przestawia kotwicę — „od teraz tego dnia”",
+    poRecznej?.kotwica === "2027-03-10" && poRecznej?.next_run === "2027-03-10",
+    undefined,
+    `next_run = ${poRecznej?.next_run}, kotwica = ${poRecznej?.kotwica}`
+  );
+
+  krok("Drugi rok: retencja po upływie okna");
+
+  // Trzy leady: martwy, martwy-ale-powiązany, świeży. Postarzamy przez
+  // `ostatni_kontakt` — to na nim (a nie na `updated_at`) stoi zegar RODO.
+  const martwy = id((await api("POST", "/api/leads", {
+    firma: `[przejście ${ZNACZNIK}] Retencja — martwy`, email: `martwy.${ZNACZNIK}@przyklad.pl`,
+  })).dane);
+  const zOferta = id((await api("POST", "/api/leads", {
+    firma: `[przejście ${ZNACZNIK}] Retencja — powiązany`, email: `powiazany.${ZNACZNIK}@przyklad.pl`,
+  })).dane);
+  const swiezy = id((await api("POST", "/api/leads", {
+    firma: `[przejście ${ZNACZNIK}] Retencja — świeży`, email: `swiezy.${ZNACZNIK}@przyklad.pl`,
+  })).dane);
+  wymagaj(!!martwy && !!zOferta && !!swiezy, "nie udało się założyć leadów do retencji");
+
+  for (const lead of [martwy!, zOferta!]) {
+    await api("PATCH", `/api/leads/${lead}`, { ostatni_kontakt: "2023-01-15" });
+  }
+  await api("POST", "/api/offers", { tytul: `[przejście ${ZNACZNIK}] Oferta chroniąca`, lead_id: zOferta });
+
+  await api("POST", "/api/leads/notify", {});
+  const zyje = async (leadId: string) => (await api("GET", `/api/leads/${leadId}`)).status === 200;
+
+  sprawdz(
+    "lead bez śladu relacji, starszy niż okno retencji, znika sam",
+    !(await zyje(martwy!)),
+    undefined,
+    "24 miesiące bez kontaktu i bez klienta/oferty/umowy/faktury/projektu"
+  );
+  // Wykluczenie jest tu ważniejsze od samego kasowania: fałszywe zatrzymanie
+  // kosztuje miejsce, fałszywe usunięcie kosztuje DANE, których nie ma skąd
+  // odtworzyć.
+  sprawdz(
+    "lead równie stary, ale z ofertą, zostaje — powiązanie chroni przed retencją",
+    await zyje(zOferta!),
+    undefined,
+    "wykluczenia: klient, faktura, oferta, umowa, projekt"
+  );
+  sprawdz(
+    "świeży lead zostaje nietknięty",
+    await zyje(swiezy!),
+  );
+}
+
+/** Stan szablonu cyklicznego, z datami przyciętymi do `YYYY-MM-DD` — kolumna
+ * `DATE` wraca inaczej z `neon()` (string) niż z PGlite (bywa `Date`). */
+async function stanSzablonu(szablonId: string): Promise<{ next_run: string; kotwica: string | null } | null> {
+  const lista = await api("GET", "/api/recurring");
+  const r = (lista.dane?.recurring ?? []).find((x: any) => x.id === szablonId);
+  if (!r) return null;
+  const dzien = (v: unknown) => (v == null ? null : String(v instanceof Date ? v.toISOString() : v).slice(0, 10));
+  return { next_run: dzien(r.next_run)!, kotwica: dzien(r.kotwica) };
 }
 
 // ── Droga, która się nie udaje ─────────────────────────────────────────────

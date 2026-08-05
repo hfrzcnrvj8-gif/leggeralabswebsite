@@ -1137,6 +1137,19 @@ async function createInvoicesSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS recurring_invoices_active_idx ON recurring_invoices(active, next_run);`;
 
+  // KOTWICA serii (2026-08-05, trzecie przejście — drugi rok obrotowy).
+  // Bez niej cron liczył następny termin od DNIA NADROBIENIA, więc jedno
+  // spóźnienie przesuwało serię na stałe: faktura „co miesiąc 1." nadrobiona
+  // 5. wystawiała się już zawsze 5. Odpowiednik `reminders.powtarzanie_od`.
+  await sql`ALTER TABLE recurring_invoices ADD COLUMN IF NOT EXISTS kotwica DATE;`;
+  // Backfill: istniejące szablony przyjmują za kotwicę swój bieżący `next_run`
+  // — to jedyna data, jaką o nich wiemy, i od niej seria ma iść dalej.
+  // `inMigration()`, bo to NIE jest DDL: bez tego w dev zakleszcza seeder
+  // i wszystkie /api/* wiszą (lib/migration-ctx.ts).
+  await inMigration(
+    () => sql`UPDATE recurring_invoices SET kotwica = next_run WHERE kotwica IS NULL;`
+  );
+
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_items (
       id TEXT PRIMARY KEY,
@@ -2331,6 +2344,13 @@ async function createCostsSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS recurring_costs_active_idx ON recurring_costs(active, next_run);`;
+
+  // Kotwica serii — bliźniak tego, co przy `recurring_invoices` wyżej; obie
+  // tabele dzielą tę samą funkcję liczącą termin, więc dzielą też jej pułapkę.
+  await sql`ALTER TABLE recurring_costs ADD COLUMN IF NOT EXISTS kotwica DATE;`;
+  await inMigration(
+    () => sql`UPDATE recurring_costs SET kotwica = next_run WHERE kotwica IS NULL;`
+  );
 
   // Moduł 63 (2026-08-01) — waluta i kurs kosztu. Do tej pory każdy koszt był
   // milcząco w złotówkach: faktura za chmurę/licencje z UE wpisywała się jako

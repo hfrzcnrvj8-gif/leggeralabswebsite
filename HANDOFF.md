@@ -48,11 +48,28 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. Trzecie przejście: DRUGI ROK OBROTOWY. ZATWIERDZONE, BRIEF GOTOWY.**
+**1. Trzecie przejście: DRUGI ROK OBROTOWY — ZROBIONE 2026-08-05.**
+Wynik: **`docs/TRZECIE-PRZEJSCIE-DRUGI-ROK.md`**. Brief:
+`docs/TRZECIE-PRZEJSCIE-DRUGI-ROK-PLAN.md`.
 
-- Brief: `docs/TRZECIE-PRZEJSCIE-DRUGI-ROK-PLAN.md`
-- Do wklejenia w nowym czacie: **`PROMPT-NOWY-CZAT.md`** w korzeniu
-- **Panel, nie apka.**
+Z czterech podejrzeń briefu: **dwa potwierdzone i naprawione** (faktura
+cykliczna „co miesiąc 31." uciekała na 3. dzień miesiąca, a każde spóźnienie
+crona przesuwało serię na stałe), **jedno sprawdzone i czyste** (retencja —
+po raz pierwszy przeszła przez rzeczywisty upływ okna), **jedno odłożone**
+(numeracja faktur, patrz niżej). Obie tabele cykliczne mają teraz `kotwica`,
+a arytmetyka jest bliźniakiem tej z Kalendarza. `npm test` **349/349**,
+`npm run przejscie` **109 działa · 0 regresji** — nowe zdania sprawdzone
+kontrolnie przez tymczasowe cofnięcie poprawki.
+
+**OTWARTE — wymaga decyzji księgowej, nie kodu:** rok w numerze faktury bierze
+się z zegara serwera, nie z `data_wystawienia`, więc szkic z datą 31.12
+wystawiony 2 stycznia dostaje numer z nowego roku. Świadomie nietknięte
+(sprawy księgowe idą na sam koniec, po rejestracji).
+
+**Pułapka środowiska złapana przy okazji:** wszystkie `/api/*` potrafią zacząć
+oddawać **404** po restarcie `next dev` — także trasy nietykane, przy czystym
+`tsc` i działającej stronie głównej. To uszkodzony cache Turbopacka;
+`rm -rf .next` i start od nowa. Nie szukaj wtedy usterki w swoim kodzie.
 
 Panel powstał w lipcu 2026 i **nigdy nie przeżył 31 grudnia**. Przez tę datę
 przechodzą: numeracja faktur (reset z rokiem), retencja (24 mies. / 6 lat),
