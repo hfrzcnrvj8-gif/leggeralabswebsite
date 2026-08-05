@@ -44,22 +44,41 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. Audyt „serwer oddaje, apka wyrzuca do kosza". BRIEF GOTOWY.**
-Wybór właściciela 2026-08-05.
+**1. Audyt „serwer oddaje, apka wyrzuca do kosza" — ZROBIONY 2026-08-05.**
+Wynik i dowody: **`docs/natywna-aplikacja/40-wynik-audyt-co-apka-wyrzuca.md`**.
+Brief, wg którego szedł: `39-brief-audyt-co-apka-wyrzuca.md`.
 
-- Brief: `docs/natywna-aplikacja/39-brief-audyt-co-apka-wyrzuca.md`
-- Do wklejenia w nowym czacie: **`PROMPT-AUDYT-APKA.md`** w korzeniu
+Przejrzane **wszystkie 48 wywołań `GET`** apki przeciwko temu, co naprawdę
+zwracają ich trasy. **Sześć luk, wszystkie naprawione i sprawdzone na
+symulatorze**; dziesięć pominięć ocenionych jako świadome i spisanych, żeby
+następny audyt nie liczył ich drugi raz. Panelu nie ruszano.
 
-Przy poprzedniej paczce znalazły się CZTERY pola, które trasy oddają, a apka
-ignoruje — i to sprawdzając dwie trasy przy okazji, nie szukając ich. Jedno
-zostało otwarte i jest potwierdzone: **`expiredOffers` z `/api/hub/today`**
-(oferty po terminie ważności; panel liczy je do „wymaga działania dziś", apka
-nie ma dla nich sekcji).
+| # | luka | co przez to nie działało |
+|---|---|---|
+| 1 | `expiredOffers` (`hub/today`) | oferty po terminie ważności — licznik je liczył, sekcji nie było |
+| 2 | `bramka` (4 trasy `/send`) | **z telefonu nie dało się wysłać dokumentu z ostrzeżeniem** |
+| 3 | `aneksy` / `matka` (`contracts/:id`) | z umowy nie było widać, że ma aneks; z aneksu — do której umowy |
+| 4 | `sourceOffer` (`projects/:id`) | z czego powstał projekt |
+| 5 | `offers`/`invoices`/`contracts`/`tresc` (`search`) | szukanie po dokumentach i **po treści rozmów/maili** |
+| 6 | `offerLosses`, `hunter` (`stats`) | „na czym przegrywamy" i skuteczność sita Łowcy |
 
-Ten błąd nie daje ŻADNEGO objawu: `tsc` przechodzi, build przechodzi, ekran się
-rysuje, pusty stan nie wyskakuje — bo tablica jest pusta, a nie `nil`. Widać go
-wyłącznie przez porównanie dwóch list pól. Zmierzony zakres: 48 wywołań `GET`
-i 41 struktur dekodujących w `APIClient.swift`.
+**Najpoważniejsza (#2) nie była brakującą sekcją, tylko brakującą DROGĄ DALEJ.**
+Trasa odmawiała wysyłki dokumentu z samymi ostrzeżeniami kodem 409 i czekała na
+powtórkę z `mimo_ostrzezen: true`; apka tego nie umiała, więc pokazywała powód
+i kończyła. Ślepy zaułek, bez awarii i bez objawu. Sprawdzone w dzienniku:
+`409 → 428 → 200` na jedno kliknięcie. Opis w README apki („Bramka wysyłki").
+
+**Odnotowane, świadomie nie naprawione:** ostrzeżenie o sufitcie listy działa
+w apce dla Klientów i Projektów, a `/api/contracts` i `/api/offers` też oddają
+`total` — apka je ignoruje. Nie naprawione, bo nie da się tego dowieść: sufity
+to 1000 i 500 rekordów, a dev-baza tyle nie zniesie. Trzy linijki na listę,
+do zrobienia, gdy będzie czym pokazać.
+
+**Naturalny następny krok:** druga strona tej samej monety — `POST`/`PATCH`,
+w których apka wysyła pole, którego trasa nie czyta. Objaw identyczny (cisza),
+skutek gorszy: zapis, który wygląda na udany i nic nie zmienia. Ten audyt tego
+nie objął — czas poszedł na bramkę wysyłki, która okazała się większa, niż
+brief zakładał.
 
 **2. Apka — paczka ZROBIONA 2026-08-05** (kontekst, nie robota).
 Wszystkie pięć pozycji z briefu
