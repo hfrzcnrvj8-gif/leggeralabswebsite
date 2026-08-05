@@ -45,7 +45,10 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 ## Co jest następnym krokiem
 
 **1. Audyt „serwer oddaje, apka wyrzuca do kosza". BRIEF GOTOWY.**
-Wybór właściciela 2026-08-05. Brief: `docs/natywna-aplikacja/39-brief-audyt-co-apka-wyrzuca.md`.
+Wybór właściciela 2026-08-05.
+
+- Brief: `docs/natywna-aplikacja/39-brief-audyt-co-apka-wyrzuca.md`
+- Do wklejenia w nowym czacie: **`PROMPT-AUDYT-APKA.md`** w korzeniu
 
 Przy poprzedniej paczce znalazły się CZTERY pola, które trasy oddają, a apka
 ignoruje — i to sprawdzając dwie trasy przy okazji, nie szukając ich. Jedno
