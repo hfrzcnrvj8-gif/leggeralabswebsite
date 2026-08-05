@@ -48,18 +48,30 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. DECYZJA WŁAŚCICIELA: czym ma być trzecie przejście.**
+**1. Trzecie przejście: DRUGI ROK OBROTOWY. ZATWIERDZONE, BRIEF GOTOWY.**
 
-Obie strony monety „apka ↔ panel" są sprawdzone i zamknięte (punkty 2 i 3
-niżej), więc kolejka jest pusta. Propozycja z briefu 41 na wypadek pustego
-wyniku — a wynik jest pusty — to **drugi rok obrotowy**: numeracja faktur przez
-zmianę roku, retencja danych, faktury cykliczne przechodzące przez 31 grudnia
-(punkt (b) z końca `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`). Da się to zrobić w tym
-środowisku, bo `npm run przejscie` umie już budować scenariusze.
+- Brief: `docs/TRZECIE-PRZEJSCIE-DRUGI-ROK-PLAN.md`
+- Do wklejenia w nowym czacie: **`PROMPT-NOWY-CZAT.md`** w korzeniu
+- **Panel, nie apka.**
 
-**To robota po stronie PANELU, nie apki — wymaga Twojej zgody, zanim ktokolwiek
-przełączy repozytorium.** Punkty (a) i (c) trzeciego przejścia wymagają
-prawdziwej przeglądarki i tu ich nie zrobimy.
+Panel powstał w lipcu 2026 i **nigdy nie przeżył 31 grudnia**. Przez tę datę
+przechodzą: numeracja faktur (reset z rokiem), retencja (24 mies. / 6 lat),
+faktury i koszty cykliczne. Oba przejścia „na sucho" trwały po dziesięć minut
+zegarowych, więc żadne nie mogło tego zobaczyć. Punkt (b) z końca
+`docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`; punkty (a) i (c) wymagają prawdziwej
+przeglądarki i tu ich nie zrobimy.
+
+**Wykonalność sprawdzona przed napisaniem briefu:** w kodzie NIE MA
+wstrzykiwania daty, zegara nie da się przesunąć — ale retencja liczy się
+SQL-em (`now() - interval`), a cykliczne wyzwala `next_run <= today`, więc
+**postarzenie DANYCH** działa tak samo jak upływ czasu. To jest metoda tej roboty.
+
+Cztery podejrzenia z dowodem w kodzie (żadne nie potwierdzone przebiegiem):
+rok numeru z zegara zamiast z daty wystawienia (**A1 — wymaga Twojej decyzji,
+numer faktury to dokument fiskalny**), `nextRunAfter` przelewa 31. dzień
+miesiąca na następny (ta sama rodzina, którą Kalendarz już raz naprawiał),
+`next_run` liczony od dnia nadrobienia crona zamiast od kotwicy, retencja nigdy
+nieprzeszła przez rzeczywisty upływ okna.
 
 **2. Audyt „apka wysyła, trasa nie czyta" — ZROBIONY 2026-08-05. PUSTO.**
 Wynik: **`docs/natywna-aplikacja/42-wynik-audyt-co-apka-wysyla.md`**.
