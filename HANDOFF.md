@@ -44,30 +44,32 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. Apka iOS — jedna spójna paczka roboty.** To jest najbardziej gotowa rzecz
-do zrobienia i jedyna, która urosła przez cztery kroki z rzędu. **Trasy oddają
-komplet, brakuje wyłącznie ekranów w SwiftUI.** Zebrane:
+**1. Apka iOS — jedna spójna paczka roboty. BRIEF GOTOWY.** To jest najbardziej
+gotowa rzecz do zrobienia i jedyna, która urosła przez cztery kroki z rzędu.
+**Trasy oddają komplet, brakuje wyłącznie ekranów w SwiftUI.**
 
-| skąd | czego brakuje w apce | co serwer już oddaje |
-|---|---|---|
-| Faza 3 zaplecza | ekran „Propozycje" | `/api/hub/propozycje` |
-| krok 2 | rozwijacz poziomu windykacji | `/api/invoices/:id/remind` przyjmuje `poziom` |
-| krok 3 | propozycja o rozjeździe z aneksem, rubryka „WYNIKA Z" z aneksem | `faktura-wg-obowiazujacych-warunkow` |
-| krok 4 | druga akcja propozycji, dwie sekcje Pulpitu | `akcjaAlt`, `decyzja: "zrob-alt"`, `projektyZagrozone`, `zapomnianeSzkiceUmow` |
-| krok 5 | odrzucenie oferty przez klienta, karta „Odpowiedź na wersję N" | `POST /api/offers/public/:token/reject`, `poprzednia` w `GET /api/offers/:id` |
+- Brief: `docs/natywna-aplikacja/37-brief-dogonic-panel.md`
+- Do wklejenia w nowym czacie: **`PROMPT-APKA-DOGONIC-PANEL.md`** w korzeniu
+- Zastępuje `36-brief-propozycje.md` / `PROMPT-APKA-PROPOZYCJE.md` (ekran
+  propozycji jest w nim pierwszą z pięciu pozycji). Brief 36 zostaje jako
+  najlepszy opis samego tego ekranu; **stary prompt można skasować.**
 
-Brief na sam pierwszy wiersz jest gotowy od 2026-08-02
-(`docs/natywna-aplikacja/36-brief-propozycje.md`, do wklejenia:
-`PROMPT-APKA-PROPOZYCJE.md` w korzeniu — **sprawdź najpierw w repozytorium apki,
-czy nie został już zużyty**, plik nie został skasowany). Reszta tabeli briefu
-nie ma. **Rozsądny ruch: napisać JEDEN brief na całą paczkę**, zamiast pięciu
-osobnych czatów — to ten sam obszar kodu i te same wzorce.
+Zawartość paczki, sprawdzona po kodzie apki 2026-08-05 (ostatni commit apki to
+`07b0e56` — moduł „Propozycje" NIE został zrobiony):
 
-Najważniejsze z gotowego briefu, żeby nie zginęło: `/api/hub/today` **już**
-zwraca pole `propozycje`, a apka je wyrzuca, bo `PulpitDzis` go nie dekoduje —
-dla Pulpitu nie trzeba ani jednego nowego żądania. `PulpitDzis` ma ręczny
-`init(from:)`, więc nowe pole = trzy miejsca (patrz pamięć: „Swift: opcjonalny
-var zawsze nil").
+| # | co | stan w apce | ile roboty |
+|---|---|---|---|
+| 1 | ekran „Propozycje" (6 reguł, jedna z `akcjaAlt`) | nie ma nic | duża |
+| 2 | dwie sekcje Pulpitu (`projektyZagrozone`, `zapomnianeSzkiceUmow`) | `PulpitDzis` ich nie dekoduje | mała |
+| 3 | wybór poziomu windykacji | woła `/remind`, ale zawsze bez `poziom` | mała |
+| 4 | karta „Odpowiedź na wersję N" na ofercie | serwer oddaje `poprzednia` | mała |
+| 5 | rubryka „Wynika z" na fakturze | apka nie pokazuje źródeł wcale | najmniej pilna |
+
+**Trzy rzeczy, które wyglądały na luki, a nie są** (odwołane po sprawdzeniu
+kodu apki — szczegóły w briefie): odrzucenie oferty przez klienta nie jest
+funkcją apki właściciela; nowy rodzaj powiadomienia `offer_rejected` nie wymaga
+niczego; hierarchia akcji na ofercie w apce **już jest poprawna** i nie należy
+jej wyrównywać do panelu.
 
 **2. Trzecie przejście „na sucho"** — jeśli wolisz iść dalej sprawdzaniem niż
 budowaniem. Propozycja zakresu stoi na końcu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`:
