@@ -44,32 +44,35 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. Apka iOS — jedna spójna paczka roboty. BRIEF GOTOWY.** To jest najbardziej
-gotowa rzecz do zrobienia i jedyna, która urosła przez cztery kroki z rzędu.
-**Trasy oddają komplet, brakuje wyłącznie ekranów w SwiftUI.**
+**1. Apka iOS — paczka ZROBIONA 2026-08-05** (zostaje tu jako świeży kontekst,
+nie jako robota do wykonania). Wszystkie pięć pozycji z briefu
+`37-brief-dogonic-panel.md` jest w apce i sprawdzone na symulatorze przeciwko
+`npm run dev` + `npm run przejscie`. Wynik i dowody:
+**`docs/natywna-aplikacja/38-wynik-apka-dogania-panel.md`**.
 
-- Brief: `docs/natywna-aplikacja/37-brief-dogonic-panel.md`
-- Do wklejenia w nowym czacie: **`PROMPT-APKA-DOGONIC-PANEL.md`** w korzeniu
-- Zastępuje `36-brief-propozycje.md` / `PROMPT-APKA-PROPOZYCJE.md` (ekran
-  propozycji jest w nim pierwszą z pięciu pozycji). Brief 36 zostaje jako
-  najlepszy opis samego tego ekranu; **stary prompt można skasować.**
+| # | co | stan |
+|---|---|---|
+| 1 | ekran „Propozycje" (6 reguł, jedna z `akcjaAlt`) | ✅ tylko Pulpit — decyzja właściciela; zero nowych żądań |
+| 2 | dwie sekcje Pulpitu (`projektyZagrozone`, `zapomnianeSzkiceUmow`) | ✅ (szkice umów bez dowodu z danych — patrz niżej) |
+| 3 | wybór poziomu windykacji | ✅ + pierwszy cel testowy w repo apki (9 testów) |
+| 4 | karta „Odpowiedź na wersję N" na ofercie | ✅ |
+| 5 | rubryka „Wynika z" na fakturze | ✅ z aneksem i kwotą obowiązującą |
 
-Zawartość paczki, sprawdzona po kodzie apki 2026-08-05 (ostatni commit apki to
-`07b0e56` — moduł „Propozycje" NIE został zrobiony):
+Po drodze wyszły **trzy usterki, których brief nie znał**, wszystkie naprawione:
+`?odrzucone=1` doklejone do ścieżki dawało 404 (martwy przycisk „przywróć");
+poziom windykacji kłamał zaraz po wysyłce (nagłówek faktury się nie odświeżał);
+**bloki treści oferty nie pokazywały się w apce NIGDY** — `pobierzOferte` nie
+dekodowało `sections`, choć widok je rysował.
 
-| # | co | stan w apce | ile roboty |
-|---|---|---|---|
-| 1 | ekran „Propozycje" (6 reguł, jedna z `akcjaAlt`) | nie ma nic | duża |
-| 2 | dwie sekcje Pulpitu (`projektyZagrozone`, `zapomnianeSzkiceUmow`) | `PulpitDzis` ich nie dekoduje | mała |
-| 3 | wybór poziomu windykacji | woła `/remind`, ale zawsze bez `poziom` | mała |
-| 4 | karta „Odpowiedź na wersję N" na ofercie | serwer oddaje `poprzednia` | mała |
-| 5 | rubryka „Wynika z" na fakturze | apka nie pokazuje źródeł wcale | najmniej pilna |
+Jedyna rzecz z tej paczki **bez dowodu z danych**: sekcja „Zapomniane szkice
+umów". Reguła panelu wymaga `created_at < dziś`, a dev-baza PGlite żyje
+w pamięci procesu `next dev`, więc lokalnie nie da się takiego szkicu zrobić
+(brief mylnie twierdził, że zostawia go `npm run przejscie`). Pierwszy dowód
+przyjdzie z produkcji.
 
-**Trzy rzeczy, które wyglądały na luki, a nie są** (odwołane po sprawdzeniu
-kodu apki — szczegóły w briefie): odrzucenie oferty przez klienta nie jest
-funkcją apki właściciela; nowy rodzaj powiadomienia `offer_rejected` nie wymaga
-niczego; hierarchia akcji na ofercie w apce **już jest poprawna** i nie należy
-jej wyrównywać do panelu.
+**Odłożone świadomie:** propozycje w listach modułów (dziś tylko Pulpit).
+`SekcjaPropozycji` przyjmuje stan z zewnątrz, więc to dołożenie żądania
+`?modul=`, a nie przebudowa.
 
 **2. Trzecie przejście „na sucho"** — jeśli wolisz iść dalej sprawdzaniem niż
 budowaniem. Propozycja zakresu stoi na końcu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`:
