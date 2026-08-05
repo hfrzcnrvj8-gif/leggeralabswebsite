@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema, ensureBackupSchema, zPonowieniem } from "@/lib/db";
+import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensureOffersSchema, ensureClientsSchema, ensureFollowupsSchema, ensureMailSchema, ensureContractsSchema, ensureBackupSchema, ensureCostsSchema, zPonowieniem } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectAtRisk, isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
@@ -70,6 +70,7 @@ export async function GET() {
   await ensureFollowupsSchema();
   await ensureMailSchema();
   await ensureContractsSchema();
+  await ensureCostsSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -80,7 +81,7 @@ export async function GET() {
   const lastMonth =
     thisMonthNum === 1 ? `${thisYearNum - 1}-12` : `${thisYearNum}-${String(thisMonthNum - 1).padStart(2, "0")}`;
 
-  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, contracts, dueFollowups, companySettingsRows, pendingMails] = await Promise.all([
+  const [leads, clients, projects, overdueMilestones, todayEvents, recentNotes, invoices, offers, contracts, dueFollowups, companySettingsRows, pendingMails, overdueCosts] = await Promise.all([
     sql`SELECT * FROM leads;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
     sql`SELECT * FROM projects;` as unknown as Promise<Project[]>,
@@ -181,6 +182,41 @@ export async function GET() {
       ORDER BY m.received_at DESC;
     ` as unknown as Promise<
       { id: string; from_addr: string; from_name: string; subject: string; received_at: string; client_nazwa: string | null; lead_nazwa: string | null }[]
+    >,
+    // FAKTURA OD DOSTAWCY PO TERMINIE (przegląd szwów, 2026-08-06).
+    //
+    // Do tego dnia Pulpit nie pytał bazy o koszty w ogóle. Zmierzone sondą:
+    // koszt 8000 zł, 20 dni po terminie, nieopłacony — zero trafień na
+    // Pulpicie, w Kalendarzu, w porannym mailu i w dzwonku. Panel pilnował
+    // pieniędzy PRZYCHODZĄCYCH z czterech powierzchni i wysyłał o nie trzy
+    // maile sam, a o wychodzących nie mówił nic poza własną listą modułu.
+    //
+    // Symetria z `overdueInvoices` jest celowa, ale skutek jest ODWROTNY:
+    // tam pilnujemy, żeby ktoś zapłacił nam, tu — żebyśmy my nie przegapili
+    // terminu (odsetki, odcięta usługa). Dlatego trafia to na Pulpit i do
+    // porannego maila, ale NIE wysyła nikomu niczego.
+    sql`
+      SELECT c.id, c.opis, c.dostawca_nazwa, c.kategoria, c.termin_platnosci,
+             c.kwota_brutto, c.waluta, c.kurs_pln, c.project_id, p.tytul AS projekt
+      FROM costs c
+      LEFT JOIN projects p ON p.id = c.project_id
+      WHERE c.termin_platnosci IS NOT NULL
+        AND c.termin_platnosci < ${today}
+        AND c.status != 'Opłacony'
+      ORDER BY c.termin_platnosci ASC;
+    ` as unknown as Promise<
+      {
+        id: string;
+        opis: string;
+        dostawca_nazwa: string | null;
+        kategoria: string;
+        termin_platnosci: string;
+        kwota_brutto: number;
+        waluta: string;
+        kurs_pln: number | null;
+        project_id: string | null;
+        projekt: string | null;
+      }[]
     >,
   ]);
 
@@ -374,6 +410,7 @@ export async function GET() {
     projektyZagrozone,
     overdueInvoices,
     draftInvoices,
+    overdueCosts,
     zapomnianeSzkiceUmow,
     overdueMilestones,
     expiredOffers,

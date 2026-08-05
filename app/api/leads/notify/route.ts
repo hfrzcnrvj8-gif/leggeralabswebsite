@@ -391,7 +391,7 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
   // pomijałby maile pobrane tego samego ranka.
   const mail = await syncMailAndPurge();
 
-  const [leads, projects, clients, contracts, dueFollowups, overdueMilestones, todayEvents, draftInvoices, pendingMails, nudgeThreads, invoiceReminders, recurring, recurringCosts] = await Promise.all([
+  const [leads, projects, clients, contracts, dueFollowups, overdueMilestones, todayEvents, draftInvoices, pendingMails, overdueCosts, nudgeThreads, invoiceReminders, recurring, recurringCosts] = await Promise.all([
     sql`SELECT * FROM leads ORDER BY created_at DESC;` as unknown as Promise<Lead[]>,
     sql`SELECT * FROM projects ORDER BY created_at DESC;` as unknown as Promise<Project[]>,
     sql`SELECT * FROM clients;` as unknown as Promise<Client[]>,
@@ -463,6 +463,22 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
       ORDER BY m.received_at DESC;
     ` as unknown as Promise<
       { from_addr: string; from_name: string; subject: string; client_nazwa: string | null; lead_nazwa: string | null }[]
+    >,
+    // FAKTURY OD DOSTAWCY PO TERMINIE (przegląd szwów, 2026-08-06). Ta sama
+    // reguła co na Pulpicie (patrz app/api/hub/today). Do tego dnia raport
+    // wymieniał wyłącznie pieniądze PRZYCHODZĄCE — o naszej własnej zaległości
+    // nie mówił nic, mimo że kolumna `termin_platnosci` istnieje od Modułu 63
+    // właśnie po to, „żeby nieopłacona faktura od dostawcy nie leżała dowolnie
+    // długo". Nikt jej nie czytał poza samym modułem Koszty.
+    sql`
+      SELECT c.dostawca_nazwa, c.opis, c.kategoria, c.termin_platnosci, c.kwota_brutto, c.waluta
+      FROM costs c
+      WHERE c.termin_platnosci IS NOT NULL
+        AND c.termin_platnosci < ${today}
+        AND c.status != 'Opłacony'
+      ORDER BY c.termin_platnosci ASC;
+    ` as unknown as Promise<
+      { dostawca_nazwa: string | null; opis: string; kategoria: string; termin_platnosci: string; kwota_brutto: number; waluta: string }[]
     >,
     // Moduł 4f — nudge/follow-up ("wysłałeś, cisza od N dni"). Ta sama
     // definicja co zakładka „Bez odpowiedzi" w panelu, patrz getNudgeThreads()
@@ -615,6 +631,18 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     ? overdueMilestones.map((m) => `- ${m.nazwa} (${m.projekt}) — termin ${formatPlDate(m.termin)}`).join("\n")
     : "Brak kamieni po terminie.";
 
+  // Przegląd szwów (2026-08-06) — nasza własna zaległość. Kwota BRUTTO
+  // w walucie dokumentu, bez przeliczania: tyle wychodzi z konta, a kursów
+  // panel nie zna.
+  const kosztLinie = overdueCosts.length
+    ? overdueCosts
+        .map(
+          (k) =>
+            `  • ${k.dostawca_nazwa || k.opis || k.kategoria} — ${k.kwota_brutto.toFixed(2)} ${k.waluta || "PLN"}, termin ${formatPlDate(k.termin_platnosci)}`
+        )
+        .join("\n")
+    : "  (nic — żadna faktura od dostawcy nie jest po terminie)";
+
   // Wzorce serii → konkretne dzisiejsze wystąpienia (patrz komentarz przy
   // zapytaniu wyżej). Wydarzenia jednorazowe przechodzą nietknięte.
   const dzisiejszeWydarzenia = rozwinSerieWydarzen(todayEvents, today, today);
@@ -680,7 +708,11 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
     draftInvoices.length +
     staleContracts.length +
     zapomnianeSzkiceUmow.length +
-    projektyZagrozone.length;
+    projektyZagrozone.length +
+    // Nasza własna zaległość liczy się tak samo jak cudza (przegląd szwów,
+    // 2026-08-06) — inaczej temat maila mówiłby „wszystko ogarnięte" w dniu,
+    // w którym mija termin zapłaty za serwer.
+    overdueCosts.length;
 
   // Stan kopii zapasowych bazy (2026-07-20). Osobne, tanie zapytanie —
   // ŚWIADOMIE poza głównym Promise.all i w try/catch: awaria tego odczytu nie
@@ -846,6 +878,9 @@ async function buildAndSendDigest(): Promise<{ overdue: number; total: number; i
       : []),
     "",
     `Faktury-szkice czekające na wystawienie: ${draftInvoices.length}`,
+    "",
+    `Do zapłaty po terminie — faktury od dostawców (${overdueCosts.length}):`,
+    kosztLinie,
     "",
     `Dziś w kalendarzu (${dzisiejszeWydarzenia.length}):`,
     eventLines,

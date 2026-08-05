@@ -147,16 +147,46 @@ export async function GET(
       AND status != 'Anulowana'
       AND waluta != 'PLN';
   `;
+  // KOSZT W OBCEJ WALUCIE PRZELICZ KURSEM (przegląd szwów, 2026-08-06).
+  //
+  // Do tego dnia było tu gołe `SUM(kwota_netto)`. Zmierzone sondą: koszt
+  // 1000 EUR z kursem 4,30 wchodził do rentowności jako **1000 zł** zamiast
+  // 4300 — zysk zawyżony o 3300 zł, a `ma_inne_waluty` milczało, bo patrzy
+  // wyłącznie na faktury. Moduł Koszty i eksport dla księgowej liczyły to
+  // poprawnie (`wPln()` z lib/costs.ts), więc dwa ekrany podawały dwie różne
+  // kwoty tego samego kosztu i żaden nie wyglądał na zepsuty. Ta sama rodzina,
+  // co rabat pominięty w tej samej sumie (audyt Projektów, 2026-07-31).
+  //
+  // `kurs_pln IS NULL` znaczy „koszt w złotych" (patrz `kursDoPln()`), więc
+  // COALESCE(...,1) jest tu poprawne — ale TYLKO razem z warunkiem niżej,
+  // który wyrzuca koszt w obcej walucie BEZ kursu. Bez tego mnożnik 1 wróciłby
+  // tylnymi drzwiami dla wpisu z importu KSeF, gdzie kursu może nie być
+  // (`maPrzelicznik()`); zaniżona suma bez śladu jest gorsza niż suma niepełna
+  // z ostrzeżeniem — to rozstrzygnięcie Modułu 63 i tu obowiązuje tak samo.
   const [costsRow] = await sql`
-    SELECT COALESCE(SUM(kwota_netto), 0)::float8 AS netto FROM costs WHERE project_id = ${id};
+    SELECT COALESCE(SUM(kwota_netto * COALESCE(kurs_pln, 1)), 0)::float8 AS netto
+    FROM costs
+    WHERE project_id = ${id}
+      AND (COALESCE(waluta, 'PLN') = 'PLN' OR kurs_pln > 0);
+  `;
+  const [kosztyBezKursuRow] = await sql`
+    SELECT COUNT(*)::int AS n
+    FROM costs
+    WHERE project_id = ${id}
+      AND COALESCE(waluta, 'PLN') != 'PLN'
+      AND (kurs_pln IS NULL OR kurs_pln <= 0);
   `;
   const przychodNetto = Number(revenueRow?.netto ?? 0);
   const kosztyNetto = Number(costsRow?.netto ?? 0);
+  const kosztyBezKursu = Number(kosztyBezKursuRow?.n ?? 0);
   const rentownosc = {
     przychod_netto: przychodNetto,
     koszty_netto: kosztyNetto,
     zysk_netto: przychodNetto - kosztyNetto,
     ma_inne_waluty: Number(nonPlnRow?.n ?? 0) > 0,
+    /** Ile kosztów wypadło z sumy, bo są w obcej walucie bez kursu. Liczba, nie
+     *  flaga: ekran ma powiedzieć „bez 2 kosztów", a nie samo „niepełne". */
+    koszty_bez_kursu: kosztyBezKursu,
   };
 
   return NextResponse.json({ project, tasks, activity, milestones, resources, onboarding, dependencies, rentownosc, sourceOffer, documents });

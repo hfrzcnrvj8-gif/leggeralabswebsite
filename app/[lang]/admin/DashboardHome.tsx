@@ -26,6 +26,19 @@ import { StanBledu } from "./StanPusty";
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
 type OverdueMilestone = { id: string; nazwa: string; termin: string; project_id: string; projekt: string };
+/** Faktura od dostawcy po terminie (przegląd szwów, 2026-08-06). */
+type OverdueCost = {
+  id: string;
+  opis: string;
+  dostawca_nazwa: string | null;
+  kategoria: string;
+  termin_platnosci: string;
+  kwota_brutto: number;
+  waluta: string;
+  kurs_pln: number | null;
+  project_id: string | null;
+  projekt: string | null;
+};
 type DueFollowup = { id: string; client_id: string; project_id: string | null; due_date: string; powod: string; client_nazwa: string };
 // Moduł 4 — przychodzący mail bez reakcji. Bez treści: Pulpit pokazuje kto i
 // w jakiej sprawie, pełna wiadomość jest w zakładce Poczta.
@@ -107,6 +120,10 @@ type TodayData = {
   overdueMilestones: OverdueMilestone[];
   overdueInvoices: InvoiceRow[];
   draftInvoices: InvoiceRow[];
+  /** Faktury OD DOSTAWCY po terminie płatności (przegląd szwów, 2026-08-06).
+   *  Symetria z `overdueInvoices`, ale skutek odwrotny: to my mamy zapłacić.
+   *  `?`, bo apka i starsze odpowiedzi tego klucza nie znają. */
+  overdueCosts?: OverdueCost[];
   zapomnianeSzkiceUmow: ZapomnianySzkicUmowy[];
   expiredOffers: OfferRow[];
   /** Runda 2 Modułu 57 — wysłane, brak decyzji, cisza ≥ 5 dni. */
@@ -405,6 +422,9 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     data.overdueMilestones.length +
     data.overdueInvoices.length +
     data.draftInvoices.length +
+    // Nasza własna zaległość też „wymaga dziś działania" — do 2026-08-06
+    // licznik znał wyłącznie pieniądze przychodzące (przegląd szwów).
+    (data.overdueCosts?.length ?? 0) +
     (data.zapomnianeSzkiceUmow?.length ?? 0) +
     data.expiredOffers.length +
     data.staleOffers.length +
@@ -909,6 +929,43 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   >
                     Przypomnij
                   </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* PIENIĄDZE WYCHODZĄCE (przegląd szwów, 2026-08-06). Stoi zaraz pod
+            „Zaległymi fakturami" celowo: to ta sama sprawa widziana z drugiej
+            strony i czyta się je razem. Bez przycisku akcji — z Pulpitu nie da
+            się nikomu zapłacić, więc jedyne sensowne wyjście to otworzyć koszt.
+            Kwota BRUTTO, bo tyle wychodzi z konta (netto to sprawa księgowej).
+            Waluta dokumentu, bez przeliczania — panel kursów nie zna. */}
+        <section className="plyta-sekcji rounded-xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[13px] font-medium">Do zapłaty po terminie</h2>
+            <Link href={`/${lang}/admin/costs`} className="text-xs text-muted hover:text-[var(--fg)]">
+              Zobacz wszystkie →
+            </Link>
+          </div>
+          {(data.overdueCosts ?? []).length === 0 ? (
+            <p className="text-sm text-muted opacity-60">Nic — żadna faktura od dostawcy nie jest po terminie.</p>
+          ) : (
+            <ul className="space-y-2">
+              {(data.overdueCosts ?? []).slice(0, 6).map((k) => (
+                <li key={k.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/costs/${k.id}`} className="font-medium hover:underline">
+                      {k.dostawca_nazwa || k.opis || k.kategoria}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — {formatMoney(k.kwota_brutto, k.waluta || "PLN")}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-brand-gold">
+                    termin {formatPlDate(k.termin_platnosci)}
+                  </span>
                 </li>
               ))}
             </ul>

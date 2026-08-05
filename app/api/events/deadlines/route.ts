@@ -6,6 +6,8 @@ import {
   ensureInvoicesSchema,
   ensureClientsSchema,
   ensureRemindersSchema,
+  ensureCostsSchema,
+  ensureContractsSchema,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO } from "@/lib/dates";
@@ -18,7 +20,22 @@ export const runtime = "nodejs";
  * telefoniczne (Moduł 3, kanał="telefon") — świadomie tylko telefon, nie
  * cała historia kontaktu, żeby gęste dni nie zagłuszyły ważniejszych
  * terminów (decyzja właściciela 2026-07-14). */
-export type DeadlineKind = "invoice" | "project" | "milestone" | "lead" | "client" | "call" | "call-missed" | "email" | "reminder";
+/** `cost` i `contract` doszły 2026-08-06 (przegląd szwów). Apka dekoduje
+ * nieznany rodzaj przez `RodzajTerminu(rawValue:) ?? .nieznany`, więc starsza
+ * wersja pokaże je neutralnie zamiast zgubić całą listę — to jej zaprojektowany
+ * odwrót, nie przypadek. */
+export type DeadlineKind =
+  | "invoice"
+  | "cost"
+  | "project"
+  | "milestone"
+  | "lead"
+  | "client"
+  | "call"
+  | "call-missed"
+  | "email"
+  | "reminder"
+  | "contract";
 
 export type Deadline = {
   /** Stabilny, syntetyczny id — kalendarz nie zapisuje ani nie usuwa tych
@@ -52,12 +69,14 @@ export async function GET(req: NextRequest) {
   await ensureInvoicesSchema();
   await ensureClientsSchema();
   await ensureRemindersSchema();
+  await ensureCostsSchema();
+  await ensureContractsSchema();
   const sql = getSql();
 
   const month = req.nextUrl.searchParams.get("month");
   const prefix = month && /^\d{4}-\d{2}$/.test(month) ? month : todayLocalISO().slice(0, 7);
 
-  const [invoices, projects, milestones, leads, clients, leadCalls, clientCalls, leadEmails, clientEmails, reminders] = await Promise.all([
+  const [invoices, projects, milestones, leads, clients, leadCalls, clientCalls, leadEmails, clientEmails, reminders, koszty, umowy] = await Promise.all([
     // Nieopłacone faktury z terminem płatności w tym miesiącu (bez proform,
     // bez szkiców/anulowanych/opłaconych).
     sql`
@@ -150,6 +169,52 @@ export async function GET(req: NextRequest) {
         AND to_char(termin, 'YYYY-MM') = ${prefix};
     ` as unknown as Promise<
       { id: string; tytul: string; termin: string; lead_id: string | null; client_id: string | null; project_id: string | null }[]
+    >,
+    // TERMIN ZAPŁATY FAKTURY OD DOSTAWCY (przegląd szwów, 2026-08-06).
+    // Kalendarz zbierał dziewięć rodzajów terminów i ani jednego z pieniędzy
+    // WYCHODZĄCYCH — a to jedyny termin, którego przegapienie kosztuje odsetki
+    // albo odciętą usługę. Opłacone znikają: zapłacony rachunek nie jest już
+    // terminem, tak samo jak odhaczone przypomnienie wyżej.
+    sql`
+      SELECT id, dostawca_nazwa, opis, kategoria, termin_platnosci, project_id, client_id, lead_id
+      FROM costs
+      WHERE termin_platnosci IS NOT NULL AND status != 'Opłacony'
+        AND to_char(termin_platnosci, 'YYYY-MM') = ${prefix};
+    ` as unknown as Promise<
+      {
+        id: string;
+        dostawca_nazwa: string | null;
+        opis: string;
+        kategoria: string;
+        termin_platnosci: string;
+        project_id: string | null;
+        client_id: string | null;
+        lead_id: string | null;
+      }[]
+    >,
+    // KONIEC OKRESU OBOWIĄZYWANIA UMOWY (przegląd szwów, 2026-08-06).
+    // Pulpit miał sekcję „Umowy dobiegające końca" od 2026-07-27, kalendarz
+    // o umowach nie wiedział nic — a to jedyna rzecz w panelu, która po
+    // terminie przedłuża się SAMA i której się potem nie odkręci. Data, przed
+    // którą trzeba zdążyć, ma stać w kalendarzu.
+    sql`
+      SELECT c.id, c.typ, c.obowiazuje_do, c.odnawialna, c.klient_nazwa, c.client_id, c.project_id,
+             cl.nazwa AS client_nazwa
+      FROM contracts c
+      LEFT JOIN clients cl ON cl.id = c.client_id
+      WHERE c.obowiazuje_do IS NOT NULL AND c.accepted_at IS NOT NULL
+        AND to_char(c.obowiazuje_do, 'YYYY-MM') = ${prefix};
+    ` as unknown as Promise<
+      {
+        id: string;
+        typ: string;
+        obowiazuje_do: string;
+        odnawialna: boolean;
+        klient_nazwa: string | null;
+        client_nazwa: string | null;
+        client_id: string | null;
+        project_id: string | null;
+      }[]
     >,
   ]);
 
@@ -253,6 +318,28 @@ export async function GET(req: NextRequest) {
       client_id: a.client_id,
       lead_id: null,
       project_id: null,
+    })),
+    ...koszty.map((k) => ({
+      id: `cst-${k.id}`,
+      data: String(k.termin_platnosci).slice(0, 10),
+      tytul: `Do zapłaty — ${k.dostawca_nazwa || k.opis || k.kategoria}`,
+      kind: "cost" as const,
+      href: `/admin/costs/${k.id}`,
+      client_id: k.client_id,
+      lead_id: k.lead_id,
+      project_id: k.project_id,
+    })),
+    ...umowy.map((u) => ({
+      id: `umw-${u.id}`,
+      data: String(u.obowiazuje_do).slice(0, 10),
+      tytul: `${u.odnawialna ? "Umowa przedłuży się sama" : "Koniec umowy"} — ${
+        u.client_nazwa || u.klient_nazwa || "bez nazwy"
+      }`,
+      kind: "contract" as const,
+      href: `/admin/contracts/${u.id}`,
+      client_id: u.client_id,
+      lead_id: null,
+      project_id: u.project_id,
     })),
     ...reminders.map((r) => ({
       id: `rem-${r.id}`,

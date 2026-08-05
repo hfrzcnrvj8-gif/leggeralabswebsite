@@ -40,6 +40,16 @@ type StatsData = {
   reviews: { closedProjectsCount: number; reviewsCollected: number; pct: number | null; avgClientRating: number | null };
   referral: { totalLeads: number; referralLeads: number; pct: number | null; nurtureAsksSent: number; trend: StatsTrendPoint[] };
   timeTracking: { totalHours: number; trend: StatsTrendPoint[] };
+  /** Druga połowa bilansu (przegląd szwów, 2026-08-06). `?`, bo starsza
+   *  odpowiedź serwera tego klucza nie ma — ekran ma wtedy milczeć, nie paść. */
+  koszty?: {
+    wOknie: number;
+    przychodWOknie: number;
+    zyskWOknie: number;
+    bezKursu: number;
+    trend: StatsTrendPoint[];
+    zyskTrend: StatsTrendPoint[];
+  };
   /** Pętla poprawy sita „Łowcy leadów" (Moduł 52) — patrz komentarz przy
    * kafelku niżej. */
   /** Runda 2 Modułu 57 — powody odrzucenia ofert. */
@@ -208,6 +218,36 @@ export function StatsDashboard() {
           value={data.referral.pct != null ? `${data.referral.pct}%` : "—"}
           sub={`${data.referral.referralLeads}/${data.referral.totalLeads} leadów · ${data.referral.nurtureAsksSent} razy zapytaliśmy`}
         />
+        {/* Przegląd szwów (2026-08-06). Do tego dnia ten ekran mówił wyłącznie,
+            ile firma SPRZEDAŁA. Zysk stoi obok kosztów celowo — sama suma
+            wydatków bez przychodu obok nie odpowiada na żadne pytanie.
+            Kolor: zysk ujemny to jedyny stan, który tu naprawdę „się pali". */}
+        {data.koszty && (
+          <StatCard
+            label="Koszty (12 mies.)"
+            value={formatMoney(data.koszty.wOknie)}
+            sub={
+              data.koszty.bezKursu > 0
+                ? `bez ${data.koszty.bezKursu} ${odmienPl(data.koszty.bezKursu, "kosztu", "kosztów", "kosztów")} w obcej walucie — brak kursu`
+                : "netto, po kursie z wpisu"
+            }
+          />
+        )}
+        {data.koszty && (
+          <div className="card-paper rounded-xl border hairline p-4">
+            <div className="text-[11px] text-muted">Zysk (12 mies.)</div>
+            <div
+              className={`mt-1 text-lg font-semibold ${
+                data.koszty.zyskWOknie < 0 ? "text-brand-red-soft" : "text-[var(--fg)]"
+              }`}
+            >
+              {formatMoney(data.koszty.zyskWOknie)}
+            </div>
+            <div className="mt-0.5 text-[11px] text-muted">
+              {formatMoney(data.koszty.przychodWOknie)} przychodu − {formatMoney(data.koszty.wOknie)} kosztów · tylko złotówki
+            </div>
+          </div>
+        )}
         <StatCard
           label="Godziny pracy (łącznie)"
           value={data.timeTracking.totalHours > 0 ? `${data.timeTracking.totalHours} godz.` : "—"}
@@ -248,6 +288,16 @@ export function StatsDashboard() {
         <ChartCard title="Godziny pracy" sub="suma zalogowanego czasu, wg miesiąca wykonania pracy (wszystkie projekty)">
           <TrendChart points={data.timeTracking.trend} formatValue={(v) => `${v} godz.`} />
         </ChartCard>
+        {data.koszty && (
+          <ChartCard title="Koszty" sub="suma netto wg miesiąca wydatku, po kursie z wpisu">
+            <TrendChart points={data.koszty.trend} formatValue={(v) => formatMoney(v)} />
+          </ChartCard>
+        )}
+        {data.koszty && (
+          <ChartCard title="Zysk" sub="przychód minus koszty, wg miesiąca — tylko złotówki">
+            <TrendChart points={data.koszty.zyskTrend} formatValue={(v) => formatMoney(v)} />
+          </ChartCard>
+        )}
         {/* Nie tylko "ile leadów wpada" z danego źródła (kafel "Leady z
             polecenia" wyżej) — które źródło faktycznie ZAMIENIA SIĘ w
             klienta. Luka odnotowana w mapie drogi klienta, Etap 1. */}

@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-05, po etapie 1 planu domknięcia
+# Handoff — stan na 2026-08-06, po etapie 1 i przeglądzie szwów
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,15 +7,15 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- **Panel:** na wierzchu **etapu 1 planu domknięcia** (weryfikacja instrukcji
-  + `docs/CO-MAM.md`). `tsc` czysto, `npm test` **349/349**,
-  `npm run przejscie` **111 działa · 0 regresji**. Ta sesja zmieniła
-  **wyłącznie teksty** w `lib/instrukcje.ts` i dokumenty — zachowania panelu
-  nie ruszono.
+- **Panel:** na wierzchu **przeglądu szwów między modułami** (etap 1 planu
+  domknięcia jest pod spodem). `tsc` czysto, `npm test` **352/352**,
+  `npm run przejscie` **116 działa · 0 regresji**. Przegląd szwów ZMIENIŁ
+  zachowanie w pięciu miejscach (patrz niżej) — etap 1 przed nim ruszał
+  wyłącznie teksty.
 - **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
   **`255dc84`**. Buduje się, `swift test` w `LeggeraHubCore` daje **9/9**.
-  W etapie 1 apki nie dotykano.
-- `npm run przejscie`: **111 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+  Ani etap 1, ani przegląd szwów apki nie dotykały.
+- `npm run przejscie`: **116 działa · 0 znanych luk · 0 regresji · 0 obejść ·
   0 pominiętych**, powtarzalne (trzy biegi pod rząd dają to samo). Sufit:
   łączny limit hamulca (60/60 min) ogranicza to do ~5 przebiegów na godzinę;
   po `npm run dev` od nowa wraca komplet.
@@ -50,6 +50,39 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 Etap 1 ✅ zamknięty; następny to **etap 2 (bezpieczeństwo: sprawdzenie
 PRZYROSTU tras od Audytu 1)**. Etap 4 (przegląd UI prawdziwymi oczami) należy
 do właściciela i może iść równolegle.
+
+**0a. Przegląd SZWÓW między modułami — ZROBIONY 2026-08-06.**
+Wynik: **`docs/SZWY-MIEDZY-MODULAMI.md`**. Zlecony pytaniem właściciela („czy
+to naprawdę jeden system?"), poza planem domknięcia.
+
+**Inna rodzina pytań niż wszystkie audyty przed nim:** tamte patrzyły W GŁĄB
+modułu, ten na STYKI. Kręgosłup (lead → oferta → umowa → projekt → faktura →
+zapłata → opinia) okazał się spięty i przechodzi go harness. **Wszystkie pięć
+dziur leżało po jednej stronie — przy PIENIĄDZACH WYCHODZĄCYCH**, i wszystkie
+są naprawione:
+
+1. **rentowność projektu liczyła koszty w obcej walucie po nominale** (1000 EUR
+   wchodziło jako 1000 zł, zysk zawyżony o 3300) — BŁĄD, nie brak; ta sama
+   rodzina co rabat z audytu Projektów;
+2. **faktura od dostawcy po terminie nie odzywała się nigdzie** poza własnym
+   modułem — dziś Pulpit („Do zapłaty po terminie"), licznik, poranny mail
+   i Kalendarz;
+3. **Statystyki nie znały kosztów** (`grep -c costs` = 0) — dziś koszty, zysk
+   i dwa trendy;
+4. **Kalkulator był wyspą** (`lib/dobor.ts` importował jeden plik — własny
+   ekran) — dziś „Przenieś do oferty" zakłada szkic z rekomendacją jako blokiem
+   treści; pozycji cennika świadomie NIE wstawia (widełki to nie jedna cena);
+5. koniec okresu umowy nie stał w Kalendarzu — dziś stoi.
+
+**Lekcja:** audyt modułu nie znajdzie dziury na szwie, bo każdy moduł z osobna
+robił swoje poprawnie. Tanie sprawdzenie: weź pole, które jeden moduł zapisuje,
+i policz `grep -rl`, ile plików je CZYTA. Jeden = wyspa. Ta komenda znalazła
+trzy z pięciu dziur.
+
+**Apki nie dotykano.** Nowe rodzaje wpisów w Kalendarzu (`cost`, `contract`)
+apka pokaże neutralnie (`RodzajTerminu(rawValue:) ?? .nieznany`), a sekcji
+kosztów na Pulpicie i kafli w Statystykach po prostu nie ma — do dołożenia,
+gdy przyjdzie kolej na apkę.
 
 **0. Etap 1 planu domknięcia — ZROBIONY 2026-08-05.**
 Wynik: **`docs/ETAP-1-WYNIK.md`**, dokument dla właściciela:
@@ -340,7 +373,7 @@ jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 ## Uczciwa etykieta stanu
 
 **Kompletny funkcjonalnie, przeaudytowany, nieużywany produkcyjnie.** Trzy
-narzędzia, które sprawdzają DANE, a nie kod — przejście „na sucho" (111 zdań,
+narzędzia, które sprawdzają DANE, a nie kod — przejście „na sucho" (116 zdań,
 obie drogi), kontrola spójności na ekranie *Zdrowie* (13 reguł) i `error_log` —
 pokazują zero. Zaplecze domknięte na obu drogach, wygląd zrobiony na desktopie.
 Wersja tego akapitu dla właściciela, po ludzku i z listą „czego te liczby NIE

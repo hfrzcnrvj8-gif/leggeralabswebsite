@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { IconFileText, IconRotate } from "@tabler/icons-react";
+import { IconFileText, IconRotate, IconFileArrowRight } from "@tabler/icons-react";
 import {
   dobierz,
   opisKlienta,
@@ -14,6 +14,7 @@ import {
   type Retencja,
   type Uptime,
   type NotatkaTyp,
+  sekcjaOfertyZRekomendacji,
 } from "@/lib/dobor";
 import { DOC_GRADIENT } from "@/lib/documents";
 import { PasekMarkiDokumentu } from "../DocGradient";
@@ -120,6 +121,49 @@ export function KalkulatorDashboard() {
     window.print();
   };
 
+  /** PRZENIEŚ DO OFERTY (przegląd szwów, 2026-08-06).
+   *
+   * Zakłada SZKIC oferty i wkłada rekomendację jako blok treści. Nie wkłada
+   * pozycji cennika — kalkulator podaje widełki, a pozycja ma jedną cenę
+   * (patrz `sekcjaOfertyZRekomendacji`); ceny dalej składa się z Katalogu.
+   *
+   * Bez pytania o klienta: wybór powiązania jest pierwszym krokiem edytora
+   * oferty i tam ma zostać, a drugi picker po drodze byłby tym samym pytaniem
+   * dwa razy. Przenosimy od razu na nowy dokument — nowy szkic, którego nikt
+   * nie otworzył, jest szkicem niewidzialnym (lekcja z Ofert).
+   */
+  const [przenosze, setPrzenosze] = useState(false);
+  const przeniesDoOferty = async () => {
+    if (przenosze) return;
+    setPrzenosze(true);
+    try {
+      const sekcja = sekcjaOfertyZRekomendacji(rek);
+      const r = await fetch("/api/offers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tytul: "Wdrożenie lokalnego AI — dobór sprzętu" }),
+      });
+      const dane = (await r.json().catch(() => ({}))) as { id?: string; error?: string };
+      if (!r.ok || !dane.id) {
+        toast(dane.error || "Nie udało się założyć oferty.");
+        return;
+      }
+      const rs = await fetch(`/api/offers/${dane.id}/sections`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(sekcja),
+      });
+      if (!rs.ok) {
+        // Oferta już istnieje — mówimy prawdę o tym, czego zabrakło, zamiast
+        // udawać, że nic się nie stało (dokument-sierota bez treści).
+        toast("Oferta powstała, ale nie udało się wstawić doboru — wklej go ręcznie.");
+      }
+      window.location.href = `/pl/admin/offers/${dane.id}`;
+    } finally {
+      setPrzenosze(false);
+    }
+  };
+
   // Moduł bez rekordu do dodania, więc bez pozycji `id: "add"` (i bez skrótu
   // „n", który jest do niej przypisany na sztywno w `AppShell`). Kalkulator
   // wnosił do palety ZERO — jedyne dwie rzeczy, które da się tu zrobić, były
@@ -127,6 +171,7 @@ export function KalkulatorDashboard() {
   useRegisterActions(
     [
       { id: "drukuj", label: "Eksportuj rekomendację (PDF)", run: drukuj },
+      { id: "do-oferty", label: "Przenieś dobór do oferty", run: przeniesDoOferty },
       { id: "wyczysc", label: "Wyczyść odpowiedzi", run: wyczysc },
     ],
     [w, dotknieto]
@@ -308,6 +353,15 @@ export function KalkulatorDashboard() {
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-gold/40 bg-brand-gold/15 px-3 py-2 text-sm font-semibold text-brand-gold transition-colors hover:bg-brand-gold/25"
           >
             <IconFileText size={16} /> Eksportuj PDF (styl oferty)
+          </button>
+          {/* Przegląd szwów (2026-08-06) — jedyna droga z tego ekranu dalej
+              w głąb panelu. Do tego dnia wynik dało się wyłącznie wydrukować. */}
+          <button
+            onClick={przeniesDoOferty}
+            disabled={przenosze}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border hairline px-3 py-2 text-[13px] disabled:opacity-50"
+          >
+            <IconFileArrowRight size={16} /> {przenosze ? "Przenoszę…" : "Przenieś do oferty"}
           </button>
           <button
             onClick={wyczysc}

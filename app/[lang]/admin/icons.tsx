@@ -89,6 +89,7 @@ import {
   IconMapPin,
   IconFlag,
   IconReceipt,
+  IconReportMoney,
   IconChecklist,
   IconFileCheck,
   IconAlignLeft,
@@ -508,6 +509,11 @@ export function PoleProfiluIcon({
  */
 const RODZAJ_WPISU: Record<string, TablerIcon> = {
   invoice: IconReceipt,
+  // Przegląd szwów (2026-08-06): pieniądz wychodzący i koniec okresu umowy.
+  // Osobne ikony od faktury i od projektu — rodzaj ma się dać odróżnić bez
+  // czytania etykiety, bo po to ta mapa w ogóle powstała.
+  cost: IconReportMoney,
+  contract: IconFileCheck,
   project: IconFolder,
   milestone: IconFlag,
   lead: IconTarget,

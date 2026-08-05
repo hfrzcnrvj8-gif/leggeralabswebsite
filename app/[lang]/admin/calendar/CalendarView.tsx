@@ -126,6 +126,11 @@ function InviteButton({ event, className = "" }: { event: HubEvent; className?: 
  */
 const DEADLINE_LABEL: Record<DeadlineKind, string> = {
   invoice: "Płatność",
+  // Przegląd szwów (2026-08-06). „Do zapłaty" celowo różni się od „Płatność"
+  // wyżej: tamto jest pieniądzem przychodzącym, to wychodzącym, a w gęstym dniu
+  // etykieta jest jedynym miejscem, gdzie widać różnicę bez otwierania wpisu.
+  cost: "Do zapłaty",
+  contract: "Umowa",
   project: "Projekt",
   milestone: "Kamień",
   lead: "Lead",

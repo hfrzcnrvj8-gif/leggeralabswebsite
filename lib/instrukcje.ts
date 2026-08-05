@@ -91,7 +91,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "4. Przejdź sekcje od góry do dołu",
         opis:
-          "Leady, wiadomości, klienci, projekty, kamienie, faktury, oferty, umowy, dziś w kalendarzu, ostatnie notatki. Każda pozycja jest klikalna i prowadzi prosto do rekordu. Sekcja bez treści w ogóle się nie pokazuje, więc krótki Pulpit to dobra wiadomość, nie brak danych.",
+          "Leady, wiadomości, klienci, projekty, kamienie, faktury zaległe i do wystawienia, „Do zapłaty po terminie” (faktury OD dostawców), oferty, umowy, dziś w kalendarzu, ostatnie notatki. Każda pozycja jest klikalna i prowadzi prosto do rekordu. Sekcja bez treści w ogóle się nie pokazuje, więc krótki Pulpit to dobra wiadomość, nie brak danych.",
       },
       {
         tytul: "5. Na telefonie: zapisz myśl przyciskiem „+”",
@@ -677,7 +677,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "5. Rentowność liczy się sama, ale tylko ze złotówek",
         opis:
-          "Przychód to faktury tego projektu (z rabatami, bez proform i szkiców), koszty — wydatki podpięte do projektu. Z tego wychodzi zysk i efektywna stawka godzinowa, czyli jedyna liczba mówiąca, czy ta praca była warta czasu. Faktury w innych walutach są pomijane i panel pisze o tym wprost — nie przelicza kursów.",
+          "Przychód to faktury tego projektu (z rabatami, bez proform i szkiców), koszty — wydatki podpięte do projektu. Z tego wychodzi zysk i efektywna stawka godzinowa, czyli jedyna liczba mówiąca, czy ta praca była warta czasu. Dwie rzeczy o walutach: faktury w walucie innej niż złoty są POMIJANE (panel nie zna kursów sprzedaży), a koszty wchodzą po TWOIM kursie z wpisu — ten, przy którym kursu zabrakło, wypada z sumy i panel pisze, ilu kosztów nie objął. Obie informacje stoją pod kwotą, więc suma nigdy nie udaje kompletnej.",
       },
       {
         tytul: "6. Wystaw fakturę prosto stąd",
@@ -989,7 +989,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "3. Faktura w obcej walucie potrzebuje kursu",
         opis:
-          "Wybierz walutę faktury i wpisz kurs do złotego z dnia poprzedzającego jej wystawienie — tak liczy to ustawa o VAT. Bez kursu koszt zapisze się, ale NIE wejdzie do żadnej sumy ani do wykresu, i będzie o tym mówił wprost. Kwoty widzisz podwójnie: w walucie faktury i w przybliżeniu w złotych.",
+          "Wybierz walutę faktury i wpisz kurs do złotego z dnia poprzedzającego jej wystawienie — tak liczy to ustawa o VAT. Bez kursu panel ODMÓWI zapisu i powie dlaczego: kurs 1,00 zaniżyłby koszt kilkakrotnie, a takiej pomyłki nie widać potem w żadnej sumie. Wyjątek to koszt zaciągnięty z KSeF — tam kursu czasem nie ma, więc wpis powstaje bez niego, wypada ze wszystkich sum (miesięcznej, rentowności projektu, Statystyk) i każda z nich mówi wprost, ilu kosztów nie objęła. Kwoty widzisz podwójnie: w walucie faktury i w przybliżeniu w złotych.",
       },
       {
         tytul: "4. Termin płatności to co innego niż data płatności",
@@ -1007,6 +1007,11 @@ export const MODULY: ModulInstrukcji[] = [
         tytul: "Koszty cykliczne",
         opis:
           "Szablon abonamentu (hosting, licencje) tworzy nowy koszt-SZKIC, gdy nadejdzie jego data. Szkic czeka na Twoje sprawdzenie i opłacenie — nic nie płaci się samo. Szablon ma własną walutę, ale nie ma kursu: kurs jest z konkretnego dnia, a szablon nie wie, kiedy odpali.",
+      },
+      {
+        tytul: "Niezapłacona faktura od dostawcy sama się przypomina",
+        opis:
+          "Koszt z wpisanym terminem płatności, po terminie i nieoznaczony jako opłacony, trafia na Pulpit („Do zapłaty po terminie”), do porannego maila i na siatkę Kalendarza w dniu terminu. Symetria z Twoimi zaległymi fakturami jest celowa, ale skutek odwrotny: tamte panel przypomina KLIENTOWI, te przypomina TOBIE i nie wysyła nikomu niczego. Koszt bez wpisanego terminu jest w tym wszystkim niewidzialny — to jedno pole decyduje, czy ktokolwiek się o niego upomni.",
       },
       {
         tytul: "Import z KSeF",
@@ -1325,7 +1330,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "Terminy z innych modułów wchodzą tu SAME",
         opis:
-          "Płatność faktury, kamień milowy projektu, oddzwonienie do leada, przypomnienie z terminem — nikt ich tu nie wpisuje. Kolorem idzie PILNOŚĆ (jak blisko albo jak długo po terminie), a rodzaj wpisu niesie ikona. Lista rodzajów stoi w panelu po lewej.",
+          "Płatność faktury, TERMIN ZAPŁATY faktury od dostawcy, koniec okresu umowy, kamień milowy projektu, oddzwonienie do leada, przypomnienie z terminem — nikt ich tu nie wpisuje. Kolorem idzie PILNOŚĆ (jak blisko albo jak długo po terminie), a rodzaj wpisu niesie ikona. Lista rodzajów stoi w panelu po lewej.",
       },
       {
         tytul: "Wydarzenie powtarzalne to JEDEN wpis, nie kopie",
@@ -1411,7 +1416,12 @@ export const MODULY: ModulInstrukcji[] = [
           "„Eksportuj PDF (styl oferty)” otwiera okno druku z jednostronicowym dokumentem: nagłówek marki, odpowiedzi klienta, tabela sprzętu, koszt i uzasadnienie doboru.",
       },
       {
-        tytul: "7. Przed kolejną rozmową wyczyść odpowiedzi",
+        tytul: "7. Przenieś dobór do oferty",
+        opis:
+          "„Przenieś do oferty” zakłada SZKIC oferty i wkłada rekomendację jako blok treści, który klient przeczyta nad cennikiem: sprzęt, model, widełki kosztu i uzasadnienie doboru. Panel od razu otwiera ten szkic. Pozycji cennika NIE wstawia i to jest świadome — kalkulator podaje widełki („50–68 tys.”), a pozycja oferty ma jedną cenę; zamiana jednego na drugie byłaby zgadywaniem w dokumencie, który klient podpisuje. Ceny dalej składasz z Katalogu.",
+      },
+      {
+        tytul: "8. Przed kolejną rozmową wyczyść odpowiedzi",
         opis:
           "„Wyczyść odpowiedzi” przywraca wartości wyjściowe. Przycisk jest wyszarzony, dopóki niczego nie zmieniłeś.",
       },
@@ -1442,7 +1452,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "Kalkulator niczego nie zapisuje",
         opis:
-          "Nie ma tu rekordów, historii ani powiązania z klientem. Wynik żyje do przeładowania strony — jeśli ma zostać, wydrukuj go albo przenieś do oferty.",
+          "Nie ma tu rekordów, historii ani powiązania z klientem — sama ankieta i jej wynik żyją do przeładowania strony. Są dokładnie dwa wyjścia i oba trzeba kliknąć: wydruk PDF albo „Przenieś do oferty” (wtedy rekomendacja zostaje w szkicu oferty i to ON jest odtąd zapisem). Zamknięcie karty bez jednego z nich kasuje odpowiedzi klienta bez pytania.",
       },
     ],
     skroty: [

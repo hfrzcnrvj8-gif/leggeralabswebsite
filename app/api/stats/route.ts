@@ -7,6 +7,7 @@ import {
   ensureClientsSchema,
   ensureTimeSchema,
   ensureLeadHunterSchema,
+  ensureCostsSchema,
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO, daysBetweenISO } from "@/lib/dates";
@@ -31,6 +32,7 @@ export async function GET() {
   await ensureClientsSchema();
   await ensureTimeSchema();
   await ensureLeadHunterSchema();
+  await ensureCostsSchema();
   const sql = getSql();
 
   const today = todayLocalISO();
@@ -46,6 +48,7 @@ export async function GET() {
     hunterRows,
     hunterRejectRows,
     offerRejectRows,
+    kosztRows,
   ] = await Promise.all([
     // Czas do pierwszej odpowiedzi: pierwszy wpis na osi leada zainicjowany
     // PRZEZ NAS ("wychodzacy") po utworzeniu leada — nie ma dedykowanej
@@ -149,6 +152,27 @@ export async function GET() {
       WHERE o.status = 'Odrzucona'
       GROUP BY 1 ORDER BY ile DESC;
     ` as unknown as Promise<{ powod: string; ile: number; kwota: number }[]>,
+    // KOSZTY (przegląd szwów, 2026-08-06). Do tego dnia słowo „costs" nie padało
+    // w tym pliku ANI RAZU: ekran nazwany „wskaźniki zdrowia biznesu" mówił
+    // wyłącznie, ile firma sprzedała, a nie czy zarabia. Przychód bez kosztów
+    // to nie jest zdrowie biznesu, to obrót.
+    //
+    // Waluta: przeliczamy kursem z wpisu (`kurs_pln`), a koszt w obcej walucie
+    // BEZ kursu wypada z sumy i jest liczony osobno — dokładnie tak, jak robi
+    // to moduł Koszty i eksport dla księgowej (`maPrzelicznik()`). Ta sama
+    // reguła co w rentowności projektu, poprawionej tego samego dnia.
+    sql`
+      SELECT to_char(data_wydatku, 'YYYY-MM') AS miesiac,
+        COALESCE(SUM(kwota_netto * COALESCE(kurs_pln, 1)) FILTER (
+          WHERE COALESCE(waluta, 'PLN') = 'PLN' OR kurs_pln > 0
+        ), 0)::float8 AS netto,
+        COUNT(*) FILTER (
+          WHERE COALESCE(waluta, 'PLN') != 'PLN' AND (kurs_pln IS NULL OR kurs_pln <= 0)
+        )::int AS bez_kursu
+      FROM costs
+      WHERE data_wydatku IS NOT NULL
+      GROUP BY 1;
+    ` as unknown as Promise<{ miesiac: string; netto: number; bez_kursu: number }[]>,
   ]);
 
   // --- 1) Czas do pierwszej odpowiedzi (godziny) ---
@@ -313,6 +337,37 @@ export async function GET() {
     return { month: m, value: minutes != null ? statsRound1(minutes / 60) : null };
   });
 
+  // --- 8) Koszty i zysk (przegląd szwów, 2026-08-06) ---
+  //
+  // Przychód liczymy z tych samych faktur, co reszta tego pliku: właściwe
+  // faktury (bez proform), w PLN, z pominięciem szkiców i anulowanych. Zysk to
+  // różnica dwóch trendów — świadomie NIE osobne zapytanie, żeby nie dało się
+  // rozjechać z żadnym z nich.
+  const przychodPoMies = new Map<string, number>();
+  for (const inv of realInvoices) {
+    if (inv.status === "Szkic" || inv.status === "Anulowana" || !inv.data_wystawienia) continue;
+    const m = String(inv.data_wystawienia).slice(0, 7);
+    przychodPoMies.set(m, (przychodPoMies.get(m) ?? 0) + Number(inv.brutto ?? 0));
+  }
+  const kosztPoMies = new Map<string, number>();
+  let kosztyBezKursu = 0;
+  for (const k of kosztRows) {
+    kosztPoMies.set(String(k.miesiac), Number(k.netto) || 0);
+    kosztyBezKursu += Number(k.bez_kursu) || 0;
+  }
+  const kosztyTrend: StatsTrendPoint[] = months.map((m) => {
+    const v = kosztPoMies.get(m);
+    return { month: m, value: v != null ? statsRound1(v) : null };
+  });
+  const zyskTrend: StatsTrendPoint[] = months.map((m) => {
+    const p = przychodPoMies.get(m);
+    const k = kosztPoMies.get(m);
+    if (p == null && k == null) return { month: m, value: null };
+    return { month: m, value: statsRound1((p ?? 0) - (k ?? 0)) };
+  });
+  const kosztyOkno = months.reduce((s, m) => s + (kosztPoMies.get(m) ?? 0), 0);
+  const przychodOkno = months.reduce((s, m) => s + (przychodPoMies.get(m) ?? 0), 0);
+
   return NextResponse.json({
     months,
     firstResponse: { avgHours: avgResponseHours == null ? null : statsRound1(avgResponseHours), trend: responseTimeTrend },
@@ -347,6 +402,17 @@ export async function GET() {
     timeTracking: {
       totalHours: statsRound1(totalMinutesAll / 60),
       trend: timeTrackingTrend,
+    },
+    /** Druga połowa bilansu (przegląd szwów, 2026-08-06). `bezKursu` jest
+     *  liczbą, nie flagą: ekran ma powiedzieć „bez 2 kosztów", a nie samo
+     *  „niepełne" — suma, która milczy o tym, czego nie objęła, udaje pełną. */
+    koszty: {
+      wOknie: statsRound1(kosztyOkno),
+      przychodWOknie: statsRound1(przychodOkno),
+      zyskWOknie: statsRound1(przychodOkno - kosztyOkno),
+      bezKursu: kosztyBezKursu,
+      trend: kosztyTrend,
+      zyskTrend,
     },
     // Pętla poprawy sita „Łowcy leadów" (Moduł 52). Bez trendu miesięcznego:
     // przy kilkunastu kandydatach na miesiąc wykres pokazywałby szum, a nie

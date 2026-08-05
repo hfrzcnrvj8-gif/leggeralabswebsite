@@ -301,3 +301,52 @@ export function dobierz(w: Wejscie): Rekomendacja {
     notatki,
   };
 }
+
+/* ─────────────────── most do Oferty (przegląd szwów, 2026-08-06) ─────────── */
+
+/**
+ * Rekomendacja jako BLOK TREŚCI oferty.
+ *
+ * ── Po co to powstało ─────────────────────────────────────────────────────
+ * Do 2026-08-06 ten moduł był wyspą: `lib/dobor.ts` importował dokładnie jeden
+ * plik — własny ekran. Wynik dało się wydrukować i nic poza tym, więc liczby
+ * ustalone przy kliencie przepisywało się do oferty z kartki. To był najdroższy
+ * ręczny przepis w całym łańcuchu, i to akurat przy cenie usługi flagowej.
+ *
+ * ── Dlaczego SEKCJA TREŚCI, a nie pozycje cennika ─────────────────────────
+ * Bo kalkulator podaje WIDEŁKI („50–68 tys."), a pozycja oferty ma jedną cenę.
+ * Zamiana widełek na jedną liczbę byłaby zgadywaniem w dokumencie, który klient
+ * podpisuje — a moduł mówi o sobie wprost, że jest „punktem wyjścia do wyceny,
+ * nie wiążącą specyfikacją". Ceny dalej składa się z Katalogu, świadomie.
+ *
+ * Funkcja jest czysta (bez Reacta i bez `db`), żeby dało się ją sprawdzić
+ * testem — tak jak resztę tego pliku.
+ */
+export function sekcjaOfertyZRekomendacji(r: Rekomendacja): { tytul: string; tresc: string } {
+  const tys = (v: number) => Math.round(v / 1000);
+  const linie = [
+    `Dobór na podstawie rozmowy: ${r.opisWejscia}.`,
+    "",
+    "PROPONOWANY SPRZĘT",
+    `• Karta graficzna: ${r.liczbaGpu}× ${r.kartaNazwa} (${r.vramMasz} GB VRAM łącznie, potrzeba ${r.vramPotrzebne} GB)`,
+    `• Model: ${r.params}B w kwantyzacji ${r.quant}`,
+    `• Pamięć RAM: ${r.ram} GB`,
+    `• Dysk: ${r.ssdTB} TB SSD`,
+    `• Kopie zapasowe: ${r.nas}`,
+    `• Zasilanie awaryjne: ${r.ups}`,
+    `• Sieć: ${r.siec}`,
+    "",
+    "SZACOWANY KOSZT",
+    `• Wdrożenie (sprzęt i uruchomienie): ${tys(r.kosztMin)}–${tys(r.kosztMax)} tys. zł netto`,
+    `• Opieka miesięczna: ${r.serwisMin}–${r.serwisMax} zł netto`,
+    "",
+    "DLACZEGO TAK",
+    // Same notatki merytoryczne — typ („info"/„ostrzeżenie") jest sygnałem dla
+    // WŁAŚCICIELA przy doborze, a nie treścią dla klienta; kropka ostrzeżenia
+    // w dokumencie handlowym czytałaby się jak zastrzeżenie do własnej oferty.
+    ...r.notatki.map((n) => `• ${n.tekst}`),
+    "",
+    "Widełki dotyczą cen z 2026 roku i wymagają potwierdzenia u dostawcy. Ostateczny dobór potwierdzamy testem modelu na Państwa danych — dopiero on jest podstawą wiążącej wyceny.",
+  ];
+  return { tytul: "Dobór sprzętu pod lokalny model", tresc: linie.join("\n") };
+}

@@ -1,6 +1,6 @@
 # Co mam — Leggera Hub w skrócie
 
-**Stan na 2026-08-05.** Ten dokument nie uczy obsługi — od tego jest ekran
+**Stan na 2026-08-06.** Ten dokument nie uczy obsługi — od tego jest ekran
 *Instrukcje* w panelu (menu po lewej, na dole; to samo w apce). Tu jest
 odpowiedź na cztery pytania, na które nigdzie indziej nie ma jednego miejsca:
 **co mam, co dzieje się beze mnie, czego to świadomie nie robi i skąd wiadomo,
@@ -39,8 +39,8 @@ użytkownika, ról ani zespołu — to świadome zawężenie, nie brak.
 | **Przypomnienia** | Lista rzeczy do zrobienia; termin NIEOBOWIĄZKOWY | ✅ pełny + alarm na miejscu |
 | **Notatnik** | To, co pada w rozmowie, zanim stanie się rekordem | ✅ pełny (rysunek tylko iPad) |
 | **Kalendarz** | Spotkania + terminy zbierane z reszty panelu | ✅ pełny |
-| **Kalkulator doboru** | Odpowiedzi klienta → rekomendacja sprzętu pod lokalny model | ✅ pełny |
-| **Statystyki** | Wskaźniki zdrowia biznesu (konwersja, źródła, na czym przegrywasz) | ✅ pełny |
+| **Kalkulator doboru** | Odpowiedzi klienta → rekomendacja sprzętu pod lokalny model, jednym przyciskiem przenoszona do oferty | ✅ pełny (bez przeniesienia do oferty) |
+| **Statystyki** | Wskaźniki zdrowia biznesu: konwersja, źródła, na czym przegrywasz, koszty i zysk | ✅ pełny (bez kosztów i zysku) |
 | **Zdrowie** | Diagnostyka: czy panel mówi prawdę o samym sobie | ❌ tylko panel |
 
 ---
@@ -57,6 +57,7 @@ użytkownika, ról ani zespołu — to świadome zawężenie, nie brak.
 | **6:00** | Zakłada **szkice** faktur i kosztów cyklicznych | Nowy szkic na liście + wpis w dzwonku |
 | **6:00** | Pobiera pocztę ze skrzynki az.pl | Nowe wiadomości w module Poczta |
 | **6:00** | Kasuje dane po terminie retencji (patrz niżej) | Nic nie widać — i o to chodzi |
+| **6:00** | Wypisuje w mailu faktury OD DOSTAWCÓW po terminie | Sekcja „Do zapłaty po terminie” na Pulpicie i wpis w Kalendarzu w dniu terminu |
 | **8:00** | Wysyła maile, które odłożyłeś „na później" | Wiadomość w folderze Wysłane |
 
 ### Przy Twoim kliknięciu — skutki, które lecą same
@@ -115,7 +116,12 @@ widać złotym pasem na górze Pulpitu, razem ze stanem kopii zapasowych.
 - **Nie przelicza walut.** Nie zna kursów i celowo ich nie pobiera; kwoty w euro
   i złotówkach nie sumują się w jedną liczbę, i panel mówi o tym wprost tam,
   gdzie to ma znaczenie. Wyjątek: koszt w obcej walucie, gdzie **Ty** wpisujesz
-  kurs, bo tak każe ustawa o VAT.
+  kurs, bo tak każe ustawa o VAT — i po tym kursie koszt wchodzi do sumy
+  miesiąca, do rentowności projektu i do Statystyk. Koszt bez kursu wypada
+  ze wszystkich trzech, a każda z nich pisze, ilu wpisów nie objęła.
+- **Nie płaci za Ciebie.** Faktura od dostawcy po terminie odzywa się na
+  Pulpicie, w porannym mailu i w Kalendarzu — ale przelew robisz sam. Panel nie
+  ma dostępu do pieniędzy i mieć nie będzie.
 - **Nie ocenia „zdrowia" projektu za Ciebie.** Zagrożony/zerwany ustawiasz
   ręcznie; z minionego terminu nic się samo nie wylicza.
 - **Nie ma zespołu, ról ani drugiego użytkownika.**
@@ -128,8 +134,8 @@ widać złotym pasem na górze Pulpitu, razem ze stanem kopii zapasowych.
 
 | Co | Ile | Co sprawdza |
 |---|---|---|
-| **Testy jednostkowe** (`npm test`) | **349 / 349** | Arytmetykę i reguły w oderwaniu od bazy: daty, kwoty, rabaty, powtarzanie serii, sito Łowcy |
-| **Przejście „na sucho"** (`npm run przejscie`) | **111 zdań, 0 regresji** | Całą drogę na ŻYWYCH danych: lead → oferta → umowa → projekt → faktura → opinia, w obie strony (droga, która się udaje, i ta, która się nie udaje), plus drugi rok obrotowy i podwójne kliknięcia |
+| **Testy jednostkowe** (`npm test`) | **352 / 352** | Arytmetykę i reguły w oderwaniu od bazy: daty, kwoty, rabaty, powtarzanie serii, sito Łowcy |
+| **Przejście „na sucho"** (`npm run przejscie`) | **116 zdań, 0 regresji** | Całą drogę na ŻYWYCH danych: lead → oferta → umowa → projekt → faktura → opinia, w obie strony (droga, która się udaje, i ta, która się nie udaje), plus drugi rok obrotowy i podwójne kliknięcia |
 | **Audyty końcowe** | **7 z 7** | Bezpieczeństwo, RODO, niezawodność, obserwowalność, koszty, kod, produkt |
 | **Audyty modułów** | **kilkanaście** | Każdy większy moduł przejrzany osobno, ekran po ekranie |
 | **Kontrola spójności** (ekran *Zdrowie*) | **13 reguł** | Czy stan bazy nie przeczy sam sobie — na żywych danych, codziennie |

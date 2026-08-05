@@ -115,7 +115,7 @@ export function ProjectDetailPanel({
   const [savingManualReview, setSavingManualReview] = useState(false);
   const [dependencies, setDependencies] = useState<string[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; tytul: string }[]>([]);
-  const [rentownosc, setRentownosc] = useState<{ przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean } | null>(null);
+  const [rentownosc, setRentownosc] = useState<{ przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean; koszty_bez_kursu?: number } | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [activeTimer, setActiveTimer] = useState<(TimeEntry & { project_tytul?: string; task_text?: string | null }) | null>(null);
   const [, setTick] = useState(0);
@@ -147,7 +147,7 @@ export function ProjectDetailPanel({
       resources: ProjectResource[];
       onboarding: ProjectOnboardingItem[];
       dependencies?: { depends_on_id: string }[];
-      rentownosc?: { przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean };
+      rentownosc?: { przychod_netto: number; koszty_netto: number; zysk_netto: number; ma_inne_waluty: boolean; koszty_bez_kursu?: number };
       sourceOffer?: { id: string; tytul: string } | null;
       documents?: ProjectDocuments;
     };
@@ -1228,6 +1228,16 @@ export function ProjectDetailPanel({
               </div>
               {rentownosc.ma_inne_waluty && (
                 <div className="mt-2 text-[11px] text-muted">Pominięto faktury w walucie innej niż PLN.</div>
+              )}
+              {/* Przegląd szwów (2026-08-06). Koszty w obcej walucie wchodzą do
+                  sumy po kursie z wpisu; te BEZ kursu wypadają — i trzeba to
+                  powiedzieć, bo inaczej niepełna suma udaje kompletną. Ta sama
+                  zasada, co pod kwotą miesiąca w module Koszty. */}
+              {(rentownosc.koszty_bez_kursu ?? 0) > 0 && (
+                <div className="mt-1 text-[11px] text-brand-gold">
+                  Bez {rentownosc.koszty_bez_kursu}{" "}
+                  {rentownosc.koszty_bez_kursu === 1 ? "kosztu" : "kosztów"} w obcej walucie — brakuje kursu do PLN.
+                </div>
               )}
             </div>
           )}

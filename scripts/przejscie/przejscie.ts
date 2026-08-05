@@ -1005,6 +1005,122 @@ async function przejscie(): Promise<void> {
 
   // ── 17. Awarie i brzegi ────────────────────────────────────────────────
   await awarieIBrzegi();
+
+  // ── 18. Szwy między modułami ───────────────────────────────────────────
+  await szwyMiedzyModulami();
+}
+
+// ── Szwy między modułami ───────────────────────────────────────────────────
+
+/**
+ * Czy to JEDEN system, czy czternaście narzędzi w jednym menu.
+ *
+ * Przegląd szwów z 2026-08-06 zadał inne pytanie niż wszystkie audyty przed
+ * nim: tamte patrzyły W GŁĄB modułu, ten — na styki. Wynik: kręgosłup
+ * (lead → oferta → umowa → projekt → faktura → zapłata → opinia) trzymał,
+ * a wszystkie trzy dziury leżały po jednej stronie — przy PIENIĄDZACH
+ * WYCHODZĄCYCH:
+ *
+ *  1. rentowność projektu sumowała koszty w obcej walucie po nominale
+ *     (1000 EUR wchodziło jako 1000 zł),
+ *  2. faktura od dostawcy po terminie nie odzywała się NIGDZIE poza własnym
+ *     modułem — ani na Pulpicie, ani w Kalendarzu, ani w porannym mailu,
+ *  3. Statystyki nie znały kosztów w ogóle (słowo „costs" nie padało w tym
+ *     pliku ani raz), więc „wskaźniki zdrowia biznesu" mówiły o obrocie.
+ *
+ * Te zdania są czujkami na wszystkie trzy naraz. Wszystkie liczą na TYCH
+ * SAMYCH danych, które wpisuje jedno żądanie — jeśli któraś powierzchnia
+ * znowu zacznie liczyć po swojemu, rozjazd wyjdzie tutaj, a nie u klienta.
+ */
+async function szwyMiedzyModulami(): Promise<void> {
+  krok("Szwy: pieniądze wychodzące");
+
+  const prj = await api("POST", "/api/projects", { tytul: `[przejście ${ZNACZNIK}] Szwy — rentowność` });
+  const projektId = id(prj.dane);
+  if (!projektId) {
+    pominiete.push("szwy między modułami — nie udało się założyć projektu");
+    return;
+  }
+
+  // 1000 EUR po kursie 4,30 to 4300 zł. Nominał (1000) był tu wynikiem do
+  // 2026-08-06 i nic go nie zgłaszało, bo flaga „są inne waluty" patrzyła
+  // wyłącznie na faktury.
+  const koszt = await api("POST", "/api/costs", {
+    kategoria: "Sprzęt",
+    opis: `[przejście ${ZNACZNIK}] serwer w euro`,
+    kwota_netto: 1000,
+    vat_stawka: "23",
+    waluta: "EUR",
+    kurs_pln: 4.3,
+    project_id: projektId,
+    data: dzisiaj(),
+  });
+  if (koszt.status === 200) {
+    const po = await pobierzProjekt(projektId);
+    const kosztyNetto = Number(po?.rentownosc?.koszty_netto ?? 0);
+    sprawdz(
+      "koszt w euro wchodzi do rentowności projektu PO KURSIE, nie po nominale",
+      Math.abs(kosztyNetto - 4300) < 1,
+      undefined,
+      `rentowność policzyła ${kosztyNetto} zamiast 4300`
+    );
+  } else {
+    pominiete.push(`szwy: koszt w euro — trasa oddała ${koszt.status}`);
+  }
+
+  // Faktura od dostawcy po terminie. Trzy powierzchnie, jedno źródło danych.
+  const zalegly = await api("POST", "/api/costs", {
+    kategoria: "Usługi",
+    opis: `[przejście ${ZNACZNIK}] faktura od dostawcy po terminie`,
+    kwota_netto: 8000,
+    vat_stawka: "23",
+    waluta: "PLN",
+    data: "2026-07-10",
+    termin_platnosci: "2026-07-16",
+    status: "Nieopłacony",
+  });
+  if (zalegly.status === 200) {
+    const dzis = await api("GET", "/api/hub/today");
+    const naPulpicie = JSON.stringify(dzis.dane?.overdueCosts ?? []).includes("po terminie");
+    sprawdz(
+      "faktura od dostawcy po terminie trafia na Pulpit",
+      naPulpicie,
+      undefined,
+      "Pulpit nie zna kosztów po terminie"
+    );
+
+    const terminy = await api("GET", `/api/events/deadlines?month=2026-07`);
+    const wKalendarzu = (terminy.dane?.deadlines ?? []).some(
+      (d: { kind?: string }) => d.kind === "cost"
+    );
+    sprawdz(
+      "termin zapłaty faktury od dostawcy stoi w Kalendarzu",
+      wKalendarzu,
+      undefined,
+      "Kalendarz nie zna terminów pieniędzy wychodzących"
+    );
+  } else {
+    pominiete.push(`szwy: koszt po terminie — trasa oddała ${zalegly.status}`);
+  }
+
+  // Statystyki: druga połowa bilansu. Sprawdzamy OBECNOŚĆ i to, że zysk jest
+  // różnicą, a nie osobnym zapytaniem, które da się rozjechać.
+  const stat = await api("GET", "/api/stats");
+  const k = stat.dane?.koszty;
+  sprawdz(
+    "Statystyki znają koszty i zysk, nie tylko obrót",
+    !!k && typeof k.wOknie === "number" && typeof k.zyskWOknie === "number",
+    undefined,
+    "odpowiedź /api/stats nie ma bloku „koszty”"
+  );
+  if (k) {
+    sprawdz(
+      "zysk w Statystykach to przychód minus koszty, policzone z tych samych liczb",
+      Math.abs(Number(k.zyskWOknie) - (Number(k.przychodWOknie) - Number(k.wOknie))) < 0.05,
+      undefined,
+      `zysk ${k.zyskWOknie} ≠ ${k.przychodWOknie} − ${k.wOknie}`
+    );
+  }
 }
 
 // ── Awarie i brzegi ────────────────────────────────────────────────────────
