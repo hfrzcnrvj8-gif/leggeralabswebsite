@@ -44,8 +44,22 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. Apka iOS — paczka ZROBIONA 2026-08-05** (zostaje tu jako świeży kontekst,
-nie jako robota do wykonania). Wszystkie pięć pozycji z briefu
+**1. Audyt „serwer oddaje, apka wyrzuca do kosza". BRIEF GOTOWY.**
+Wybór właściciela 2026-08-05. Brief: `docs/natywna-aplikacja/39-brief-audyt-co-apka-wyrzuca.md`.
+
+Przy poprzedniej paczce znalazły się CZTERY pola, które trasy oddają, a apka
+ignoruje — i to sprawdzając dwie trasy przy okazji, nie szukając ich. Jedno
+zostało otwarte i jest potwierdzone: **`expiredOffers` z `/api/hub/today`**
+(oferty po terminie ważności; panel liczy je do „wymaga działania dziś", apka
+nie ma dla nich sekcji).
+
+Ten błąd nie daje ŻADNEGO objawu: `tsc` przechodzi, build przechodzi, ekran się
+rysuje, pusty stan nie wyskakuje — bo tablica jest pusta, a nie `nil`. Widać go
+wyłącznie przez porównanie dwóch list pól. Zmierzony zakres: 48 wywołań `GET`
+i 41 struktur dekodujących w `APIClient.swift`.
+
+**2. Apka — paczka ZROBIONA 2026-08-05** (kontekst, nie robota).
+Wszystkie pięć pozycji z briefu
 `37-brief-dogonic-panel.md` jest w apce i sprawdzone na symulatorze przeciwko
 `npm run dev` + `npm run przejscie`. Wynik i dowody:
 **`docs/natywna-aplikacja/38-wynik-apka-dogania-panel.md`**.
@@ -74,14 +88,14 @@ przyjdzie z produkcji.
 `SekcjaPropozycji` przyjmuje stan z zewnątrz, więc to dołożenie żądania
 `?modul=`, a nie przebudowa.
 
-**2. Trzecie przejście „na sucho"** — jeśli wolisz iść dalej sprawdzaniem niż
+**3. Trzecie przejście „na sucho"** — jeśli wolisz iść dalej sprawdzaniem niż
 budowaniem. Propozycja zakresu stoi na końcu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`:
 (a) oczami klienta w PRAWDZIWEJ przeglądarce, na telefonie i desktopie, po
 polsku i po niemiecku; (b) drugi rok obrotowy (numeracja, retencja, faktury
 cykliczne przez zmianę roku); (c) awarie i brzegi. **Czego robić NIE musi:
 przechodzić ręcznie tego, co robi `npm run przejscie`.**
 
-**3. Rejestracja firmy** — odłożona decyzją właściciela do odwołania. To jest
+**4. Rejestracja firmy** — odłożona decyzją właściciela do odwołania. To jest
 jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 
 ## Jak pracować w tym repo (skrót, reszta w CLAUDE.md)
