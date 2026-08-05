@@ -16,10 +16,22 @@ prawdziwej przeglądarki i nigdy nie będzie miało.
 
 **Kto:** ja. **Czas:** jedna sesja. **Dlaczego pierwszy:** bez tego etap 4
 (Twój przegląd) byłby błądzeniem po ekranach.
+**Brief: `docs/ETAP-1-PRZEWODNIK-BRIEF.md`. ZACZĘTY 2026-08-05.**
 
-Czego dziś nie ma: **przeglądu z góry**. Instrukcje w panelu (Moduł 53) mają
-272 wpisy i tłumaczą każdy moduł z osobna — ale nie odpowiadają na pytanie
-„co ja właściwie mam i od czego zacząć rano".
+> **Zakres zawężony po rekonesansie (2026-08-05).** Sprawdzenie przed
+> napisaniem briefu pokazało, że przegląd z góry **już istnieje** — w panelu,
+> na ekranie *Instrukcje* (`WSTEP` w `lib/instrukcje.ts`): jedna historia
+> lead → klient → projekt → faktura, zasada „panel nigdy nie kontaktuje się
+> za Ciebie" i „nic nie znika po cichu", plus ścieżki krok po kroku dla
+> Pulpitu i Leadów. **Pisanie drugiego podręcznika byłoby duplikatem, który
+> rozjedzie się w tydzień.** Etap 1 to więc: (1) WERYFIKACJA, czy te 272 wpisy
+> nadal mówią prawdę — najważniejsza część, (2) krótkie `docs/CO-MAM.md`
+> z tym, czego nigdzie nie ma, (3) ścieżki między modułami tylko, jeśli po
+> punkcie 1 widać, że ich brakuje.
+
+Czego dziś faktycznie nie ma: **jednej odpowiedzi na pytanie „co ja właściwie
+mam i skąd wiadomo, że to działa"** oraz **jednego miejsca z listą tego, co
+dzieje się samo** (dziś rozproszone po 14 modułach).
 
 Powstanie:
 
