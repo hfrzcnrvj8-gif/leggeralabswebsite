@@ -100,6 +100,14 @@ Jedna obserwacja poboczna do zapamiętania: `reminders.lokalizacja_promien` to
 nadpisuje ją `NULL`-em. Dziś bez skutku (zawsze jest `NULL`); gdyby powstała
 kontrolka promienia, zaczęłaby ją kasować w ciszy.
 
+**Apka jest domknięta wobec panelu.** Obie strony monety sprawdzone (punkty 2
+i 3), a **paczka brakujących ekranów z drugiego przejścia jest ZROBIONA** —
+wszystkie siedem pozycji (poziom windykacji, „WYNIKA Z" z aneksem, `akcjaAlt`,
+dwie sekcje Pulpitu, odrzucenie oferty przez klienta, „Odpowiedź na wersję N",
+propozycja o rozjeździe). Lista w `PLAN-PO-DRUGIM-PRZEJSCIU.md` mówiła co
+innego do 2026-08-05 wieczorem, kiedy sprawdzono ją pozycja po pozycji
+i skreślono. **Nie planuj tej paczki drugi raz.**
+
 **3. Audyt „serwer oddaje, apka wyrzuca do kosza" — ZROBIONY 2026-08-05.**
 Wynik i dowody: **`docs/natywna-aplikacja/40-wynik-audyt-co-apka-wyrzuca.md`**.
 Brief, wg którego szedł: `39-brief-audyt-co-apka-wyrzuca.md`.

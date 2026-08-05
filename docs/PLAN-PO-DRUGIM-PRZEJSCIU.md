@@ -589,13 +589,17 @@ która się nie udaje. Przed tym planem drugiej drogi harness nie znał w ogóle
 - **Warstwa wizualna** — żadne z dwóch przejść jej nie sprawdzało. W tym
   środowisku `requestAnimationFrame` daje zero klatek (karta `hidden`), więc
   pomiary byłyby zgadywaniem. Wymaga prawdziwej przeglądarki i osobnej rundy.
-- **Apka iOS — jedna spójna paczka roboty.** Trasy oddają komplet; brakuje
-  ekranów. Zebrane z czterech kroków, warte osobnego briefu:
-  rozwijacz poziomu windykacji (krok 2), propozycja o rozjeździe z aneksem
-  i rubryka „WYNIKA Z” z aneksem (krok 3), druga akcja propozycji
-  (`akcjaAlt` / `decyzja: "zrob-alt"`) i dwie nowe sekcje Pulpitu
-  (`projektyZagrozone`, `zapomnianeSzkiceUmow`, krok 4), odrzucenie oferty
-  przez klienta i karta „Odpowiedź na wersję N” (krok 5).
+- ~~**Apka iOS — jedna spójna paczka roboty.**~~ **NIEAKTUALNE — ZROBIONE
+  2026-08-05**, jeszcze tego samego dnia, dwiema sesjami apki (`8870614`
+  i `d5c40c6`). Sprawdzone pozycja po pozycji: rozwijacz poziomu windykacji
+  (`PoziomWindykacji`, 7 plików), rubryka „WYNIKA Z” z aneksem
+  (`FakturyView.wynikaZ`, gałąź `warunki.zAneksu`), druga akcja propozycji
+  (`akcjaAlt`/`zrob-alt`), obie sekcje Pulpitu (`projektyZagrozone`,
+  `zapomnianeSzkiceUmow`), odrzucenie oferty przez klienta (sekcja „Dlaczego
+  odpadła”), karta „Odpowiedź na wersję N” (`odpowiedzNaWersje`).
+  Propozycja o rozjeździe z aneksem działa **automatycznie**: apka renderuje
+  treść propozycji z serwera i świadomie nie ma u siebie żadnej reguły, więc
+  każda nowa pojawia się na telefonie bez zmian w Swifcie.
 - **Łączny limit hamulca** (60 żądań/60 min ze wszystkich miejsc) ogranicza
   przejście do ~5 przebiegów na godzinę. Zachowanie poprawne; gdyby kiedyś
   przeszkadzało, decyzją jest podniesienie progu, nie omijanie go w sondzie.
