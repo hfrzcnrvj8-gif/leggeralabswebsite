@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-05, po obu audytach apki (odczyt i zapis)
+# Handoff — stan na 2026-08-05, po etapie 1 planu domknięcia
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,20 +7,18 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- **Panel:** na wierzchu **wyniku audytu „apka wysyła, trasa nie czyta"**
-  (poprzednio `d2655b0`). Repozytorium czyste i wypchnięte, `tsc` czysto,
-  `npm test` **340/340**. Ostatnia sesja **nie zmieniła ani jednego pliku
-  kodu** — sam dokument wyniku.
+- **Panel:** na wierzchu **etapu 1 planu domknięcia** (weryfikacja instrukcji
+  + `docs/CO-MAM.md`). `tsc` czysto, `npm test` **349/349**,
+  `npm run przejscie` **111 działa · 0 regresji**. Ta sesja zmieniła
+  **wyłącznie teksty** w `lib/instrukcje.ts` i dokumenty — zachowania panelu
+  nie ruszono.
 - **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
-  **`d5c40c6`** „Apka czyta to, co serwer oddaje: bramka wysyłki, wygasłe
-  oferty, rodzina umowy, szukanie po treści". Buduje się, `swift test`
-  w `LeggeraHubCore` daje **9/9**.
-- `npm run przejscie`: **101 działa · 0 znanych luk · 0 regresji · 0 obejść ·
-  0 pominiętych**. Od kroku 5 wynik jest **powtarzalny** — dwa i trzy biegi pod
-  rząd dają to samo (wcześniej drugi bieg tracił drogę klienta na godzinę, bo
-  udane żądania też zjadały hamulec). Sufit: łączny limit hamulca (60/60 min)
-  ogranicza to do ~5 przebiegów na godzinę; po `npm run dev` od nowa wraca
-  komplet.
+  **`255dc84`**. Buduje się, `swift test` w `LeggeraHubCore` daje **9/9**.
+  W etapie 1 apki nie dotykano.
+- `npm run przejscie`: **111 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+  0 pominiętych**, powtarzalne (trzy biegi pod rząd dają to samo). Sufit:
+  łączny limit hamulca (60/60 min) ogranicza to do ~5 przebiegów na godzinę;
+  po `npm run dev` od nowa wraca komplet.
 
 Jeśli `git log` pokazuje co innego — ktoś pracował po drodze, sprawdź co
 (`git log` PRZED `git add`; równoległa sesja już raz wchłonęła cudze zmiany).
@@ -47,6 +45,46 @@ zdarzeniem jak każde inne. Plus sześć drobiazgów kroku 5, nowa powierzchnia 
 klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
+
+**PLAN DOMKNIĘCIA (`docs/PLAN-DOMKNIECIA.md`) — pięć etapów, idziemy po kolei.**
+Etap 1 ✅ zamknięty; następny to **etap 2 (bezpieczeństwo: sprawdzenie
+PRZYROSTU tras od Audytu 1)**. Etap 4 (przegląd UI prawdziwymi oczami) należy
+do właściciela i może iść równolegle.
+
+**0. Etap 1 planu domknięcia — ZROBIONY 2026-08-05.**
+Wynik: **`docs/ETAP-1-WYNIK.md`**, dokument dla właściciela:
+**`docs/CO-MAM.md`**. Brief: `docs/ETAP-1-PRZEWODNIK-BRIEF.md`.
+
+Etap NIE polegał na pisaniu przewodnika — przewodnik już istniał w panelu
+(ekran *Instrukcje*, `lib/instrukcje.ts`, dziś 276 wpisów, 14 modułów). Polegał
+na sprawdzeniu, czy **nadal mówi prawdę**. Nie mówił: **12 zdań nieprawdziwych
+i 9 mechanizmów, o których nie wiedział.** Wszystko poprawione, zachowania
+panelu nie ruszono.
+
+**Przyczyna warta zapamiętania:** `lib/instrukcje.ts` nie był zmieniany od
+`e441246` (2026-08-02), a weszło po nim **51 commitów** — pięć faz zaplecza
+i dwa przejścia „na sucho". **Tanie sprawdzenie na przyszłość:**
+`git log -1 -- lib/instrukcje.ts`, potem `git rev-list --count <ten>..HEAD`.
+Kilkadziesiąt commitów = instrukcja już kłamie, pytanie tylko gdzie.
+
+**Druga lekcja:** cały rozdział o Pulpicie był napisany z ekranu **apki**
+(sekcja „Nadzór", przycisk „+", menu „…"), a czyta się go głównie w panelu —
+i żadnej z tych trzech rzeczy w panelu nie ma. Rozdział pisany „z jednego
+urządzenia" kłamie na drugim.
+
+**TRZY RZECZY CZEKAJĄ NA DECYZJĘ WŁAŚCICIELA** (`ETAP-1-WYNIK.md`, sekcja C):
+
+1. **Windykacja wysyła maile do klienta BEZ kliknięcia** — +3 dni uprzejmie,
+   +10 stanowczo, **+21 formalne wezwanie do zapłaty z odsetkami**. To jedyne
+   takie miejsce w panelu i stoi w sprzeczności z obietnicą „nic nie wychodzi
+   bez Twojego kliknięcia". Trzy warianty do wyboru w wyniku; poprawka (jeśli
+   będzie) idzie etapem 5. **Nie zmieniaj tego sam.**
+2. **Godziny automatów mogą być w UTC** — Vercel odpala crony w UTC, więc
+   `0 6 * * *` to 7:00 zimą / 8:00 latem w Polsce. Nie da się tego sprawdzić
+   z tego środowiska; właściciel ma potwierdzić obserwacją.
+3. **„14 reguł kontroli spójności" to nieprawda — jest 13.** Poprawione
+   w dokumentach (ten plik i `CO-MAM.md`); `lib/spojnosc.ts` nietknięty,
+   reguły nie brakuje.
 
 **1. Trzecie przejście: DRUGI ROK OBROTOWY — ZROBIONE 2026-08-05.**
 Wynik: **`docs/TRZECIE-PRZEJSCIE-DRUGI-ROK.md`**. Brief:
@@ -81,8 +119,9 @@ Jedno znalezisko: **dwa kliknięcia „Zarejestruj wpłatę" dawały dwie wpłat
 faktura pokazuje „Opłacona", co jest prawdą, więc nikt do niej nie wraca,
 a nadpłata zawyża przychód w Statystykach. Naprawa **nie jest barierą przy
 zapisie** (wpłata jest odwracalna, a reguła Fazy 4 mówi „co odwracalne, nie
-pyta"), tylko **czternastą regułą kontroli spójności** — zapis zostaje wolny,
-skutek przestaje być niewidoczny.
+pyta"), tylko **kolejną regułą kontroli spójności** — zapis zostaje wolny,
+skutek przestaje być niewidoczny. (Reguł jest po niej **13**, nie 14 — ten
+plik pisał wcześniej „czternastą"; policzone w kodzie w etapie 1.)
 
 Czyste: akceptacja oferty, oba podpisy umowy, wystawienie faktury (wyścig nie
 dał dziury w numeracji), brak `RESEND_API_KEY` (rzuca, nie udaje sukcesu).
@@ -301,9 +340,11 @@ jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 ## Uczciwa etykieta stanu
 
 **Kompletny funkcjonalnie, przeaudytowany, nieużywany produkcyjnie.** Trzy
-narzędzia, które sprawdzają DANE, a nie kod — przejście „na sucho" (101 zdań,
-obie drogi), kontrola spójności na ekranie *Zdrowie* i `error_log` — pokazują
-zero. Zaplecze domknięte na obu drogach, wygląd zrobiony na desktopie.
+narzędzia, które sprawdzają DANE, a nie kod — przejście „na sucho" (111 zdań,
+obie drogi), kontrola spójności na ekranie *Zdrowie* (13 reguł) i `error_log` —
+pokazują zero. Zaplecze domknięte na obu drogach, wygląd zrobiony na desktopie.
+Wersja tego akapitu dla właściciela, po ludzku i z listą „czego te liczby NIE
+obejmują": **`docs/CO-MAM.md`**.
 
 Czego dalej nie ma: ani jednego prawdziwego klienta, ani jednej faktury
 wystawionej naprawdę, ani jednego sprawdzenia wyglądu w prawdziwej przeglądarce.

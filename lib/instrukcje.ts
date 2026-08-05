@@ -51,12 +51,15 @@ export const WSTEP = {
   tytul: "Jak to działa od początku do końca",
   akapity: [
     "Leggera Hub prowadzi jedną historię: obca firma staje się kontaktem, kontakt staje się rozmową, rozmowa staje się klientem, a klient — projektem i fakturą. Każdy moduł to jeden odcinek tej drogi, a nie osobne narzędzie. Dlatego rzeczy przechodzą z modułu do modułu same: przyjęty kandydat staje się leadem, zaakceptowana oferta tworzy projekt, zamknięty projekt prosi o opinię.",
-    "Zasada, która tłumaczy najwięcej: panel nigdy nie kontaktuje się z nikim za Ciebie i nigdy nie podejmuje decyzji. Automaty tylko przygotowują, przypominają i pilnują — decyzję zawsze klikasz Ty. Dlatego zamiast „system wysłał ofertę” masz „system przygotował szkic i czeka”.",
+    "Zasada, która tłumaczy najwięcej: panel prawie nigdy nie kontaktuje się z nikim za Ciebie i nigdy nie podejmuje decyzji. Automaty przygotowują, przypominają i pilnują — decyzję zawsze klikasz Ty. Dlatego zamiast „system wysłał ofertę” masz „system przygotował szkic i czeka”. Jest DOKŁADNIE JEDEN wyjątek i trzeba go znać: zaległa faktura z wpisanym adresem e-mail sama dostaje przypomnienia do klienta — uprzejme po 3 dniach, stanowcze po 10, formalne wezwanie do zapłaty po 21 (patrz Faktury → „Co dzieje się samo”). Nic innego nie wychodzi z panelu bez Twojego kliknięcia.",
     "Druga zasada: nic nie znika po cichu. Jeśli coś wymaga Twojego ruchu, zobaczysz to na Pulpicie, w porannym mailu i pod dzwonkiem w telefonie. Jeśli automat stanie, dostaniesz alarm z innej drogi niż ta, która padła.",
+    "Trzecia zasada: co nieodwracalne — pyta, co odwracalne — nie pyta. Wysyłka dokumentu do klienta, unieważnienie linku i usunięcie leada, faktury, oferty, umowy, notatki czy kosztu proszą o „Na pewno?”. Cztery rzeczy, których nie da się odkręcić niczym — wystawienie faktury, wysyłka do KSeF, usunięcie klienta i usunięcie projektu — każą PRZEPISAĆ nazwę tego, czego dotyczą. Drobiazgi (pozycja faktury, zadanie, kamień milowy, wydarzenie) nie pytają celowo: pytanie na każdym kroku uczy klikać „tak” bez czytania. Pytania nie da się wyłączyć i nie ma „nie pytaj ponownie”.",
+    "Czwarta zasada: dokument z brakami nie wychodzi do klienta. Przed każdą wysyłką panel sprawdza dokument jednym kompletem reguł. Braki, które KOMPROMITUJĄ (nie ma Twoich danych jako wystawcy, w treści został nawias „[uzupełnij]”, brak adresu klienta), blokują wysyłkę do czasu poprawy. Rzeczy podejrzane, ale nie zawsze błędne (dwa różne terminy w jednym dokumencie) przepuszcza się świadomie przyciskiem „Wyślij mimo to”. Pilnuje tego serwer, więc nie ominiesz tego z telefonu ani z drugiej karty.",
+    "Trzy drogi, które przechodzą przez kilka modułów naraz — kroki są opisane u poszczególnych modułów, tu jest kolejność. (1) PRZYSZEDŁ NOWY LEAD: Leady, kroki 3–8 (przyjmij albo dodaj → status → zapisz kontakt → ustaw termin), potem Leady krok 9 → Klienci. (2) KLIENT CHCE OFERTĘ: Oferty, kroki 1–7 (powiąż → pozycje → treść → ważność → wyślij), Oferty krok 9 (akceptacja zakłada projekt i szkic faktury), Oferty krok 12 → Umowy (wygeneruj i wyślij do podpisu), Projekty krok 2 (start dopiero po podpisie). (3) FAKTURA NIE ZOSTAŁA ZAPŁACONA: Faktury krok 6 — poziom 1 uprzejmie, 2 stanowczo, 3 formalne wezwanie z odsetkami; jeśli nic nie klikniesz, poziomy 1–3 pójdą same po 3, 10 i 21 dniach.",
   ],
   /** Uczciwie: które odcinki drogi są już opisane. */
   stan:
-    "Opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury, Katalog, Koszty, Poczta, Przypomnienia, Notatnik, Kalendarz i Kalkulator doboru — czyli wszystkie moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Poza spisem zostaje Zdrowie systemu, ekran wyłącznie diagnostyczny.",
+    "Opisane są Pulpit, Leady, Klienci, Oferty, Umowy i NDA, Projekty, Faktury, Katalog, Koszty, Poczta, Przypomnienia, Notatnik, Kalendarz i Kalkulator doboru — czyli wszystkie moduły uznane za gotowe i sprawdzone na wszystkich urządzeniach. Poza spisem zostają dwa ekrany, które niczego nie prowadzą, tylko pokazują: Statystyki (wskaźniki zdrowia biznesu) i Zdrowie systemu (diagnostyka).",
 };
 
 export const MODULY: ModulInstrukcji[] = [
@@ -71,41 +74,51 @@ export const MODULY: ModulInstrukcji[] = [
       "Rano, na początku pracy. To jest ekran startowy: jeśli Pulpit jest pusty, na dziś nic nie wisi.",
     kroki: [
       {
-        tytul: "1. Spójrz na licznik u góry",
+        tytul: "1. Spójrz na licznik",
         opis:
-          "Duża liczba i podpis „wymaga dziś Twojego ruchu”. To suma wszystkiego, co czeka: leady po terminie, zaplanowane kontakty z klientami, maile do obsłużenia, faktury po terminie. Zero znaczy, że możesz zająć się czymś innym niż gaszenie pożarów.",
+          "W panelu to kafel „Wymaga działania dziś” w rzędzie wskaźników u góry, a w pasku nad nimi to samo zdaniem („Pulpit — 5 spraw wymaga dziś działania”). Na telefonie liczba stoi na samej górze. To suma WSZYSTKIEGO, co czeka: leady i klienci po terminie, maile do obsłużenia, faktury zaległe i do wystawienia, projekty i kamienie po terminie, oferty bez decyzji i wygasłe, umowy bez podpisu, plus propozycje z punktu 3. Zero znaczy, że możesz zająć się czymś innym niż gaszenie pożarów.",
       },
       {
-        tytul: "2. Przeczytaj sekcję „Nadzór”, jeśli jest",
+        tytul: "2. Przeczytaj złote pasy, jeśli są",
         opis:
-          "Pojawia się tylko wtedy, gdy coś jest nie tak z samym systemem: kopie zapasowe nie działają, automat stanął. To jedyna sekcja, która mówi o aplikacji, a nie o Twoich klientach — dlatego stoi wysoko i dlatego warto ją traktować poważnie.",
+          "Wąskie, złote paski POD nagłówkiem, a NAD wskaźnikami — pojawiają się wyłącznie wtedy, gdy coś jest nie tak z samym systemem: „Kopie zapasowe bazy nie są uruchomione”, „<nazwa automatu>: automat przestał chodzić”. To jedyne miejsce na Pulpicie, które mówi o aplikacji, a nie o Twoich klientach. Kiedy wszystko działa, panel o tym MILCZY — nie ma zielonej kontrolki „ok”. Na telefonie to samo stoi jako sekcja „Nadzór”.",
       },
       {
-        tytul: "3. Przejdź sekcje od góry do dołu",
+        tytul: "3. Odpowiedz na propozycje, jeśli jakieś są",
         opis:
-          "Leady, zaplanowane kontakty, poczta, faktury. Każda pozycja jest klikalna i prowadzi prosto do rekordu. Kolejność sekcji nie jest przypadkowa — od rzeczy, które najszybciej stygną (nowy lead), do tych, które mogą poczekać.",
+          "Sekcja „Propozycje” pod wskaźnikami, nad resztą sekcji: jedno zdanie zakończone pytaniem i dwa przyciski. To są skutki, których panel NIE zrobił sam, bo nie są oczywiste — „opinia przyszła, zamknąć projekt?”, „klient zapłacił, przestawić go na Aktywny?”, „aneks podniósł kwotę, dopisać pozycję do szkicu faktury?”. Odpowiedź „nie teraz” jest pełnoprawna: propozycja znika i nie wraca. Tu nie ma żadnego modelu AI — to reguły liczone z danych.",
       },
       {
-        tytul: "4. Zapisz to, co przyszło Ci do głowy — przycisk „+”",
+        tytul: "4. Przejdź sekcje od góry do dołu",
         opis:
-          "Nowy lead, skan wizytówki, notatka, koszt z paragonu. Pulpit jest ekranem, na którym najczęściej pojawia się myśl „zanotuj to, zanim wyleci z głowy” — dlatego tworzenie jest tutaj, a nie dopiero w module.",
+          "Leady, wiadomości, klienci, projekty, kamienie, faktury, oferty, umowy, dziś w kalendarzu, ostatnie notatki. Każda pozycja jest klikalna i prowadzi prosto do rekordu. Sekcja bez treści w ogóle się nie pokazuje, więc krótki Pulpit to dobra wiadomość, nie brak danych.",
       },
       {
-        tytul: "5. Dzwonek — „Co czeka”",
+        tytul: "5. Na telefonie: zapisz myśl przyciskiem „+”",
+        opis:
+          "Nowy lead, skan wizytówki, notatka, koszt z paragonu — przycisk w nagłówku Pulpitu w apce. Pulpit jest ekranem, na którym najczęściej pojawia się myśl „zanotuj to, zanim wyleci z głowy”. W panelu przy biurku tej drogi nie ma i nie jest potrzebna: tam zaczynasz z ⌘K albo z „+” w module.",
+      },
+      {
+        tytul: "6. Dzwonek — „Co czeka”",
         opis:
           "Liczba przy dzwonku to nieprzeczytane zdarzenia plus leady wymagające dziś ruchu. Po stuknięciu widzisz jedno i drugie: najpierw robotę do zrobienia, pod spodem kronikę tego, co się wydarzyło (nowy mail, opłacona faktura, zaakceptowana oferta).",
       },
       {
-        tytul: "6. Menu „…” — rzeczy uruchamiane ręcznie",
+        tytul: "7. Rzeczy uruchamiane ręcznie",
         opis:
-          "„Łowca: poluj teraz” odpala szukanie nowych firm od razu, zamiast czekać do nocy. „Wyślij dzienny raport” wysyła poranne podsumowanie natychmiast — przydaje się, gdy chcesz sprawdzić, co w nim jest.",
+          "„Łowca: poluj teraz” odpala szukanie nowych firm od razu, zamiast czekać do nocy. „Wyślij dzienny raport teraz” wysyła poranne podsumowanie natychmiast — przydaje się, gdy chcesz sprawdzić, co w nim jest. W PANELU nie ma ich na Pulpicie: najprościej z palety ⌘K (obie), albo z paska na ekranie Leadów — ikona koperty ze strzałką („Wyślij raport teraz”) i przycisk polowania w zakładce „Kandydaci”. Na telefonie i iPadzie obie siedzą w menu „…” w nagłówku Pulpitu.",
       },
     ],
     automaty: [
       {
         tytul: "Poranny raport, codziennie o 6:00",
         opis:
-          "Mail z podsumowaniem: co wymaga działania, jakie faktury są po terminie, czy kopie zapasowe działają. Przy okazji panel wysyła klientom przypomnienia o zaległych fakturach, generuje faktury i koszty cykliczne, pobiera pocztę i sprząta dane po terminie retencji.",
+          "Mail z podsumowaniem: co wymaga działania, jakie faktury są po terminie, czy kopie zapasowe działają. Ten sam przebieg robi przy okazji pięć innych rzeczy: WYSYŁA KLIENTOM przypomnienia o zaległych fakturach (jedyna rzecz wychodząca bez Twojego kliknięcia — patrz Faktury), zakłada szkice faktur i kosztów cyklicznych, pobiera pocztę ze skrzynki, kasuje dane po terminie retencji i dopala Łowcę, jeśli nie zdążył w nocy.",
+      },
+      {
+        tytul: "Dwa pozostałe automaty: 4:00 i 8:00",
+        opis:
+          "O 4:00 poluje Łowca leadów (opis przy module Leady). O 8:00 rusza kolejka poczty odłożonej na później — wiadomości, którym w Poczcie wskazałeś porę wysyłki. Ta kolejka rusza też przy każdym Twoim wejściu w Pocztę, więc godzina jest najwcześniejszym, a nie jedynym momentem.",
       },
       {
         tytul: "Licznik liczy inne rzeczy niż dzwonek — i to jest celowe",
@@ -154,7 +167,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "2. Skąd biorą się leady",
         opis:
-          "Pięć dróg: formularz na stronie (wpada sam i dzwoni), Łowca leadów (znajduje firmy w rejestrze CEIDG co noc), wyszukiwanie na mapie (firmy z OpenStreetMap), skan wizytówki z telefonu, oraz ręczne dodanie. Każda droga zostawia inną kategorię źródła — po niej liczy się później, które źródło naprawdę przynosi klientów.",
+          "Sześć dróg: formularz na stronie (wpada sam i dzwoni), Łowca leadów (znajduje firmy w rejestrze CEIDG co noc), wyszukiwanie na mapie (firmy z OpenStreetMap), skan wizytówki z telefonu, „Utwórz leada” z maila w Poczcie, oraz ręczne dodanie. Każda droga zostawia inną kategorię źródła — po niej liczy się później, które źródło naprawdę przynosi klientów.",
       },
       {
         tytul: "3. Przejdź kandydatów Łowcy — „Weź” albo „Odrzuć”",
@@ -201,7 +214,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "Sito jest deterministyczne, bez AI",
         opis:
-          "Dyskwalifikatory: firma nieaktywna, brak jakiejkolwiek drogi kontaktu, branża spoza listy, własna branża IT, firma młodsza niż 18 miesięcy. Potem punkty: branża docelowa +30, czynny VAT +15, publiczny e-mail +15, telefon/strona/wiek/formularz/cennik po +10, skala i bliskość po +5, martwa strona −15. Progi: A od 70, B od 45, niżej C. Każdy punkt jest wypisany przy kandydacie.",
+          "Dyskwalifikatory: firma nieaktywna, upadłość lub zakaz działalności, brak jakiejkolwiek drogi kontaktu, branża spoza listy, własna branża IT, firma młodsza niż 18 miesięcy. Potem punkty: branża docelowa +30, czynny VAT +15, publiczny e-mail +15, telefon/strona/wiek/formularz/cennik po +10, skala i bliskość po +5, martwa strona −15, sam formularz zamiast adresu −10. Progi: A od 70, B od 45, niżej C. Każdy punkt jest wypisany przy kandydacie.",
       },
       {
         tytul: "Kiedy lead sam się o siebie upomni",
@@ -414,7 +427,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "7. Wyślij mailem albo skopiuj link",
         opis:
-          "Wysyłka zamyka treść oferty — od tej chwili poprawki idą przez nową wersję, więc przejrzyj dokument, zanim klikniesz. „Wyślij mailem” wysyła klientowi link do podglądu z możliwością podpisu i przestawia „Szkic” na „Wysłana”. Jeśli wolisz wysłać samemu — „Kopiuj link dla klienta” (także pod prawym przyciskiem myszy na liście). UWAGA: publiczna strona nie pokazuje SZKICÓW, więc przy kopiowaniu linku do szkicu panel zapyta, czy oznaczyć ofertę jako wysłaną. Link możesz w każdej chwili unieważnić; wysyłka unieważnionym linkiem jest zablokowana.",
+          "Wysyłka zamyka treść oferty — od tej chwili poprawki idą przez nową wersję, więc przejrzyj dokument, zanim klikniesz. „Wyślij mailem” pyta „Na pewno?”, sprawdza dokument bramką wysyłki (brak Twoich danych jako wystawcy albo nawias „[uzupełnij]” w treści ZATRZYMA wysyłkę; dwa różne terminy tylko ostrzegą i przepuści je „Wyślij mimo to”), a potem wysyła klientowi link do podglądu z możliwością podpisu i przestawia „Szkic” na „Wysłana”. Jeśli wolisz wysłać samemu — „Kopiuj link dla klienta” (także pod prawym przyciskiem myszy na liście). UWAGA: publiczna strona nie pokazuje SZKICÓW, więc przy kopiowaniu linku do szkicu panel zapyta, czy oznaczyć ofertę jako wysłaną. Link możesz w każdej chwili unieważnić; wysyłka unieważnionym linkiem jest zablokowana.",
       },
       {
         tytul: "8. Sprawdzaj, czy klient otworzył",
@@ -429,7 +442,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "10. Gdy klient mówi „nie” — zapisz to i powiedz dlaczego",
         opis:
-          "Ustaw status „Odrzucona”; panel zapyta o powód z krótkiej listy (za drogo, nie ten termin, wybrali kogoś innego, brak decyzji, inny). Robi się to z pigułki statusu na liście, z profilu oferty i z telefonu. Po kilkunastu ofertach to jedyne miejsce, z którego da się odczytać, na czym realnie przegrywasz.",
+          "Ustaw status „Odrzucona”; panel zapyta o powód z krótkiej listy (za drogo, nie ten termin, wybrali kogoś innego, brak decyzji, inny). Robi się to z pigułki statusu na liście, z profilu oferty i z telefonu. Klient może zrobić to sam ze swojej strony („Dziękuję, rezygnujemy”) — wtedy powód i komentarz przychodzą od niego i lądują w dzwonku oraz na osi czasu. Po kilkunastu ofertach to jedyne miejsce, z którego da się odczytać, na czym realnie przegrywasz. Panel dopyta wtedy propozycją, czy zamknąć lead, czy wrócić do niego za trzy miesiące.",
       },
       {
         tytul: "11. Gdy klient chce czegoś inaczej",
@@ -539,7 +552,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "3. „Wyślij mailem” — i od tej chwili druga strona widzi migawkę",
         opis:
-          "Mail idzie z linkiem do podglądu i e-podpisu; status przeskakuje ze „Szkic” na „Wysłana”. W tym samym momencie panel zapisuje MIGAWKĘ treści: to, co druga strona przeczytała, zostaje zamrożone. Jeśli poprawisz dokument w panelu, ona dalej widzi wersję z wysyłki — dopóki nie wyślesz ponownie. To jest dowód na wypadek sporu, nie ozdoba.",
+          "Mail idzie z linkiem do podglądu i e-podpisu; status przeskakuje ze „Szkic” na „Wysłana”. Wysyłka pyta „Na pewno?” i przechodzi przez tę samą bramkę, co oferta — dokument bez Twoich danych jako wystawcy albo z nawiasem „[uzupełnij]” w treści nie wyjdzie, a rzeczy tylko podejrzane przepuszcza „Wyślij mimo to”. W tym samym momencie panel zapisuje MIGAWKĘ treści: to, co druga strona przeczytała, zostaje zamrożone. Jeśli poprawisz dokument w panelu, ona dalej widzi wersję z wysyłki — dopóki nie wyślesz ponownie. To jest dowód na wypadek sporu, nie ozdoba.",
       },
       {
         tytul: "4. Podpis: elektroniczny albo Twój, ręczny",
@@ -582,6 +595,11 @@ export const MODULY: ModulInstrukcji[] = [
         tytul: "Podpis drugiej strony dzwoni",
         opis:
           "E-podpis pod linkiem wywołuje powiadomienie i wpis na osi czasu klienta. Twoje własne „oznacz jako podpisaną” nie dzwoni — wiesz, że kliknąłeś.",
+      },
+      {
+        tytul: "Podpis przestawia termin projektu",
+        opis:
+          "W chwili podpisania umowy (albo aneksu) projekt podpięty w polu „Projekt” dostaje TERMIN Z TEGO DOKUMENTU — nawet jeśli miał już inny, wpisany ręcznie albo z szablonu. To automat, nie propozycja: podpisany dokument jest ustaleniem obu stron, a termin z szablonu zgadywanką. Zmiana zostawia ślad na osi czasu klienta („termin wyrównany do obowiązujących warunków”). Kamienie milowe zostają nietknięte — te, które wypadają po nowym terminie, dostają ostrzeżenie na projekcie.",
       },
       {
         tytul: "Dowód e-podpisu znika po sześciu latach",
@@ -693,6 +711,11 @@ export const MODULY: ModulInstrukcji[] = [
         opis:
           "Blokada startu bez papieru stoi po stronie serwera, nie w interfejsie — nie da się jej ominąć ani z telefonu, ani wpisując status inaczej.",
       },
+      {
+        tytul: "Termin projektu przesuwa się przy podpisie umowy",
+        opis:
+          "Podpisanie umowy albo aneksu podpiętego do tego projektu WPISUJE tu termin z tego dokumentu — także wtedy, gdy projekt miał już własny. Podpis obu stron bije szablon i wpis z ręki; ślad idzie na oś czasu klienta. Kamienie milowe zostają na swoich datach, ale te po nowym terminie dostają ostrzeżenie tutaj i regułę na ekranie Zdrowie.",
+      },
     ],
     pulapki: [
       {
@@ -737,7 +760,7 @@ export const MODULY: ModulInstrukcji[] = [
   {
     id: "faktury",
     nazwa: "Faktury",
-    gdzie: "Panel: pozycja w menu pod Umowami. Telefon i iPad: „Więcej” → Faktury. Z profilu projektu wchodzisz w sekcji „Dokumenty”.",
+    gdzie: "Panel: pozycja w menu pod Projektami. Telefon i iPad: „Więcej” → Faktury. Z profilu projektu wchodzisz w sekcji „Dokumenty”.",
     poCoTo:
       "Ostatnie dwa kroki lejka: wystawienie i pilnowanie, żeby przelew naprawdę przyszedł. Tu mieszka rejestr sprzedaży, windykacja i KSeF.",
     kiedy:
@@ -746,12 +769,12 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "1. Szkic wolno wszystko, wystawiona już nie",
         opis:
-          "Dopóki faktura nie ma numeru, jest szkicem i zmienia się bez ograniczeń. „Wystaw fakturę” nadaje numer z ciągłej numeracji i od tej chwili TREŚĆ jest zablokowana — nazwy nabywcy, kwot ani waluty nie da się już podmienić. Status i powiązania zostają wolne, bo to nie treść dokumentu. Wystawionej faktury nie da się też usunąć: zostawiłaby dziurę w numeracji. Jedyne drogi wyjścia to „Anulowana” (numer zostaje w rejestrze) albo korekta.",
+          "Dopóki faktura nie ma numeru, jest szkicem i zmienia się bez ograniczeń. „Wystaw fakturę” każe najpierw PRZEPISAĆ nazwę nabywcy — to jedno z czterech działań w całym panelu, których nie da się odkręcić niczym. Potem nadaje numer z ciągłej numeracji i od tej chwili TREŚĆ jest zablokowana — nazwy nabywcy, kwot ani waluty nie da się już podmienić. Status i powiązania zostają wolne, bo to nie treść dokumentu. Wystawionej faktury nie da się też usunąć: zostawiłaby dziurę w numeracji. Jedyne drogi wyjścia to „Anulowana” (numer zostaje w rejestrze) albo korekta.",
       },
       {
         tytul: "2. Korekta to nowy dokument, nie edycja starego",
         opis:
-          "„Utwórz korektę” zakłada nowy szkic, w którym wpisujesz stan PO korekcie — panel sam pokazuje różnicę wobec faktury pierwotnej i to ją wysyła do KSeF. Oryginał zostaje nietknięty; obie faktury widzisz potem powiązane ze sobą.",
+          "„Wystaw korektę” (przycisk w profilu wystawionej faktury) zakłada nowy szkic, w którym wpisujesz stan PO korekcie — panel sam pokazuje różnicę wobec faktury pierwotnej i to ją wysyła do KSeF. Oryginał zostaje nietknięty; obie faktury widzisz potem powiązane ze sobą.",
       },
       {
         tytul: "3. Trzy rodzaje dokumentu, jeden rejestr",
@@ -769,9 +792,9 @@ export const MODULY: ModulInstrukcji[] = [
           "Kolorowa pigułka niesie status PŁATNOŚCI: szary szkic, fioletowa „Wystawiona” (czekasz na ich przelew), zielona „Opłacona”, złota „Po terminie”. Osobno, z samej daty, liczy się PILNOŚĆ — termin robi się pomarańczowy zaraz po terminie i czerwony po dwóch tygodniach. Plakietka KSeF jest świadomie SZARA i mówi słowem („KSeF ✓”), żeby zielone „przyjęte przez urząd” nie wyglądało jak „zapłacone”. Czerwona robi się tylko przy odrzuceniu.",
       },
       {
-        tytul: "6. Windykacja: przypomnienie ma poziomy",
+        tytul: "6. Windykacja: poziom wybierasz Ty",
         opis:
-          "„Przypomnij” wysyła maila, którego ton rośnie z liczbą dni po terminie — od uprzejmego przypomnienia po wezwanie do zapłaty z odsetkami. Odsetki liczą się ze stawki, którą wpisujesz RĘCZNIE w Danych firmy: panel nigdy sam jej nie zgaduje ani nie aktualizuje. Historia wysyłek zostaje na fakturze, więc widać ile poszło i na jakim poziomie.",
+          "Przy zaległej fakturze stoją trzy przyciski: 1 — uprzejme przypomnienie, 2 — stanowcze, 3 — formalne wezwanie do zapłaty z odsetkami. Liczba dni po terminie tylko PODPOWIADA poziom (podświetla właściwy); wybierasz sam, bo o tonie decyduje to, co wiesz o kliencie, a nie kalendarz. Jedno ograniczenie: nie da się zejść poniżej poziomu, który już do niego wyszedł. Odsetki liczą się ze stawki, którą wpisujesz RĘCZNIE w Danych firmy — panel nigdy jej nie zgaduje ani nie aktualizuje. Historia wysyłek zostaje na fakturze, więc widać, ile poszło i na jakim poziomie.",
       },
       {
         tytul: "7. KSeF stoi na środowisku testowym",
@@ -784,9 +807,9 @@ export const MODULY: ModulInstrukcji[] = [
           "Do wyboru PLN, EUR, USD i GBP — nic spoza tej listy nie wejdzie. Każda kwota pokazuje się w walucie SWOJEGO dokumentu, a sumy w KPI liczą się osobno dla każdej waluty (nie ma jednej liczby „razem”). Przeliczaniem kursów panel się nie zajmuje i mówi o tym wprost tam, gdzie to ma znaczenie — na przykład przy rentowności projektu.",
       },
       {
-        tytul: "9. Faktury cykliczne wystawiają się same",
+        tytul: "9. Faktury cykliczne zakładają się same",
         opis:
-          "Szablon z pozycjami i cyklem („co miesiąc”) zakłada szkic w wyznaczonym dniu. Szkic, nie gotową fakturę — numer nadajesz Ty, po sprawdzeniu. Szablon można wyłączyć bez kasowania.",
+          "Szablon z pozycjami i cyklem („co miesiąc”, „co kwartał”, „co rok”) zakłada szkic w wyznaczonym dniu. Szkic, nie gotową fakturę — numer nadajesz Ty, po sprawdzeniu. Rytm liczy się od PIERWSZEJ daty serii, więc „co miesiąc 31.” nie zsuwa się na 28. po lutym i nie przesuwa się na stałe, gdy panel raz nadrobi dzień później. Szablon można wyłączyć bez kasowania.",
       },
     ],
     skroty: [
@@ -826,9 +849,19 @@ export const MODULY: ModulInstrukcji[] = [
           "Faktura po terminie trafia na Pulpit i do porannego maila. Reguła jest deterministyczna: minął termin płatności i status nie jest „Opłacona” ani „Anulowana”.",
       },
       {
+        tytul: "Przypomnienia idą do klienta SAME — jedyny taki automat",
+        opis:
+          "To jest jedyne miejsce, w którym panel pisze do klienta bez Twojego kliknięcia. Wystawiona faktura po terminie, z wpisanym adresem e-mail nabywcy, dostaje z porannego przebiegu: po 3 dniach uprzejme przypomnienie, po 10 — stanowcze, po 21 — formalne WEZWANIE DO ZAPŁATY z odsetkami i własnym linkiem. Każdy poziom idzie najwyżej raz, a Twoje ręczne kliknięcie liczy się jako ten poziom, więc nie dostanie tego samego dwa razy. Nie chcesz, żeby coś poszło samo — usuń adres e-mail z faktury, ustaw status „Anulowana” albo unieważnij link (automat pomija fakturę z unieważnionym linkiem). Wezwanie zostawia ślad w dzwonku, bo to najpoważniejszy krok, jaki panel wykonuje bez pytania.",
+      },
+      {
         tytul: "Faktura cykliczna zakłada SZKIC, nie gotowy dokument",
         opis:
           "W dniu z szablonu powstaje szkic z przepisanymi pozycjami. Numer nadajesz Ty, po sprawdzeniu — panel nigdy nie wystawia dokumentu fiskalnego sam.",
+      },
+      {
+        tytul: "Nadpłata nie blokuje zapisu, ale nie zostaje niewidzialna",
+        opis:
+          "Dwa kliknięcia „Zarejestruj wpłatę” dadzą dwie wpłaty — świadomie, bo wpłatę da się usunąć, a pytanie przy każdym odwracalnym ruchu uczy klikać „tak” bez czytania. Faktura pokazuje wtedy „Opłacona” (co jest prawdą) i nikt do niej nie wraca, więc nadpłata zawyżyłaby przychód w Statystykach. Łapie to reguła na ekranie Zdrowie: „suma wpłat nie przekracza należności”.",
       },
     ],
     pulapki: [
@@ -1051,7 +1084,7 @@ export const MODULY: ModulInstrukcji[] = [
       {
         tytul: "Szufladkowanie i screener nowych nadawców",
         opis:
-          "Panel sam nadaje rodzaj (Zapytanie, Rachunek, Rozmowa, Reklama) po nagłówkach i treści — bez AI, po regułach. Nowy, nieznany nadawca czeka pod „Nowi nadawcy”, dopóki go nie zatwierdzisz albo nie zablokujesz. Odpisanie zatwierdza go samo.",
+          "Panel sam nadaje rodzaj (Zapytanie, Rachunek, Urzędowe, Rozmowa, Reklama) po nagłówkach i treści — bez AI, po regułach. Nowy, nieznany nadawca czeka pod „Nowi nadawcy”, dopóki go nie zatwierdzisz albo nie zablokujesz. Odpisanie zatwierdza go samo.",
       },
       {
         tytul: "Przypomnienie o wątkach bez odpowiedzi",

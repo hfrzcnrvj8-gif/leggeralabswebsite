@@ -12,11 +12,29 @@ prawdziwej przeglądarki i nigdy nie będzie miało.
 
 ---
 
-## Etap 1 — Przewodnik: co to potrafi i jak z tego korzystać
+## Etap 1 — Przewodnik: co to potrafi i jak z tego korzystać ✅
 
 **Kto:** ja. **Czas:** jedna sesja. **Dlaczego pierwszy:** bez tego etap 4
 (Twój przegląd) byłby błądzeniem po ekranach.
-**Brief: `docs/ETAP-1-PRZEWODNIK-BRIEF.md`. ZACZĘTY 2026-08-05.**
+**Brief: `docs/ETAP-1-PRZEWODNIK-BRIEF.md`. ZROBIONE 2026-08-05.**
+
+> **✅ ZAMKNIĘTY. Wynik: `docs/ETAP-1-WYNIK.md` + `docs/CO-MAM.md`.**
+>
+> Weryfikacja instrukcji dała **12 zdań nieprawdziwych** i **9 mechanizmów,
+> o których instrukcja nie wiedziała** — wszystkie poprawione w
+> `lib/instrukcje.ts`. Przyczyna jest jedna i warto ją zapamiętać: plik nie
+> był ruszany od `e441246` (2026-08-02), a od tamtej pory weszło **51
+> commitów**, w tym pięć faz zaplecza i dwa przejścia „na sucho".
+>
+> **Trzy rzeczy czekają na Twoją decyzję** (opisane w `ETAP-1-WYNIK.md`, sekcja C):
+> (C1) windykacja wysyła maile do klienta BEZ Twojego kliknięcia, w tym
+> formalne wezwanie po 21 dniach — zostaje czy nie; (C2) godziny automatów
+> („6:00") mogą być w UTC, czyli 7:00/8:00 u Ciebie — potwierdź obserwacją,
+> o której naprawdę przychodzi poranny mail; (C3) dokumentacja mówiła
+> „14 reguł spójności", jest 13 (poprawione w dokumentach, kodu nie ruszano).
+>
+> Zachowania panelu nie zmieniono ani w jednym miejscu. `tsc` czysto,
+> `npm test` 349/349, `npm run przejscie` 111 działa · 0 regresji.
 
 > **Zakres zawężony po rekonesansie (2026-08-05).** Sprawdzenie przed
 > napisaniem briefu pokazało, że przegląd z góry **już istnieje** — w panelu,
@@ -33,9 +51,19 @@ Czego dziś faktycznie nie ma: **jednej odpowiedzi na pytanie „co ja właściw
 mam i skąd wiadomo, że to działa"** oraz **jednego miejsca z listą tego, co
 dzieje się samo** (dziś rozproszone po 14 modułach).
 
-Powstanie:
+Powstało (zamiast `PRZEWODNIK.md` — patrz ramka wyżej: przewodnik już istnieje
+w panelu, więc etap był WERYFIKACJĄ, nie pisaniem drugiego):
 
-1. **`docs/PRZEWODNIK.md`** — jeden dokument, po ludzku:
+- **`docs/ETAP-1-WYNIK.md`** — lista znalezisk z weryfikacji.
+- **`docs/CO-MAM.md`** — dwie strony dla właściciela: co mam, co dzieje się
+  samo i o której, czego panel świadomie nie robi, skąd wiadomo, że działa,
+  i czego te liczby NIE obejmują.
+- **poprawki w `lib/instrukcje.ts`** — 276 wpisów, 14 modułów, wspólne dla
+  panelu i apki.
+
+Pierwotny zamysł etapu (nieaktualny, zostawiony dla historii):
+
+1. ~~**`docs/PRZEWODNIK.md`** — jeden dokument, po ludzku:~~
    - co panel potrafi, modułami, w jednym zdaniu na moduł;
    - **trzy ścieżki dnia**: „przyszedł nowy lead", „klient chce ofertę",
      „faktura nie została zapłacona" — krok po kroku, z nazwami przycisków;
