@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-05, po audycie „co apka wyrzuca do kosza"
+# Handoff — stan na 2026-08-05, po obu audytach apki (odczyt i zapis)
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,9 +7,10 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- **Panel:** na wierzchu **`d2655b0`** „Wynik audytu: sześć pól, które apka
-  wyrzucała do kosza". Repozytorium czyste i wypchnięte, `tsc` czysto,
-  `npm test` **340/340**.
+- **Panel:** na wierzchu **wyniku audytu „apka wysyła, trasa nie czyta"**
+  (poprzednio `d2655b0`). Repozytorium czyste i wypchnięte, `tsc` czysto,
+  `npm test` **340/340**. Ostatnia sesja **nie zmieniła ani jednego pliku
+  kodu** — sam dokument wyniku.
 - **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
   **`d5c40c6`** „Apka czyta to, co serwer oddaje: bramka wysyłki, wygasłe
   oferty, rodzina umowy, szukanie po treści". Buduje się, `swift test`
@@ -47,27 +48,47 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 ## Co jest następnym krokiem
 
-**1. Audyt „apka wysyła, trasa nie czyta". BRIEF GOTOWY.**
+**1. DECYZJA WŁAŚCICIELA: czym ma być trzecie przejście.**
 
-- Brief: `docs/natywna-aplikacja/41-brief-audyt-co-apka-wysyla.md`
-- Do wklejenia w nowym czacie: **`PROMPT-NOWY-CZAT.md`** w korzeniu
+Obie strony monety „apka ↔ panel" są sprawdzone i zamknięte (punkty 2 i 3
+niżej), więc kolejka jest pusta. Propozycja z briefu 41 na wypadek pustego
+wyniku — a wynik jest pusty — to **drugi rok obrotowy**: numeracja faktur przez
+zmianę roku, retencja danych, faktury cykliczne przechodzące przez 31 grudnia
+(punkt (b) z końca `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`). Da się to zrobić w tym
+środowisku, bo `npm run przejscie` umie już budować scenariusze.
 
-Druga strona monety audytu z punktu 2 niżej. Apka wysyła w `POST`/`PATCH` pole,
-którego trasa nie czyta: właściciel dostaje `{"ok":true}`, widzi swoją zmianę na
-ekranie (bo apka zaktualizowała stan lokalnie), a w bazie nie zmieniło się nic.
-Przy odczycie znika informacja — tutaj znika **zapis**.
+**To robota po stronie PANELU, nie apki — wymaga Twojej zgody, zanim ktokolwiek
+przełączy repozytorium.** Punkty (a) i (c) trzeciego przejścia wymagają
+prawdziwej przeglądarki i tu ich nie zrobimy.
 
-**Uczciwie: to może wyjść krótkie.** Przy pisaniu briefu sprawdziłem cztery
-najbardziej ryzykowne miejsca (te, w których klucze idą słownikiem, więc nie
-pilnuje ich kompilator) — `clients/:id`, `costs/:id`, `projects/:id`,
-`events/:id`. **Wszystkie cztery czyste.** Brief mówi wprost, żeby zacząć od
-niesprawdzonych, a po dwóch–trzech pustych rundach przestać i napisać wynik.
-Zakres: 54 `POST`, 21 `PATCH`, 43 `struct Body`, 16 ładunków słownikowych.
+**2. Audyt „apka wysyła, trasa nie czyta" — ZROBIONY 2026-08-05. PUSTO.**
+Wynik: **`docs/natywna-aplikacja/42-wynik-audyt-co-apka-wysyla.md`**.
+Brief: `41-brief-audyt-co-apka-wysyla.md`.
 
-Jeśli wyjdzie pusto, brief proponuje **drugi rok obrotowy** (punkt (b) trzeciego
-przejścia) — ale to robota po stronie panelu, więc wymaga Twojej zgody.
+Przejrzane **wszystkie 75 wywołań `POST`/`PATCH`** apki (16 ładunków
+słownikowych, 43 `struct Body`, 6 multipart) przeciwko 63 trasom panelu.
+**Zero pól wysyłanych, a nieczytanych. Zero zmian w kodzie — w obu repo.**
 
-**2. Audyt „serwer oddaje, apka wyrzuca do kosza" — ZROBIONY 2026-08-05.**
+Sprawdzone nie tylko lekturą: sondy różnicowe `PATCH`-em z ciałem skopiowanym
+z apki (przypomnienie — komplet 16 pól, katalog — 11 pól) zmieniły w bazie
+**wyłącznie to, co miały**, plus jeden przebieg przez apkę na symulatorze
+(„+tydzień" na leadzie → `next_followup` w bazie).
+
+Trzy fałszywe alarmy po drodze (pole czytane pętlą, pole zagnieżdżone w warunku
+innego pola, trasa parametryczna `[kind]`) są opisane w wyniku — powtórzą się.
+
+**Dlaczego pusto, skoro odczyt miał sześć luk:** brak skutku przy ZAPISIE boli
+od razu (właściciel widzi po odświeżeniu, że nie weszło), brak informacji przy
+ODCZYCIE nie boli nigdy. Plus zapis ma jedno gardło (`APIClient.swift`), a
+odczyt rozłazi się po dwudziestu ekranach. **Następnym razem szukaj tam, gdzie
+brak skutku jest niewidoczny.**
+
+Jedna obserwacja poboczna do zapamiętania: `reminders.lokalizacja_promien` to
+**kolumna bez pisarza** — nikt jej nie ustawia, a edycja przypomnienia z apki
+nadpisuje ją `NULL`-em. Dziś bez skutku (zawsze jest `NULL`); gdyby powstała
+kontrolka promienia, zaczęłaby ją kasować w ciszy.
+
+**3. Audyt „serwer oddaje, apka wyrzuca do kosza" — ZROBIONY 2026-08-05.**
 Wynik i dowody: **`docs/natywna-aplikacja/40-wynik-audyt-co-apka-wyrzuca.md`**.
 Brief, wg którego szedł: `39-brief-audyt-co-apka-wyrzuca.md`.
 
