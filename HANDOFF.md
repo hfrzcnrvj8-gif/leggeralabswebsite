@@ -271,9 +271,11 @@ jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 - **Włączenie 2FA na produkcji** — silnik gotowy od Modułu 41. Drogi powrotu:
   papierowe kody zapasowe + ten sam sekret na drugim urządzeniu (NIE
   „wyłącznik w Vercelu").
-- **Osierocony katalog `.claude/worktrees/fervent-ishizaka-7aec37/`** po
-  porzuconej sesji — ma starą kopię `lib/offers.ts` i myli `grep`. Git go
-  ignoruje. Do skasowania przy okazji.
+- ~~Osierocony katalog `.claude/worktrees/fervent-ishizaka-7aec37/`~~ —
+  **usunięty 2026-08-05** (`git worktree remove` + `prune`, 7,4 MB). Sprawdzone
+  przed skasowaniem: drzewo czyste, a jego ostatni commit `ca48013` jest
+  w historii `main`, więc nic nie zginęło. `git worktree list` pokazuje już
+  tylko katalog główny.
 
 ## Czego NIE zaczynać bez wyraźnej prośby
 
