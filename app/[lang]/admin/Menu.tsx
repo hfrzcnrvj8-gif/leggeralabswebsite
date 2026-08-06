@@ -448,6 +448,7 @@ export function PropertyMenu<T extends string>({
   align = "left",
   title,
   full = false,
+  kierunek = "auto",
 }: {
   value?: T;
   options: MenuOption<T>[];
@@ -458,12 +459,32 @@ export function PropertyMenu<T extends string>({
   title?: string;
   /** true = trigger na pełną szerokość (wiersz właściwości w panelu). */
   full?: boolean;
+  /** `auto` (domyślnie) — pod wyzwalaczem, nad nim dopiero przy braku miejsca.
+   * `gora` — NAD wyzwalaczem, o ile jest tam miejsce.
+   *
+   * Opcja jest OPT-IN i ma zostać rzadka. Zmierzone 2026-08-06 sondą po całym
+   * panelu: menu zasłaniające kontrolki pod sobą to NORMA, nie usterka —
+   * każde menu statusu na Tablicy leadów przechwytuje kliknięcia 4–8
+   * kontrolkom sąsiednich kart i nikomu to nie przeszkadza, bo nikt nie celuje
+   * w kartę, której nie widzi. Dlatego NIE zmieniamy zachowania domyślnego.
+   *
+   * `gora` jest dla jedynego układu, w którym to boli: menu wybory kanału
+   * w formularzu „Nowy wpis" stoi dokładnie nad checkboksem „Oznacz jako
+   * dzisiejszy kontakt" — jedyną inną kontrolką tego formularza, z którą
+   * pracuje się w tym samym ruchu. Zmierzone: z 11 kontrolek formularza menu
+   * zakrywało dokładnie tę jedną. Nad wyzwalaczem leży pole treści, którego
+   * w tym momencie się nie dotyka.
+   *
+   * Dokładając `gora` gdziekolwiek: najpierw ZMIERZ, co menu zakrywa po obu
+   * stronach. Bez pomiaru to przenoszenie problemu, nie naprawa. */
+  kierunek?: "auto" | "gora";
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [active, setActive] = useState(0);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const zmierzoneRef = useRef(false);
 
   const place = useCallback(() => {
     const el = triggerRef.current;
@@ -471,11 +492,42 @@ export function PropertyMenu<T extends string>({
     const r = el.getBoundingClientRect();
     let left = align === "right" ? r.right - MENU_MIN_W : r.left;
     left = Math.max(8, Math.min(left, window.innerWidth - MENU_MIN_W - 8));
-    const estH = options.length * ITEM_H + 10;
+    // Realna wysokość, gdy menu jest już w DOM — szacunek `options.length *
+    // ITEM_H` bywa krótszy od prawdy (zmierzone: 190 wobec 199 przy sześciu
+    // pozycjach; pozycje z ikoną są wyższe niż stała). Przy menu otwieranym
+    // W DÓŁ ta różnica jest niewidoczna, ale przy otwieraniu W GÓRĘ — czy to
+    // przez `kierunek`, czy przez brak miejsca u dołu ekranu — przekłada się
+    // wprost na nachodzenie menu na własny wyzwalacz.
+    const estH = (menuRef.current?.offsetHeight ?? options.length * ITEM_H + 10) + 4;
     const below = r.bottom + 4;
-    const top = below + estH > window.innerHeight - 8 ? Math.max(8, r.top - estH - 4) : below;
+    const above = r.top - estH - 4;
+    // `gora` ustępuje, gdy nad wyzwalaczem NIE MA miejsca — inaczej menu
+    // przykleiłoby się do górnej krawędzi okna i oderwało od kontrolki,
+    // która je otworzyła. Brak miejsca u góry = wracamy do zwykłej reguły.
+    const top =
+      kierunek === "gora" && above >= 8
+        ? above
+        : below + estH > window.innerHeight - 8
+          ? Math.max(8, above)
+          : below;
     setPos({ top, left });
-  }, [align, options.length]);
+  }, [align, options.length, kierunek]);
+
+  // Pierwsze `place()` biegnie PRZED zamontowaniem menu, więc `menuRef` jest
+  // jeszcze pusty i wysokość jest wtedy tylko szacowana. Po zamontowaniu
+  // mierzymy naprawdę i przestawiamy RAZ — `zmierzoneRef` pilnuje, żeby
+  // `setPos` nie zapętlił efektu. Bliźniak tego mechanizmu stoi w `Popover`
+  // wyżej; `PropertyMenu` go nie miał i dlatego menu otwierane w górę
+  // nachodziło na własny wyzwalacz.
+  useIsoLayoutEffect(() => {
+    if (!open) {
+      zmierzoneRef.current = false;
+      return;
+    }
+    if (!pos || zmierzoneRef.current) return;
+    zmierzoneRef.current = true;
+    place();
+  }, [open, pos, place]);
 
   const openMenu = (e: ReactMouseEvent) => {
     e.stopPropagation();

@@ -581,6 +581,12 @@ export function LeadDetailPanel({
                       }}
                       placeholder="Kanał — wybierz"
                       title="Jakim kanałem?"
+                      // Menu W GÓRĘ: rozwinięte w dół stało dokładnie na
+                      // checkboksie „Oznacz jako dzisiejszy kontakt" i
+                      // przechwytywało jego kliknięcia (etap 4, zmierzone:
+                      // z 11 kontrolek formularza zakrywało tę jedną).
+                      // Bliźniak w `ClientDetailPanel.tsx` ma to samo.
+                      kierunek="gora"
                     />
                     <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
                       {CONTACT_DIRECTIONS.map((dir) => (

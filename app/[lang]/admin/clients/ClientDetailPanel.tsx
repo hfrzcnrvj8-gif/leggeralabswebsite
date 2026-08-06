@@ -1055,6 +1055,8 @@ export function ClientDetailPanel({
                         }}
                         placeholder="Kanał — wybierz"
                         title="Jakim kanałem?"
+                        // Menu W GÓRĘ — patrz bliźniak w `LeadDetailPanel.tsx`.
+                        kierunek="gora"
                       />
                       <div className="flex overflow-hidden rounded-full border hairline text-[11px]">
                         {CONTACT_DIRECTIONS.map((dir) => (

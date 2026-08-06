@@ -552,15 +552,19 @@ export function PillPicker({
   onChange,
   placeholder = "— wybierz —",
   title = "Zmień",
+  kierunek,
 }: {
   value: string;
   options: readonly string[];
   onChange: (v: string) => void;
   placeholder?: string;
   title?: string;
+  /** Przekazywane wprost do `PropertyMenu` — patrz komentarz tam. Opcja
+   * rzadka i wymagająca pomiaru, nie domyślna. */
+  kierunek?: "auto" | "gora";
 }) {
   return (
-    <PropertyMenu value={value} options={options.map((s) => ({ value: s, label: s }))} onChange={onChange} title={title}>
+    <PropertyMenu value={value} options={options.map((s) => ({ value: s, label: s }))} onChange={onChange} title={title} kierunek={kierunek}>
       <span className="cursor-pointer rounded-full border hairline px-2.5 py-1 text-[11px] text-muted hover:text-[var(--fg)]">
         {value || placeholder}
       </span>

@@ -87,6 +87,20 @@ Zostały trzy rzeczy, **wszystkie na Twoje oko w części B**:
 
 ---
 
+## CZĘŚĆ A2 — domierzone 2026-08-06 wieczorem (druga sesja)
+
+Podgląd potwierdzony ponownie: **1264×1243, 61 kl./s, zrzuty renderują**.
+Jedno zastrzeżenie do części A: **pierwszy pomiar `requestAnimationFrame`
+tuż po nawigacji dał 1 klatkę** — dopiero ustabilizowana strona daje 61,
+w dwóch biegach z rzędu. Kto zmierzy za wcześnie, wpisze „rAF zamrożony"
+i niepotrzebnie odda robotę Tobie.
+
+Skoro podgląd działa, **z części B dało się zdjąć całe B5, mierzalną połowę
+B3 i większość B6**. Wyniki są przy odpowiednich punktach niżej. Zostaje Ci
+to, czego naprawdę nie zmierzę: papier, wrażenie i palec na sprzęcie.
+
+---
+
 ## CZĘŚĆ B — co możesz sprawdzić tylko Ty
 
 **Gdzie:** panel na `leggeralabs.pl/pl/admin` (świeżo wdrożony) — czyli
@@ -120,6 +134,28 @@ Projekty → Kalendarz.
 To jest część, której nie zmierzę nigdy, a jest najbardziej „na zewnątrz":
 klient dostaje te dokumenty.
 
+**Połowę tego zmierzyłem 2026-08-06 — to zawęża, czego szukać na kartce.**
+
+Pułapka z `CLAUDE.md` („nic, co niesie TREŚĆ, nie może stać na TLE") jest
+**sprawdzona na wszystkich czterech wydrukach**: oferta, faktura, umowa,
+wezwanie. W każdym z nich pasek marki to `<svg><rect fill="url(#…)">`, kwota to
+`<svg><text fill="url(#…)">`, logo to SVG. **Zero** `background-clip: text`,
+**zero** elementów niosących tekst na gradiencie w tle. Jedyny gradient-pod-
+tekstem to przyciski „Akceptuję ofertę" / „Podpisuję" — a te siedzą w kontenerze
+`print:hidden`, więc na papier nie trafiają. Wszystkie cztery mają
+`@page { size: A4; margin: 16mm }`.
+
+**Czego NIE zmierzę i na co patrz szczególnie:** tabela pozycji faktury ma
+prawdziwy `<thead>`, więc nagłówki kolumn powtórzą się na drugiej stronie — ale
+**nigdzie nie ma reguły `break-inside-avoid` poza blokami treści oferty**.
+Blok podsumowań („Razem netto / Razem VAT / Do zapłaty") może przy dłuższej
+fakturze zostać sam na drugiej stronie. Sprawdź to fakturą na kilkanaście
+pozycji.
+
+**A5 potwierdzone na ekranie:** na umowie rubryka po lewej ma nagłówek
+„ZLECENIODAWCA / WYKONAWCA" (dwie role w jednym), a po prawej „DRUGA STRONA".
+To wciąż czeka na Ciebie jako treść dokumentu prawnego.
+
 Wydrukuj **naprawdę** (albo zapisz do PDF i otwórz w czytniku):
 
 - [ ] **Oferta** — czy pasek marki u góry i kwota są widoczne? Czy logo jest?
@@ -138,32 +174,99 @@ Wydrukuj **naprawdę** (albo zapisz do PDF i otwórz w czytniku):
 - [ ] Czy coś **zasłania przycisk**, gdy klawiatura wyjedzie na ekran?
 - [ ] Czy na iPadzie w pionie panel wygląda sensownie, czy tylko w poziomie?
 
-### B5. Trzy konkretne rzeczy wiszące od pierwszego przejścia
+### B5. Trzy konkretne rzeczy wiszące od pierwszego przejścia — ✅ ROZSTRZYGNIĘTE 2026-08-06
 
-Te trzy zostały opisane, ale **żadnej nie dało się rozstrzygnąć bez prawdziwego
-okna**. Każda ma dokładny przepis:
+**Nie sprawdzaj tych trzech.** Przebiegnięte w podglądzie prawdziwymi
+kliknięciami i klawiszami, z pomiarem `getBoundingClientRect` /
+`elementFromPoint`, nie „na oko".
 
-1. **Escape przy otwartym kole daty.** Otwórz profil leada → kliknij pole daty
-   („Przypomnij mi") tak, żeby otworzył się kalendarzyk → naciśnij Escape.
-   **Pytanie: czy zamknął się TYLKO kalendarzyk, czy cały profil?**
-   *(Poprawka weszła, ale nigdy nie została zobaczona.)*
-2. **Menu „Wstaw z szablonu".** Otwórz ofertę → Pozycje → „Wstaw z szablonu" →
-   wybierz szablon. **Pytanie: czy menu zamknęło się po wstawieniu, czy zasłania
-   wiersze, które właśnie dodało?** *(Nie udało się tego powtórzyć — możliwe, że
-   zgłoszenie dotyczyło innej kontrolki.)*
-3. **Lista kanałów na checkboksie.** Profil leada → formularz „Nowy wpis" →
-   rozwiń „Kanał". **Pytanie: czy lista zasłania wiersz „Oznacz jako dzisiejszy
-   kontakt" i czy to naprawdę przeszkadza?** *(Zwykła lista rozwijana zasłania
-   treść pod sobą — pytanie brzmi, czy w tym miejscu to boli.)*
+1. **Escape przy otwartym kole daty — DZIAŁA POPRAWNIE.** Profil leada →
+   „Przypomnij mi" → kalendarzyk → Escape: zamknął się **tylko kalendarzyk**,
+   profil został otwarty (zmierzone: `Sierpień 2026` znika, „Szczegóły leada"
+   zostaje). **Drugi** Escape zamyka profil — czyli łańcuch działa w obie
+   strony, nie jest po prostu martwy. Poprawka z pierwszego przejścia
+   (`Menu.tsx:170`, `stopPropagation` w fazie przechwytywania) jest realna.
+2. **Menu „Wstaw z szablonu" — NIE POTWIERDZA SIĘ.** Oferta → Pozycje →
+   „Wstaw z szablonu" → szablon: menu **zamknęło się**, a wszystkie trzy
+   wstawione wiersze są widoczne i nic ich nie zasłania. Zgłoszenie dotyczyło
+   niemal na pewno innej kontrolki — patrz punkt 3 i akapit pod nim.
+3. **Lista kanałów na checkboksie — POTWIERDZONE i NAPRAWIONE.**
+   Lista stała dokładnie na „Oznacz jako dzisiejszy kontakt" (menu `x 422–612`,
+   checkbox w `(429, 591)`), więc kliknięcie w środek checkboksa ustawiało
+   kanał na „Telefon" i zostawiało checkbox nietknięty. Z jedenastu kontrolek
+   formularza zakrywało dokładnie tę jedną.
+   **Dziś menu otwiera się W GÓRĘ** (`kierunek="gora"`), nad polem treści,
+   którego w tym momencie się nie dotyka. Zmierzone po poprawce: odstęp 8 px
+   nad wyzwalaczem, **zero przechwyconych kontrolek**, a ten sam klik
+   przełącza checkbox i nie rusza kanału. Bliźniak u Klientów tak samo.
 
-### B6. Oczami klienta (najważniejsze, bo to widzi ktoś obcy)
+**Skala tego problemu była mniejsza, niż napisałem najpierw — i to jest lekcja
+warta więcej niż sama poprawka.** Sonda puszczona po CAŁYM panelu pokazała, że
+menu zasłaniające kontrolki pod sobą to **norma, nie usterka**: każde menu
+statusu na Tablicy leadów przechwytuje kliknięcia 4–8 kontrolkom sąsiednich
+kart. Nikomu to nie przeszkadza, bo **nikt nie celuje w cel, którego nie
+widzi**. Dlatego zachowania domyślnego NIE zmieniono, a `kierunek="gora"` jest
+opcją opt-in dla jednego układu: takiego, w którym menu zakrywa kontrolkę
+używaną w tym samym ruchu co ono samo. Miara „ile kontrolek zakrywa" sama
+w sobie niczego nie dowodzi — dowodzi dopiero razem z pytaniem, czy ktoś
+naprawdę tam celuje.
 
-Wyślij sobie ofertę na własny adres i otwórz link **na telefonie**:
+Z tego samego powodu **menu „Z katalogu" w ofercie zostaje bez zmian**, choć
+zakrywa pola *Ilość* i *Cena*: nikt nie edytuje ilości w trakcie wybierania
+pozycji z katalogu.
 
-- [ ] Czy strona oferty wygląda jak dokument od firmy, czy jak panel
-      administracyjny?
-- [ ] Czy przyciski „Akceptuję" / „Odrzucam" są **oczywiste**?
-- [ ] To samo dla faktury i umowy (link do podpisu).
+**Przy okazji naprawione:** `PropertyMenu` szacowało własną wysokość
+(`liczba pozycji × 30 px`) i nigdy jej nie przemierzało — przy sześciu
+pozycjach szacunek był o 9 px za krótki. Przy menu otwieranym w dół to
+niewidoczne, ale **każde menu odwrócone w górę przy dolnej krawędzi okna
+nachodziło o te 9 px na własny wyzwalacz**. `Popover` miał domiar po
+zamontowaniu od dawna, `PropertyMenu` nie. Sprawdzone w oknie 640 px: osiem
+menu odwraca się w górę, żadne nie wychodzi poza ekran ani nie nachodzi.
+
+### B6. Oczami klienta — ZMIERZONE 2026-08-06, zostaje Ci JEDNA rzecz
+
+Przebiegnięte na prawdziwych publicznych linkach (oferta, faktura, umowa),
+przy oknie **390 px** i na desktopie.
+
+**Czysto — nie sprawdzaj ponownie:**
+
+- Strona wygląda **jak dokument od firmy**, nie jak panel: białe A4 na szarym
+  tle, pasek marki, logo, nagłówek z numerem. Zero elementów panelu.
+- **Nic nie wychodzi poza ekran przy 390 px** na żadnym z trzech dokumentów
+  (`scrollWidth` = 390 = `innerWidth`).
+- Przyciski decyzji stoją **poza skalowaniem, w pełnym rozmiarze**:
+  „Akceptuję ofertę" 145×36, „Wyślij prośbę o zmianę" 189×38, „Podpisuję"
+  171×36. Wszystkie powyżej progu 24×24.
+- **Fałszywy alarm oddalony:** checkbox zgody rysuje się 13×13, ale siedzi
+  w `<label>` **324×39** i kliknięcie w tekst go przełącza (sprawdzone
+  zmianą stanu, nie lekturą kodu). Realny cel dotykowy jest w normie.
+- Oferta po terminie ważności nie pokazuje przycisków, tylko zdanie
+  „Ta oferta wygasła. Skontaktuj się z nadawcą" — zachowuje się poprawnie.
+- „← Zamknij" faktycznie zamyka kartę (sprawdzone: karta zniknęła).
+
+**JEDNA rzecz na Twoją decyzję — czytelność dokumentu na telefonie.**
+
+`DokumentResponsywny` pomniejsza dokument A4 (sztywne 794 px) transformem, żeby
+zmieścił się na ekranie. Przy 390 px skala wynosi **0,491**, więc:
+
+| co | na papierze / desktopie | na telefonie (efektywnie) |
+|---|---|---|
+| tekst pozycji, akapity umowy | 12–13 px | **5,9–6,4 px** |
+| drobny druk, etykiety rubryk | 10,5 px | **5,2 px** |
+| numer dokumentu (największy element) | 20 px | **9,8 px** |
+
+Na umowie **24 z 54 węzłów tekstu wypada na 6,4 px, a 21 na 5,2 px** — czyli
+klient podpisuje dokument, którego bez rozsunięcia palcami nie przeczyta.
+Powiększanie gestem **działa** (`viewport` nie blokuje), więc to nie jest awaria,
+tylko koszt świadomej decyzji z 2026-07-20 (naprawiała realne zgłoszenie: tabela
+pozycji uciekała poza ekran). Komentarz w `DocumentScale.tsx` tej ceny nie
+odnotowuje.
+
+**Do rozstrzygnięcia przez Ciebie: czy to zostaje.** Alternatywa (układ
+przelewający się na telefonie zamiast pomniejszania A4) jest większą robotą
+i była raz odrzucona dla maili, bo rozjeżdżała różne dokumenty na różne sposoby.
+**Zobacz to na własnym telefonie i powiedz, czy przeszkadza** — to jedyne
+pytanie z B6, które zostało.
 
 ---
 
