@@ -11,6 +11,7 @@ import {
 } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { todayLocalISO, daysBetweenISO } from "@/lib/dates";
+import { signedContractRate, type Contract } from "@/lib/contracts";
 import { isInvoiceOverdue, type Invoice } from "@/lib/invoices";
 import { PROJECT_HEALTHS, type Project } from "@/lib/projects";
 import { statsMonthKeys, statsAvg, statsRound1, type StatsTrendPoint } from "@/lib/stats";
@@ -49,6 +50,7 @@ export async function GET() {
     hunterRejectRows,
     offerRejectRows,
     kosztRows,
+    contractRows,
   ] = await Promise.all([
     // Czas do pierwszej odpowiedzi: pierwszy wpis na osi leada zainicjowany
     // PRZEZ NAS ("wychodzacy") po utworzeniu leada — nie ma dedykowanej
@@ -67,8 +69,11 @@ export async function GET() {
     sql`SELECT id, created_at, zrodlo_kategoria, client_id FROM leads;` as unknown as Promise<
       Pick<import("@/lib/leads").Lead, "id" | "created_at" | "zrodlo_kategoria" | "client_id">[]
     >,
-    sql`SELECT zdrowie, status, review_submitted_at, review_rating_jakosc, review_rating_terminowosc, review_rating_komunikacja, updated_at FROM projects;` as unknown as Promise<
-      Pick<Project, "zdrowie" | "status" | "review_submitted_at" | "review_rating_jakosc" | "review_rating_terminowosc" | "review_rating_komunikacja" | "updated_at">[]
+    // `id` i `client_id` doszły 2026-08-06 dla wskaźnika „Papier przed pracą",
+    // który przeniósł się tu z Pulpitu — `signedContractRate()` liczy tylko po
+    // projektach KLIENCKICH (projekt wewnętrzny nie ma z kim podpisać umowy).
+    sql`SELECT id, client_id, zdrowie, status, review_submitted_at, review_rating_jakosc, review_rating_terminowosc, review_rating_komunikacja, updated_at FROM projects;` as unknown as Promise<
+      Pick<Project, "id" | "client_id" | "zdrowie" | "status" | "review_submitted_at" | "review_rating_jakosc" | "review_rating_terminowosc" | "review_rating_komunikacja" | "updated_at">[]
     >,
     // DSO: tylko realne faktury PLN, sprzedażowe (nie proformy), z policzoną
     // sumą brutto i datą ostatniej wpłaty — reszta (waluty obce) świadomie
@@ -173,6 +178,12 @@ export async function GET() {
       WHERE data_wydatku IS NOT NULL
       GROUP BY 1;
     ` as unknown as Promise<{ miesiac: string; netto: number; bez_kursu: number }[]>,
+    // UMOWY — wyłącznie pod wskaźnik „Papier przed pracą", który 2026-08-06
+    // przeprowadził się z Pulpitu tutaj. Trzy kolumny, bo tylko tyle czyta
+    // `signedContractRate()`; aneksy odpadają same przez `typ = 'umowa'`.
+    sql`SELECT typ, status, project_id FROM contracts;` as unknown as Promise<
+      Pick<Contract, "typ" | "status" | "project_id">[]
+    >,
   ]);
 
   // --- 1) Czas do pierwszej odpowiedzi (godziny) ---
@@ -379,6 +390,13 @@ export async function GET() {
       bySource: conversionBySource,
     },
     projectHealth: { counts: healthCounts, total: projectRows.length },
+    // „Papier przed pracą" — przeniesione z Pulpitu 2026-08-06. Pulpit miał
+    // osiem kafli o jednakowej wadze, w tym trzy wskaźniki zdrowia procesu,
+    // a pod nimi link „Czy trzymam wzorzec pracy? → Statystyki". Pokazywał
+    // wskaźniki i jednocześnie odsyłał po wskaźniki gdzie indziej. Dwa z tych
+    // trzech (opinie, polecenia) już tu były — ten nie, więc się przeprowadza,
+    // a nie znika. `null`, gdy nie ma ani jednego projektu z klientem.
+    paperFirst: signedContractRate(projectRows, contractRows),
     dso: {
       avgDays: avgDso == null ? null : statsRound1(avgDso),
       oldestOverdueDays,

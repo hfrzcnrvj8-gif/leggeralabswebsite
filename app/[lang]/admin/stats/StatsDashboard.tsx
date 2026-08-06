@@ -30,6 +30,9 @@ type StatsData = {
     bySource: { zrodlo: string; totalLeads: number; convertedLeads: number; pct: number | null }[];
   };
   projectHealth: { counts: Record<string, number>; total: number };
+  /** „Papier przed pracą" — przeniesione z Pulpitu 2026-08-06.
+   * `null`, gdy nie ma ani jednego projektu z klientem. */
+  paperFirst: { rate: number; withContract: number; total: number } | null;
   dso: {
     avgDays: number | null;
     oldestOverdueDays: number | null;
@@ -221,6 +224,25 @@ export function StatsDashboard() {
           label="Leady z polecenia"
           value={data.referral.pct != null ? `${data.referral.pct}%` : "—"}
           sub={`${data.referral.referralLeads}/${data.referral.totalLeads} leadów · ${data.referral.nurtureAsksSent} razy zapytaliśmy`}
+        />
+        {/* „Papier przed pracą" (Moduł 31, cel 100%) — przeprowadzone z Pulpitu
+            2026-08-06. Miejsce jest tu, bo to wskaźnik trzymania wzorca pracy,
+            a nie liczba wymagająca dziś reakcji. Liczone TYLKO po projektach
+            klienckich: projekt wewnętrzny nie ma z kim podpisać umowy, więc
+            wliczanie go zaniżałoby wskaźnik na stałe. */}
+        <StatCard
+          label="Papier przed pracą"
+          value={data.paperFirst ? `${Math.round(data.paperFirst.rate * 100)}%` : "—"}
+          // ŚWIADOMIE NIE `PILNOSC_TEXT` — tamta rampa mówi „ile dni po
+          // terminie", a tu żaden termin nie minął: to praca u klienta bez
+          // podpisanej umowy. Kolor marki zamiast generycznego `amber-500`,
+          // którego ten kafel używał na Pulpicie (paleta z `tailwind.config.ts`).
+          valueClass={data.paperFirst && data.paperFirst.rate < 1 ? "text-brand-orange" : undefined}
+          sub={
+            data.paperFirst
+              ? `${data.paperFirst.withContract}/${data.paperFirst.total} projektów klienckich z podpisaną umową`
+              : "brak projektów z klientem — nie ma czego mierzyć"
+          }
         />
         {/* Przegląd szwów (2026-08-06). Do tego dnia ten ekran mówił wyłącznie,
             ile firma SPRZEDAŁA. Zysk stoi obok kosztów celowo — sama suma

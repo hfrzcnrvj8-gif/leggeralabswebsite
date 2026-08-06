@@ -521,19 +521,53 @@ export function DashboardHome({ lang }: { lang: Locale }) {
         </div>
       )}
 
+      {/* CZTERY kafle, nie osiem — i trzy poziomy głośności, nie jeden
+          (2026-08-06, zgłoszenie właściciela „Pulpit jest przeładowany").
+          Zmierzone przed zmianą: osiem kafli, KAŻDY 154 px szeroki, KAŻDA
+          liczba 18 px. Przy jednej wadze wizualnej „Przychód" znaczy tyle
+          samo co „Leady z polecenia" — czyli nic nie znaczy nic.
+
+          Zdjęte i DOKĄD poszły, bo żaden wskaźnik nie zniknął:
+          • „Wymaga działania dziś" — to ta sama zmienna `totalActionable`,
+            którą kilkadziesiąt pikseli wyżej wypisuje nagłówek strony. Ta sama
+            liczba dwa razy na jednym ekranie.
+          • „Opinie klientów" i „Leady z polecenia" — były w Statystykach pod
+            DOKŁADNIE tymi samymi nazwami. Pulpit pokazywał wskaźniki i zaraz
+            pod nimi trzymał link „Czy trzymam wzorzec pracy? → Statystyki".
+          • „Papier przed pracą" — jedyny, którego w Statystykach nie było;
+            DOŁOŻONY tam tym samym commitem (`paperFirst` w /api/stats).
+
+          Co zostało, to wyłącznie pieniądze, w kolejności „co mogę z tym
+          zrobić dziś": zaległość u klienta jest jedyną liczbą, na którą da się
+          zareagować od ręki, więc ona jest największa. Zysk z tego: pas kafli
+          362 → 232 px, a nad zagięcie weszły dwie sekcje z prawdziwą pracą
+          („Klienci wymagający kontaktu", „Projekty z minionym terminem").
+
+          Dokładając tu kafel: zapytaj najpierw, czy to liczba do DZIAŁANIA,
+          czy wskaźnik do OBSERWOWANIA. Wskaźniki mają swój ekran. */}
       <div className="grid grid-cols-2 gap-3 px-4 pt-4 sm:px-6 lg:grid-cols-6">
-        <div className="plyta-sekcji rounded-xl p-4">
+        <div className="plyta-sekcji rounded-xl p-4 lg:col-span-2">
           <div className="text-[11px] text-muted">Przychód (ten miesiąc)</div>
-          <div className="mt-1 text-liquid text-lg font-semibold">{formatByCurrency(data.kpi.revenueThisMonth)}</div>
+          {/* Waga rośnie DOPIERO od `lg` — patrz komentarz przy „Należnościach". */}
+          <div className="mt-1 text-liquid text-lg font-semibold lg:text-2xl">{formatByCurrency(data.kpi.revenueThisMonth)}</div>
           {revenueDelta !== null && (
             <div className={`mt-0.5 text-[11px] ${revenueDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
               {revenueDelta >= 0 ? "▲" : "▼"} {Math.abs(revenueDelta)}% vs poprzedni miesiąc
             </div>
           )}
         </div>
-        <div className="plyta-sekcji rounded-xl p-4">
+        {/* NAJWIĘKSZA liczba na ekranie i to jest celowe: to jedyna pozycja
+            z tej czwórki, na którą właściciel może zareagować dziś (upomnieć
+            się o pieniądze). Przychód jest już historią, pipeline przyszłością,
+            rezerwa obowiązkiem na później. */}
+        <div className="plyta-sekcji rounded-xl p-4 lg:col-span-2">
           <div className="text-[11px] text-muted">Należności (zaległe)</div>
-          <div className="mt-1 text-lg font-semibold">{formatByCurrency(data.kpi.outstanding)}</div>
+          {/* Duża liczba TYLKO od `lg` w górę. Przy 390 px kafel ma 141 px na
+              treść, a „8610,00 zł" w 36 px zajmuje 189 px — zmierzone, tekst
+              się przycinał. Hierarchia zostaje na telefonie (20 px wobec 18 px
+              reszty), tylko ciszej. `tabular-nums`, żeby kwota nie drgała przy
+              odświeżeniu — cyfry mają wtedy stałą szerokość. */}
+          <div className="mt-1 text-xl font-semibold tabular-nums lg:text-4xl">{formatByCurrency(data.kpi.outstanding)}</div>
           <div className="mt-0.5 text-[11px] text-muted">
             {data.overdueInvoices.length} {data.overdueInvoices.length === 1 ? "faktura" : "faktur"} po terminie
           </div>
@@ -542,11 +576,6 @@ export function DashboardHome({ lang }: { lang: Locale }) {
           <div className="text-[11px] text-muted">Pipeline ofert (ważony)</div>
           <div className="mt-1 text-lg font-semibold">{formatMoney(data.kpi.pipeline)}</div>
           <div className="mt-0.5 text-[11px] text-muted">{formatMoney(data.kpi.pipelineRaw)} otwartych ofert (nieważone)</div>
-        </div>
-        <div className="plyta-sekcji rounded-xl p-4">
-          <div className="text-[11px] text-muted">Wymaga działania dziś</div>
-          <div className="mt-1 text-lg font-semibold">{totalActionable}</div>
-          <div className="mt-0.5 text-[11px] text-muted">leady, projekty, faktury, oferty</div>
         </div>
         <div className="plyta-sekcji rounded-xl p-4">
           <div className="text-[11px] text-muted">Rezerwa podatkowa (ten miesiąc)</div>
@@ -565,42 +594,11 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             </div>
           </div>
         </div>
-        {/* Moduł 31 — miara Etapu 3 mapy drogi klienta (cel: 100%). Liczona
-            tylko po projektach z klientem: projekt wewnętrzny nie ma z kim
-            podpisać umowy, więc wliczanie go zaniżałoby wskaźnik na stałe. */}
-        <div className="plyta-sekcji rounded-xl p-4">
-          <div className="text-[11px] text-muted">Papier przed pracą</div>
-          <div
-            className={`mt-1 text-lg font-semibold ${
-              data.kpi.signedContracts && data.kpi.signedContracts.rate < 1 ? "text-amber-500" : ""
-            }`}
-          >
-            {data.kpi.signedContracts ? `${Math.round(data.kpi.signedContracts.rate * 100)}%` : "—"}
-          </div>
-          <div className="mt-0.5 text-[11px] text-muted">
-            {data.kpi.signedContracts
-              ? `${data.kpi.signedContracts.withContract}/${data.kpi.signedContracts.total} projektów klienckich z podpisaną umową`
-              : "Brak projektów z klientem — nie ma czego mierzyć."}
-          </div>
-        </div>
-        <div className="plyta-sekcji rounded-xl p-4">
-          <div className="text-[11px] text-muted">Opinie klientów</div>
-          <div className="mt-1 text-lg font-semibold">
-            {data.kpi.avgClientRating != null ? `★ ${data.kpi.avgClientRating.toFixed(1)}/5` : "—"}
-          </div>
-          <div className="mt-0.5 text-[11px] text-muted">
-            {data.kpi.reviewsCollected}/{data.kpi.closedProjectsCount} zamkniętych projektów z opinią
-          </div>
-        </div>
-        {/* Czy pętla retencji faktycznie się kręci (Etap 10 mapy drogi
-            klienta) — do 2026-07-24 liczone tylko w Statystykach. */}
-        <div className="plyta-sekcji rounded-xl p-4">
-          <div className="text-[11px] text-muted">Leady z polecenia</div>
-          <div className="mt-1 text-lg font-semibold">
-            {data.kpi.referralSharePct != null ? `${data.kpi.referralSharePct}%` : "—"}
-          </div>
-          <div className="mt-0.5 text-[11px] text-muted">% wszystkich leadów w rejestrze</div>
-        </div>
+        {/* Trzy wskaźniki zdrowia procesu — „Papier przed pracą", „Opinie
+            klientów" i „Leady z polecenia" — stały tutaj do 2026-08-06.
+            Wszystkie trzy są dziś w Statystykach, tuż za linkiem poniżej.
+            Trasa `/api/hub/today` dalej je liczy (`signedContracts`,
+            `avgClientRating`, `referralSharePct`) — czyta je apka. */}
         <Link
           href={`/${lang}/admin/stats`}
           className="plyta-sekcji col-span-2 flex items-center justify-between rounded-xl p-4 hover:border-brand-purple/40 lg:col-span-6"
