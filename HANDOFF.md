@@ -15,8 +15,19 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
   przeładowań, czternaście zapisów przestało milczeć przy odmowie) — patrz
   niżej.
 - **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
-  **`255dc84`**. Buduje się, `swift test` w `LeggeraHubCore` daje **9/9**.
-  Ani etap 1, ani przegląd szwów apki nie dotykały.
+  **`674c216`** — dogoniła panel 2026-08-06. Buduje się, `swift test`
+  w `LeggeraHubCore` daje **9/9**. Zamknięte trzy luki, wszystkie obejrzane
+  w symulatorze przeciwko LOKALNEMU panelowi: Pulpit → sekcja „Do zapłaty po
+  terminie" (`overdueCosts`), Statystyki → kafle zysku i kosztów (`koszty`),
+  Kalendarz → rodzaje `cost`, `contract` i **`reminder`** (ten ostatni był
+  luką starszą niż szwy: trasa oddaje go od Modułu 66, a apka rysowała każde
+  przypomnienie jako „Inne" z szarym kółkiem, bez żadnego objawu).
+  **Rekonesans zrobiony pomiarem, nie gretem** — „koszty" trafiało w Swifcie
+  w zwykłe polskie słowo, a struktura `Statystyki` tego pola nie miała.
+  Bez pracy okazały się: nowe 404 (docierają jako `APIError.serwer` z polskim
+  zdaniem) i straż sesji (apka ma własny mechanizm A1). **Otwarte:** apka nie
+  wysyła `x-znany-stan`, więc wykrywanie rozjazdu dwóch kart na telefonie
+  nie działa — trasa świadomie wtedy milczy. To osobna decyzja.
 - `npm run przejscie`: **123 działa · 0 znanych luk · 0 regresji · 0 obejść ·
   0 pominiętych**, powtarzalne (trzy biegi pod rząd dają to samo). Sufit:
   łączny limit hamulca (60/60 min) ogranicza to do ~5 przebiegów na godzinę;
