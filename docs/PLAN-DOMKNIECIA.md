@@ -81,10 +81,34 @@ niezrozumiałe.
 
 ---
 
-## Etap 2 — Bezpieczeństwo: sprawdzenie PRZYROSTU
+## Etap 2 — Bezpieczeństwo: sprawdzenie PRZYROSTU ✅
 
 **Kto:** ja. **Czas:** jedna sesja.
 **Brief: `docs/ETAP-2-BEZPIECZENSTWO-BRIEF.md` (2026-08-06).**
+
+> **✅ ZAMKNIĘTY 2026-08-06. Wynik: `docs/AUDYT-1B-PRZYROST.md`.**
+>
+> **Zero dziur, zero zmian w zachowaniu panelu.** Wszystkie **266 uchwytów**
+> mają rozstrzygnięcie: **252 chronione** (sonda bez ciastka → 401),
+> **14 publicznych świadomie**, każdy z nazwanym mechanizmem. Wzorzec
+> `if (!(await isAuthed()))` utrzymał się przez 39 nowych plików tras.
+>
+> **Trzy rzeczy poza listą tras — też czysto.** Biała lista `publicFields`
+> wytrzymała 52 nowe kolumny (weszła 21, same treści dokumentu; zmierzone
+> end-to-end: klient widzi 21 z 43 pól oferty, `powod_odrzucenia` NIE wychodzi).
+> Wszystkie 5 publicznych tras zapisujących jest pod hamulcem, próg 5/60 min
+> nietknięty. Nowe trasy nie logują danych osobowych; `error_log` czyści oba
+> pola.
+>
+> **Trzecia metoda upadła:** brief pisał „8 × `public/[token]`" — uchwytów
+> jest **10**. Ta sama pomyłka „plik ≠ uchwyt" co w Audycie 1, popełniona
+> przy pisaniu ostrzeżenia przed nią. Rekonesansowa lista 21 uchwytów też
+> była niepełna (brakowało crona `mail/outbox/run`).
+>
+> Narzędzie zostaje: **`scripts/sonda-401.ts`**, z samosprawdzeniem, które
+> **odmawia biegu przy włączonym dev-bypassie**.
+>
+> `tsc` czysto, `npm test` 352/352, `npm run przejscie` 116 działa · 0 regresji.
 
 > **Rekonesans przed briefem (2026-08-06).** Policzone: **188 plików tras,
 > 266 uchwytów HTTP, 39 plików DODANYCH i 83 zmienione po Audycie 1**

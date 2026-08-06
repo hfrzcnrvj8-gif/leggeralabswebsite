@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-06, po etapie 1 i przeglądzie szwów
+# Handoff — stan na 2026-08-06, po etapie 2 (audyt 1B)
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,11 +7,12 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- **Panel:** na wierzchu **przeglądu szwów między modułami** (etap 1 planu
-  domknięcia jest pod spodem). `tsc` czysto, `npm test` **352/352**,
-  `npm run przejscie` **116 działa · 0 regresji**. Przegląd szwów ZMIENIŁ
-  zachowanie w pięciu miejscach (patrz niżej) — etap 1 przed nim ruszał
-  wyłącznie teksty.
+- **Panel:** na wierzchu **etapu 2 planu domknięcia (Audyt 1B — przyrost
+  tras)**; pod spodem przegląd szwów i etap 1. `tsc` czysto, `npm test`
+  **352/352**, `npm run przejscie` **116 działa · 0 regresji**. Etap 2 **nie
+  zmienił zachowania panelu ani w jednym miejscu** — dołożył wyłącznie
+  narzędzie pomiarowe `scripts/sonda-401.ts` i dokument wyniku. Przegląd szwów
+  (pod spodem) ZMIENIŁ zachowanie w pięciu miejscach, patrz niżej.
 - **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
   **`255dc84`**. Buduje się, `swift test` w `LeggeraHubCore` daje **9/9**.
   Ani etap 1, ani przegląd szwów apki nie dotykały.
@@ -47,18 +48,51 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 ## Co jest następnym krokiem
 
 **PLAN DOMKNIĘCIA (`docs/PLAN-DOMKNIECIA.md`) — pięć etapów, idziemy po kolei.**
-Etap 1 ✅ zamknięty. **NASTĘPNY: etap 2 — bezpieczeństwo, sprawdzenie PRZYROSTU
-tras od Audytu 1. Brief gotowy: `docs/ETAP-2-BEZPIECZENSTWO-BRIEF.md`,
-z rekonesansem (188 plików tras, 266 uchwytów, 39 nowych po Audycie 1).**
-Etap 4 (przegląd UI prawdziwymi oczami) należy do właściciela i może iść
-równolegle.
+Etapy 1 i 2 ✅ zamknięte. **NASTĘPNY: etap 3 — sytuacje krytyczne, których
+jeszcze nie przechodziliśmy** (cztery scenariusze, opisane w planie; briefu
+jeszcze nie ma). Etap 4 (przegląd UI prawdziwymi oczami) należy do właściciela
+i może iść równolegle — to jedyny etap, którego nie da się zrobić z tego
+środowiska.
 
-**Zanim ruszysz etap 2 — dwie rzeczy, które oszczędzą pół sesji:**
-sonda 401 wymaga **wyłączenia `DEV_ADMIN_BYPASS` w `.env.local` i restartu**
-`npm run dev` (bez tego pokaże, że wszystko jest chronione — i skłamie),
-a `npm run przejscie` wymaga go z powrotem WŁĄCZONEGO. Grep nie rozstrzyga:
-po pliku kłamał w Audycie 1, po uchwycie kłamie tak samo (ochrona bywa
-o jedno wywołanie dalej, w helperze).
+**Najmocniejszy scenariusz etapu 3, dla orientacji:** dwie karty edytujące ten
+sam rekord (oferta na laptopie i na iPadzie). Dziś prawdopodobnie wygrywa
+ostatni zapis i nikt się nie dowiaduje, że pierwszy przepadł. To inna rodzina
+niż wszystko, co dotąd sprawdzaliśmy — podwójne kliknięcie tego samego
+działania jest już zamknięte, tu chodzi o dwie różne TREŚCI.
+
+**0. Etap 2 planu domknięcia — AUDYT 1B (przyrost tras) — ZROBIONY 2026-08-06.**
+Wynik: **`docs/AUDYT-1B-PRZYROST.md`**. Brief: `docs/ETAP-2-BEZPIECZENSTWO-BRIEF.md`.
+
+**Zero dziur, zero zmian w zachowaniu panelu.** Wszystkie **266 uchwytów HTTP**
+(188 plików) mają rozstrzygnięcie: **252 chronione** — sonda bez ciastka dostaje
+401 — i **14 publicznych świadomie**, każdy z nazwanym mechanizmem zamiast
+`isAuthed()` (token w linku, sekret crona, hamulec formularza). Wzorzec
+`if (!(await isAuthed()))` utrzymał się przez **39 nowych plików tras**
+i 83 zmienione. Trzy rzeczy poza listą tras też czysto: biała lista
+`lib/publicFields.ts` wytrzymała 52 nowe kolumny, wszystkie 5 publicznych tras
+zapisujących jest pod hamulcem (próg 5/60 min nietknięty), nowe trasy nie
+logują danych osobowych.
+
+**Trzecia metoda upadła — i to jest lekcja tego etapu.** Audyt 1 nauczył, że
+grep po PLIKU kłamie; rekonesans, że grep po UCHWYCIE kłamie tak samo. Teraz
+wyszło, że **ten sam błąd „plik ≠ uchwyt" popełnił brief ostrzegający przed
+nim**: pisał „8 × `public/[token]`", a uchwytów jest **10**. Lista 21 uchwytów
+z rekonesansu też była niepełna — brakowało crona `mail/outbox/run`.
+**Rozstrzyga wyłącznie pomiar na żywej trasie.**
+
+**Druga lekcja, warta więcej niż wynik:** przy trasach chronionych SEKRETEM
+(`calendar/ics`, `backup/ping`, trzy crony) **401 z powodu źle zadanego pytania
+jest nie do odróżnienia od 401 z powodu ochrony**. Pierwsze podejście strzelało
+do `ics` parametrem `?secret=` zamiast `?token=` i do `backup/ping` sekretem
+w ciele zamiast w nagłówku — obie oddały 401 i wyglądało to na poprawną
+ochronę. **Trasa chroniona sekretem wymaga dowodu DWUSTRONNEGO:** że bez
+sekretu odmawia i że z poprawnym wpuszcza. Wszystkie pięć sprawdzono tak.
+
+**Narzędzie zostaje w repo: `scripts/sonda-401.ts`.** Zaczyna od
+samosprawdzenia i **odmawia biegu przy włączonym `DEV_ADMIN_BYPASS`** (kod
+wyjścia 2) — bez tego pokazałoby komplet zieleni i fałszywie uspokoiło.
+Uruchamiając je: wyłącz bypass w `.env.local`, **zrestartuj `npm run dev`**,
+a po skończeniu **przywróć `=1`** (wymaga go `npm run przejscie`).
 
 **0a. Przegląd SZWÓW między modułami — ZROBIONY 2026-08-06.**
 Wynik: **`docs/SZWY-MIEDZY-MODULAMI.md`**. Zlecony pytaniem właściciela („czy
