@@ -236,10 +236,24 @@ tu sprawdzić i dlaczego". Nowe zdania w `npm run przejscie`.
 **Kto:** Ty, w prawdziwej przeglądarce. Ja przygotowuję listę i poprawiam.
 **Może iść równolegle z etapami 2–3.**
 
-To jedyna warstwa, której nie sprawdziło żadne z trzech przejść — i jedyna,
-której nie mogę sprawdzić sam. To środowisko renderuje stronę w ukrytej karcie
-0×0: animacje nie startują, `read_page` zwraca pustkę, modale mają `opacity: 0`
-mimo że są otwarte. Każda moja „ocena wyglądu" byłaby zgadywaniem.
+> **ZAKRES ZMIENIONY 2026-08-06 — na Twoją korzyść.** Ten akapit mówił, że
+> środowisko renderuje stronę w ukrytej karcie 0×0 i nigdy nie będzie miało
+> prawdziwej przeglądarki. **Przestało to być prawdą**: zmierzone tego dnia —
+> okno 1264×1243, `requestAnimationFrame` 64 kl./s, zrzuty ekranu renderują
+> panel poprawnie. Część mierzalna (przepełnienia, cele dotykowe, kontrast,
+> stany puste) **wróciła do mnie** i jest już zrobiona — patrz część A listy.
+> Tobie została część B: wrażenie, papier, prawdziwe urządzenia.
+>
+> **Lista gotowa: `docs/PRZEGLAD-UI-LISTA.md`.**
+>
+> Z części A wyszło **jedno znalezisko czekające na Twoją decyzję**:
+> kwadraciki zaznaczania wierszy mają **14×14 px** przy regule 24×24
+> (Klienci 37 szt., Faktury 27, Leady podobnie). Faza 5 ogłosiła ten próg
+> domkniętym, ale mierzyła Katalog — a Katalog nie ma kwadracików. Myszą
+> trafisz, palcem na iPadzie nie zawsze. Poprawka to 100+ miejsc, więc czeka
+> na Twoje słowo.
+
+To jedyna warstwa, której nie sprawdziło żadne z trzech przejść.
 
 Dostaniesz **`docs/PRZEGLAD-UI-LISTA.md`** — listę kontrolną ekran po ekranie,
 z konkretnymi pytaniami zamiast „sprawdź, czy ładnie":
