@@ -188,13 +188,18 @@ Zakres:
 > Neona). Sprawdzona za to **czujka**: `brak → ok → blad` na Pulpicie działa
 > end-to-end. Odtworzenie jednej kopii do pustej bazy — po rejestracji.
 >
-> **Otwarte świadomie:** wykrywanie „ktoś zmienił ten rekord, odkąd go
-> otworzyłeś" (decyzja właściciela: „wykryj i powiedz, nie blokuj" — materiał
-> jest, `updated_at` wraca w każdym `GET`, mechanizmu nie ma). **Do etapu 5.**
+> **(5) Wykrywanie rozjazdu dwóch kart — ZBUDOWANE tego samego dnia**, wariant
+> właściciela „wykryj i powiedz, nie blokuj". Karta dokleja `x-znany-stan`,
+> trasa porównuje, przy różnicy **zapisuje mimo to** i dokłada zdanie do
+> odpowiedzi. Po drodze dwa błędy złapane wyłącznie przebiegiem w przeglądarce:
+> strażnik zakładany w `useEffect` spóźniał się za pierwszym odczytem edytora
+> (efekty Reacta lecą od dzieci do rodzica), a pierwsza wersja dawała **fałszywy
+> alarm** przy drugim zapisie z rzędu w jednej karcie. Poza zasięgiem świadomie:
+> umowa i przypomnienie (brak `updated_at`).
 >
-> `tsc` czysto, `npm test` **357/357**, `npm run przejscie` **120 działa ·
+> `tsc` czysto, `npm test` **365/365**, `npm run przejscie` **123 działa ·
 > 0 regresji** (nowe zdania sprawdzone kontrolnie przez tymczasowe cofnięcie
-> poprawki).
+> poprawki — w obie strony: że wykrywa i że nie krzyczy bez powodu).
 
 > **Rekonesans przed briefem (2026-08-06), czytany z kodu — NIE zmierzony.**
 > Kontroli współbieżności nie ma żadnej (zero `If-Match`/`ETag`, zero

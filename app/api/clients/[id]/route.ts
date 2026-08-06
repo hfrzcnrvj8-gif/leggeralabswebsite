@@ -17,6 +17,7 @@ import { rematchUnassigned } from "@/lib/mailSync";
 import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
 import { osobyKlienta } from "@/lib/clientContacts";
 import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -233,6 +234,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Audyt zmian (Moduł 23) — stan sprzed zapisu, do porównania „z czego na co".
   // Jeden SELECT na cały PATCH, nie na pole: neon() płaci rundę HTTP za każde
   // zapytanie.
+  // ROZJAZD KART (etap 3) — znacznik, który miała przeglądarka przy
+  // wczytaniu. Zapytanie leci TYLKO wtedy, gdy nagłówek przyszedł, więc apka
+  // i skrypty nie płacą za nie ani jednej rundy HTTP. Patrz lib/rozjazd.ts.
+  const znanyStan = odczytajZnanyStan(req.headers);
+  const przedZapisem = znanyStan
+    ? ((await sql`SELECT updated_at FROM clients WHERE id = ${id};`)[0] ?? null)
+    : null;
   const beforeRows = await sql`SELECT * FROM clients WHERE id = ${id};`;
   // Brak wiersza = klient skasowany w międzyczasie (najczęściej w drugim oknie
   // panelu). Do etapu 3 stał tu komentarz „UPDATE-y niżej i tak nic nie trafią"
@@ -355,7 +363,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   await logFieldChanges("client", id, before, applied);
 
-  return NextResponse.json({ ok: true });
+  const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+  // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+  // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+  // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+  // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+  // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+  const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM clients WHERE id = ${id};`)[0] ?? null) : null;
+  return NextResponse.json({
+    ok: true,
+    ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+    ...(rozjazd ? { rozjazd: komunikatRozjazdu("klient") } : {}),
+  });
 }
 
 /** DELETE /api/clients/:id — usuwa klienta. Powiązane leady/oferty/faktury/

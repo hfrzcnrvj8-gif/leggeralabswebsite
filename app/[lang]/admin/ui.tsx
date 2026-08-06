@@ -11,7 +11,7 @@ import {
   type WynikZadania,
 } from "./Potwierdzenie";
 import { PasekSesji } from "./PasekSesji";
-import { zainstalujStrazSesji } from "./strazSesji";
+import { ustawObslugeRozjazdu } from "./strazSesji";
 
 type ToastItem = { id: string; message: string; type: "success" | "error" };
 type ConfirmState = { message: string; danger?: boolean; resolve: (v: boolean) => void } | null;
@@ -117,14 +117,6 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
   const [contextActions, setContextActions] = useState<Action[]>([]);
   const promptInputRef = useRef<HTMLInputElement>(null);
 
-  // Straż sesji (etap 3) — zakłada podgląd na `window.fetch` raz, przy
-  // pierwszym renderze panelu. Dzięki temu KAŻDY z 243 zapisów panelu (i każdy
-  // przyszły) rozpoznaje wygasłą sesję, choć żaden o tym nie wie. Powód
-  // i pomiary: `strazSesji.ts`.
-  useEffect(() => {
-    zainstalujStrazSesji();
-  }, []);
-
   const toast = useCallback((message: string, type: "success" | "error" = "success") => {
     const id = Math.random().toString(36).slice(2);
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -132,6 +124,24 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3400);
   }, []);
+
+  // Strażnik `window.fetch` (etap 3) zakłada się sam, przy IMPORCIE modułu
+  // `strazSesji.ts` — nie tutaj (powód w tamtym pliku: efekty Reacta lecą od
+  // dzieci do rodzica, więc pierwszy odczyt edytora wyprzedziłby instalację).
+  // Tutaj zostaje tylko podpięcie tego, co strażnik ma ROBIĆ z rozjazdem, bo
+  // `toast()` mieszka w tym providerze.
+  //
+  // Strażnik pilnuje dwóch spraw naraz:
+  //  · wygasłej sesji → pasek, który nie znika sam (to STAN: dopóki się nie
+  //    zalogujesz, każdy zapis idzie w próżnię);
+  //  · rozjazdu dwóch kart → jedno zdanie w toaście (to ZDARZENIE: zapis się
+  //    udał, nic nie przepadło, ale ekran pokazuje niepełną prawdę).
+  // Dzięki temu wszystkie zapisy panelu — dziś 244, jutro więcej — dostają
+  // jedno i drugie, choć żaden o tym nie wie. Powody: `strazSesji.ts`.
+  useEffect(() => {
+    ustawObslugeRozjazdu((komunikat) => toast(komunikat, "error"));
+    return () => ustawObslugeRozjazdu(null);
+  }, [toast]);
 
   const confirm = useCallback((message: string, opts?: { danger?: boolean }) => {
     return new Promise<boolean>((resolve) => {

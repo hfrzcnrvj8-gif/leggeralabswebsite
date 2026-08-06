@@ -19,6 +19,7 @@ import {
   type InvoiceItem,
 } from "@/lib/invoices";
 import { KOREKTA_TYPY } from "@/lib/ksef";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -126,6 +127,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Ta reguła istniała TYLKO w edytorze (`const locked = !isDraft`), więc
   // ochrona kończyła się na interfejsie: trasa przyjmowała wszystko. Usunięcie
   // numerowanej faktury było blokowane serwerowo od dawna — edycja nie.
+    // ROZJAZD KART (etap 3) — znacznik, który miała przeglądarka przy
+    // wczytaniu. Zapytanie leci TYLKO wtedy, gdy nagłówek przyszedł, więc apka
+    // i skrypty nie płacą za nie ani jednej rundy HTTP. Patrz lib/rozjazd.ts.
+    const znanyStan = odczytajZnanyStan(req.headers);
+    const przedZapisem = znanyStan
+      ? ((await sql`SELECT updated_at FROM invoices WHERE id = ${id};`)[0] ?? null)
+      : null;
   const stanFaktury = (await sql`SELECT numer FROM invoices WHERE id = ${id};`)[0];
   if (!stanFaktury) return NextResponse.json({ error: "not found" }, { status: 404 });
   const blokadaFV = blokadaFaktury(stanFaktury.numer as string | null);
@@ -253,7 +261,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE invoices SET termin_platnosci = ${v}, updated_at = now() WHERE id = ${id};`;
     }
 
-    return NextResponse.json({ ok: true });
+    const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+    // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+    // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+    // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+    // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+    // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+    const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM invoices WHERE id = ${id};`)[0] ?? null) : null;
+    return NextResponse.json({
+      ok: true,
+      ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+      ...(rozjazd ? { rozjazd: komunikatRozjazdu("faktura") } : {}),
+    });
   } catch (err) {
     console.error("[PATCH /api/invoices/:id] failed", err);
     const message = err instanceof Error ? err.message : String(err);

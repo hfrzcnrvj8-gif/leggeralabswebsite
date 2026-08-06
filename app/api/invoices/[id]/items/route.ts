@@ -55,6 +55,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     INSERT INTO invoice_items (id, invoice_id, nazwa, ilosc, jednostka, cena_netto, vat_stawka, rabat_procent, position)
     VALUES (${itemId}, ${id}, ${nazwa}, ${ilosc}, ${jednostka}, ${cena}, ${vat}, ${rabat}, ${pos});
   `;
+  // Zmiana pozycji to zmiana DOKUMENTU — więc rusza jego znacznik (etap 3).
+  // Bez tego wykrywanie rozjazdu dwóch kart byłoby ślepe dokładnie na
+  // najczęstszy przypadek: obie karty edytują cenę tej samej pozycji.
+  await sql`UPDATE invoices SET updated_at = now() WHERE id = ${id};`;
   const items = await sql`SELECT * FROM invoice_items WHERE invoice_id = ${id} ORDER BY position ASC;`;
   return NextResponse.json({
     ok: true,

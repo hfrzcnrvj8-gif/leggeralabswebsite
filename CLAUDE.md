@@ -74,6 +74,19 @@ poprawiał kodu — jeśli coś wymaga decyzji nietechnicznej, zapytaj wprost.
   `DELETE`** — usunięcie czegoś, czego nie ma, kończy się tym, o co proszono.
   Rekordy główne zwykle i tak robią `SELECT` przed zapisem (log zmian), więc to
   jeden `if`, nie nowe zapytanie.
+- **Rozjazd dwóch kart: wykrywamy, nie blokujemy** (etap 3, 2026-08-06,
+  decyzja właściciela). Panel nie ma żadnej kontroli współbieżności i **tak
+  zostaje** — ostatni zapis wygrywa. Przestał być tylko niewidoczny: karta
+  dokleja do zapisu nagłówek `x-znany-stan` (znacznik `updated_at` z chwili
+  wczytania), a trasa porównuje i przy różnicy **zapisuje mimo to**, dokładając
+  do odpowiedzi zdanie z `komunikatRozjazdu()` (`lib/rozjazd.ts`). Dokładając
+  trasę zapisu do dokumentu: czytaj `updated_at` PRZED zapisami, oddaj NOWY
+  `updated_at` w odpowiedzi (bez tego drugi zapis z rzędu w jednej karcie
+  zgłasza sam siebie jako rozjazd — zdarzyło się) i pamiętaj, że **brak
+  nagłówka = cisza**, bo tak wołają apka, skrypty i crony. Zmiana pozycji lub
+  bloku treści MUSI ruszyć `updated_at` DOKUMENTU — inaczej mechanizm jest
+  ślepy na najczęstszy przypadek. Poza zasięgiem świadomie: umowa
+  i przypomnienie (brak kolumny `updated_at`).
 - Zmienne środowiskowe: `DATABASE_URL` (lub `POSTGRES_URL`),
   `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, opcjonalnie `RESEND_API_KEY` /
   `RESEND_FROM` / `CRON_SECRET` dla dziennego raportu mailowego.

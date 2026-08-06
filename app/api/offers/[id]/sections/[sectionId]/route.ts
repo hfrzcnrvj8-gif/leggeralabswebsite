@@ -3,6 +3,7 @@ import { getSql, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaOferty } from "@/lib/blokadaDokumentu";
 import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Blok mógł zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts. To
   // najdotkliwszy przypadek z całej dziewiątki: tu przepada TREŚĆ pisana
   // minutami, a nie jedno pole.
+  // ROZJAZD KART (etap 3) — porównujemy znacznik DOKUMENTU, nie pozycji:
+  // rozjazd dotyczy tego, co karta miała na ekranie, a na ekranie jest cała
+  // oferta. Czytane PRZED zapisami, bo one ten znacznik ruszają.
+  const znanyStan = odczytajZnanyStan(req.headers);
+  const przedZapisem = znanyStan
+    ? ((await sql`SELECT updated_at FROM offers WHERE id = ${id};`)[0] ?? null)
+    : null;
+
   const istnieje = await sql`SELECT 1 FROM offer_sections WHERE id = ${sectionId} AND offer_id = ${id};`;
   if (istnieje.length === 0) return odpowiedzBrakRekordu("blok treści oferty");
 
@@ -43,7 +52,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const n = Number(body.position);
     await sql`UPDATE offer_sections SET position = ${Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0} WHERE id = ${sectionId} AND offer_id = ${id};`;
   }
-  return NextResponse.json({ ok: true });
+  // Zmiana pozycji/bloku to zmiana DOKUMENTU — więc rusza jego znacznik
+  // (etap 3). Bez tego wykrywanie rozjazdu dwóch kart byłoby ślepe dokładnie
+  // na najczęstszy przypadek: obie karty edytują cenę tej samej pozycji.
+  // Retencja ofert (lib/leadRetention.ts) też liczy od `updated_at` i tu jest
+  // to poprawne — dokument był ruszany, więc nie jest „bez ruchu".
+  await sql`UPDATE offers SET updated_at = now() WHERE id = ${id};`;
+  const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+  // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+  // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+  // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+  // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+  // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+  const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM offers WHERE id = ${id};`)[0] ?? null) : null;
+  return NextResponse.json({
+    ok: true,
+    ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+    ...(rozjazd ? { rozjazd: komunikatRozjazdu("oferta") } : {}),
+  });
 }
 
 /** DELETE /api/offers/:id/sections/:sectionId */
@@ -63,5 +89,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 
   await sql`DELETE FROM offer_sections WHERE id = ${sectionId} AND offer_id = ${id};`;
+  await sql`UPDATE offers SET updated_at = now() WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }

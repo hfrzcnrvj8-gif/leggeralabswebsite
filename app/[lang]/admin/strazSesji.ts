@@ -31,6 +31,9 @@
  * zalogować się NA MIEJSCU, bez opuszczania ekranu.
  */
 
+import { NAGLOWEK_ZNANY_STAN } from "@/lib/rozjazd";
+import { zapamietajStan, znanyStan } from "./rozjazdKart";
+
 let wygasla = false;
 const sluchacze = new Set<() => void>();
 
@@ -84,15 +87,59 @@ type OpakowanyFetch = typeof fetch & { __strazSesji?: true };
  *   z wylogowania to skutek zamierzony),
  * — adresy spoza `/api` (obce domeny nie mają nic wspólnego z naszą sesją).
  */
+/** Co zrobić, gdy trasa zgłosi rozjazd kart. Ustawiane przez `AdminUIProvider`,
+ *  bo tylko on ma `toast()`. Do czasu ustawienia rozjazd jest po cichu
+ *  pomijany — i to jest w porządku: pierwszy odczyt ekranu i tak nie jest
+ *  zapisem. */
+let obslugaRozjazdu: ((komunikat: string) => void) | null = null;
+
+export function ustawObslugeRozjazdu(fn: ((komunikat: string) => void) | null): void {
+  obslugaRozjazdu = fn;
+}
+
 export function zainstalujStrazSesji(): void {
   if (typeof window === "undefined") return;
   const biezacy = window.fetch as OpakowanyFetch;
   if (biezacy.__strazSesji) return;
 
   const opakowany = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const res = await biezacy(input, init);
+    const adres = adresZadania(input);
+    const zapis = dotyczyZapisuPanelu(input, init);
+
+    // ROZJAZD KART, krok 1: dokleja znacznik, który TA karta widziała przy
+    // wczytaniu rekordu. Nagłówek, nie ciało — jedzie tak samo przy PATCH-u
+    // z ciałem i przy POST-cie bez. Gdy karta nie zna stanu, nagłówka nie ma
+    // i trasa świadomie nie zgłasza rozjazdu (patrz lib/rozjazd.ts).
+    let zadanie = init;
+    if (zapis && adres) {
+      const stan = znanyStan(adres);
+      if (stan) {
+        const naglowki = new Headers(init?.headers ?? (typeof input === "object" && "headers" in input ? (input as Request).headers : undefined));
+        naglowki.set(NAGLOWEK_ZNANY_STAN, stan);
+        zadanie = { ...(init ?? {}), headers: naglowki };
+      }
+    }
+
+    const res = await biezacy(input, zadanie);
+
     try {
-      if (res.status === 401 && dotyczyZapisuPanelu(input, init)) zglosWygasnieciesesji();
+      if (res.status === 401 && zapis) zglosWygasnieciesesji();
+
+      // ROZJAZD KART, krok 2: zapamiętaj stan z odczytu POJEDYNCZEGO rekordu
+      // i pokaż zdanie, gdy trasa zgłosiła rozjazd przy zapisie. Czytamy
+      // KLON — oryginalna odpowiedź musi dojść do wołającego nietknięta.
+      if (adres && res.ok && res.headers.get("content-type")?.includes("json")) {
+        const dane = await res.clone().json().catch(() => null);
+        // Zapamiętujemy ZAWSZE — i po odczycie rekordu, i po zapisie, bo trasy
+        // oddają w odpowiedzi nowy `updated_at`. To jest cała obrona przed
+        // fałszywym alarmem: bez odświeżenia znacznika DRUGI zapis z rzędu
+        // w tej samej karcie wyglądał jak cudza zmiana (zmierzone).
+        zapamietajStan(adres, dane);
+        if (zapis) {
+          const komunikat = (dane as { rozjazd?: unknown } | null)?.rozjazd;
+          if (typeof komunikat === "string" && komunikat) obslugaRozjazdu?.(komunikat);
+        }
+      }
     } catch {
       // Strażnik nie ma prawa wywrócić żądania, które się udało.
     }
@@ -100,6 +147,12 @@ export function zainstalujStrazSesji(): void {
   }) as OpakowanyFetch;
   opakowany.__strazSesji = true;
   window.fetch = opakowany;
+}
+
+/** Adres żądania jako ścieżka na naszym origin — albo `null`. */
+function adresZadania(input: RequestInfo | URL): string | null {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : ((input as Request).url ?? "");
+  return url ? url : null;
 }
 
 /** Czy to był ZAPIS do naszego API. Wydzielone, żeby dało się to sprawdzić
@@ -133,3 +186,15 @@ export function dotyczyZapisuPanelu(input: RequestInfo | URL, init?: RequestInit
   if (sciezka.startsWith("/api/admin/")) return false;
   return true;
 }
+
+
+// **Instalacja przy imporcie, nie w `useEffect`.** Efekty Reacta wykonują się
+// od dzieci do rodzica, więc `useEffect` w `AdminUIProvider` odpala się PO
+// efektach edytorów — a te robią w nich swój pierwszy odczyt rekordu. Przy
+// instalacji w efekcie ten pierwszy GET przechodził OBOK strażnika, karta
+// nigdy nie zapamiętywała znacznika i wykrywanie rozjazdu milczało.
+// Zmierzone w przeglądarce: trasa oddawała `rozjazd` na żądanie z nagłówkiem,
+// a panel nagłówka nie wysyłał, bo nie miał czego.
+//
+// Moduł importuje `ui.tsx`, czyli ładuje się przed pierwszym renderem panelu.
+zainstalujStrazSesji();

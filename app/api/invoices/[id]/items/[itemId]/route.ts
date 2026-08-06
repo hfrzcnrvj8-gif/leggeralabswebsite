@@ -3,6 +3,7 @@ import { getSql, ensureInvoicesSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaFaktury } from "@/lib/blokadaDokumentu";
 import { VAT_RATES } from "@/lib/invoices";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const odmowa = await odmowaGdyWystawiona(sql, id, itemId);
   if (odmowa) return odmowa;
 
+  // ROZJAZD KART (etap 3) — porównujemy znacznik DOKUMENTU, nie pozycji:
+  // rozjazd dotyczy tego, co karta miała na ekranie, a na ekranie jest cała
+  // faktura. Czytane PRZED zapisami, bo one ten znacznik ruszają.
+  const znanyStan = odczytajZnanyStan(req.headers);
+  const przedZapisem = znanyStan
+    ? ((await sql`SELECT updated_at FROM invoices WHERE id = ${id};`)[0] ?? null)
+    : null;
+
   if ("nazwa" in body) await sql`UPDATE invoice_items SET nazwa = ${typeof body.nazwa === "string" ? body.nazwa.slice(0, 500) : ""} WHERE id = ${itemId} AND invoice_id = ${id};`;
   if ("jednostka" in body) await sql`UPDATE invoice_items SET jednostka = ${typeof body.jednostka === "string" ? body.jednostka.slice(0, 20) : "szt."} WHERE id = ${itemId} AND invoice_id = ${id};`;
   if ("ilosc" in body) {
@@ -64,7 +73,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const clamped = Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
     await sql`UPDATE invoice_items SET rabat_procent = ${clamped} WHERE id = ${itemId} AND invoice_id = ${id};`;
   }
-  return NextResponse.json({ ok: true });
+  // Zmiana pozycji/bloku to zmiana DOKUMENTU — więc rusza jego znacznik
+  // (etap 3). Bez tego wykrywanie rozjazdu dwóch kart byłoby ślepe dokładnie
+  // na najczęstszy przypadek: obie karty edytują cenę tej samej pozycji.
+  // Retencja ofert (lib/leadRetention.ts) też liczy od `updated_at` i tu jest
+  // to poprawne — dokument był ruszany, więc nie jest „bez ruchu".
+  await sql`UPDATE invoices SET updated_at = now() WHERE id = ${id};`;
+  const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+  // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+  // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+  // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+  // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+  // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+  const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM invoices WHERE id = ${id};`)[0] ?? null) : null;
+  return NextResponse.json({
+    ok: true,
+    ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+    ...(rozjazd ? { rozjazd: komunikatRozjazdu("faktura") } : {}),
+  });
 }
 
 /** DELETE /api/invoices/:id/items/:itemId — usuń pozycję. */
@@ -78,5 +104,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (odmowa) return odmowa;
 
   await sql`DELETE FROM invoice_items WHERE id = ${itemId} AND invoice_id = ${id};`;
+  await sql`UPDATE invoices SET updated_at = now() WHERE id = ${id};`;
   return NextResponse.json({ ok: true });
 }

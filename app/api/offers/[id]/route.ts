@@ -7,6 +7,7 @@ import { OFFER_LANGS, isOfferStatus, isOfferCurrency, isOfferRejectReason, rejec
 import { blokadaOferty, POLA_MIMO_BLOKADY_OFERTY, ruszaTresc } from "@/lib/blokadaDokumentu";
 import { czasRealizacjiTygodnie, naKolumnyDokumentu, odswiezDaneKlientaWSzkicu } from "@/lib/przepisanie";
 import { sprawdzDokumentPrzedWysylka } from "@/lib/bramkaWysylki";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -87,6 +88,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Blokada treści po wysłaniu (decyzja właściciela 2026-07-27) — patrz
     // lib/blokadaDokumentu.ts. Stoi TUTAJ, nie w edytorze: tras używa też
     // apka i każdy przyszły ekran.
+    // ROZJAZD KART (etap 3) — znacznik, który miała przeglądarka przy
+    // wczytaniu. Zapytanie leci TYLKO wtedy, gdy nagłówek przyszedł, więc apka
+    // i skrypty nie płacą za nie ani jednej rundy HTTP. Patrz lib/rozjazd.ts.
+    const znanyStan = odczytajZnanyStan(req.headers);
+    const przedZapisem = znanyStan
+      ? ((await sql`SELECT updated_at FROM offers WHERE id = ${id};`)[0] ?? null)
+      : null;
     const stan = (await sql`SELECT status FROM offers WHERE id = ${id};`)[0];
     if (!stan) return NextResponse.json({ error: "not found" }, { status: 404 });
     const blokada = blokadaOferty(String(stan.status ?? ""));
@@ -200,7 +208,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE offers SET czas_realizacji_tygodnie = ${v}, updated_at = now() WHERE id = ${id};`;
     }
 
-    return NextResponse.json({ ok: true });
+    const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+    // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+    // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+    // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+    // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+    // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+    const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM offers WHERE id = ${id};`)[0] ?? null) : null;
+    return NextResponse.json({
+      ok: true,
+      ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+      ...(rozjazd ? { rozjazd: komunikatRozjazdu("oferta") } : {}),
+    });
   } catch (err) {
     console.error("[PATCH /api/offers/:id] failed", err);
     const message = err instanceof Error ? err.message : String(err);

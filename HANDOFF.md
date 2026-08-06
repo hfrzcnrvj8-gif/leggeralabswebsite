@@ -9,7 +9,7 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 - **Panel:** na wierzchu **etapu 3 planu domknięcia (sytuacje krytyczne)**;
   pod spodem etap 2 (audyt 1B), przegląd szwów i etap 1. `tsc` czysto,
-  `npm test` **357/357**, `npm run przejscie` **120 działa · 0 regresji**.
+  `npm test` **365/365**, `npm run przejscie` **123 działa · 0 regresji**.
   Etap 3 ZMIENIŁ zachowanie panelu w trzech rodzinach miejsc (dziewięć tras
   odmawia zapisu do usuniętego rekordu, straż sesji zamiast ośmiu
   przeładowań, czternaście zapisów przestało milczeć przy odmowie) — patrz
@@ -17,7 +17,7 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 - **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
   **`255dc84`**. Buduje się, `swift test` w `LeggeraHubCore` daje **9/9**.
   Ani etap 1, ani przegląd szwów apki nie dotykały.
-- `npm run przejscie`: **120 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+- `npm run przejscie`: **123 działa · 0 znanych luk · 0 regresji · 0 obejść ·
   0 pominiętych**, powtarzalne (trzy biegi pod rząd dają to samo). Sufit:
   łączny limit hamulca (60/60 min) ogranicza to do ~5 przebiegów na godzinę;
   po `npm run dev` od nowa wraca komplet.
@@ -54,11 +54,18 @@ oczami. Należy do WŁAŚCICIELA** i jest jedynym etapem, którego nie da się
 zrobić z tego środowiska (podgląd tutaj to karta ukryta 0×0). Po nim etap 5 —
 poprawki z jego listy.
 
-**Do etapu 5 dochodzi jedna rzecz z etapu 3, na którą decyzja już zapadła:**
-wykrywanie „ktoś zmienił ten rekord, odkąd go otworzyłeś". Właściciel wybrał
-**„wykryj i powiedz, nie blokuj"** (nie blokada rekordu, nie pytanie
-„nadpisać?"). Materiał jest — `updated_at` wraca w każdym `GET` — mechanizmu
-nie ma. Etap 3 zamknął tylko sąsiedni przypadek: zapis do rekordu USUNIĘTEGO.
+**Wykrywanie rozjazdu dwóch kart jest ZBUDOWANE** (2026-08-06, wariant
+właściciela „wykryj i powiedz, nie blokuj"). Karta dokleja `x-znany-stan`,
+trasa porównuje, przy różnicy **zapisuje mimo to** i dokłada zdanie do
+odpowiedzi; panel pokazuje je w toaście. Zasięg: oferta (nagłówek, pozycje,
+bloki), faktura (nagłówek, pozycje), klient, projekt, lead, notatka, koszt.
+Poza zasięgiem świadomie: umowa i przypomnienie — nie mają `updated_at`.
+Reguła w `CLAUDE.md`, szczegóły w `ETAP-3-WYNIK.md`.
+
+**Do etapu 5 zostaje jedna rzecz z przeglądu wyglądu:** kwadraciki zaznaczania
+wierszy mają **14×14 px** przy regule 24×24 (Klienci 37 szt., Faktury 27).
+Faza 5 ogłosiła próg domkniętym, ale mierzyła Katalog — a Katalog nie ma
+kwadracików. **Czeka na decyzję właściciela**, bo to 100+ miejsc.
 
 **0. Etap 3 planu domknięcia — SYTUACJE KRYTYCZNE — ZROBIONY 2026-08-06.**
 Wynik: **`docs/ETAP-3-WYNIK.md`**. Brief: `docs/ETAP-3-BRZEGI-BRIEF.md`.
@@ -102,6 +109,19 @@ kopie na NAS nie są uruchomione, ten Mac nie ma `psql`/`pg_dump` ani
 działającego Dockera, do Neona nie ma stąd dostępu. Sprawdzona za to CZUJKA:
 `brak → ok → blad` na Pulpicie działa end-to-end przez `POST /api/backup/ping`.
 Odtworzenie jednej kopii do pustej bazy testowej — **po rejestracji**.
+
+**Wykrywanie rozjazdu dwóch kart dołożone po decyzji właściciela** (ten sam
+dzień): `lib/rozjazd.ts` + `app/[lang]/admin/rozjazdKart.ts`, nagłówek
+`x-znany-stan`, dziesięć tras. Zapis NIE jest blokowany — wraca jedno zdanie.
+Po drodze **dwa błędy złapane wyłącznie przebiegiem w przeglądarce**:
+(1) strażnik `window.fetch` zakładany w `useEffect` providera SPÓŹNIAŁ SIĘ —
+efekty Reacta lecą od dzieci do rodzica, więc pierwszy odczyt edytora
+przechodził obok niego i karta nigdy nie znała znacznika (instalacja
+przeniesiona na import modułu); (2) **fałszywy alarm** — drugi zapis z rzędu
+w JEDNEJ karcie krzyczał „ktoś zmienił to w innym oknie", bo karta trzymała
+znacznik sprzed własnej zmiany (trasy oddają teraz nowy `updated_at`).
+W przejściu stoją przez to TRZY zdania, nie jedno: wykrywa · nie krzyczy bez
+powodu · milczy bez nagłówka.
 
 **Trzy lekcje z tego etapu:**
 
@@ -403,7 +423,7 @@ jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 - `npx tsc --noEmit -p tsconfig.json` po każdej paczce zmian (pełny
   `next build` failuje w sandboxie z EPERM). **`tsc` nie wie nic o więzach
   bazy** ani o SQL-u w szablonach.
-- `npm test` — 357 testów nad czystymi funkcjami z `lib/` (i jeden nad strażą sesji).
+- `npm test` — 365 testów nad czystymi funkcjami z `lib/` (i jeden nad strażą sesji).
 - **Każda nowa trasa w `app/api` jest domyślnie OTWARTA** —
   `if (!(await isAuthed()))` sprawdzaj per uchwyt HTTP, nie per plik.
 - **Podgląd w środowisku Claude to karta ukryta 0×0**: `requestAnimationFrame`

@@ -3,6 +3,7 @@ import { getSql, ensureHubSchema, ensureLinksSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { odczytajTekst, odczytajFlage } from "@/lib/notes";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,14 @@ export async function PATCH(
   await ensureHubSchema();
   await ensureLinksSchema();
   const sql = getSql();
+
+  // ROZJAZD KART (etap 3) — znacznik, który miała przeglądarka przy
+  // wczytaniu. Zapytanie leci TYLKO wtedy, gdy nagłówek przyszedł, więc apka
+  // i skrypty nie płacą za nie ani jednej rundy HTTP. Patrz lib/rozjazd.ts.
+  const znanyStan = odczytajZnanyStan(req.headers);
+  const przedZapisem = znanyStan
+    ? ((await sql`SELECT updated_at FROM notes WHERE id = ${id};`)[0] ?? null)
+    : null;
 
   /* ---- FAZA 1: sprawdzenia. Żadnego zapisu poniżej tej linii aż do FAZY 2. */
 
@@ -154,7 +163,18 @@ export async function PATCH(
     await sql`UPDATE notes SET archived_at = ${archivedIn.wartosc ? new Date().toISOString() : null} WHERE id = ${id};`;
   }
 
-  return NextResponse.json({ ok: true });
+  const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+  // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+  // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+  // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+  // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+  // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+  const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM notes WHERE id = ${id};`)[0] ?? null) : null;
+  return NextResponse.json({
+    ok: true,
+    ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+    ...(rozjazd ? { rozjazd: komunikatRozjazdu("notatka") } : {}),
+  });
 }
 
 /** DELETE /api/notes/:id — remove a note. Admin-only.

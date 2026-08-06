@@ -39,5 +39,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   `;
   const sections = await sql`SELECT * FROM offer_sections WHERE offer_id = ${id} ORDER BY position ASC;`;
+  // Zmiana pozycji/bloku to zmiana DOKUMENTU — więc rusza jego znacznik
+  // (etap 3). Bez tego wykrywanie rozjazdu dwóch kart byłoby ślepe dokładnie
+  // na najczęstszy przypadek: obie karty edytują cenę tej samej pozycji.
+  // Retencja ofert (lib/leadRetention.ts) też liczy od `updated_at` i tu jest
+  // to poprawne — dokument był ruszany, więc nie jest „bez ruchu".
+  await sql`UPDATE offers SET updated_at = now() WHERE id = ${id};`;
   return NextResponse.json({ ok: true, sections });
 }

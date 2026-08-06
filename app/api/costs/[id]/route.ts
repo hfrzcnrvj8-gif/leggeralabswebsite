@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/auth";
 import { odczytajPotwierdzenie, odmowaPotwierdzenia } from "@/lib/nieodwracalne";
 import { todayLocalISO } from "@/lib/dates";
 import { costBrutto, czytajPolaKosztu, normalizeCostRow, type PolaKosztu } from "@/lib/costs";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     await ensureCostsSchema();
     const sql = getSql();
+
+    // ROZJAZD KART (etap 3) — znacznik, który miała przeglądarka przy
+    // wczytaniu. Zapytanie leci TYLKO wtedy, gdy nagłówek przyszedł, więc apka
+    // i skrypty nie płacą za nie ani jednej rundy HTTP. Patrz lib/rozjazd.ts.
+    const znanyStan = odczytajZnanyStan(req.headers);
+    const przedZapisem = znanyStan
+      ? ((await sql`SELECT updated_at FROM costs WHERE id = ${id};`)[0] ?? null)
+      : null;
 
     // BRAMKA ZAPISU (Moduł 63). Do 2026-08-01 ta trasa rozstrzygała każde pole
     // z palca i podmieniała śmieć na wartość domyślną. Najgorzej wypadało
@@ -132,7 +141,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await sql`UPDATE costs SET client_id = ${c}, lead_id = ${l}, updated_at = now() WHERE id = ${id};`;
     }
 
-    return NextResponse.json({ ok: true });
+    const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+    // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+    // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+    // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+    // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+    // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+    const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM costs WHERE id = ${id};`)[0] ?? null) : null;
+    return NextResponse.json({
+      ok: true,
+      ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+      ...(rozjazd ? { rozjazd: komunikatRozjazdu("koszt") } : {}),
+    });
   } catch (err) {
     console.error("[PATCH /api/costs/:id] failed", err);
     const message = err instanceof Error ? err.message : String(err);

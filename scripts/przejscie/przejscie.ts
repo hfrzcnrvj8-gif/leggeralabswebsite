@@ -1193,6 +1193,59 @@ async function dwieKarty(): Promise<void> {
     pominiete.push("zapis do usuniętej pozycji — nie udało się dodać pozycji");
   }
 
+  // ── WYKRYWANIE ROZJAZDU (etap 3, decyzja właściciela „wykryj i powiedz") ──
+  //
+  // Dwa zdania, bo mechanizm ma dwie strony i **obie potrafią upaść osobno**:
+  // może przestać wykrywać (cisza) albo zacząć krzyczeć na własne zapisy
+  // (fałszywy alarm). To drugie jest gorsze — ostrzeżenie, które pada bez
+  // powodu, uczy je ignorować, czyli kasuje mechanizm bez kasowania kodu.
+  // Fałszywy alarm ZDARZYŁ SIĘ przy budowie: drugi zapis z rzędu w jednej
+  // karcie wysyłał znacznik sprzed własnej poprzedniej zmiany.
+  const stanA = (await pobierzOferte(ofertaId))?.offer?.updated_at as string | undefined;
+  if (stanA) {
+    // (a) jedna karta, dwa zapisy z rzędu — MUSI milczeć. Drugi zapis idzie ze
+    //     znacznikiem, który trasa oddała przy pierwszym (tak robi przeglądarka).
+    const pierwszy = await api("PATCH", `/api/offers/${ofertaId}`, { uwagi: "jedna karta, zapis 1" }, { "x-znany-stan": stanA });
+    const stanPo = pierwszy.dane?.updated_at as string | undefined;
+    const drugi = stanPo
+      ? await api("PATCH", `/api/offers/${ofertaId}`, { uwagi: "jedna karta, zapis 2" }, { "x-znany-stan": stanPo })
+      : { status: 0, dane: {} as any };
+    sprawdz(
+      "dwa zapisy z rzędu w JEDNEJ karcie nie zgłaszają rozjazdu (brak fałszywego alarmu)",
+      !!stanPo && !pierwszy.dane?.rozjazd && !drugi.dane?.rozjazd,
+      undefined,
+      `zapis 1: ${JSON.stringify(pierwszy.dane)}, zapis 2: ${JSON.stringify(drugi.dane)}`
+    );
+
+    // (b) druga karta trzyma STARY znacznik, ktoś inny w międzyczasie zapisał —
+    //     MUSI ostrzec, a zapis MUSI mimo to przejść („nie blokuj").
+    const stary = (await pobierzOferte(ofertaId))?.offer?.updated_at as string | undefined;
+    await api("PATCH", `/api/offers/${ofertaId}`, { tytul: "Zmiana z innego okna" });
+    const zeStarym = await api("PATCH", `/api/offers/${ofertaId}`, { uwagi: "UWAGI ZE STAREGO EKRANU" }, { "x-znany-stan": stary ?? "" });
+    const stanKoncowy = await pobierzOferte(ofertaId);
+    sprawdz(
+      "zapis ze STARYM stanem ostrzega o rozjeździe — ale przechodzi, nie jest blokowany",
+      zeStarym.status === 200 &&
+        String(zeStarym.dane?.rozjazd ?? "").includes("zmienił się w międzyczasie") &&
+        stanKoncowy?.offer?.uwagi === "UWAGI ZE STAREGO EKRANU" &&
+        stanKoncowy?.offer?.tytul === "Zmiana z innego okna",
+      undefined,
+      `odpowiedź: ${JSON.stringify(zeStarym.dane).slice(0, 160)}`
+    );
+
+    // (c) bez nagłówka (apka, skrypt, cron) trasa MILCZY — brak wiedzy to nie
+    //     jest powód do ostrzeżenia.
+    const bezNaglowka = await api("PATCH", `/api/offers/${ofertaId}`, { uwagi: "bez nagłówka" });
+    sprawdz(
+      "zapis bez znacznika (apka, skrypt) nie dostaje ostrzeżenia o rozjeździe",
+      bezNaglowka.status === 200 && !bezNaglowka.dane?.rozjazd,
+      undefined,
+      JSON.stringify(bezNaglowka.dane)
+    );
+  } else {
+    pominiete.push("wykrywanie rozjazdu — nie udało się odczytać znacznika oferty");
+  }
+
   // To samo dla rekordu GŁÓWNEGO: karta A usuwa klienta, karta B go edytuje.
   const klient = await api("POST", "/api/clients", { nazwa: `[przejście ${ZNACZNIK}] Klient dwóch kart` });
   const klientId = id(klient.dane);

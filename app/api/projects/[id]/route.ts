@@ -17,6 +17,7 @@ import { skutkiZmianyStatusuProjektu } from "@/lib/skutkiProjektu";
 import { contractReference, type ContractTyp } from "@/lib/contracts";
 import type { ContractRow } from "@/lib/sciezkaDokumentow";
 import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -213,6 +214,14 @@ export async function PATCH(
 
   // Stan sprzed zmiany — potrzebny do automatycznego logu aktywności
   // ("Status: X → Y"). Bez tego log nie wiedziałby, co było wcześniej.
+  // ROZJAZD KART (etap 3) — znacznik, który miała przeglądarka przy
+  // wczytaniu. Zapytanie leci TYLKO wtedy, gdy nagłówek przyszedł, więc apka
+  // i skrypty nie płacą za nie ani jednej rundy HTTP. Patrz lib/rozjazd.ts.
+  const znanyStan = odczytajZnanyStan(req.headers);
+  const przedZapisem = znanyStan
+    ? ((await sql`SELECT updated_at FROM projects WHERE id = ${id};`)[0] ?? null)
+    : null;
+
   const current = (await sql`SELECT * FROM projects WHERE id = ${id};`)[0] as
     | Record<string, unknown>
     | undefined;
@@ -378,7 +387,18 @@ export async function PATCH(
   const activity = await sql`
     SELECT * FROM project_activity WHERE project_id = ${id} ORDER BY created_at DESC;
   `;
-  return NextResponse.json({ ok: true, activity });
+  const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+  // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+  // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+  // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+  // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+  // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+  const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM projects WHERE id = ${id};`)[0] ?? null) : null;
+  return NextResponse.json({
+    ok: true, activity,
+    ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+    ...(rozjazd ? { rozjazd: komunikatRozjazdu("projekt") } : {}),
+  });
 }
 
 /** DELETE /api/projects/:id — remove a project (cascades tasks/activity). Admin-only. */

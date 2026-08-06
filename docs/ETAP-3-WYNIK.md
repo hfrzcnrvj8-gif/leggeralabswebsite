@@ -5,7 +5,8 @@
 
 **Wynik w jednym zdaniu:** cztery scenariusze — **trzy przebiegnięte, jeden
 niewykonalny i wiadomo dlaczego**; znaleziono **dwie rzeczy, które kłamały**,
-obie naprawione i obie objęte przejściem.
+obie naprawione — a decyzja właściciela „wykryj i powiedz, nie blokuj" została
+**zbudowana tego samego dnia**, nie odłożona.
 
 | # | scenariusz | stan | co wyszło |
 |---|---|---|---|
@@ -14,8 +15,10 @@ obie naprawione i obie objęte przejściem.
 | 3 | zerwane żądanie w połowie wysyłki maila | ✅ przebiegnięty na atrapie SMTP | bezpiecznik odcisku **działa** — pierwszy raz uruchomiony, nie tylko przeczytany |
 | 4 | odtworzenie bazy z kopii | ⊘ niewykonalny stąd | nie ma czego odtwarzać (kopie nie są uruchomione) i nie ma czym (brak `psql`/`pg_dump`, Docker nie działa) — sprawdzono za to **czujkę**, która ma o tym krzyczeć |
 
-`tsc` czysto · `npm test` **357/357** (było 352) · `npm run przejscie`
-**120 działa · 0 regresji** (było 116).
+`tsc` czysto · `npm test` **365/365** (było 352) · `npm run przejscie`
+**123 działa · 0 regresji** (było 116). Nowe zdania sprawdzone kontrolnie przez
+tymczasowe cofnięcie poprawki — w obie strony: że wykrywanie łapie rozjazd
+i że nie krzyczy bez powodu.
 
 ---
 
@@ -112,19 +115,56 @@ od nowa: utwórz → usuń (z nagłówkiem `x-potwierdzenie`, jeśli trasa go ż
 pierwsze podejście dało cztery fałszywe „❌", bo `DELETE` odbijał się o 428
 i rekord wciąż żył.
 
-### Czego NIE zrobiono (decyzja właściciela)
+### Znalezisko 2 — „wykryj i powiedz" (zbudowane tego samego dnia)
 
 Na pytanie „co zrobić z ostatnim zapisem, który wygrywa po cichu" właściciel
 wybrał **„wykryj i powiedz, nie blokuj"**. Blokada rekordu i pytanie
-„nadpisać?" zostały odrzucone.
+„nadpisać?" zostały odrzucone. **Zbudowane** — nie odłożone na etap 5.
 
-**To jest zrobione dla jednego przypadku — usunięcia — a nie dla wszystkich.**
-Wykrywanie „ktoś zmienił ten rekord, odkąd go otworzyłeś" wymaga porównania
-`updated_at` z tym, co karta miała przy wczytaniu, w każdej trasie zapisu.
-Materiał jest (`updated_at` jest w odpowiedzi `GET`), mechanizmu nie ma.
-**Do zrobienia w etapie 5**, jako osobna paczka. Dopóki go nie ma, obowiązuje
-to, co zmierzono wyżej: dwie karty w różne pola są bezpieczne, w to samo pole —
-wygrywa ostatnia.
+**Jak to działa.** Karta przy odczycie rekordu zapamiętuje `updated_at`, przy
+zapisie dokleja go w nagłówku `x-znany-stan`, a trasa porównuje. Gdy się różni:
+**zapis i tak przechodzi**, a w odpowiedzi wraca jedno zdanie („Zapisano — ale
+ten rekord (oferta) zmienił się w międzyczasie w innym oknie panelu. Odśwież
+ekran, żeby zobaczyć całość."), które panel pokazuje w toaście.
+
+Trzy decyzje, które są tu regułą:
+
+- **Toast, nie pasek.** Rozjazd to ZDARZENIE (zapis się udał, nic nie
+  przepadło), a wygasła sesja to STAN (dopóki się nie zalogujesz, każdy zapis
+  idzie w próżnię). Dlatego jedno znika samo, a drugie nie.
+- **Brak nagłówka = cisza.** Apka, skrypt i cron nie wysyłają znacznika, więc
+  nie dostają ostrzeżeń. Brak wiedzy to nie jest powód do alarmu.
+- **Zmiana pozycji rusza znacznik DOKUMENTU.** Bez tego mechanizm byłby ślepy
+  na najczęstszy przypadek („zmieniasz cenę w jednym oknie i opis w drugim"),
+  bo `offer_items` ma własne życie. Retencja ofert liczy od `updated_at` i to
+  jest tu poprawne: dokument był ruszany, więc nie jest „bez ruchu".
+
+**Zasięg:** oferta (nagłówek, pozycje, bloki treści), faktura (nagłówek,
+pozycje), klient, projekt, lead, notatka, koszt. **Poza zasięgiem świadomie:
+umowa i przypomnienie** — nie mają kolumny `updated_at`, a dorobienie jej
+znaczyłoby dopisanie `updated_at = now()` do każdego `UPDATE` w tych trasach.
+Znacznik, który rusza się tylko czasem, jest gorszy od jego braku: kłamałby
+w obie strony.
+
+### Błąd, który złapał dopiero przebieg — po raz DRUGI tego dnia
+
+Pierwsza wersja dawała **fałszywy alarm**: trzy zapisy z rzędu w jednej karcie,
+nikogo innego w pobliżu, a panel przy drugim krzyczał „ktoś zmienił to w innym
+oknie". Powód: własny zapis rusza `updated_at`, a karta dalej trzymała znacznik
+sprzed **własnej** poprzedniej zmiany.
+
+Naprawa: trasa oddaje po zapisie nowy `updated_at`, a karta go przyjmuje.
+**Fałszywy alarm jest gorszy niż brak mechanizmu** — ostrzeżenie, które pada
+bez powodu, uczy je ignorować, więc kasuje mechanizm bez kasowania kodu.
+Dlatego w przejściu stoją **trzy** zdania, nie jedno: wykrywa · nie krzyczy bez
+powodu · milczy, gdy nie ma znacznika.
+
+**Druga pułapka z tego samego przebiegu, warta zapamiętania:** strażnik
+`window.fetch` zakładany w `useEffect` providera **spóźniał się**. Efekty
+Reacta lecą od dzieci do rodzica, więc pierwszy odczyt edytora przechodził OBOK
+strażnika i karta nigdy nie zapamiętywała znacznika — trasa odpowiadała
+poprawnie na żądanie z nagłówkiem, tylko panel nagłówka nie wysyłał. Instalacja
+przeniesiona na **import modułu**.
 
 ---
 
@@ -278,9 +318,8 @@ kopie zapasowe" jest nadzieją, nie faktem — i tak trzeba je czytać.
 
 ## Co zostało otwarte
 
-1. **Wykrywanie „ktoś zmienił ten rekord, odkąd go otworzyłeś"** — decyzja
-   właściciela zapadła („wykryj i powiedz"), mechanizmu nie ma. Materiał jest:
-   `updated_at` wraca w każdym `GET`. Etap 5.
+1. **Umowa i przypomnienie poza wykrywaniem rozjazdu** — brak kolumny
+   `updated_at`, patrz wyżej. Do rozważenia, gdyby okazało się potrzebne.
 2. **Wyścig o `MAX(position) + 1`** przy dwóch kartach dodających pozycję —
    niewidoczny w dev (PGlite szereguje), teoretycznie możliwy na Neonie, skutek
    kosmetyczny. Świadomie nie ruszane.

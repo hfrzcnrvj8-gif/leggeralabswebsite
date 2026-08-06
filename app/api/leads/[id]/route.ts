@@ -7,6 +7,7 @@ import { isLeadStatus } from "@/lib/leads";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
 import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
+import { odczytajZnanyStan, rozjazdStanu, komunikatRozjazdu } from "@/lib/rozjazd";
 
 export const runtime = "nodejs";
 
@@ -69,6 +70,13 @@ export async function PATCH(
 
   // Audyt zmian (Moduł 23) — stan sprzed zapisu, jeden SELECT na cały PATCH.
   // Patrz api/clients/[id]/route.ts po pełne uzasadnienie tego kształtu.
+  // ROZJAZD KART (etap 3) — znacznik, który miała przeglądarka przy
+  // wczytaniu. Zapytanie leci TYLKO wtedy, gdy nagłówek przyszedł, więc apka
+  // i skrypty nie płacą za nie ani jednej rundy HTTP. Patrz lib/rozjazd.ts.
+  const znanyStan = odczytajZnanyStan(req.headers);
+  const przedZapisem = znanyStan
+    ? ((await sql`SELECT updated_at FROM leads WHERE id = ${id};`)[0] ?? null)
+    : null;
   const beforeRows = await sql`SELECT * FROM leads WHERE id = ${id};`;
   // Lead mógł zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts.
   if (!beforeRows[0]) return odpowiedzBrakRekordu("lead");
@@ -187,7 +195,18 @@ export async function PATCH(
 
   await logFieldChanges("lead", id, before, applied);
 
-  return NextResponse.json({ ok: true });
+  const rozjazd = rozjazdStanu(znanyStan, przedZapisem?.updated_at);
+  // Nowy znacznik wraca do przeglądarki, żeby KOLEJNY zapis w tej samej karcie
+  // nie wyglądał jak rozjazd. Bez tego drugi zapis z rzędu w jednym oknie
+  // zgłaszał „ktoś zmienił to w innym oknie" — bo karta wysyłała znacznik
+  // sprzed WŁASNEJ poprzedniej zmiany. Złapane przebiegiem w przeglądarce,
+  // nie lekturą. Zapytanie tylko wtedy, gdy nagłówek przyszedł.
+  const poZapisie = znanyStan ? ((await sql`SELECT updated_at FROM leads WHERE id = ${id};`)[0] ?? null) : null;
+  return NextResponse.json({
+    ok: true,
+    ...(poZapisie?.updated_at ? { updated_at: poZapisie.updated_at } : {}),
+    ...(rozjazd ? { rozjazd: komunikatRozjazdu("lead") } : {}),
+  });
 }
 
 /** DELETE /api/leads/:id — remove a lead. Admin-only. */
