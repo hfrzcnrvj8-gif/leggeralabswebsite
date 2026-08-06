@@ -116,12 +116,41 @@ partiami w etapie 5.
 Wejdź na Pulpit i przeklikaj po kolei: Leady → Klienci → Oferty → Faktury →
 Projekty → Kalendarz.
 
-- [ ] Czy coś **drga, przeskakuje albo doskakuje** przy wejściu na ekran?
-      (Najczęstsza rzecz, która odbiera wrażenie „to jest dopieszczone".)
+- [x] ~~Czy coś **drga, przeskakuje albo doskakuje** przy wejściu na ekran?~~
+      **ZMIERZONE 2026-08-06 — nie.** Przesunięcia układu (`layout-shift`,
+      ta sama miara, którą liczy Google jako CLS) na dziewięciu ekranach:
+
+      | ekran | przesunięcie | ekran | przesunięcie |
+      |---|---|---|---|
+      | Pulpit | 0 | Oferty | 0 |
+      | Klienci | 0 | Statystyki | 0 |
+      | Notatnik | 0 | Poczta | 0,0001 |
+      | Kalendarz | 0,0039 | Projekty | 0,0054 |
+      | Leady | 0,0059 | | |
+
+      Próg „dobrze" to **0,1**, czyli najgorszy ekran panelu jest **17 razy
+      poniżej** progu. Nie ma tu czego szukać okiem.
+
+      **Czego ta liczba NIE obejmuje:** mierzy przeskoki układu, a nie
+      „treść pojawia się z opóźnieniem". Ekran, który najpierw jest pusty,
+      a potem wypełnia się danymi **w zarezerwowanym miejscu**, da 0 — a i tak
+      można to odebrać jako doskakiwanie. Na to patrz sam.
 - [ ] Czy któryś ekran wygląda jak **z innej aplikacji** niż reszta?
 - [ ] Czy gdziekolwiek **oczy nie wiedzą, gdzie patrzeć najpierw**?
 
 ### B2. Czy wiadomo, że coś się dzieje
+
+**Zmierzone lokalnie 2026-08-06 — i to jest DOLNA granica, nie to, co
+zobaczysz na `leggeralabs.pl`.** Pulpit: pierwsza treść na ekranie po
+**152 ms**, wszystkie cztery żądania do API skończone po **204 ms**
+(najwolniejsze: `/api/notifications` 33 ms). Lokalnie nie ma więc czego
+pokazywać — ekran jest gotowy, zanim zdążyłby wyglądać na zawieszony.
+
+**Dlaczego to Ciebie nie zwalnia:** te liczby są z PGlite w pamięci procesu
+i z `localhost`. Na produkcji dochodzi Neon przez HTTP (jedno żądanie na
+zapytanie), zimny start funkcji Vercela i prawdziwe łącze. **Różnica może być
+dziesiątki razy większa** i tego stąd nie zmierzę. Punkty niżej sprawdź
+na wdrożonym panelu, nie na moich liczbach.
 
 - [ ] Po kliknięciu „Zapisz"/„Wyślij" — **po ilu sekundach** widać, że coś się
       stało? Czy w międzyczasie ekran wygląda jak zawieszony?

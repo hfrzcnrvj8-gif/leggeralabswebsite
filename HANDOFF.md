@@ -1,4 +1,75 @@
-# Handoff — stan na 2026-08-06, po etapie 3 (brzegi)
+# Handoff — stan na 2026-08-06, po etapie 4 (część mierzalna)
+
+> **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
+>
+> Panel stoi na **`ac541b8`**. Etap 4 jest **zrobiony w całości, w jakiej da
+> się go zrobić bez właściciela**. Nie zaczynaj go od nowa.
+>
+> **Nic nie da się ruszyć dalej bez decyzji albo oczu właściciela.** Kolejny
+> czat ma dwie drogi — zapytaj, którą:
+>
+> **DROGA A — etap 5 (poprawki ze zgłoszeń).** Wymaga, żeby właściciel
+> najpierw przeszedł to, co mu zostało w `docs/PRZEGLAD-UI-LISTA.md`:
+> B1 (drugi i trzeci punkt), B2 na wdrożonym panelu, B3 na PAPIERZE, B4 palcem
+> na telefonie i iPadzie, oraz **jedno pytanie z B6** (czy dokument
+> pomniejszony na telefonie do 49% przeszkadza). Bez tych zgłoszeń etap 5 nie
+> ma wsadu. **Zapytaj o nie na starcie czatu.**
+>
+> **DROGA B — pięć decyzji, które czekają i nie zależą od etapu 5:**
+> 1. **Windykacja wysyła maile bez kliknięcia** (+3, +10, **+21 formalne
+>    wezwanie z odsetkami**) — trzy warianty w `docs/ETAP-1-WYNIK.md`, sekcja C.
+>    To jedyne miejsce łamiące obietnicę „nic nie wychodzi bez Twojego
+>    kliknięcia". **Nie zmieniaj sam.**
+> 2. **Godziny automatów mogą być w UTC** — do potwierdzenia obserwacją
+>    właściciela, nie da się stąd.
+> 3. **Trzy kontrolki na kartach Projektów** (priorytet 11×9 px) — rozsunąć
+>    czy powiększyć ikony. Powiększenie samego trafienia WYKLUCZONE (17 kolizji
+>    przy 24 px). Materiał do decyzji można przygotować zrzutami.
+> 4. **Czy apka ma wysyłać `x-znany-stan`** — dziś nie wysyła, więc wykrywanie
+>    rozjazdu dwóch kart na telefonie milczy. Robota w `../leggera-hub-ios`.
+> 5. **Kwadraciki na kartach Tablicy i wysokość wierszy list** — dwa jawne
+>    wyjątki od progu 24×24, opisane w `CLAUDE.md`.
+>
+> **Czego NIE robić:** wszystkiego z sekcji „Czego NIE zaczynać bez wyraźnej
+> prośby" na końcu tego pliku, i nie przechodzić ręcznie tego, co robi
+> `npm run przejscie`.
+
+---
+
+## Co doszło 2026-08-06 wieczorem (`ac541b8`)
+
+**Etap 4, część B — zdjęte z listy właściciela: całe B5, całe B6 poza jednym
+pytaniem, mierzalna połowa B3, obiektywne połowy B1 i B2.** Wszystko
+w `docs/PRZEGLAD-UI-LISTA.md` (części A2 i B).
+
+- **B5 rozstrzygnięte:** Escape zamyka tylko kalendarzyk (drugi zamyka
+  profil); „Wstaw z szablonu" nie potwierdza się; lista kanałów **naprawiona**.
+- **Jedyna zmiana w kodzie:** `kierunek="gora"` w `PropertyMenu`/`PillPicker`,
+  użyty w dwóch miejscach (wybór kanału u leada i u klienta). Plus domiar
+  realnej wysokości menu po zamontowaniu — `PropertyMenu` go nie miał, więc
+  **każde** menu odwracane w górę przy dolnej krawędzi okna nachodziło 9 px na
+  własny wyzwalacz.
+- **Lekcja warta więcej niż poprawka:** sonda po całym panelu pokazała, że
+  menu zasłaniające kontrolki pod sobą to **norma** — każde menu statusu na
+  Tablicy leadów przechwytuje kliknięcia 4–8 kontrolkom sąsiednich kart.
+  Miara „ile kontrolek zakrywa" nic nie dowodzi sama z siebie; liczy się
+  dopiero z pytaniem, **czy ktoś tam naprawdę celuje**. Dlatego zachowanie
+  domyślne zostało nietknięte, a opcja jest opt-in.
+- **Przesunięcia układu na 9 ekranach: 0–0,0059** przy progu 0,1. Pulpit maluje
+  treść w 152 ms. Obie liczby lokalne — na produkcji będą inne.
+- **Wydruki:** pasek marki, kwota i logo są SVG na wszystkich czterech
+  dokumentach, zero `background-clip: text`, zero treści na gradiencie.
+- **Publiczne dokumenty na telefonie:** nic poza ekranem, przyciski decyzji
+  pełnowymiarowe, ale sam dokument idzie skalą **0,491** — tekst umowy ma
+  efektywnie **5,2–6,4 px**. Świadoma decyzja z 2026-07-20, ale jej cena nie
+  była nigdzie zapisana. **To jedyne pytanie z B6 dla właściciela.**
+
+`tsc` czysto · `npm test` **365/365** · `npm run przejscie` **123 działa,
+0 regresji**.
+
+---
+
+# Poprzedni handoff — stan po etapie 3 (brzegi)
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
