@@ -1,12 +1,27 @@
-# Handoff — stan na 2026-08-06, po etapie 4 (część mierzalna)
+# Handoff — stan na 2026-08-06, po etapie 4 i przeglądzie hierarchii
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Panel stoi na **`ac541b8`**. Etap 4 jest **zrobiony w całości, w jakiej da
-> się go zrobić bez właściciela**. Nie zaczynaj go od nowa.
+> Panel stoi na **`5d029ca`**. Apka na `674c216`, nietykana. Oba drzewa czyste,
+> wszystko wypchnięte. `tsc` czysto · `npm test` **365/365** ·
+> `npm run przejscie` **123 działa · 0 regresji**.
 >
-> **Nic nie da się ruszyć dalej bez decyzji albo oczu właściciela.** Kolejny
-> czat ma dwie drogi — zapytaj, którą:
+> Etap 4 jest **zrobiony w całości, w jakiej da się go zrobić bez właściciela**.
+> Nie zaczynaj go od nowa. **Przegląd hierarchii wizualnej też jest domknięty**
+> — przemielone wszystkie 17 ekranów, poprawione trzy (Pulpit, Faktury,
+> Oferty). Nie powtarzaj go i **nie „naprawiaj" Statystyk** (patrz niżej).
+>
+> **REKOMENDOWANY PIERWSZY RUCH: windykacja (punkt 1 DROGI B).** To jedyna
+> otwarta rzecz, która jest realnym ryzykiem produktowym, a nie kosmetyką —
+> panel sam wysyła klientowi maile, w tym formalne wezwanie do zapłaty
+> z odsetkami po 21 dniach, bez ani jednego kliknięcia właściciela. Decyzja
+> mieści się w jednym posiedzeniu i nie wymaga, żeby właściciel cokolwiek
+> wcześniej przetestował.
+>
+> **Zacznij od zapytania właściciela, czy popracował już z nowym Pulpitem** —
+> trzy decyzje o tym, co jest najważniejsze na Pulpicie, Fakturach i Ofertach,
+> podjęto z kodu, nie z jego praktyki. Jeśli nie trafiły, to jest tańsze do
+> cofnięcia teraz niż za miesiąc.
 >
 > **DROGA A — etap 5 (poprawki ze zgłoszeń).** Wymaga, żeby właściciel
 > najpierw przeszedł to, co mu zostało w `docs/PRZEGLAD-UI-LISTA.md`:
@@ -33,6 +48,69 @@
 > **Czego NIE robić:** wszystkiego z sekcji „Czego NIE zaczynać bez wyraźnej
 > prośby" na końcu tego pliku, i nie przechodzić ręcznie tego, co robi
 > `npm run przejscie`.
+
+---
+
+## Hierarchia wizualna — ZROBIONA 2026-08-06 (`c0ef83d`, `5d029ca`)
+
+Zlecone zgłoszeniem właściciela: „Pulpit jest przeładowany i przez to
+nieczytelny". Miał rację i **da się to zmierzyć**: osiem kafli, KAŻDY 154 px
+szeroki, KAŻDA liczba 18 px. Przy jednej wadze wizualnej nic nie jest
+ważniejsze od niczego.
+
+**Przyczyna warta zapamiętania:** `DashboardHome.tsx` przeszedł audyt UI/UX
+(Moduł 51) przy **940 liniach**; dziś ma **1279** (+36%) po **12 commitach**,
+z których każdy DOKŁADAŁ sekcję. Audyty modułów i Moduł 59 sprawdzały
+**SPÓJNOŚĆ** — czy ekran wygląda jak reszta panelu. **Nigdy nie pytały
+o PRIORYTET.** To ten sam wzorzec, co `lib/instrukcje.ts` w etapie 1: tanie
+sprawdzenie to `git log -1 -- <plik ekranu>` od ostatniego audytu wizualnego
+plus `git rev-list --count`.
+
+**Reguła, która z tego wyszła — używaj jej, dokładając cokolwiek do pasa KPI:**
+*liczba do DZIAŁANIA dominuje, wskaźnik do OBSERWOWANIA cichnie.* Wskaźniki
+mają swój ekran (Statystyki).
+
+| ekran | było | jest |
+|---|---|---|
+| Pulpit | 8 kafli, 1 poziom | **4 kafle, 3 poziomy** (36/24/18), pas 362 → 216 px, sekcji pracy nad zagięciem 3 → **9** |
+| Faktury | 5 kafli, 1 poziom | **3 poziomy** — „Po terminie" dominuje (30 px, dwie kolumny) |
+| Oferty | 6 kafli, 1 poziom | **3 poziomy** — „Wygasają w 7 dni" dominuje |
+
+Z Pulpitu zdjęto cztery kafle, ale **żaden wskaźnik nie zniknął**:
+„Wymaga działania dziś" to była ta sama zmienna `totalActionable`, co
+w nagłówku strony; „Opinie klientów" i „Leady z polecenia" były już
+w Statystykach pod identycznymi nazwami; „Papier przed pracą" **dołożono** do
+Statystyk (`paperFirst` w `/api/stats` — `projects` dostało `id`/`client_id`,
+doszło zapytanie o `contracts`).
+
+**STATYSTYKI ZOSTAJĄ PŁASKIE — to rozstrzygnięcie, nie przeoczenie.**
+Dziesięć kafli, jeden poziom wagi — dokładnie ta sama liczba, która na
+Pulpicie była usterką. Tam jest poprawna: ten ekran MA być ścianą wskaźników,
+przychodzi się na niego z konkretnym pytaniem, a wyróżnienie jednej metryki
+narzucałoby, co jest ważne. **Sama liczba „jeden poziom wagi" nie jest
+diagnozą** — rozstrzyga pytanie, czy ekran odpowiada „co zrobić", czy „jak nam
+idzie". Dziesięć pozostałych ekranów (Leady, Klienci, Umowy, Projekty,
+Katalog, Poczta, Kalendarz, Notatnik, Przypomnienia, Zdrowie) nie ma pasa KPI
+w ogóle.
+
+**Trzy pułapki złapane wyłącznie pomiarem — powtórzą się:**
+
+1. **`xl:` nie działa w oknie podglądu.** Pierwsza wersja poprawki Faktur
+   i Ofert używała progu `xl`, a okno ma **1264 px**, podczas gdy `xl` zaczyna
+   się od **1280**. Zmiana nie działała i wyglądała na wdrożoną. Przy okazji:
+   na typowym laptopie hierarchii też by nie było — próg zszedł na `md`.
+2. **Waga wizualna musi być responsywna.** Kwota w 36 px zajmuje 189 px,
+   a kafel na telefonie ma 141 px na treść — przycinało bez śladu w kodzie.
+   Duża waga wchodzi od `lg`/`md`, na telefonie zostaje cicha (20 wobec 18 px).
+3. **Rozmiar nie może zależeć od danych.** Kusi, żeby „Wygasają w 7 dni"
+   rosło tylko przy wartości > 0 — ale to przesuwałoby układ przy każdym
+   odświeżeniu, a przesunięcia (`layout-shift`) trzymamy na zerze. Kolor niesie
+   stan, rozmiar niesie rangę pytania. To dwie różne rzeczy.
+
+**Odnotowane, nie ruszone:** na Kosztach kafle „Koszty w tym miesiącu"
+i „Nieopłacone" pokazują dziś TĘ SAMĄ kwotę (wszystkie koszty są nieopłacone).
+To prawda o danych, nie usterka — ale gdy właściciel zacznie płacić, warto
+sprawdzić, czy te dwa kafle nie mówią zbyt często tego samego.
 
 ---
 
