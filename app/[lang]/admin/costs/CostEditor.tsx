@@ -347,7 +347,7 @@ export function CostEditor({
           <button onClick={remove} className="flex text-muted hover:text-red-400" title="Usuń koszt">
             <IconTrash size={16} />
           </button>
-          <button onClick={onClose} className="flex text-muted hover:text-[var(--fg)]" title="Zamknij">
+          <button onClick={onClose} className="flex cel-dotykowy text-muted hover:text-[var(--fg)]" title="Zamknij">
             <IconX size={18} />
           </button>
         </div>

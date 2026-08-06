@@ -467,7 +467,7 @@ export function CostsDashboard({ lang }: { lang: Locale }) {
                                 e.preventDefault();
                                 setOpenId(c.id);
                               }}
-                              className="flex text-muted hover:text-[var(--fg)]"
+                              className="flex cel-dotykowy text-muted hover:text-[var(--fg)]"
                               title="Otwórz koszt"
                             >
                               <IconArrowUpRight size={15} />

@@ -20,17 +20,33 @@ i prawdziwe urządzenia**.
 
 ## CZĘŚĆ A — co już zmierzyłem (nie sprawdzaj tego ponownie)
 
-Ekrany: Pulpit, Leady, Klienci, Faktury, edytor Oferty. Okna: 1264 px
-(desktop) i 390 px (szerokość iPhone'a).
+**Trzynaście ekranów**, każdy przy 1264 px (desktop), najbardziej złożone także
+przy 390 px (szerokość iPhone'a): Pulpit, Leady, Klienci, Oferty (edytor),
+Faktury, Umowy, Projekty, Kalendarz, Poczta, Katalog, Koszty, Notatnik,
+Statystyki, Przypomnienia.
 
 | co sprawdzone | wynik |
 |---|---|
-| czy cokolwiek wychodzi poza ekran w poziomie (desktop) | **nic** — 0 elementów, brak poziomego paska przewijania |
-| to samo przy oknie 390 px | **nic** — treść ma dokładnie 390 px, nic nie ucieka |
-| czy główne CTA („Wyślij mailem") mieści się na wąskim oknie | **tak** — 316×36 px, nie zasłonięte |
+| czy coś wychodzi poza ekran na desktopie | **nic**, na żadnym z trzynastu |
+| to samo przy oknie 390 px | **dwie usterki, obie naprawione** — patrz niżej |
 | czy animacje w ogóle startują | **tak** (to było wcześniej niemierzalne) |
-| czy panel się nie sypie w konsoli | bez błędów po ostatnich zmianach |
-| cele dotykowe 24×24 (WCAG 2.5.8) | **poprawione** — patrz niżej |
+| czy panel się nie sypie w konsoli | bez błędów |
+| cele dotykowe 24×24 (WCAG 2.5.8) | **poprawione tam, gdzie się dało** — patrz niżej |
+
+### Dwie usterki widoczne tylko na szerokości telefonu — naprawione
+
+1. **Poczta: przycisk „Nowa wiadomość" był POZA ekranem.** Rząd „Szukaj +
+   Synchronizuj + Nowa wiadomość" miał 455 px i jako jeden element nie miał się
+   gdzie złamać — przycisk kończył się na 487 px przy oknie 390 px, a poziomego
+   paska przewijania nie ma. Czyli **główna akcja Poczty była na telefonie
+   nieosiągalna**, bez żadnego objawu poza tym, że jej nie widać.
+2. **Kalendarz: trzy filtry rozpychały ekran do 546 px.** Natywny `<select>`
+   bierze szerokość od najdłuższej opcji (tu: nazwa klienta), a owijanie rzędu
+   nie pomaga, gdy pojedynczy element jest za szeroki. Dziś filtry mieszczą się
+   w oknie i skracają tekst.
+
+To jest dokładnie ta rodzina, której nie widać na desktopie — i dlatego warto,
+żebyś mimo wszystko przekartkował panel na telefonie (punkt B4).
 
 ### Znalezisko z części A — NAPRAWIONE tego samego dnia
 
@@ -43,17 +59,31 @@ Poprawione zgodnie z regułą: **rośnie trafienie, nie rysunek**. Kwadracik dal
 wygląda tak samo, tylko wokół niego wyrasta niewidoczne pudełko 24×24.
 Sprawdzone kliknięciem 10 px POZA kwadracikiem — przełącza się.
 
-Zostały dwie rzeczy, **obie na Twoje oko w części B**:
+Po przemieleniu wszystkich trzynastu ekranów doszły jeszcze dwie rodziny
+i obie są poprawione: **ikonka „otwórz" w tabelach** (15×15, Koszty, Klienci,
+Leady) i **gwiazdka flagi w Poczcie** (13×13). Koszty: 18 celów poniżej progu →
+**2**. Poczta: 14 → **8**. Zero kolizji, czyli żadna kontrolka nie kradnie
+kliknięcia sąsiadowi.
 
-- **Kwadraciki na kartach Tablicy** (nie w Tabeli). Karty stoją tak gęsto, że
-  pudełka sąsiednich kwadracików zachodziłyby na siebie i kradły sobie
-  kliknięcia — poprawka byłaby gorsza od usterki. Wpisane do `CLAUDE.md` jako
-  jawny wyjątek, z drogą zastępczą: ten sam wybór jest w widoku Tabeli.
-  **Sprawdź palcem na iPadzie, czy to realnie przeszkadza.**
-- **Wiersze list mają 19–20 px wysokości** (np. „Wymaga działania dziś",
-  propozycje). Myszą trafiasz bez pudła; podniesienie ich do 24 px zmieniłoby
-  gęstość wszystkich list w panelu, więc to **decyzja o wyglądzie, nie usterka**
-  — i dlatego jest u Ciebie.
+Czyste bez jednej poprawki: **Umowy, Kalendarz, Katalog, Statystyki**.
+
+Zostały trzy rzeczy, **wszystkie na Twoje oko w części B**:
+
+- **Trzy kontrolki na kartach Projektów** (status 15×15, priorytet **11×9**,
+  zdrowie 12×12 — najmniejsze cele w całym panelu). Tego **nie da się naprawić
+  rozmiarem trafienia**: sąsiadujące kontrolki dzieli 19 px, więc każde
+  powiększenie sprawia, że jedna przechwytuje kliknięcia drugiej — zmierzone
+  przy 24 px (17 kolizji), 18 px (2) i 16 px (6). Zamiana chybienia na
+  otwarcie CUDZEGO menu jest gorsza od chybienia, więc zmianę wycofałem.
+  Prawdziwa naprawa to rozsunąć kontrolki albo powiększyć ikony — czyli
+  **decyzja o wyglądzie**. Zobacz na karcie projektu, czy to Ci przeszkadza.
+- **Kwadraciki na kartach Tablicy** (nie w Tabeli) — ten sam powód: karty stoją
+  za gęsto. Wpisane do `CLAUDE.md` jako jawny wyjątek, z drogą zastępczą (ten
+  sam wybór jest w widoku Tabeli). **Sprawdź palcem na iPadzie.**
+- **Wiersze list mają 19–21 px wysokości** (np. „Wymaga działania dziś",
+  propozycje, pigułki statusu w Poczcie, przypomnienia). Myszą trafiasz bez
+  pudła; podniesienie do 24 px zmieniłoby gęstość wszystkich list w panelu,
+  więc to **decyzja o wyglądzie, nie usterka**.
 
 ---
 

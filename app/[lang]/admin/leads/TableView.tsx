@@ -416,7 +416,7 @@ export function TableView({
                           e.preventDefault();
                           onOpen(lead.id);
                         }}
-                        className="flex text-muted hover:text-[var(--fg)]"
+                        className="flex cel-dotykowy text-muted hover:text-[var(--fg)]"
                         title="Otwórz profil"
                       >
                         <IconArrowUpRight size={15} />

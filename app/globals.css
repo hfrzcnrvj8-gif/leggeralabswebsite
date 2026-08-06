@@ -852,6 +852,40 @@
    Sprawdzone `document.elementFromPoint` 5 px poza krawędzią kwadracika —
    nie „na oko", bo różnica 14 px od 24 px jest niewidoczna, a to 66%
    powierzchni trafienia. */
+/* Ta sama sztuczka dla małych ikon-przycisków, które NIE mają własnego
+   pudełka (wyzwalacze `PropertyMenu`: status projektu 15×15, priorytet 11×9,
+   zdrowie 12×12 — po kilkadziesiąt sztuk na ekranie Projektów). Klasa zamiast
+   `min-w-6 min-h-6` w Tailwindzie, bo tamto rozepchnęłoby wiersz karty:
+   kontrolki stoją w ciasnym rzędzie z odstępami i urosłyby o 9–13 px każda.
+   Warstwa `::before` nie zajmuje miejsca w układzie — rośnie samo trafienie.
+
+   **Gdzie tej klasy NIE wolno użyć: przy kontrolkach stojących bliżej niż
+   24 px od siebie.** Wyzwalacze `PropertyMenu` na kartach Projektów (status,
+   priorytet, zdrowie) dzieli **19 px od środka do środka** — zmierzone. Przy
+   pudełkach 24×24 zachodzą na siebie i kliknięcie trafia w SĄSIADA, czyli
+   otwiera menu, którego nikt nie chciał: 17 kolizji na jednym ekranie.
+   Zejście do 18 px dało 2 kolizje, do 16 px — 6 (szersza ikona „Priorytet:
+   Średni" przesuwa środek). Zamiana chybienia na POMYŁKĘ jest gorsza od
+   chybienia, więc tam ta klasa świadomie NIE stoi, a prawdziwa naprawa
+   (rozsunąć kontrolki albo powiększyć ikony) jest zmianą wyglądu i czeka
+   w liście przeglądu właściciela.
+
+   **Wniosek ogólny: zanim dołożysz tę klasę, zmierz odstęp do najbliższego
+   sąsiada.** Poniżej 24 px powiększanie trafienia szkodzi. */
+.admin-linear .cel-dotykowy {
+  position: relative;
+}
+
+.admin-linear .cel-dotykowy::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+
 .admin-linear input[type="checkbox"] {
   position: relative;
 }

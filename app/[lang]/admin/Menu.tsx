@@ -550,6 +550,15 @@ export function PropertyMenu<T extends string>({
       aria-haspopup="menu"
       aria-expanded={open}
       aria-label={title}
+      // ŚWIADOMIE BEZ `cel-dotykowy` — patrz komentarz przy tej klasie
+      // w `globals.css`. Wyzwalacze statusu/priorytetu/zdrowia na kartach
+      // Projektów są najmniejszymi celami w panelu (11×9), ale stoją 19 px od
+      // siebie: KAŻDE powiększenie trafienia sprawia, że sąsiad przechwytuje
+      // kliknięcie i otwiera cudze menu. Zmierzone przy 24 px (17 kolizji),
+      // 18 px (2) i 16 px (6 — szersza ikona „Średni" przesuwa środek).
+      // Zamiana chybienia na POMYŁKĘ jest gorsza od chybienia, więc jedyna
+      // prawdziwa naprawa to rozsunięcie kontrolek albo większe ikony — czyli
+      // decyzja o wyglądzie, i dlatego stoi w liście przeglądu właściciela.
       className={full ? "flex w-full items-center" : "inline-flex items-center"}
     >
       {children}

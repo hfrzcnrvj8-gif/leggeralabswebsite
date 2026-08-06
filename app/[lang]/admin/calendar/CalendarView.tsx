@@ -957,7 +957,12 @@ export function CalendarView({ lang }: { lang: string }) {
           <select
             value={filterClientId}
             onChange={(e) => setFilterClientId(e.target.value)}
-            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
+            // `max-w-full` (etap 4): natywny <select> bierze szerokość od
+            // NAJDŁUŻSZEJ opcji, więc przy oknie 390 px filtry rozpychały się
+            // do 546 px i wychodziły poza ekran — mimo `flex-wrap` na rzędzie,
+            // bo owijanie nie pomaga, gdy pojedynczy element jest za szeroki.
+            // Zmierzone na trzech filtrach naraz.
+            className="max-w-full rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
             title="Pokaż tylko pozycje powiązane z jednym klientem"
           >
             <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszyscy klienci</option>
@@ -968,7 +973,7 @@ export function CalendarView({ lang }: { lang: string }) {
           <select
             value={filterLeadId}
             onChange={(e) => setFilterLeadId(e.target.value)}
-            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
+            className="max-w-full rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
             title="Pokaż tylko pozycje powiązane z jednym leadem"
           >
             <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszystkie leady</option>
@@ -979,7 +984,7 @@ export function CalendarView({ lang }: { lang: string }) {
           <select
             value={filterProjectId}
             onChange={(e) => setFilterProjectId(e.target.value)}
-            className="rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
+            className="max-w-full rounded-lg border hairline bg-transparent px-2 py-1 text-[11.5px] text-muted"
             title="Pokaż tylko pozycje powiązane z jednym projektem"
           >
             <option value="" className="bg-[var(--bg-soft)] text-[var(--fg)]">Wszystkie projekty</option>

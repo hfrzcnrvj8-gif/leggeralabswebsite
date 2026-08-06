@@ -365,7 +365,7 @@ export function TableView({
                           e.preventDefault();
                           onOpen(client.id);
                         }}
-                        className="flex text-muted hover:text-[var(--fg)]"
+                        className="flex cel-dotykowy text-muted hover:text-[var(--fg)]"
                         title="Otwórz szczegóły"
                       >
                         <IconArrowUpRight size={15} />

@@ -755,7 +755,15 @@ export function MailDashboard({ lang }: { lang: Locale }) {
             {counts.nieprzypisane > 0 ? ` · ${counts.nieprzypisane} nieprzypisane` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* `flex-wrap` na tym rzędzie, nie tylko na nagłówku wyżej (etap 4).
+            Zmierzone przy oknie 390 px: rząd „Szukaj + Synchronizuj + Nowa
+            wiadomość" ma 455 px i jako JEDEN element flex nie miał się gdzie
+            złamać — przycisk „Nowa wiadomość" kończył się na 487 px, czyli
+            97 px POZA ekranem, a poziomego paska przewijania nie ma (treść
+            strony dalej mierzy 390 px). Czyli główna akcja Poczty była na
+            telefonie nieosiągalna, bez żadnego objawu poza tym, że jej nie
+            widać. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {/* Pole w tym samym kształcie, co w pozostałych modułach — z pigułki
               zostaje tylko ramka, bo tu pole stoi w rzędzie z przyciskami
               („Pobierz nowe", „Nowa wiadomość"), a nie na pasku modułu. */}
@@ -1171,7 +1179,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                             void toggleFlag(m.id, !m.flagged);
                           }}
                           title={m.flagged ? "Usuń flagę" : "Oflaguj jako ważne"}
-                          className={`shrink-0 text-[13px] leading-none ${m.flagged ? "text-brand-gold" : "text-muted opacity-40 hover:opacity-80"}`}
+                          className={`cel-dotykowy shrink-0 text-[13px] leading-none ${m.flagged ? "text-brand-gold" : "text-muted opacity-40 hover:opacity-80"}`}
                         >
                           {m.flagged ? <IconStarFilled size={13} /> : <IconStar size={13} />}
                         </button>
