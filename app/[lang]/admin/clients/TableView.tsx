@@ -297,11 +297,20 @@ export function TableView({
                               channelCtl.openAt(e, client);
                             }}
                             aria-label={`Filtruj: ${CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}`}
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 ${
-                              CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
-                            } ${activeChannel === kanal ? "ring-1 ring-[var(--zaznaczenie)]" : ""}`}
+                            // Cel dotykowy 24×24 (etap 3): rośnie TRAFIENIE,
+                            // nie rysunek — kółko kanału zostaje 16 px, a wokół
+                            // niego wyrasta przezroczyste pudełko. Kolor i obrys
+                            // zeszły na `<span>`, bo padding na przycisku
+                            // rozdąłby SAMO KÓŁKO.
+                            className="flex h-6 w-6 shrink-0 items-center justify-center transition-transform hover:scale-110"
                           >
-                            <ContactChannelIcon kind={kanal} size={10} />
+                            <span
+                              className={`flex h-4 w-4 items-center justify-center rounded-full ${
+                                CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
+                              } ${activeChannel === kanal ? "ring-1 ring-[var(--zaznaczenie)]" : ""}`}
+                            >
+                              <ContactChannelIcon kind={kanal} size={10} />
+                            </span>
                           </button>
                         </Tooltip>
                       )}

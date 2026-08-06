@@ -191,11 +191,28 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   poprawka znika bez żadnego objawu w kodzie. Sprawdzenie to jedna linijka
   `getBoundingClientRect` po `button, a[href], [role="button"], input` — nie
   „na oko", bo różnica 15 px od 24 px jest niewidoczna, a to 39% powierzchni.
-  **Jawne wyjątki (jedyne):** pastylki w siatce miesiąca w Kalendarzu (16 px) —
-  gęsta siatka 31 dni, gdzie próg wymusiłby przebudowę układu, a każda pastylka
-  ma alternatywną drogę (klik w dzień otwiera rozpiskę z pełnowymiarowymi
-  wierszami). Dokładając nowy wyjątek: dopisz go TUTAJ razem z powodem
-  i alternatywną drogą. Wyjątek bez wpisu w tej liście jest usterką.
+  **Jawne wyjątki (jedyne dwa):**
+  (1) pastylki w siatce miesiąca w Kalendarzu (16 px) — gęsta siatka 31 dni,
+  gdzie próg wymusiłby przebudowę układu, a każda pastylka ma alternatywną
+  drogę (klik w dzień otwiera rozpiskę z pełnowymiarowymi wierszami);
+  (2) **kwadraciki zaznaczania na kartach Tablicy** (Leady, Klienci) — karty
+  stoją tak gęsto, że pudełka 24×24 SĄSIADUJĄCYCH kwadracików zachodziłyby na
+  siebie i kradły sobie kliknięcia, czyli poprawka byłaby gorsza od usterki
+  (zmierzone: punkt 11 px nad kwadracikiem trafia w kwadracik karty wyżej).
+  Alternatywna droga: ten sam wybór w widoku Tabeli, gdzie wiersze są luźniejsze
+  i pudełka się nie stykają. Dokładając nowy wyjątek: dopisz go TUTAJ razem
+  z powodem i alternatywną drogą. Wyjątek bez wpisu w tej liście jest usterką.
+
+  **Kwadracik zaznaczania rośnie CSS-em, nie opakowaniem** (etap 3, 2026-08-06):
+  `globals.css` daje `.admin-linear input[type="checkbox"]::before` pudełko
+  24×24 wokół 14-pikselowego rysunku. Opakowywanie każdego z dziewiętnastu
+  miejsc w `<label>` zmieniałoby układ tabel — a to jedyna zmiana, której przy
+  poprawce dostępności na pewno nie chcemy.
+
+  **Mierząc to sondą: `document.elementFromPoint` działa TYLKO w widocznym
+  oknie.** Elementy przewinięte poza ekran zawsze wyjdą „poniżej progu" — na
+  Klientach dało to 16 fałszywych alarmów naraz. Filtruj po
+  `r.top >= 0 && r.bottom <= innerHeight`.
 - **Tło na `.card-paper` / `.card-inset` w panelu wymaga `!bg-…`** (Faza 5,
   runda domykająca). `globals.css` ma `.admin-linear .card-paper { background: … }`
   — **selektor POTOMKA**, więc bije zwykłą klasę-utility na specyficzności,

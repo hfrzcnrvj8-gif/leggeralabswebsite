@@ -43,7 +43,10 @@ export const PoleSzukania = forwardRef<
           onChange={(e) => onChange(e.target.value)}
           placeholder="Szukaj… (/)"
           aria-label={podpowiedz}
-          className="min-w-0 max-w-[280px] flex-1 bg-transparent text-[12.5px] text-[var(--fg)] placeholder:text-muted focus:outline-none"
+          // `py-1` daje polu 24 px wysokości zamiast 19 (etap 3, próg WCAG
+          // 2.5.8 z CLAUDE.md). Rośnie samo pole, nie tekst — rozmiar czcionki
+          // zostaje 12,5 px, więc pasek wygląda tak samo.
+          className="min-w-0 max-w-[280px] flex-1 bg-transparent py-1 text-[12.5px] text-[var(--fg)] placeholder:text-muted focus:outline-none"
         />
         {/* Krzyżyk tylko przy wpisanej frazie. Do paczki C miała go jedna
             Poczta — a to jedyna droga wyjścia z zawężonej listy dla kogoś,

@@ -834,3 +834,34 @@
     animation: none !important;
   }
 }
+
+/* ── Cel dotykowy kwadracików zaznaczania (etap 3, 2026-08-06) ─────────────
+   Reguła panelu mówi 24×24 px (WCAG 2.5.8, `CLAUDE.md`), a Faza 5 ogłosiła
+   ten próg domkniętym — mierząc jednak KATALOG, czyli jedyny ekran bez
+   kwadracików zaznaczania. Pomiar w przeglądarce pokazał ich 14×14 px:
+   37 sztuk na Klientach, 27 na Fakturach, podobnie na Leadach.
+
+   Rośnie TRAFIENIE, nie rysunek — dokładnie jak każe reguła. Kwadracik dalej
+   ma 14 px, a wokół niego wyrasta niewidoczne pudełko 24×24 z warstwy
+   `::before`. Zrobione CSS-em, nie przez opakowanie każdego z 19 miejsc
+   w `<label>`: opakowanie zmieniałoby układ tabel (dodatkowy element w
+   komórce), a to jedyna zmiana, której na pewno nie chcemy przy poprawce
+   dostępności.
+
+   `position: relative` na samym `input`, żeby pudełko liczyło się od niego.
+   Sprawdzone `document.elementFromPoint` 5 px poza krawędzią kwadracika —
+   nie „na oko", bo różnica 14 px od 24 px jest niewidoczna, a to 66%
+   powierzchni trafienia. */
+.admin-linear input[type="checkbox"] {
+  position: relative;
+}
+
+.admin-linear input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+}

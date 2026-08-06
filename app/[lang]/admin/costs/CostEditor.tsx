@@ -799,7 +799,7 @@ export function CostEditor({
                 {ocrLoading ? <IconLoader2 size={14} className="animate-spin" /> : <IconCamera size={14} />}
                 {ocrLoading ? "Odczytuję…" : "Odczytaj z załącznika"}
               </button>
-              <button onClick={removeAttachment} className="shrink-0 text-muted hover:text-red-400" title="Usuń załącznik">
+              <button onClick={removeAttachment} className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-red-400" title="Usuń załącznik">
                 <IconTrash size={14} />
               </button>
             </div>

@@ -30,21 +30,30 @@ Ekrany: Pulpit, Leady, Klienci, Faktury, edytor Oferty. Okna: 1264 px
 | czy główne CTA („Wyślij mailem") mieści się na wąskim oknie | **tak** — 316×36 px, nie zasłonięte |
 | czy animacje w ogóle startują | **tak** (to było wcześniej niemierzalne) |
 | czy panel się nie sypie w konsoli | bez błędów po ostatnich zmianach |
+| cele dotykowe 24×24 (WCAG 2.5.8) | **poprawione** — patrz niżej |
 
-### Jedno znalezisko, i wymaga Twojej decyzji
+### Znalezisko z części A — NAPRAWIONE tego samego dnia
 
-**Kwadraciki zaznaczania wierszy mają 14×14 px, a reguła panelu mówi 24×24.**
-Zmierzone: Klienci **37 sztuk**, Faktury **27**, Leady podobnie — plus dwa inne
-rozmiary poniżej progu (`✕` 12×24 i ikonki filtrów 16×16).
+**Kwadraciki zaznaczania miały 14×14 px przy regule 24×24** (Klienci 37 sztuk,
+Faktury 27, Leady podobnie), do tego przyciski „✕" 12×24 i kółka kanału
+kontaktu 16×16. Reguła jest w `CLAUDE.md` i Faza 5 ogłosiła ją domkniętą — ale
+mierzyła wtedy Katalog, czyli jedyny ekran bez kwadracików zaznaczania.
 
-Reguła „cel dotykowy 24×24" jest zapisana w `CLAUDE.md` i została w Fazie 5
-ogłoszona jako domknięta — ale **zmierzono wtedy Katalog**, a Katalog nie ma
-kwadracików zaznaczania. Klasyczne „poprawka wzorca stanęła tam, gdzie
-przestano mierzyć".
+Poprawione zgodnie z regułą: **rośnie trafienie, nie rysunek**. Kwadracik dalej
+wygląda tak samo, tylko wokół niego wyrasta niewidoczne pudełko 24×24.
+Sprawdzone kliknięciem 10 px POZA kwadracikiem — przełącza się.
 
-W praktyce: myszą trafisz bez problemu, **palcem na iPadzie — nie zawsze**.
-Nie ruszam tego bez Twojego słowa, bo to 100+ miejsc w panelu. **Decyzja: czy
-poprawiam w etapie 5.**
+Zostały dwie rzeczy, **obie na Twoje oko w części B**:
+
+- **Kwadraciki na kartach Tablicy** (nie w Tabeli). Karty stoją tak gęsto, że
+  pudełka sąsiednich kwadracików zachodziłyby na siebie i kradły sobie
+  kliknięcia — poprawka byłaby gorsza od usterki. Wpisane do `CLAUDE.md` jako
+  jawny wyjątek, z drogą zastępczą: ten sam wybór jest w widoku Tabeli.
+  **Sprawdź palcem na iPadzie, czy to realnie przeszkadza.**
+- **Wiersze list mają 19–20 px wysokości** (np. „Wymaga działania dziś",
+  propozycje). Myszą trafiasz bez pudła; podniesienie ich do 24 px zmieniłoby
+  gęstość wszystkich list w panelu, więc to **decyzja o wyglądzie, nie usterka**
+  — i dlatego jest u Ciebie.
 
 ---
 

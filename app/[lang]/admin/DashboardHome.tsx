@@ -1232,7 +1232,7 @@ export function DashboardHome({ lang }: { lang: Locale }) {
                   </span>
                   <button
                     onClick={() => removeEvent(e.id)}
-                    className="shrink-0 text-muted hover:text-red-400"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-red-400"
                     aria-label={`Usuń ${e.tytul}`}
                     title="Usuń"
                   >

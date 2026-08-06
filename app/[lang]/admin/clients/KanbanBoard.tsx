@@ -164,7 +164,7 @@ export function KanbanBoard({
                         e.stopPropagation();
                         onDelete(client.id, client.nazwa);
                       }}
-                      className="shrink-0 text-muted hover:text-red-400"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-red-400"
                       aria-label={`Usuń ${client.nazwa}`}
                       title="Usuń"
                     >
@@ -227,11 +227,17 @@ export function KanbanBoard({
                               channelCtl.openAt(e, client);
                             }}
                             aria-label={`Filtruj: ${CONTACT_CHANNEL_LABEL[kanal as keyof typeof CONTACT_CHANNEL_LABEL] ?? kanal}`}
-                            className={`flex h-4 w-4 items-center justify-center rounded-full transition-transform hover:scale-110 ${
-                              CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
-                            } ${activeChannel === kanal ? "ring-1 ring-[var(--zaznaczenie)]" : ""}`}
+                            // Cel dotykowy 24×24 (etap 3) — patrz bliźniaczy
+                            // komentarz w TableView.tsx.
+                            className="flex h-6 w-6 shrink-0 items-center justify-center transition-transform hover:scale-110"
                           >
-                            <ContactChannelIcon kind={kanal} size={10} />
+                            <span
+                              className={`flex h-4 w-4 items-center justify-center rounded-full ${
+                                CONTACT_CHANNEL_CLASS[kanal as keyof typeof CONTACT_CHANNEL_CLASS] ?? ""
+                              } ${activeChannel === kanal ? "ring-1 ring-[var(--zaznaczenie)]" : ""}`}
+                            >
+                              <ContactChannelIcon kind={kanal} size={10} />
+                            </span>
                           </button>
                         </Tooltip>
                       )}

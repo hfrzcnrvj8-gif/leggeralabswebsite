@@ -1527,7 +1527,7 @@ export function ProjectDetailPanel({
                         <span className="shrink-0 text-[11px] text-muted">{pct}% z {total}</span>
                         <button
                           onClick={() => deleteMilestone(m.id)}
-                          className="shrink-0 text-muted hover:text-red-400"
+                          className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-red-400"
                           aria-label="Usuń kamień milowy"
                           title="Usuń"
                         >
@@ -1676,7 +1676,7 @@ export function ProjectDetailPanel({
                       <IconArrowRight size={13} className="shrink-0 text-muted" />
                       <span className="truncate">{allProjects.find((p) => p.id === depId)?.tytul ?? "—"}</span>
                     </Link>
-                    <button onClick={() => removeDependency(depId)} className="shrink-0 text-muted hover:text-red-400" aria-label="Usuń zależność" title="Usuń">
+                    <button onClick={() => removeDependency(depId)} className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-red-400" aria-label="Usuń zależność" title="Usuń">
                       <IconX size={14} />
                     </button>
                   </li>
@@ -1725,7 +1725,7 @@ export function ProjectDetailPanel({
                     </a>
                     <button
                       onClick={() => deleteResource(r.id)}
-                      className="shrink-0 text-muted hover:text-red-400"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-red-400"
                       aria-label="Usuń zasób"
                       title="Usuń"
                     >
