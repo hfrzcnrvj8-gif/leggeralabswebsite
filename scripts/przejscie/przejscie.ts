@@ -1008,6 +1008,12 @@ async function przejscie(): Promise<void> {
 
   // ── 18. Szwy między modułami ───────────────────────────────────────────
   await szwyMiedzyModulami();
+
+  // ── 19. Dwie karty na tym samym rekordzie (etap 3) ─────────────────────
+  await dwieKarty();
+
+  // ── 20. Zerwane żądanie w połowie wysyłki maila (etap 3) ───────────────
+  await zerwanaWysylka();
 }
 
 // ── Szwy między modułami ───────────────────────────────────────────────────
@@ -1121,6 +1127,126 @@ async function szwyMiedzyModulami(): Promise<void> {
       `zysk ${k.zyskWOknie} ≠ ${k.przychodWOknie} − ${k.wOknie}`
     );
   }
+}
+
+// ── Dwie karty na tym samym rekordzie ──────────────────────────────────────
+
+/**
+ * Etap 3 planu domknięcia: co się dzieje, gdy oferta jest otwarta na laptopie
+ * I na iPadzie.
+ *
+ * Kontroli współbieżności panel nie ma żadnej — zero `If-Match`, zero
+ * `UPDATE … AND updated_at = …` — więc przy TYM SAMYM polu wygrywa ostatni
+ * zapis. Ratuje sytuację **granularność PATCH-a**: trasa dotyka wyłącznie pól,
+ * które przyszły w ciele, więc dwie karty piszące w RÓŻNE pola nie depczą się
+ * nawzajem. To pierwsze zdanie jest czujką dokładnie na to: gdyby ktoś kiedyś
+ * zamienił gałęzie `if ("tytul" in body)` na jeden `UPDATE … SET wszystko`,
+ * druga karta zaczęłaby cofać pracę pierwszej — bez żadnego objawu w kodzie.
+ *
+ * Drugie zdanie pilnuje poprawki etapu 3: zapis do rekordu, którego już nie
+ * ma, MUSI odmówić. Do 2026-08-06 dziewięć rodzajów rekordów odpowiadało wtedy
+ * `{"ok":true}` — panel pisał „Zapisano" nad treścią, której nie ma w bazie
+ * (patrz `lib/brakRekordu.ts`).
+ */
+async function dwieKarty(): Promise<void> {
+  krok("Brzegi: dwie karty na tym samym rekordzie");
+
+  const nowa = await api("POST", "/api/offers", {
+    tytul: `[przejście ${ZNACZNIK}] Dwie karty`,
+    klient_nazwa: `[przejście ${ZNACZNIK}] Dwie karty`,
+  });
+  const ofertaId = id(nowa.dane);
+  if (!ofertaId) {
+    pominiete.push("dwie karty — nie udało się założyć oferty");
+    return;
+  }
+
+  // Karta A zmienia tytuł, karta B w tej samej chwili uwagi.
+  await Promise.all([
+    api("PATCH", `/api/offers/${ofertaId}`, { tytul: "TYTUŁ Z KARTY A" }),
+    api("PATCH", `/api/offers/${ofertaId}`, { uwagi: "UWAGI Z KARTY B" }),
+  ]);
+  // `pobierzOferte` oddaje CAŁĄ odpowiedź trasy (oferta + pozycje + bramka),
+  // a nie sam wiersz — pierwsza wersja tego zdania czytała `po.tytul` i miała
+  // `undefined` po obu stronach, czyli sprawdzała, że dwa nic są równe.
+  const po = (await pobierzOferte(ofertaId))?.offer;
+  sprawdz(
+    "dwie karty piszące w RÓŻNE pola tej samej oferty nie kasują sobie nawzajem zmian",
+    po?.tytul === "TYTUŁ Z KARTY A" && po?.uwagi === "UWAGI Z KARTY B",
+    undefined,
+    `tytuł: ${JSON.stringify(po?.tytul)}, uwagi: ${JSON.stringify(po?.uwagi)}`
+  );
+
+  // Karta A usuwa pozycję, karta B próbuje ją w tym czasie edytować.
+  const poz = await api("POST", `/api/offers/${ofertaId}/items`, { nazwa: "Pozycja do usunięcia", cena: 100 });
+  const pozId = poz.dane?.items?.at(-1)?.id as string | undefined;
+  if (pozId) {
+    const usuniecie = await api("DELETE", `/api/offers/${ofertaId}/items/${pozId}`);
+    const edycja = await api("PATCH", `/api/offers/${ofertaId}/items/${pozId}`, { cena: 9999 });
+    sprawdz(
+      "zapis do pozycji usuniętej w drugiej karcie ODMAWIA zamiast odpowiadać „zapisano”",
+      usuniecie.status === 200 && edycja.status === 404,
+      undefined,
+      `usunięcie: ${usuniecie.status}, edycja po usunięciu: ${edycja.status} ${JSON.stringify(edycja.dane).slice(0, 120)}`
+    );
+  } else {
+    pominiete.push("zapis do usuniętej pozycji — nie udało się dodać pozycji");
+  }
+
+  // To samo dla rekordu GŁÓWNEGO: karta A usuwa klienta, karta B go edytuje.
+  const klient = await api("POST", "/api/clients", { nazwa: `[przejście ${ZNACZNIK}] Klient dwóch kart` });
+  const klientId = id(klient.dane);
+  if (klientId) {
+    const usun = await apiZPotwierdzeniem(
+      "DELETE",
+      `/api/clients/${klientId}`,
+      "klient-usun",
+      undefined,
+      `[przejście ${ZNACZNIK}] Klient dwóch kart`
+    );
+    const edycja = await api("PATCH", `/api/clients/${klientId}`, { nazwa: "Nazwa z drugiej karty" });
+    sprawdz(
+      "zapis do klienta usuniętego w drugiej karcie ODMAWIA — i mówi dlaczego",
+      usun.status === 200 && edycja.status === 404 && String(edycja.dane?.error ?? "").includes("już nie istnieje"),
+      undefined,
+      `usunięcie: ${usun.status}, edycja: ${edycja.status} ${JSON.stringify(edycja.dane).slice(0, 140)}`
+    );
+  } else {
+    pominiete.push("zapis do usuniętego klienta — nie udało się założyć klienta");
+  }
+}
+
+// ── Zerwane żądanie w połowie wysyłki maila ────────────────────────────────
+
+/**
+ * Bezpiecznik podwójnej wysyłki (`lib/mailGuard.ts`) bez skrzynki pocztowej.
+ *
+ * Przebieg etapu 3 sprawdził go na ATRAPIE serwera SMTP i przeszedł: zerwane
+ * żądanie w połowie wysyłki nie dało drugiego maila u klienta, ponowienie
+ * w locie usłyszało „poprzednia próba jeszcze trwa", a po zakończeniu — „ta
+ * wiadomość została już wysłana". Atrapy nie ma w repo (żyła jedną sesję),
+ * więc tutaj zostaje to, co da się sprawdzić ZAWSZE: że trasa wysyłki
+ * odmawia, gdy skrzynki nie ma, zamiast udawać sukces.
+ *
+ * To nie jest namiastka tamtego przebiegu — to czujka na inną rzecz: żeby
+ * „brak konfiguracji" nigdy nie zaczął wyglądać jak „wysłano".
+ */
+async function zerwanaWysylka(): Promise<void> {
+  krok("Brzegi: wysyłka maila bez skrzynki");
+
+  const dane = new FormData();
+  dane.set("to", "klient@przyklad.pl");
+  dane.set("subject", `[przejście ${ZNACZNIK}] Próba wysyłki`);
+  dane.set("text", "Treść.");
+  const odp = await fetch(`${BAZA}/api/mail/compose`, { method: "POST", body: dane });
+  const tekst = await odp.text();
+
+  sprawdz(
+    "wysyłka maila bez skonfigurowanej skrzynki ODMAWIA — nie udaje sukcesu",
+    odp.status >= 400 && !tekst.includes('"ok":true'),
+    undefined,
+    `kod ${odp.status}: ${tekst.slice(0, 140)}`
+  );
 }
 
 // ── Awarie i brzegi ────────────────────────────────────────────────────────

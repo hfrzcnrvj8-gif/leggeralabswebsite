@@ -16,6 +16,7 @@ import { CLIENT_STATUSES } from "@/lib/clients";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
 import { osobyKlienta } from "@/lib/clientContacts";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -231,10 +232,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Audyt zmian (Moduł 23) — stan sprzed zapisu, do porównania „z czego na co".
   // Jeden SELECT na cały PATCH, nie na pole: neon() płaci rundę HTTP za każde
-  // zapytanie. Brak wiersza = klient skasowany w międzyczasie; UPDATE-y niżej
-  // i tak nic nie trafią, a log zostaje pusty zamiast zmyślać starą wartość.
+  // zapytanie.
   const beforeRows = await sql`SELECT * FROM clients WHERE id = ${id};`;
-  const before = (beforeRows[0] ?? {}) as Record<string, unknown>;
+  // Brak wiersza = klient skasowany w międzyczasie (najczęściej w drugim oknie
+  // panelu). Do etapu 3 stał tu komentarz „UPDATE-y niżej i tak nic nie trafią"
+  // — i to prawda, tylko że trasa odpowiadała wtedy `{"ok":true}`, więc ekran
+  // pisał „Zapisano" nad treścią, której nie ma w bazie. Patrz lib/brakRekordu.ts.
+  if (!beforeRows[0]) return odpowiedzBrakRekordu("klient");
+  const before = beforeRows[0] as Record<string, unknown>;
   // Co realnie ustawiamy — zbierane po walidacji, żeby log nie zapisał
   // wartości, której baza nie przyjęła.
   const applied: Record<string, unknown> = {};

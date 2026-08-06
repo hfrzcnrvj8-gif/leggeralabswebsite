@@ -44,6 +44,8 @@ import { TIMER_CHANGED_EVENT } from "../AppShell";
 import { ShareLinkControl } from "../ShareLinkControl";
 import { MiniSciezka } from "../MiniSciezka";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
+import { zglosWygasnieciesesji } from "../strazSesji";
+import { odmowaZapisu } from "../dane";
 
 /** Dokumenty wiszące na projekcie — umowy i faktury (audyt Projektów,
  * 2026-07-31). Umowa nie ma numeru w bazie: etykietę składa
@@ -132,7 +134,10 @@ export function ProjectDetailPanel({
   const load = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`);
     if (res.status === 401) {
-      window.location.reload();
+      // Sesja wygasła: NIE przeładowujemy (etap 3). Przeładowanie kasowało
+      // niezapisany formularz bez ostrzeżenia — pasek ze `strazSesji.ts`
+      // mówi, co się stało, i pozwala zalogować się bez opuszczania ekranu.
+      zglosWygasnieciesesji();
       return;
     }
     if (res.status === 404) {
@@ -418,11 +423,18 @@ export function ProjectDetailPanel({
     const [moved] = arr.splice(from, 1);
     arr.splice(to, 0, moved);
     setMilestones(arr);
-    await fetch(`/api/projects/${id}/milestones/reorder`, {
+    const res = await fetch(`/api/projects/${id}/milestones/reorder`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: arr.map((m) => m.id) }),
     });
+    // Etap 3: przeciągnięcie zostawało na ekranie także wtedy, gdy zapis
+    // nie doszedł — do pierwszego odświeżenia.
+    if (!res.ok) {
+      const odmowa = await odmowaZapisu(res, "Nie udało się zmienić kolejności.");
+      if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+      if (odmowa.cofnij) load();
+    }
   };
 
   const dragTaskRef = useRef<string | null>(null);
@@ -437,11 +449,16 @@ export function ProjectDetailPanel({
     const [moved] = arr.splice(from, 1);
     arr.splice(to, 0, moved);
     setTasks(arr);
-    await fetch(`/api/projects/${id}/tasks/reorder`, {
+    const res = await fetch(`/api/projects/${id}/tasks/reorder`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: arr.map((t) => t.id) }),
     });
+    if (!res.ok) {
+      const odmowa = await odmowaZapisu(res, "Nie udało się zmienić kolejności.");
+      if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+      if (odmowa.cofnij) load();
+    }
   };
 
   const removeDependency = async (dependsOnId: string) => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaOferty } from "@/lib/blokadaDokumentu";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (blokadaTresci.zablokowane) {
     return NextResponse.json({ error: blokadaTresci.komunikat }, { status: 409 });
   }
+
+  // Blok mógł zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts. To
+  // najdotkliwszy przypadek z całej dziewiątki: tu przepada TREŚĆ pisana
+  // minutami, a nie jedno pole.
+  const istnieje = await sql`SELECT 1 FROM offer_sections WHERE id = ${sectionId} AND offer_id = ${id};`;
+  if (istnieje.length === 0) return odpowiedzBrakRekordu("blok treści oferty");
 
   if ("tytul" in body) {
     const v = typeof body.tytul === "string" ? body.tytul.slice(0, 200) : "";

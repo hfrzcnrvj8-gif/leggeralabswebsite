@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,10 @@ export async function PATCH(
 
   await ensureHubSchema();
   const sql = getSql();
+
+  // Punkt mógł zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts.
+  const istnieje = await sql`SELECT 1 FROM project_onboarding_items WHERE id = ${itemId} AND project_id = ${id};`;
+  if (istnieje.length === 0) return odpowiedzBrakRekordu("punkt startowy");
 
   if ("done" in body) {
     await sql`UPDATE project_onboarding_items SET done = ${Boolean(body.done)} WHERE id = ${itemId} AND project_id = ${id};`;

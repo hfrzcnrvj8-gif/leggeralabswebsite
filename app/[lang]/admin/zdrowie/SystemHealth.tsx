@@ -29,6 +29,7 @@ import { opisWieku, type BackupStan, type BackupRun } from "@/lib/backup";
 import { wymagaUwagi, type AutomationRun, type StanAutomatu } from "@/lib/observability";
 import type { WpisBledu } from "@/lib/errorLog";
 import type { StanSpojnosci, WynikReguly } from "@/lib/spojnosc";
+import { zglosWygasnieciesesji } from "../strazSesji";
 
 type Dane = {
   spojnosc: StanSpojnosci | null;
@@ -238,7 +239,10 @@ export function SystemHealth() {
     try {
       const res = await fetch("/api/observability");
       if (res.status === 401) {
-        window.location.reload();
+        // Sesja wygasła: NIE przeładowujemy (etap 3). Przeładowanie kasowało
+        // niezapisany formularz bez ostrzeżenia — pasek ze `strazSesji.ts`
+        // mówi, co się stało, i pozwala zalogować się bez opuszczania ekranu.
+        zglosWygasnieciesesji();
         return;
       }
       if (!res.ok) throw new Error(`Serwer zwrócił błąd ${res.status}.`);

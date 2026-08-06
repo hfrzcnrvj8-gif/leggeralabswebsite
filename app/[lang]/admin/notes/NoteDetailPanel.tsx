@@ -24,6 +24,7 @@ import { useUI } from "../ui";
 import { formatPlDate } from "@/lib/projects";
 import { noteLinkValue, type Note, NoteBadges, NoteScheduleForm, useNoteActions } from "./shared";
 import { NoteActivityLog } from "./NoteActivityLog";
+import { odmowaZapisu } from "../dane";
 
 export function NoteDetailPanel({
   id,
@@ -46,7 +47,7 @@ export function NoteDetailPanel({
   // co paczka E wycięła z listy, ale nie z profilu (zmierzone 2026-08-02
   // podmianą `fetch` na 500: modal pokazywał pustą, pulsującą płytę).
   const [blad, setBlad] = useState<string | null>(null);
-  const { confirm } = useUI();
+  const { confirm, toast } = useUI();
 
   const load = useCallback(async () => {
     try {
@@ -150,7 +151,11 @@ export function NoteDetailPanel({
             onClick={async () => {
               const ok = await confirm("Usunąć rysunek z tej notatki?", { danger: true });
               if (!ok) return;
-              await fetch(`/api/notes/${note.id}/attachment`, { method: "DELETE" });
+              const res = await fetch(`/api/notes/${note.id}/attachment`, { method: "DELETE" });
+              if (!res.ok) {
+                const odmowa = await odmowaZapisu(res, "Nie udało się usunąć rysunku.");
+                if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+              }
               refresh();
             }}
             className="mt-1.5 text-[11px] text-muted hover:text-red-400"

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureHubSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { isPlausibleDateString } from "@/lib/projects";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,10 @@ export async function PATCH(
 
   await ensureHubSchema();
   const sql = getSql();
+
+  // Kamień mógł zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts.
+  const istnieje = await sql`SELECT 1 FROM project_milestones WHERE id = ${milestoneId} AND project_id = ${id};`;
+  if (istnieje.length === 0) return odpowiedzBrakRekordu("kamień milowy");
 
   if ("nazwa" in body && typeof body.nazwa === "string") {
     await sql`UPDATE project_milestones SET nazwa = ${body.nazwa.slice(0, 200)} WHERE id = ${milestoneId} AND project_id = ${id};`;

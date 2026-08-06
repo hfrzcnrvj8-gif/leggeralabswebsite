@@ -266,14 +266,19 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
     }
     const ok = await confirm(`Dodać ${toAdd.length} firm ze startowej listy?`);
     if (!ok) return;
+    let odmowy = 0;
     for (const s of toAdd) {
-      await fetch("/api/leads", {
+      const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(s),
       });
+      if (!res.ok) odmowy += 1;
     }
-    toast(`Dodano ${toAdd.length} firm.`);
+    // Etap 3: komunikat mówił „Dodano N firm" niezależnie od tego, ile
+    // naprawdę weszło.
+    if (odmowy > 0) toast(`Dodano ${toAdd.length - odmowy} z ${toAdd.length} firm — reszty nie udało się zapisać.`, "error");
+    else toast(`Dodano ${toAdd.length} firm.`);
     load();
   }, [leads, confirm, toast, load]);
 

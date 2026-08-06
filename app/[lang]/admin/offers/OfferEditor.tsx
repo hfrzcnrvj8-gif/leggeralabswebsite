@@ -35,6 +35,7 @@ import { PROJECT_TEMPLATES, formatPlDate } from "@/lib/projects";
 import { formatPlDateTime, todayLocalISO, daysBetweenISO } from "@/lib/dates";
 import { addDaysISO } from "@/lib/documents";
 import { useUI } from "../ui";
+import { odmowaZapisu } from "../dane";
 import { PasekBramki, useWysylkaZBramka } from "../BramkaWysylki";
 import type { WynikBramki } from "@/lib/bramkaWysylki";
 import { DateField } from "../DatePicker";
@@ -351,17 +352,31 @@ export function OfferEditor({
         body: JSON.stringify(patch),
       });
       if (res.ok) flashSaved();
-      else setSaveState("idle");
+      else {
+        setSaveState("idle");
+        // Do etapu 3 kończyło się na tej linijce. Zmierzone: po wygaśnięciu
+        // sesji treść bloku oferty zostawała na ekranie, a w bazie stara —
+        // bez jednego znaku komunikatu. To najdotkliwszy przypadek w panelu,
+        // bo tu przepada tekst pisany minutami.
+        const odmowa = await odmowaZapisu(res);
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
+      }
     },
-    [id, flashSaved]
+    [id, flashSaved, toast, load]
   );
 
   const deleteSection = useCallback(
     async (sectionId: string) => {
       setSections((prev) => prev.filter((s) => s.id !== sectionId));
-      await fetch(`/api/offers/${id}/sections/${sectionId}`, { method: "DELETE" });
+      const res = await fetch(`/api/offers/${id}/sections/${sectionId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const odmowa = await odmowaZapisu(res, "Nie udało się usunąć bloku.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
+      }
     },
-    [id]
+    [id, toast, load]
   );
 
   /** Zamiana miejscami z sąsiadem. Strzałki zamiast przeciągania — sekcji jest
@@ -376,7 +391,7 @@ export function OfferEditor({
       next[index] = b;
       next[cel] = a;
       setSections(next.map((s, i) => ({ ...s, position: i })));
-      await Promise.all([
+      const wyniki = await Promise.all([
         fetch(`/api/offers/${id}/sections/${a.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -388,8 +403,16 @@ export function OfferEditor({
           body: JSON.stringify({ position: index }),
         }),
       ]);
+      // Kolejność bloków jest treścią oferty — nieudana zamiana zostawała
+      // dotąd na ekranie jako fakt dokonany (etap 3).
+      const nieudane = wyniki.find((r) => !r.ok);
+      if (nieudane) {
+        const odmowa = await odmowaZapisu(nieudane, "Nie udało się zmienić kolejności.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
+      }
     },
-    [id, sections]
+    [id, sections, toast, load]
   );
 
   const patchItem = useCallback(
@@ -406,9 +429,12 @@ export function OfferEditor({
         onChange?.();
       } else {
         setSaveState("idle");
+        const odmowa = await odmowaZapisu(res);
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
       }
     },
-    [id, flashSaved, onChange]
+    [id, flashSaved, onChange, toast, load]
   );
 
   /** Zamiana pozycji miejscami — strzałki, nie przeciąganie (ten sam powód
@@ -425,7 +451,7 @@ export function OfferEditor({
       next[index] = b;
       next[cel] = a;
       setItems(next.map((it, i) => ({ ...it, position: i })));
-      await Promise.all([
+      const wyniki = await Promise.all([
         fetch(`/api/offers/${id}/items/${a.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -437,18 +463,29 @@ export function OfferEditor({
           body: JSON.stringify({ position: index }),
         }),
       ]);
+      const nieudane = wyniki.find((r) => !r.ok);
+      if (nieudane) {
+        const odmowa = await odmowaZapisu(nieudane, "Nie udało się zmienić kolejności.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
+      }
       onChange?.();
     },
-    [id, items, onChange]
+    [id, items, onChange, toast, load]
   );
 
   const deleteItem = useCallback(
     async (itemId: string) => {
       setItems((prev) => prev.filter((it) => it.id !== itemId));
-      await fetch(`/api/offers/${id}/items/${itemId}`, { method: "DELETE" });
+      const res = await fetch(`/api/offers/${id}/items/${itemId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const odmowa = await odmowaZapisu(res, "Nie udało się usunąć pozycji.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
+      }
       onChange?.();
     },
-    [id, onChange]
+    [id, onChange, toast, load]
   );
 
   const accept = useCallback(

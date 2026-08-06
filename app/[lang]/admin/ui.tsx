@@ -10,6 +10,8 @@ import {
   type StanPotwierdzenia,
   type WynikZadania,
 } from "./Potwierdzenie";
+import { PasekSesji } from "./PasekSesji";
+import { zainstalujStrazSesji } from "./strazSesji";
 
 type ToastItem = { id: string; message: string; type: "success" | "error" };
 type ConfirmState = { message: string; danger?: boolean; resolve: (v: boolean) => void } | null;
@@ -114,6 +116,14 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
   const [potwierdzenieState, setPotwierdzenieState] = useState<StanPotwierdzenia | null>(null);
   const [contextActions, setContextActions] = useState<Action[]>([]);
   const promptInputRef = useRef<HTMLInputElement>(null);
+
+  // Straż sesji (etap 3) — zakłada podgląd na `window.fetch` raz, przy
+  // pierwszym renderze panelu. Dzięki temu KAŻDY z 243 zapisów panelu (i każdy
+  // przyszły) rozpoznaje wygasłą sesję, choć żaden o tym nie wie. Powód
+  // i pomiary: `strazSesji.ts`.
+  useEffect(() => {
+    zainstalujStrazSesji();
+  }, []);
 
   const toast = useCallback((message: string, type: "success" | "error" = "success") => {
     const id = Math.random().toString(36).slice(2);
@@ -229,6 +239,8 @@ export function AdminUIProvider({ children }: { children: React.ReactNode }) {
         Dokładając tu szósty kontener: dopisz mu OBIE klasy. Bez nich nie będzie
         żadnego objawu w kodzie — tylko biała karta na ciemnym tle w panelu.
       */}
+      <PasekSesji />
+
       <div className="admin-linear pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-xs flex-col gap-2 text-[var(--fg)]">
         <AnimatePresence>
           {toasts.map((t) => (

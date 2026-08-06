@@ -11,6 +11,9 @@ import { stopienPilnosci, PILNOSC_HEX } from "@/lib/kolorStanu";
 // trójkąta), więc ten sam „Krytyczny" wyglądał inaczej w każdym z dwóch
 // widoków tego samego modułu, a użyty tam pomarańcz znaczy „po terminie".
 import { statusIconEl, PriorityIcon } from "./ProjectKanban";
+import { zglosWygasnieciesesji } from "../strazSesji";
+import { odmowaZapisu } from "../dane";
+import { useUI } from "../ui";
 
 type TimelineMilestone = { id: string; nazwa: string; termin: string | null };
 type TimelineProject = {
@@ -100,6 +103,7 @@ export function ProjectTimeline({
    *  nie powtarza wezwania, tylko dopowiada różnicę (patrz komentarz niżej). */
   listaJuzOstrzega?: boolean;
 }) {
+  const { toast } = useUI();
   const [projects, setProjects] = useState<TimelineProject[] | null>(null);
   const [deps, setDeps] = useState<{ project_id: string; depends_on_id: string }[]>([]);
   // Sufit osi czasu (TIMELINE_LIMIT) jest NIŻSZY niż sufit listy, więc oś czasu
@@ -134,7 +138,10 @@ export function ProjectTimeline({
     (async () => {
       const res = await fetch("/api/projects/timeline");
       if (res.status === 401) {
-        window.location.reload();
+        // Sesja wygasła: NIE przeładowujemy (etap 3). Przeładowanie kasowało
+        // niezapisany formularz bez ostrzeżenia — pasek ze `strazSesji.ts`
+        // mówi, co się stało, i pozwala zalogować się bez opuszczania ekranu.
+        zglosWygasnieciesesji();
         return;
       }
       const data = (await res.json()) as {
@@ -229,11 +236,22 @@ export function ProjectTimeline({
             p.id === dg.projectId ? { ...p, milestones: p.milestones.map((m) => (m.id === dg.milestoneId ? { ...m, termin: iso } : m)) } : p
           ) ?? prev
         );
-        await fetch(`/api/projects/${dg.projectId}/milestones/${dg.milestoneId}`, {
+        const res = await fetch(`/api/projects/${dg.projectId}/milestones/${dg.milestoneId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ termin: iso }),
         });
+        // Etap 3: przeciągnięty kamień zostawał w nowym miejscu na ekranie
+        // także wtedy, gdy zapis nie doszedł (wygasła sesja, kamień usunięty
+        // w drugim oknie) — bez jednego słowa.
+        if (!res.ok) {
+          const odmowa = await odmowaZapisu(res, "Nie udało się przesunąć terminu.");
+          if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+          if (odmowa.cofnij) {
+            window.location.reload();
+            return;
+          }
+        }
       } else {
         let ns = dg.origStart;
         let ne = dg.origEnd;
@@ -253,11 +271,19 @@ export function ProjectTimeline({
         const body: Record<string, string> = {};
         if (dg.kind === "move" || dg.kind === "start") body.start = sIso;
         if (dg.kind === "move" || dg.kind === "end") body.termin = tIso;
-        await fetch(`/api/projects/${dg.projectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const res = await fetch(`/api/projects/${dg.projectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!res.ok) {
+          const odmowa = await odmowaZapisu(res, "Nie udało się przesunąć projektu.");
+          if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+          if (odmowa.cofnij) {
+            window.location.reload();
+            return;
+          }
+        }
       }
       onChange?.();
     },
-    [onChange]
+    [onChange, toast]
   );
 
   useEffect(() => {

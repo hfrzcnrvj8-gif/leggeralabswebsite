@@ -17,6 +17,7 @@ import { PROJECT_HEALTHS, PROJECT_HEALTH_CLASS } from "@/lib/projects";
 import type { StatsTrendPoint } from "@/lib/stats";
 import { TrendChart } from "./TrendChart";
 import { StanBledu } from "../StanPusty";
+import { zglosWygasnieciesesji } from "../strazSesji";
 
 type StatsData = {
   months: string[];
@@ -117,7 +118,10 @@ export function StatsDashboard() {
     fetch("/api/stats")
       .then((res) => {
         if (res.status === 401) {
-          window.location.reload();
+          // Sesja wygasła: NIE przeładowujemy (etap 3). Przeładowanie kasowało
+          // niezapisany formularz bez ostrzeżenia — pasek ze `strazSesji.ts`
+          // mówi, co się stało, i pozwala zalogować się bez opuszczania ekranu.
+          zglosWygasnieciesesji();
           return null;
         }
         if (!res.ok) throw new Error(`Serwer zwrócił błąd ${res.status}.`);

@@ -150,10 +150,51 @@ Zakres:
 
 ---
 
-## Etap 3 — Sytuacje krytyczne, których jeszcze nie przechodziliśmy
+## Etap 3 — Sytuacje krytyczne, których jeszcze nie przechodziliśmy ✅
 
 **Kto:** ja. **Czas:** jedna sesja.
 **Brief: `docs/ETAP-3-BRZEGI-BRIEF.md` (2026-08-06), z rekonesansem.**
+
+> **✅ ZAMKNIĘTY 2026-08-06. Wynik: `docs/ETAP-3-WYNIK.md`.**
+>
+> **Trzy scenariusze przebiegnięte, czwarty niewykonalny stąd i wiadomo
+> dlaczego.** Dwie rzeczy kłamały, obie naprawione.
+>
+> **(1) Dwie karty.** Różne pola tego samego dokumentu nie depczą się —
+> granularność PATCH-a potwierdzona pomiarem. Groźne okazało się co innego niż
+> wyścig: **usunięcie**. Karta A kasuje rekord, karta B dalej go edytuje —
+> i **9 z 16 rodzajów rekordów odpowiadało `{"ok":true}` na zapis, który nie
+> zmienił ani jednego wiersza** (klient, projekt, lead, pozycja i treść oferty,
+> zadanie, kamień, punkt startowy, osoba kontaktowa). Naprawione jedną funkcją
+> `lib/brakRekordu.ts`; sonda po naprawie: **0 z 16**. Bliźniaki się rozjechały
+> — pozycja FAKTURY sprawdzała to od początku, pozycja OFERTY nie.
+>
+> **(2) Wygasła sesja.** Zmierzone na żywym edytorze: przy tytule oferty toast
+> „Nie udało się zapisać." na 3,4 s, przy **treści oferty — ZERO znaków**,
+> a ekran w obu przypadkach dalej pokazywał niezapisany tekst. **243 miejsca
+> zapisu, w żadnym nie pada 401.** Powstała **straż sesji** (`strazSesji.ts`)
+> — jedno opakowanie `window.fetch`, które obejmuje wszystkie 243 i każde
+> przyszłe — plus pasek z logowaniem NA MIEJSCU, bez przeładowania. Osiem
+> samoczynnych `window.location.reload()` przy 401 usuniętych: kasowały
+> niezapisany formularz bez ostrzeżenia.
+>
+> **(3) Zerwana wysyłka maila** — pierwszy raz uruchomiona, na atrapie SMTP.
+> Bezpiecznik odcisku **działa**: zerwanie żądania dało **1 mail u klienta**,
+> ponowienie w locie „poprzednia próba trwa", po zakończeniu „już wysłana"
+> + wskazanie tamtej wiadomości. Nieudana wysyłka NIE blokuje ponowienia.
+>
+> **(4) Odtworzenie kopii** — niewykonalne stąd z trzech niezależnych powodów
+> (kopie nie są uruchomione, brak `psql`/`pg_dump` i Dockera, brak dostępu do
+> Neona). Sprawdzona za to **czujka**: `brak → ok → blad` na Pulpicie działa
+> end-to-end. Odtworzenie jednej kopii do pustej bazy — po rejestracji.
+>
+> **Otwarte świadomie:** wykrywanie „ktoś zmienił ten rekord, odkąd go
+> otworzyłeś" (decyzja właściciela: „wykryj i powiedz, nie blokuj" — materiał
+> jest, `updated_at` wraca w każdym `GET`, mechanizmu nie ma). **Do etapu 5.**
+>
+> `tsc` czysto, `npm test` **357/357**, `npm run przejscie` **120 działa ·
+> 0 regresji** (nowe zdania sprawdzone kontrolnie przez tymczasowe cofnięcie
+> poprawki).
 
 > **Rekonesans przed briefem (2026-08-06), czytany z kodu — NIE zmierzony.**
 > Kontroli współbieżności nie ma żadnej (zero `If-Match`/`ETag`, zero

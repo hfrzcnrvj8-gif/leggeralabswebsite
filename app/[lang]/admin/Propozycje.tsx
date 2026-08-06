@@ -110,14 +110,19 @@ export function Propozycje({ lang, modul, rekordId, onZmiana, bezPlyty, wstepne 
     const res = await fetch("/api/hub/propozycje?odrzucone=1");
     if (!res.ok) return;
     const d = (await res.json()) as { odrzucone?: { regula: string; rekordId: string }[] };
+    let odmowy = 0;
     for (const o of d.odrzucone ?? []) {
-      await fetch("/api/hub/propozycje", {
+      const w = await fetch("/api/hub/propozycje", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ regula: o.regula, rekordId: o.rekordId, decyzja: "przywroc" }),
       });
+      if (!w.ok) odmowy += 1;
     }
-    toast("Odłożone propozycje wróciły na listę.");
+    // Etap 3: pętla kończyła się zawsze zdaniem „wróciły na listę", także gdy
+    // nie wróciła ani jedna.
+    if (odmowy > 0) toast(`Nie udało się przywrócić ${odmowy} propozycji.`, "error");
+    else toast("Odłożone propozycje wróciły na listę.");
     await wczytaj();
     onZmiana?.();
   };

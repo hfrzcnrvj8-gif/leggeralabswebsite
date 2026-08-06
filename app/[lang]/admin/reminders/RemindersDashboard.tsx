@@ -12,7 +12,7 @@ import { useSkrotyListy } from "../klawiatura";
 import { PoleSzukania } from "../PoleSzukania";
 import { ExpandingIconButton } from "../ExpandingIconButton";
 import { Popover, MenuRow, ContextMenu, ContextMenuItem, MenuDivider, useContextMenu } from "../Menu";
-import { pobierzJSON, komunikatBledu } from "../dane";
+import { pobierzJSON, komunikatBledu, odmowaZapisu } from "../dane";
 import { ReminderDetail } from "./ReminderDetail";
 import { SeriaTag } from "../CyklPicker";
 import {
@@ -115,11 +115,17 @@ export function RemindersDashboard({ lang }: { lang: Locale }) {
   const usun = useCallback(
     async (r: Reminder) => {
       if (!(await confirm(`Usunąć „${r.tytul}”?`))) return;
-      await fetch(`/api/reminders/${r.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/reminders/${r.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const odmowa = await odmowaZapisu(res, "Nie udało się usunąć przypomnienia.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) await wczytaj();
+        return;
+      }
       if (otwarte === r.id) setOtwarte(null);
       await wczytaj();
     },
-    [confirm, otwarte, wczytaj]
+    [confirm, otwarte, wczytaj, toast]
   );
 
   const dodajListe = useCallback(async () => {
@@ -549,11 +555,15 @@ function ZarzadzanieLista({
   const zmienNazwe = async () => {
     const nazwa = await prompt("Nowa nazwa listy", { placeholder: lista.nazwa });
     if (!nazwa?.trim() || nazwa.trim() === lista.nazwa) return;
-    await fetch(`/api/reminders/lists/${lista.id}`, {
+    const res = await fetch(`/api/reminders/lists/${lista.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ nazwa: nazwa.trim() }),
     });
+    if (!res.ok) {
+      const odmowa = await odmowaZapisu(res, "Nie udało się zmienić nazwy listy.");
+      if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+    }
     onZmiana();
   };
 
@@ -576,11 +586,15 @@ function ZarzadzanieLista({
   };
 
   const zmienKolor = async (kolor: string) => {
-    await fetch(`/api/reminders/lists/${lista.id}`, {
+    const res = await fetch(`/api/reminders/lists/${lista.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ kolor }),
     });
+    if (!res.ok) {
+      const odmowa = await odmowaZapisu(res, "Nie udało się zmienić koloru listy.");
+      if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+    }
     onZmiana();
   };
 

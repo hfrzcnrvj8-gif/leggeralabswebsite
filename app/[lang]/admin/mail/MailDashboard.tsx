@@ -54,6 +54,7 @@ import { ContextMenu, ContextMenuItem, MenuDivider, MenuLabel, PropertyMenu, use
 import { FilterPills, FilterPillsBar } from "../FilterPills";
 import { ViewSwitch } from "../ViewTabs";
 
+
 // Filtry to dwie NIEZALEŻNE osie, jak status vs zdrowie projektu: co wymaga
 // mojej reakcji (góra) i czego dotyczy (dół, kategorie). Mieszanie ich w jedną
 // listę zmuszałoby do wyboru "albo do odpowiedzi, albo rachunki". Sensowne
@@ -383,17 +384,23 @@ export function MailDashboard({ lang }: { lang: Locale }) {
       const ids = [...selectedIds];
       if (ids.length === 0) return;
       setBulkBusy(true);
+      // Liczymy odmowy zamiast przerywać na pierwszej: przy zaznaczeniu
+      // dwudziestu wiadomości „część się nie udała" jest prawdą, którą trzeba
+      // powiedzieć, a nie powodem, żeby zostawić resztę nietkniętą (etap 3).
+      let odmowy = 0;
       for (const id of ids) {
-        await fetch(`/api/mail/${id}`, {
+        const res = await fetch(`/api/mail/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status }),
         });
+        if (!res.ok) odmowy += 1;
       }
       setBulkBusy(false);
       clearSelection();
       await load();
-      toast(`Zaktualizowano status dla ${ids.length} wiadomości.`);
+      if (odmowy > 0) toast(`Nie udało się zmienić statusu ${odmowy} z ${ids.length} wiadomości.`, "error");
+      else toast(`Zaktualizowano status dla ${ids.length} wiadomości.`);
     },
     [selectedIds, clearSelection, load, toast]
   );

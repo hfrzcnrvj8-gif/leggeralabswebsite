@@ -64,6 +64,16 @@ poprawiał kodu — jeśli coś wymaga decyzji nietechnicznej, zapytaj wprost.
   MUSI być owinięte w `inMigration()` z `lib/migration-ctx.ts`, inaczej w dev
   zakleszcza seeder i **wszystkie `/api/*` wiszą kilkadziesiąt sekund**.
   Filtr `isDDL()` łapie tylko CREATE/ALTER/DROP.
+- **Zapis do rekordu, którego już nie ma, MUSI odmówić** (etap 3, 2026-08-06).
+  `UPDATE … WHERE id = …` na nieistniejący wiersz to poprawne zapytanie: zmienia
+  zero wierszy, nie zgłasza błędu — a trasa odpowiadająca wtedy `{"ok":true}`
+  każe panelowi napisać „Zapisano" nad treścią, której nie ma w bazie. Sonda
+  etapu 3 znalazła tak **9 z 16 rodzajów rekordów** (scenariusz: drugie okno
+  panelu skasowało rekord w trakcie edycji). Każdy `PATCH` sprawdza istnienie
+  i oddaje `odpowiedzBrakRekordu(rodzaj)` z `lib/brakRekordu.ts`. **Nie dotyczy
+  `DELETE`** — usunięcie czegoś, czego nie ma, kończy się tym, o co proszono.
+  Rekordy główne zwykle i tak robią `SELECT` przed zapisem (log zmian), więc to
+  jeden `if`, nie nowe zapytanie.
 - Zmienne środowiskowe: `DATABASE_URL` (lub `POSTGRES_URL`),
   `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, opcjonalnie `RESEND_API_KEY` /
   `RESEND_FROM` / `CRON_SECRET` dla dziennego raportu mailowego.
@@ -145,6 +155,16 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   tych zamiast generycznych kolorów Tailwind, gdy dodajesz nowe akcenty
 - `useUI()` (`app/[lang]/admin/ui.tsx`) daje `toast()`, `confirm()`,
   `prompt()` — NIGDY `window.confirm/alert/prompt`
+- **Wygasła sesja ma JEDNO miejsce: pasek** (`app/[lang]/admin/strazSesji.ts`
+  + `PasekSesji.tsx`, etap 3). Straż podgląda `window.fetch` raz przy starcie
+  panelu, więc **każdy** zapis do `/api` (dziś 244, jutro więcej) rozpoznaje
+  401 bez własnego kodu. Stąd dwa zakazy: **nie dokładaj `window.location.reload()`
+  przy 401** (kasuje niezapisany formularz bez ostrzeżenia — osiem takich
+  miejsc usunięto) i **nie pisz własnego komunikatu o wygasłej sesji** (dwa
+  zdania o tym samym uczą ignorować oba). Odmowę zapisu obsługuj przez
+  `odmowaZapisu(res)` z `dane.ts`: przy 401 oddaje `{ komunikat: null,
+  cofnij: false }` — bo treść na ekranie MUSI zostać, właściciel loguje się
+  w pasku i zapisuje ją jeszcze raz.
 - Globalna paleta poleceń (Cmd/Ctrl+K) + `useRegisterActions()` — każdy
   nowy moduł powinien zarejestrować swoją akcję „+ Dodaj X” z `id: "add"`
   (skrót `n`)

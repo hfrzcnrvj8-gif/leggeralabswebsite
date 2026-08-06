@@ -22,6 +22,7 @@ import { Modal } from "../Modal";
 import { Popover, MenuLabel, MenuRow } from "../Menu";
 import { useUI, isTypingTarget } from "../ui";
 import { SekcjaProfilu, WierszPola } from "../ProfileSection";
+import { odmowaZapisu } from "../dane";
 
 /** Pole formularza łowcy w wierszu profilu. `WierszPola` narzuca `input`-om
  *  wspólne wcięcie i rozmiar, więc zostaje sama ramka. */
@@ -533,14 +534,18 @@ export function CandidatesView({
 
   const przelaczPolowanie = useCallback(
     async (p: Polowanie) => {
-      await fetch(`/api/leads/hunts/${p.id}`, {
+      const res = await fetch(`/api/leads/hunts/${p.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ aktywne: !p.aktywne }),
       });
+      if (!res.ok) {
+        const odmowa = await odmowaZapisu(res, "Nie udało się przełączyć polowania.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+      }
       await onOdswiez();
     },
-    [onOdswiez]
+    [onOdswiez, toast]
   );
 
   /** Odrzucenie z klawiatury musi zapytać o powód tak samo jak myszą — powód

@@ -58,6 +58,7 @@ import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { FieldChangesTab } from "../FieldChangesTab";
 import { ClientContacts } from "./ClientContacts";
 import type { FieldChange } from "@/lib/audit";
+import { zglosWygasnieciesesji } from "../strazSesji";
 
 type LinkedOffer = { id: string; tytul: string; status: string; wazna_do: string | null; created_at: string };
 type LinkedInvoice = {
@@ -222,7 +223,10 @@ export function ClientDetailPanel({
   const load = useCallback(async () => {
     const res = await fetch(`/api/clients/${id}`);
     if (res.status === 401) {
-      window.location.reload();
+      // Sesja wygasła: NIE przeładowujemy (etap 3). Przeładowanie kasowało
+      // niezapisany formularz bez ostrzeżenia — pasek ze `strazSesji.ts`
+      // mówi, co się stało, i pozwala zalogować się bez opuszczania ekranu.
+      zglosWygasnieciesesji();
       return;
     }
     if (res.status === 404) {

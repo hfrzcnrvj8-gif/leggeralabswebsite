@@ -16,6 +16,7 @@ import {
 import { skutkiZmianyStatusuProjektu } from "@/lib/skutkiProjektu";
 import { contractReference, type ContractTyp } from "@/lib/contracts";
 import type { ContractRow } from "@/lib/sciezkaDokumentow";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -215,6 +216,8 @@ export async function PATCH(
   const current = (await sql`SELECT * FROM projects WHERE id = ${id};`)[0] as
     | Record<string, unknown>
     | undefined;
+  // Projekt mógł zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts.
+  if (!current) return odpowiedzBrakRekordu("projekt");
 
   // Zbieramy czytelne opisy zmian pól śledzonych na osi historii projektu.
   const changes: string[] = [];

@@ -1,4 +1,4 @@
-# Handoff — stan na 2026-08-06, po etapie 2 (audyt 1B)
+# Handoff — stan na 2026-08-06, po etapie 3 (brzegi)
 
 Plik tymczasowy: wklej jako pierwszą wiadomość w nowym czacie. Pamięć Claude ma
 to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
@@ -7,16 +7,17 @@ to samo zapisane na trwałe. Pełny opis funkcjonalności: `HUB_SETUP.md` /
 
 ## Punkt startu
 
-- **Panel:** na wierzchu **etapu 2 planu domknięcia (Audyt 1B — przyrost
-  tras)**; pod spodem przegląd szwów i etap 1. `tsc` czysto, `npm test`
-  **352/352**, `npm run przejscie` **116 działa · 0 regresji**. Etap 2 **nie
-  zmienił zachowania panelu ani w jednym miejscu** — dołożył wyłącznie
-  narzędzie pomiarowe `scripts/sonda-401.ts` i dokument wyniku. Przegląd szwów
-  (pod spodem) ZMIENIŁ zachowanie w pięciu miejscach, patrz niżej.
+- **Panel:** na wierzchu **etapu 3 planu domknięcia (sytuacje krytyczne)**;
+  pod spodem etap 2 (audyt 1B), przegląd szwów i etap 1. `tsc` czysto,
+  `npm test` **357/357**, `npm run przejscie` **120 działa · 0 regresji**.
+  Etap 3 ZMIENIŁ zachowanie panelu w trzech rodzinach miejsc (dziewięć tras
+  odmawia zapisu do usuniętego rekordu, straż sesji zamiast ośmiu
+  przeładowań, czternaście zapisów przestało milczeć przy odmowie) — patrz
+  niżej.
 - **Apka** (`../leggera-hub-ios`, osobne repo i osobny `origin`): na wierzchu
   **`255dc84`**. Buduje się, `swift test` w `LeggeraHubCore` daje **9/9**.
   Ani etap 1, ani przegląd szwów apki nie dotykały.
-- `npm run przejscie`: **116 działa · 0 znanych luk · 0 regresji · 0 obejść ·
+- `npm run przejscie`: **120 działa · 0 znanych luk · 0 regresji · 0 obejść ·
   0 pominiętych**, powtarzalne (trzy biegi pod rząd dają to samo). Sufit:
   łączny limit hamulca (60/60 min) ogranicza to do ~5 przebiegów na godzinę;
   po `npm run dev` od nowa wraca komplet.
@@ -48,32 +49,75 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 ## Co jest następnym krokiem
 
 **PLAN DOMKNIĘCIA (`docs/PLAN-DOMKNIECIA.md`) — pięć etapów, idziemy po kolei.**
-Etapy 1 i 2 ✅ zamknięte. **NASTĘPNY: etap 3 — sytuacje krytyczne, których
-jeszcze nie przechodziliśmy. Brief gotowy, z rekonesansem:
-`docs/ETAP-3-BRZEGI-BRIEF.md`.** Etap 4 (przegląd UI prawdziwymi oczami)
-należy do właściciela i może iść równolegle — to jedyny etap, którego nie da
-się zrobić z tego środowiska.
+Etapy 1, 2 i 3 ✅ zamknięte. **NASTĘPNY: etap 4 — przegląd UI prawdziwymi
+oczami. Należy do WŁAŚCICIELA** i jest jedynym etapem, którego nie da się
+zrobić z tego środowiska (podgląd tutaj to karta ukryta 0×0). Po nim etap 5 —
+poprawki z jego listy.
 
-**Co dał rekonesans do etapu 3** (czytane z kodu, NIE zmierzone — brief etapu 2
-nauczył, że rekonesans myli się w obie strony):
+**Do etapu 5 dochodzi jedna rzecz z etapu 3, na którą decyzja już zapadła:**
+wykrywanie „ktoś zmienił ten rekord, odkąd go otworzyłeś". Właściciel wybrał
+**„wykryj i powiedz, nie blokuj"** (nie blokada rekordu, nie pytanie
+„nadpisać?"). Materiał jest — `updated_at` wraca w każdym `GET` — mechanizmu
+nie ma. Etap 3 zamknął tylko sąsiedni przypadek: zapis do rekordu USUNIĘTEGO.
 
-- **Kontroli współbieżności nie ma żadnej** — zero `If-Match`/`ETag`, zero
-  `UPDATE … AND updated_at = …`. Ostatni zapis wygrywa po cichu.
-- **Ratuje to granularność PATCH-a:** trasy piszą pole po polu
-  (`if ("tytul" in body)`), a edytor oferty wysyła samą różnicę. Więc dwie
-  karty w RÓŻNE pola prawdopodobnie się nie zadepczą — groźny jest ten sam
-  kawałek treści, a najbardziej **pozycje faktury/oferty**. Nie wiadomo, czy
-  wszystkie edytory są granularne.
-- **401 w trakcie pracy przeładowuje stronę** (`dane.ts`), kasując
-  niezapisany formularz bez ostrzeżenia. Ale to gardło ODCZYTU: w panelu jest
-  **190 wywołań POST/PATCH i ANI JEDNO nie idzie przez `pobierzJSON`**. Co
-  widzi właściciel, gdy sesja wygaśnie w połowie formularza — nie wiadomo.
-  Sesję da się unieważnić bez czekania: zmiana `ADMIN_PASSWORD` w `.env.local`
-  + restart (token to `sha256(hasło:sekret)`).
+**0. Etap 3 planu domknięcia — SYTUACJE KRYTYCZNE — ZROBIONY 2026-08-06.**
+Wynik: **`docs/ETAP-3-WYNIK.md`**. Brief: `docs/ETAP-3-BRZEGI-BRIEF.md`.
 
-Scenariusz „dwie karty" wymaga **decyzji nietechnicznej właściciela**, zanim
-cokolwiek naprawimy: blokada rekordu, ostrzeżenie „ktoś zmienił to
-w międzyczasie", czy „ostatni wygrywa, ale powiedz o tym". Brief o tym mówi.
+Cztery scenariusze, których nigdy nie przechodziliśmy: **trzy przebiegnięte,
+czwarty niewykonalny stąd i wiadomo dlaczego.**
+
+**Dwie rzeczy kłamały. Obie naprawione, obie w przejściu.**
+
+1. **„Zapisano" bez zapisu.** Karta A kasuje rekord, karta B dalej go edytuje —
+   `UPDATE … WHERE id = …` na nieistniejący wiersz zmienia zero wierszy i nie
+   zgłasza błędu, więc trasa odpowiadała `{"ok":true}`. Sonda przeszła **16
+   rodzajów rekordów, kłamało 9** (klient, projekt, lead, pozycja i TREŚĆ
+   oferty, zadanie, kamień, punkt startowy, osoba kontaktowa). Naprawa: jedna
+   funkcja `lib/brakRekordu.ts` + `if` w dziewięciu trasach; po naprawie
+   **0 z 16**. Dwa szczegóły warte pamięci: **bliźniaki się rozjechały**
+   (pozycja FAKTURY sprawdzała to od początku, pozycja OFERTY nie), a w
+   `api/clients/[id]/route.ts` stał komentarz *„brak wiersza = klient
+   skasowany w międzyczasie; UPDATE-y i tak nic nie trafią"* — kod WIEDZIAŁ
+   i wzruszał ramionami.
+2. **Wygasła sesja w ciszy.** Zmierzone na żywym edytorze (podmieniony
+   `window.fetch`, prawdziwe kliknięcia): przy tytule oferty toast „Nie udało
+   się zapisać." na 3,4 s, przy **treści oferty ZERO znaków** — a ekran w obu
+   przypadkach dalej pokazywał niezapisany tekst. **243 miejsca zapisu, w żadnym
+   nie pada 401.** Powstała **straż sesji** (`app/[lang]/admin/strazSesji.ts`):
+   jedno opakowanie `window.fetch` obejmujące wszystkie 243 i każde przyszłe,
+   plus pasek, który **nie znika sam** i pozwala zalogować się NA MIEJSCU, bez
+   przeładowania. Osiem samoczynnych `window.location.reload()` przy 401
+   usuniętych — kasowały niezapisany formularz. Czternaście zapisów przestało
+   milczeć przy odmowie.
+
+**Bezpiecznik wysyłki maila (`lib/mailGuard.ts`) uruchomiony PIERWSZY RAZ** —
+na atrapie SMTP (~80 linii na `node:net`, w `.env.local` `MAIL_*` na
+`127.0.0.1`). Zerwanie żądania w połowie wysyłki dało **1 mail u klienta**;
+ponowienie w locie usłyszało „poprzednia próba trwa", po zakończeniu „już
+wysłana" ze wskazaniem tamtej wiadomości; nieudana wysyłka NIE blokuje
+ponowienia. Atrapa nie została w repo (wymaga podmiany env i restartu).
+
+**Odtworzenie kopii — niewykonalne stąd**, z trzech niezależnych powodów:
+kopie na NAS nie są uruchomione, ten Mac nie ma `psql`/`pg_dump` ani
+działającego Dockera, do Neona nie ma stąd dostępu. Sprawdzona za to CZUJKA:
+`brak → ok → blad` na Pulpicie działa end-to-end przez `POST /api/backup/ping`.
+Odtworzenie jednej kopii do pustej bazy testowej — **po rejestracji**.
+
+**Trzy lekcje z tego etapu:**
+
+- **Rekonesans pomylił się w obie strony po raz TRZECI z rzędu.** Pisał „190
+  zapisów" (jest 243), „401 przeładowuje stronę" (nie przeładowuje — to gardło
+  odczytu), „pozycje bywają kasowane i wstawiane od nowa" (nie są). Liczba
+  z greta jest hipotezą, nie wynikiem — trzeci dowód, chyba ostatni potrzebny.
+- **Poprawkę widoczną na ekranie trzeba obejrzeć na ekranie.** Pierwsza wersja
+  straży cofała podgląd przy KAŻDEJ odmowie, w tym przy 401 — więc pasek mówił
+  „to, co masz na ekranie, zostaje", a pole obok już pokazywało starą treść
+  z bazy. `tsc` przechodził, testy przechodziły, poprawka robiła coś
+  przeciwnego do zamiaru. Złapane dopiero przebiegiem w przeglądarce.
+- **Wyjątek bez testu to wyjątek, który zniknie bez objawu.** Straż ma cztery
+  (GET, `/api/admin/*`, obce domeny, `Request` zamiast stringa) i każdy ma
+  własne zdanie w `test/strazSesji.test.ts` — bez nich strażnik zacząłby
+  krzyczeć „sesja wygasła" przy BŁĘDNYM HAŚLE na ekranie logowania.
 
 **0. Etap 2 planu domknięcia — AUDYT 1B (przyrost tras) — ZROBIONY 2026-08-06.**
 Wynik: **`docs/AUDYT-1B-PRZYROST.md`**. Brief: `docs/ETAP-2-BEZPIECZENSTWO-BRIEF.md`.
@@ -359,7 +403,7 @@ jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 - `npx tsc --noEmit -p tsconfig.json` po każdej paczce zmian (pełny
   `next build` failuje w sandboxie z EPERM). **`tsc` nie wie nic o więzach
   bazy** ani o SQL-u w szablonach.
-- `npm test` — 340 testów nad czystymi funkcjami z `lib/`.
+- `npm test` — 357 testów nad czystymi funkcjami z `lib/` (i jeden nad strażą sesji).
 - **Każda nowa trasa w `app/api` jest domyślnie OTWARTA** —
   `if (!(await isAuthed()))` sprawdzaj per uchwyt HTTP, nie per plik.
 - **Podgląd w środowisku Claude to karta ukryta 0×0**: `requestAnimationFrame`

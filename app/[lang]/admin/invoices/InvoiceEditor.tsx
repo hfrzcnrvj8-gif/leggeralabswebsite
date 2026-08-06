@@ -59,6 +59,7 @@ import type { Client } from "@/lib/clients";
 import { lookupClientByNip } from "@/lib/vies";
 import { formatPlDate } from "@/lib/projects";
 import { useUI } from "../ui";
+import { odmowaZapisu } from "../dane";
 import { PasekBramki, useWysylkaZBramka } from "../BramkaWysylki";
 import type { WynikBramki } from "@/lib/bramkaWysylki";
 import { DateField } from "../DatePicker";
@@ -391,19 +392,29 @@ export function InvoiceEditor({
         onChange?.();
       } else {
         setSaveState("idle");
+        // Etap 3: pozycja faktury zmieniona po wygaśnięciu sesji (albo na
+        // fakturze usuniętej w drugim oknie) zostawała na ekranie bez słowa.
+        const odmowa = await odmowaZapisu(res);
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
       }
     },
-    [id, flashSaved, onChange]
+    [id, flashSaved, onChange, toast, load]
   );
 
   const deleteItem = useCallback(
     async (itemId: string) => {
       if (lockedRef.current) return;
       setItems((prev) => prev.filter((it) => it.id !== itemId));
-      await fetch(`/api/invoices/${id}/items/${itemId}`, { method: "DELETE" });
+      const res = await fetch(`/api/invoices/${id}/items/${itemId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const odmowa = await odmowaZapisu(res, "Nie udało się usunąć pozycji.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
+      }
       onChange?.();
     },
-    [id, onChange]
+    [id, onChange, toast, load]
   );
 
   const issue = useCallback(async () => {
@@ -617,6 +628,11 @@ export function InvoiceEditor({
     async (paymentId: string) => {
       setPayments((prev) => prev.filter((p) => p.id !== paymentId));
       const res = await fetch(`/api/invoices/${id}/payments/${paymentId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const odmowa = await odmowaZapisu(res, "Nie udało się usunąć wpłaty.");
+        if (odmowa.komunikat) toast(odmowa.komunikat, "error");
+        if (odmowa.cofnij) load();
+      }
       if (res.ok) {
         const data = (await res.json().catch(() => ({}))) as { status?: Invoice["status"] };
         if (data.status) {

@@ -13,6 +13,8 @@
  * wołać także kod serwerowy, gdyby zaszła potrzeba.
  */
 
+import { zglosWygasnieciesesji } from "./strazSesji";
+
 /** Rzucane przez `pobierzJSON`. Komunikat jest już po polsku i nadaje się
  * wprost na ekran — panel nigdy nie pokazuje surowego `Failed to fetch`. */
 export class BladPanelu extends Error {
@@ -24,9 +26,10 @@ export class BladPanelu extends Error {
   }
 }
 
-/** Sygnał „sesja wygasła" — nie jest błędem do pokazania, tylko powodem do
- * przeładowania strony (formularz logowania renderuje serwer). Rzucamy go,
- * żeby wołający przerwał swoją funkcję, ale NIE zapisywał komunikatu. */
+/** Sygnał „sesja wygasła" — nie jest błędem do pokazania, bo mówi o tym pasek
+ * ze `strazSesji.ts`. Rzucamy go, żeby wołający przerwał swoją funkcję, ale
+ * NIE zapisywał własnego komunikatu (dwa zdania o tym samym uczą ignorować
+ * oba). */
 export class SesjaWygasla extends Error {
   constructor() {
     super("Sesja wygasła");
@@ -35,9 +38,9 @@ export class SesjaWygasla extends Error {
 }
 
 /**
- * Pobiera JSON z trasy panelu. Zachowuje dotychczasowe zachowanie przy 401
- * (przeładowanie strony → formularz logowania), a każdą inną awarię zamienia
- * na `BladPanelu` z komunikatem po polsku.
+ * Pobiera JSON z trasy panelu. Przy 401 zapala pasek wygasłej sesji
+ * (`strazSesji.ts`) i rzuca `SesjaWygasla`; każdą inną awarię zamienia na
+ * `BladPanelu` z komunikatem po polsku.
  */
 export async function pobierzJSON<T>(url: string, init?: RequestInit): Promise<T> {
   let res: Response;
@@ -50,7 +53,12 @@ export async function pobierzJSON<T>(url: string, init?: RequestInit): Promise<T
   }
 
   if (res.status === 401) {
-    if (typeof window !== "undefined") window.location.reload();
+    // Do etapu 3 stało tu `window.location.reload()` — po to, żeby serwer
+    // narysował formularz logowania. Przeładowanie KASUJE niezapisany
+    // formularz bez ostrzeżenia, a odczyt potrafi wypaść w dowolnej chwili
+    // (dzwonek powiadomień odpytuje w tle). Dziś zamiast tego zapala się
+    // pasek — patrz `strazSesji.ts`.
+    zglosWygasnieciesesji();
     throw new SesjaWygasla();
   }
 
@@ -66,6 +74,41 @@ export async function pobierzJSON<T>(url: string, init?: RequestInit): Promise<T
   } catch {
     throw new BladPanelu("Panel zwrócił odpowiedź, której nie da się odczytać.", res.status);
   }
+}
+
+/**
+ * Zdanie o tym, dlaczego zapis się nie udał — do pokazania w toaście.
+ *
+ * **Po co osobna funkcja (etap 3, 2026-08-06).** Przebieg „sesja wygasła
+ * w połowie pracy" pokazał, że część zapisów panelu nie mówiła NIC (zmierzone
+ * na treści oferty: właściciel pisze, klika obok, ekran dalej pokazuje tekst,
+ * w bazie stara wartość, zero komunikatu). Poprawka miała jeden kształt
+ * w kilkunastu miejscach, więc kształt mieszka tutaj, nie w kopiach.
+ *
+ * Zdanie z trasy wygrywa, gdy jest: od etapu 3 trasy mówią wprost „ten rekord
+ * już nie istnieje, mógł zostać usunięty w innym oknie" (patrz
+ * `lib/brakRekordu.ts`), a to jest informacja, której nie da się zgadnąć
+ * z kodu odpowiedzi.
+ *
+ * O wygasłej sesji NIE mówimy tutaj — mówi o niej pasek (`strazSesji.ts`),
+ * a dwa komunikaty o tym samym uczą ignorować oba.
+ */
+export type OdmowaZapisu = {
+  /** Zdanie do toasta albo `null`, gdy mówi już o tym pasek wygasłej sesji. */
+  komunikat: string | null;
+  /** Czy cofnąć optymistyczny podgląd (zwykle przez `load()`). */
+  cofnij: boolean;
+};
+
+export async function odmowaZapisu(res: Response, zapasowy = "Nie udało się zapisać."): Promise<OdmowaZapisu> {
+  // **Przy wygasłej sesji NIE cofamy podglądu.** Pasek obiecuje wprost: „to,
+  // co masz na ekranie, zostaje" — a `load()` w tym miejscu zabierałby
+  // właśnie tę treść, dla której cały ten mechanizm powstał. Złapane
+  // przebiegiem w przeglądarce PO napisaniu poprawki: pasek mówił prawdę,
+  // a pole obok już pokazywało starą treść z bazy.
+  if (res.status === 401) return { komunikat: null, cofnij: false };
+  const dane = (await res.json().catch(() => null)) as { error?: string } | null;
+  return { komunikat: dane?.error?.trim() || zapasowy, cofnij: true };
 }
 
 /**

@@ -22,6 +22,7 @@ import { useUI } from "./ui";
 import { PasekBramki, useWysylkaZBramka } from "./BramkaWysylki";
 import { sprawdzMailPrzedWysylka } from "@/lib/bramkaWysylki";
 import { StanBledu } from "./StanPusty";
+import { zglosWygasnieciesesji } from "./strazSesji";
 
 type InvoiceRow = Invoice & { netto: number; vat: number; brutto: number; zaplacono: number };
 type OfferRow = Offer & { kwota: number };
@@ -181,7 +182,10 @@ export function DashboardHome({ lang }: { lang: Locale }) {
     fetch("/api/hub/today")
       .then((res) => {
         if (res.status === 401) {
-          window.location.reload();
+          // Sesja wygasła: NIE przeładowujemy (etap 3). Przeładowanie kasowało
+          // niezapisany formularz bez ostrzeżenia — pasek ze `strazSesji.ts`
+          // mówi, co się stało, i pozwala zalogować się bez opuszczania ekranu.
+          zglosWygasnieciesesji();
           return null;
         }
         if (!res.ok) throw new Error(`Serwer zwrócił błąd ${res.status}.`);

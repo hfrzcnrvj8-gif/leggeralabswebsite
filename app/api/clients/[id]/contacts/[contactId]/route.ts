@@ -3,6 +3,7 @@ import { getSql, ensureClientsSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { odczytajPolaOsoby, synchronizujMigawke, odbierzPozostalymGlowna } from "@/lib/clientContacts";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,13 @@ export async function PATCH(
 
   await ensureClientsSchema();
   const sql = getSql();
+
+  // Osoba mogła zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts.
+  // Bez tego `odbierzPozostalymGlowna` niżej odbierało rolę głównej WSZYSTKIM
+  // pozostałym osobom na rzecz osoby, której już nie ma — czyli firma zostawała
+  // bez osoby głównej i z pustą migawką powitania w mailach.
+  const istnieje = await sql`SELECT 1 FROM client_contacts WHERE id = ${contactId} AND client_id = ${id};`;
+  if (istnieje.length === 0) return odpowiedzBrakRekordu("osoba kontaktowa");
 
   // `glowna` przyjmujemy tylko wtedy, gdy klucz jest w żądaniu — brak klucza
   // znaczy „nie ruszaj", a nie „odbierz rolę".

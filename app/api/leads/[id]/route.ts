@@ -6,6 +6,7 @@ import { isPlausibleDateString } from "@/lib/projects";
 import { isLeadStatus } from "@/lib/leads";
 import { rematchUnassigned } from "@/lib/mailSync";
 import { logFieldChanges, deleteFieldChanges } from "@/lib/auditLog";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -69,7 +70,9 @@ export async function PATCH(
   // Audyt zmian (Moduł 23) — stan sprzed zapisu, jeden SELECT na cały PATCH.
   // Patrz api/clients/[id]/route.ts po pełne uzasadnienie tego kształtu.
   const beforeRows = await sql`SELECT * FROM leads WHERE id = ${id};`;
-  const before = (beforeRows[0] ?? {}) as Record<string, unknown>;
+  // Lead mógł zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts.
+  if (!beforeRows[0]) return odpowiedzBrakRekordu("lead");
+  const before = beforeRows[0] as Record<string, unknown>;
   const applied: Record<string, unknown> = {};
 
   // Moduł 22 — powiązanie z ISTNIEJĄCYM klientem. Kolumna `leads.client_id`

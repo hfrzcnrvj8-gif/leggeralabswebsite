@@ -40,6 +40,7 @@ import { todayLocalISO, addDaysLocalISO } from "@/lib/dates";
 import { ViewTabs, ViewSwitch } from "../ViewTabs";
 import { FieldChangesTab } from "../FieldChangesTab";
 import type { FieldChange } from "@/lib/audit";
+import { zglosWygasnieciesesji } from "../strazSesji";
 
 /**
  * Rdzeń widoku szczegółów leada — pola, log aktywności. Używany zarówno
@@ -98,7 +99,10 @@ export function LeadDetailPanel({
   const load = useCallback(async () => {
     const res = await fetch(`/api/leads/${id}`);
     if (res.status === 401) {
-      window.location.reload();
+      // Sesja wygasła: NIE przeładowujemy (etap 3). Przeładowanie kasowało
+      // niezapisany formularz bez ostrzeżenia — pasek ze `strazSesji.ts`
+      // mówi, co się stało, i pozwala zalogować się bez opuszczania ekranu.
+      zglosWygasnieciesesji();
       return;
     }
     if (res.status === 404) {

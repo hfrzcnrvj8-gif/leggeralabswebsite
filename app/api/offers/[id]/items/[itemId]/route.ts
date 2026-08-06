@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSql, ensureOffersSchema } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 import { blokadaOferty } from "@/lib/blokadaDokumentu";
+import { odpowiedzBrakRekordu } from "@/lib/brakRekordu";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (blokadaTresci.zablokowane) {
     return NextResponse.json({ error: blokadaTresci.komunikat }, { status: 409 });
   }
+
+  // Pozycja mogła zniknąć w drugim oknie panelu — patrz lib/brakRekordu.ts.
+  // (Bliźniacza trasa faktury sprawdzała to od początku, oferta nie.)
+  const istnieje = await sql`SELECT 1 FROM offer_items WHERE id = ${itemId} AND offer_id = ${id};`;
+  if (istnieje.length === 0) return odpowiedzBrakRekordu("pozycja oferty");
 
   if ("nazwa" in body) await sql`UPDATE offer_items SET nazwa = ${typeof body.nazwa === "string" ? body.nazwa.slice(0, 500) : ""} WHERE id = ${itemId} AND offer_id = ${id};`;
   if ("jednostka" in body) await sql`UPDATE offer_items SET jednostka = ${typeof body.jednostka === "string" ? body.jednostka.slice(0, 20) : "szt."} WHERE id = ${itemId} AND offer_id = ${id};`;
