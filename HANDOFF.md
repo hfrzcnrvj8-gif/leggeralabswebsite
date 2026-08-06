@@ -47,9 +47,18 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 ## Co jest następnym krokiem
 
 **PLAN DOMKNIĘCIA (`docs/PLAN-DOMKNIECIA.md`) — pięć etapów, idziemy po kolei.**
-Etap 1 ✅ zamknięty; następny to **etap 2 (bezpieczeństwo: sprawdzenie
-PRZYROSTU tras od Audytu 1)**. Etap 4 (przegląd UI prawdziwymi oczami) należy
-do właściciela i może iść równolegle.
+Etap 1 ✅ zamknięty. **NASTĘPNY: etap 2 — bezpieczeństwo, sprawdzenie PRZYROSTU
+tras od Audytu 1. Brief gotowy: `docs/ETAP-2-BEZPIECZENSTWO-BRIEF.md`,
+z rekonesansem (188 plików tras, 266 uchwytów, 39 nowych po Audycie 1).**
+Etap 4 (przegląd UI prawdziwymi oczami) należy do właściciela i może iść
+równolegle.
+
+**Zanim ruszysz etap 2 — dwie rzeczy, które oszczędzą pół sesji:**
+sonda 401 wymaga **wyłączenia `DEV_ADMIN_BYPASS` w `.env.local` i restartu**
+`npm run dev` (bez tego pokaże, że wszystko jest chronione — i skłamie),
+a `npm run przejscie` wymaga go z powrotem WŁĄCZONEGO. Grep nie rozstrzyga:
+po pliku kłamał w Audycie 1, po uchwycie kłamie tak samo (ochrona bywa
+o jedno wywołanie dalej, w helperze).
 
 **0a. Przegląd SZWÓW między modułami — ZROBIONY 2026-08-06.**
 Wynik: **`docs/SZWY-MIEDZY-MODULAMI.md`**. Zlecony pytaniem właściciela („czy

@@ -84,6 +84,18 @@ niezrozumiałe.
 ## Etap 2 — Bezpieczeństwo: sprawdzenie PRZYROSTU
 
 **Kto:** ja. **Czas:** jedna sesja.
+**Brief: `docs/ETAP-2-BEZPIECZENSTWO-BRIEF.md` (2026-08-06).**
+
+> **Rekonesans przed briefem (2026-08-06).** Policzone: **188 plików tras,
+> 266 uchwytów HTTP, 39 plików DODANYCH i 83 zmienione po Audycie 1**
+> (`a485b00`). Sprawdzenie per uchwyt dało 21 uchwytów bez `isAuthed()`
+> w ciele — przejrzane pojedynczo, **żaden nie okazał się dziurą**.
+>
+> **Przy okazji upadła druga metoda.** Audyt 1 nauczył, że grep po PLIKU
+> kłamie; teraz wyszło, że grep po UCHWYCIE kłamie tak samo — ochrona bywa
+> o jedno wywołanie dalej (`POST /api/invoices/[id]/ksef/send` deleguje do
+> `runSend()`, i to tam stoi `isAuthed()`). **Rozstrzyga wyłącznie sonda 401
+> przy wyłączonym dev-bypassie.** Szczegóły i lista 21 uchwytów — w briefie.
 
 Audyt 1 (2026-07-22, `docs/AUDYT-1-WYNIKI.md`) sprawdził 195 wywołań
 `isAuthed()` w 149 plikach i zamknął temat. **Od tamtej pory repozytorium
