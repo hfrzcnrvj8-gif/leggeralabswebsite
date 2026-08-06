@@ -341,12 +341,21 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
             Moduł 27: było `sm:max-w-2xl sm:grid-cols-3` — trzy karty stały
             stłoczone w lewych 40% ekranu, a obok zostawało ~900 px pustki.
             Sześć kolumn na szerokim ekranie, jak Pulpit (DashboardHome). */}
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {/* SIEDEM kolumn, nie sześć — „Po terminie" bierze dwie (2026-08-06,
+            ta sama reguła co na Pulpicie: liczba do DZIAŁANIA dominuje,
+            wskaźnik do OBSERWOWANIA cichnie). Zmierzone przedtem: pięć kafli
+            z liczbą, każda 18 px, każdy kafel 323 px — „Po terminie" ważyło
+            tyle samo co „Opłacone (ten mies.)", czyli historia tyle samo co
+            pieniądze, po które trzeba się dziś upomnieć. Ta sama zaległość
+            jest największą liczbą na Pulpicie, więc oba ekrany mówią teraz
+            jedno. Kafel MUSI dostać drugą kolumnę: przy sześciu kolumnach
+            zostaje ~149 px na treść, a kwota w 30 px zajmuje ~158 px. */}
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Nieopłacone</div>
             <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatKpi(kpi.nieoplacone)}</div>
           </div>
-          <div className="card-paper rounded-xl border hairline p-3">
+          <div className="card-paper rounded-xl border hairline p-3 xl:col-span-2">
             <div className="text-[11px] text-muted">Po terminie</div>
             {/* Kolor z rampy pilności, nie generyczna czerwień (audyt Faktur,
                 2026-07-31). Czerwień w słowniku znaczy „obietnica zerwana", a ten
@@ -355,7 +364,11 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
                 a kolor, który świeci zawsze, przestaje cokolwiek znaczyć.
                 Sąsiedni kafel „najstarsza zaległość" liczył to poprawnie od
                 Modułu 59; ten został w tyle. */}
-            <div className={`mt-0.5 text-lg font-semibold ${kpi.poTerminie.size > 0 ? PILNOSC_TEXT.poTerminie : "text-[var(--fg)]"}`}>
+            {/* Duża waga dopiero od `xl` — węższe okna mają ten kafel w jednej
+                kolumnie i 30 px by się w niej nie zmieściło (na Pulpicie
+                dokładnie to przycięło kwotę przy 390 px). `tabular-nums`, żeby
+                kwota nie drgała między odświeżeniami. */}
+            <div className={`mt-0.5 text-xl font-semibold tabular-nums md:text-3xl ${kpi.poTerminie.size > 0 ? PILNOSC_TEXT.poTerminie : "text-[var(--fg)]"}`}>
               {formatKpi(kpi.poTerminie)}
             </div>
           </div>
@@ -381,7 +394,12 @@ export function InvoicesDashboard({ lang }: { lang: Locale }) {
           </div>
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Szkice do wystawienia</div>
-            <div className={`mt-0.5 text-lg font-semibold ${kpi.szkice > 0 ? "text-brand-gold" : "text-[var(--fg)]"}`}>{kpi.szkice}</div>
+            {/* Poziom DRUGI: to jedyna — poza zaległością — pozycja, która jest
+                zadaniem, a nie stanem. Stąd głośniej niż reszta, ciszej niż
+                „Po terminie". „Najstarsza zaległość" celowo zostaje na dole
+                skali: nie jest osobnym zadaniem, tylko mówi, JAK pilne jest to
+                z kafla obok. */}
+            <div className={`mt-0.5 text-lg font-semibold md:text-xl ${kpi.szkice > 0 ? "text-brand-gold" : "text-[var(--fg)]"}`}>{kpi.szkice}</div>
           </div>
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="flex items-center gap-1 text-[11px] text-muted">

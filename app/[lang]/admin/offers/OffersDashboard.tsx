@@ -448,7 +448,10 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">W toku</div>
-            <div className="mt-0.5 text-lg font-semibold text-[var(--fg)]">{formatMoney(kpi.wToku)}</div>
+            {/* Poziom DRUGI: pieniądze realnie w grze, i jedyny kafel, pod
+                którym wisi własna akcja („w tym N po terminie" filtruje listę).
+                Głośniej niż statystyki, ciszej niż to, co wygasa. */}
+            <div className="mt-0.5 text-lg font-semibold text-[var(--fg)] md:text-xl">{formatMoney(kpi.wToku)}</div>
             {kpi.poTerminie > 0 && (
               <button
                 onClick={() => setFilterStatus(PO_TERMINIE)}
@@ -487,7 +490,22 @@ export function OffersDashboard({ lang }: { lang: Locale }) {
               Wygasają w 7 dni
               <InfoDot text="Otwarte oferty, których ważność kończy się w ciągu najbliższych 7 dni." />
             </div>
-            <div className={`mt-0.5 text-lg font-semibold ${kpi.wygasajace > 0 ? "text-brand-gold" : "text-[var(--fg)]"}`}>{kpi.wygasajace}</div>
+            {/* NAJWIĘKSZA liczba na tym ekranie (2026-08-06, ta sama reguła co
+                na Pulpicie i Fakturach). Zmierzone przedtem: sześć kafli, każda
+                liczba 18 px — jedyna pozycja, która PRZEPADNIE, jeśli nic nie
+                zrobisz, ważyła tyle samo co „Średnia wartość oferty", czyli
+                czysta statystyka.
+
+                Rozmiar jest STAŁY, nie zależny od wartości, choć ta liczba
+                bywa zerem. Uzależnienie wielkości od danych przesuwałoby układ
+                przy każdym odświeżeniu — a przesunięcia układu na tym panelu
+                mierzymy i trzymamy na zerze. Duże „0" bez koloru czyta się
+                zresztą poprawnie: nic się nie pali. Kolor niesie stan, rozmiar
+                niesie rangę pytania — to dwie różne rzeczy.
+
+                Bez `col-span`: to licznik, nie kwota, więc mieści się
+                w jednej kolumnie (inaczej niż „Po terminie" na Fakturach). */}
+            <div className={`mt-0.5 text-xl font-semibold tabular-nums md:text-3xl ${kpi.wygasajace > 0 ? "text-brand-gold" : "text-[var(--fg)]"}`}>{kpi.wygasajace}</div>
           </div>
           <div className="card-paper rounded-xl border hairline p-3">
             <div className="text-[11px] text-muted">Średnia wartość oferty</div>
