@@ -60,10 +60,19 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 ## Co jest następnym krokiem
 
 **PLAN DOMKNIĘCIA (`docs/PLAN-DOMKNIECIA.md`) — pięć etapów, idziemy po kolei.**
-Etapy 1, 2 i 3 ✅ zamknięte. **NASTĘPNY: etap 4 — przegląd UI prawdziwymi
-oczami. Należy do WŁAŚCICIELA** i jest jedynym etapem, którego nie da się
-zrobić z tego środowiska (podgląd tutaj to karta ukryta 0×0). Po nim etap 5 —
-poprawki z jego listy.
+Etapy 1, 2 i 3 ✅ zamknięte. **NASTĘPNY: etap 4 — przegląd wyglądu.**
+Jego **część mierzalna jest już ZROBIONA** (patrz niżej), a właścicielowi
+została lista `docs/PRZEGLAD-UI-LISTA.md`, część B: wrażenie, wydruki na
+PAPIERZE, telefon i iPad palcem, oczami klienta. Po niej etap 5 — poprawki
+z jego zgłoszeń.
+
+⚠️ **PODGLĄD W TYM ŚRODOWISKU DZIAŁA — od 2026-08-06.** Wszystkie starsze
+notatki („karta ukryta 0×0", „rAF daje zero klatek", „`read_page` zwraca
+pustkę") są NIEAKTUALNE. Zmierzone: okno **1264×1243**, `document.hidden`
+= `false`, **64 klatki na sekundę**, zrzuty ekranu renderują panel poprawnie.
+**Sprawdź to w pierwszej minucie sesji** (`innerWidth`, `document.hidden`,
+licznik `requestAnimationFrame`) — jedno wywołanie, a decyduje o tym, ile
+roboty można zrobić samemu zamiast oddawać właścicielowi.
 
 **Wykrywanie rozjazdu dwóch kart jest ZBUDOWANE** (2026-08-06, wariant
 właściciela „wykryj i powiedz, nie blokuj"). Karta dokleja `x-znany-stan`,
@@ -73,10 +82,32 @@ bloki), faktura (nagłówek, pozycje), klient, projekt, lead, notatka, koszt.
 Poza zasięgiem świadomie: umowa i przypomnienie — nie mają `updated_at`.
 Reguła w `CLAUDE.md`, szczegóły w `ETAP-3-WYNIK.md`.
 
-**Do etapu 5 zostaje jedna rzecz z przeglądu wyglądu:** kwadraciki zaznaczania
-wierszy mają **14×14 px** przy regule 24×24 (Klienci 37 szt., Faktury 27).
-Faza 5 ogłosiła próg domkniętym, ale mierzyła Katalog — a Katalog nie ma
-kwadracików. **Czeka na decyzję właściciela**, bo to 100+ miejsc.
+**Część mierzalna etapu 4 — ZROBIONA 2026-08-06.** Trzynaście ekranów przy
+1264 px, najbardziej złożone także przy 390 px. Wynik i to, co zostało dla
+właściciela: `docs/PRZEGLAD-UI-LISTA.md`, część A.
+
+- **Dwie usterki widoczne WYŁĄCZNIE na szerokości telefonu**, obie naprawione:
+  przycisk „Nowa wiadomość" w Poczcie stał 97 px poza ekranem (rząd bez
+  własnego `flex-wrap`, a paska przewijania nie ma — jedynym objawem był brak
+  przycisku), a filtry `<select>` w Kalendarzu rozpychały ekran do 546 px
+  (natywny select bierze szerokość od najdłuższej opcji; `flex-wrap` nie
+  ratuje pojedynczego elementu za szerokiego → `max-w-full`).
+- **Cele dotykowe 24×24** poprawione tam, gdzie było miejsce: kwadraciki
+  zaznaczania (jedna reguła CSS `::before`, nie opakowywanie 19 miejsc
+  w `<label>`), „✕" (8 miejsc), kółka kanału (4), ikonka „otwórz" (4),
+  gwiazdka flagi w Poczcie. Koszty 18 → 2 celów poniżej progu, Poczta 14 → 8.
+- **Jedna poprawka WYCOFANA i to jest lekcja:** kontrolek na kartach Projektów
+  (status 15×15, priorytet **11×9**, zdrowie 12×12) nie da się naprawić
+  rozmiarem trafienia — sąsiadów dzieli **19 px**, więc każde powiększenie
+  sprawia, że jedna przechwytuje kliknięcia drugiej (17 kolizji przy 24 px,
+  2 przy 18, 6 przy 16). Zamiana chybienia na otwarcie CUDZEGO menu jest
+  gorsza od chybienia. **Przed dołożeniem klasy `cel-dotykowy` zmierz odstęp
+  do sąsiada.**
+
+**Na decyzję właściciela czeka z tego:** rozsunięcie tych trzech kontrolek albo
+powiększenie ikon (zmiana wyglądu), kwadraciki na kartach Tablicy (drugi jawny
+wyjątek w `CLAUDE.md`, droga zastępcza: widok Tabeli) i wysokość wierszy list
+(19–21 px — podniesienie zmieniłoby gęstość wszystkich list).
 
 **0. Etap 3 planu domknięcia — SYTUACJE KRYTYCZNE — ZROBIONY 2026-08-06.**
 Wynik: **`docs/ETAP-3-WYNIK.md`**. Brief: `docs/ETAP-3-BRZEGI-BRIEF.md`.
@@ -437,10 +468,14 @@ jedyny krok, który realnie zmienia stan projektu, i jest nietechniczny.
 - `npm test` — 365 testów nad czystymi funkcjami z `lib/` (i jeden nad strażą sesji).
 - **Każda nowa trasa w `app/api` jest domyślnie OTWARTA** —
   `if (!(await isAuthed()))` sprawdzaj per uchwyt HTTP, nie per plik.
-- **Podgląd w środowisku Claude to karta ukryta 0×0**: `requestAnimationFrame`
-  daje zero klatek, `read_page` zwraca pustą stronę, menu i modale mają
-  `opacity: 0`, choć są otwarte i klikalne. Sprawdzaj przez `innerText` /
-  `aria-*` / `getComputedStyle`, nie przez zrzut ekranu.
+- **Podgląd DZIAŁA od 2026-08-06** (wcześniej była to karta ukryta 0×0:
+  zero klatek `rAF`, pusta strona z `read_page`, `opacity: 0` na otwartych
+  modalach). Zmierzone: 1264×1243, 64 kl./s, zrzuty renderują. **Sprawdź to
+  na starcie sesji, nie zakładaj** — w jedną i w drugą stronę. Nawet gdy
+  działa, rozstrzygaj liczbą (`getBoundingClientRect`, `getComputedStyle`,
+  `elementFromPoint`), a nie okiem; a `elementFromPoint` działa TYLKO
+  w widocznym oknie, więc elementy przewinięte poza ekran zawsze wyglądają
+  na wadliwe.
 - Kończąc: `rm -f .git/index.lock && git add -A && git commit && git push`.
 
 ---
