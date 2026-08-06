@@ -49,16 +49,31 @@ klienta (odrzucenie oferty ze swojej strony) i jedna zmiana w hamulcu.
 
 **PLAN DOMKNIĘCIA (`docs/PLAN-DOMKNIECIA.md`) — pięć etapów, idziemy po kolei.**
 Etapy 1 i 2 ✅ zamknięte. **NASTĘPNY: etap 3 — sytuacje krytyczne, których
-jeszcze nie przechodziliśmy** (cztery scenariusze, opisane w planie; briefu
-jeszcze nie ma). Etap 4 (przegląd UI prawdziwymi oczami) należy do właściciela
-i może iść równolegle — to jedyny etap, którego nie da się zrobić z tego
-środowiska.
+jeszcze nie przechodziliśmy. Brief gotowy, z rekonesansem:
+`docs/ETAP-3-BRZEGI-BRIEF.md`.** Etap 4 (przegląd UI prawdziwymi oczami)
+należy do właściciela i może iść równolegle — to jedyny etap, którego nie da
+się zrobić z tego środowiska.
 
-**Najmocniejszy scenariusz etapu 3, dla orientacji:** dwie karty edytujące ten
-sam rekord (oferta na laptopie i na iPadzie). Dziś prawdopodobnie wygrywa
-ostatni zapis i nikt się nie dowiaduje, że pierwszy przepadł. To inna rodzina
-niż wszystko, co dotąd sprawdzaliśmy — podwójne kliknięcie tego samego
-działania jest już zamknięte, tu chodzi o dwie różne TREŚCI.
+**Co dał rekonesans do etapu 3** (czytane z kodu, NIE zmierzone — brief etapu 2
+nauczył, że rekonesans myli się w obie strony):
+
+- **Kontroli współbieżności nie ma żadnej** — zero `If-Match`/`ETag`, zero
+  `UPDATE … AND updated_at = …`. Ostatni zapis wygrywa po cichu.
+- **Ratuje to granularność PATCH-a:** trasy piszą pole po polu
+  (`if ("tytul" in body)`), a edytor oferty wysyła samą różnicę. Więc dwie
+  karty w RÓŻNE pola prawdopodobnie się nie zadepczą — groźny jest ten sam
+  kawałek treści, a najbardziej **pozycje faktury/oferty**. Nie wiadomo, czy
+  wszystkie edytory są granularne.
+- **401 w trakcie pracy przeładowuje stronę** (`dane.ts`), kasując
+  niezapisany formularz bez ostrzeżenia. Ale to gardło ODCZYTU: w panelu jest
+  **190 wywołań POST/PATCH i ANI JEDNO nie idzie przez `pobierzJSON`**. Co
+  widzi właściciel, gdy sesja wygaśnie w połowie formularza — nie wiadomo.
+  Sesję da się unieważnić bez czekania: zmiana `ADMIN_PASSWORD` w `.env.local`
+  + restart (token to `sha256(hasło:sekret)`).
+
+Scenariusz „dwie karty" wymaga **decyzji nietechnicznej właściciela**, zanim
+cokolwiek naprawimy: blokada rekordu, ostrzeżenie „ktoś zmienił to
+w międzyczasie", czy „ostatni wygrywa, ale powiedz o tym". Brief o tym mówi.
 
 **0. Etap 2 planu domknięcia — AUDYT 1B (przyrost tras) — ZROBIONY 2026-08-06.**
 Wynik: **`docs/AUDYT-1B-PRZYROST.md`**. Brief: `docs/ETAP-2-BEZPIECZENSTWO-BRIEF.md`.

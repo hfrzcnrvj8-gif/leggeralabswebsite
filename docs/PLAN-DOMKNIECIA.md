@@ -153,6 +153,20 @@ Zakres:
 ## Etap 3 — Sytuacje krytyczne, których jeszcze nie przechodziliśmy
 
 **Kto:** ja. **Czas:** jedna sesja.
+**Brief: `docs/ETAP-3-BRZEGI-BRIEF.md` (2026-08-06), z rekonesansem.**
+
+> **Rekonesans przed briefem (2026-08-06), czytany z kodu — NIE zmierzony.**
+> Kontroli współbieżności nie ma żadnej (zero `If-Match`/`ETag`, zero
+> `UPDATE … AND updated_at = …`) — ostatni zapis wygrywa po cichu. Łagodzi to
+> granularność PATCH-a: trasy piszą pole po polu, więc dwie karty w RÓŻNE pola
+> prawdopodobnie się nie zadepczą; groźne są pozycje faktury/oferty i edytory,
+> które wysyłają cały obiekt. Osobno: **190 wywołań `POST`/`PATCH` w UI panelu
+> i ANI JEDNO nie idzie przez wspólne gardło `pobierzJSON`**, więc nie wiadomo,
+> co widzi właściciel, gdy sesja wygaśnie w połowie formularza.
+>
+> **Scenariusz „dwie karty" wymaga decyzji nietechnicznej** (blokada rekordu /
+> ostrzeżenie o zmianie / „ostatni wygrywa, ale powiedz") — nie naprawiać bez
+> pytania.
 
 Trzecie przejście zamknęło podwójne kliknięcia. Zostały cztery scenariusze
 i **jeden z nich jest niesprawdzony i prawdopodobny**:
