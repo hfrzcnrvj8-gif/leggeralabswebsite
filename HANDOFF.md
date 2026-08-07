@@ -2,7 +2,7 @@
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Panel na `c9e66fd`, apka na `d2e98ee`. Oba drzewa czyste, wszystko
+> Panel na `c9e66fd`, apka na `880307e`. Oba drzewa czyste, wszystko
 > wypchnięte. `tsc` czysto · `npm test` **371/371** · `npm run przejscie`
 > **125 działa · 0 regresji** · `swift test` **16/16**.
 >
@@ -20,8 +20,9 @@
 > powtarzaj przeglądu hierarchii i **nie „naprawiaj" Statystyk** (patrz niżej).
 >
 > **Apka jest równo z panelem** — sekcja „Wezwanie czeka na Twoją decyzję"
-> weszła na telefon tego samego dnia (`d2e98ee`), obejrzana w symulatorze
-> przeciwko lokalnemu panelowi. Nic z tej decyzji nie zostało otwarte.
+> weszła na telefon tego samego dnia (`d2e98ee`, drugi przycisk `880307e`),
+> obejrzana w symulatorze przeciwko lokalnemu panelowi. Nic z tej decyzji nie
+> zostało otwarte.
 >
 > **REKOMENDOWANY PIERWSZY RUCH: zapytaj właściciela o Pulpit** (patrz wyżej)
 > i o zgłoszenia z `docs/PRZEGLAD-UI-LISTA.md`. Obie rzeczy blokują robotę,
@@ -79,18 +80,28 @@ Zmierzone w przeglądarce (nie „na oko"): przycisk **108×24 px**, kontrast
 przy 390 px `scrollWidth` = `innerWidth` = 390, kliknięcie stawia okno
 `wezwanie-wyslij`, a „Anuluj" **nie** zdejmuje wiersza z listy.
 
-**Apka dogoniła tego samego dnia** (`d2e98ee`, `swift test` 16/16). Przy okazji
-domknęła starszą lukę: `PulpitFaktura` ignorowała `zaplacono` i `waluta`, choć
-trasa oddawała je od zawsze — przy fakturze opłaconej CZĘŚCIOWO panel pokazywał,
-ile zostało, a telefon całą kwotę brutto.
+**Apka dogoniła tego samego dnia** (`d2e98ee` + `880307e`, `swift test` 16/16).
+Wiersz ma dwie pastylki — „Wyślij wezwanie" i ciszej „Otwórz fakturę" (drugą
+dołożono na prośbę właściciela: przed pismem o takim ciężarze ma gdzie sprawdzić,
+do kogo idzie). Przy okazji domknęła się starsza luka: `PulpitFaktura` ignorowała
+`zaplacono` i `waluta`, choć trasa oddawała je od zawsze — przy fakturze
+opłaconej CZĘŚCIOWO panel pokazywał, ile zostało, a telefon całą kwotę brutto.
 
-**Lekcja z apki, która się powtórzy:** `NavigationLink` w tej samej komórce
-`List` co przycisk **przechwytuje tapy całego wiersza** — „Wyślij wezwanie"
-otwierało fakturę zamiast wysyłać, a `.buttonStyle(.borderless)` na rzędzie
-tego nie ratowało. Widać to WYŁĄCZNIE przebiegiem na symulatorze: kompiluje się,
-wygląda poprawnie, `swift test` przechodzi. Druga pułapka tej samej rundy:
-**tapy idą w PUNKTACH, a zrzut ma piksele** (834×1210 wobec 1378×2048) — trzy
-kolejne „nieudane" tapy były błędem przelicznika, nie kodu.
+**Lekcja z apki, która się powtórzy — `NavigationLink` w wierszu `List` psuje
+przyciski na DWA różne sposoby.** Rozciągnięty na wiersz **przechwytuje tapy
+całej komórki**: „Wyślij wezwanie" otwierało fakturę zamiast wysyłać,
+a `.buttonStyle(.borderless)` na rzędzie tego nie ratowało. Zamknięty w pastylce
+OBOK przycisku tapów już nie kradnie, ale **ignoruje `ButtonStyle`** (pastylka
+się nie rysuje) i dokłada systemową strzałkę na prawej krawędzi wiersza — wiersz
+wygląda, jakby cały prowadził do rekordu. Działa dopiero zwykły `Button`
+dokładający cel do `NavigationPath`. Wszystkie trzy stany widać WYŁĄCZNIE
+przebiegiem na symulatorze: kompiluje się, wygląda poprawnie, `swift test`
+przechodzi.
+
+**Druga pułapka tej samej rundy: tapy idą w PUNKTACH, a zrzut ma piksele**
+(834×1210 wobec ~1378×2048). Kilka „nieudanych" tapów było błędem przelicznika,
+nie kodu — a pastylka ma 24 pt wysokości, więc pomyłka o 4 pt już chybia.
+**Nieudany tap sprawdzaj powtórzeniem, zanim uznasz przycisk za martwy.**
 
 **Po tej decyzji nie zostało nic otwartego.**
 
