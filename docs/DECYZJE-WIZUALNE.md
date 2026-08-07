@@ -229,3 +229,42 @@ na telefonie, bo górny pasek panelu ma `md:hidden`.
 **Lekcja, która się powtórzy:** desktop nie wystarcza. To trzeci raz w tym
 tygodniu, gdy wąski ekran pokazał usterkę niewidoczną na szerokim (wcześniej:
 przycisk Poczty 97 px poza ekranem i ucięta nazwa klienta w apce).
+
+### Domiar na szerokościach iPada — i jedno NOWE pytanie
+
+Sprawdzone trzy szerokości: **834×1194** (pion), **1194×834** (poziom),
+**507×1194** (połówka przy podziale ekranu).
+
+**Wdrożone zmiany trzymają się wszędzie:** Projekty 36 wyzwalaczy 24×24 i zero
+kolizji, Pulpit 0 celów poniżej progu, Klienci 0, nigdzie nie przewija w bok.
+Przy 507 px tabela zamienia się w karty z pełnowymiarowymi przyciskami, więc
+drobne ikony tam w ogóle nie istnieją.
+
+**Ale iPad pokazał widok, którego wcześniejsza sonda NIE objęła: `Leady →
+Tabela`.** Na telefonie ten widok zamienia się w karty, a na desktopie miałem
+włączoną Tablicę — więc tabela wypadła ze sprawdzenia i moje wcześniejsze
+„Leady: 0" jej nie dotyczyło. To mój błąd metody, nie zmiana w kodzie.
+
+Zmierzone w wierszu tabeli (834 i 1194 px, tak samo):
+
+| co | rozmiar |
+|---|---|
+| nazwa rekordu (odnośnik do profilu) | 165,9 × **16 px** |
+| „Otwórz profil" | 15 × 15 px, **ale ma już pudełko 24×24** |
+| **„Usuń"** | **14 × 14 px, bez pudełka** |
+
+**I to jest sedno: „Usuń" stoi 22,5 px od „Otwórz profil".** Samo dołożenie
+pudełka 24×24 dałoby zachodzenie o 1,5 px — czyli dokładnie sytuacja z punktu 1,
+tylko że **sąsiadem jest tu usuwanie rekordu**. To znaczy, że nie jest to
+poprawka mechaniczna: wymaga rozsunięcia tych dwóch ikon, czyli decyzji
+o wyglądzie wiersza tabeli.
+
+**Nie ruszam tego bez Twojego słowa.** Warianty, gdy zechcesz to rozstrzygnąć:
+
+1. **Rozsunąć „Otwórz profil" i „Usuń" o ~4 px i dać obu pudełka 24×24** —
+   ta sama recepta, która zadziałała na kartach Projektów.
+2. **Zostawić.** Myszą trafiasz; palcem na iPadzie „Usuń" jest celem 14×14
+   tuż obok „Otwórz profil".
+
+Uwaga łagodząca: usunięcie leada jest działaniem nieodwracalnym, więc trasa
+i tak pyta o potwierdzenie — pomyłka nie kasuje rekordu bez pytania.
