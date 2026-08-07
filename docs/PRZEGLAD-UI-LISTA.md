@@ -82,8 +82,12 @@ Zostały trzy rzeczy, **wszystkie na Twoje oko w części B**:
   sam wybór jest w widoku Tabeli). **Sprawdź palcem na iPadzie.**
 - **Wiersze list mają 19–21 px wysokości** (np. „Wymaga działania dziś",
   propozycje, pigułki statusu w Poczcie, przypomnienia). Myszą trafiasz bez
-  pudła; podniesienie do 24 px zmieniłoby gęstość wszystkich list w panelu,
-  więc to **decyzja o wyglądzie, nie usterka**.
+  pudła, więc to **decyzja o wyglądzie, nie usterka**.
+  **Domierzone 2026-08-07 — cena jest niższa, niż mówiło to zdanie.** Stało tu
+  „podniesienie do 24 px zmieniłoby gęstość wszystkich list w panelu"; liczby
+  mówią co innego: cel ma 20–22 px, a **sąsiednie wiersze dzieli 31–34 px**, więc
+  24 px mieści się w istniejącym odstępie i list nie trzeba rozsuwać. Brakuje
+  2–4 px na cel. Warianty i rekomendacja: `docs/DECYZJE-WIZUALNE.md`, punkt 3.
 
 ---
 

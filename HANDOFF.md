@@ -35,17 +35,17 @@
 > pomniejszony na telefonie do 49% przeszkadza). Bez tych zgłoszeń etap 5 nie
 > ma wsadu. **Zapytaj o nie na starcie czatu.**
 >
-> **DROGA B — cztery decyzje, które czekają i nie zależą od etapu 5:**
-> 1. **Godziny automatów mogą być w UTC** — do potwierdzenia obserwacją
->    właściciela, nie da się stąd. Po dzisiejszej zmianie waży mniej: o tej
+> **DROGA B — decyzje, które czekają i nie zależą od etapu 5:**
+> 1. **Trzy pytania wizualne — materiał gotowy: `docs/DECYZJE-WIZUALNE.md`**
+>    (2026-08-07). Kontrolki na kartach Projektów, kwadraciki na Tablicy, cele
+>    w listach kompaktowych — każde ze stanem w liczbach, wariantami
+>    i rekomendacją. Właściciel odpowiada „1/2/3", punkty 1 i 3 wdrażasz od razu.
+>    **Nie mierz tego od nowa** — jest zmierzone.
+> 2. **Godziny automatów mogą być w UTC** — do potwierdzenia obserwacją
+>    właściciela, nie da się stąd. Po decyzji o windykacji waży mniej: o tej
 >    godzinie nie wychodzi już żadne pismo formalne, tylko przypomnienia.
-> 2. **Trzy kontrolki na kartach Projektów** (priorytet 11×9 px) — rozsunąć
->    czy powiększyć ikony. Powiększenie samego trafienia WYKLUCZONE (17 kolizji
->    przy 24 px). Materiał do decyzji można przygotować zrzutami.
 > 3. **Czy apka ma wysyłać `x-znany-stan`** — dziś nie wysyła, więc wykrywanie
 >    rozjazdu dwóch kart na telefonie milczy. Robota w `../leggera-hub-ios`.
-> 4. **Kwadraciki na kartach Tablicy i wysokość wierszy list** — dwa jawne
->    wyjątki od progu 24×24, opisane w `CLAUDE.md`.
 >
 > **Czego NIE robić:** wszystkiego z sekcji „Czego NIE zaczynać bez wyraźnej
 > prośby" na końcu tego pliku, i nie przechodzić ręcznie tego, co robi
@@ -318,8 +318,13 @@ właściciela: `docs/PRZEGLAD-UI-LISTA.md`, część A.
 
 **Na decyzję właściciela czeka z tego:** rozsunięcie tych trzech kontrolek albo
 powiększenie ikon (zmiana wyglądu), kwadraciki na kartach Tablicy (drugi jawny
-wyjątek w `CLAUDE.md`, droga zastępcza: widok Tabeli) i wysokość wierszy list
-(19–21 px — podniesienie zmieniłoby gęstość wszystkich list).
+wyjątek w `CLAUDE.md`, droga zastępcza: widok Tabeli) i cele w listach
+kompaktowych. **Materiał do wszystkich trzech: `docs/DECYZJE-WIZUALNE.md`**
+(2026-08-07) — stan w liczbach, warianty, rekomendacja przy każdym.
+Uwaga: to zdanie mówiło wcześniej, że podniesienie celów w listach „zmieniłoby
+gęstość wszystkich list". **Domierzone i nieprawdziwe** — cel ma 20–22 px,
+a sąsiednie wiersze dzieli 31–34 px, więc 24 px mieści się w istniejącym
+odstępie.
 
 **0. Etap 3 planu domknięcia — SYTUACJE KRYTYCZNE — ZROBIONY 2026-08-06.**
 Wynik: **`docs/ETAP-3-WYNIK.md`**. Brief: `docs/ETAP-3-BRZEGI-BRIEF.md`.
