@@ -2,8 +2,9 @@
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Apka na `674c216`, nietykana. `tsc` czysto · `npm test` **371/371** ·
-> `npm run przejscie` **125 działa · 0 regresji**.
+> Panel na `c9e66fd`, apka na `d2e98ee`. Oba drzewa czyste, wszystko
+> wypchnięte. `tsc` czysto · `npm test` **371/371** · `npm run przejscie`
+> **125 działa · 0 regresji** · `swift test` **16/16**.
 >
 > **WINDYKACJA ROZSTRZYGNIĘTA 2026-08-07 — wariant 2, decyzja właściciela.**
 > Formalne wezwanie do zapłaty z odsetkami **przestało wychodzić automatem**;
@@ -18,13 +19,13 @@
 > jego praktyce — **zapytaj go ponownie**, cofnięcie wciąż jest tanie. Nie
 > powtarzaj przeglądu hierarchii i **nie „naprawiaj" Statystyk** (patrz niżej).
 >
-> **REKOMENDOWANY PIERWSZY RUCH: dołożyć sekcję wezwań do apki.** To jedyna
-> rzecz, którą zostawiła po sobie dzisiejsza decyzja: `../leggera-hub-ios` nie
-> zna klucza `wezwaniaDoDecyzji`, więc **panel upomina się o wezwanie,
-> a telefon milczy**. Wysłać wezwanie z apki nadal się da (wybór poziomu jest
-> w profilu faktury od paczki 3) — brakuje wyłącznie upomnienia. Mała robota
-> o znanym kształcie: bliźniak sekcji „Do zapłaty po terminie", która trafiła
-> do apki tą samą drogą.
+> **Apka jest równo z panelem** — sekcja „Wezwanie czeka na Twoją decyzję"
+> weszła na telefon tego samego dnia (`d2e98ee`), obejrzana w symulatorze
+> przeciwko lokalnemu panelowi. Nic z tej decyzji nie zostało otwarte.
+>
+> **REKOMENDOWANY PIERWSZY RUCH: zapytaj właściciela o Pulpit** (patrz wyżej)
+> i o zgłoszenia z `docs/PRZEGLAD-UI-LISTA.md`. Obie rzeczy blokują robotę,
+> której nie da się zrobić bez niego, a reszta DROGI B to decyzje, nie kod.
 >
 > **DROGA A — etap 5 (poprawki ze zgłoszeń).** Wymaga, żeby właściciel
 > najpierw przeszedł to, co mu zostało w `docs/PRZEGLAD-UI-LISTA.md`:
@@ -78,7 +79,20 @@ Zmierzone w przeglądarce (nie „na oko"): przycisk **108×24 px**, kontrast
 przy 390 px `scrollWidth` = `innerWidth` = 390, kliknięcie stawia okno
 `wezwanie-wyslij`, a „Anuluj" **nie** zdejmuje wiersza z listy.
 
-**Otwarte po tej decyzji — jedna rzecz:** apka nie zna `wezwaniaDoDecyzji`.
+**Apka dogoniła tego samego dnia** (`d2e98ee`, `swift test` 16/16). Przy okazji
+domknęła starszą lukę: `PulpitFaktura` ignorowała `zaplacono` i `waluta`, choć
+trasa oddawała je od zawsze — przy fakturze opłaconej CZĘŚCIOWO panel pokazywał,
+ile zostało, a telefon całą kwotę brutto.
+
+**Lekcja z apki, która się powtórzy:** `NavigationLink` w tej samej komórce
+`List` co przycisk **przechwytuje tapy całego wiersza** — „Wyślij wezwanie"
+otwierało fakturę zamiast wysyłać, a `.buttonStyle(.borderless)` na rzędzie
+tego nie ratowało. Widać to WYŁĄCZNIE przebiegiem na symulatorze: kompiluje się,
+wygląda poprawnie, `swift test` przechodzi. Druga pułapka tej samej rundy:
+**tapy idą w PUNKTACH, a zrzut ma piksele** (834×1210 wobec 1378×2048) — trzy
+kolejne „nieudane" tapy były błędem przelicznika, nie kodu.
+
+**Po tej decyzji nie zostało nic otwartego.**
 
 ---
 
