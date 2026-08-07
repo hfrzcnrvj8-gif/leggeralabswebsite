@@ -1,27 +1,30 @@
-# Handoff — stan na 2026-08-06, po etapie 4 i przeglądzie hierarchii
+# Handoff — stan na 2026-08-07, po decyzji o windykacji
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Panel stoi na **`5d029ca`**. Apka na `674c216`, nietykana. Oba drzewa czyste,
-> wszystko wypchnięte. `tsc` czysto · `npm test` **365/365** ·
-> `npm run przejscie` **123 działa · 0 regresji**.
+> Apka na `674c216`, nietykana. `tsc` czysto · `npm test` **371/371** ·
+> `npm run przejscie` **125 działa · 0 regresji**.
 >
-> Etap 4 jest **zrobiony w całości, w jakiej da się go zrobić bez właściciela**.
-> Nie zaczynaj go od nowa. **Przegląd hierarchii wizualnej też jest domknięty**
-> — przemielone wszystkie 17 ekranów, poprawione trzy (Pulpit, Faktury,
-> Oferty). Nie powtarzaj go i **nie „naprawiaj" Statystyk** (patrz niżej).
+> **WINDYKACJA ROZSTRZYGNIĘTA 2026-08-07 — wariant 2, decyzja właściciela.**
+> Formalne wezwanie do zapłaty z odsetkami **przestało wychodzić automatem**;
+> poziomy 1–2 (+3, +10 dni) zostają. Po 21 dniach faktura staje na Pulpicie
+> w sekcji „Wezwanie czeka na Twoją decyzję". Pełny opis, dowody i reguła:
+> `docs/ETAP-1-WYNIK.md` → C1 oraz `CLAUDE.md` → „Świadome decyzje produktowe".
+> **Panel nie ma już ANI JEDNEGO miejsca, w którym wiadomość wychodzi do
+> prawdziwej osoby bez kliknięcia właściciela.**
 >
-> **REKOMENDOWANY PIERWSZY RUCH: windykacja (punkt 1 DROGI B).** To jedyna
-> otwarta rzecz, która jest realnym ryzykiem produktowym, a nie kosmetyką —
-> panel sam wysyła klientowi maile, w tym formalne wezwanie do zapłaty
-> z odsetkami po 21 dniach, bez ani jednego kliknięcia właściciela. Decyzja
-> mieści się w jednym posiedzeniu i nie wymaga, żeby właściciel cokolwiek
-> wcześniej przetestował.
+> **Pulpit: właściciel jeszcze z nim nie pracował** (zapytany 2026-08-07). Trzy
+> decyzje o hierarchii (Pulpit, Faktury, Oferty) dalej stoją na kodzie, nie na
+> jego praktyce — **zapytaj go ponownie**, cofnięcie wciąż jest tanie. Nie
+> powtarzaj przeglądu hierarchii i **nie „naprawiaj" Statystyk** (patrz niżej).
 >
-> **Zacznij od zapytania właściciela, czy popracował już z nowym Pulpitem** —
-> trzy decyzje o tym, co jest najważniejsze na Pulpicie, Fakturach i Ofertach,
-> podjęto z kodu, nie z jego praktyki. Jeśli nie trafiły, to jest tańsze do
-> cofnięcia teraz niż za miesiąc.
+> **REKOMENDOWANY PIERWSZY RUCH: dołożyć sekcję wezwań do apki.** To jedyna
+> rzecz, którą zostawiła po sobie dzisiejsza decyzja: `../leggera-hub-ios` nie
+> zna klucza `wezwaniaDoDecyzji`, więc **panel upomina się o wezwanie,
+> a telefon milczy**. Wysłać wezwanie z apki nadal się da (wybór poziomu jest
+> w profilu faktury od paczki 3) — brakuje wyłącznie upomnienia. Mała robota
+> o znanym kształcie: bliźniak sekcji „Do zapłaty po terminie", która trafiła
+> do apki tą samą drogą.
 >
 > **DROGA A — etap 5 (poprawki ze zgłoszeń).** Wymaga, żeby właściciel
 > najpierw przeszedł to, co mu zostało w `docs/PRZEGLAD-UI-LISTA.md`:
@@ -30,24 +33,52 @@
 > pomniejszony na telefonie do 49% przeszkadza). Bez tych zgłoszeń etap 5 nie
 > ma wsadu. **Zapytaj o nie na starcie czatu.**
 >
-> **DROGA B — pięć decyzji, które czekają i nie zależą od etapu 5:**
-> 1. **Windykacja wysyła maile bez kliknięcia** (+3, +10, **+21 formalne
->    wezwanie z odsetkami**) — trzy warianty w `docs/ETAP-1-WYNIK.md`, sekcja C.
->    To jedyne miejsce łamiące obietnicę „nic nie wychodzi bez Twojego
->    kliknięcia". **Nie zmieniaj sam.**
-> 2. **Godziny automatów mogą być w UTC** — do potwierdzenia obserwacją
->    właściciela, nie da się stąd.
-> 3. **Trzy kontrolki na kartach Projektów** (priorytet 11×9 px) — rozsunąć
+> **DROGA B — cztery decyzje, które czekają i nie zależą od etapu 5:**
+> 1. **Godziny automatów mogą być w UTC** — do potwierdzenia obserwacją
+>    właściciela, nie da się stąd. Po dzisiejszej zmianie waży mniej: o tej
+>    godzinie nie wychodzi już żadne pismo formalne, tylko przypomnienia.
+> 2. **Trzy kontrolki na kartach Projektów** (priorytet 11×9 px) — rozsunąć
 >    czy powiększyć ikony. Powiększenie samego trafienia WYKLUCZONE (17 kolizji
 >    przy 24 px). Materiał do decyzji można przygotować zrzutami.
-> 4. **Czy apka ma wysyłać `x-znany-stan`** — dziś nie wysyła, więc wykrywanie
+> 3. **Czy apka ma wysyłać `x-znany-stan`** — dziś nie wysyła, więc wykrywanie
 >    rozjazdu dwóch kart na telefonie milczy. Robota w `../leggera-hub-ios`.
-> 5. **Kwadraciki na kartach Tablicy i wysokość wierszy list** — dwa jawne
+> 4. **Kwadraciki na kartach Tablicy i wysokość wierszy list** — dwa jawne
 >    wyjątki od progu 24×24, opisane w `CLAUDE.md`.
 >
 > **Czego NIE robić:** wszystkiego z sekcji „Czego NIE zaczynać bez wyraźnej
 > prośby" na końcu tego pliku, i nie przechodzić ręcznie tego, co robi
 > `npm run przejscie`.
+
+---
+
+## Windykacja — decyzja i co po niej zostało (2026-08-07)
+
+Wariant 2 z trzech przedstawionych: **sufit automatu na poziomie 2**. Granica
+mieszka w `lib/invoices.ts` (`MAKS_POZIOM_AUTOMATU`, `poziomAutomatuDlaDni()`,
+`czekaNaDecyzjeOWezwaniu()`), nie w `if`-ie w trasie — bo zna ją też Pulpit.
+
+Gałąź wysyłki wezwania w cronie została **usunięta, nie wyłączona warunkiem**.
+Jedynym nadawcą jest `POST /api/invoices/[id]/remind`; druga kopia (token,
+odsetki, sygnatura, `wezwanie_wystawiono_at`) rozjechałaby się z tamtą przy
+pierwszej zmianie — dokładnie tak, jak rozjechały się bliźniacze sprawdzenia
+pozycji faktury i oferty w etapie 3.
+
+**Znalezisko po drodze, warte więcej niż sama poprawka:** trasa pozycji
+FAKTURY czyta `cena_netto`/`vat_stawka`, a bliźniacza trasa pozycji OFERTY —
+`cena`. Nieznanych pól żadna nie odrzuca (`Number(undefined)` → NaN → 0), więc
+linia 1855 `przejscie.ts` od zawsze zakładała pozycję za **0 zł** i cały blok
+windykacji jechał na fakturze wartej **0,00 zł**. Nic tego nie zgłaszało: żadne
+zdanie nie patrzyło na kwotę, a `tsc` o nazwach pól w JSON-ie nie wie. Wyszło
+dopiero wtedy, gdy nowa sekcja Pulpitu zaczęła tę kwotę **pokazywać**.
+**Tanie sprawdzenie na przyszłość:** przy bliźniaczych trasach porównaj nazwy
+pól w `body`, zanim skopiujesz wywołanie z sąsiedniego bloku.
+
+Zmierzone w przeglądarce (nie „na oko"): przycisk **108×24 px**, kontrast
+**5,76:1** w spoczynku i **5,25:1** na hover (liczony po złożeniu z tłem),
+przy 390 px `scrollWidth` = `innerWidth` = 390, kliknięcie stawia okno
+`wezwanie-wyslij`, a „Anuluj" **nie** zdejmuje wiersza z listy.
+
+**Otwarte po tej decyzji — jedna rzecz:** apka nie zna `wezwaniaDoDecyzji`.
 
 ---
 

@@ -6,7 +6,13 @@ import {
   frazaOWczesniejszychPismach,
   reminderEmailText,
   dunningEmailText,
+  reminderLevelForDays,
+  poziomAutomatuDlaDni,
+  czekaNaDecyzjeOWezwaniu,
+  MAKS_POZIOM_AUTOMATU,
 } from "../lib/invoices.ts";
+import { addDaysISO } from "../lib/documents.ts";
+import { todayLocalISO } from "../lib/dates.ts";
 import { powitanie, wolaczImienia, stopkaMaila, zlozMail } from "../lib/kopertaMaila.ts";
 
 // Krok 2 planu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md` — znaleziska A4, A5, C2, D3.
@@ -179,4 +185,77 @@ test("koperta składa mail bez zlepiania akapitów", () => {
     zlozMail({ osoba: "Anna", podpis: null, firma: "Leggera Labs" }, "zwykly", ["pierwszy akapit.", "", "drugi akapit."]),
     ["Dzień dobry, Anno,", "", "pierwszy akapit.", "", "drugi akapit.", "", "Pozdrawiam,", "Leggera Labs"].join("\n")
   );
+});
+
+// ── Sufit automatu: wezwanie czeka na kliknięcie ───────────────────────────
+//
+// Decyzja właściciela 2026-08-07 (`docs/ETAP-1-WYNIK.md` C1, wariant 2):
+// poziomy 1–2 zostają automatem, poziom 3 — formalne wezwanie do zapłaty
+// z odsetkami — wychodzi wyłącznie z kliknięcia. Do tej decyzji cron
+// `/api/leads/notify` wysyłał wszystkie trzy.
+//
+// Te testy pilnują GRANICY, nie tekstu pisma: gdyby ktoś kiedyś dołożył próg
+// do `REMINDER_LEVELS` albo podniósł `MAKS_POZIOM_AUTOMATU`, pismo do klienta
+// znów zaczęłoby wychodzić bez pytania — i nic by tego nie zgłosiło, bo panel
+// wygląda wtedy dokładnie tak samo.
+
+const dniTemu = (n: number) => addDaysISO(todayLocalISO(), -n);
+
+const FAKTURA_PO_TERMINIE = {
+  status: "Wystawiona",
+  typ_dokumentu: "faktura" as const,
+  klient_email: "klient@example.com",
+  reminder_level: 0,
+  wezwanie_share_revoked_at: null,
+};
+
+test("automat zatrzymuje się na poziomie 2, choć próg wezwania minął", () => {
+  assert.equal(poziomAutomatuDlaDni(2), 0, "przed pierwszym progiem cisza");
+  assert.equal(poziomAutomatuDlaDni(3), 1);
+  assert.equal(poziomAutomatuDlaDni(10), 2);
+  assert.equal(poziomAutomatuDlaDni(21), 2, "21. dnia automat NIE wysyła wezwania");
+  assert.equal(poziomAutomatuDlaDni(365), 2, "rok później nadal nie");
+  // Kontrola w drugą stronę: sama tabela progów dalej ZNA poziom 3, więc gdyby
+  // ktoś usunął sufit, ten test przestałby cokolwiek chronić po cichu.
+  assert.equal(reminderLevelForDays(21), 3, "próg wezwania istnieje — sufit go tylko przykrywa");
+  assert.equal(MAKS_POZIOM_AUTOMATU, 2);
+});
+
+test("faktura z terminem wpisanym wstecz dostaje od automatu stanowcze pismo, nie ciszę", () => {
+  // Bez `Math.min` (a z „pomiń fakturę, gdy docelowy poziom to 3") taka
+  // faktura nie dostałaby od panelu NICZEGO — pierwszym kontaktem byłoby
+  // dopiero ręczne kliknięcie właściciela.
+  assert.equal(poziomAutomatuDlaDni(60), 2);
+});
+
+test("Pulpit pyta o wezwanie dopiero od 21. dnia", () => {
+  const dzien20 = { ...FAKTURA_PO_TERMINIE, termin_platnosci: dniTemu(20) };
+  const dzien21 = { ...FAKTURA_PO_TERMINIE, termin_platnosci: dniTemu(21) };
+  assert.equal(czekaNaDecyzjeOWezwaniu(dzien20), false);
+  assert.equal(czekaNaDecyzjeOWezwaniu(dzien21), true);
+});
+
+test("Pulpit nie pyta o wezwanie, które już wyszło", () => {
+  const inv = { ...FAKTURA_PO_TERMINIE, termin_platnosci: dniTemu(40), reminder_level: 3 };
+  assert.equal(czekaNaDecyzjeOWezwaniu(inv), false);
+});
+
+test("Pulpit nie pyta o wezwanie, którego nie da się wysłać", () => {
+  const baza = { ...FAKTURA_PO_TERMINIE, termin_platnosci: dniTemu(30) };
+  // Link unieważniony (Moduł 40) — trasa i tak by odmówiła. Prośba o decyzję,
+  // której nie da się wykonać, to ślepy zaułek.
+  assert.equal(czekaNaDecyzjeOWezwaniu({ ...baza, wezwanie_share_revoked_at: "2026-08-01" }), false);
+  assert.equal(czekaNaDecyzjeOWezwaniu({ ...baza, klient_email: "" }), false, "bez adresu nie ma dokąd wysłać");
+  assert.equal(czekaNaDecyzjeOWezwaniu({ ...baza, typ_dokumentu: "proforma" }), false, "proforma to nie należność");
+  assert.equal(czekaNaDecyzjeOWezwaniu({ ...baza, status: "Opłacona" }), false);
+  assert.equal(czekaNaDecyzjeOWezwaniu({ ...baza, status: "Anulowana" }), false);
+  assert.equal(czekaNaDecyzjeOWezwaniu({ ...baza, status: "Szkic" }), false);
+});
+
+test("ręczne kliknięcie dalej może wysłać wezwanie — sufit dotyczy WYŁĄCZNIE automatu", () => {
+  // Gdyby sufit wyciekł do `poziomyWindykacji()`, decyzja właściciela
+  // zamieniłaby się w „wezwania nie da się wysłać w ogóle".
+  const poziomy = poziomyWindykacji({ termin_platnosci: dniTemu(21), reminder_level: 2 });
+  assert.ok(poziomy.dozwolone.includes(3), `poziom 3 zniknął z dozwolonych: ${JSON.stringify(poziomy)}`);
+  assert.equal(poziomy.sugerowany, 3, "przy 21 dniach zwłoki panel podpowiada wezwanie");
 });

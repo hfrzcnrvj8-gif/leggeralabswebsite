@@ -53,7 +53,7 @@ użytkownika, ról ani zespołu — to świadome zawężenie, nie brak.
 |---|---|---|
 | **4:00** | Łowca leadów przegląda porcję firm z CEIDG, sprawdza VAT i stronę, przepuszcza przez sito i odkłada kandydatów | Nowe firmy w *Leady → Kandydaci*, z oceną A/B/C i rozpisanymi punktami |
 | **6:00** | **Poranny raport** na Twojego maila + pięć rzeczy przy okazji (niżej) | Mail w skrzynce. Gdyby nie przyszedł — patrz „Jak poznasz, że coś stanęło" |
-| **6:00** | **Wysyła klientom przypomnienia o zaległych fakturach** | Historia wysyłek na fakturze; wezwanie dodatkowo dzwoni w dzwonku |
+| **6:00** | **Wysyła klientom przypomnienia o zaległych fakturach** — uprzejme (+3 dni) i stanowcze (+10). Wezwania NIE wysyła: po 21 dniach stawia je na Pulpicie do Twojej decyzji | Historia wysyłek na fakturze; sekcja „Wezwanie czeka na Twoją decyzję” na Pulpicie |
 | **6:00** | Zakłada **szkice** faktur i kosztów cyklicznych | Nowy szkic na liście + wpis w dzwonku |
 | **6:00** | Pobiera pocztę ze skrzynki az.pl | Nowe wiadomości w module Poczta |
 | **6:00** | Kasuje dane po terminie retencji (patrz niżej) | Nic nie widać — i o to chodzi |
@@ -100,11 +100,13 @@ widać złotym pasem na górze Pulpitu, razem ze stanem kopii zapasowych.
 ## Czego panel świadomie NIE robi
 
 - **Nie wysyła niczego do klienta bez Twojego kliknięcia — z jednym wyjątkiem.**
-  Wyjątek to windykacja: zaległa faktura z adresem e-mail sama dostaje
-  przypomnienie po 3 dniach, stanowcze po 10 i **formalne wezwanie do zapłaty
-  z odsetkami po 21**. Wszystko inne — oferty, umowy, prośby o opinię, kontakty
-  kontrolne — czeka na przycisk. *(Czy ten wyjątek ma zostać, jest do Twojej
-  decyzji — patrz `docs/ETAP-1-WYNIK.md`, punkt C1.)*
+  Wyjątek to windykacja: zaległa faktura z adresem e-mail sama dostaje uprzejme
+  przypomnienie po 3 dniach i stanowcze po 10. Wszystko inne — oferty, umowy,
+  prośby o opinię, kontakty kontrolne — czeka na przycisk.
+  *(Twoja decyzja z 7 sierpnia 2026: **formalne wezwanie do zapłaty
+  z odsetkami przestało wychodzić samo**. Po 21 dniach faktura staje na Pulpicie
+  w sekcji „Wezwanie czeka na Twoją decyzję" i czeka na kliknięcie. Punkt C1
+  w `docs/ETAP-1-WYNIK.md` jest tym samym zamknięty.)*
 - **Nie ma modelu AI w żadnej decyzji.** Wszystkie reguły są policzalne
   i wypisane: „minął termin i nie jest zamknięty", „branża docelowa +30 punktów".
   Model językowy pojawia się w pięciu miejscach, zawsze klikanych ręcznie

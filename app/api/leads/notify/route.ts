@@ -6,7 +6,6 @@ import {
   ensureHubSchema,
   ensureInvoicesSchema,
   ensureInvoiceShareToken,
-  ensureInvoiceWezwanieShareToken,
   ensureClientsSchema,
   ensureFollowupsSchema,
   ensureCostsSchema,
@@ -27,11 +26,8 @@ import { rozwinSerieWydarzen, type HubEvent } from "@/lib/events";
 import {
   isInvoiceOverdue,
   daysOverdue,
-  reminderLevelForDays,
+  poziomAutomatuDlaDni,
   reminderEmailText,
-  dunningEmailText,
-  dunningReference,
-  lateInterestAmount,
   addDaysISO,
   type Invoice,
   type CompanySettings,
@@ -84,13 +80,21 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || "https://leggeralabs.pl"
 
 /** Wysyła klientom automatyczne przypomnienia o zaległych fakturach (z
  * e-mailem nabywcy, wystawionych, po terminie), z rosnącą eskalacją tonu
- * wg `REMINDER_LEVELS` (lib/invoices.ts): +3 dni uprzejme, +10 stanowcze,
- * +21 formalne wezwanie do zapłaty (osobny dokument, opcjonalne odsetki
- * ustawowe). `invoices.reminder_level` pilnuje, żeby dany poziom nie
- * poszedł dwa razy — zastąpiło to poprzedni, prostszy mechanizm stałego
- * 7-dniowego cooldownu bez eskalacji. Błędy pojedynczych wysyłek nie
- * przerywają reszty — liczy się "wysłano ile się dało", nie "wszystko albo
- * nic". */
+ * wg `REMINDER_LEVELS` (lib/invoices.ts): +3 dni uprzejme, +10 stanowcze.
+ * `invoices.reminder_level` pilnuje, żeby dany poziom nie poszedł dwa razy —
+ * zastąpiło to poprzedni, prostszy mechanizm stałego 7-dniowego cooldownu bez
+ * eskalacji. Błędy pojedynczych wysyłek nie przerywają reszty — liczy się
+ * "wysłano ile się dało", nie "wszystko albo nic".
+ *
+ * **Poziom 3 (formalne wezwanie do zapłaty) tędy NIE idzie** — decyzja
+ * właściciela z 2026-08-07 (`docs/ETAP-1-WYNIK.md` C1, wariant 2). Sufit
+ * automatu trzyma `poziomAutomatuDlaDni()`, a faktury, przy których wezwanie
+ * czeka na kliknięcie, pokazuje Pulpit (`czekaNaDecyzjeOWezwaniu`). Jedynym
+ * nadawcą wezwania jest dziś `POST /api/invoices/[id]/remind` — i to jest
+ * powód, dla którego tutejszej gałęzi `level === 3` NIE MA: druga kopia
+ * wysyłki (token, odsetki, sygnatura, `wezwanie_wystawiono_at`) rozjechałaby
+ * się z tamtą przy pierwszej zmianie, tak jak rozjechały się bliźniacze
+ * sprawdzenia pozycji faktury i oferty w etapie 3. */
 async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: number }> {
   await ensureInvoicesSchema();
   const sql = getSql();
@@ -99,7 +103,6 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
     WHERE status = 'Wystawiona' AND typ_dokumentu != 'proforma' AND klient_email != '';
   `) as unknown as Invoice[];
   const settingsRows = (await sql`SELECT * FROM company_settings WHERE id = 'default';`) as unknown as CompanySettings[];
-  const stawkaOdsetek = settingsRows[0]?.stawka_odsetek_ustawowych ?? null;
 
   const dueRows = await Promise.all(
     rows.map(async (inv) => {
@@ -116,13 +119,13 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
   for (const { inv, brutto } of dueRows) {
     if (!isInvoiceOverdue(inv)) continue;
     const dni = daysOverdue(inv);
-    const targetLevel = reminderLevelForDays(dni);
+    // Sufit 2: powyżej jest wezwanie, a to decyzja właściciela, nie crona.
+    const targetLevel = poziomAutomatuDlaDni(dni);
     if (targetLevel === 0 || targetLevel <= inv.reminder_level) continue;
     // Moduł 40 — nie wysyłamy automatu linkiem, który właściciel unieważnił.
     // ensure*ShareToken() jest idempotentne, więc bez tego warunku poszedłby
     // mailem adres zwracający 410, a właściciel nie miałby o tym pojęcia.
-    const revokedFor = targetLevel === 3 ? inv.wezwanie_share_revoked_at : inv.share_revoked_at;
-    if (revokedFor) {
+    if (inv.share_revoked_at) {
       console.warn(`[notify] pomijam przypomnienie dla faktury ${inv.numer ?? inv.id} — link unieważniony`);
       continue;
     }
@@ -135,71 +138,36 @@ async function sendOverdueInvoiceReminders(): Promise<{ sent: number; failed: nu
     );
     const koperta = await kopertaDokumentu(sql, inv, settingsRows[0] ?? null);
     try {
-      if (targetLevel === 3) {
-        const token = await ensureInvoiceWezwanieShareToken(sql, inv.id, inv.wezwanie_share_token);
-        const url = `${SITE_ORIGIN}/pl/wezwanie/${token}`;
-        const reference = dunningReference(inv.id, inv.created_at);
-        const odsetki = lateInterestAmount(brutto, stawkaOdsetek, dni ?? 0);
-        const { subject, text } = dunningEmailText({
-          numer: inv.numer ?? "",
-          brutto,
-          waluta: inv.waluta,
-          terminPlatnosci: inv.termin_platnosci,
-          dni: dni ?? 0,
-          odsetki,
-          url,
-          reference,
-          wyslanoWczesniej,
-          koperta,
-        });
-        await sendEmail({ to: inv.klient_email, subject, text });
-        await sql`UPDATE invoices SET wezwanie_wystawiono_at = now() WHERE id = ${inv.id};`;
-        await logZdarzenieDokumentu(sql, celDokumentu(inv), "invoice_dunning_sent", `Wysłano wezwanie do zapłaty — faktura ${inv.numer} (${reference})`, null, inv.id);
-        // B3 — wezwanie poszło do klienta, choć wysłał je cron, a nie kliknięcie.
-        await odnotujWyslanaWiadomosc(sql, celDokumentu(inv));
-        // Formalne wezwanie to najpoważniejszy krok, jaki panel wykonuje bez
-        // pytania — musi zostawić ślad tam, gdzie właściciel patrzy, nie tylko
-        // w mailu o 6:00.
-        await notify({
-          kind: "invoice_dunning",
-          title: `Wysłano wezwanie do zapłaty — faktura ${inv.numer ?? ""}`.trim(),
-          body: `${dni ?? 0} dni po terminie. Sygnatura ${reference}.`,
-          entity: "invoice",
-          entityId: inv.id,
-          dedupeKey: `invoice_dunning:${inv.id}`,
-        });
-      } else {
-        const token = await ensureInvoiceShareToken(sql, inv.id, inv.share_token);
-        const url = `${SITE_ORIGIN}/pl/faktura/${token}`;
-        const { subject, text } = reminderEmailText(targetLevel as 1 | 2, {
-          numer: inv.numer ?? "",
-          brutto,
-          waluta: inv.waluta,
-          terminPlatnosci: inv.termin_platnosci,
-          url,
-          wyslanoWczesniej,
-          koperta,
-        });
-        await sendEmail({ to: inv.klient_email, subject, text });
-        await logZdarzenieDokumentu(sql, celDokumentu(inv), "invoice_reminder", `Automatyczne przypomnienie o płatności (poziom ${targetLevel}) — faktura ${inv.numer}`, null, inv.id);
-        await odnotujWyslanaWiadomosc(sql, celDokumentu(inv));
-        // Poziom w kluczu, nie sam id faktury: +3 dni i +10 dni to DWA różne
-        // zdarzenia w życiu tej samej faktury i oba mają być widoczne. Sama
-        // eskalacja i tak nie powtórzy się per poziom (`reminder_level` wyżej),
-        // ale klucz musi to odzwierciedlać, a nie zakładać.
-        await notify({
-          kind: "invoice_reminder",
-          title: `Wysłano przypomnienie o płatności — faktura ${inv.numer ?? ""}`.trim(),
-          body: `Poziom ${targetLevel}, ${dni ?? 0} dni po terminie. Klient: ${inv.klient_nazwa}.`,
-          entity: "invoice",
-          entityId: inv.id,
-          dedupeKey: `invoice_reminder:${inv.id}:${targetLevel}`,
-        });
-      }
+      const token = await ensureInvoiceShareToken(sql, inv.id, inv.share_token);
+      const url = `${SITE_ORIGIN}/pl/faktura/${token}`;
+      const { subject, text } = reminderEmailText(targetLevel as 1 | 2, {
+        numer: inv.numer ?? "",
+        brutto,
+        waluta: inv.waluta,
+        terminPlatnosci: inv.termin_platnosci,
+        url,
+        wyslanoWczesniej,
+        koperta,
+      });
+      await sendEmail({ to: inv.klient_email, subject, text });
+      await logZdarzenieDokumentu(sql, celDokumentu(inv), "invoice_reminder", `Automatyczne przypomnienie o płatności (poziom ${targetLevel}) — faktura ${inv.numer}`, null, inv.id);
+      await odnotujWyslanaWiadomosc(sql, celDokumentu(inv));
+      // Poziom w kluczu, nie sam id faktury: +3 dni i +10 dni to DWA różne
+      // zdarzenia w życiu tej samej faktury i oba mają być widoczne. Sama
+      // eskalacja i tak nie powtórzy się per poziom (`reminder_level` wyżej),
+      // ale klucz musi to odzwierciedlać, a nie zakładać.
+      await notify({
+        kind: "invoice_reminder",
+        title: `Wysłano przypomnienie o płatności — faktura ${inv.numer ?? ""}`.trim(),
+        body: `Poziom ${targetLevel}, ${dni ?? 0} dni po terminie. Klient: ${inv.klient_nazwa}.`,
+        entity: "invoice",
+        entityId: inv.id,
+        dedupeKey: `invoice_reminder:${inv.id}:${targetLevel}`,
+      });
       await sql`UPDATE invoices SET last_reminder_at = now(), reminder_level = ${targetLevel} WHERE id = ${inv.id};`;
       await sql`
         INSERT INTO invoice_reminders (id, invoice_id, level, kind)
-        VALUES (${randomUUID()}, ${inv.id}, ${targetLevel}, ${targetLevel === 3 ? "wezwanie" : "reminder"});
+        VALUES (${randomUUID()}, ${inv.id}, ${targetLevel}, 'reminder');
       `;
       sent += 1;
     } catch (e) {

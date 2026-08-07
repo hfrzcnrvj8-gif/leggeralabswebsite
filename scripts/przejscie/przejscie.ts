@@ -1852,7 +1852,13 @@ async function drogaPorazki(umowaGlownaId: string, projektGlownyId: string): Pro
   const fv = await api("POST", "/api/invoices", { client_id: klientId, project_id: projektGlownyId });
   const fvId = id(fv.dane);
   wymagaj(!!fvId, `POST /api/invoices (windykacja) → ${fv.status} ${JSON.stringify(fv.dane)}`);
-  await api("POST", `/api/invoices/${fvId}/items`, { nazwa: "Wdrożenie — etap 1", ilosc: 1, jednostka: "kpl.", cena: 6000, vat: 23 });
+  // `cena_netto`/`vat_stawka`, NIE `cena`/`vat` — trasa pozycji FAKTURY nazywa
+  // te pola inaczej niż bliźniacza trasa pozycji OFERTY, a nieznanych pól nie
+  // odrzuca: `Number(undefined)` daje NaN, więc cena cicho wynosi 0. Do
+  // 2026-08-07 stało tu `cena: 6000` i cały ten blok jechał na fakturze wartej
+  // **0,00 zł** — bez objawu, bo żadne zdanie nie patrzyło na kwotę. Wyszło
+  // dopiero wtedy, gdy Pulpit zaczął tę kwotę POKAZYWAĆ.
+  await api("POST", `/api/invoices/${fvId}/items`, { nazwa: "Wdrożenie — etap 1", ilosc: 1, jednostka: "kpl.", cena_netto: 6000, vat_stawka: "23" });
   // Termin minął 14 dni temu: podpowiadany poziom to od razu „stanowcze
   // przypomnienie" — dokładnie sytuacja z drugiego przejścia, w której
   // PIERWSZA wiadomość twierdziła, że jest druga.
@@ -1897,6 +1903,40 @@ async function drogaPorazki(umowaGlownaId: string, projektGlownyId: string): Pro
     wezwanie.status === 200 && Number((await pobierzFakture(fvId!)).invoice.reminder_level) === 3,
     undefined,
     `→ ${wezwanie.status} ${JSON.stringify(wezwanie.dane?.error ?? "")}`
+  );
+
+  // ── Sufit automatu windykacji (decyzja właściciela 2026-08-07) ──────────
+  //
+  // Poziom 3 przestał wychodzić automatem i zatrzymuje się na Pulpicie. Osobna
+  // faktura, nie ta wyżej: tamta ma już `reminder_level = 3`, więc nie ma o co
+  // pytać. Termin −25 dni, żeby próg wezwania (+21) był minięty z zapasem.
+  const fvPulpit = await api("POST", "/api/invoices", { client_id: klientId, project_id: projektGlownyId });
+  const fvPulpitId = id(fvPulpit.dane);
+  await api("POST", `/api/invoices/${fvPulpitId}/items`, { nazwa: "Wdrożenie — etap 2", ilosc: 1, jednostka: "kpl.", cena_netto: 4000, vat_stawka: "23" });
+  await api("PATCH", `/api/invoices/${fvPulpitId}`, { termin_platnosci: zaDni(-25), data_wystawienia: zaDni(-39) });
+  const fvPulpitGotowa = await pobierzFakture(fvPulpitId!);
+  await apiZPotwierdzeniem(
+    "POST",
+    `/api/invoices/${fvPulpitId}/issue`,
+    "faktura-wystaw",
+    undefined,
+    String(fvPulpitGotowa.invoice.klient_nazwa ?? "")
+  );
+  const naPulpicie = ((await api("GET", "/api/hub/today")).dane?.wezwaniaDoDecyzji ?? []) as any[];
+  sprawdz(
+    "wezwanie NIE wychodzi automatem — czeka na Pulpicie na decyzję właściciela",
+    naPulpicie.some((i) => i.id === fvPulpitId),
+    undefined,
+    `${naPulpicie.length} pozycji, brak ${fvPulpitId}`
+  );
+  // Kontrola w drugą stronę: sekcja pyta o DECYZJĘ, a nie „przypomina o każdej
+  // zaległej fakturze". Faktura, przy której wezwanie już wyszło, ma z niej
+  // zniknąć — inaczej właściciel wysyłałby to samo pismo w kółko.
+  sprawdz(
+    "faktura z wysłanym już wezwaniem znika z listy do decyzji",
+    !naPulpicie.some((i) => i.id === fvId),
+    undefined,
+    `${fvId} nadal prosi o decyzję, mimo reminder_level = 3`
   );
 }
 

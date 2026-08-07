@@ -66,7 +66,39 @@ dokładnie tak, jak rozjechał się cały ten rozdział.
 
 ## C. Do Twojej decyzji — NIE tknąłem
 
-### C1. Windykacja wysyła do klienta bez Twojego kliknięcia (patrz A1)
+### C1. Windykacja wysyła do klienta bez Twojego kliknięcia (patrz A1) — ✅ ROZSTRZYGNIĘTE 2026-08-07
+
+**Decyzja właściciela: wariant 2.** Poziomy 1–2 (+3 i +10 dni) zostają
+automatem, **poziom 3 — formalne wezwanie do zapłaty z odsetkami — przestał
+wychodzić sam**. Po 21 dniach faktura staje na Pulpicie w sekcji
+„Wezwanie czeka na Twoją decyzję" i czeka na kliknięcie.
+
+Co się zmieniło w kodzie:
+
+- `lib/invoices.ts` — `MAKS_POZIOM_AUTOMATU = 2`, `poziomAutomatuDlaDni()`
+  (sufit przez `Math.min`, nie „pomiń fakturę"), `czekaNaDecyzjeOWezwaniu()`.
+- `app/api/leads/notify/route.ts` — gałąź wysyłki wezwania **usunięta**, nie
+  wyłączona `if`-em. Jedynym nadawcą wezwania jest dziś
+  `POST /api/invoices/[id]/remind`; druga kopia (token, odsetki, sygnatura)
+  rozjechałaby się z tamtą przy pierwszej zmianie.
+- `app/api/hub/today/route.ts` + `DashboardHome.tsx` — nowa sekcja z
+  przyciskiem „Wyślij wezwanie". Okno „Wysłać wezwanie do zapłaty?" stawia
+  TRASA (Faza 4, 428), nie przycisk.
+- Instrukcje w panelu (`lib/instrukcje.ts`, 3 zdania) i `docs/CO-MAM.md`
+  przepisane — bez tego przewodnik zacząłby kłamać tego samego dnia.
+
+Dowód: `npm test` 371/371 (6 nowych zdań w `test/windykacja.test.ts`,
+sprawdzonych kontrolnie przez tymczasowe podniesienie sufitu z powrotem do 3 —
+padły 2), `npm run przejscie` 125 działa · 0 regresji (2 nowe zdania).
+Zmierzone w przeglądarce: przycisk 108×24 px, kontrast 5,76:1 w spoczynku
+i 5,25:1 na hover, na 390 px nic nie wychodzi poza ekran.
+
+**Uwaga na apkę:** `../leggera-hub-ios` nie zna klucza `wezwaniaDoDecyzji`,
+więc na telefonie ta sekcja się nie pokazuje. Wezwanie nadal da się wysłać
+z profilu faktury (wybór poziomu jest w apce od paczki 3), ale **panel upomni
+się o decyzję, a telefon nie**. Do dołożenia, gdy przyjdzie kolej na apkę.
+
+#### Treść pytania sprzed decyzji (zostawiona dla kontekstu)
 
 To jedyne miejsce w całym panelu, gdzie wiadomość wychodzi do prawdziwej osoby
 bez kliknięcia. Dziś zapisałem to w instrukcji tak, jak jest — razem z drogami

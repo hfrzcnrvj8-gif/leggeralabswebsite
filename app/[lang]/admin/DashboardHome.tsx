@@ -120,6 +120,11 @@ type TodayData = {
   projektyZagrozone: Project[];
   overdueMilestones: OverdueMilestone[];
   overdueInvoices: InvoiceRow[];
+  /** Faktury, przy których formalne wezwanie do zapłaty czeka na decyzję
+   *  właściciela (2026-08-07). Odkąd poziom 3 nie wychodzi automatem, to jest
+   *  jedyne miejsce, w którym windykacja się o siebie upomina — `?`, bo apka
+   *  i starsze odpowiedzi tego klucza nie znają. */
+  wezwaniaDoDecyzji?: (InvoiceRow & { dniPoTerminie: number })[];
   draftInvoices: InvoiceRow[];
   /** Faktury OD DOSTAWCY po terminie płatności (przegląd szwów, 2026-08-06).
    *  Symetria z `overdueInvoices`, ale skutek odwrotny: to my mamy zapłacić.
@@ -388,6 +393,30 @@ export function DashboardHome({ lang }: { lang: Locale }) {
       return;
     }
     toast(`Przypomnienie wysłane${numer ? ` (${numer})` : ""}.`);
+  };
+
+  /** Formalne wezwanie do zapłaty — jedyne pismo windykacyjne, które NIE
+   * wychodzi automatem (decyzja właściciela 2026-08-07). `poziom: 3` idzie
+   * jawnie, żeby kliknięcie z Pulpitu znaczyło dokładnie to, co mówi napis:
+   * bez niego trasa wysłałaby poziom PODPOWIADANY, a ten bywa niższy (gdy
+   * właściciel wcześniej sam wysłał łagodniejsze pismo, `poziomyWindykacji()`
+   * podpowiada wyżej, ale przy pustej historii i 21 dniach — dokładnie 3).
+   * Okno „Wysłać wezwanie do zapłaty?" stawia TRASA (Faza 4), nie ten
+   * przycisk. */
+  const wyslijWezwanie = async (id: string, numer: string | null) => {
+    const w = await zadanie(`/api/invoices/${id}/remind`, { method: "POST", body: { poziom: 3 } });
+    if (w.anulowane) return;
+    if (!w.ok) {
+      toast(w.dane.error || "Nie udało się wysłać wezwania.", "error");
+      return;
+    }
+    // Zdejmujemy z listy od razu: sekcja pyta „czy wysłać", a odpowiedź już
+    // padła. Bez tego wiersz zostaje do następnego odświeżenia i wygląda, jakby
+    // kliknięcie nic nie dało.
+    setData((prev) =>
+      prev ? { ...prev, wezwaniaDoDecyzji: (prev.wezwaniaDoDecyzji ?? []).filter((i) => i.id !== id) } : prev
+    );
+    toast(`Wezwanie do zapłaty wysłane${numer ? ` (${numer})` : ""}.`);
   };
 
   if (loadError) {
@@ -936,6 +965,61 @@ export function DashboardHome({ lang }: { lang: Locale }) {
             </ul>
           )}
         </section>
+
+        {/* WEZWANIE CZEKA NA DECYZJĘ (2026-08-07, `docs/ETAP-1-WYNIK.md` C1,
+            wariant 2). Do tej decyzji poziom 3 wychodził sam 21. dnia i ta
+            sekcja nie miała po co istnieć. Teraz windykacja zatrzymuje się
+            TUTAJ — bez tej sekcji zmiana znaczyłaby „panel przestał
+            windykować", a nie „decyzja wróciła do właściciela".
+
+            Sekcja pokazuje się TYLKO, gdy jest o co pytać: pusty stan
+            („nic nie czeka") powtarzałby to, co zdanie wyżej mówi już
+            „Zaległych fakturach", a Pulpit właśnie schudł z ośmiu kafli do
+            czterech i nie ma po co puchnąć z powrotem. */}
+        {(data.wezwaniaDoDecyzji ?? []).length > 0 && (
+          <section className="plyta-sekcji rounded-xl p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[13px] font-medium">Wezwanie czeka na Twoją decyzję</h2>
+              <Link href={`/${lang}/admin/invoices`} className="text-xs text-muted hover:text-[var(--fg)]">
+                Zobacz wszystkie →
+              </Link>
+            </div>
+            {/* Zdanie, nie sama lista: wezwanie to jedyne pismo, którego panel
+                nie wysyła sam, i właściciel musi wiedzieć, że cisza tutaj
+                znaczy „nic nie poszło", a nie „nic nie trzeba". */}
+            <p className="mb-3 text-xs text-muted">
+              Uprzejme i stanowcze przypomnienie poszły automatem. Formalne wezwanie z odsetkami wychodzi tylko
+              z Twojego kliknięcia.
+            </p>
+            <ul className="space-y-2">
+              {(data.wezwaniaDoDecyzji ?? []).slice(0, 6).map((inv) => (
+                <li key={inv.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0">
+                    <Link href={`/${lang}/admin/invoices/${inv.id}`} className="font-medium hover:underline">
+                      {inv.numer ?? "(szkic)"}
+                    </Link>
+                    <span className="text-muted">
+                      {" "}
+                      — {inv.klient_nazwa || "bez klienta"} —{" "}
+                      {formatMoney(inv.brutto - inv.zaplacono, inv.waluta || "PLN")} —{" "}
+                      <span className="text-red-400">{inv.dniPoTerminie} dni po terminie</span>
+                    </span>
+                  </span>
+                  {/* `min-h-6` zamiast samego `py-0.5` sąsiadów: to nowa
+                      kontrolka, a próg 24×24 obowiązuje domyślnie (CLAUDE.md).
+                      Sąsiednich pastylek nie ruszam — wysokość wierszy list
+                      czeka na osobną decyzję właściciela. */}
+                  <button
+                    onClick={() => wyslijWezwanie(inv.id, inv.numer)}
+                    className="inline-flex min-h-6 shrink-0 items-center rounded-full border border-red-500/50 px-2.5 text-[11px] text-red-400 hover:bg-red-500/10"
+                  >
+                    Wyślij wezwanie
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* PIENIĄDZE WYCHODZĄCE (przegląd szwów, 2026-08-06). Stoi zaraz pod
             „Zaległymi fakturami" celowo: to ta sama sprawa widziana z drugiej

@@ -309,6 +309,20 @@ czekaj na Vercel → zgaduj"):
   teraz". Dokładając nowy skutek zdarzenia, przyłóż go do tej granicy; nie
   zamieniaj istniejących automatów na propozycje bez pytania. To NIE jest
   „Skrzynka propozycji AI" — tu nie ma modelu, tylko reguły SQL.
+- **Wezwanie do zapłaty NIE wychodzi automatem** (decyzja właściciela
+  2026-08-07, `docs/ETAP-1-WYNIK.md` C1, wariant 2). Windykacja była JEDYNYM
+  miejscem, gdzie wiadomość szła do prawdziwej osoby bez kliknięcia. Poziomy
+  1–2 (+3 i +10 dni, uprzejme i stanowcze przypomnienie) **zostają automatem**
+  — przypominają o pieniądzach, które się należą. Poziom 3 (+21 dni, formalne
+  wezwanie z odsetkami) **czeka na kliknięcie**: sufit trzyma
+  `MAKS_POZIOM_AUTOMATU` w `lib/invoices.ts`, a faktury do decyzji zbiera
+  `czekaNaDecyzjeOWezwaniu()` i pokazuje sekcja Pulpitu „Wezwanie czeka na
+  Twoją decyzję". **Nie odtwarzaj gałęzi `level === 3` w cronie** — jedynym
+  nadawcą wezwania jest `POST /api/invoices/[id]/remind` (token, odsetki,
+  sygnatura, `wezwanie_wystawiono_at`), a druga kopia rozjedzie się z tamtą,
+  tak jak rozjechały się bliźniacze sprawdzenia pozycji faktury i oferty
+  w etapie 3. Sufit dotyczy WYŁĄCZNIE automatu — `poziomyWindykacji()` dalej
+  pozwala właścicielowi wysłać poziom 3 ręcznie, i tak ma zostać.
 - **Co nieodwracalne — pyta, co odwracalne — nie pyta** (Faza 4 zaplecza,
   2026-08-02, `lib/nieodwracalne.ts`). Jawna lista działań nieodwracalnych
   z dwoma poziomami: *zwykłe* (okno „Na pewno?") i *mocne* (przepisanie frazy

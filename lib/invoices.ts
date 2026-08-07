@@ -559,6 +559,61 @@ export function reminderLevelForDays(days: number | null): number {
 }
 
 /**
+ * Najwyższy poziom windykacji, który panel wysyła SAM (decyzja właściciela
+ * 2026-08-07, `docs/ETAP-1-WYNIK.md` C1, wariant 2).
+ *
+ * Do tej decyzji cron wysyłał wszystkie trzy poziomy, w tym formalne wezwanie
+ * do zapłaty z odsetkami — jedyne miejsce w panelu, gdzie wiadomość wychodziła
+ * do prawdziwej osoby bez kliknięcia. Uprzejme i stanowcze przypomnienie
+ * zostają automatem (przypominają o pieniądzach, które się należą, i nie psują
+ * relacji). Wezwanie to pismo o innym ciężarze — bywa wysyłane do klienta,
+ * z którym właściciel rozmawiał wczoraj przez telefon, więc czeka na jego
+ * decyzję.
+ *
+ * Granica jest TUTAJ, a nie w warunku `if` w trasie crona, bo zna ją też
+ * Pulpit (`czekaNaDecyzjeOWezwaniu`) — dwie kopie tej liczby rozjechałyby się
+ * przy pierwszej zmianie progów.
+ */
+export const MAKS_POZIOM_AUTOMATU = 2;
+
+/**
+ * Poziom, który wolno wysłać AUTOMATEM dla danej liczby dni zwłoki.
+ *
+ * Świadomie `min`, a nie „pomiń fakturę, gdy wyszła ponad 21 dni": faktura
+ * z terminem wpisanym wstecz (albo taka, przy której cron nie zdążył zadziałać)
+ * ma od razu docelowy poziom 3, a mimo to należy jej się stanowcze
+ * przypomnienie. Bez `min` taka faktura nie dostałaby od panelu NICZEGO.
+ */
+export function poziomAutomatuDlaDni(days: number | null): number {
+  return Math.min(reminderLevelForDays(days), MAKS_POZIOM_AUTOMATU);
+}
+
+/**
+ * Czy ta faktura czeka na decyzję właściciela o formalnym wezwaniu.
+ *
+ * To jest treść sekcji na Pulpicie — miejsce, w którym wezwanie się zatrzymało,
+ * odkąd przestało wychodzić samo. Bez tej sekcji zmiana z 2026-08-07 nie byłaby
+ * „decyzja wraca do właściciela", tylko „panel przestał windykować".
+ *
+ * `wezwanie_share_revoked_at` wyklucza fakturę tak samo, jak wykluczało cron
+ * (Moduł 40): wysyłka i tak by odmówiła, bo link do wezwania jest unieważniony
+ * — proszenie o decyzję, której nie da się wykonać, to ślepy zaułek.
+ */
+export function czekaNaDecyzjeOWezwaniu(
+  inv: Pick<
+    Invoice,
+    "status" | "typ_dokumentu" | "termin_platnosci" | "klient_email" | "reminder_level" | "wezwanie_share_revoked_at"
+  >
+): boolean {
+  if (inv.typ_dokumentu === "proforma") return false;
+  if (!inv.klient_email) return false;
+  if (inv.wezwanie_share_revoked_at) return false;
+  if (!isInvoiceOverdue(inv)) return false;
+  if ((Number(inv.reminder_level) || 0) >= 3) return false;
+  return reminderLevelForDays(daysOverdue(inv)) >= 3;
+}
+
+/**
  * Poziomy windykacji, które wolno dziś wysłać dla tej faktury.
  *
  * Krok 2 planu `docs/PLAN-PO-DRUGIM-PRZEJSCIU.md`, znalezisko **C2**: poziom

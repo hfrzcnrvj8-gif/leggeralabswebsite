@@ -3,7 +3,7 @@ import { getSql, ensureLeadsSchema, ensureHubSchema, ensureInvoicesSchema, ensur
 import { isAuthed } from "@/lib/auth";
 import { isOverdue, type Lead } from "@/lib/leads";
 import { isProjectAtRisk, isProjectOverdue, projectReviewAverage, type Project } from "@/lib/projects";
-import { isInvoiceOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
+import { isInvoiceOverdue, czekaNaDecyzjeOWezwaniu, daysOverdue, taxReserveBreakdown, type Invoice, type CompanySettings } from "@/lib/invoices";
 import { isOfferExpired, isOfferStale, offerSilenceDays, weightedOfferValue, offerLiczySieDoStatystyk, CLOSED_OFFER_STATUSES, type Offer } from "@/lib/offers";
 import {
   contractDraftAgeDays,
@@ -226,6 +226,16 @@ export async function GET() {
   // Proforma nie jest dokumentem fiskalnym — nie liczy się do żadnego KPI (patrz lib/invoices.ts).
   const realInvoices = invoices.filter((i) => i.typ_dokumentu !== "proforma");
   const overdueInvoices = realInvoices.filter(isInvoiceOverdue);
+  // Decyzja właściciela 2026-08-07 (`docs/ETAP-1-WYNIK.md` C1, wariant 2) —
+  // formalne wezwanie do zapłaty przestało wychodzić automatem i zatrzymuje się
+  // TUTAJ. Podzbiór `overdueInvoices`, nie osobna lista obok: to ta sama
+  // faktura, tylko na tym progu panel przestaje działać sam i pyta.
+  // Najdłużej zaległe na górze — kolejność sekcji ma odpowiadać na „od której
+  // zacząć", a nie na „którą wpisano ostatnio".
+  const wezwaniaDoDecyzji = realInvoices
+    .filter(czekaNaDecyzjeOWezwaniu)
+    .map((i) => ({ ...i, dniPoTerminie: daysOverdue(i) ?? 0 }))
+    .sort((a, b) => b.dniPoTerminie - a.dniPoTerminie);
   const expiredOffers = offers.filter(isOfferExpired);
   // Oferty, w których zapadła cisza (runda 2 Modułu 57). Do tej pory Pulpit
   // upominał się dopiero o ofertę PO TERMINIE — czyli wtedy, gdy było już za
@@ -409,6 +419,7 @@ export async function GET() {
     dueProjects,
     projektyZagrozone,
     overdueInvoices,
+    wezwaniaDoDecyzji,
     draftInvoices,
     overdueCosts,
     zapomnianeSzkiceUmow,
