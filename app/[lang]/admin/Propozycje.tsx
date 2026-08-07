@@ -167,14 +167,14 @@ export function Propozycje({ lang, modul, rekordId, onZmiana, bezPlyty, wstepne 
                   transition={SPRING}
                   className="flex flex-wrap items-center justify-between gap-2 text-sm"
                 >
-                  <Link href={`/${lang}${p.link.replace(/^\/pl/, "")}`} className="min-w-0 hover:underline">
+                  <Link href={`/${lang}${p.link.replace(/^\/pl/, "")}`} className="inline-flex min-h-6 min-w-0 items-center hover:underline">
                     {p.zdanie}
                   </Link>
                   <span className="flex shrink-0 items-center gap-1.5">
                     <button
                       onClick={() => decyduj(p, "zrob")}
                       disabled={zajete}
-                      className="rounded-full border border-brand-cyan/40 px-2 py-0.5 text-[11px] text-brand-cyan disabled:opacity-50"
+                      className="inline-flex min-h-6 items-center rounded-full border border-brand-cyan/40 px-2 py-0.5 text-[11px] text-brand-cyan disabled:opacity-50"
                     >
                       {p.akcja}
                     </button>
@@ -186,7 +186,7 @@ export function Propozycje({ lang, modul, rekordId, onZmiana, bezPlyty, wstepne 
                       <button
                         onClick={() => decyduj(p, "zrob-alt")}
                         disabled={zajete}
-                        className="rounded-full border hairline px-2 py-0.5 text-[11px] text-[var(--fg)] disabled:opacity-50"
+                        className="inline-flex min-h-6 items-center rounded-full border hairline px-2 py-0.5 text-[11px] text-[var(--fg)] disabled:opacity-50"
                       >
                         {p.akcjaAlt}
                       </button>
@@ -194,7 +194,7 @@ export function Propozycje({ lang, modul, rekordId, onZmiana, bezPlyty, wstepne 
                     <button
                       onClick={() => decyduj(p, "odrzuc")}
                       disabled={zajete}
-                      className="rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
+                      className="inline-flex min-h-6 items-center rounded-full border hairline px-2 py-0.5 text-[11px] text-muted hover:text-[var(--fg)] disabled:opacity-50"
                       title="Nie teraz — ta propozycja już nie wróci (można ją przywrócić)"
                     >
                       Nie teraz

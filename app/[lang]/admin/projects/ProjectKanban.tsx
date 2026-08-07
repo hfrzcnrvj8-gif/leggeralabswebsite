@@ -244,12 +244,16 @@ export function ProjectKanban({
                           anySelected ? "ml-5" : "group-hover:ml-5"
                         }`}
                       >
-                        <span className="mt-[1px] shrink-0">
+                        {/* `-ml-1` cofa pudełko 24×24 do lewej krawędzi karty:
+                            ikona zostaje tam, gdzie stała, rośnie tylko obszar
+                            trafienia wokół niej. */}
+                        <span className="-ml-1 shrink-0">
                           <PropertyMenu
                             value={p.status}
                             options={STATUS_OPTS}
                             onChange={(v) => onUpdate(p.id, "status", v)}
                             title="Zmień status"
+                            celDotykowy
                           >
                             {statusIconEl(p.status, 15)}
                           </PropertyMenu>
@@ -262,27 +266,40 @@ export function ProjectKanban({
 
                       {/* Wiersz meta — każda właściwość klikalna osobno (menu), ikony zamiast słów */}
                       <div className="mt-2 flex items-center gap-2 text-muted">
-                        <PropertyMenu
-                          value={p.priorytet}
-                          options={PRIORITY_OPTS}
-                          onChange={(v) => onUpdate(p.id, "priorytet", v)}
-                          title={`Priorytet: ${p.priorytet}`}
-                        >
-                          <PriorityIcon priorytet={p.priorytet} />
-                        </PropertyMenu>
-                        <PropertyMenu
-                          value={p.zdrowie}
-                          options={HEALTH_OPTS}
-                          onChange={(v) => onUpdate(p.id, "zdrowie", v)}
-                          title={`Zdrowie: ${p.zdrowie}`}
-                        >
-                          <IconPointFilled
-                            size={12}
-                            className={`${PROJECT_HEALTH_TEXT[p.zdrowie] ?? "text-[#3a3b40]"} ${
-                              showRisk ? "" : "opacity-40 group-hover:opacity-100"
-                            }`}
-                          />
-                        </PropertyMenu>
+                        {/* Priorytet i zdrowie w OSOBNYM rzędzie bez odstępu
+                            (decyzja właściciela 2026-08-07, „rozsunąć, rysunki
+                            bez zmian" — `docs/DECYZJE-WIZUALNE.md` p. 1).
+                            Były to najmniejsze cele w panelu: 10,5×9 i 12×12 px,
+                            środki dzielone o 19,75 px. Dziś każde ma pudełko
+                            24×24, a że stoją bez `gap`, ich środki dzieli
+                            dokładnie 24 px — próg jest trafiony, a pudełka nie
+                            zachodzą na siebie. `gap-2` w rzędzie wyżej dawałoby
+                            32 px i dwie kropki wyglądałyby na niepowiązane. */}
+                        <span className="-ml-1 flex shrink-0 items-center">
+                          <PropertyMenu
+                            value={p.priorytet}
+                            options={PRIORITY_OPTS}
+                            onChange={(v) => onUpdate(p.id, "priorytet", v)}
+                            title={`Priorytet: ${p.priorytet}`}
+                            celDotykowy
+                          >
+                            <PriorityIcon priorytet={p.priorytet} />
+                          </PropertyMenu>
+                          <PropertyMenu
+                            value={p.zdrowie}
+                            options={HEALTH_OPTS}
+                            onChange={(v) => onUpdate(p.id, "zdrowie", v)}
+                            title={`Zdrowie: ${p.zdrowie}`}
+                            celDotykowy
+                          >
+                            <IconPointFilled
+                              size={12}
+                              className={`${PROJECT_HEALTH_TEXT[p.zdrowie] ?? "text-[#3a3b40]"} ${
+                                showRisk ? "" : "opacity-40 group-hover:opacity-100"
+                              }`}
+                            />
+                          </PropertyMenu>
+                        </span>
                         {hasTasks && (
                           <span className="flex items-center gap-1">
                             <span className="h-1 w-8 overflow-hidden rounded-full bg-[#2a2b2f]">

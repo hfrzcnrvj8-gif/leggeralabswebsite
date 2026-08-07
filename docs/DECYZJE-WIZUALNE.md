@@ -1,5 +1,10 @@
 # Trzy decyzje wizualne — materiał do wyboru
 
+> **STAN NA 2026-08-07 WIECZOREM: właściciel odpowiedział „1 i 1".**
+> **Punkty 1 i 3 są WDROŻONE i zmierzone** (szczegóły na końcu pliku).
+> Punkt 2 czeka na jego palec przy etapie 5 — bez zmian w kodzie.
+> Reszta dokumentu zostaje w formie, w jakiej zapadła decyzja.
+
 **Do czego to jest:** trzy pytania „jak ma wyglądać" czekały na Ciebie od etapu 4,
 opisane jednym zdaniem każde. Zmierzyłem je, żebyś odpowiadał na konkret, a nie
 na opis. Przy każdym punkcie jest stan faktyczny w liczbach, warianty i moja
@@ -134,3 +139,63 @@ zmian w gęstości, zero zmian w wyglądzie.
 
 Punkty 1 i 3 wdrożę od razu po Twojej odpowiedzi. Punkt 2 czeka na Twoje
 zgłoszenie albo na jego brak — jedno i drugie jest rozstrzygnięciem.
+
+---
+
+## Co zostało wdrożone (2026-08-07, po decyzji „1 i 1")
+
+### Punkt 1 — kontrolki na kartach Projektów ✅
+
+Rozsunięte, rysunki bez zmian. Priorytet i zdrowie stoją teraz w osobnym rzędzie
+**bez odstępu**, każde w pudełku 24×24 — dzięki temu ich środki dzieli **dokładnie
+24 px**: próg trafiony, a pudełka się nie stykają. `gap-2` w rzędzie wyżej dałoby
+32 px i dwie kropki wyglądałyby na niepowiązane ze sobą.
+
+Zmierzone po zmianie na Tablicy Projektów:
+
+| co | przed | po |
+|---|---|---|
+| priorytet | 10,5 × 9 px | **24 × 24** |
+| zdrowie | 12 × 12 px | **24 × 24** |
+| zmień status | 15 × 15 px | **24 × 24** |
+| odstęp środków priorytet↔zdrowie | 19,75 px | **24 px** |
+| kolizje pudełek | 17 | **0** |
+
+Wszystkie **81 wyzwalaczy** na ekranie ma 24×24. Test kliknięcia w środek i we
+wszystkie cztery rogi: **ani razu „SĄSIAD"** — żadna kontrolka nie przechwytuje
+kliknięć drugiej. Kliknięcie w priorytet otworzyło właściwe menu (Niski /
+Normalny / Wysoki / Krytyczny), sprawdzone prawdziwym kliknięciem w przeglądarce.
+
+Mechanizm: nowy prop `celDotykowy` w `PropertyMenu`. **Opt-in** — ten sam
+komponent stoi w kilkunastu miejscach, gdzie wyzwalacze sąsiadują ciaśniej niż
+24 px i pudełka zaczęłyby sobie kraść kliknięcia.
+
+### Punkt 3 — cele w listach kompaktowych ✅
+
+Podniesione do 24 px w czterech listach: propozycje (zdanie + trzy pastylki
+decyzji), „Wymaga działania dziś" u Leadów i u Klientów, pastylki statusu
+w Poczcie, wiersze Przypomnień.
+
+**Odstępy między wierszami nietknięte** — rośnie sam cel, o 2–4 px. Zdanie
+propozycji: było 20 px, jest **dokładnie 24**. Akcja „Oznacz jako obsłużone":
+było 22 px, jest **24**.
+
+Sonda po zmianie — liczba celów poniżej progu na ekranie (pomijając te, które
+mają pudełko `::before`):
+
+| ekran | przed | po |
+|---|---|---|
+| Pulpit | — | **0** |
+| Leady | — | **0** |
+| Projekty | — | **0** |
+| Poczta | 9 | **0** |
+| Przypomnienia | 4 | **0** |
+| Kalendarz | — | **0** |
+
+`tsc` czysto · `npm test` **371/371** · `npm run przejscie` **125 działa,
+0 regresji**.
+
+### Punkt 2 — bez zmian w kodzie
+
+Czeka na Twój palec przy etapie 5. Jak trafisz obok choć raz — poprawka to
+rozsunięcie kart o 4 px.

@@ -573,7 +573,7 @@ export function ClientsDashboard({ lang }: { lang: Locale }) {
                     await updateClient(c.id, "next_followup", "");
                     await updateClient(c.id, "ostatni_kontakt", todayLocalISO());
                   }}
-                  className="rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
+                  className="inline-flex min-h-6 items-center rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
                 >
                   Oznacz jako obsłużone
                 </button>

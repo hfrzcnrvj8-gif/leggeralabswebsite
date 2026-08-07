@@ -203,6 +203,23 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   i pudełka się nie stykają. Dokładając nowy wyjątek: dopisz go TUTAJ razem
   z powodem i alternatywną drogą. Wyjątek bez wpisu w tej liście jest usterką.
 
+  **Dwa gotowe narzędzia — nie wymyślaj trzeciego:** klasa `cel-dotykowy`
+  (`globals.css`, pudełko `::before` 24×24 — nie rusza układu) oraz prop
+  `celDotykowy` w `PropertyMenu` (`min-h-6 min-w-6`, żeby ten sam prop obsłużył
+  i wyzwalacz wielkości ikony, i szeroką pastylkę). **`PropertyMenu` domyślnie
+  pudełka NIE ma i tak ma zostać** — jego wyzwalacze bywają bliżej siebie niż
+  24 px, a wtedy pudełko sprawia, że sąsiad otwiera CUDZE menu. Włączaj go
+  dopiero po zmierzeniu odstępu do sąsiada.
+
+  **Kontrolki na kartach Tablicy Projektów — ROZSTRZYGNIĘTE 2026-08-07**
+  (decyzja właściciela, `docs/DECYZJE-WIZUALNE.md` p. 1). Były najmniejszymi
+  celami w panelu (priorytet 10,5×9, zdrowie 12×12, środki dzielone o 19,75 px)
+  i stały poza progiem, bo samo powiększenie trafienia dawało 17 kolizji.
+  Dziś: rozsunięte i z pudełkami 24×24, **środki dokładnie 24 px od siebie,
+  0 kolizji**. Rysunki bez zmian — rosło TRAFIENIE. Priorytet i zdrowie stoją
+  w osobnym rzędzie BEZ `gap`; `gap-2` dałoby 32 px i dwie kropki wyglądałyby
+  na niepowiązane.
+
   **Kwadracik zaznaczania rośnie CSS-em, nie opakowaniem** (etap 3, 2026-08-06):
   `globals.css` daje `.admin-linear input[type="checkbox"]::before` pudełko
   24×24 wokół 14-pikselowego rysunku. Opakowywanie każdego z dziewiętnastu

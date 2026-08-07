@@ -448,6 +448,7 @@ export function PropertyMenu<T extends string>({
   align = "left",
   title,
   full = false,
+  celDotykowy = false,
   kierunek = "auto",
 }: {
   value?: T;
@@ -459,6 +460,22 @@ export function PropertyMenu<T extends string>({
   title?: string;
   /** true = trigger na pełną szerokość (wiersz właściwości w panelu). */
   full?: boolean;
+  /**
+   * Pudełko trafienia 24×24 wokół wyzwalacza (próg WCAG 2.5.8). **Rośnie
+   * TRAFIENIE, nie rysunek** — ikona zostaje taka, jaka była.
+   *
+   * OPT-IN, i to nie jest ostrożność na wyrost: ten sam komponent stoi
+   * w kilkunastu miejscach, gdzie wyzwalacze sąsiadują ze sobą ciaśniej niż
+   * 24 px i pudełka zaczęłyby sobie kraść kliknięcia. Dokładając to gdziekolwiek
+   * **zmierz najpierw odstęp do sąsiada** — przy mniejszym niż 24 px trzeba
+   * najpierw rozsunąć kontrolki, inaczej zamieniasz chybienie na otwarcie
+   * CUDZEGO menu, co jest gorsze.
+   *
+   * Włączone na kartach Tablicy Projektów po decyzji właściciela z 2026-08-07
+   * (`docs/DECYZJE-WIZUALNE.md`, punkt 1) — razem z rozsunięciem, bez którego
+   * ta klasa robiłaby dokładnie tę szkodę.
+   */
+  celDotykowy?: boolean;
   /** `auto` (domyślnie) — pod wyzwalaczem, nad nim dopiero przy braku miejsca.
    * `gora` — NAD wyzwalaczem, o ile jest tam miejsce.
    *
@@ -602,16 +619,28 @@ export function PropertyMenu<T extends string>({
       aria-haspopup="menu"
       aria-expanded={open}
       aria-label={title}
-      // ŚWIADOMIE BEZ `cel-dotykowy` — patrz komentarz przy tej klasie
-      // w `globals.css`. Wyzwalacze statusu/priorytetu/zdrowia na kartach
-      // Projektów są najmniejszymi celami w panelu (11×9), ale stoją 19 px od
-      // siebie: KAŻDE powiększenie trafienia sprawia, że sąsiad przechwytuje
-      // kliknięcie i otwiera cudze menu. Zmierzone przy 24 px (17 kolizji),
-      // 18 px (2) i 16 px (6 — szersza ikona „Średni" przesuwa środek).
-      // Zamiana chybienia na POMYŁKĘ jest gorsza od chybienia, więc jedyna
-      // prawdziwa naprawa to rozsunięcie kontrolek albo większe ikony — czyli
-      // decyzja o wyglądzie, i dlatego stoi w liście przeglądu właściciela.
-      className={full ? "flex w-full items-center" : "inline-flex items-center"}
+      // Domyślnie BEZ pudełka trafienia — i to nadal jest właściwe ustawienie.
+      // Wyzwalacze tego komponentu bywają oddalone od sąsiada o mniej niż
+      // 24 px, a wtedy pudełko sprawia, że sąsiad przechwytuje kliknięcie
+      // i otwiera CUDZE menu. Zmierzone na kartach Projektów przed rozsunięciem:
+      // 17 kolizji przy 24 px, 2 przy 18 px, 6 przy 16 px (szersza ikona
+      // „Średni" przesuwa środek). Zamiana chybienia na POMYŁKĘ jest gorsza
+      // od chybienia.
+      //
+      // `celDotykowy` włącza je tam, gdzie kontrolki NAJPIERW rozsunięto —
+      // dziś na kartach Tablicy Projektów (decyzja właściciela 2026-08-07).
+      className={
+        full
+          ? "flex w-full items-center"
+          : celDotykowy
+            ? // `min-h`/`min-w`, NIE `h`/`w`: ten sam prop obsługuje wyzwalacz
+              // wielkości ikony (kropka 12 px na karcie Projektu → pudełko
+              // dokładnie 24×24) i wyzwalacz-pastylkę (status w Poczcie, 93 px
+              // szerokości → rośnie tylko wysokość). Sztywne `w-6` zgniotłoby
+              // tę drugą.
+              "inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center"
+            : "inline-flex items-center"
+      }
     >
       {children}
     </button>

@@ -787,14 +787,14 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
                     await updateLead(l.id, "status", "Przypomnienie wysłane");
                     await updateLead(l.id, "ostatni_kontakt", todayLocalISO());
                   }}
-                  className="shrink-0 rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
+                  className="inline-flex min-h-6 shrink-0 items-center rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
                 >
                   Oznacz jako obsłużone
                 </button>
               ) : (
                 <button
                   onClick={() => updateLead(l.id, "next_followup", addDaysISO(todayLocalISO(), 7))}
-                  className="shrink-0 rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
+                  className="inline-flex min-h-6 shrink-0 items-center rounded-md px-2 py-0.5 text-[12px] text-orange-400 hover:bg-orange-500/10"
                 >
                   Odłóż o tydzień
                 </button>

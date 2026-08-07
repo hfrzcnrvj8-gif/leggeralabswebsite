@@ -1279,6 +1279,7 @@ export function MailDashboard({ lang }: { lang: Locale }) {
                           onChange={(v) => void setMailStatus(m.id, v)}
                           align="right"
                           title="Zmień status"
+                          celDotykowy
                         >
                           <MailStatusTag status={m.status as MailStatus} />
                         </PropertyMenu>

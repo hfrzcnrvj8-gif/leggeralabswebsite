@@ -467,7 +467,11 @@ function WierszPrzypomnienia({
         </span>
       </button>
 
-      <button onClick={onOtworz} className="min-w-0 flex-1 text-left">
+      {/* `min-h-6` — próg 24×24 (decyzja właściciela 2026-08-07,
+          `docs/DECYZJE-WIZUALNE.md` p. 3). Wiersz miał 20,3 px przy odstępie
+          31–34 px między sąsiadami, więc podniesienie mieści się w istniejącym
+          odstępie: gęstość listy się nie zmienia, rośnie samo trafienie. */}
+      <button onClick={onOtworz} className="flex min-h-6 min-w-0 flex-1 items-center text-left">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <ZnakPriorytetu priorytet={r.priorytet} />
           <span className={`text-[13.5px] ${r.ukonczone ? "text-muted line-through" : "text-[var(--fg)]"}`}>

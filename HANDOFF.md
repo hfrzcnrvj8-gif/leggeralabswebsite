@@ -36,11 +36,13 @@
 > ma wsadu. **Zapytaj o nie na starcie czatu.**
 >
 > **DROGA B — decyzje, które czekają i nie zależą od etapu 5:**
-> 1. **Trzy pytania wizualne — materiał gotowy: `docs/DECYZJE-WIZUALNE.md`**
->    (2026-08-07). Kontrolki na kartach Projektów, kwadraciki na Tablicy, cele
->    w listach kompaktowych — każde ze stanem w liczbach, wariantami
->    i rekomendacją. Właściciel odpowiada „1/2/3", punkty 1 i 3 wdrażasz od razu.
->    **Nie mierz tego od nowa** — jest zmierzone.
+> 1. **Kwadraciki na kartach Tablicy** — jedyna niedomknięta z trzech decyzji
+>    wizualnych. **Nie ma dla niej rekomendacji świadomie**: test kliknięcia
+>    w podglądzie przestał być rozstrzygający, więc rozstrzyga palec właściciela
+>    przy etapie 5 (B4). Trafi obok choć raz → poprawka to rozsunięcie kart
+>    o 4 px. Szczegóły: `docs/DECYZJE-WIZUALNE.md`, punkt 2.
+>    **Pozostałe dwa punkty tego dokumentu są WDROŻONE** (2026-08-07) — nie
+>    zaczynaj ich od nowa i nie mierz tego jeszcze raz.
 > 2. **Godziny automatów mogą być w UTC** — do potwierdzenia obserwacją
 >    właściciela, nie da się stąd. Po decyzji o windykacji waży mniej: o tej
 >    godzinie nie wychodzi już żadne pismo formalne, tylko przypomnienia.
@@ -316,15 +318,17 @@ właściciela: `docs/PRZEGLAD-UI-LISTA.md`, część A.
   gorsza od chybienia. **Przed dołożeniem klasy `cel-dotykowy` zmierz odstęp
   do sąsiada.**
 
-**Na decyzję właściciela czeka z tego:** rozsunięcie tych trzech kontrolek albo
-powiększenie ikon (zmiana wyglądu), kwadraciki na kartach Tablicy (drugi jawny
-wyjątek w `CLAUDE.md`, droga zastępcza: widok Tabeli) i cele w listach
-kompaktowych. **Materiał do wszystkich trzech: `docs/DECYZJE-WIZUALNE.md`**
-(2026-08-07) — stan w liczbach, warianty, rekomendacja przy każdym.
-Uwaga: to zdanie mówiło wcześniej, że podniesienie celów w listach „zmieniłoby
-gęstość wszystkich list". **Domierzone i nieprawdziwe** — cel ma 20–22 px,
-a sąsiednie wiersze dzieli 31–34 px, więc 24 px mieści się w istniejącym
-odstępie.
+**ROZSTRZYGNIĘTE 2026-08-07 — właściciel wybrał wariant 1 przy obu punktach.**
+Kontrolki na kartach Projektów są rozsunięte i mają pudełka 24×24 (**środki
+dokładnie 24 px, 0 kolizji, 81/81 wyzwalaczy w normie**); cele w listach
+kompaktowych podniesione do 24 px bez ruszania odstępów. Otwarte zostały tylko
+kwadraciki na Tablicy — patrz DROGA B punkt 1. Pełny opis, liczby przed/po
+i dowody: **`docs/DECYZJE-WIZUALNE.md`**.
+
+Uwaga na przyszłość: to zdanie mówiło wcześniej, że podniesienie celów w listach
+„zmieniłoby gęstość wszystkich list". **Domierzone i nieprawdziwe** — cel miał
+20–22 px, a sąsiednie wiersze dzieli 31–34 px, więc 24 px zmieściło się
+w istniejącym odstępie i żadna lista nie zmieniła gęstości.
 
 **0. Etap 3 planu domknięcia — SYTUACJE KRYTYCZNE — ZROBIONY 2026-08-06.**
 Wynik: **`docs/ETAP-3-WYNIK.md`**. Brief: `docs/ETAP-3-BRZEGI-BRIEF.md`.
