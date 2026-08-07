@@ -1,10 +1,16 @@
-# Handoff — stan na 2026-08-07, po decyzji o windykacji
+# Handoff — stan na 2026-08-07, po windykacji i decyzjach wizualnych
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Panel na `c9e66fd`, apka na `f4def06`. Oba drzewa czyste, wszystko
+> Panel na `594329c`, apka na `f4def06`. Oba drzewa czyste, wszystko
 > wypchnięte. `tsc` czysto · `npm test` **371/371** · `npm run przejscie`
 > **125 działa · 0 regresji** · `swift test` **16/16**.
+>
+> **W tym czacie zamknięto DWIE rzeczy, obie decyzją właściciela:**
+> windykację (wariant 2) oraz trzy pytania wizualne z etapu 4 (warianty „1 i 1",
+> plus czwarte pytanie, które wyszło po drodze). Wszystko zmierzone, wdrożone
+> i wypchnięte — **nie ma tu niedokończonej roboty do przejęcia.**
+> Materiał i dowody: `docs/DECYZJE-WIZUALNE.md` (cztery punkty, stan przed/po).
 >
 > **WINDYKACJA ROZSTRZYGNIĘTA 2026-08-07 — wariant 2, decyzja właściciela.**
 > Formalne wezwanie do zapłaty z odsetkami **przestało wychodzić automatem**;
@@ -36,13 +42,13 @@
 > ma wsadu. **Zapytaj o nie na starcie czatu.**
 >
 > **DROGA B — decyzje, które czekają i nie zależą od etapu 5:**
-> 1. **Kwadraciki na kartach Tablicy** — jedyna niedomknięta z trzech decyzji
+> 1. **Kwadraciki na kartach Tablicy** — jedyna niedomknięta z czterech decyzji
 >    wizualnych. **Nie ma dla niej rekomendacji świadomie**: test kliknięcia
 >    w podglądzie przestał być rozstrzygający, więc rozstrzyga palec właściciela
 >    przy etapie 5 (B4). Trafi obok choć raz → poprawka to rozsunięcie kart
 >    o 4 px. Szczegóły: `docs/DECYZJE-WIZUALNE.md`, punkt 2.
->    **Pozostałe dwa punkty tego dokumentu są WDROŻONE** (2026-08-07) — nie
->    zaczynaj ich od nowa i nie mierz tego jeszcze raz.
+>    **Punkty 1, 3 i 4 tego dokumentu są WDROŻONE i zmierzone** (2026-08-07) —
+>    nie zaczynaj ich od nowa i nie mierz tego jeszcze raz.
 > 2. **Godziny automatów mogą być w UTC** — do potwierdzenia obserwacją
 >    właściciela, nie da się stąd. Po decyzji o windykacji waży mniej: o tej
 >    godzinie nie wychodzi już żadne pismo formalne, tylko przypomnienia.
@@ -52,6 +58,44 @@
 > **Czego NIE robić:** wszystkiego z sekcji „Czego NIE zaczynać bez wyraźnej
 > prośby" na końcu tego pliku, i nie przechodzić ręcznie tego, co robi
 > `npm run przejscie`.
+
+---
+
+## Decyzje wizualne — ZAMKNIĘTE 2026-08-07 (`e0b7b4e` … `594329c`)
+
+Trzy pytania z etapu 4 czekały na właściciela opisane jednym zdaniem każde.
+Zmierzone i przedstawione z wariantami (`docs/DECYZJE-WIZUALNE.md`), właściciel
+wybrał, wdrożone tego samego dnia. **Czwarte pytanie wyszło po drodze.**
+
+| punkt | rozstrzygnięcie |
+|---|---|
+| 1. kontrolki na kartach Projektów | rozsunięte, pudełka 24×24, **środki dokładnie 24 px, 0 kolizji** (było 17) |
+| 2. kwadraciki na Tablicy | **OTWARTE** — rozstrzyga palec właściciela przy etapie 5 |
+| 3. cele w listach kompaktowych | podniesione do 24 px, **odstępy wierszy nietknięte** |
+| 4. usuwanie w wierszu tabeli | ✕ **wyszedł z wiersza do menu „…"**, wzorzec Lineara |
+
+**Trzy rzeczy warte pamięci — każda kosztowała rundę:**
+
+1. **Notatka z etapu 4 zawyżała cenę punktu 3.** Pisała, że podniesienie celów
+   „zmieniłoby gęstość wszystkich list". Zmierzone: cel miał 20–22 px,
+   a sąsiednie wiersze dzieli 31–34 px, więc 24 px zmieściło się w istniejącym
+   odstępie. **Zdanie w dokumencie nie jest pomiarem.**
+2. **Desktop nie wystarcza — i to trzeci raz w tym tygodniu.** Telefon dołożył
+   dwa cele niewidoczne na szerokim ekranie (nagłówek listy, znak w pasku),
+   a iPad odsłonił CAŁY widok, którego sonda nie objęła (`Leady → Tabela`:
+   na telefonie zamienia się w karty, na desktopie miałem włączoną Tablicę).
+   **Sonda mierzy to, co widoczne — „0" znaczy „0 w tym widoku".**
+3. **Punkt 4 nie był pytaniem o piksele.** „Usuń" stał 22,5 px od „Otwórz
+   profil", więc pudełka 24×24 by się zderzyły. Okazało się, że panel MIAŁ już
+   menu pod prawym przyciskiem z „Usuń" w środku — goły ✕ był **duplikatem
+   akcji, która ma bezpieczniejszą drogę**. Rozwiązanie topowych produktów
+   (Linear, GitHub, Notion, Airtable, Attio): nie powiększaj celu obok akcji
+   niszczącej, tylko **zabierz akcję niszczącą z wiersza**.
+
+**Pułapka pomiarowa, która wróci:** podgląd ma `document.hidden = true`, więc
+przejścia CSS nie ruszają z miejsca — `getComputedStyle` przy aktywnym `:hover`
+zwracał `opacity: 0` i działająca reguła wyglądała na martwą. **Mierząc cokolwiek
+z `transition`: najpierw `transition: none`, potem czytaj.**
 
 ---
 
