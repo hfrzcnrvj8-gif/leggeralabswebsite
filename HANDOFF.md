@@ -2,7 +2,7 @@
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Panel na `c9e66fd`, apka na `880307e`. Oba drzewa czyste, wszystko
+> Panel na `c9e66fd`, apka na `f4def06`. Oba drzewa czyste, wszystko
 > wypchnięte. `tsc` czysto · `npm test` **371/371** · `npm run przejscie`
 > **125 działa · 0 regresji** · `swift test` **16/16**.
 >
@@ -20,7 +20,7 @@
 > powtarzaj przeglądu hierarchii i **nie „naprawiaj" Statystyk** (patrz niżej).
 >
 > **Apka jest równo z panelem** — sekcja „Wezwanie czeka na Twoją decyzję"
-> weszła na telefon tego samego dnia (`d2e98ee`, drugi przycisk `880307e`),
+> weszła na telefon tego samego dnia (`d2e98ee`, drugi przycisk `880307e`, iPhone `f4def06`),
 > obejrzana w symulatorze przeciwko lokalnemu panelowi. Nic z tej decyzji nie
 > zostało otwarte.
 >
@@ -97,6 +97,13 @@ wygląda, jakby cały prowadził do rekordu. Działa dopiero zwykły `Button`
 dokładający cel do `NavigationPath`. Wszystkie trzy stany widać WYŁĄCZNIE
 przebiegiem na symulatorze: kompiluje się, wygląda poprawnie, `swift test`
 przechodzi.
+
+**Trzecia rzecz z tej rundy, najtańsza do powtórzenia: sekcję trzeba obejrzeć
+na WĄSKIM ekranie osobno.** Wiersz wezwania wyglądał poprawnie na iPadzie
+i dopiero iPhone (402 pt) pokazał, że podpis — kwota, dni, klient — ucina
+OSTATNI człon, czyli nazwę klienta. To ta sama rodzina co dwie usterki etapu 4
+widoczne wyłącznie przy 390 px w panelu. **Jeden zrzut na telefonie po każdej
+nowej sekcji.**
 
 **Druga pułapka tej samej rundy: tapy idą w PUNKTACH, a zrzut ma piksele**
 (834×1210 wobec ~1378×2048). Kilka „nieudanych" tapów było błędem przelicznika,
