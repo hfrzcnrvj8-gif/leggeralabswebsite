@@ -240,7 +240,13 @@ export function TableView({
             <col className="w-[12%]" />
             <col className="hidden w-[9%] lg:table-column" />
             <col className="hidden w-[4%] xl:table-column" />
-            <col className="w-[5%]" />
+            {/* Kolumna działań: sztywne 64 px, nie procent. Mieści DOKŁADNIE
+                dwa pudełka 24×24 plus `p-2` z obu stron (16). Procentowe 5%
+                było wymierzone pod ikonki 14–15 px i po podniesieniu celów
+                do progu 24 px ostatnia ikona wystawała 6 px poza tabelę —
+                zmierzone. Procent tu w ogóle nie ma sensu: ta kolumna nie
+                niesie treści, która mogłaby rosnąć. */}
+            <col className="w-16" />
           </colgroup>
           <thead>
             <tr className="sticky top-0 z-10 border-b hairline bg-[var(--bg-soft)] text-left uppercase tracking-wide text-muted">
@@ -422,7 +428,10 @@ export function TableView({
                       Bez `gap`: obie mają pudełko 24×24, więc ich środki dzieli
                       dokładnie 24 px — ta sama recepta co na kartach Projektów. */}
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center">
+                    <div
+                      className="akcje-wiersza flex items-center"
+                      data-otwarte={ctl.state?.item.id === lead.id ? "1" : undefined}
+                    >
                       <Link
                         href={`/${lang}/admin/leads/${lead.id}`}
                         onClick={(e) => {

@@ -872,6 +872,42 @@
 
    **Wniosek ogólny: zanim dołożysz tę klasę, zmierz odstęp do najbliższego
    sąsiada.** Poniżej 24 px powiększanie trafienia szkodzi. */
+/* Kolumna działań w wierszu listy, odsłaniana najechaniem — wzorzec Lineara
+   (decyzja właściciela 2026-08-07). Wiersz jest spokojny, ikony pojawiają się
+   dopiero, gdy kursor jest nad wierszem.
+
+   **Domyślnie WIDOCZNE, ukrywane dopiero wewnątrz `@media (hover: hover)`** —
+   i to jest cała ostrożność tej reguły. Odwrotna kolejność (ukryj zawsze,
+   pokaż na hover) zabrałaby dotykowi jedyną drogę do usuwania rekordu z listy:
+   na iPadzie hovera NIE MA, a prawy przycisk to gest myszy. Telefon i iPad
+   widzą te ikony po prostu zawsze.
+
+   `opacity`, nie `display`/`visibility`: miejsce w układzie musi zostać
+   zajęte, inaczej tabela drgałaby przy każdym najechaniu (przesunięcia
+   trzymamy na zerze).
+
+   `:focus-within` jest tu OBOWIĄZKOWE, nie ozdobne — bez niego klawiatura
+   przechodzi Tabem na przycisk, którego nie widać.
+
+   `[data-otwarte="1"]` trzyma ikony widoczne, gdy menu tego wiersza jest
+   otwarte: menu żyje w portalu, więc kursor opuszcza wiersz i bez tego
+   „…" znikałoby spod własnego, otwartego menu. */
+.admin-linear .akcje-wiersza {
+  opacity: 1;
+  transition: opacity 120ms var(--ease-liquid);
+}
+
+@media (hover: hover) {
+  .admin-linear .akcje-wiersza {
+    opacity: 0;
+  }
+  .admin-linear tr:hover .akcje-wiersza,
+  .admin-linear .akcje-wiersza:focus-within,
+  .admin-linear .akcje-wiersza[data-otwarte="1"] {
+    opacity: 1;
+  }
+}
+
 .admin-linear .cel-dotykowy {
   position: relative;
 }

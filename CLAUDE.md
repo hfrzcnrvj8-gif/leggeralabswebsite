@@ -220,6 +220,18 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   w osobnym rzędzie BEZ `gap`; `gap-2` dałoby 32 px i dwie kropki wyglądałyby
   na niepowiązane.
 
+  **Ikony działań w wierszu odsłania hover — ale chowa je TYLKO
+  `@media (hover: hover)`** (`.akcje-wiersza` w `globals.css`, 2026-08-07).
+  Kolejność jest tu całą treścią reguły: domyślnie WIDOCZNE, chowane dopiero
+  na urządzeniu z hoverem. Odwrotnie — zabrałbyś dotykowi jedyną drogę do
+  akcji, bo na iPadzie hovera nie ma, a prawy przycisk to gest myszy.
+  Obowiązkowo `opacity` (nie `display` — inaczej tabela drga), `:focus-within`
+  (inaczej Tab prowadzi na niewidoczny przycisk) i `[data-otwarte]` (menu żyje
+  w portalu, więc kursor opuszcza wiersz i wyzwalacz znikałby spod własnego
+  menu). **Mierząc to: najpierw `transition: none`** — podgląd ma
+  `document.hidden = true`, przejścia stoją i `getComputedStyle` zwraca
+  wartość POCZĄTKOWĄ, przez co działająca reguła wygląda na martwą.
+
   **Akcja niszcząca nie stoi w gęstym wierszu jako goła ikonka** (2026-08-07,
   decyzja właściciela). Wiersz listy pokazuje najwyżej dwie BEZPIECZNE ikony;
   usuwanie idzie do menu pod **„…"** (i pod prawym przyciskiem, który wiersze

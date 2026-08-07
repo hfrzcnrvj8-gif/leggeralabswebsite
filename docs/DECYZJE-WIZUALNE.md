@@ -307,3 +307,50 @@ Wysokości wierszy **bez zmian** (57–73 px) — gęstość tabeli nietknięta.
 Sprawdzone kliknięciem: „…" otwiera pełne menu z „Usuń" na końcu.
 
 `tsc` czysto · `npm test` 371/371 · `npm run przejscie` 125 działa, 0 regresji.
+
+### Odsłanianie na hover — wzorzec Lineara (2026-08-07)
+
+Na prośbę właściciela ikony działań w wierszu tabeli **pojawiają się dopiero
+przy najechaniu**, tak jak w Linearze. Wiersz jest spokojny, kolumna działań
+milczy, dopóki kursor nie jest nad wierszem.
+
+**Najważniejsza część tej reguły to jej kolejność.** Ikony są domyślnie
+**WIDOCZNE**, a chowane dopiero wewnątrz `@media (hover: hover)`. Odwrotna
+kolejność (ukryj zawsze, pokaż na hover) zabrałaby dotykowi jedyną drogę do
+usuwania rekordu z listy — na iPadzie hovera NIE MA, a prawy przycisk to gest
+myszy. Telefon i iPad widzą te ikony po prostu zawsze.
+
+Cztery zachowania, wszystkie zmierzone (`app/globals.css` → `.akcje-wiersza`):
+
+| sytuacja | krycie |
+|---|---|
+| spoczynek (urządzenie z hoverem) | **0** |
+| kursor nad wierszem | **1** |
+| fokus klawiatury na „…" | **1** (i **0** po utracie fokusu) |
+| menu tego wiersza otwarte | **1** (inne wiersze **0**) |
+
+Trzy szczegóły, bez których to by nie działało:
+- **`opacity`, nie `display`** — miejsce w układzie musi zostać zajęte, inaczej
+  tabela drgałaby przy każdym najechaniu.
+- **`:focus-within`** jest obowiązkowe, nie ozdobne: bez niego klawiatura
+  przechodzi Tabem na przycisk, którego nie widać.
+- **`[data-otwarte="1"]`** — menu żyje w portalu, więc kursor opuszcza wiersz;
+  bez tego „…" znikałoby spod własnego, otwartego menu.
+
+Przy okazji wyszło, że **kolumna działań była za wąska**: `w-[5%]` wymierzone
+pod ikonki 14–15 px, a po podniesieniu celów do 24 px ostatnia ikona wystawała
+**6 px poza tabelę**. Dziś sztywne `w-16` (64 px) = dwa pudełka 24 + `p-2`
+z obu stron; ikony kończą się 8 px WEWNĄTRZ tabeli.
+
+**Pułapka pomiarowa, która kosztowała tu kilka podejść i wróci:** podgląd
+przeglądarki w tym środowisku ma `document.hidden = true`, więc **przejścia CSS
+nie ruszają z miejsca** — `getComputedStyle` przy aktywnym `:hover` uparcie
+zwracał `opacity: 0`, choć reguła działała. Wyglądało to jak martwy kod.
+Rozstrzygnęło dopiero zdjęcie `transition` i odczytanie wartości DOCELOWEJ.
+**Mierząc cokolwiek, co ma przejście: najpierw `transition: none`.**
+
+**Czego NIE zmierzyłem:** zachowania na prawdziwym urządzeniu dotykowym przy
+szerokości iPada. Reguła chowająca stoi wyłącznie w `@media (hover: hover)`,
+więc urządzenie bez hovera nigdy jej nie zastosuje — to wynika ze struktury
+CSS, ale nie z pomiaru. Emulacja dotyku w tym podglądzie włącza się dopiero
+poniżej 768 px, gdzie tabela i tak zamienia się w karty.

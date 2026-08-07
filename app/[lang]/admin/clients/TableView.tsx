@@ -361,7 +361,10 @@ export function TableView({
                       decyzja właściciela 2026-08-07). Zmieniając jedno,
                       sprawdź drugie. */}
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center">
+                    <div
+                      className="akcje-wiersza flex items-center"
+                      data-otwarte={ctl.state?.item.id === client.id ? "1" : undefined}
+                    >
                       <Link
                         href={`/${lang}/admin/clients/${client.id}`}
                         onClick={(e) => {
