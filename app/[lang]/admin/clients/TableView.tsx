@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { IconArrowUpRight, IconX, IconBrandLinkedin } from "@tabler/icons-react";
+import { IconArrowUpRight, IconDots, IconBrandLinkedin } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Client,
@@ -264,7 +264,7 @@ export function TableView({
                     <div className="flex min-w-0 items-center gap-1.5">
                       <button
                         onClick={() => onOpen(client.id)}
-                        className="block min-w-0 flex-1 truncate text-left font-medium text-[var(--fg)] hover:underline"
+                        className="flex min-h-6 min-w-0 flex-1 items-center truncate text-left font-medium text-[var(--fg)] hover:underline"
                         title={client.nazwa}
                       >
                         {client.nazwa}
@@ -354,10 +354,14 @@ export function TableView({
                   <td className="hidden p-2 xl:table-cell">
                     <Truncate value={client.notatki} />
                   </td>
-                  {/* Odnośnik (Cmd+klik = nowa karta) i usuwanie mają własne
-                      zachowanie — zdarzenie zostaje w tej komórce. */}
+                  {/* Odnośnik (Cmd+klik = nowa karta) i menu działań mają własne
+                      zachowanie — zdarzenie zostaje w tej komórce.
+                      Bliźniak kolumny akcji z `leads/TableView.tsx` — powód
+                      zmiany opisany tam (goły ✕ „Usuń" zniknął na rzecz „…",
+                      decyzja właściciela 2026-08-07). Zmieniając jedno,
+                      sprawdź drugie. */}
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center">
                       <Link
                         href={`/${lang}/admin/clients/${client.id}`}
                         onClick={(e) => {
@@ -365,18 +369,19 @@ export function TableView({
                           e.preventDefault();
                           onOpen(client.id);
                         }}
-                        className="flex cel-dotykowy text-muted hover:text-[var(--fg)]"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-[var(--fg)]"
                         title="Otwórz szczegóły"
                       >
                         <IconArrowUpRight size={15} />
                       </Link>
                       <button
-                        onClick={() => onDelete(client.id, client.nazwa)}
-                        className="flex text-muted hover:text-red-400"
-                        aria-label={`Usuń ${client.nazwa}`}
-                        title="Usuń"
+                        onClick={(e) => ctl.openAt(e, client)}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-[var(--fg)]"
+                        aria-label={`Więcej działań — ${client.nazwa}`}
+                        aria-haspopup="menu"
+                        title="Więcej"
                       >
-                        <IconX size={14} />
+                        <IconDots size={15} />
                       </button>
                     </div>
                   </td>

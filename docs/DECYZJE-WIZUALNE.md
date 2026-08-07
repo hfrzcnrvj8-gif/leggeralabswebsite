@@ -268,3 +268,42 @@ o wyglądzie wiersza tabeli.
 
 Uwaga łagodząca: usunięcie leada jest działaniem nieodwracalnym, więc trasa
 i tak pyta o potwierdzenie — pomyłka nie kasuje rekordu bez pytania.
+
+---
+
+## Punkt 4 — usuwanie w wierszu tabeli ✅ (2026-08-07, wariant Lineara)
+
+**Jak rozwiązują to topowe produkty.** Wspólny mianownik jest jeden i nie polega
+na pikselach: **akcja niszcząca nie stoi w gęstym wierszu jako goła ikonka.**
+Linear, GitHub, Notion, Airtable i Attio pokazują w wierszu najwyżej jedną–dwie
+BEZPIECZNE ikony, a usuwanie trzymają w menu pod „…" (na desktopie odsłanianym
+na hover) i pod prawym przyciskiem. Wytyczne Apple i Material mówią to wprost:
+nie stawiaj akcji niszczącej obok akcji najczęstszej. **Oni nie powiększają
+małego celu — oni go stamtąd zabierają.**
+
+**Co się okazało u nas:** panel MIAŁ już tę drogę. Wiersz tabeli Leadów
+i Klientów od dawna reaguje na prawy przycisk i otwiera menu z pozycjami
+*Otwórz, Otwórz w nowej karcie, Kopiuj nazwę / e-mail / telefon, statusy* oraz
+**Usuń**. Goły ✕ w wierszu był więc **duplikatem akcji, która ma bezpieczniejszą
+drogę** — nie brakującą funkcją, tylko nadmiarową.
+
+**Zmiana:** ✕ znika, wchodzi **„…"**, które otwiera to samo menu. Dzięki temu
+usuwanie działa też palcem — prawy przycisk to gest myszy, a na iPadzie długiego
+przyciśnięcia nie da się traktować jako pewnej drogi (system przechwytuje je na
+zaznaczanie tekstu i podgląd odnośnika).
+
+Zmierzone po zmianie (834 px, Leady i Klienci tak samo):
+
+| co | przed | po |
+|---|---|---|
+| „Usuń" w wierszu | ✕ 14×14, **22,5 px od „Otwórz"** | **nie ma — jest w menu** |
+| „Otwórz profil" | 15×15 (pudełko 24) | **24 × 24** |
+| „…" (nowe) | — | **24 × 24** |
+| odstęp środków obu ikon | 22,5 px | **24 px** |
+| nazwa rekordu | 16 px | **24** |
+| celów poniżej progu w wierszu | 3 rodzaje | **0** |
+
+Wysokości wierszy **bez zmian** (57–73 px) — gęstość tabeli nietknięta.
+Sprawdzone kliknięciem: „…" otwiera pełne menu z „Usuń" na końcu.
+
+`tsc` czysto · `npm test` 371/371 · `npm run przejscie` 125 działa, 0 regresji.

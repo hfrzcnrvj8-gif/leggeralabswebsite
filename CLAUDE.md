@@ -220,6 +220,18 @@ Każdy moduł (`leads`, `projects`, `notes`, `calendar`) ma ten sam wzorzec:
   w osobnym rzędzie BEZ `gap`; `gap-2` dałoby 32 px i dwie kropki wyglądałyby
   na niepowiązane.
 
+  **Akcja niszcząca nie stoi w gęstym wierszu jako goła ikonka** (2026-08-07,
+  decyzja właściciela). Wiersz listy pokazuje najwyżej dwie BEZPIECZNE ikony;
+  usuwanie idzie do menu pod **„…"** (i pod prawym przyciskiem, który wiersze
+  Leadów i Klientów mają od dawna). Tak robią Linear, GitHub, Notion, Airtable
+  i Attio, i tak mówią wytyczne Apple i Material: nie stawiaj akcji niszczącej
+  obok najczęstszej. **Problem ciasnego sąsiedztwa rozwiązuje się przez
+  USUNIĘCIE sąsiedztwa, nie przez powiększanie celu.** Praktycznie:
+  `ctl.openAt(e, rekord)` z `useContextMenu` działa też pod lewym kliknięciem,
+  więc „…" nie wymaga nowego menu — otwiera to, które już jest. Ma to znaczenie
+  na dotyku: prawy przycisk to gest myszy, a długiego przyciśnięcia na iPadzie
+  system przechwytuje na zaznaczanie tekstu.
+
   **Kwadracik zaznaczania rośnie CSS-em, nie opakowaniem** (etap 3, 2026-08-06):
   `globals.css` daje `.admin-linear input[type="checkbox"]::before` pudełko
   24×24 wokół 14-pikselowego rysunku. Opakowywanie każdego z dziewiętnastu

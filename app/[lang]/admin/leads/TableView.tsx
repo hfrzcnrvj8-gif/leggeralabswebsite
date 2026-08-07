@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { IconArrowUpRight, IconX, IconBrandLinkedin } from "@tabler/icons-react";
+import { IconArrowUpRight, IconDots, IconBrandLinkedin } from "@tabler/icons-react";
 import type { Locale } from "@/i18n/config";
 import {
   type Lead,
@@ -312,7 +312,7 @@ export function TableView({
                     <div className="flex min-w-0 items-center gap-1.5">
                       <button
                         onClick={() => onOpen(lead.id)}
-                        className="block min-w-0 flex-1 truncate text-left font-medium text-[var(--fg)] hover:underline"
+                        className="flex min-h-6 min-w-0 flex-1 items-center truncate text-left font-medium text-[var(--fg)] hover:underline"
                         title={lead.firma}
                       >
                         {lead.firma}
@@ -407,8 +407,22 @@ export function TableView({
                   </td>
                   {/* Odnośnik (Cmd+klik = nowa karta) i usuwanie mają własne
                       zachowanie — zdarzenie zostaje w tej komórce. */}
+                  {/* Kolumna akcji, wzorem Lineara (decyzja właściciela
+                      2026-08-07). Do tej pory stał tu GOŁY ✕ „Usuń" — 14×14,
+                      22,5 px od „Otwórz profil", czyli akcja niszcząca sklejona
+                      z akcją używaną najczęściej. Była przy tym DUPLIKATEM:
+                      to samo „Usuń" siedzi w menu pod prawym przyciskiem
+                      (`LeadContextMenu`), razem z kopiowaniem i statusami.
+
+                      Dlatego ✕ znika, a wchodzi „…", które otwiera TO SAMO
+                      menu — czyli droga do usuwania działa też palcem, gdzie
+                      prawego przycisku nie ma. Problem sąsiedztwa rozwiązuje
+                      się sam: w kolumnie zostają dwie BEZPIECZNE ikony.
+
+                      Bez `gap`: obie mają pudełko 24×24, więc ich środki dzieli
+                      dokładnie 24 px — ta sama recepta co na kartach Projektów. */}
                   <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center">
                       <Link
                         href={`/${lang}/admin/leads/${lead.id}`}
                         onClick={(e) => {
@@ -416,18 +430,19 @@ export function TableView({
                           e.preventDefault();
                           onOpen(lead.id);
                         }}
-                        className="flex cel-dotykowy text-muted hover:text-[var(--fg)]"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-[var(--fg)]"
                         title="Otwórz profil"
                       >
                         <IconArrowUpRight size={15} />
                       </Link>
                       <button
-                        onClick={() => onDelete(lead.id, lead.firma)}
-                        className="flex text-muted hover:text-red-400"
-                        aria-label={`Usuń ${lead.firma}`}
-                        title="Usuń"
+                        onClick={(e) => ctl.openAt(e, lead)}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center text-muted hover:text-[var(--fg)]"
+                        aria-label={`Więcej działań — ${lead.firma}`}
+                        aria-haspopup="menu"
+                        title="Więcej"
                       >
-                        <IconX size={14} />
+                        <IconDots size={15} />
                       </button>
                     </div>
                   </td>
