@@ -471,7 +471,12 @@ function ShellBody({ lang, children }: { lang: Locale; children: React.ReactNode
         className="glass glass-ios sticky top-0 z-30 flex min-h-12 items-center gap-2 border-x-0 border-t-0 border-b border-b-[var(--glass-border)] px-3 md:hidden"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <Link href={base} prefetch={false} className="flex min-w-0 items-center gap-1.5">
+        {/* `min-h-6` — próg 24×24 obowiązuje w CAŁYM panelu, także w chrome.
+            Znak wracał na Pulpit z celu 19,5 px wysokości i było to widać
+            WYŁĄCZNIE na szerokości telefonu (na desktopie ten pasek jest
+            ukryty, `md:hidden`). Najbliższa kontrolka jest 160 px dalej, więc
+            nie ma tu ryzyka przechwycenia kliknięcia. */}
+        <Link href={base} prefetch={false} className="flex min-h-6 min-w-0 items-center gap-1.5">
           <LogoMark size={18} />
           <span style={HUB_WORDMARK_STYLE} className="truncate text-[13px] font-bold uppercase tracking-[0.12em]">
             Leggera Hub

@@ -199,3 +199,33 @@ mają pudełko `::before`):
 
 Czeka na Twój palec przy etapie 5. Jak trafisz obok choć raz — poprawka to
 rozsunięcie kart o 4 px.
+
+### Domiar na szerokości telefonu (390 px)
+
+Sprawdzenie po wdrożeniu, na prośbę właściciela. **Zmiany trzymają się na wąskim
+ekranie** — 36 wyzwalaczy na Tablicy Projektów, żaden nie ściśnięty (`shrink-0`
+działa), 0 kolizji, nigdzie nie przewija w bok. To nie jest oczywiste: przy
+`flex` bez `shrink-0` pudełko 24×24 daje się zgnieść do 17 px i poprawka znika
+bez śladu w kodzie.
+
+**Telefon pokazał dwa cele, których desktop NIE pokazywał** — oba naprawione:
+
+| co | gdzie | było | jest |
+|---|---|---|---|
+| nagłówek „Wymaga działania dziś" (jest rozwijaczem listy) | Leady | 18,8 px | **24** |
+| znak „Leggera Hub" w pasku | każdy ekran | 19,5 px | **24** |
+
+Pierwszy należał do listy, którą właśnie poprawialiśmy. Drugi to chrome, ale
+próg obowiązuje w CAŁYM panelu, a najbliższa kontrolka jest 160 px dalej, więc
+nie było tu czego rozstrzygać — sam pomiar wystarczył. Oba są widoczne wyłącznie
+na telefonie, bo górny pasek panelu ma `md:hidden`.
+
+**Wynik końcowy przy 390 px — celów poniżej progu:**
+
+| ekran | wynik |
+|---|---|
+| Pulpit · Leady · Projekty · Poczta | **0** |
+
+**Lekcja, która się powtórzy:** desktop nie wystarcza. To trzeci raz w tym
+tygodniu, gdy wąski ekran pokazał usterkę niewidoczną na szerokim (wcześniej:
+przycisk Poczty 97 px poza ekranem i ucięta nazwa klienta w apce).

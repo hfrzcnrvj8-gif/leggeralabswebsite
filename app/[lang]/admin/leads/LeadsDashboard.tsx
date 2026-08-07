@@ -758,7 +758,12 @@ export function LeadsDashboard({ lang }: { lang: Locale }) {
         <div className="mb-4 rounded-lg border border-orange-500/25 bg-orange-500/[0.04] p-3">
           <button
             onClick={() => setOverdueRozwiniete((v) => !v)}
-            className="mb-1.5 flex w-full items-center gap-1.5 text-left text-[12.5px] font-medium text-orange-400"
+            // `min-h-6` — nagłówek TEJ listy jest jej rozwijaczem, więc podlega
+            // temu samemu progowi co wiersze pod nim (decyzja właściciela
+            // 2026-08-07, p. 3). Na desktopie miał 24 px sam z siebie; na
+            // szerokości telefonu spadał do 18,8 px i wyszło to dopiero
+            // w sondzie przy 390 px.
+            className="mb-1.5 flex min-h-6 w-full items-center gap-1.5 text-left text-[12.5px] font-medium text-orange-400"
             disabled={overdue.length <= OVERDUE_SKROT}
           >
             Wymaga działania dziś
