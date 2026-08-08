@@ -266,9 +266,19 @@ problem jest w cenie pierwszego stopnia albo w ryzyku, które zostawiasz kliento
 - **Nie rób darmowych wdrożeń „na portfolio".** Darmowa mapa procesu — tak.
   Darmowa robota — nie: klient, który nie zapłacił, nie znajdzie czasu na
   wdrożenie, a Ty stracisz miesiąc.
-- **Nie rejestruj firmy przed pierwszym „tak"** — ale zarejestruj ją **w dniu**,
-  w którym padnie. JDG zakłada się w jeden dzień; masz checklistę w
-  `PO_REJESTRACJI.md` (18 punktów, w tym KSeF test → produkcja i Vercel Pro).
+- **Nie rejestruj firmy przed pierwszym zainteresowaniem** — ale zarejestruj ją,
+  **zanim wyślesz pierwszą ofertę**, nie dopiero przed fakturą. Powód jest
+  twardy i zmierzony w kodzie 2026-08-08: bramka wysyłki traktuje **brak NIP-u
+  wystawcy jako BLOKADĘ**, a nie ostrzeżenie (`lib/bramkaWysylki.ts`,
+  `wystawca-bez-nip`). Blokady **nie da się przejść** — trasa oddaje 400, nie
+  ma „wyślij mimo to". Czyli: rozmowy i mapy procesu robisz bez firmy,
+  ale **pierwsza oferta z panelu nie wyjdzie bez NIP-u**.
+  JDG zakłada się w jeden dzień; checklista: `PO_REJESTRACJI.md` (18 punktów,
+  w tym KSeF test → produkcja i Vercel Pro).
+  *Wariant awaryjny, gdyby okazja przyszła szybciej niż rejestracja:* pierwsza
+  oferta poza panelem, zwykłym PDF-em. Działa, ale tracisz cały łańcuch
+  (oferta → akceptacja → umowa → projekt → faktura) i wpisujesz to potem
+  ręcznie. Traktuj to jako wyjątek na jeden raz, nie jako sposób pracy.
 - **Nie obiecuj terminu, którego nie dotrzymasz na pewno.** Na starcie Twoja
   punktualność jest jedyną referencją, jaką masz.
 - **Nie zaczynaj od czterech segmentów naraz.** Patrz tabela na górze.
