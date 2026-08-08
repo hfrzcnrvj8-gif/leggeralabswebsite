@@ -196,6 +196,38 @@ wymienia. Trzy rzeczy do dopisania jednym ruchem z prawnikiem:
   deterministyczne (stałe w `lib/leadHunter.ts`), a każdą decyzję „odzywamy się
   / nie odzywamy" podejmuje człowiek ręcznie.
 
+### 2.1c. ⚠️ Zimny kontakt handlowy — CZY i W JAKIEJ FORMIE wolno (2026-08-08)
+
+**Dlaczego to pytanie powstało:** właściciel zaczyna zdobywać pierwszych
+klientów (`docs/PLAN-PIERWSI-KLIENCI.md`) i część planu opiera się na
+odezwaniu się do firm, które o kontakt nie prosiły. Punkt 2.1b pyta o dane
+z CEIDG — **to jest pytanie o co innego: nie o pozyskanie danych, tylko
+o samo wysłanie wiadomości.**
+
+Do rozstrzygnięcia, konkretnie:
+
+- **E-mail.** Informacja handlowa drogą elektroniczną wymaga co do zasady zgody
+  odbiorcy (art. 10 ustawy o świadczeniu usług drogą elektroniczną, plus
+  przepisy o komunikacji elektronicznej). Pytanie: czy i pod jakimi warunkami
+  wolno napisać do firmowego adresu (`biuro@`, `kontakt@`) opublikowanego przez
+  samą firmę — i czy adres imienny (`jan.kowalski@`) traktujemy inaczej.
+- **Telefon.** To samo pytanie dla połączenia telefonicznego w celu
+  marketingowym — czy do numeru firmowego z publicznej strony wolno zadzwonić
+  bez wcześniejszej zgody.
+- **LinkedIn i inne komunikatory.** Czy wiadomość na LinkedInie podlega temu
+  samemu reżimowi co e-mail.
+- **Co MUSI być w treści pierwszej wiadomości**, żeby była zgodna — tożsamość
+  nadawcy, źródło danych, droga sprzeciwu. To domyka lukę z punktu 2.1b
+  (obowiązek informacyjny przy pierwszym kontakcie).
+- **Formy poza sporem** — polecenie, rozmowa na targach, odpowiedź na zapytanie
+  — prosimy o potwierdzenie, że są bezpieczne, bo na nich opiera się pierwszy
+  etap planu.
+
+**Praktyczny skutek dla panelu:** odpowiedź trafi do szablonu pierwszego maila
+(dziś takiego zdania nie ma) oraz do modułu Łowcy leadów, który przygotowuje
+kandydatów do kontaktu. **Do czasu odpowiedzi plan zaleca zaczynanie od poleceń
+i kontaktów własnych**, gdzie problem nie występuje.
+
 ### 2.2. Nota prawna / Impressum
 - **Gdzie:** `app/[lang]/impressum/page.tsx`
 - **Status:** treść i podstawa prawna są **poprawne** (polskie: art. 5 UŚUDE +
