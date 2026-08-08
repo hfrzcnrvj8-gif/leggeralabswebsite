@@ -2,9 +2,9 @@
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Panel: patrz `git log` (ostatni commit tej sesji). Apka na `f4def06`,
-> **nietykana**. `tsc` czysto · `npm test` **371/371** · `npm run przejscie`
-> **126 działa · 0 regresji** · `swift test` **16/16** (z poprzedniej sesji).
+> Panel na `39d460e`, apka na `e116be5` — **obie strony zmienione tego samego
+> dnia i wypchnięte**. `tsc` czysto · `npm test` **371/371** ·
+> `npm run przejscie` **126 działa · 0 regresji** · `swift test` **16/16**.
 >
 > ## Co zrobiono 2026-08-08
 >
@@ -26,6 +26,11 @@
 >    pokazała się sekcja Windykacja. Nic nie wychodzi do nikogo.
 > 3. **Wezwanie do zapłaty widać, ZANIM wyjdzie** — decyzja właściciela, opis
 >    niżej. To była jedyna rzecz z listy B, której **nie dało się wykonać**.
+>    Naprawione po OBU stronach: panel i apka (`e116be5`).
+>
+> **Otwarte punkty bez zmian — dalej czekają na właściciela:** kartka (etap 5),
+> Pulpit, kwadraciki na Tablicy, godziny automatów w UTC, `x-znany-stan`
+> w apce. Żadnego z nich ta sesja nie ruszyła.
 >
 > **Znalezisko warte zapamiętania:** krok 1 kartki prosił o wydrukowanie
 > wezwania, a wydruku nie dało się otworzyć — `DunningPrint` odmawiał bez
@@ -123,6 +128,32 @@ tymczasowym zdjęciu `AND i.wezwanie_wystawiono_at IS NOT NULL` z trasy
 publicznej ten sam token oddał **200 zamiast 404** — czyli zdanie naprawdę
 potrafi się zaczerwienić. Warunek przywrócony, `git diff` na trasie pusty.
 Zielone zdanie, którego nikt nie próbował zepsuć, niczego nie pilnuje.
+
+**Apka dogoniła tego samego dnia** (`e116be5`, `swift test` 16/16, obejrzane na
+symulatorze przeciwko lokalnemu panelowi). Telefon miał dokładnie tę samą
+dziurę: sekcja „Wezwanie czeka na Twoją decyzję" pokazywała, DO KOGO i ZA CO
+pismo idzie, ale nie CO. Podgląd idzie tą samą drogą co oferta/umowa/faktura
+(`RodzajDokumentu.wezwanie` → strona wydruku panelu przez mostek auth), więc
+nie ma drugiej kopii dokumentu w Swifcie. Dwa wejścia: Pulpit („Zobacz pismo")
+i profil faktury („Zobacz wezwanie do zapłaty").
+
+**Dwie rzeczy z apki warte pamięci — obie kosztowały rundę:**
+
+1. **Trzy pastylki nie mieszczą się w wierszu na iPhonie.** Zmierzone przy
+   402 pt: „Otwórz fakturę" łamała napis na dwie linie i była wyższa od
+   sąsiadek. Stąd `ViewThatFits` — rząd, gdy się mieści, inaczej dwa. Warianty
+   **muszą być bez `Spacer`**: rozciągliwy odstęp „mieści się" zawsze, więc
+   pierwszy wariant wygrywałby także wtedy, gdy napisy się łamią. To trzeci
+   raz w tym tygodniu, gdy wąski ekran pokazał coś, czego iPad nie pokazał.
+2. **Furtka weryfikacyjna nie pozwalała zweryfikować ŻADNEGO podglądu
+   dokumentu.** `LEGGERA_DEV_TOKEN` trzyma sesję w pamięci `APIClient`,
+   a `WidokWebowy` czyta token z Keychaina — więc oferta, umowa, faktura
+   i wezwanie pokazywały „Zaloguj się. Wymaga zalogowanego urządzenia."
+   Wyglądało to na usterkę sprawdzanego ekranu, a było brakiem w narzędziu.
+   **Pierwsza poprawka była gorsza od usterki**: zapis tokenu z furtki do
+   Keychaina zostawiał go tam po weryfikacji, więc następny start bez furtki
+   wchodził „zalogowany" ze śmieciem i wypadał na 401. Wycofane; dziś
+   `tokenFurtki` to fallback w samym widoku, tylko DEBUG.
 
 **Pułapka środowiska złapana po drodze** (dopisana do `CLAUDE.md`): `tsc` ma
 `incremental: true` i po naprawieniu kolizji nazw dalej pokazywał JEDNĄ stronę
