@@ -1499,16 +1499,21 @@ export function InvoiceEditor({
               ) : (
                 <p className="mb-2 text-[12px] text-muted">Jeszcze nic nie wysłano.</p>
               )}
-              {invoice.wezwanie_wystawiono_at && (
-                <a
-                  href={`/${lang}/admin/invoices/${id}/wezwanie/print`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)]"
-                >
-                  <IconExternalLink size={13} /> Podgląd wezwania do zapłaty
-                </a>
-              )}
+              {/* Link działa TAKŻE przed wysłaniem (2026-08-08). Wcześniej stał
+                  za `invoice.wezwanie_wystawiono_at &&`, więc pismo dało się
+                  zobaczyć dopiero po tym, jak poszło do klienta — a od decyzji
+                  o windykacji (wariant 2) to właśnie właściciel klika „wyślij"
+                  przy poziomie 3. Czytał wtedy dokument, którego nie widział.
+                  Przed wysłaniem etykieta mówi wprost, co się otworzy. */}
+              <a
+                href={`/${lang}/admin/invoices/${id}/wezwanie/print`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-xs text-muted hover:text-[var(--fg)]"
+              >
+                <IconExternalLink size={13} />
+                {invoice.wezwanie_wystawiono_at ? "Podgląd wezwania do zapłaty" : "Zobacz wezwanie przed wysłaniem"}
+              </a>
               {/* Wezwanie ma WŁASNY token, osobny od faktury (Moduł 13) —
                   więc i własne unieważnienie. Unieważnienie faktury go nie
                   rusza i odwrotnie. */}

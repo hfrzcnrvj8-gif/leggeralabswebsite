@@ -1938,6 +1938,25 @@ async function drogaPorazki(umowaGlownaId: string, projektGlownyId: string): Pro
     undefined,
     `${fvId} nadal prosi o decyzję, mimo reminder_level = 3`
   );
+
+  // ── Podgląd wezwania przed wysłaniem (2026-08-08) ────────────────────────
+  //
+  // Panel pokazuje teraz to pismo, ZANIM wyjdzie — właściciel, którego wariant 2
+  // prosi o kliknięcie, ma najpierw przeczytać, co podpisuje. Publicznego linku
+  // ta zmiana nie dotyczy i to jest cała treść poniższego zdania: gdyby ktoś
+  // „poprawił" trasę publiczną tak samo jak wydruk panelowy (bliźniaki już raz
+  // się rozjechały — pozycja faktury kontra pozycja oferty, etap 3), dłużnik
+  // zobaczyłby wezwanie, którego nikt mu nie wysłał, i to z sygnaturą oraz datą.
+  // `fvPulpitId` jest tu właściwą fakturą: po terminie, wezwanie NIEwysłane.
+  const linkWezwania = await api("POST", `/api/share-links/wezwanie/${fvPulpitId}`, { action: "ensure" });
+  const tokenWezwania = linkWezwania.dane?.token as string | undefined;
+  const wezwaniePubliczne = tokenWezwania ? await api("GET", `/api/invoices/wezwanie/public/${tokenWezwania}`) : null;
+  sprawdz(
+    "publiczny link NIE pokazuje wezwania, które jeszcze nie wyszło",
+    wezwaniePubliczne?.status === 404,
+    undefined,
+    tokenWezwania ? `→ ${wezwaniePubliczne?.status}` : `token nie powstał (→ ${linkWezwania.status})`
+  );
 }
 
 // ── Sonda: etykieta kontra slug ────────────────────────────────────────────

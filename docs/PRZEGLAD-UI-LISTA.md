@@ -2,6 +2,13 @@
 
 **Powstała:** 2026-08-06, po etapie 3. Etap 4 z `docs/PLAN-DOMKNIECIA.md`.
 
+> **Idziesz to przejść? Nie czytaj tego pliku — weź `docs/PRZEGLAD-KARTKA.md`.**
+> Tam jest sam wsad (trzynaście punktów i dwa pytania), w kolejności wykonania,
+> na jedną stronę. **Ten plik jest materiałem dowodowym**: co zmierzone, czym
+> i z jakim wynikiem. Zostaje, bo do niego się wraca, gdy kartka wydaje się
+> zbyt skrótowa — ale czytanie 313 linii przed pracą jest dokładnie tą
+> przeszkodą, przez którą lista stała nietknięta.
+
 ---
 
 ## Najpierw: zakres się ZMNIEJSZYŁ i to jest dobra wiadomość

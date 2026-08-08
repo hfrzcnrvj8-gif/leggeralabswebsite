@@ -1928,6 +1928,22 @@ starcie tego czatu:
   realnym wystawieniu, `wezwanie_wystawiono_at` ustawione). Jak przy
   Umowach — treść to **roboczy szablon** (`DUNNING_LEGAL_NOTE`), wymaga
   weryfikacji prawnej przed użyciem z prawdziwym klientem.
+- **Podgląd DZIAŁA TAKŻE PRZED WYSŁANIEM** (2026-08-08, decyzja właściciela) —
+  i to są w istocie DWIE różne reguły, których nie wolno zlać w jedną:
+  **panel pokazuje**, bo właściciel ma przeczytać, co podpisuje (windykacja
+  wariantu 2 czeka na jego kliknięcie przy poziomie 3, a do tego dnia prosiła
+  o nie pod dokumentem niemożliwym do zobaczenia — jedyne miejsce ustawiające
+  `wezwanie_wystawiono_at` to trasa wysyłki, linijkę PO `sendEmail`);
+  **publiczny link dalej odmawia**, bo dłużnikowi nie pokazuje się pisma,
+  którego nikt mu nie wysłał. Wydruk w trybie podglądu ma datę i odsetki
+  policzone NA DZIŚ oraz przerywaną ramkę „PODGLĄD" — **zostającą na papierze**,
+  żeby wydruk próbny nie był nie do odróżnienia od pisma wysłanego. Sygnatura
+  jest ta sama w obu trybach (`dunningReference()` liczy ją z `id` i
+  `created_at` faktury). Warunku `wezwanie_wystawiono_at IS NOT NULL` w trasie
+  publicznej **nie zdejmuj** — pilnuje go zdanie w `npm run przejscie`
+  („publiczny link NIE pokazuje wezwania, które jeszcze nie wyszło"),
+  sprawdzone kontrolnie tymczasowym cofnięciem warunku (bez niego trasa oddaje
+  200 zamiast 404).
 - **Odsetki ustawowe** — opcjonalne, wyliczane automatycznie
   (`lateInterestAmount()`: kwota × stawka/100 × dni/365) od kwoty **i
   liczby dni opóźnienia**, ale stawka wejściowa (`company_settings.

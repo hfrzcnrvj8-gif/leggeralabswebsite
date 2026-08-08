@@ -320,6 +320,18 @@ czekaj na Vercel → zgaduj"):
 - `npx tsc --noEmit -p tsconfig.json` to jedyna realna weryfikacja w tym
   środowisku — pełny `next build` failuje z EPERM w sandboxie. Uruchamiaj
   po każdej paczce zmian.
+- **`tsc` potrafi pokazać błąd, którego już nie ma** — `tsconfig.json` ma
+  `incremental: true`, więc wynik idzie częściowo z `tsconfig.tsbuildinfo`.
+  Zdarzyło się (2026-08-08), że po naprawieniu kolizji nazw `tsc` dalej
+  wskazywał JEDNĄ stronę konfliktu, choć druga była już modułem — a plik,
+  w którym siedziała przyczyna, zniknął z listy. Objaw: błąd nie znika po
+  poprawce albo wskazuje nie ten plik. `rm -f tsconfig.tsbuildinfo`, potem
+  jeszcze raz. **Nie szukaj wtedy drugiej przyczyny w kodzie.**
+- **Nowy skrypt w `scripts/` bez `import`/`export` trafia do zasięgu
+  GLOBALNEGO** i zderza się nazwami z pozostałymi (`przejscie.ts` deklaruje
+  m.in. `BAZA`, `DANE_FIRMY`, `api`, `id`, `zaDni`, `wymagaj`). `tsx` uruchamia
+  taki plik bez mrugnięcia, bo esbuild kompiluje plik po pliku — widać to
+  wyłącznie w `tsc`. Kończ każdy nowy skrypt `export {};`.
 
 ## Świadome decyzje produktowe (nie cofaj bez pytania)
 
@@ -364,6 +376,17 @@ czekaj na Vercel → zgaduj"):
   tak jak rozjechały się bliźniacze sprawdzenia pozycji faktury i oferty
   w etapie 3. Sufit dotyczy WYŁĄCZNIE automatu — `poziomyWindykacji()` dalej
   pozwala właścicielowi wysłać poziom 3 ręcznie, i tak ma zostać.
+  **Domknięcie tej decyzji (2026-08-08): pismo widać, ZANIM wyjdzie.**
+  `DunningPrint.tsx` renderuje wezwanie także bez `wezwanie_wystawiono_at` —
+  z datą i odsetkami na dziś oraz przerywaną ramką „PODGLĄD", która **zostaje
+  na wydruku** (kartka próbna nie może być nie do odróżnienia od pisma, które
+  poszło). Bez tego panel prosił o kliknięcie pod dokumentem, którego nie dało
+  się przeczytać: tę kolumnę ustawia wyłącznie trasa wysyłki, linijkę PO
+  `sendEmail`. **Trasa publiczna to OSOBNA reguła i zostaje bez zmian** —
+  `AND i.wezwanie_wystawiono_at IS NOT NULL` pilnuje, żeby dłużnik nie zobaczył
+  pisma, którego nikt mu nie wysłał; strzeże tego zdanie w `npm run przejscie`.
+  Dokładając podgląd innego dokumentu wychodzącego, przyłóż go do tej pary:
+  **właścicielowi pokazujemy przed wysłaniem, drugiej stronie dopiero po.**
 - **Co nieodwracalne — pyta, co odwracalne — nie pyta** (Faza 4 zaplecza,
   2026-08-02, `lib/nieodwracalne.ts`). Jawna lista działań nieodwracalnych
   z dwoma poziomami: *zwykłe* (okno „Na pewno?") i *mocne* (przepisanie frazy

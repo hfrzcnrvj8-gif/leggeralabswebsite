@@ -1,10 +1,43 @@
-# Handoff — stan na 2026-08-07, po windykacji i decyzjach wizualnych
+# Handoff — stan na 2026-08-08, po kartce do przeglądu i podglądzie wezwania
 
 > **PLAN NA NASTĘPNY CZAT — czytaj to najpierw.**
 >
-> Panel na `594329c`, apka na `f4def06`. Oba drzewa czyste, wszystko
-> wypchnięte. `tsc` czysto · `npm test` **371/371** · `npm run przejscie`
-> **125 działa · 0 regresji** · `swift test` **16/16**.
+> Panel: patrz `git log` (ostatni commit tej sesji). Apka na `f4def06`,
+> **nietykana**. `tsc` czysto · `npm test` **371/371** · `npm run przejscie`
+> **126 działa · 0 regresji** · `swift test` **16/16** (z poprzedniej sesji).
+>
+> ## Co zrobiono 2026-08-08
+>
+> Właściciel zapytany o obie rzeczy z poprzedniego planu — **odpowiedział „nie"
+> na obie**: z nowym Pulpitem jeszcze nie pracował, listy B nie przechodził.
+> Czyli wszystkie cztery otwarte punkty dalej czekają na niego, a nie na kod.
+> **Zapytaj ponownie na starcie** — cofnięcie hierarchii Pulpitu jest wciąż tanie.
+>
+> 1. **`docs/PRZEGLAD-KARTKA.md` — cały wsad etapu 5 na jedną stronę.**
+>    Czternaście punktów i dwa pytania, w kolejności wykonania (wydruk najpierw,
+>    bo drukarka mieli w tle), plus sekcja „czego świadomie NIE sprawdzasz".
+>    Powód: `PRZEGLAD-UI-LISTA.md` ma 313 linii, z czego jego było trzynaście
+>    checkboksów rozrzuconych między akapitami o tym, co JUŻ zmierzone — żeby
+>    wiedzieć, czego nie robić, trzeba było przeczytać wszystko. Stara lista
+>    zostaje jako materiał dowodowy i ma na górze wskaźnik do kartki.
+> 2. **`npm run wydruki`** (`scripts/wydruki/przygotuj.ts`) — zakłada w lokalnej
+>    bazie komplet do wydrukowania (oferta, **faktura na 15 pozycji**, umowa,
+>    wezwanie) i wypisuje cztery adresy. Faktura jest 25 dni po terminie, żeby
+>    pokazała się sekcja Windykacja. Nic nie wychodzi do nikogo.
+> 3. **Wezwanie do zapłaty widać, ZANIM wyjdzie** — decyzja właściciela, opis
+>    niżej. To była jedyna rzecz z listy B, której **nie dało się wykonać**.
+>
+> **Znalezisko warte zapamiętania:** krok 1 kartki prosił o wydrukowanie
+> wezwania, a wydruku nie dało się otworzyć — `DunningPrint` odmawiał bez
+> `wezwanie_wystawiono_at`, a jedyne miejsce ustawiające tę kolumnę to trasa
+> wysyłki, **linijkę po `sendEmail`**. Żeby zobaczyć pismo, trzeba było je
+> najpierw wysłać klientowi. Stało to w sprzeczności z windykacją wariantu 2
+> (2026-08-07): poziom 3 czeka na kliknięcie właściciela właśnie dlatego, że to
+> pismo o dużym ciężarze — a panel prosił o to kliknięcie pod dokumentem, którego
+> nie dało się przeczytać. Apka dołożyła nawet przycisk „Otwórz fakturę", żeby
+> było widać, DO KOGO to idzie; **co** idzie, nie było widać nigdzie.
+> **Lekcja ogólniejsza: przy każdej bramce „to wymaga Twojej decyzji" sprawdź,
+> czy panel pokazuje to, o czym każe decydować.**
 >
 > **W tym czacie zamknięto DWIE rzeczy, obie decyzją właściciela:**
 > windykację (wariant 2) oraz trzy pytania wizualne z etapu 4 (warianty „1 i 1",
@@ -30,16 +63,17 @@
 > obejrzana w symulatorze przeciwko lokalnemu panelowi. Nic z tej decyzji nie
 > zostało otwarte.
 >
-> **REKOMENDOWANY PIERWSZY RUCH: zapytaj właściciela o Pulpit** (patrz wyżej)
-> i o zgłoszenia z `docs/PRZEGLAD-UI-LISTA.md`. Obie rzeczy blokują robotę,
-> której nie da się zrobić bez niego, a reszta DROGI B to decyzje, nie kod.
+> **REKOMENDOWANY PIERWSZY RUCH: zapytaj właściciela o Pulpit i o kartkę** —
+> czy przeszedł `docs/PRZEGLAD-KARTKA.md`. Obie rzeczy blokują robotę, której
+> nie da się zrobić bez niego, a reszta DROGI B to decyzje, nie kod.
+> **Nie rób kartki drugi raz i nie odsyłaj go do `PRZEGLAD-UI-LISTA.md`** —
+> ten plik jest dowodami, kartka jest robotą.
 >
 > **DROGA A — etap 5 (poprawki ze zgłoszeń).** Wymaga, żeby właściciel
-> najpierw przeszedł to, co mu zostało w `docs/PRZEGLAD-UI-LISTA.md`:
-> B1 (drugi i trzeci punkt), B2 na wdrożonym panelu, B3 na PAPIERZE, B4 palcem
-> na telefonie i iPadzie, oraz **jedno pytanie z B6** (czy dokument
-> pomniejszony na telefonie do 49% przeszkadza). Bez tych zgłoszeń etap 5 nie
-> ma wsadu. **Zapytaj o nie na starcie czatu.**
+> najpierw przeszedł kartkę: wydruki na PAPIERZE (`npm run wydruki` zakłada
+> komplet), pięć minut na wdrożonym panelu, trzy pytania o to, czy widać, że
+> coś się dzieje, i telefon plus iPad palcem. Bez tych zgłoszeń etap 5 nie ma
+> wsadu. **Zapytaj o nie na starcie czatu.**
 >
 > **DROGA B — decyzje, które czekają i nie zależą od etapu 5:**
 > 1. **Kwadraciki na kartach Tablicy** — jedyna niedomknięta z czterech decyzji
@@ -58,6 +92,45 @@
 > **Czego NIE robić:** wszystkiego z sekcji „Czego NIE zaczynać bez wyraźnej
 > prośby" na końcu tego pliku, i nie przechodzić ręcznie tego, co robi
 > `npm run przejscie`.
+
+---
+
+## Podgląd wezwania przed wysłaniem — 2026-08-08
+
+Decyzja właściciela po przedstawieniu znaleziska. **Dwie osobne reguły, których
+nie wolno zlać w jedną:**
+
+| kto | co widzi | dlaczego |
+|---|---|---|
+| właściciel (panel) | pismo **także przed wysłaniem** | ma przeczytać, co podpisuje |
+| dłużnik (link publiczny) | **dopiero po wysłaniu** | nie pokazuje się pisma, którego nikt nie wysłał |
+
+Zmiana jest mała i mieszka w trzech miejscach: `DunningPrint.tsx` (stan
+`podglad`, data i odsetki **na dziś**, przerywana ramka „PODGLĄD"),
+`InvoiceEditor.tsx` (link bez warunku, etykieta „Zobacz wezwanie przed
+wysłaniem") oraz jedno zdanie w `npm run przejscie`. Trasy `remind` **nie
+ruszano** — wysyłka działa dokładnie tak samo.
+
+**Ramka „PODGLĄD" zostaje na wydruku świadomie** (bez `print:hidden`): kartka
+wyjęta z drukarki nie może być nie do odróżnienia od pisma, które naprawdę
+poszło do klienta. Ramka przerywana, nie tło — silniki wydruku teł nie malują.
+
+**Sygnatura jest ta sama w podglądzie i po wysłaniu** — `dunningReference()`
+liczy ją z `id` i `created_at` faktury, więc podgląd nie kłamie numerem.
+
+**Zdanie w przejściu sprawdzone kontrolnie, nie tylko napisane.** Po
+tymczasowym zdjęciu `AND i.wezwanie_wystawiono_at IS NOT NULL` z trasy
+publicznej ten sam token oddał **200 zamiast 404** — czyli zdanie naprawdę
+potrafi się zaczerwienić. Warunek przywrócony, `git diff` na trasie pusty.
+Zielone zdanie, którego nikt nie próbował zepsuć, niczego nie pilnuje.
+
+**Pułapka środowiska złapana po drodze** (dopisana do `CLAUDE.md`): `tsc` ma
+`incremental: true` i po naprawieniu kolizji nazw dalej pokazywał JEDNĄ stronę
+konfliktu, a plik z przyczyną zniknął z listy. `rm -f tsconfig.tsbuildinfo`
+i od nowa. Sama kolizja to druga rzecz warta pamięci: **nowy skrypt w
+`scripts/` bez `import`/`export` żyje w zasięgu globalnym** i zderza się
+nazwami z `przejscie.ts` (`BAZA`, `api`, `id`, `zaDni`…). `tsx` uruchamia go
+bez mrugnięcia — widać to wyłącznie w `tsc`. Kończ skrypty `export {};`.
 
 ---
 

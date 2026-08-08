@@ -15,7 +15,7 @@ import {
   formatMoney,
   DUNNING_LEGAL_NOTE,
 } from "@/lib/invoices";
-import { odmienPl } from "@/lib/dates";
+import { odmienPl, todayLocalISO } from "@/lib/dates";
 import { docDate, DOC_GRADIENT } from "@/lib/documents";
 import { PasekMarkiDokumentu, KwotaGradientem } from "../../../../DocGradient";
 import { DocLogoMark } from "../../../../DocLogoMark";
@@ -29,13 +29,26 @@ type DunningInvoice = Invoice & { brutto: number; poprzednie_wiadomosci?: number
 /** Podgląd/wydruk formalnego wezwania do zapłaty (Moduł 13, poziom 3
  * eskalacji windykacji) — ten sam premium styl co ContractPrint.tsx, bez
  * sekcji e-podpisu (wezwanie to jednostronne oświadczenie, nie dokument do
- * kontrasygnaty). Dwa tryby wejścia: `id` (panel admina, wymaga
- * `wezwanie_wystawiono_at`) i `token` (publiczny podgląd bez logowania, link
- * wysyłany mailem — patrz app/[lang]/wezwanie/[token]). */
+ * kontrasygnaty). Dwa tryby wejścia: `id` (panel admina — działa TAKŻE przed
+ * wysłaniem, patrz `podglad` niżej) i `token` (publiczny podgląd bez
+ * logowania, link wysyłany mailem — patrz app/[lang]/wezwanie/[token]). */
 export function DunningPrint({ id, token }: { id?: string; token?: string }) {
   const [invoice, setInvoice] = useState<DunningInvoice | null>(null);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [notFound, setNotFound] = useState(false);
+  /** Pismo pokazane ZANIM wyszło do klienta (2026-08-08, decyzja właściciela).
+   *  Do tego dnia ten widok odmawiał bez `wezwanie_wystawiono_at`, a jedynym
+   *  miejscem, które tę kolumnę ustawia, jest trasa wysyłki — linijkę PO
+   *  `sendEmail`. Czyli żeby zobaczyć wezwanie, trzeba było je najpierw wysłać.
+   *  Stało to w sprzeczności z windykacją wariantu 2 (2026-08-07): poziom 3
+   *  czeka na kliknięcie właściciela właśnie dlatego, że to pismo o dużym
+   *  ciężarze — a panel prosił o to kliknięcie pod dokumentem, którego nie dało
+   *  się przeczytać. Sygnatura (`dunningReference`) liczy się z `id` i
+   *  `created_at` faktury, więc podgląd pokazuje TĘ SAMĄ, co pismo wysłane.
+   *  Tryb `token` zostaje bez zmian — publiczna trasa filtruje
+   *  `wezwanie_wystawiono_at IS NOT NULL` i klient nie może zobaczyć pisma,
+   *  które jeszcze nie wyszło (zdanie kontrolne w `npm run przejscie`). */
+  const [podglad, setPodglad] = useState(false);
   // 410 z trasy publicznej = link unieważniony (Moduł 40) — inny ekran niż
   // "nie znaleziono", bo dokument istnieje, tylko dostęp odebrano.
   const [revoked, setRevoked] = useState(false);
@@ -67,10 +80,11 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
       fetch("/api/settings").then((r) => (r.ok ? r.json() : { settings: null })),
     ])
       .then(([invoiceData, settingsData]) => {
-        if (!invoiceData.invoice?.wezwanie_wystawiono_at) {
+        if (!invoiceData.invoice) {
           setNotFound(true);
           return;
         }
+        setPodglad(!invoiceData.invoice.wezwanie_wystawiono_at);
         const brutto = invoiceTotals(invoiceData.items as InvoiceItem[]).brutto;
         setInvoice({ ...invoiceData.invoice, brutto });
         setSettings(settingsData.settings);
@@ -82,6 +96,11 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
   if (notFound) return <div className="p-10 text-center text-gray-600">Nie znaleziono wezwania.</div>;
   if (!invoice) return <div className="p-10 text-center text-gray-400">Wczytywanie…</div>;
 
+  // Data pisma: wystawione ma swoją, podgląd pokazuje dzisiejszą — bo dokładnie
+  // taka na nim stanie, jeśli właściciel kliknie „wyślij" dziś. Data LOKALNA,
+  // nie `toISOString()`: ta druga jest w UTC i po 22:00 naszego czasu wypisałaby
+  // na piśmie dzień następny.
+  const dataPisma = invoice.wezwanie_wystawiono_at ?? todayLocalISO();
   const dni = daysOverdue(invoice) ?? 0;
   const odsetki = lateInterestAmount(invoice.brutto, settings?.stawka_odsetek_ustawowych ?? null, dni);
   const reference = dunningReference(invoice.id, invoice.created_at);
@@ -129,6 +148,20 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
         <PasekMarkiDokumentu id="pasek-wezwanie" />
 
         <div className="flex flex-1 flex-col p-10">
+          {/* Znacznik podglądu ZOSTAJE NA WYDRUKU (świadomie bez `print:hidden`).
+              Kartka wyjęta z drukarki musi się różnić od pisma, które naprawdę
+              poszło do klienta — inaczej podgląd wydrukowany „na próbę" leży
+              w teczce nie do odróżnienia od oryginału. Ramka przerywana zamiast
+              tła: silniki wydruku teł nie malują, a obrys i tekst rysują się
+              zawsze (patrz sekcja o dokumentach w CLAUDE.md). */}
+          {podglad && (
+            <div className="mb-8 flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-lg border border-dashed border-neutral-400 px-4 py-2.5">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Podgląd</span>
+              <span className="text-[11.5px] text-neutral-600">
+                To pismo nie zostało jeszcze wysłane. Data wystawienia i odsetki są policzone na dziś.
+              </span>
+            </div>
+          )}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <DocLogoMark gradientId="dunningLogoGradient" />
@@ -143,7 +176,7 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
           <div className="mt-6 flex justify-end gap-8 text-neutral-500">
             <div>
               <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">Data wystawienia</div>
-              <div className="font-medium text-neutral-800">{docDate(invoice.wezwanie_wystawiono_at, "pl")}</div>
+              <div className="font-medium text-neutral-800">{docDate(dataPisma, "pl")}</div>
             </div>
             <div>
               <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">Dotyczy faktury</div>
@@ -241,7 +274,7 @@ export function DunningPrint({ id, token }: { id?: string; token?: string }) {
               <div className="text-[10px] uppercase tracking-[0.1em] text-neutral-400">W imieniu wierzyciela</div>
               <div className="mt-6 border-t border-neutral-300 pt-1.5 text-[11px] text-neutral-600">
                 {settings?.osoba_podpisujaca || settings?.nazwa || ""}
-                {invoice.wezwanie_wystawiono_at ? `, ${docDate(invoice.wezwanie_wystawiono_at, "pl")}` : ""}
+                {`, ${docDate(dataPisma, "pl")}`}
               </div>
             </div>
           </div>
